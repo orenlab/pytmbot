@@ -1,0 +1,8 @@
+{# templates/fs.jinja2 #}
+{{ thought_balloon }}Here is:
+{% for value in context %}
+    {{ floppy_disk }} Device name: {{ value['device_name'] }}:
+    {{ minus }} total use space: {{ value['used'] }}
+    {{ minus }} use percent: {{ value['percent'] }}%
+    {{ minus }} free space: {{ value['free'] }}
+{% endfor %}

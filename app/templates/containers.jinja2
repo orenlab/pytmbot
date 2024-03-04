@@ -1,0 +1,10 @@
+{# templates/containers.jinja2 #}
+{{ thought_balloon }}Here is:
+
+{% for value in context %}{{ luggage }} {{ value['name'] }}:
+    {{ minus }} Uptime: {{ value["Uptime"] }}
+    {{ minus }} Created: {{ value["Created"] }}
+    {{ minus }} Image: {{ value["Image"] }}
+    {{ minus }} Status: {{ value["Status"] }}
+
+{% endfor %}
