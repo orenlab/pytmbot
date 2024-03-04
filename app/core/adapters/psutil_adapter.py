@@ -10,11 +10,13 @@ import psutil
 class PsutilAdapter:
     @staticmethod
     def get_load_average():
-        return psutil.getloadavg()
+        data = psutil.getloadavg()
+        return data
 
     @staticmethod
     def get_memory():
-        return psutil.virtual_memory()
+        data = psutil.virtual_memory()
+        return data
 
     @staticmethod
     def get_swap_memory():
@@ -40,4 +42,4 @@ class PsutilAdapter:
 psutil_adapter = PsutilAdapter()
 
 if __name__ == '__main__':
-    print(psutil_adapter.get_sensors_temperatures())
+    print(psutil_adapter.get_sensors_fans())

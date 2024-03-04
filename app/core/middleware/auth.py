@@ -4,8 +4,6 @@ from telebot.types import Message
 from app import config, bot, build_logger
 from app.core.settings.message_tpl import MessageTpl
 
-log = build_logger(__name__)
-
 
 class AllowedUser(BaseMiddleware):
     def __init__(self) -> None:

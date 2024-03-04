@@ -58,6 +58,7 @@ To launch a Docker container:
 ```bash
   docker run -d -m 100M --restart=always --name=pytmbot orenlab/pytmbot:latest
 ```
+
 Docker image size ~80,5 Мб.
 
 ## 🛠 Logs
@@ -69,3 +70,8 @@ To access to bot logs, please run in terminal:
 ```
 
 Or use Docker Desktop (if run workstation)
+
+### Important!
+
+During the transition period, it is necessary to have the Glance application
+installed and running in Restful API mode.
