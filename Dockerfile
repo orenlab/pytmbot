@@ -38,7 +38,7 @@ RUN source /venv/bin/activate
 # update PATH environment variable
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV PYTHONPATH=/opt/pytelemonbot
+ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
 
 # Change TZ!
@@ -63,4 +63,4 @@ RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
 # !!! needed set pyTMBot mode:
 #   - dev
 #   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
