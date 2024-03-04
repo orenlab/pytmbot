@@ -61,4 +61,5 @@ I am a novice Python developer. This is my first publicly available project in t
 
 ## 📜 License
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/26a780c8cf704ef691985835aadd1aff)](https://app.codacy.com/gh/orenlab/pytmbot?utm_source=github.com&utm_medium=referral&utm_content=orenlab/pytmbot&utm_campaign=Badge_Grade)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
