@@ -6,9 +6,6 @@ __pycache__/
 #master config
 app/core/settings/bot_settings.py
 
-# pytelemonbot private log
-/app/logs/*
-
 # Env secrets
 .env
 
