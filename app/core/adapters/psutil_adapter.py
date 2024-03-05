@@ -8,38 +8,49 @@ import psutil
 
 
 class PsutilAdapter:
+    """Class to psutil communication with Telegram bot"""
+
     @staticmethod
     def get_load_average():
+        """Get the load average"""
         data = psutil.getloadavg()
         return data
 
     @staticmethod
     def get_memory():
+        """Get current memory usage"""
         data = psutil.virtual_memory()
         return data
 
     @staticmethod
     def get_swap_memory():
+        """Get swap memory usage"""
         return psutil.swap_memory()
 
     @staticmethod
     def get_disk_partition():
+        """Get disk partition list"""
         return psutil.disk_partitions()
 
     @staticmethod
     def get_disk_usage(partition_name: str):
+        """Get partition usage"""
         return psutil.disk_usage(partition_name)
 
     @staticmethod
     def get_sensors_temperatures():
+        """Get sensors temperatures"""
         return psutil.sensors_temperatures()
 
     @staticmethod
     def get_sensors_fans():
+        """Get sensors fans speed"""
         return psutil.sensors_fans()
 
 
 psutil_adapter = PsutilAdapter()
 
 if __name__ == '__main__':
-    print(psutil_adapter.get_sensors_fans())
+    a = psutil_adapter.get_memory()
+    print(a)
+    print(type(a))
