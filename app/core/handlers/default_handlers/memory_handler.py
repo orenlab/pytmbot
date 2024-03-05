@@ -13,6 +13,7 @@ from app.core.adapters.psutil_adapter import PsutilAdapter
 
 class MemoryHandler(Handler):
     """Class for handling memory usage"""
+
     def __init__(self, bot):
         """Initialize memory handler"""
         super().__init__(bot)

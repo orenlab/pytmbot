@@ -4,10 +4,11 @@ A simple Telegram bot designed to gather basic information about the status of y
 
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
+The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI)
+and [psutil](https://github.com/giampaolo/psutil) libraries.
 
-The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI) and [psutil](https://github.com/giampaolo/psutil) libraries.
-
-_Important! This bot is unofficial and was not written by Glances' authors!_
+__Important! During the transition period from Glances to PsUtil, 
+it is necessary to have the Glance application installed and running in Restful API mode.__
 
 ## 💡 Features
 
@@ -24,7 +25,8 @@ _Important! This bot is unofficial and was not written by Glances' authors!_
 
 ## 🪤 Requirements
 
-Initially, the bot was designed to ensure its correct operation only within the Docker container. I have not tested it running on a local system, either inside or outside a virtual environment.
+Initially, the bot was designed to ensure its correct operation only within the Docker container. I have not tested it
+running on a local system, either inside or outside a virtual environment.
 Therefore, please make sure that Docker is installed on your system.
 
 Full list of Python dependencies see in `requirements.txt`

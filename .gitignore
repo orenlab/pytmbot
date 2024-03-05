@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+Dockerfile_DEV
 
 #master config
 app/core/settings/bot_settings.py
