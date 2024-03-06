@@ -13,12 +13,12 @@ class KeyboardSettings:
     @value: function name
     """
     main_keyboard: dict = {
-        'waving_hand': 'Say hello!',
         'low_battery': 'Load average',
         'pager': 'Memory load',
         'stopwatch': 'Sensors',
         'rocket': 'Process',
         'flying_saucer': 'Uptime',
         'floppy_disk': 'File system',
-        'luggage': 'Containers'
+        'luggage': 'Containers',
+        'waving_hand': 'Bot info'
     }

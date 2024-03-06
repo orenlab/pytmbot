@@ -21,36 +21,22 @@ class StartHandler(Handler):
             The entry point for starting a dialogue with the bot
             """
             try:
-                if message.from_user.id in self.config.ALLOWED_USER_IDS:
-                    self.log.info(
-                        self.bot_msg_tpl.INFO_USER_SESSION_START_TEMPLATE.format(
-                            message.from_user.username,
-                            message.from_user.id,
-                            "start"
-                        )
-                    )
-                    main_keyboard = self.keyboard.build_reply_keyboard()
-                    first_name: str = message.from_user.first_name
-                    tpl = self.jinja.get_template('index.jinja2')
-                    bot_answer: str = tpl.render(first_name=first_name)
-                    self.bot.send_message(
-                        message.chat.id,
-                        text=bot_answer,
-                        reply_markup=main_keyboard
-                    )
-                else:
-                    self.log.error(
-                        self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                            message.from_user.username,
-                            message.from_user.id,
-                            message.from_user.language_code,
-                            message.from_user.is_bot
-                        )
-                    )
-                    self.bot.send_message(
-                        message.chat.id,
-                        self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
-                    )
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                    "Start average handler",
+                    message.from_user.username,
+                    message.from_user.id,
+                    message.from_user.language_code,
+                    message.from_user.is_bot
+                ))
+                main_keyboard = self.keyboard.build_reply_keyboard()
+                first_name: str = message.from_user.first_name
+                tpl = self.jinja.get_template('index.jinja2')
+                bot_answer: str = tpl.render(first_name=first_name)
+                self.bot.send_message(
+                    message.chat.id,
+                    text=bot_answer,
+                    reply_markup=main_keyboard
+                )
             except ValueError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE) from err
             except self.TemplateError as err_tpl:

@@ -69,6 +69,13 @@ class MemoryHandler(Handler):
         def get_memory(message) -> None:
             """Main handler for the Memory info"""
             try:
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                    "Memory handler",
+                    message.from_user.username,
+                    message.from_user.id,
+                    message.from_user.language_code,
+                    message.from_user.is_bot
+                ))
                 inline_button = self.keyboard.build_inline_keyboard("Swap info", "swap_info")
                 self.bot.send_message(message.chat.id, text=self.get_answer(), reply_markup=inline_button)
             except ConnectionError as err:

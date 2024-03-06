@@ -23,6 +23,13 @@ class ContainersHandler(Handler):
             Get docker containers info
             """
             try:
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                    "Containers handler",
+                    message.from_user.username,
+                    message.from_user.id,
+                    message.from_user.language_code,
+                    message.from_user.is_bot
+                ))
                 context = self.api_data.get_metrics('containers')
                 if context == {}:
                     tpl = self.jinja.get_template('none.jinja2')

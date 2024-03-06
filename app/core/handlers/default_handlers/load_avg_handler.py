@@ -45,6 +45,13 @@ class LoadAvgHandler(Handler):
         def get_average(message) -> None:
             """Main load average handler"""
             try:
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                    "Load average",
+                    message.from_user.username,
+                    message.from_user.id,
+                    message.from_user.language_code,
+                    message.from_user.is_bot
+                ))
                 bot_answer: str = self.compile_message()
                 inline_button = self.keyboard.build_inline_keyboard(
                     "History",

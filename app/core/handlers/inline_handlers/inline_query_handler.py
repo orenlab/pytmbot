@@ -27,33 +27,12 @@ class InlineQueryHandler(Handler):
             Get callback query - history load average
             """
             try:
-                if call.message.from_user.id in self.config.ALLOWED_USER_IDS:
-                    self.log.info(
-                        self.bot_msg_tpl.INFO_USER_SESSION_START_TEMPLATE.format(
-                            call.message.from_user.username,
-                            call.message.from_user.id,
-                            "callback_query_handler['history_load']"
-                        )
-                    )
-                    self.bot.edit_message_text(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id,
-                        text="Test callback_query_handler['history_load']"
-                    )
-                else:
-                    self.log.error(
-                        self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                            call.message.from_user.username,
-                            call.message.from_user.id,
-                            call.message.from_user.language_code,
-                            call.message.from_user.is_bot
-                        )
-                    )
-                    self.bot.edit_message_text(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id,
-                        text=self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
-                    )
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format("callback_query_handler['history_load']"))
+                self.bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text="Test callback_query_handler['history_load']"
+                )
             except ValueError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE) from err
             except self.TemplateError as err_tpl:
@@ -65,37 +44,14 @@ class InlineQueryHandler(Handler):
             Get callback query - docker image update check
             """
             try:
-                if call.message.from_user.id in self.config.ALLOWED_USER_IDS:
-                    self.log.info(
-                        self.bot_msg_tpl.INFO_USER_SESSION_START_TEMPLATE.format(
-                            call.message.from_user.username,
-                            call.message.from_user.id,
-                            "callback_query_handler['docker_image_update']"
-                        )
-                    )
-                    b = []
-                    up = DockerImageUpdateChecker('nicolargo/glances')
-                    b += {up.check_updates()}
-                    bot_answer = b
-                    self.bot.edit_message_text(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id,
-                        text=bot_answer
-                    )
-                else:
-                    self.log.error(
-                        self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                            call.message.from_user.username,
-                            call.message.from_user.id,
-                            call.message.from_user.language_code,
-                            call.message.from_user.is_bot
-                        )
-                    )
-                    self.bot.edit_message_text(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id,
-                        text=self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
-                    )
+                self.log.info(
+                    self.bot_msg_tpl.HANDLER_START_TEMPLATE.format("callback_query_handler['docker_image_update']"))
+                self.bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text="Test callback_query_handler['docker_image_update']"
+                )
+
             except ValueError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE) from err
             except self.TemplateError as err_tpl:

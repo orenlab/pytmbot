@@ -15,10 +15,9 @@ class AllowedUser(BaseMiddleware):
     def pre_process(self, message: Message, data):
         if message.from_user.id in config.ALLOWED_USER_IDS:
             self.log.info(
-                self.bot_msg_tpl.INFO_USER_SESSION_START_TEMPLATE.format(
+                self.bot_msg_tpl.ACCESS_SUCCESS.format(
                     message.from_user.username,
                     message.from_user.id,
-                    ""
                 )
             )
         else:

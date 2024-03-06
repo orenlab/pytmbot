@@ -23,6 +23,13 @@ class SensorsHandler(Handler):
             Get all sensors information
             """
             try:
+                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                    "Sensors handler",
+                    message.from_user.username,
+                    message.from_user.id,
+                    message.from_user.language_code,
+                    message.from_user.is_bot
+                ))
                 context = self.api_data.get_metrics('sensors')
                 context_sensors = {}
                 for data in context:
