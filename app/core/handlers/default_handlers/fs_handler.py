@@ -62,6 +62,10 @@ class FileSystemHandler(Handler):
                         self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
                     )
             except ValueError as err:
-                raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE) from err
+                raise self.exceptions.PyTeleMonBotHandlerError(
+                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
+                ) from err
             except self.TemplateError as err_tpl:
-                raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE) from err_tpl
+                raise self.exceptions.PyTeleMonBotTemplateError(
+                    self.bot_msg_tpl.TPL_ERR_TEMPLATE
+                ) from err_tpl
