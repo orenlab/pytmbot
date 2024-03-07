@@ -20,3 +20,13 @@ def init_jinja2():
         return jinja2
     except TemplateError as err:
         raise exceptions.PyTeleMonBotTemplateError("Error loading template") from err
+
+
+def _render_template(tpl_name: str, **context: str):
+    """Render template on Jinja2"""
+    parsed_context = []
+    jinja = init_jinja2()
+    template = jinja.get_template(tpl_name)
+    for args in context:
+        parsed_context.append(args)
+    return template.render(parsed_context)

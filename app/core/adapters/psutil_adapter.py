@@ -17,6 +17,11 @@ class PsutilAdapter:
         return data
 
     @staticmethod
+    def get_cpu_count():
+        """Get cpu count"""
+        return psutil.cpu_count()
+
+    @staticmethod
     def get_memory():
         """Get current memory usage"""
         data = psutil.virtual_memory()
