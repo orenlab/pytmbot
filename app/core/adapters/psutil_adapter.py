@@ -51,3 +51,8 @@ class PsutilAdapter:
     def get_sensors_fans():
         """Get sensors fans speed"""
         return psutil.sensors_fans()
+
+
+if __name__ == "__main__":
+    psutil_adapter = PsutilAdapter()
+    print(psutil_adapter.get_sensors_fans())
