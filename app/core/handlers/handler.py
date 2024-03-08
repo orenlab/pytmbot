@@ -28,9 +28,7 @@ from app.utilities.utilities import (
 
 
 class Handler(metaclass=abc.ABCMeta):
-    """
-    Abstract base class for handlers
-    """
+    """Abstract base class for handlers"""
 
     def __init__(self, bot):
         """Initialize the handler class"""
