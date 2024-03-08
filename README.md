@@ -2,12 +2,16 @@
 
 A simple Telegram bot designed to gather basic information about the status of your __local__ servers
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=bugs)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI)
 and [psutil](https://github.com/giampaolo/psutil) libraries.
 
-__Important! During the transition period from Glances to PsUtil, 
+__Important! During the transition period from Glances to PsUtil,
 it is necessary to have the Glance application installed and running in Restful API mode.__
 
 ## 💡 Features
