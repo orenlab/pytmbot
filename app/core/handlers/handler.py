@@ -33,6 +33,7 @@ class Handler(metaclass=abc.ABCMeta):
     """
 
     def __init__(self, bot):
+        """Initialize the handler class"""
         self.bot = bot
         self.keyboard = Keyboard()
         self.bot_msg_tpl = MessageTpl()
@@ -49,4 +50,5 @@ class Handler(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def handle(self):
+        """Abstract method"""
         pass
