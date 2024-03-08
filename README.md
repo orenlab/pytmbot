@@ -2,6 +2,7 @@
 
 A simple Telegram bot designed to gather basic information about the status of your __local__ servers
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c74b3141cc8f415d91221ea30bd7ac4e)](https://app.codacy.com/gh/orenlab/pytmbot?utm_source=github.com&utm_medium=referral&utm_content=orenlab/pytmbot&utm_campaign=Badge_Grade)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI)
