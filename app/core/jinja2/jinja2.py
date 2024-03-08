@@ -22,7 +22,7 @@ def init_jinja2():
         raise exceptions.PyTeleMonBotTemplateError("Error loading template") from err
 
 
-def _render_template(tpl_name: str, **context: str):
+def render_templates(tpl_name: str, *context: dict[str]):
     """Render template on Jinja2"""
     parsed_context = []
     jinja = init_jinja2()

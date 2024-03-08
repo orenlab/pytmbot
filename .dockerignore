@@ -6,7 +6,7 @@ qodana.yaml
 .gitignore
 old_Dockerfile
 docker-entrypoint.sh
-Dockerfile_test
+Dockerfile_dev
 README.md
 bot_cli
 tests
