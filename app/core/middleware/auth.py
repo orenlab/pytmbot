@@ -20,7 +20,7 @@ class AllowedUser(BaseMiddleware):
         super().__init__()
         self.log = build_logger(__name__)
         self.bot_msg_tpl = MessageTpl()
-        self.update_types = ['message']
+        self.update_types = ['message']  # Needed for correctly work middleware
 
     def pre_process(self, message: Message, data):
         """Check allowed users"""
@@ -46,6 +46,6 @@ class AllowedUser(BaseMiddleware):
             )
             return CancelUpdate()
 
-    def post_process(self, message: Message, data, exception):  # Not needed in this case
+    def post_process(self, message: Message, data, exception):  # Not needed in this case, but needed for method
         """Method need to correctly work middleware"""
         pass
