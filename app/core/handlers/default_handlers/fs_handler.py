@@ -38,8 +38,8 @@ class FileSystemHandler(Handler):
                         "percent": disk["percent"],
                         "free": self.format_bytes(disk["free"]),
                     },
-                tpl = self.jinja.get_template('fs.jinja2')
-                bot_answer = tpl.render(
+                bot_answer = self.jinja.render_templates(
+                    'fs.jinja2',
                     thought_balloon=self.get_emoji('thought_balloon'),
                     floppy_disk=self.get_emoji('floppy_disk'),
                     minus=self.get_emoji('minus'),

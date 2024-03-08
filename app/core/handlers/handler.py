@@ -15,10 +15,9 @@ from app.core.keyboards.keyboards import Keyboard
 from app.core.settings.message_tpl import MessageTpl
 from app import (
     config,
-    jinja,
-    TemplateError,
     exceptions
 )
+from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.utilities.utilities import (
     get_emoji,
     round_up_tuple,
@@ -38,7 +37,7 @@ class Handler(metaclass=abc.ABCMeta):
         self.keyboard = Keyboard()
         self.bot_msg_tpl = MessageTpl()
         self.config = config
-        self.jinja = jinja
+        self.jinja = Jinja2Renderer()
         self.TemplateError = TemplateError
         self.exceptions = exceptions
         self.get_emoji = get_emoji

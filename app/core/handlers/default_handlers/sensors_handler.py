@@ -33,15 +33,14 @@ class SensorsHandler(Handler):
                 context_sensors = {}
                 for data in context:
                     context_sensors.update({data['label']: data['value']})
-                tpl = self.jinja.get_template('sensors.jinja2')
-                bot_answer = tpl.render(
+                bot_answer = self.jinja.render_templates(
+                    'sensors.jinja2',
                     thought_balloon=self.get_emoji('thought_balloon'),
                     thermometer=self.get_emoji('thermometer'),
                     exclamation=self.get_emoji('red_exclamation_mark'),
                     melting_face=self.get_emoji('melting_face'),
                     context=context_sensors)
                 self.bot.send_message(message.chat.id, text=bot_answer)
-
             except ValueError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

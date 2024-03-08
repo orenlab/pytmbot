@@ -29,8 +29,8 @@ class UptimeHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot))
                 context = self.api_data.get_metrics('uptime')
-                tpl = self.jinja.get_template('uptime.jinja2')
-                bot_answer = tpl.render(
+                bot_answer = self.jinja.render_templates(
+                    'uptime.jinja2',
                     thought_balloon=self.get_emoji('thought_balloon'),
                     hourglass_not_done=self.get_emoji('hourglass_not_done'),
                     context=context

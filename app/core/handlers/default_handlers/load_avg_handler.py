@@ -27,8 +27,8 @@ class LoadAvgHandler(Handler):
     def compile_message(self) -> str:
         """Compile the message to send to the bot"""
         try:
-            tpl = self.jinja.get_template('load_average.jinja2')
-            bot_answer: str | None = tpl.render(
+            bot_answer: str | None = self.jinja.render_templates(
+                'load_average.jinja2',
                 thought_balloon=self.get_emoji('thought_balloon'),
                 desktop_computer=self.get_emoji('desktop_computer'),
                 context=self.round_up_tuple(self.get_data()))

@@ -29,8 +29,10 @@ class StartHandler(Handler):
                 ))
                 main_keyboard = self.keyboard.build_reply_keyboard()
                 first_name: str = message.from_user.first_name
-                tpl = self.jinja.get_template('index.jinja2')
-                bot_answer: str = tpl.render(first_name=first_name)
+                bot_answer: str = self.jinja.render_templates(
+                    'index.jinja2',
+                    first_name=first_name
+                )
                 self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,

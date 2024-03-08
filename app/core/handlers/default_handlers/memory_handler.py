@@ -49,9 +49,9 @@ class MemoryHandler(Handler):
     def get_answer(self) -> str:
         """Parsing answer to template"""
         try:
-            tpl = self.jinja.get_template('memory.jinja2')
             context = self.compile_message()
-            bot_answer = tpl.render(
+            bot_answer = self.jinja.render_templates(
+                'memory.jinja2',
                 thought_balloon=self.get_emoji('thought_balloon'),
                 abacus=self.get_emoji('abacus'),
                 context=context

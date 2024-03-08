@@ -10,7 +10,6 @@ import telebot
 import argparse
 
 from app.core.settings.bot_settings import token_settings, BotSettings
-from app.core.jinja2.jinja2 import init_jinja2, TemplateError
 from app.core import exceptions
 
 # Main config
@@ -83,6 +82,3 @@ def init_bot() -> telebot.TeleBot:
 
 # Bot one common instance
 bot = init_bot()
-
-# Jinja2 one common instance
-jinja = init_jinja2()

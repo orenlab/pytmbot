@@ -33,8 +33,8 @@ class ProcessHandler(Handler):
                 context_process = {}
                 for key, value in context.items():
                     context_process.update({key.title(): value})
-                tpl = self.jinja.get_template('process.jinja2')
-                bot_answer = tpl.render(
+                bot_answer = self.jinja.render_templates(
+                    'process.jinja2',
                     thought_balloon=self.get_emoji('thought_balloon'),
                     horizontal_traffic_light=self.get_emoji('horizontal_traffic_light'),
                     context=context_process

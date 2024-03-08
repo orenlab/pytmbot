@@ -31,8 +31,10 @@ class ContainersHandler(Handler):
                 ))
                 context = self.api_data.get_metrics('containers')
                 if context == {}:
-                    tpl = self.jinja.get_template('none.jinja2')
-                    bot_answer = tpl.render(thought_balloon=self.get_emoji('thought_balloon'))
+                    bot_answer = self.jinja.render_templates(
+                        'none.jinja2',
+                        thought_balloon=self.get_emoji('thought_balloon')
+                    )
                     self.bot.send_message(message.chat.id, text=bot_answer)
                 else:
                     context_process = []
@@ -46,8 +48,8 @@ class ContainersHandler(Handler):
                             'Created': f"{created_date[0]}, {created_time[0]}",
                             'Image': image_name[0],
                             'Status': value['Status']},
-                    tpl = self.jinja.get_template('containers.jinja2')
-                    bot_answer = tpl.render(
+                    bot_answer = self.jinja.render_templates(
+                        'containers.jinja2',
                         thought_balloon=self.get_emoji('thought_balloon'),
                         luggage=self.get_emoji('pushpin'), minus=self.get_emoji('minus'),
                         context=context_process
