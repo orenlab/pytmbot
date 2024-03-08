@@ -14,4 +14,4 @@ class MessageTpl:
     INFO_USER_SESSION_START_TEMPLATE = "user: [{0}] user_id: [{1}] handler: [{2}]"
     VALUE_ERR_TEMPLATE = "Invalid message format"
     TPL_ERR_TEMPLATE = "Error parsing template"
-    HANDLER_START_TEMPLATE = "Start handling [{0}]. User: [{1}] | user_id: [{2}] | lang: [{3}] | is_bot: [{4}]"
+    HANDLER_START_TEMPLATE = "Start handling session. User: {0}, user_id: {1}, lang: {2}, is_bot: {3})"

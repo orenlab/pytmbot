@@ -46,7 +46,6 @@ class LoadAvgHandler(Handler):
             """Main load average handler"""
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    "Load average",
                     message.from_user.username,
                     message.from_user.id,
                     message.from_user.language_code,

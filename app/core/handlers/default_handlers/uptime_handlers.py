@@ -24,7 +24,6 @@ class UptimeHandler(Handler):
             """
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    "Uptime handler",
                     message.from_user.username,
                     message.from_user.id,
                     message.from_user.language_code,
