@@ -1,3 +1,10 @@
+#!/usr/bin/python3
+"""
+(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+PyTMBot - A simple Telegram bot designed to gather basic information about
+the status of your local servers
+"""
+
 from telebot.handler_backends import BaseMiddleware
 from telebot.handler_backends import CancelUpdate
 from telebot.types import Message
@@ -6,13 +13,17 @@ from app.core.settings.message_tpl import MessageTpl
 
 
 class AllowedUser(BaseMiddleware):
+    """Custom middleware class that check allowed users"""
+
     def __init__(self) -> None:
+        """Initialize the middleware"""
         super().__init__()
         self.log = build_logger(__name__)
         self.bot_msg_tpl = MessageTpl()
         self.update_types = ['message']
 
     def pre_process(self, message: Message, data):
+        """Check allowed users"""
         if message.from_user.id in config.ALLOWED_USER_IDS:
             self.log.info(
                 self.bot_msg_tpl.ACCESS_SUCCESS.format(
@@ -36,4 +47,5 @@ class AllowedUser(BaseMiddleware):
             return CancelUpdate()
 
     def post_process(self, message: Message, data, exception):  # Not needed in this case
+        """Method need to correctly work middleware"""
         pass
