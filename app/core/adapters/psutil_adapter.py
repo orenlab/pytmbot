@@ -14,6 +14,8 @@ class PsutilAdapter:
     def __init__(self):
         self.psutil = psutil
         self.fs_current = []
+        self.sensors_current = []
+        self.sensors_value = []
         self.format_bytes = format_bytes
 
     @staticmethod
@@ -33,17 +35,6 @@ class PsutilAdapter:
         data = psutil.virtual_memory()
         return data
 
-    def get_swap_memory(self):
-        """Get swap memory usage"""
-        swap = psutil.swap_memory()
-        sw_current = {
-            'total': self.format_bytes(swap.total),
-            'used': self.format_bytes(swap.used),
-            'free': self.format_bytes(swap.free),
-            'percent': swap.percent,
-        }
-        return sw_current
-
     def get_disk_usage(self):
         """Get partition usage"""
         try:
@@ -62,17 +53,44 @@ class PsutilAdapter:
                     'free': fs_usage.free,
                     'percent': fs_usage.percent
                 }, )
-
             return self.fs_current
         except PermissionError as _err:
             raise PermissionError('FS: Permission denied') from _err
         except KeyError as _err:
             raise PermissionError('FS: Key error') from _err
 
-    @staticmethod
-    def get_sensors_temperatures():
+    def get_swap_memory(self):
+        """Get swap memory usage"""
+        swap = psutil.swap_memory()
+        sw_current = {
+            'total': self.format_bytes(swap.total),
+            'used': self.format_bytes(swap.used),
+            'free': self.format_bytes(swap.free),
+            'percent': swap.percent,
+        }
+        return sw_current
+
+    def get_sensors_temperatures(self):
         """Get sensors temperatures"""
-        return psutil.sensors_temperatures()
+        try:
+            sensors_stat = self.psutil.sensors_temperatures()
+            for key, value in sensors_stat.items():
+                self.sensors_current.append({
+                    key: value,
+                })
+            i = 0
+            for value in self.sensors_current:
+                self.sensors_value[i] = {
+                    'device_name': self.sensors_current[i],
+                    'current': value[1]['current']
+                }
+            return self.sensors_value
+        except AttributeError:
+            raise AttributeError(
+                'Cannot get sensors temperatures'
+            )
+        except KeyError as _err:
+            raise PermissionError('Sensors: Key error') from _err
 
     @staticmethod
     def get_sensors_fans():
@@ -82,4 +100,4 @@ class PsutilAdapter:
 
 if __name__ == '__main__':
     psutil_adapter = PsutilAdapter()
-    print(psutil_adapter.get_swap_memory())
+    print(psutil_adapter.get_sensors_temperatures())
