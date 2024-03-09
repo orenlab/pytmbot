@@ -15,6 +15,7 @@ class ProcessHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
+        self.migrate = False
 
     def handle(self):
         @self.bot.message_handler(regexp="Process")
@@ -22,6 +23,8 @@ class ProcessHandler(Handler):
             """
             Get process count
             """
+            if not self.migrate:
+                self.log.info(f"Method {__name__} needs to migrate")
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,

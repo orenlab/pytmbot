@@ -5,7 +5,10 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from jinja2.sandbox import SandboxedEnvironment
-from jinja2 import FileSystemLoader, select_autoescape
+from jinja2 import (
+    FileSystemLoader,
+    select_autoescape
+)
 from jinja2.exceptions import TemplateError
 from app.core import exceptions
 
@@ -27,7 +30,8 @@ class Jinja2Renderer:
             'none.jinja2',
             'process.jinja2',
             'sensors.jinja2',
-            'uptime.jinja2'
+            'uptime.jinja2',
+            'swap.jinja2'
         ]
 
     def _init_jinja2(self):
@@ -43,7 +47,9 @@ class Jinja2Renderer:
             )
             return jinja2
         except TemplateError as err:
-            raise exceptions.PyTeleMonBotTemplateError("Error loading template") from err
+            raise exceptions.PyTeleMonBotTemplateError(
+                "Error loading template"
+            ) from err
 
     def render_templates(self, template_name: str, **context: dict):
         """Render template on Jinja2"""
@@ -54,6 +60,10 @@ class Jinja2Renderer:
                 rendered_template = template.render(**context)
                 return rendered_template
             else:
-                raise exceptions.PyTeleMonBotTemplateError("Unknown template name")
+                raise exceptions.PyTeleMonBotTemplateError(
+                    "Unknown template name"
+                )
         except TemplateError as err:
-            raise exceptions.PyTeleMonBotTemplateError("Error parsing template") from err
+            raise exceptions.PyTeleMonBotTemplateError(
+                "Error parsing template"
+            ) from err

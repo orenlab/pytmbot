@@ -5,11 +5,17 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-from telebot.handler_backends import BaseMiddleware
-from telebot.handler_backends import CancelUpdate
+from telebot.handler_backends import (
+    BaseMiddleware,
+    CancelUpdate
+)
 from telebot.types import Message
-from app import config, bot, build_logger
-from app.core.settings.message_tpl import MessageTpl
+from app import (
+    config,
+    bot,
+    build_logger
+)
+from app.core.settings.log_tpl_settings import MessageTpl
 
 
 class AllowedUser(BaseMiddleware):
