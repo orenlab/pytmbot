@@ -10,6 +10,10 @@ import psutil
 class PsutilAdapter:
     """Class to psutil communication with Telegram bot"""
 
+    def __init__(self):
+        self.psutil = psutil
+        self.fs_current = []
+
     @staticmethod
     def get_load_average():
         """Get the load average"""
@@ -32,15 +36,30 @@ class PsutilAdapter:
         """Get swap memory usage"""
         return psutil.swap_memory()
 
-    @staticmethod
-    def get_disk_partition():
-        """Get disk partition list"""
-        return psutil.disk_partitions()
-
-    @staticmethod
-    def get_disk_usage(partition_name: str):
+    def get_disk_usage(self):
         """Get partition usage"""
-        return psutil.disk_usage(partition_name)
+        try:
+            fs_stats = psutil.disk_partitions(all=False)
+            for fs in fs_stats:
+                try:
+                    fs_usage = self.psutil.disk_usage(fs.mountpoint)
+                except OSError:
+                    continue
+                self.fs_current.append({
+                    'device_name': fs.device,
+                    'fs_type': fs.fstype,
+                    'mnt_point': fs.mountpoint.replace(u'\u00A0', ' '),
+                    'size': fs_usage.total,
+                    'used': fs_usage.used,
+                    'free': fs_usage.free,
+                    'percent': fs_usage.percent
+                }, )
+
+            return self.fs_current
+        except PermissionError as _err:
+            raise PermissionError('FS: Permission denied') from _err
+        except KeyError as _err:
+            raise PermissionError('FS: Key error') from _err
 
     @staticmethod
     def get_sensors_temperatures():
@@ -51,8 +70,3 @@ class PsutilAdapter:
     def get_sensors_fans():
         """Get sensors fans speed"""
         return psutil.sensors_fans()
-
-
-if __name__ == "__main__":
-    psutil_adapter = PsutilAdapter()
-    print(psutil_adapter.get_sensors_fans())

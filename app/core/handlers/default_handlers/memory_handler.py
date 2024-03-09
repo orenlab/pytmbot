@@ -19,6 +19,8 @@ class MemoryHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
+        self.migrate = False
+
 
     def get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
@@ -68,6 +70,8 @@ class MemoryHandler(Handler):
         @self.bot.message_handler(regexp="Memory load")
         def get_memory(message) -> None:
             """Main handler for the Memory info"""
+            if not self.migrate:
+                self.log.info(f"Method {__name__} needs to migrate")
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,

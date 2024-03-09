@@ -16,16 +16,16 @@ from app.core.middleware.auth import AllowedUser
 
 
 class PyTMBot:
-    """
-    Main PyTeleMonBot class
-    """
+    """Main PyTMBot class"""
 
     def __init__(self):
+        """Initialize the PyTMBot class"""
         self.log = build_logger(__name__)
         self.bot = bot
         self.handler = HandlersAggregator(self.bot)
 
     def run_bot(self):
+        """Run the bot"""
         try:
             self.log.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.bot.setup_middleware(AllowedUser())

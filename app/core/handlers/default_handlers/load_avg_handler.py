@@ -19,24 +19,22 @@ class LoadAvgHandler(Handler):
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
 
-    def get_data(self) -> tuple:
+    def _get_data(self) -> tuple:
         """Use psutil to gather data on the processor load"""
         data = self.psutil_adapter.get_load_average()
         return data
 
-    def compile_message(self) -> str:
+    def _compile_message(self) -> str:
         """Compile the message to send to the bot"""
         try:
             bot_answer: str | None = self.jinja.render_templates(
                 'load_average.jinja2',
                 thought_balloon=self.get_emoji('thought_balloon'),
                 desktop_computer=self.get_emoji('desktop_computer'),
-                context=self.round_up_tuple(self.get_data()))
+                context=self.round_up_tuple(self._get_data()))
             return bot_answer
-        except self.TemplateError as err_tpl:
-            raise self.exceptions.PyTeleMonBotTemplateError(
-                self.bot_msg_tpl.TPL_ERR_TEMPLATE
-            ) from err_tpl
+        except ValueError:
+            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
         """Abstract method"""
@@ -51,7 +49,7 @@ class LoadAvgHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot
                 ))
-                bot_answer: str = self.compile_message()
+                bot_answer: str = self._compile_message()
                 inline_button = self.keyboard.build_inline_keyboard(
                     "History",
                     "history_load"
