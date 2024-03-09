@@ -15,7 +15,7 @@ from app import (
     bot,
     build_logger
 )
-from app.core.settings.message_tpl import MessageTpl
+from app.core.settings.log_tpl_settings import MessageTpl
 
 
 class AllowedUser(BaseMiddleware):

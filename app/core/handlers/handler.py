@@ -12,7 +12,7 @@ from app.core.glances import GlancesPoller
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ------------------------------------------
 from app.core.keyboards.keyboards import Keyboard
-from app.core.settings.message_tpl import MessageTpl
+from app.core.settings.log_tpl_settings import MessageTpl
 from app import (
     config,
     exceptions
