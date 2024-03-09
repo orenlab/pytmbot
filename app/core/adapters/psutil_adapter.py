@@ -5,14 +5,16 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 import psutil
+from app.utilities.utilities import format_bytes
 
 
 class PsutilAdapter:
-    """Class to psutil communication with Telegram bot"""
+    """Class to adapt psutil to pyTMBot"""
 
     def __init__(self):
         self.psutil = psutil
         self.fs_current = []
+        self.format_bytes = format_bytes
 
     @staticmethod
     def get_load_average():
@@ -31,10 +33,16 @@ class PsutilAdapter:
         data = psutil.virtual_memory()
         return data
 
-    @staticmethod
-    def get_swap_memory():
+    def get_swap_memory(self):
         """Get swap memory usage"""
-        return psutil.swap_memory()
+        swap = psutil.swap_memory()
+        sw_current = {
+            'total': self.format_bytes(swap.total),
+            'used': self.format_bytes(swap.used),
+            'free': self.format_bytes(swap.free),
+            'percent': swap.percent,
+        }
+        return sw_current
 
     def get_disk_usage(self):
         """Get partition usage"""
@@ -70,3 +78,8 @@ class PsutilAdapter:
     def get_sensors_fans():
         """Get sensors fans speed"""
         return psutil.sensors_fans()
+
+
+if __name__ == '__main__':
+    psutil_adapter = PsutilAdapter()
+    print(psutil_adapter.get_swap_memory())

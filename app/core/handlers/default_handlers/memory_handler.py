@@ -21,7 +21,6 @@ class MemoryHandler(Handler):
         self.psutil_adapter = PsutilAdapter()
         self.migrate = False
 
-
     def get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
         data = self.psutil_adapter.get_memory()
