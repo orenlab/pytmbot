@@ -63,4 +63,4 @@ RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
 # !!! needed set pyTMBot mode:
 #   - dev
 #   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
