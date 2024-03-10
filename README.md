@@ -1,4 +1,4 @@
-![Main Banner](docs/.screenshots/main_banner.png)
+![pyTMbot](docs/.screenshots/main_banner.png)
 # pyTMbot
 
 A simple Telegram bot designed to gather basic information about the status of your __local__ servers
