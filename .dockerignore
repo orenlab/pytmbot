@@ -13,6 +13,7 @@ tests
 poetry.lock
 setup_bot.py
 docs
+docs/.screenshots
 
 **/.DS_Store
 .idea/

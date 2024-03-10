@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 import psutil
-from app.utilities.utilities import format_bytes
+import app.utilities.utilities as utilities
 
 
 class PsutilAdapter:
@@ -16,13 +16,12 @@ class PsutilAdapter:
         self.fs_current = []
         self.sensors_current = []
         self.sensors_value = []
-        self.format_bytes = format_bytes
+        self.format_bytes = utilities.format_bytes
 
     @staticmethod
     def get_load_average():
         """Get the load average"""
-        data = psutil.getloadavg()
-        return data
+        return psutil.getloadavg()
 
     @staticmethod
     def get_cpu_count():
@@ -100,4 +99,4 @@ class PsutilAdapter:
 
 if __name__ == '__main__':
     psutil_adapter = PsutilAdapter()
-    print(psutil_adapter.get_sensors_temperatures())
+    print(psutil_adapter.get_load_average())

@@ -15,6 +15,8 @@ The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/py
 Use [psutil](https://github.com/giampaolo/psutil) and [Glances](https://github.com/nicolargo/glances) libraries for
 gather information.
 
+Screenshots are available here: [screenshots.md](docs/screenshots.md)
+
 __Important! During the transition period from Glances to PsUtil,
 it is necessary to have the Glance application installed and running in Restful API mode.__
 
@@ -41,7 +43,7 @@ Full list of Python dependencies see in `requirements.txt`
 
 ## 🔌 Installation, setup and run bot
 
-- _See [install.md](docs/INSTALL.md)_
+- _See [installation.md](docs/installation.md)_
 
 ## 🛡 Secure
 
@@ -54,7 +56,7 @@ Therefore, it is essential to enter the `ALLOWED_USER_IDS` accurately.
 
 ## 📈 Roadmap
 
-- See [roadmap.md](docs/ROADMAP.md)
+- See [roadmap.md](docs/roadmap.md)
 
 ## 👾 Known issues
 
