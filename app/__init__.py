@@ -7,7 +7,6 @@ the status of your local servers
 
 import logging
 import telebot
-from telebot import types
 import argparse
 
 from app.core.settings.bot_settings import token_settings, BotSettings
