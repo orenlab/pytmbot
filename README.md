@@ -71,7 +71,7 @@ always carries the risk of disconnection or errors on the telecom infrastructure
 
 ## 🧬 Authors
 
-- [@orenlab](https://github.com/orenlab/pytelemonbot)
+- [@orenlab](https://github.com/orenlab)
 
 ## 🚀 About Me
 
