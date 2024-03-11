@@ -54,4 +54,3 @@ class AllowedUser(BaseMiddleware):
 
     def post_process(self, message: Message, data, exception):  # Not needed in this case, but needed for method
         """Method need to correctly work middleware"""
-        pass
