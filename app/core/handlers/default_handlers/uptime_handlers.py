@@ -15,7 +15,6 @@ class UptimeHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
-        self.migrate = False
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
