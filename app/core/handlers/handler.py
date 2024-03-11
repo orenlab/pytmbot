@@ -49,4 +49,3 @@ class Handler(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def handle(self):
         """Abstract method"""
-        pass
