@@ -4,6 +4,8 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from _pydatetime import datetime
+
 import psutil
 import app.utilities.utilities as utilities
 
@@ -102,3 +104,14 @@ class PsutilAdapter:
     def get_sensors_fans():
         """Get sensors fans speed"""
         return psutil.sensors_fans()
+
+    @staticmethod
+    def get_uptime():
+        """Get system uptime"""
+        all_pid = psutil.pids()
+        first_system_pid = all_pid[0]
+        pid_info = psutil.Process(first_system_pid)
+        first_pid_run = pid_info.create_time()
+        uptime_raw = datetime.now() - datetime.fromtimestamp(first_pid_run)
+        uptime = str(uptime_raw).split('.')[0]
+        return uptime

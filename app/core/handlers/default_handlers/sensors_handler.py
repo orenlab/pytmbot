@@ -41,9 +41,7 @@ class SensorsHandler(Handler):
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
         def get_sensors(message) -> None:
-            """
-            Get all sensors information
-            """
+            """Get all sensors information"""
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
@@ -51,8 +49,8 @@ class SensorsHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot
                 ))
-                bot_answer = self._compile_message()
-                self.bot.send_message(message.chat.id, text=bot_answer)
+                sensors_bot_answer = self._compile_message()
+                self.bot.send_message(message.chat.id, text=sensors_bot_answer)
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
