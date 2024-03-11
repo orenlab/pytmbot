@@ -19,28 +19,16 @@ class MemoryHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
-        self.migrate = False
 
     def get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
         data = self.psutil_adapter.get_memory()
         return data
 
-    def compile_message(self) -> dict[str, Any]:
+    def compile_message(self) -> tuple:
         """Use psutil to gather data on the memory load"""
         try:
-            value = self.get_data()
-            context = {
-                'total': self.format_bytes(getattr(value, 'total')),
-                'available': self.format_bytes(getattr(value, 'available')),
-                'percent': getattr(value, 'percent'),
-                'used': self.format_bytes(getattr(value, 'used')),
-                'free': self.format_bytes(getattr(value, 'free')),
-                'active': self.format_bytes(getattr(value, 'active')),
-                'inactive': self.format_bytes(getattr(value, 'inactive')),
-                'cached': self.format_bytes(getattr(value, 'cached')),
-                'shared': self.format_bytes(getattr(value, 'shared')),
-            }
+            context = self.get_data()
             return context
         except ValueError as err:
             raise self.exceptions.PyTeleMonBotHandlerError(
@@ -69,8 +57,6 @@ class MemoryHandler(Handler):
         @self.bot.message_handler(regexp="Memory load")
         def get_memory(message) -> None:
             """Main handler for the Memory info"""
-            if not self.migrate:
-                self.log.info(f"Method {__name__} needs to migrate")
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,

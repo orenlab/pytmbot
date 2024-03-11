@@ -27,11 +27,24 @@ class PsutilAdapter:
         """Get cpu count"""
         return psutil.cpu_count()
 
-    @staticmethod
-    def get_memory():
+    def get_memory(self):
         """Get current memory usage"""
-        data = psutil.virtual_memory()
-        return data
+        try:
+            memory_stat = psutil.virtual_memory()
+            memory_current = {
+                'total': self.format_bytes(memory_stat.total),
+                'available': self.format_bytes(memory_stat.available),
+                'percent': memory_stat.percent,
+                'used': self.format_bytes(memory_stat.used),
+                'free': self.format_bytes(memory_stat.free),
+                'active': self.format_bytes(memory_stat.active),
+                'inactive': self.format_bytes(memory_stat.inactive),
+                'cached': self.format_bytes(memory_stat.cached),
+                'shared': self.format_bytes(memory_stat.shared),
+            }
+            return memory_current
+        except psutil.PermissionError as _err:
+            raise PermissionError('Error get memory info') from _err
 
     def get_disk_usage(self):
         """Get partition usage"""
