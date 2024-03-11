@@ -7,14 +7,13 @@ the status of your local servers
 
 from app.core.handlers.handler import Handler
 from app import build_logger
-from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class FileSystemHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.psutil_adapter = PsutilAdapter()
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
@@ -39,7 +38,7 @@ class FileSystemHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="File system")
-        def get_fs(message) -> None:
+        def get_fs(message: Message) -> None:
             """
             Get file system info
             """

@@ -11,11 +11,12 @@ import abc
 from app.core.glances import GlancesPoller
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ------------------------------------------
+from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.keyboards.keyboards import Keyboard
 from app.core.settings.log_tpl_settings import MessageTpl
 from app import (
     config,
-    exceptions
+    exceptions,
 )
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.utilities.utilities import (
@@ -45,6 +46,7 @@ class Handler(metaclass=abc.ABCMeta):
         self.split_str = split_str
         self.replace_symbol = replace_symbol
         self.api_data = GlancesPoller()
+        self.psutil_adapter = PsutilAdapter()
 
     @abc.abstractmethod
     def handle(self):

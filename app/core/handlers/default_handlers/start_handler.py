@@ -7,6 +7,7 @@ the status of your local servers
 
 from app.core.handlers.handler import Handler
 from app import build_logger
+from telebot.types import Message
 
 
 class StartHandler(Handler):
@@ -17,7 +18,7 @@ class StartHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(commands=['help', 'start'])
-        def start(message) -> None:
+        def start(message: Message) -> None:
             """
             The entry point for starting a dialogue with the bot
             """

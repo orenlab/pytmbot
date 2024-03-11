@@ -7,19 +7,18 @@ the status of your local servers
 
 from app.core.handlers.handler import Handler
 from app import build_logger
-from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class ProcessHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.psutil_adapter = PsutilAdapter()
         self.migrate = False
 
     def handle(self):
         @self.bot.message_handler(regexp="Process")
-        def get_process(message) -> None:
+        def get_process(message: Message) -> None:
             """
             Get process count
             """

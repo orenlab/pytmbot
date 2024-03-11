@@ -7,14 +7,13 @@ the status of your local servers
 
 from app.core.handlers.handler import Handler
 from app import build_logger
-from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class SensorsHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.psutil_adapter = PsutilAdapter()
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
@@ -40,7 +39,7 @@ class SensorsHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
-        def get_sensors(message) -> None:
+        def get_sensors(message: Message) -> None:
             """Get all sensors information"""
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(

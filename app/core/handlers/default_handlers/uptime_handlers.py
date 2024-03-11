@@ -7,14 +7,13 @@ the status of your local servers
 
 from app.core.handlers.handler import Handler
 from app import build_logger
-from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class UptimeHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.psutil_adapter = PsutilAdapter()
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
@@ -37,7 +36,7 @@ class UptimeHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Uptime")
-        def get_uptime(message) -> None:
+        def get_uptime(message: Message) -> None:
             """Get uptime info"""
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(

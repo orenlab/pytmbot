@@ -8,6 +8,7 @@ the status of your local servers
 from app.core.handlers.handler import Handler
 from app import build_logger
 from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class ContainersHandler(Handler):
@@ -19,7 +20,7 @@ class ContainersHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Containers")
-        def get_containers(message) -> None:
+        def get_containers(message: Message) -> None:
             """
             Get docker containers info
             """

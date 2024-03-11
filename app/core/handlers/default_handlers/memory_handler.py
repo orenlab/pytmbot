@@ -6,7 +6,7 @@ the status of your local servers
 """
 from app.core.handlers.handler import Handler
 from app import build_logger
-from app.core.adapters.psutil_adapter import PsutilAdapter
+from telebot.types import Message
 
 
 class MemoryHandler(Handler):
@@ -16,7 +16,6 @@ class MemoryHandler(Handler):
         """Initialize memory handler"""
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.psutil_adapter = PsutilAdapter()
 
     def get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
@@ -53,7 +52,7 @@ class MemoryHandler(Handler):
         """Abstract method"""
 
         @self.bot.message_handler(regexp="Memory load")
-        def get_memory(message) -> None:
+        def get_memory(message: Message) -> None:
             """Main handler for the Memory info"""
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
