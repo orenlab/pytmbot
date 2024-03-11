@@ -2,7 +2,10 @@
 {{ thought_balloon }}Here is:
 {% for value in context %}
     {{ floppy_disk }} Device name: {{ value['device_name'] }}:
-    {{ minus }} total use space: {{ value['used'] }}
-    {{ minus }} use percent: {{ value['percent'] }}%
+    {{ minus }} fs Type: {{ value['fs_type'] }}
+    {{ minus }} mount point: {{ value['mnt_point'] }}
+    {{ minus }} volume size: {{ value['size'] }}
+    {{ minus }} used: {{ value['used'] }}
     {{ minus }} free space: {{ value['free'] }}
+    {{ minus }} use percent: {{ value['percent'] }}%
 {% endfor %}

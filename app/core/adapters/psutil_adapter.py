@@ -15,7 +15,6 @@ class PsutilAdapter:
         self.psutil = psutil
         self.fs_current = []
         self.sensors_current = []
-        self.sensors_value = []
         self.format_bytes = utilities.format_bytes
 
     @staticmethod
@@ -47,9 +46,9 @@ class PsutilAdapter:
                     'device_name': fs.device,
                     'fs_type': fs.fstype,
                     'mnt_point': fs.mountpoint.replace(u'\u00A0', ' '),
-                    'size': fs_usage.total,
-                    'used': fs_usage.used,
-                    'free': fs_usage.free,
+                    'size': self.format_bytes(fs_usage.total),
+                    'used': self.format_bytes(fs_usage.used),
+                    'free': self.format_bytes(fs_usage.free),
                     'percent': fs_usage.percent
                 }, )
             return self.fs_current
@@ -75,15 +74,10 @@ class PsutilAdapter:
             sensors_stat = self.psutil.sensors_temperatures()
             for key, value in sensors_stat.items():
                 self.sensors_current.append({
-                    key: value,
+                    'sensor_name': key,
+                    'sensor_value': value[0][1],
                 })
-            i = 0
-            for value in self.sensors_current:
-                self.sensors_value[i] = {
-                    'device_name': self.sensors_current[i],
-                    'current': value[1]['current']
-                }
-            return self.sensors_value
+            return self.sensors_current
         except AttributeError:
             raise AttributeError(
                 'Cannot get sensors temperatures'
@@ -95,8 +89,3 @@ class PsutilAdapter:
     def get_sensors_fans():
         """Get sensors fans speed"""
         return psutil.sensors_fans()
-
-
-if __name__ == '__main__':
-    psutil_adapter = PsutilAdapter()
-    print(psutil_adapter.get_load_average())

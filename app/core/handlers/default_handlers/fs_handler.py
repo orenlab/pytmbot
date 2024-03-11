@@ -25,20 +25,13 @@ class FileSystemHandler(Handler):
         """Compile the message to be sent to the bot"""
         try:
             context = self._get_data()
-            context_process = []
-            for disk in context:
-                context_process += {
-                    "device_name": disk["device_name"],
-                    "used": self.format_bytes(disk["used"]),
-                    "percent": disk["percent"],
-                    "free": self.format_bytes(disk["free"]),
-                },
+
             bot_answer = self.jinja.render_templates(
                 'fs.jinja2',
                 thought_balloon=self.get_emoji('thought_balloon'),
                 floppy_disk=self.get_emoji('floppy_disk'),
                 minus=self.get_emoji('minus'),
-                context=context_process
+                context=context
             )
             return bot_answer
         except ValueError:
@@ -59,7 +52,7 @@ class FileSystemHandler(Handler):
                 ))
                 bot_answer: str = self._compile_message()
                 self.bot.send_message(message.chat.id, text=bot_answer)
-            except ValueError as err:
+            except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
                 ) from err

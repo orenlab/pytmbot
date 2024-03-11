@@ -15,7 +15,28 @@ class SensorsHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.psutil_adapter = PsutilAdapter()
-        self.migrate = False
+
+    def _get_data(self):
+        """Use psutil to gather data on the local filesystem"""
+        data = self.psutil_adapter.get_sensors_temperatures()
+        return data
+
+    def _compile_message(self) -> str:
+        """Compile the message to be sent to the bot"""
+        try:
+            context = self._get_data()
+
+            bot_answer = self.jinja.render_templates(
+                'sensors.jinja2',
+                thought_balloon=self.get_emoji('thought_balloon'),
+                thermometer=self.get_emoji('thermometer'),
+                exclamation=self.get_emoji('red_exclamation_mark'),
+                melting_face=self.get_emoji('melting_face'),
+                context=context
+            )
+            return bot_answer
+        except ValueError:
+            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
@@ -23,8 +44,6 @@ class SensorsHandler(Handler):
             """
             Get all sensors information
             """
-            if not self.migrate:
-                self.log.info(f"Method {__name__} needs to migrate")
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
@@ -32,24 +51,9 @@ class SensorsHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot
                 ))
-                context = self.api_data.get_metrics('sensors')
-                context_sensors = {}
-                for data in context:
-                    context_sensors.update({data['label']: data['value']})
-                bot_answer = self.jinja.render_templates(
-                    'sensors.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    thermometer=self.get_emoji('thermometer'),
-                    exclamation=self.get_emoji('red_exclamation_mark'),
-                    melting_face=self.get_emoji('melting_face'),
-                    context=context_sensors)
+                bot_answer = self._compile_message()
                 self.bot.send_message(message.chat.id, text=bot_answer)
-            except ValueError as err:
+            except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
                 ) from err
-
-            except self.TemplateError as err_tpl:
-                raise self.exceptions.PyTeleMonBotTemplateError(
-                    self.bot_msg_tpl.TPL_ERR_TEMPLATE
-                ) from err_tpl
