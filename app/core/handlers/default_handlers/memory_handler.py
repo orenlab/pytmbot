@@ -61,7 +61,10 @@ class MemoryHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot
                 ))
-                inline_button = self.keyboard.build_inline_keyboard("Swap info", "swap_info")
+                inline_button = self.keyboard.build_inline_keyboard(
+                    "Swap info",
+                    "swap_info"
+                )
                 self.bot.send_message(message.chat.id, text=self.get_answer(), reply_markup=inline_button)
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotConnectionError(

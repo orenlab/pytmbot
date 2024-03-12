@@ -45,7 +45,10 @@ class UptimeHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot))
                 uptime_bot_answer = self._compile_message()
-                self.bot.send_message(message.chat.id, text=uptime_bot_answer)
+                self.bot.send_message(
+                    message.chat.id,
+                    text=uptime_bot_answer
+                )
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

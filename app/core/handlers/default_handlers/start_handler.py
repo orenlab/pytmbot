@@ -14,7 +14,6 @@ class StartHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
         self.log = build_logger(__name__)
-        self.migrate = False
 
     def handle(self):
         @self.bot.message_handler(commands=['help', 'start'])
@@ -22,8 +21,6 @@ class StartHandler(Handler):
             """
             The entry point for starting a dialogue with the bot
             """
-            if not self.migrate:
-                self.log.info(f"Method {__name__} needs to migrate")
             try:
                 self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,

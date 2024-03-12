@@ -49,14 +49,9 @@ class LoadAvgHandler(Handler):
                     message.from_user.is_bot
                 ))
                 bot_answer: str = self._compile_message()
-                inline_button = self.keyboard.build_inline_keyboard(
-                    "History",
-                    "history_load"
-                )
                 self.bot.send_message(
                     message.chat.id,
-                    text=bot_answer,
-                    reply_markup=inline_button
+                    text=bot_answer
                 )
             except ValueError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(

@@ -50,7 +50,10 @@ class FileSystemHandler(Handler):
                     message.from_user.is_bot
                 ))
                 bot_answer: str = self._compile_message()
-                self.bot.send_message(message.chat.id, text=bot_answer)
+                self.bot.send_message(
+                    message.chat.id,
+                    text=bot_answer
+                )
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

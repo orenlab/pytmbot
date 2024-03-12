@@ -49,7 +49,10 @@ class SensorsHandler(Handler):
                     message.from_user.is_bot
                 ))
                 sensors_bot_answer = self._compile_message()
-                self.bot.send_message(message.chat.id, text=sensors_bot_answer)
+                self.bot.send_message(
+                    message.chat.id,
+                    text=sensors_bot_answer
+                )
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
