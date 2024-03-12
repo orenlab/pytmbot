@@ -65,8 +65,6 @@ Docker image size ~80,5 Мб.
 
 To access to bot logs, please run in terminal:
 
-Run
-
 ```bash
   docker ps
 ```
