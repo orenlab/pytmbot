@@ -82,11 +82,12 @@ class PsutilAdapter:
         except KeyError as _err:
             raise PermissionError('FS: Key error') from _err
         finally:
-            del self.fs_current
+            self.fs_current = ''
 
     def get_swap_memory(self):
         """Get swap memory usage"""
         try:
+            self.sw_current = []
             swap = psutil.swap_memory()
             self.sw_current = {
                 'total': self.format_bytes(swap.total),
@@ -98,7 +99,7 @@ class PsutilAdapter:
         except PermissionError as _err:
             raise PermissionError('SW: cannot get swap info') from _err
         finally:
-            self.sensors_current: ''
+            self.sw_current: ''
 
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
@@ -128,10 +129,6 @@ class PsutilAdapter:
     @staticmethod
     def get_uptime():
         """Get system uptime"""
-        all_pid = psutil.pids()
-        first_system_pid = all_pid[0]
-        pid_info = psutil.Process(first_system_pid)
-        first_pid_run = pid_info.create_time()
-        uptime_raw = datetime.now() - datetime.fromtimestamp(first_pid_run)
+        uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
         return uptime
