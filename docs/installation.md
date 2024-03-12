@@ -65,6 +65,14 @@ Docker image size ~80,5 Мб.
 
 To access to bot logs, please run in terminal:
 
+Run
+
+```bash
+  docker ps
+```
+
+And grap pyTMbot container id. Then, run:
+
 ```bash
   docker logs bot_contaner_id
 ```
