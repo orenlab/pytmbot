@@ -39,7 +39,7 @@ def format_bytes(size: int) -> str:
 
 def split_str(data: str, delimiter: str) -> list[str]:
     """
-    Split data into glances API
+    Split data
     @param data: str
     @param delimiter: str
     @return: list[str]
@@ -69,7 +69,7 @@ def round_up(n: float) -> float:
 
 def round_up_tuple(n: tuple) -> dict:
     """
-    Round up a number
+    Round up a number in tuple
     @param: n- float
     @return: float
     """
