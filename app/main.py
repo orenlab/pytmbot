@@ -39,5 +39,5 @@ class PyTMBot:
 
 
 if __name__ == "__main__":
-    bot = PyTMBot()
-    bot.run_bot()
+    """Run bot instance"""
+    PyTMBot().run_bot()

@@ -24,6 +24,10 @@ class PsutilAdapter:
         self.memory_current: None = None
         self.sensors_stat: None = None
         self.sw_current: None = None
+        self.process_count = {}
+        self.sleeping: int = 0
+        self.running: int = 0
+        self.idle: int = 0
 
     @staticmethod
     def get_load_average():
@@ -132,3 +136,26 @@ class PsutilAdapter:
         uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
         return uptime
+
+    def get_process_counts(self):
+        """Get process count information"""
+        try:
+            self.sleeping = 0  # reset value
+            self.running = 0  # reset value
+            self.idle = 0  # reset value
+            for proc in self.psutil.process_iter():
+                match proc.status():
+                    case "sleeping":
+                        self.sleeping += 1
+                    case "running":
+                        self.running += 1
+                    case "idle":
+                        self.idle += 1
+            self.process_count = {
+                'sleeping': self.sleeping,
+                'running': self.running,
+                'idle': self.idle
+            }
+            return self.process_count
+        except AttributeError:
+            raise AttributeError('Cannot get process counters')
