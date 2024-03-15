@@ -152,9 +152,10 @@ class PsutilAdapter:
                     case "idle":
                         self.idle += 1
             self.process_count = {
-                'sleeping': self.sleeping,
                 'running': self.running,
-                'idle': self.idle
+                'sleeping': self.sleeping,
+                'idle': self.idle,
+                'total': self.sleeping + self.running + self.idle
             }
             return self.process_count
         except AttributeError:
