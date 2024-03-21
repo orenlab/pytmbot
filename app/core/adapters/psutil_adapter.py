@@ -14,6 +14,7 @@ class PsutilAdapter:
     """Class to adapt psutil to pyTMBot"""
 
     def __init__(self):
+        """Init psutil adapter class"""
         self.psutil = psutil
         self.fs_current: None = None
         self.sensors_current = []
@@ -87,7 +88,7 @@ class PsutilAdapter:
     def get_swap_memory(self):
         """Get swap memory usage"""
         try:
-            self.sw_current = []  # reset value
+            self.sw_current = []  # unset attr
             swap = psutil.swap_memory()
             self.sw_current = {
                 'total': self.format_bytes(swap.total),
@@ -102,7 +103,7 @@ class PsutilAdapter:
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
         try:
-            self.sensors_current = []  # reset value
+            self.sensors_current = []  # unset attr
             self.sensors_stat = self.psutil.sensors_temperatures()
             for key, value in self.sensors_stat.items():
                 self.sensors_current.append({
@@ -132,9 +133,9 @@ class PsutilAdapter:
     def get_process_counts(self):
         """Get process count information"""
         try:
-            self.sleeping = 0  # reset value
-            self.running = 0  # reset value
-            self.idle = 0  # reset value
+            self.sleeping = 0  # unset attr
+            self.running = 0  # unset attr
+            self.idle = 0  # unset attr
             for proc in self.psutil.process_iter():
                 match proc.status():
                     case "sleeping":
