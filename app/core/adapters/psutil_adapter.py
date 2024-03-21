@@ -58,8 +58,6 @@ class PsutilAdapter:
             return self.memory_current
         except PermissionError as _err:
             raise PermissionError('Error get memory info') from _err
-        finally:
-            self.memory_current: ''
 
     def get_disk_usage(self):
         """Get partition usage"""
@@ -85,13 +83,11 @@ class PsutilAdapter:
             raise PermissionError('FS: Permission denied') from _err
         except KeyError as _err:
             raise PermissionError('FS: Key error') from _err
-        finally:
-            self.fs_current = ''
 
     def get_swap_memory(self):
         """Get swap memory usage"""
         try:
-            self.sw_current = []
+            self.sw_current = []  # reset value
             swap = psutil.swap_memory()
             self.sw_current = {
                 'total': self.format_bytes(swap.total),
@@ -102,13 +98,11 @@ class PsutilAdapter:
             return self.sw_current
         except PermissionError as _err:
             raise PermissionError('SW: cannot get swap info') from _err
-        finally:
-            self.sw_current: ''
 
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
         try:
-            self.sensors_current = []
+            self.sensors_current = []  # reset value
             self.sensors_stat = self.psutil.sensors_temperatures()
             for key, value in self.sensors_stat.items():
                 self.sensors_current.append({
@@ -122,8 +116,6 @@ class PsutilAdapter:
             )
         except KeyError as _err:
             raise PermissionError('Sensors: Key error') from _err
-        finally:
-            self.sensors_current: ''
 
     @staticmethod
     def get_sensors_fans():
