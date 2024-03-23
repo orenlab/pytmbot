@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  pytmbot:
+    image: "orenlab/pytmbot:latest"
+    container_name: "pytmbot"
+    build:
+      dockerfile: Dockerfile
+    restart: always
+    pid: 'host'
+    environment:
+      - TZ=${TZ}
