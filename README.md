@@ -2,7 +2,8 @@
 
 # pyTMbot
 
-A simple Telegram bot designed to gather basic information about the status of your __local__ servers
+A simple Telegram bot designed to gather basic information about the status of your __local__ servers. 
+The bot operates synchronously. It does not use webhooks.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -15,23 +16,21 @@ A simple Telegram bot designed to gather basic information about the status of y
 ![Static Badge](https://img.shields.io/badge/migrate_to_psutil-in_progress-blue)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
-Use [psutil](https://github.com/giampaolo/psutil) and [Glances](https://github.com/nicolargo/glances) libraries for
+Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
 gather information.
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md)
 
-__Important! During the transition period from Glances to PsUtil,
-it is necessary to have the Glance application installed and running in Restful API mode.__
 
 ## 💡 Features
 
-- Load average information (with history)
-- Summary memory usage information
+- Load average information
+- Summary memory usage information (with swap)
 - Sensors information
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (e.g. podman, docker) base information
+- Containers (only docker and only on Linux) base information
 - Use `Jinja2` for answers template
 - Use docker logs collector (`sudo docker logs container_id`)
 - Use emoji :)
@@ -50,12 +49,9 @@ Full list of Python dependencies see in `requirements.txt`
 
 ## 🛡 Secure
 
-The bot is designed to only respond to commands from authorized users.
-A message comparison is used to verify the `messages.from_user.id` value
-and constant `ALLOWED_USER_IDS` list in the `BotSettings`
-(please see the section on configuring the bot for more information).
+The bot has a user.id authorization mechanism (specified at the initial stage of configuration). 
+If the user.id is not specified, the bot will report that it is unable to access information about the server.
 
-Therefore, it is essential to enter the `ALLOWED_USER_IDS` accurately.
 
 ## 📈 Roadmap
 
@@ -63,11 +59,8 @@ Therefore, it is essential to enter the `ALLOWED_USER_IDS` accurately.
 
 ## 👾 Known issues
 
-- The bot crashes when there is an error polling the Telegram server
+- You tell me :)
 
-The idea behind the bot is that we cannot rely on a webhook for communication.
-Instead, polling from the local server (which is not accessible from the internet)
-always carries the risk of disconnection or errors on the telecom infrastructure and on the Telegram platform.
 
 ## 🧬 Authors
 

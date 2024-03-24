@@ -12,15 +12,6 @@ class BotSettings:
     """Add your telegram IDs. And your bot too!"""
     ALLOWED_USER_IDS: list = [$user_id]
 
-    """Set Glances IP. Localhost not work in Docker"""
-    BASE_URI: str = '$glances_host'
-
-    """Set Glances API Version. pyTeleMonBot support only v.3"""
-    GLANCES_API_VERSION: int = 3
-
-    """Set Glances port. Default 61208"""
-    GLANCES_PORT: int = $glances_port
-
 
 class DockerSettings:
     """Set Docker Socket o TCP param. Default """

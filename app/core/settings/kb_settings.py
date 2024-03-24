@@ -20,5 +20,4 @@ class KeyboardSettings:
         'flying_saucer': 'Uptime',
         'floppy_disk': 'File system',
         'luggage': 'Containers',
-        'waving_hand': 'Bot info'
     }

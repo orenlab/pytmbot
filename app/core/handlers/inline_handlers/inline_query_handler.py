@@ -7,7 +7,6 @@ the status of your local servers
 from telebot import types
 
 from app.core.adapters.psutil_adapter import PsutilAdapter
-from app.core.adapters.docker_adapter import DockerImageUpdateChecker
 
 from app import build_logger
 

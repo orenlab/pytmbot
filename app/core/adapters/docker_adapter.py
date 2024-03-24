@@ -9,15 +9,18 @@ import docker
 from app.core import exceptions
 from app import build_logger
 from app.core.settings.bot_settings import DockerSettings
+from app.utilities.utilities import split_str, replace_symbol
 
 
-class DockerImageUpdateChecker:
+class DockerAdapter:
     """Class to check if a docker image is update"""
 
     def __init__(self) -> None:
         """Initialize the DockerImageUpdateChecker class"""
         self.docker_url: str = DockerSettings.docker_host
         self.client = docker.DockerClient(self.docker_url)
+        self.split_str = split_str
+        self.replace_symbol = replace_symbol
         self.registry_digest: None = None
         self.local_image_digest: None = None
         self.containers: None = None
@@ -46,48 +49,33 @@ class DockerImageUpdateChecker:
     def _container_details(self, container_id: str):
         """Get docker containers details"""
         container = self.client.containers.get(container_id)
-        return container.attrs['Config']['Image']
+        return container.attrs
 
     def check_image_details(self):
         """Check docker image details"""
         try:
             self.containers = self._containers_list()
             details = []
-            updates = []
             if self.containers:
                 for container in self.containers:
-                    details.append(self._container_details(container))
-                for image in details:
-                    print(self.get_registry_digest(image[0].split(':')[0].strip()))
-                    if image is not None:
-                        updates.append({image: self.get_registry_digest(image[0].split(':')[0].strip())})
-                    else:
-                        updates.append({image: "No registry data"})
-                print(updates)
+                    container_details = self._container_details(container)
+                    created_date = self.split_str(container_details['Created'], 'T')
+                    created_time = self.split_str(created_date[1], '.')
+                    start_data = self.split_str(container_details['State']['StartedAt'], 'T')
+                    start_time = self.split_str(start_data[1], '.')
+                    details.append(
+                        {
+                            'name': container_details['Name'].title(),
+                            'image': container_details['Config']['Image'],
+                            'created': f"{created_date[0]}, {created_time[0]}",
+                            'status': container_details['State']['Status'],
+                            'started': f"{start_data[0]}, {start_time[0]}",
+                        }
+                    )
+                return details
             else:
-                self.log.debug('Docker image not found: see docker ps')
-                raise exceptions.DockerImageUpdateCheckerException('Docker image not found: see docker ps')
+                self.log.debug('Docker image not found: see "docker ps" command')
+                return {}
         except ValueError:
             self.log.debug('Image value error')
             raise exceptions.DockerImageUpdateCheckerException('Image value error')
-
-    def get_registry_digest(self, image_name: str) -> str:
-        try:
-            self.log.debug(f'Getting registry digest for {image_name}')
-            registry_digest_raw = self.client.images.get_registry_data(image_name)
-            print(registry_digest_raw)
-            self.registry_digest = repr(registry_digest_raw).split(" ")[1].replace(">", "")
-            self.log.info(f"Registry image digest: {self.local_image_digest}")
-            return self.registry_digest
-        except ValueError as err:
-            raise exceptions.DockerImageUpdateCheckerException("Check registry digest error") from err
-
-    def get_local_digest(self, image_name: str) -> str:
-        try:
-            self.log.debug(f'Getting local digest for {image_name}')
-            local_image_digest_raw = self.client.api.inspect_image(image_name)
-            self.local_image_digest = repr(local_image_digest_raw["RepoDigests"]).split("@")[1].replace(">", "")[0:19]
-            self.log.info(f"Local image digest: {self.local_image_digest}")
-            return self.local_image_digest
-        except ValueError as err:
-            raise exceptions.DockerImageUpdateCheckerException("Check local digest error") from err

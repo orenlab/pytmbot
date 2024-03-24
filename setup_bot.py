@@ -27,24 +27,6 @@ def ask_for_user_id() -> str:
     return click.prompt("User IDS", default="00000000000, 00000000000")
 
 
-def ask_for_glances_host() -> str:
-    click.secho("[-] Let's added Glances host:", bg='blue', fg='white', bold=False)
-    click.echo("""
-        Format: 192.168.0.3\n
-        """)
-
-    return click.prompt("Glances host", default="192.168.0.3")
-
-
-def ask_for_glances_port() -> int:
-    click.secho("[-] Let's added Glances port:", bg='blue', fg='white', bold=False)
-    click.echo("""
-        Format: 61208\n
-        """)
-
-    return click.prompt("Docker host", default="61208")
-
-
 def ask_for_docker_host() -> str:
     click.secho("[-] Let's added Docker host:", bg='blue', fg='white', bold=False)
     click.echo("""
@@ -74,14 +56,10 @@ def ask_for_prod_token() -> str:
 
 def create_default_config() -> None:
     user_id = ask_for_user_id()
-    glances_host = ask_for_glances_host()
-    glances_port = ask_for_glances_port()
     docker_host = ask_for_docker_host()
 
     variables: dict = {
         "user_id": user_id,
-        "glances_host": glances_host,
-        "glances_port": glances_port,
         "docker_host": docker_host
     }
 

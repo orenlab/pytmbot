@@ -56,7 +56,7 @@ To build a Docker image:
 To launch a Docker container:
 
 ```bash
-  docker run -d -m 100M --restart=always --name=pytmbot orenlab/pytmbot:latest
+  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro --restart=always --name=pytmbot --pid host orenlab/pytmbot:latest
 ```
 
 Docker image size ~80,5 Мб.
@@ -76,8 +76,3 @@ And grap pyTMbot container id. Then, run:
 ```
 
 Or use Docker Desktop (if run workstation)
-
-### Important!
-
-During the transition period, it is necessary to have the Glance application
-installed and running in Restful API mode.

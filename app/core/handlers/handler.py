@@ -6,11 +6,6 @@ the status of your local servers
 """
 
 import abc
-# ------------------------------------------
-# Deprecated in next release. Move to psutil
-from app.core.glances import GlancesPoller
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# ------------------------------------------
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.keyboards.keyboards import Keyboard
 from app.core.settings.log_tpl_settings import MessageTpl
@@ -45,7 +40,6 @@ class Handler(metaclass=abc.ABCMeta):
         self.format_bytes = format_bytes
         self.split_str = split_str
         self.replace_symbol = replace_symbol
-        self.api_data = GlancesPoller()
         self.psutil_adapter = PsutilAdapter()
 
     @abc.abstractmethod

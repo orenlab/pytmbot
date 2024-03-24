@@ -12,6 +12,7 @@ from telebot.types import Message
 
 class SensorsHandler(Handler):
     def __init__(self, bot):
+        """Initialize the SensorsHandler"""
         super().__init__(bot)
         self.log = build_logger(__name__)
 
