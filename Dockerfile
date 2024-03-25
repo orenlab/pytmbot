@@ -11,6 +11,7 @@ RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requ
 # second unnamed stage
 FROM python:3.12.2-alpine
 
+# No way to add non-root user and use docker socket :((
 # ARG USER_UID=1000
 # ARG GROUP_GID=1000
 # ARG UGNAME=pytmbot
