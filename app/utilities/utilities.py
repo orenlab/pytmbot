@@ -7,10 +7,10 @@ the status of your local computers and/or servers from Glances
 from datetime import datetime
 from functools import lru_cache
 from emoji import emojize as em_func
+from datetime import datetime
 
 
 # Utility functions
-
 
 @lru_cache
 def get_emoji(emoji_name: str) -> str:
@@ -38,6 +38,7 @@ def format_bytes(size: int) -> str:
     return f"{return_size}{power_labels[n]}b"
 
 
+# Deprecated func
 def split_str(data: str, delimiter: str) -> list[str]:
     """
     Split data
@@ -49,6 +50,7 @@ def split_str(data: str, delimiter: str) -> list[str]:
     return split_data
 
 
+# Deprecated func
 def replace_symbol(data: str) -> list[str]:
     """
     Replace data to symbols
@@ -57,15 +59,6 @@ def replace_symbol(data: str) -> list[str]:
     """
     replace_data = [item.replace("[", "").replace("]", "").replace('"', "").replace("'", "") for item in data]
     return replace_data
-
-
-def round_up(n: float) -> float:
-    """
-    Round up a number
-    @param: n- float
-    @return: float
-    """
-    return round(n, 2)
 
 
 def round_up_tuple(n: tuple) -> dict:
@@ -81,3 +74,59 @@ def round_up_tuple(n: tuple) -> dict:
         value.update({i: old_value})
         i += 1
     return value
+
+
+def format_datetime(date: str) -> tuple:
+    """
+    Formate date and time
+    @param: date- str in UNIX format
+    @return: tuple[date, time]
+    """
+    date_time = datetime.fromisoformat(date)
+    time = date_time.time().strftime("%H:%M:%S")
+    return date_time.date(), time
+
+
+def pretty_date(time=False):
+    """
+    Get a datetime object or int() Epoch timestamp and return a
+    pretty string like 'an hour ago', 'Yesterday', '3 months ago',
+    'just now'
+    Original code: https://stackoverflow.com/questions/1551382/user-friendly-time-format-in-python
+    """
+    diff = ''
+    now = datetime.fromisoformat(str(datetime.now()))
+    if isinstance(time, int):
+        diff = now - datetime.fromtimestamp(time)
+    elif isinstance(time, datetime):
+        diff = now - time
+    elif not time:
+        diff = 0
+    second_diff = diff.seconds
+    day_diff = diff.days
+
+    if day_diff < 0:
+        return ''
+
+    if day_diff == 0:
+        if second_diff < 10:
+            return "just now"
+        if second_diff < 60:
+            return str(second_diff) + " secs"
+        if second_diff < 120:
+            return "a min"
+        if second_diff < 3600:
+            return str(second_diff // 60) + " mins"
+        if second_diff < 7200:
+            return "an hour"
+        if second_diff < 86400:
+            return str(second_diff // 3600) + " hours"
+    if day_diff == 1:
+        return "yesterday"
+    if day_diff < 7:
+        return str(day_diff) + " days"
+    if day_diff < 31:
+        return str(day_diff // 7) + " weeks"
+    if day_diff < 365:
+        return str(day_diff // 30) + " months"
+    return str(day_diff // 365) + " years"

@@ -4,10 +4,10 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from _pydatetime import datetime
+from datetime import datetime
 
 import psutil
-import app.utilities.utilities as utilities
+from app.utilities.utilities import format_bytes
 
 
 class PsutilAdapter:
@@ -18,7 +18,7 @@ class PsutilAdapter:
         self.psutil = psutil
         self.fs_current: None = None
         self.sensors_current = []
-        self.format_bytes = utilities.format_bytes
+        self.format_bytes = format_bytes
         self.memory_stat: None = None
         self.fs_stats: None = None
         self.fs_usage: None = None

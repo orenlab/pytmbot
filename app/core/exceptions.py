@@ -22,21 +22,5 @@ class PyTeleMonBotTemplateError(PyTeleMonBotError):
     """Exception raised when an error template not found"""
 
 
-class DockerImageUpdateCheckerException(PyTeleMonBotError):
+class DockerAdapterException(PyTeleMonBotError):
     """Exception raised when an error occurs while checking Docker image"""
-
-
-class GlancesError(Exception):
-    """General GlancesApiError exception occurred."""
-
-
-class GlancesApiConnectionError(GlancesError):
-    """When a connection error is encountered."""
-
-
-class GlancesApiAuthorizationError(GlancesError):
-    """When a connection error is encountered."""
-
-
-class GlancesApiNoDataAvailable(GlancesError):
-    """When no data is available."""
