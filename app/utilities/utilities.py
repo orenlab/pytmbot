@@ -4,7 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local computers and/or servers from Glances
 """
-from datetime import datetime
 from functools import lru_cache
 from emoji import emojize as em_func
 
