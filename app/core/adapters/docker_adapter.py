@@ -40,7 +40,7 @@ class DockerAdapter:
                         container.split(': ')[1].strip().split('>')[0].strip()
                     )
                 return image_tag
-        except exceptions.DockerImageUpdateCheckerException:
+        except FileNotFoundError:
             raise exceptions.DockerImageUpdateCheckerException('No container found')
         except ConnectionError:
             self.log.debug('Auth error. Please check your internet connection and try again')

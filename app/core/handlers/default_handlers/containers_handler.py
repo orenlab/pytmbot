@@ -9,10 +9,7 @@ from app.core.handlers.handler import Handler
 from app import build_logger
 from telebot.types import Message
 
-try:
-    from app.core.adapters.docker_adapter import DockerAdapter
-except ImportError:
-    raise ImportError("Cannot import docker adapter.")
+from app.core.adapters.docker_adapter import DockerAdapter
 
 
 class ContainersHandler(Handler):
@@ -21,6 +18,7 @@ class ContainersHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.docker_adapter = DockerAdapter()
+        self.log.error("Cannot import docker adapter.")
 
     def _get_data(self):
         """Use docker adapter to gather containers information"""

@@ -2,7 +2,7 @@
 
 # pyTMbot
 
-A simple Telegram bot designed to gather basic information about the status of your __local__ servers. 
+A simple Telegram bot designed to gather basic information about the status of your __local__ servers.
 The bot operates synchronously. It does not use webhooks.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -19,7 +19,6 @@ Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github
 gather information.
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md)
-
 
 ## 💡 Features
 
@@ -48,9 +47,8 @@ Full list of Python dependencies see in `requirements.txt`
 
 ## 🛡 Secure
 
-The bot has a user.id authorization mechanism (specified at the initial stage of configuration). 
+The bot has a user.id authorization mechanism (specified at the initial stage of configuration).
 If the user.id is not specified, the bot will report that it is unable to access information about the server.
-
 
 ## 📈 Roadmap
 
@@ -59,7 +57,6 @@ If the user.id is not specified, the bot will report that it is unable to access
 ## 👾 Known issues
 
 - You tell me :)
-
 
 ## 🧬 Authors
 
