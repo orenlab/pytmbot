@@ -18,7 +18,6 @@ class ContainersHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
         self.docker_adapter = DockerAdapter()
-        self.log.error("Cannot import docker adapter.")
 
     def _get_data(self):
         """Use docker adapter to gather containers information"""
