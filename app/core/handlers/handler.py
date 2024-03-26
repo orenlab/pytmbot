@@ -18,8 +18,6 @@ from app.utilities.utilities import (
     get_emoji,
     round_up_tuple,
     format_bytes,
-    split_str,
-    replace_symbol
 )
 
 
@@ -38,8 +36,6 @@ class Handler(metaclass=abc.ABCMeta):
         self.get_emoji = get_emoji
         self.round_up_tuple = round_up_tuple
         self.format_bytes = format_bytes
-        self.split_str = split_str
-        self.replace_symbol = replace_symbol
         self.psutil_adapter = PsutilAdapter()
 
     @abc.abstractmethod

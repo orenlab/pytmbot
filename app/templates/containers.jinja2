@@ -3,9 +3,10 @@
 {{ thought_balloon }}Here is:
 
 {% for value in context %}{{ luggage }} {{ value['name'] }}:
-    {{ minus }} Started: {{ value["started"] }}
-    {{ minus }} Created: {{ value["created"] }}
     {{ minus }} Image: {{ value["image"] }}
+    {{ minus }} Created: {{ value["created"] }}
+    {{ minus }} Memory usage: {{ value["mem_usage"] }}
+    {{ minus }} Uptime: {{ value["uptime"] }}
     {{ minus }} Status: {{ value["status"] }}
 
 {% endfor %}
