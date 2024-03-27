@@ -17,15 +17,15 @@ class MemoryHandler(Handler):
         super().__init__(bot)
         self.log = build_logger(__name__)
 
-    def get_data(self) -> tuple:
+    def _get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
         data = self.psutil_adapter.get_memory()
         return data
 
-    def compile_message(self) -> tuple:
+    def _compile_message(self) -> tuple:
         """Use psutil to gather data on the memory load"""
         try:
-            context = self.get_data()
+            context = self._get_data()
             return context
         except ValueError as err:
             raise self.exceptions.PyTeleMonBotHandlerError(
@@ -35,7 +35,7 @@ class MemoryHandler(Handler):
     def get_answer(self) -> str:
         """Parsing answer to template"""
         try:
-            context = self.compile_message()
+            context = self._compile_message()
             bot_answer = self.jinja.render_templates(
                 'memory.jinja2',
                 thought_balloon=self.get_emoji('thought_balloon'),
