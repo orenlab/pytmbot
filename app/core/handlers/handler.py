@@ -17,7 +17,6 @@ from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.utilities.utilities import (
     get_emoji,
     round_up_tuple,
-    format_bytes,
 )
 
 
@@ -35,9 +34,8 @@ class Handler(metaclass=abc.ABCMeta):
         self.exceptions = exceptions
         self.get_emoji = get_emoji
         self.round_up_tuple = round_up_tuple
-        self.format_bytes = format_bytes
         self.psutil_adapter = PsutilAdapter()
 
     @abc.abstractmethod
     def handle(self):
-        """Abstract method"""
+        """Main abstract method"""
