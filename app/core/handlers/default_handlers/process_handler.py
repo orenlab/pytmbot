@@ -30,7 +30,7 @@ class ProcessHandler(Handler):
                 self.bot_msg_tpl.VALUE_ERR_TEMPLATE
             ) from err
 
-    def get_answer(self) -> str:
+    def _get_answer(self) -> str:
         """Parsing answer to template"""
         try:
             context = self._compile_message()
@@ -59,7 +59,7 @@ class ProcessHandler(Handler):
                     message.from_user.language_code,
                     message.from_user.is_bot
                 ))
-                self.bot.send_message(message.chat.id, text=self.get_answer())
+                self.bot.send_message(message.chat.id, text=self._get_answer())
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

@@ -30,7 +30,7 @@ class InlineSwapHandler(Handler):
                         call.message.from_user.is_bot
                     )
                 )
-                context = self.psutil_adapter.get_swap_memory()
+                context = self.psutil_adapter.get_swap_memory()  # need refactoring code
                 bot_answer = self.jinja.render_templates(
                     'swap.jinja2',
                     thought_balloon=self.get_emoji('thought_balloon'),

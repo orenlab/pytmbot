@@ -32,7 +32,7 @@ class MemoryHandler(Handler):
                 self.bot_msg_tpl.VALUE_ERR_TEMPLATE
             ) from err
 
-    def get_answer(self) -> str:
+    def _get_answer(self) -> str:
         """Parsing answer to template"""
         try:
             context = self._compile_message()
@@ -65,7 +65,7 @@ class MemoryHandler(Handler):
                     "Swap info",
                     "swap_info"
                 )
-                self.bot.send_message(message.chat.id, text=self.get_answer(), reply_markup=inline_button)
+                self.bot.send_message(message.chat.id, text=self._get_answer(), reply_markup=inline_button)
             except ConnectionError as err:
                 raise self.exceptions.PyTeleMonBotConnectionError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
