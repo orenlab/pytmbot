@@ -21,22 +21,6 @@ def get_emoji(emoji_name: str) -> str:
     return em_func(f":{emoji_name}:")
 
 
-def format_bytes(size: int) -> str:
-    """
-    Format size
-    @param size: int
-    @return: str
-    """
-    power = 2 ** 10
-    n = 0
-    power_labels = {0: '', 1: 'k', 2: 'm', 3: 'g', 4: 't'}
-    while size > power:
-        size /= power
-        n += 1
-    return_size = round(size, 2)
-    return f"{return_size}{power_labels[n]}b"
-
-
 # Deprecated func
 def split_str(data: str, delimiter: str) -> list[str]:
     """

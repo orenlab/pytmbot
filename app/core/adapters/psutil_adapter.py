@@ -5,9 +5,9 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
+from humanize import naturalsize
 
 import psutil
-from app.utilities.utilities import format_bytes
 
 
 class PsutilAdapter:
@@ -18,7 +18,7 @@ class PsutilAdapter:
         self.psutil = psutil
         self.fs_current: None = None
         self.sensors_current = []
-        self.format_bytes = format_bytes
+        self.naturalsize = naturalsize
         self.memory_stat: None = None
         self.fs_stats: None = None
         self.fs_usage: None = None
@@ -46,15 +46,15 @@ class PsutilAdapter:
             self.memory_current = ''  # Unset attr
             self.memory_stat = self.psutil.virtual_memory()
             self.memory_current = {
-                'total': self.format_bytes(self.memory_stat.total),
-                'available': self.format_bytes(self.memory_stat.available),
+                'total': self.naturalsize(self.memory_stat.total, binary=True),
+                'available': self.naturalsize(self.memory_stat.available, binary=True),
                 'percent': self.memory_stat.percent,
-                'used': self.format_bytes(self.memory_stat.used),
-                'free': self.format_bytes(self.memory_stat.free),
-                'active': self.format_bytes(self.memory_stat.active),
-                'inactive': self.format_bytes(self.memory_stat.inactive),
-                'cached': self.format_bytes(self.memory_stat.cached),
-                'shared': self.format_bytes(self.memory_stat.shared),
+                'used': self.naturalsize(self.memory_stat.used, binary=True),
+                'free': self.naturalsize(self.memory_stat.free, binary=True),
+                'active': self.naturalsize(self.memory_stat.active, binary=True),
+                'inactive': self.naturalsize(self.memory_stat.inactive, binary=True),
+                'cached': self.naturalsize(self.memory_stat.cached, binary=True),
+                'shared': self.naturalsize(self.memory_stat.shared, binary=True),
             }
             return self.memory_current
         except PermissionError as _err:
@@ -74,9 +74,9 @@ class PsutilAdapter:
                     'device_name': fs.device,
                     'fs_type': fs.fstype,
                     'mnt_point': fs.mountpoint.replace(u'\u00A0', ' '),
-                    'size': self.format_bytes(self.fs_usage.total),
-                    'used': self.format_bytes(self.fs_usage.used),
-                    'free': self.format_bytes(self.fs_usage.free),
+                    'size': self.naturalsize(self.fs_usage.total, binary=True),
+                    'used': self.naturalsize(self.fs_usage.used, binary=True),
+                    'free': self.naturalsize(self.fs_usage.free, binary=True),
                     'percent': self.fs_usage.percent
                 }, )
             return self.fs_current
@@ -91,9 +91,9 @@ class PsutilAdapter:
             self.sw_current = []  # unset attr
             swap = psutil.swap_memory()
             self.sw_current = {
-                'total': self.format_bytes(swap.total),
-                'used': self.format_bytes(swap.used),
-                'free': self.format_bytes(swap.free),
+                'total': self.naturalsize(swap.total, binary=True),
+                'used': self.naturalsize(swap.used, binary=True),
+                'free': self.naturalsize(swap.free, binary=True),
                 'percent': swap.percent,
             }
             return self.sw_current
