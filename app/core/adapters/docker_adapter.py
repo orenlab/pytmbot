@@ -6,13 +6,12 @@ the status of your local servers
 """
 from datetime import datetime
 from functools import lru_cache
-from humanize import naturalsize
+from humanize import naturalsize, naturaltime
 import docker
 
 from app.core import exceptions
 from app import build_logger
 from app.core.settings.bot_settings import DockerSettings
-from app.utilities.utilities import format_datetime, pretty_date
 
 
 class DockerAdapter:
@@ -27,7 +26,6 @@ class DockerAdapter:
         self.containers: None = None
         self.container: None = None
         self.log = build_logger(__name__)
-        self.naturalsize = naturalsize
 
     def _containers_list(self):
         """List all docker containers"""
@@ -53,7 +51,7 @@ class DockerAdapter:
         container = self.client.containers.get(container_id)
         return container
 
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=4)
     def _container_stats(self, container_details) -> dict:
         """Get docker container stats"""
         usage_stats = container_details.stats(decode=None, stream=False)
@@ -68,20 +66,19 @@ class DockerAdapter:
                 for container in self.containers:
                     container_details = self._container_details(container)
                     usage_stats = self._container_stats(container_details)
-                    created_date_time = format_datetime(container_details.attrs['Created'])
+                    created_day = datetime.fromisoformat(container_details.attrs['Created']).date()
+                    created_time = datetime.fromisoformat(
+                        container_details.attrs['Created']
+                    ).time().strftime("%H:%M:%S")
                     details.append(
                         {
                             'name': container_details.attrs['Name'].title(),
                             'image': container_details.attrs['Config']['Image'],
-                            'created': f'{created_date_time[0]}, {created_date_time[1]}',
+                            'created': f'{created_day}, {created_time}',
                             'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-                            'uptime': pretty_date(
+                            'run_at': naturaltime(
                                 datetime.fromisoformat(
                                     container_details.attrs['State']['StartedAt']
-                                ).astimezone(
-                                    tz=None
-                                ).replace(
-                                    tzinfo=None
                                 )
                             ),
                             'status': container_details.attrs['State']['Status']

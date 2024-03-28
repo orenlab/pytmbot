@@ -18,7 +18,6 @@ class PsutilAdapter:
         self.psutil = psutil
         self.fs_current: None = None
         self.sensors_current = []
-        self.naturalsize = naturalsize
         self.memory_stat: None = None
         self.fs_stats: None = None
         self.fs_usage: None = None
@@ -46,15 +45,15 @@ class PsutilAdapter:
             self.memory_current = ''  # Unset attr
             self.memory_stat = self.psutil.virtual_memory()
             self.memory_current = {
-                'total': self.naturalsize(self.memory_stat.total, binary=True),
-                'available': self.naturalsize(self.memory_stat.available, binary=True),
+                'total': naturalsize(self.memory_stat.total, binary=True),
+                'available': naturalsize(self.memory_stat.available, binary=True),
                 'percent': self.memory_stat.percent,
-                'used': self.naturalsize(self.memory_stat.used, binary=True),
-                'free': self.naturalsize(self.memory_stat.free, binary=True),
-                'active': self.naturalsize(self.memory_stat.active, binary=True),
-                'inactive': self.naturalsize(self.memory_stat.inactive, binary=True),
-                'cached': self.naturalsize(self.memory_stat.cached, binary=True),
-                'shared': self.naturalsize(self.memory_stat.shared, binary=True),
+                'used': naturalsize(self.memory_stat.used, binary=True),
+                'free': naturalsize(self.memory_stat.free, binary=True),
+                'active': naturalsize(self.memory_stat.active, binary=True),
+                'inactive': naturalsize(self.memory_stat.inactive, binary=True),
+                'cached': naturalsize(self.memory_stat.cached, binary=True),
+                'shared': naturalsize(self.memory_stat.shared, binary=True),
             }
             return self.memory_current
         except PermissionError as _err:
@@ -74,9 +73,9 @@ class PsutilAdapter:
                     'device_name': fs.device,
                     'fs_type': fs.fstype,
                     'mnt_point': fs.mountpoint.replace(u'\u00A0', ' '),
-                    'size': self.naturalsize(self.fs_usage.total, binary=True),
-                    'used': self.naturalsize(self.fs_usage.used, binary=True),
-                    'free': self.naturalsize(self.fs_usage.free, binary=True),
+                    'size': naturalsize(self.fs_usage.total, binary=True),
+                    'used': naturalsize(self.fs_usage.used, binary=True),
+                    'free': naturalsize(self.fs_usage.free, binary=True),
                     'percent': self.fs_usage.percent
                 }, )
             return self.fs_current
@@ -91,9 +90,9 @@ class PsutilAdapter:
             self.sw_current = []  # unset attr
             swap = psutil.swap_memory()
             self.sw_current = {
-                'total': self.naturalsize(swap.total, binary=True),
-                'used': self.naturalsize(swap.used, binary=True),
-                'free': self.naturalsize(swap.free, binary=True),
+                'total': naturalsize(swap.total, binary=True),
+                'used': naturalsize(swap.used, binary=True),
+                'free': naturalsize(swap.free, binary=True),
                 'percent': swap.percent,
             }
             return self.sw_current
