@@ -11,17 +11,8 @@ RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requ
 # second unnamed stage
 FROM python:3.12.2-alpine
 
-# No way to add non-root user and use docker socket :((
-# ARG USER_UID=1000
-# ARG GROUP_GID=1000
-# ARG UGNAME=pytmbot
-
 # update base os components
 RUN apk update && apk upgrade && apk cache clean
-
-# No way to add non-root user and use docker socket :((
-# RUN addgroup --system --gid ${GROUP_GID} ${UGNAME}
-# RUN adduser --system --disabled-password --home /home/${UGNAME} --uid ${USER_UID} --ingroup ${UGNAME} ${UGNAME}
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -44,14 +35,6 @@ ENV PATH=/venv/bin:$PATH
 
 # Change TZ!
 ENV TZ="Asia/Yekaterinburg"
-
-# No way to add non-root user and use docker socket :((
-# set owner to workdir
-# RUN chown -R "$UGNAME":"$UGNAME" /opt
-
-# No way to add non-root user and use docker socket :((
-# run app from none-root user!
-# USER $UGNAME
 
 # forward logs to Docker's log collector
 RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
