@@ -64,7 +64,7 @@ To build a Docker image:
 To launch a Docker container:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro --restart=always --name=pytmbot --pid host orenlab/pytmbot:latest
+  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
 
 Docker image size ~80,5 Мб.
