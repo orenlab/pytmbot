@@ -16,7 +16,7 @@ from app.core import exceptions
 config = BotSettings()
 
 # Set global name
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
