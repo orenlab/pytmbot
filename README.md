@@ -47,8 +47,8 @@ Full list of Python dependencies see in `requirements.txt`
 
 ## 🛡 Secure
 
-The bot has a user.id authorization mechanism (specified at the initial stage of configuration).
-If the user.id is not specified, the bot will report that it is unable to access information about the server.
+The bot has a `user.id` authorization mechanism (specified at the initial stage of configuration).
+If the `user.id` is not specified, the bot will report that it is unable to access information about the server.
 
 ## 📈 Roadmap
 
