@@ -46,10 +46,10 @@ class Jinja2Renderer:
                 )
             )
             return jinja2
-        except TemplateError as err:
+        except TemplateError:
             raise exceptions.PyTeleMonBotTemplateError(
                 "Error loading template"
-            ) from err
+            )
 
     def render_templates(self, template_name: str, **context: dict):
         """Render template on Jinja2"""
@@ -63,7 +63,7 @@ class Jinja2Renderer:
                 raise exceptions.PyTeleMonBotTemplateError(
                     "Unknown template name"
                 )
-        except TemplateError as err:
+        except TemplateError:
             raise exceptions.PyTeleMonBotTemplateError(
                 "Error parsing template"
-            ) from err
+            )

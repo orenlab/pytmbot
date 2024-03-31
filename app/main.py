@@ -27,15 +27,15 @@ class PyTMBot:
     def run_bot(self):
         """Run the bot"""
         try:
-            self.log.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
+            self.log.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.bot.infinity_polling()
-        except ConnectionError as _error:
+        except ConnectionError:
             self.log.critical('Error connecting to Telegram API')
             self.bot.stop_polling()
             self.log.critical('PyTMBot stopped...')
-            raise exceptions.PyTeleMonBotConnectionError('Error connecting to Telegram API') from _error
+            raise exceptions.PyTeleMonBotConnectionError('Error connecting to Telegram API')
 
 
 if __name__ == "__main__":

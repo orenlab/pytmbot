@@ -16,6 +16,7 @@ from app.core.handlers.default_handlers import (
 )
 from app.core.handlers.inline_handlers import InlineQueryHandler
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
+from app import build_logger
 
 
 class HandlersAggregator:
@@ -31,15 +32,24 @@ class HandlersAggregator:
         self.containers_handler = ContainersHandler(self.bot)
         self.inline_query_handler = InlineQueryHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
+        self.log = build_logger(__name__)
 
     def run_handlers(self):
-        self.start_handler.handle()
-        self.load_avg_handler.handle()
-        self.memory_handler.handle()
-        self.sensors_handler.handle()
-        self.process_handler.handle()
-        self.uptime_handler.handle()
-        self.fs_handler.handle()
-        self.containers_handler.handle()
-        self.inline_query_handler.handle()
-        self.inline_swap_handler.handle()
+        try:
+            self.start_handler.handle()
+            self.load_avg_handler.handle()
+            self.memory_handler.handle()
+            self.sensors_handler.handle()
+            self.process_handler.handle()
+            self.uptime_handler.handle()
+            self.fs_handler.handle()
+            self.inline_query_handler.handle()
+            self.inline_swap_handler.handle()
+            # check if Docker sock available
+            try:
+                self.containers_handler.handle()
+            except ConnectionError:
+                self.log.error("Error initialise the containers handler")
+                return
+        except (ConnectionError, ValueError):
+            self.log.critical("Error running handlers")

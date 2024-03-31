@@ -35,7 +35,7 @@ class InlineQueryHandler(Handler):
                     text="Test callback_query_handler['docker_image_update']"
                 )
 
-            except ValueError as err:
-                raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE) from err
-            except self.TemplateError as err_tpl:
-                raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE) from err_tpl
+            except ValueError:
+                raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
+            except self.TemplateError:
+                raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)

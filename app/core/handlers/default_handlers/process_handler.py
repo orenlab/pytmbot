@@ -25,10 +25,10 @@ class ProcessHandler(Handler):
         try:
             context = self._get_data()
             return context
-        except ValueError as err:
+        except ValueError:
             raise self.exceptions.PyTeleMonBotHandlerError(
                 self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-            ) from err
+            )
 
     def _get_answer(self) -> str:
         """Parsing answer to template"""
@@ -41,10 +41,10 @@ class ProcessHandler(Handler):
                 context=context
             )
             return bot_answer
-        except self.TemplateError as err_tpl:
+        except self.TemplateError:
             raise self.exceptions.PyTeleMonBotTemplateError(
                 self.bot_msg_tpl.TPL_ERR_TEMPLATE
-            ) from err_tpl
+            )
 
     def handle(self):
         @self.bot.message_handler(regexp="Process")
@@ -60,7 +60,7 @@ class ProcessHandler(Handler):
                     message.from_user.is_bot
                 ))
                 self.bot.send_message(message.chat.id, text=self._get_answer())
-            except ConnectionError as err:
+            except ConnectionError:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                ) from err
+                )

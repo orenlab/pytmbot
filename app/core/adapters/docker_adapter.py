@@ -27,6 +27,11 @@ class DockerAdapter:
         self.container: None = None
         self.log = build_logger(__name__)
 
+    def _is_docker_available(self) -> bool:
+        """Check if the docker socket is available"""
+        ping = self.client.ping()
+        return ping
+
     def _containers_list(self):
         """List all docker containers"""
         try:
@@ -60,33 +65,37 @@ class DockerAdapter:
     def check_image_details(self):
         """Check docker image details"""
         try:
-            self.containers = self._containers_list()
-            details = []
-            if self.containers:
-                for container in self.containers:
-                    container_details = self._container_details(container)
-                    usage_stats = self._container_stats(container_details)
-                    created_day = datetime.fromisoformat(container_details.attrs['Created']).date()
-                    created_time = datetime.fromisoformat(
-                        container_details.attrs['Created']
-                    ).time().strftime("%H:%M:%S")
-                    details.append(
-                        {
-                            'name': container_details.attrs['Name'].title(),
-                            'image': container_details.attrs['Config']['Image'],
-                            'created': f'{created_day}, {created_time}',
-                            'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-                            'run_at': naturaltime(
-                                datetime.fromisoformat(
-                                    container_details.attrs['State']['StartedAt']
-                                )
-                            ),
-                            'status': container_details.attrs['State']['Status']
-                        }
-                    )
-                return details
+            if self._is_docker_available():
+                self.containers = self._containers_list()
+                details = []
+                if self.containers:
+                    for container in self.containers:
+                        container_details = self._container_details(container)
+                        usage_stats = self._container_stats(container_details)
+                        created_day = datetime.fromisoformat(container_details.attrs['Created']).date()
+                        created_time = datetime.fromisoformat(
+                            container_details.attrs['Created']
+                        ).time().strftime("%H:%M:%S")
+                        details.append(
+                            {
+                                'name': container_details.attrs['Name'].title(),
+                                'image': container_details.attrs['Config']['Image'],
+                                'created': f'{created_day}, {created_time}',
+                                'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
+                                'run_at': naturaltime(
+                                    datetime.fromisoformat(
+                                        container_details.attrs['State']['StartedAt']
+                                    )
+                                ),
+                                'status': container_details.attrs['State']['Status']
+                            }
+                        )
+                    return details
+                else:
+                    self.log.debug('Docker image not found: see "docker ps" command')
+                    return {}
             else:
-                self.log.debug('Docker image not found: see "docker ps" command')
+                self.log.error('Docker socket not found. Check docker URL')
                 return {}
         except ValueError:
             self.log.debug('Image value error')

@@ -53,7 +53,7 @@ class LoadAvgHandler(Handler):
                     message.chat.id,
                     text=bot_answer
                 )
-            except ValueError as err:
+            except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                ) from err
+                )

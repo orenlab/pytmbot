@@ -49,7 +49,7 @@ class UptimeHandler(Handler):
                     message.chat.id,
                     text=uptime_bot_answer
                 )
-            except ConnectionError as err:
+            except ConnectionError:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                ) from err
+                )

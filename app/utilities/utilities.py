@@ -20,27 +20,6 @@ def get_emoji(emoji_name: str) -> str:
     return em_func(f":{emoji_name}:")
 
 
-def split_str(data: str, delimiter: str) -> list[str]:
-    """
-    Split data
-    @param data: str
-    @param delimiter: str
-    @return: list[str]
-    """
-    split_data = data.split(delimiter)
-    return split_data
-
-
-def replace_symbol(data: str) -> list[str]:
-    """
-    Replace data to symbols
-    @param data: str
-    @return: str
-    """
-    replace_data = [item.replace("[", "").replace("]", "").replace('"', "").replace("'", "") for item in data]
-    return replace_data
-
-
 def round_up_tuple(n: tuple) -> dict:
     """
     Round up a number in tuple
