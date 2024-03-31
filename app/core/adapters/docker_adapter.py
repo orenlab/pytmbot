@@ -5,7 +5,6 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
-from functools import lru_cache
 from humanize import naturalsize, naturaltime
 import docker
 
@@ -20,22 +19,32 @@ class DockerAdapter:
     def __init__(self) -> None:
         """Initialize the DockerAdapter class"""
         self.docker_url: str = DockerSettings.docker_host
-        self.client = docker.DockerClient(self.docker_url)
+        self.client = None
         self.registry_digest: None = None
         self.local_image_digest: None = None
         self.containers: None = None
         self.container: None = None
         self.log = build_logger(__name__)
 
+    def _create_docker_client(self) -> docker.DockerClient:
+        """Creates the docker client instance"""
+        try:
+            self.client = docker.DockerClient(self.docker_url)
+            return self.client
+        except (ConnectionError, ConnectionRefusedError):
+            self.log.error("Can't connect to docker sock")
+
     def _is_docker_available(self) -> bool:
         """Check if the docker socket is available"""
-        ping = self.client.ping()
+        client = self._create_docker_client()
+        ping = client.ping()
         return ping
 
     def _containers_list(self):
         """List all docker containers"""
         try:
-            containers_raw = repr(self.client.containers.list())
+            client = self._create_docker_client()
+            containers_raw = repr(client.containers.list())
             if containers_raw == '[]':
                 self.log.debug('No containers found. Docker is run.')
             else:
@@ -53,11 +62,12 @@ class DockerAdapter:
 
     def _container_details(self, container_id: str):
         """Get docker containers details"""
-        container = self.client.containers.get(container_id)
+        client = self._create_docker_client()
+        container = client.containers.get(container_id)
         return container
 
-    @lru_cache(maxsize=4)
-    def _container_stats(self, container_details) -> dict:
+    @staticmethod
+    def _container_stats(container_details) -> dict:
         """Get docker container stats"""
         usage_stats = container_details.stats(decode=None, stream=False)
         return usage_stats
