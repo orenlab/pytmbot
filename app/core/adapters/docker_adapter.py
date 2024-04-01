@@ -9,7 +9,7 @@ from humanize import naturalsize, naturaltime
 import docker
 
 from app.core import exceptions
-from app import build_logger
+from app import logger
 from app.core.settings.bot_settings import DockerSettings
 
 
@@ -24,14 +24,14 @@ class DockerAdapter:
         self.local_image_digest: None = None
         self.containers: None = None
         self.container: None = None
-        self.log = build_logger(__name__)
+        self.log = logger
 
     def _create_docker_client(self) -> docker.DockerClient:
         """Creates the docker client instance"""
         try:
             self.client = docker.DockerClient(self.docker_url)
             return self.client
-        except (ConnectionError, ConnectionRefusedError):
+        except ConnectionError:
             self.log.error("Can't connect to docker sock")
 
     def _is_docker_available(self) -> bool:

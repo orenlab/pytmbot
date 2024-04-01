@@ -6,6 +6,8 @@ the status of your local servers
 """
 
 import logging
+import sys
+
 import telebot
 import argparse
 
@@ -40,25 +42,6 @@ def parse_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_logger(name: str) -> logging.Logger:
-    """Build logger with specified module name and log level"""
-    logs_level = parse_cli_args()
-
-    match logs_level.log_level:
-        case "DEBUG":
-            telebot.logger.setLevel(logging.DEBUG)
-        case "INFO":
-            telebot.logger.setLevel(logging.INFO)
-        case "ERROR":
-            telebot.logger.setLevel(logging.ERROR)
-        case "CRITICAL":
-            telebot.logger.setLevel(logging.CRITICAL)
-        case _:
-            raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
-
-    return telebot.logger
-
-
 def init_bot() -> telebot.TeleBot:
     """Build PyTMBot instance"""
     bot_mode = parse_cli_args()
@@ -82,3 +65,25 @@ def init_bot() -> telebot.TeleBot:
 
 # Bot one common instance
 bot = init_bot()
+
+# Configure logger
+logs_level = parse_cli_args()
+logger = logging.getLogger('pyTMbot')
+handler = logging.StreamHandler(sys.stdout)
+str_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+date_format = '%Y-%m-%d %H:%M:%S'
+formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.propagate = False
+match logs_level.log_level:
+    case "DEBUG":
+        logger.setLevel(logging.DEBUG)
+    case "INFO":
+        logger.setLevel(logging.INFO)
+    case "ERROR":
+        logger.setLevel(logging.ERROR)
+    case "CRITICAL":
+        logger.setLevel(logging.CRITICAL)
+    case _:
+        raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")

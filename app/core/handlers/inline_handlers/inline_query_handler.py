@@ -8,7 +8,7 @@ from telebot import types
 
 from app.core.adapters.psutil_adapter import PsutilAdapter
 
-from app import build_logger
+from app import logger
 
 from app.core.handlers.handler import Handler
 
@@ -16,7 +16,7 @@ from app.core.handlers.handler import Handler
 class InlineQueryHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
-        self.log = build_logger(__name__)
+        self.log = logger
         self.psutil_adapter = PsutilAdapter()
 
     def handle(self):

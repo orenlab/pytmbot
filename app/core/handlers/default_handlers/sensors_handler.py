@@ -6,7 +6,7 @@ the status of your local servers
 """
 
 from app.core.handlers.handler import Handler
-from app import build_logger
+from app import logger
 from telebot.types import Message
 
 
@@ -14,7 +14,7 @@ class SensorsHandler(Handler):
     def __init__(self, bot):
         """Initialize the SensorsHandler"""
         super().__init__(bot)
-        self.log = build_logger(__name__)
+        self.log = logger
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""

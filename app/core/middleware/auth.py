@@ -13,7 +13,7 @@ from telebot.types import Message
 from app import (
     config,
     bot,
-    build_logger
+    logger
 )
 from app.core.settings.log_tpl_settings import MessageTpl
 
@@ -24,7 +24,7 @@ class AllowedUser(BaseMiddleware):
     def __init__(self) -> None:
         """Initialize the middleware"""
         super().__init__()
-        self.log = build_logger(__name__)
+        self.log = logger
         self.bot_msg_tpl = MessageTpl()
         self.update_types = ['message']  # Needed for correctly work middleware
 

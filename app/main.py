@@ -7,7 +7,7 @@ the status of your local servers
 from app import (
     __version__,
     __repository__,
-    build_logger,
+    logger,
     bot
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
@@ -20,7 +20,7 @@ class PyTMBot:
 
     def __init__(self):
         """Initialize the PyTMBot class"""
-        self.log = build_logger(__name__)
+        self.log = logger
         self.bot = bot
         self.handler = HandlersAggregator(self.bot)
 

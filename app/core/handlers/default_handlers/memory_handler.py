@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from app.core.handlers.handler import Handler
-from app import build_logger
+from app import logger
 from telebot.types import Message
 
 
@@ -15,7 +15,7 @@ class MemoryHandler(Handler):
     def __init__(self, bot):
         """Initialize memory handler"""
         super().__init__(bot)
-        self.log = build_logger(__name__)
+        self.log = logger
 
     def _get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""

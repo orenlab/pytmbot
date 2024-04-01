@@ -16,7 +16,7 @@ from app.core.handlers.default_handlers import (
 )
 from app.core.handlers.inline_handlers import InlineQueryHandler
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
-from app import build_logger
+from app import logger
 
 
 class HandlersAggregator:
@@ -32,7 +32,7 @@ class HandlersAggregator:
         self.containers_handler = ContainersHandler(self.bot)
         self.inline_query_handler = InlineQueryHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
-        self.log = build_logger(__name__)
+        self.log = logger
 
     def run_handlers(self):
         try:
