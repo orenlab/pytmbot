@@ -14,7 +14,7 @@ from app.core.settings.bot_settings import DockerSettings
 
 
 class DockerAdapter:
-    """Class to check if a docker image is update"""
+    """Class to check docker containers base info"""
 
     def __init__(self) -> None:
         """Initialize the DockerAdapter class"""
