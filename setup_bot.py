@@ -5,7 +5,10 @@ pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-import click
+try:
+    import click
+except ImportError:
+    raise ImportError("Error loading 'click' package. Install it!")
 from string import Template
 
 import bot_cli.cfg_templates.bot_settings as default_bot_tpl

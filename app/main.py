@@ -32,9 +32,9 @@ class PyTMBot:
             self.log.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.bot.infinity_polling()
         except ConnectionError:
-            self.log.critical('Error connecting to Telegram API')
+            self.log.error('Error connecting to Telegram API')
             self.bot.stop_polling()
-            self.log.critical('PyTMBot stopped...')
+            self.log.error('PyTMBot stopped...')
             raise exceptions.PyTeleMonBotConnectionError('Error connecting to Telegram API')
 
 
