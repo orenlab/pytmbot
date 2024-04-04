@@ -23,7 +23,6 @@ class InlineSwapHandler(Handler):
             try:
                 self.log.info(
                     self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                        "callback_query_handler['swap_info']",
                         call.message.from_user.username,
                         call.message.from_user.id,
                         call.message.from_user.language_code,
