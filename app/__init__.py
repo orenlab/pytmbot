@@ -70,8 +70,7 @@ bot = init_bot()
 logs_level = parse_cli_args()
 logger = logging.getLogger('pyTMbot')
 handler = logging.StreamHandler(sys.stdout)
-str_format = ("%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:(%("
-              "lineno)d)]")
+str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:%(lineno)d]"
 date_format = '%Y-%m-%d %H:%M:%S'
 formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
 handler.setFormatter(formatter)
