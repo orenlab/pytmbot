@@ -7,17 +7,25 @@ qodana.yaml
 old_Dockerfile
 docker-entrypoint.sh
 Dockerfile_dev
+docker-compose.yml
 README.md
 bot_cli
 tests
 poetry.lock
 setup_bot.py
 docs
-docs/.screenshots
+docs/*
 
 **/.DS_Store
 .idea/
 .vscode/
+.run
+.github
+
+
+LICENSE
+pyproject.toml
+
 
 ### Python template
 # Byte-compiled / optimized / DLL files
