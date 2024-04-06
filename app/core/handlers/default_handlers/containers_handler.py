@@ -6,7 +6,7 @@ the status of your local servers
 """
 
 from app.core.handlers.handler import Handler
-from app import logger
+from app import bot_logger
 from telebot.types import Message
 
 from app.core.adapters.docker_adapter import DockerAdapter
@@ -16,7 +16,6 @@ class ContainersHandler(Handler):
     def __init__(self, bot):
         """Initialize the ContainersHandler"""
         super().__init__(bot)
-        self.log = logger
         self.docker_adapter = DockerAdapter()
 
     def _get_data(self):
@@ -51,7 +50,7 @@ class ContainersHandler(Handler):
             Get docker containers info
             """
             try:
-                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
                     message.from_user.id,
                     message.from_user.language_code,

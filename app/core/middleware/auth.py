@@ -13,7 +13,7 @@ from telebot.types import Message
 from app import (
     config,
     bot,
-    logger
+    bot_logger
 )
 from app.core.settings.log_tpl_settings import MessageTpl
 
@@ -24,21 +24,20 @@ class AllowedUser(BaseMiddleware):
     def __init__(self) -> None:
         """Initialize the middleware"""
         super().__init__()
-        self.log = logger
         self.bot_msg_tpl = MessageTpl()
         self.update_types = ['message']  # Needed for correctly work middleware
 
     def pre_process(self, message: Message, data):
         """Check allowed users"""
         if message.from_user.id in config.ALLOWED_USER_IDS:
-            self.log.info(
+            bot_logger.info(
                 self.bot_msg_tpl.ACCESS_SUCCESS.format(
                     message.from_user.username,
                     message.from_user.id,
                 )
             )
         else:
-            self.log.error(
+            bot_logger.error(
                 self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
                     message.from_user.username,
                     message.from_user.id,

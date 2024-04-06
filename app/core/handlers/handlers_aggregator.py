@@ -16,7 +16,7 @@ from app.core.handlers.default_handlers import (
 )
 from app.core.handlers.inline_handlers import InlineQueryHandler
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
-from app import logger
+from app import bot_logger
 
 
 class HandlersAggregator:
@@ -32,7 +32,6 @@ class HandlersAggregator:
         self.containers_handler = ContainersHandler(self.bot)
         self.inline_query_handler = InlineQueryHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
-        self.log = logger
 
     def run_handlers(self):
         try:
@@ -49,7 +48,7 @@ class HandlersAggregator:
             try:
                 self.containers_handler.handle()
             except ConnectionError:
-                self.log.error("Error initialise the containers handler")
+                bot_logger.error("Error initialise the containers handler")
                 return
         except (ConnectionError, ValueError):
-            self.log.critical("Error running handlers")
+            bot_logger.critical("Error running handlers")

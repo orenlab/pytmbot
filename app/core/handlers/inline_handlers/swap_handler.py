@@ -6,14 +6,13 @@ the status of your local servers
 """
 from telebot import types
 from app.core.adapters.psutil_adapter import PsutilAdapter
-from app import logger
+from app import bot_logger
 from app.core.handlers.handler import Handler
 
 
 class InlineSwapHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
-        self.log = logger
         self.psutil_adapter = PsutilAdapter()
 
     def handle(self):
@@ -21,7 +20,7 @@ class InlineSwapHandler(Handler):
         def swap(call: types.CallbackQuery):
             """Get callback query - swap information from psutil"""
             try:
-                self.log.info(
+                bot_logger.log.info(
                     self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                         call.message.from_user.username,
                         call.message.from_user.id,

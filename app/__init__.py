@@ -63,27 +63,33 @@ def init_bot() -> telebot.TeleBot:
     return configured_bot
 
 
+def build_logger() -> logging.Logger:
+    logs_level = parse_cli_args()
+    logger = logging.getLogger('pyTMbot')
+    handler = logging.StreamHandler(sys.stdout)
+    str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:%(lineno)d]"
+    date_format = '%Y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
+    match logs_level.log_level:
+        case "DEBUG":
+            logger.setLevel(logging.DEBUG)
+        case "INFO":
+            logger.setLevel(logging.INFO)
+        case "ERROR":
+            logger.setLevel(logging.ERROR)
+        case "CRITICAL":
+            logger.setLevel(logging.CRITICAL)
+        case _:
+            raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
+
+    return logger
+
+
 # Bot one common instance
 bot = init_bot()
 
-# Configure logger
-logs_level = parse_cli_args()
-logger = logging.getLogger('pyTMbot')
-handler = logging.StreamHandler(sys.stdout)
-str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:%(lineno)d]"
-date_format = '%Y-%m-%d %H:%M:%S'
-formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.propagate = False
-match logs_level.log_level:
-    case "DEBUG":
-        logger.setLevel(logging.DEBUG)
-    case "INFO":
-        logger.setLevel(logging.INFO)
-    case "ERROR":
-        logger.setLevel(logging.ERROR)
-    case "CRITICAL":
-        logger.setLevel(logging.CRITICAL)
-    case _:
-        raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
+# Logger on common instance
+bot_logger = build_logger()

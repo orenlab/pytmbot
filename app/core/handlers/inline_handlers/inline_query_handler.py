@@ -8,7 +8,7 @@ from telebot import types
 
 from app.core.adapters.psutil_adapter import PsutilAdapter
 
-from app import logger
+from app import bot_logger
 
 from app.core.handlers.handler import Handler
 
@@ -16,7 +16,6 @@ from app.core.handlers.handler import Handler
 class InlineQueryHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
-        self.log = logger
         self.psutil_adapter = PsutilAdapter()
 
     def handle(self):
@@ -27,7 +26,7 @@ class InlineQueryHandler(Handler):
             Get callback query - docker image update check
             """
             try:
-                self.log.info(
+                bot_logger.info(
                     self.bot_msg_tpl.HANDLER_START_TEMPLATE.format("callback_query_handler['docker_image_update']"))
                 self.bot.edit_message_text(
                     chat_id=call.message.chat.id,

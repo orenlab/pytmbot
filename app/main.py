@@ -7,7 +7,7 @@ the status of your local servers
 from app import (
     __version__,
     __repository__,
-    logger,
+    bot_logger,
     bot
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
@@ -20,7 +20,6 @@ class PyTMBot:
 
     def __init__(self):
         """Initialize the PyTMBot class"""
-        self.log = logger
         self.bot = bot
         self.handler = HandlersAggregator(self.bot)
 
@@ -29,12 +28,12 @@ class PyTMBot:
         try:
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
-            self.log.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
+            bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.bot.infinity_polling()
         except ConnectionError:
-            self.log.error('Error connecting to Telegram API')
+            bot_logger.error('Error connecting to Telegram API')
             self.bot.stop_polling()
-            self.log.error('PyTMBot stopped...')
+            bot_logger.error('PyTMBot stopped...')
             raise exceptions.PyTeleMonBotConnectionError('Error connecting to Telegram API')
 
 

@@ -6,14 +6,13 @@ the status of your local servers
 """
 
 from app.core.handlers.handler import Handler
-from app import logger
+from app import bot_logger
 from telebot.types import Message
 
 
 class ProcessHandler(Handler):
     def __init__(self, bot):
         super().__init__(bot)
-        self.log = logger
 
     def _get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
@@ -53,7 +52,7 @@ class ProcessHandler(Handler):
             Get process count
             """
             try:
-                self.log.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
+                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
                     message.from_user.id,
                     message.from_user.language_code,

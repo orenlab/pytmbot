@@ -9,7 +9,7 @@ from humanize import naturalsize, naturaltime
 import docker
 
 from app.core import exceptions
-from app import logger
+from app import bot_logger
 from app.core.settings.bot_settings import DockerSettings
 
 
@@ -24,7 +24,7 @@ class DockerAdapter:
         self.local_image_digest: None = None
         self.containers: None = None
         self.container: None = None
-        self.log = logger
+        self.log = bot_logger
 
     def _create_docker_client(self) -> docker.DockerClient:
         """Creates the docker client instance"""
