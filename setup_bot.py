@@ -105,7 +105,7 @@ def build_config() -> None:
     click.secho("*** Starting build default .env ***", fg="green", bold=True)
 
     # .env
-    if filesystem.has_file(".env"):
+    if filesystem.has_file(APP_ENV_FILE):
         click.secho("Looks like you already have .env, if you need reconfigure bot, remove it.", blink=True,
                     fg="yellow", bold=True)
     else:
