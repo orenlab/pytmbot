@@ -4,6 +4,7 @@ FROM python:3.12.2-alpine3.19 AS builder
 # Copy python deps file
 COPY requirements.txt .
 
+# Install some python deps (needed for build psutil and over packages)
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
