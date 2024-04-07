@@ -1,14 +1,16 @@
-# first stage
+# First stage
 FROM python:3.12.2-alpine3.19 AS builder
+
+# Copy python deps file
 COPY requirements.txt .
 
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
-# install dependencies to the venv path
+# Install dependencies to the venv path
 RUN python3 -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requirements.txt
 
-# second unnamed stage
+# Second unnamed stage
 FROM python:3.12.2-alpine3.19
 
 # App workdir
@@ -18,27 +20,31 @@ WORKDIR /opt/pytmbot/
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
+# Setup PATH env
 ENV PATH=/venv/bin:$PATH
+# Setup time zone
 ENV TZ="Asia/Yekaterinburg"
 
 # Copy .env file with token (prod, dev)
 COPY .env /opt/pytmbot
 
-# copy only the dependencies installation from the 1st stage image
+# Copy only the dependencies installation from the 1st stage image
 COPY --from=builder /venv /venv
+
+# Copy bot files
 COPY ./app ./app/
+# Copy bot log
 COPY ./logs /opt/logs/
 
-# update base os components
-RUN apk update && \
-    apk upgrade && \
-    apk cache clean && \
+# Update base os components
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
 # activate venv
     source /venv/bin/activate && \
 # forward logs to Docker's log collector
     ln -sf /dev/stdout /opt/logs/pytmbot.log
 
-# run app
+# Run app
 # !!! needed set log level:
 #   - DEBUG
 #   - INFO (default)
