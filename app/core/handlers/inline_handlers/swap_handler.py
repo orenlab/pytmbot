@@ -20,7 +20,7 @@ class InlineSwapHandler(Handler):
         def swap(call: types.CallbackQuery):
             """Get callback query - swap information from psutil"""
             try:
-                bot_logger.log.info(
+                bot_logger.info(
                     self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                         call.message.from_user.username,
                         call.message.from_user.id,

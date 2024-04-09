@@ -25,7 +25,6 @@ class Jinja2Renderer:
             'fs.jinja2',
             'index.jinja2',
             'load_average.jinja2',
-            'load_average_history.jinja2',
             'memory.jinja2',
             'none.jinja2',
             'process.jinja2',
