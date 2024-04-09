@@ -1,10 +1,7 @@
 # First stage
 FROM python:3.12.2-alpine3.19 AS builder
-
-# Copy python deps file
 COPY requirements.txt .
 
-# Install some python deps (needed for build psutil and over packages)
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
@@ -12,7 +9,7 @@ RUN python3 -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requirements.txt
 
 # Second unnamed stage
-FROM python:3.12.2-alpine3.19
+FROM alpine:latest
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -21,20 +18,25 @@ WORKDIR /opt/pytmbot/
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
-# Setup PATH env
 ENV PATH=/venv/bin:$PATH
 # Setup time zone
 ENV TZ="Asia/Yekaterinburg"
 
-# Copy .env file with token (prod, dev)
-COPY .env /opt/pytmbot
+# Сopy only the necessary python files and directories from first stage
+COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
+COPY --from=builder /usr/local/bin/python3.12 /usr/local/bin/python3.12
+COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
+COPY --from=builder /usr/local/lib/libpython3.12.so.1.0 /usr/local/lib/libpython3.12.so.1.0
+COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 
 # Copy only the dependencies installation from the 1st stage image
 COPY --from=builder /venv /venv
 
+# Copy .env file with token (prod, dev)
+COPY .env /opt/pytmbot
+
 # Copy bot files
 COPY ./app ./app/
-# Copy bot log
 COPY ./logs /opt/logs/
 
 # Update base os components
