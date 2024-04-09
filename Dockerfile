@@ -9,7 +9,7 @@ RUN python3 -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requirements.txt
 
 # Second unnamed stage
-FROM alpine:latest
+FROM alpine:3.19.1
 
 # App workdir
 WORKDIR /opt/pytmbot/
