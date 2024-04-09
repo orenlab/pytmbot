@@ -18,8 +18,6 @@ The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/py
 Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
 gather information.
 
-Screenshots are available here: [screenshots.md](docs/screenshots.md)
-
 ## 💡 Features
 
 - Load average information
@@ -32,6 +30,8 @@ Screenshots are available here: [screenshots.md](docs/screenshots.md)
 - Use `Jinja2` for answers template
 - Use docker logs collector (`sudo docker logs container_id`)
 - Use emoji :)
+
+Screenshots are available here: [screenshots.md](docs/screenshots.md)
 
 ## 🪤 Requirements
 
