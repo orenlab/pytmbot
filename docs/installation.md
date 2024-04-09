@@ -16,6 +16,7 @@ To install this project:
 
 ```bash
 python -m venv .venv
+source ~/pytmbot/.venv/bin/activate
 pip install -r ./bot_cli/requirements.txt
 ```
 
