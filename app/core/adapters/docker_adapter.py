@@ -14,10 +14,10 @@ from app.core.settings.bot_settings import DockerSettings
 
 
 class DockerAdapter:
-    """Class to check docker containers base info"""
+    """Class to adapt docker-py to ptmbot"""
 
     def __init__(self) -> None:
-        """Initialize the DockerAdapter class"""
+        """Init docker-py adapter class"""
         self.docker_url: str = DockerSettings.docker_host
         self.client = None
         self.registry_digest: None = None
