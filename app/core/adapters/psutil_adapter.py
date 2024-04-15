@@ -56,8 +56,8 @@ class PsutilAdapter:
                 'shared': naturalsize(self.memory_stat.shared, binary=True),
             }
             return self.memory_current
-        except PermissionError as _err:
-            raise PermissionError('Error get memory info') from _err
+        except PermissionError:
+            raise PermissionError('Error get memory info')
 
     def get_disk_usage(self):
         """Get partition usage"""
@@ -79,10 +79,10 @@ class PsutilAdapter:
                     'percent': self.fs_usage.percent
                 }, )
             return self.fs_current
-        except PermissionError as _err:
-            raise PermissionError('FS: Permission denied') from _err
-        except KeyError as _err:
-            raise PermissionError('FS: Key error') from _err
+        except PermissionError:
+            raise PermissionError('FS: Permission denied')
+        except KeyError:
+            raise KeyError('FS: Key error')
 
     def get_swap_memory(self):
         """Get swap memory usage"""
@@ -96,8 +96,8 @@ class PsutilAdapter:
                 'percent': swap.percent,
             }
             return self.sw_current
-        except PermissionError as _err:
-            raise PermissionError('SW: cannot get swap info') from _err
+        except PermissionError:
+            raise PermissionError('SW: cannot get swap info')
 
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
@@ -114,8 +114,8 @@ class PsutilAdapter:
             raise AttributeError(
                 'Cannot get sensors temperatures'
             )
-        except KeyError as _err:
-            raise PermissionError('Sensors: Key error') from _err
+        except KeyError:
+            raise KeyError('Sensors: Key error')
 
     @staticmethod
     def get_sensors_fans():
