@@ -1,5 +1,5 @@
 # First stage
-FROM python:3.12.2-alpine3.19 AS builder
+FROM python:3.12.3-alpine3.19 AS builder
 COPY requirements.txt .
 
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
