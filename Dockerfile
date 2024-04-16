@@ -1,15 +1,34 @@
+#######################################
+# pyTMbot Dockerfile (based on Alpine)
+# image size: ~ 90Mb
+# https://github.com/orenlab/pytmbot
+#######################################
+
+# Set Alpine tag version for first and second stage
+ARG IMAGE_VERSION_FIRST=3.12.3-alpine3.19
+ARG IMAGE_VERSION_SECOND=3.19.1
+
 # First stage
-FROM python:3.12.3-alpine3.19 AS builder
+FROM python:$IMAGE_VERSION_FIRST AS builder
+# Python version (minimal - 3.12)
+ARG PYTHON_VERSION=3.12
+
 COPY requirements.txt .
 
-RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
+# Update base os components and install all deps (need to build psutil)
+# Update base os components
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
+    apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
-RUN python3 -m venv --without-pip venv
-RUN pip install --no-cache --target="/venv/lib/python3.12/site-packages" -r requirements.txt
+RUN python$PYTHON_VERSION -m venv --without-pip venv
+RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
 
 # Second unnamed stage
-FROM alpine:3.19.1
+FROM alpine:$IMAGE_VERSION_SECOND
+# Python version (minimal - 3.12)
+ARG PYTHON_VERSION=3.12
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -24,12 +43,12 @@ ENV TZ="Asia/Yekaterinburg"
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
-COPY --from=builder /usr/local/bin/python3.12 /usr/local/bin/python3.12
-COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
-COPY --from=builder /usr/local/lib/libpython3.12.so.1.0 /usr/local/lib/libpython3.12.so.1.0
+COPY --from=builder /usr/local/bin/python$PYTHON_VERSION /usr/local/bin/python$PYTHON_VERSION
+COPY --from=builder /usr/local/lib/python$PYTHON_VERSION /usr/local/lib/python$PYTHON_VERSION
+COPY --from=builder /usr/local/lib/libpython$PYTHON_VERSION.so.1.0 /usr/local/lib/libpython$PYTHON_VERSION.so.1.0
 COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 
-# Copy only the dependencies installation from the 1st stage image
+# Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
 # Copy .env file with token (prod, dev)
@@ -56,4 +75,4 @@ RUN apk --no-cache update && \
 # !!! needed set pyTMBot mode:
 #   - dev
 #   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]

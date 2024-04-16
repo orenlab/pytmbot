@@ -1,5 +1,6 @@
 .idea
 .git
+.git/*
 ./app/__pycache__
 qodana.yaml
 .dockerignore
