@@ -8,7 +8,7 @@
 ARG IMAGE_VERSION=24.04
 
 # First stage
-FROM ubuntu:${IMAGE_VERSION} as builder
+FROM ubuntu:${IMAGE_VERSION} AS builder
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 ARG DEBIAN_FRONTEND=noninteractive
