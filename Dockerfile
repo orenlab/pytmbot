@@ -75,4 +75,4 @@ RUN apk --no-cache update && \
 # !!! needed set pyTMBot mode:
 #   - dev
 #   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
