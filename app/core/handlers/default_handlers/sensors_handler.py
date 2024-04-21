@@ -14,6 +14,7 @@ class SensorsHandler(Handler):
     def __init__(self, bot):
         """Initialize the SensorsHandler"""
         super().__init__(bot)
+        self.log = bot_logger
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
@@ -24,24 +25,28 @@ class SensorsHandler(Handler):
         """Compile the message to be sent to the bot"""
         try:
             context = self._get_data()
-
-            bot_answer = self.jinja.render_templates(
-                'sensors.jinja2',
-                thought_balloon=self.get_emoji('thought_balloon'),
-                thermometer=self.get_emoji('thermometer'),
-                exclamation=self.get_emoji('red_exclamation_mark'),
-                melting_face=self.get_emoji('melting_face'),
-                context=context
-            )
+            if not context:
+                self.log.error("Cannot get sensors data")
+                bot_answer = "Sorry, I couldn't find any sensors. Something went wrong :("
+            else:
+                bot_answer = self.jinja.render_templates(
+                    'sensors.jinja2',
+                    thought_balloon=self.get_emoji('thought_balloon'),
+                    thermometer=self.get_emoji('thermometer'),
+                    exclamation=self.get_emoji('red_exclamation_mark'),
+                    melting_face=self.get_emoji('melting_face'),
+                    context=context
+                )
             return bot_answer
         except ValueError:
-            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
+            self.log.exception("Error while compiling message")
 
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
         def get_sensors(message: Message) -> None:
             """Get all sensors information"""
             try:
+                self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
                     message.from_user.id,
@@ -53,7 +58,5 @@ class SensorsHandler(Handler):
                     message.chat.id,
                     text=sensors_bot_answer
                 )
-            except ConnectionError:
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+            except (ConnectionError, ValueError):
+                self.log.exception("Error while handling message")
