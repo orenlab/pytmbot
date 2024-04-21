@@ -37,6 +37,7 @@ class AllowedUser(BaseMiddleware):
                 )
             )
         else:
+            bot.send_chat_action(message.chat.id, 'typing')
             bot_logger.error(
                 self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
                     message.from_user.username,
