@@ -21,6 +21,7 @@ class StartHandler(Handler):
             The entry point for starting a dialogue with the bot
             """
             try:
+                self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
                     message.from_user.username,
                     message.from_user.id,
