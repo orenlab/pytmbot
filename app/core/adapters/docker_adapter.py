@@ -31,14 +31,17 @@ class DockerAdapter:
         try:
             self.client = docker.DockerClient(self.docker_url)
             return self.client
-        except ConnectionError:
+        except (ConnectionAbortedError, FileNotFoundError):
             self.log.error("Can't connect to docker sock")
 
     def _is_docker_available(self) -> bool:
         """Check if the docker socket is available"""
-        client = self._create_docker_client()
-        ping = client.ping()
-        return ping
+        try:
+            client = self._create_docker_client()
+            ping = client.ping()
+            return ping
+        except (ConnectionAbortedError, FileNotFoundError):
+            self.log.error("Can't connect to docker sock")
 
     def _containers_list(self):
         """List all docker containers"""
@@ -57,14 +60,17 @@ class DockerAdapter:
         except FileNotFoundError:
             raise exceptions.DockerAdapterException('No container found')
         except ConnectionError:
-            self.log.debug('Auth error. Please check your internet connection and try again')
+            self.log.debug('Check auth credentials in Docker')
             raise exceptions.DockerAdapterException('Check auth credentials in Docker')
 
     def _container_details(self, container_id: str):
         """Get docker containers details"""
-        client = self._create_docker_client()
-        container = client.containers.get(container_id)
-        return container
+        try:
+            client = self._create_docker_client()
+            container = client.containers.get(container_id)
+            return container
+        except (ValueError, FileNotFoundError):
+            raise exceptions.DockerAdapterException('Container not found')
 
     @staticmethod
     def _container_stats(container_details) -> dict:
