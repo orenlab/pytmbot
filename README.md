@@ -32,6 +32,7 @@ gather information.
 - Use emoji :)
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md)
+Demo video see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🪤 Requirements
 
