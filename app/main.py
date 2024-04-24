@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot designed to gather basic information about

@@ -1,4 +1,4 @@
-DEFAULT_BOT_SETTINGS = '''#!/usr/bin/python3
+DEFAULT_BOT_SETTINGS = '''#!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot designed to gather basic information about

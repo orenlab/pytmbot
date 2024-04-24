@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 PyTMBot - A simple Telegram bot designed to gather basic information about
@@ -14,7 +14,7 @@ from app.core.settings.bot_settings import DockerSettings
 
 
 class DockerAdapter:
-    """Class to adapt docker-py to ptmbot"""
+    """Class to adapt docker-py to pyTMbot"""
 
     def __init__(self) -> None:
         """Init docker-py adapter class"""
