@@ -16,7 +16,6 @@ ARG PYTHON_VERSION=3.12
 COPY requirements.txt .
 
 # Update base os components and install all deps (need to build psutil)
-# Update base os components
 RUN apk --no-cache update && \
     apk --no-cache upgrade && \
     apk --no-cache add gcc python3-dev musl-dev linux-headers

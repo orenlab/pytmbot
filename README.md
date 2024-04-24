@@ -31,7 +31,8 @@ gather information.
 - Use docker logs collector (`sudo docker logs container_id`)
 - Use emoji :)
 
-Screenshots are available here: [screenshots.md](docs/screenshots.md)
+Screenshots are available here: [screenshots.md](docs/screenshots.md).
+Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🪤 Requirements
 
