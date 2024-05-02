@@ -60,6 +60,7 @@ To build a Docker image:
   cd ~/pytmbot
   docker build -t orenlab/pytmbot:latest .
 ```
+*Also available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
 
 To launch a Docker container:
 
