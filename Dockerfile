@@ -37,7 +37,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone
+# Setup time zone (can ovveride on docker run args)
 ENV TZ="Asia/Yekaterinburg"
 
 # Сopy only the necessary python files and directories from first stage

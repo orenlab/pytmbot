@@ -16,6 +16,7 @@ poetry.lock
 setup_bot.py
 docs
 docs/*
+SECURITY.md
 
 **/.DS_Store
 .idea/
