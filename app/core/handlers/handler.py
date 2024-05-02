@@ -8,7 +8,7 @@ the status of your local servers
 import abc
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.keyboards.keyboards import Keyboard
-from app.core.settings.log_tpl_settings import MessageTpl
+from app.core.settings.loggers import MessageTpl
 from app import (
     config,
     exceptions,

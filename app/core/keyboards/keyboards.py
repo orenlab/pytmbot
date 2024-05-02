@@ -7,7 +7,7 @@ the status of your local servers
 
 from telebot import types
 from app.utilities.utilities import get_emoji
-from app.core.settings.kb_settings import KeyboardSettings
+from app.core.settings.keyboards import KeyboardSettings
 from functools import lru_cache
 
 
