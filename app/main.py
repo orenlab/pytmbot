@@ -4,12 +4,14 @@
 pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from requests.exceptions import RequestException
 from app import (
     __version__,
     __repository__,
     bot_logger,
     bot
 )
+
 from app.core.handlers.handlers_aggregator import HandlersAggregator
 import app.core.exceptions as exceptions
 from app.core.middleware.auth import AllowedUser
@@ -29,8 +31,8 @@ class PyTMBot:
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
-            self.bot.infinity_polling()
-        except ConnectionError:
+            self.bot.infinity_polling(timeout=90, long_polling_timeout=5)
+        except RequestException:
             bot_logger.error('Error connecting to Telegram API')
             self.bot.stop_polling()
             bot_logger.error('PyTMBot stopped...')
