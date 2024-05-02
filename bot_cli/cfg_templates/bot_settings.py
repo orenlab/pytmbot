@@ -8,14 +8,19 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class BotSettings:
+class BotSettings(BaseSettings):
     """Add your telegram IDs. And your bot too!"""
-    ALLOWED_USER_IDS: list = [$user_id]
+    ALLOWED_USER_IDS: list[int] = [$user_id]
 
 
 class DockerSettings:
-    """Set Docker Socket o TCP param. Default """
+    """Set Docker Socket o TCP param"""
     docker_host: str = '$docker_host'
+
+    
+class PodmanSettings:
+    """Set Podman Socket o TCP param"""
+    podman_host: str = '$podman_host'
 
 
 class BotTokenSettings(BaseSettings):

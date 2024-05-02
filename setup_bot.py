@@ -27,7 +27,7 @@ def ask_for_user_id() -> str:
         Format (more than one user ID): 123456789, 123654987\n
         """)
 
-    return click.prompt("User IDS", default="00000000000, 00000000000")
+    return click.prompt("User IDS")
 
 
 def ask_for_docker_host() -> str:
@@ -36,7 +36,16 @@ def ask_for_docker_host() -> str:
         Format: unix:///var/run/docker.sock\n
         """)
 
-    return click.prompt("Glances host", default="unix:///var/run/docker.sock")
+    return click.prompt("Docker host", default="unix:///var/run/docker.sock")
+
+
+def ask_for_podman_host() -> str:
+    click.secho("[-] Let's added Podman host:", bg='blue', fg='white', bold=False)
+    click.echo("""
+        Format: unix:///run/user/1000/podman/podman.sock\n
+        """)
+
+    return click.prompt("Podman host", default="unix:///run/user/1000/podman/podman.sock")
 
 
 def ask_for_dev_token() -> str:
@@ -45,7 +54,7 @@ def ask_for_dev_token() -> str:
         Format: 1234567890:FFGGEWGLKxOSLNwoLY7ADlFTt3TjtlrEcYl7hg\n
         """)
 
-    return click.prompt("Dev bot token", default="")
+    return click.prompt("Development bot token", default="")
 
 
 def ask_for_prod_token() -> str:
@@ -54,16 +63,18 @@ def ask_for_prod_token() -> str:
         Format: 1234567890:FFGGEWGLKxOSLNwoLY7ADlFTt3TjtlrEcYl7hg\n
         """)
 
-    return click.prompt("Production bot token", default="")
+    return click.prompt("Production bot token")
 
 
 def create_default_config() -> None:
     user_id = ask_for_user_id()
     docker_host = ask_for_docker_host()
+    podman_host = ask_for_podman_host()
 
     variables: dict = {
         "user_id": user_id,
-        "docker_host": docker_host
+        "docker_host": docker_host,
+        "podman_host": podman_host,
     }
 
     filesystem.set_file(
