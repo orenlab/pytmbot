@@ -23,8 +23,8 @@ APP_ENV_FILE = '.env'
 def ask_for_user_id() -> str:
     click.secho("[-] Let's added allowed user ID`s:", bg='blue', fg='white', bold=False)
     click.echo("""
-        Format (one user ID): 123456789\n
-        Format (more than one user ID): 123456789, 123654987\n
+        Format (one user ID): 000000000000\n
+        Format (more than one user ID): 000000000000, 000000000000, 000000000000\n
         """)
 
     return click.prompt("User IDS")
