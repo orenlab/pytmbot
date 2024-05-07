@@ -62,7 +62,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── LICENSE                                 - Licence file
 ├── README.md                               - Main README
 ├── SECURITY.md                             - Security police
-├── app                                     - App folder
+├── app
 │   ├── __init__.py                         
 │   ├── core
 │   │   ├── __init__.py                     - Bot core
