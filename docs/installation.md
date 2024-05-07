@@ -17,7 +17,7 @@ To install this project:
 ```bash
 python -m venv .venv
 source ~/pytmbot/.venv/bin/activate
-pip install -r ./bot_cli/requirements.txt
+pip install -r setup_req.txt
 ```
 
 2. Run the CLI Setup Wizard (__mandatory stage__):
@@ -28,7 +28,13 @@ python3 ./setup_bot.py
 
 And follow the wizard's instructions.
 
-This wizard will generate the necessary configuration files for you.
+This wizard will generate the necessary configuration files for you:
+
+| Files                             | Assignment                                                                                       |
+|-----------------------------------|--------------------------------------------------------------------------------------------------|
+| .env                              | To store bot tokens                                                                              |
+| app/core/settings/bot_settings.py | To store both settings, including the allowed user ID and paths to the Docker and Podman socket. |
+
 You can leave the steps with the default settings by simply pressing "Enter".
 
 3. Set your local TZ in `Dockerfile`:
@@ -60,6 +66,7 @@ To build a Docker image:
   cd ~/pytmbot
   docker build -t orenlab/pytmbot:latest .
 ```
+
 *Also available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
 
 To launch a Docker container:
