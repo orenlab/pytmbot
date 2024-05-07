@@ -48,8 +48,12 @@ Full list of Python dependencies see in `requirements.txt`
 
 ## 🛡 Secure
 
-The bot has a `user.id` authorization mechanism (specified at the initial stage of configuration).
-If the `user.id` is not specified, the bot will report that it is unable to access information about the server.
+The bot has an authorization mechanism. That is based on a unique value we can get from the message's
+variable `from_user.id`, which is the Telegram user ID.
+By comparing this value with the `user.id` values specified in the bot's settings
+(which is done at the initial stage of configuring the bot), we can determine the behavior of the bot.
+
+All failed attempts to authorize are logged with an `ERROR` flag.
 
 ## 📈 Roadmap
 
