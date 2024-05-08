@@ -69,7 +69,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── adapters
 │   │   │   ├── __init__.py
 │   │   │   ├── docker_adapter.py           - Docker adapter
-│   │   │   ├── podman_adapter.py           - Podman adapter (in dev, not used in prod bot)
+│   │   │   ├── podman_adapter.py           - Podman adapter (in development)
 │   │   │   └── psutil_adapter.py           - Psutil adapter
 │   │   ├── exceptions.py                   - Custom exceptions
 │   │   ├── handlers
@@ -84,26 +84,26 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   │   ├── sensors_handler.py      - Sensors handler
 │   │   │   │   ├── start_handler.py        - Main, start handler
 │   │   │   │   └── uptime_handlers.py      - Uptime handler
-│   │   │   ├── handler.py                  - Main handler module
+│   │   │   ├── handler.py                  - Base handler class (abc)
 │   │   │   ├── handlers_aggregator.py      - Main handlers aggregator
 │   │   │   └── inline_handlers
 │   │   │       ├── __init__.py             - Import all inline handlers
-│   │   │       ├── inline_query_handler.py - Note use in bot
+│   │   │       ├── inline_query_handler.py - Deprecated in next release
 │   │   │       └── swap_handler.py         - Swap inline handler
 │   │   ├── jinja2
 │   │   │   ├── __init__.py
-│   │   │   └── jinja2.py                   - Main jinja2 module
+│   │   │   └── jinja2.py                   - Main jinja2 class
 │   │   ├── keyboards
 │   │   │   ├── __init__.py
-│   │   │   └── keyboards.py                - Main keyboards  
+│   │   │   └── keyboards.py                - Main keyboards class  
 │   │   ├── middleware
 │   │   │   ├── __init__.py
-│   │   │   └── auth.py                     - Auth middleware
+│   │   │   └── auth.py                     - Auth middleware class
 │   │   └── settings
 │   │       ├── __init__.py
 │   │       ├── keyboards.py                - Keyboards settings
 │   │       └── loggers.py                  - Logger templates
-│   ├── main.py                             - Main bot module
+│   ├── main.py                             - Main bot class
 │   ├── templates
 │   │   ├── containers.jinja2               - Containers jinja2 template 
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
@@ -123,7 +123,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── bot_settings.py                 - Template for initial setup
 │   │   └── env.py                          - Template for initial setup
 │   └── fs.py                               - Filesystem utility
-├── dev.Dockerfile                          - Dockerfile with mod=dev 
+├── dev.Dockerfile                          - Dockerfile with mode=dev 
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
 │   ├── installation.md                     - Installation guide
