@@ -17,6 +17,7 @@ setup_bot.py
 docs
 docs/*
 SECURITY.md
+setup_req.txt
 
 **/.DS_Store
 .idea/
