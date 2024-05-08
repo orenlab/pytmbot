@@ -42,7 +42,7 @@ def parse_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def init_bot() -> telebot.TeleBot:
+def build_bot_instance() -> telebot.TeleBot:
     """Build PyTMBot instance"""
     bot_mode = parse_cli_args()
 
@@ -63,7 +63,8 @@ def init_bot() -> telebot.TeleBot:
     return configured_bot
 
 
-def build_logger() -> logging.Logger:
+def build_bot_logger() -> logging.Logger:
+    """Build bot custom logger"""
     logs_level = parse_cli_args()
     logger = logging.getLogger('pyTMbot')
     handler = logging.StreamHandler(sys.stdout)
@@ -89,7 +90,7 @@ def build_logger() -> logging.Logger:
 
 
 # Bot one common instance
-bot = init_bot()
+bot = build_bot_instance()
 
 # Logger on common instance
-bot_logger = build_logger()
+bot_logger = build_bot_logger()

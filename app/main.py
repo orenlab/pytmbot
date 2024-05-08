@@ -5,11 +5,14 @@ pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from requests.exceptions import RequestException
+from time import sleep
+from telebot import apihelper
+
 from app import (
     __version__,
     __repository__,
+    bot,
     bot_logger,
-    bot
 )
 
 from app.core.handlers.handlers_aggregator import HandlersAggregator
@@ -24,6 +27,28 @@ class PyTMBot:
         """Initialize the PyTMBot class"""
         self.bot = bot
         self.handler = HandlersAggregator(self.bot)
+        self.sleep_time: int = 0
+
+    def start_polling(self):
+        """Start bot polling"""
+        while True:
+            try:
+                self.sleep_time += 5  # The time in seconds that we sleep for after each cycle.
+                bot_logger.info('Start polling')
+                self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True)
+            except RequestException as e:
+                bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
+                bot_logger.error("Connection error.")
+                self.bot.stop_polling()
+                bot_logger.error(f'PyTMBot stopped... Connection attempt after {self.sleep_time} seconds.')
+                sleep(self.sleep_time)
+                continue
+            except Exception as e:
+                bot_logger.debug(f"Unexpected exception: {e}")
+                bot_logger.error("Unexpected exception")
+                self.bot.stop_polling()
+                bot_logger.error('PyTMBot stopped... Unable to perform an automatic restart. Shutdown bot')
+            break
 
     def run_bot(self):
         """Run the bot"""
@@ -31,12 +56,13 @@ class PyTMBot:
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
-            self.bot.infinity_polling(timeout=90, long_polling_timeout=5)
-        except RequestException:
-            bot_logger.error('Error connecting to Telegram API')
+            self.start_polling()
+        except apihelper.ApiTelegramException as e:
+            bot_logger.debug(f'Telegram API error {e}')
+            bot_logger.error('Telegram API error')
             self.bot.stop_polling()
             bot_logger.error('PyTMBot stopped...')
-            raise exceptions.PyTeleMonBotConnectionError('Error connecting to Telegram API')
+            raise exceptions.PyTeleMonBotConnectionError('Telegram API error')
 
 
 if __name__ == "__main__":
