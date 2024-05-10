@@ -43,6 +43,11 @@ class PyTMBot:
                 bot_logger.error(f'PyTMBot stopped... Connection attempt after {self.sleep_time} seconds.')
                 sleep(self.sleep_time)
                 continue
+            except apihelper.ApiTelegramException as e:
+                bot_logger.debug(f'Telegram API error: {e}')
+                bot_logger.error(f'Telegram API error. Connection attempt after {self.sleep_time} seconds.')
+                self.bot.stop_polling()
+                continue
             except Exception as e:
                 bot_logger.debug(f"Unexpected exception: {e}")
                 bot_logger.error("Unexpected exception")
@@ -57,12 +62,8 @@ class PyTMBot:
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.start_polling()
-        except apihelper.ApiTelegramException as e:
-            bot_logger.debug(f'Telegram API error {e}')
-            bot_logger.error('Telegram API error')
-            self.bot.stop_polling()
-            bot_logger.error('PyTMBot stopped...')
-            raise exceptions.PyTeleMonBotConnectionError('Telegram API error')
+        except ConnectionError:
+            bot_logger.error("Connection error.")
 
 
 if __name__ == "__main__":
