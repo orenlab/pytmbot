@@ -4,7 +4,7 @@
 pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from requests.exceptions import RequestException
+from requests.exceptions import ReadTimeout, HTTPError, ConnectionError
 from time import sleep
 from telebot import apihelper
 
@@ -35,8 +35,8 @@ class PyTMBot:
             try:
                 self.sleep_time += 5  # The time in seconds that we sleep for after each cycle.
                 bot_logger.info('Start polling')
-                self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True, skip_pending=True)
-            except RequestException as e:
+                self.bot.polling(timeout=5, long_polling_timeout=5, none_stop=True, skip_pending=True)
+            except (ReadTimeout, HTTPError, ConnectionError) as e:
                 bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
                 bot_logger.error("Connection error.")
                 self.bot.stop_polling()
