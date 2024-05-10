@@ -16,7 +16,6 @@ from app import (
 )
 
 from app.core.handlers.handlers_aggregator import HandlersAggregator
-import app.core.exceptions as exceptions
 from app.core.middleware.auth import AllowedUser
 
 
