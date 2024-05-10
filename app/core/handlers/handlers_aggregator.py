@@ -51,4 +51,4 @@ class HandlersAggregator:
                 bot_logger.error("Error initialise the containers handler")
                 return
         except (ConnectionError, ValueError):
-            bot_logger.critical("Error running handlers")
+            bot_logger.error("Error running handlers")
