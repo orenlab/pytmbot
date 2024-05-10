@@ -35,7 +35,7 @@ class PyTMBot:
             try:
                 self.sleep_time += 5  # The time in seconds that we sleep for after each cycle.
                 bot_logger.info('Start polling')
-                self.bot.polling(timeout=5, long_polling_timeout=5, none_stop=True, skip_pending=True)
+                self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True, skip_pending=True)
             except (ReadTimeout, HTTPError, ConnectionError) as e:
                 bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
                 bot_logger.error("Connection error.")
