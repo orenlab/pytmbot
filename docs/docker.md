@@ -5,10 +5,6 @@
 A simple Telegram bot designed to gather basic information about the status of your **local** servers. The bot operates
 synchronously. It does not use webhooks.
 
-The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
-Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
-gather information.
-
 ## 💡 Features
 
 - Load average information
@@ -24,7 +20,7 @@ gather information.
 
 Screenshots are available here on
 GitHub: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
-Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
+Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🧪 Configure bot
 
@@ -35,13 +31,13 @@ Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
 ```bash
   sudo -i
   cd /root/
-  touch .env
+  touch .pytmbotenv
 ```
 
-- Now let's add the necessary data to the .env file:
+- Now let's add the necessary data to the .pytmbotenv file:
 
 ```bash
-  nano .env
+  nano .pytmbotenv
 ```
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
@@ -62,9 +58,8 @@ PODMAN_HOST='<PUT YOUR VALUE HERE>'
 To launch a Docker container:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.env:/opt/pytmbot/.env:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
+  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
-
 
 ## 🚀 Bot logs
 
