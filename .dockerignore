@@ -25,10 +25,7 @@ setup_req.txt
 .run
 .github
 
-
-LICENSE
 pyproject.toml
-
 
 ### Python template
 # Byte-compiled / optimized / DLL files

@@ -2,7 +2,13 @@
 
 ## 🔌 Installation
 
-To install this project:
+There are two ways for today:
+
+1. Use a pre-build bot image. Then, please follow
+   the [instructions](https://hub.docker.com/repository/docker/orenlab/pytmbot/general) posted on the Docker Hub.
+2. Assemble the image of the bot yourself. This guide is about this method
+
+So, to install this project:
 
 ```bash
   git clone https://github.com/orenlab/pytmbot.git
