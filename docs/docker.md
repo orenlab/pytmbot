@@ -83,3 +83,11 @@ _Or use Docker Desktop (if run workstation)_
 ## 👾 Support, source code, questions
 
 Please create issue on GitHub: [https://github.com/orenlab/pytmbot](https://github.com/orenlab/pytmbot)
+
+## 🧬 Authors
+
+- [@orenlab](https://github.com/orenlab)
+
+## 📜 License
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
