@@ -4,15 +4,18 @@
 pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from requests.exceptions import ReadTimeout, HTTPError, ConnectionError
 from time import sleep
-from telebot import apihelper
+from requests.exceptions import (
+    ReadTimeout,
+    HTTPError,
+    ConnectionError)
 
 from app import (
     __version__,
     __repository__,
     bot,
     bot_logger,
+    telebot
 )
 
 from app.core.handlers.handlers_aggregator import HandlersAggregator
@@ -36,22 +39,20 @@ class PyTMBot:
                 bot_logger.info('Start polling')
                 self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True, skip_pending=True)
             except (ReadTimeout, HTTPError, ConnectionError) as e:
-                bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
-                bot_logger.error("Connection error.")
                 self.bot.stop_polling()
-                bot_logger.error(f'PyTMBot stopped... Connection attempt after {self.sleep_time} seconds.')
+                bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
+                bot_logger.error(f'Connection error. Retry after {self.sleep_time} seconds')
                 sleep(self.sleep_time)
                 continue
-            except apihelper.ApiTelegramException as e:
-                bot_logger.debug(f'Telegram API error: {e}')
-                bot_logger.error(f'Telegram API error. Connection attempt after {self.sleep_time} seconds.')
+            except telebot.apihelper.ApiTelegramException as e:
                 self.bot.stop_polling()
+                bot_logger.debug(f'Telegram API error: {e}. Connection attempt after {self.sleep_time} seconds.')
+                bot_logger.error(f'Telegram API error. Connection attempt after {self.sleep_time} seconds.')
                 continue
             except Exception as e:
-                bot_logger.debug(f"Unexpected exception: {e}")
-                bot_logger.error("Unexpected exception")
                 self.bot.stop_polling()
-                bot_logger.error('PyTMBot stopped... Unable to perform an automatic restart. Shutdown bot')
+                bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart. Shutdown bot ")
+                bot_logger.error("Unexpected exception. Unable to perform an automatic restart. Shutdown bot")
             break
 
     def run_bot(self):
