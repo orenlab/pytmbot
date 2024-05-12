@@ -15,7 +15,7 @@ import bot_cli.cfg_templates.env as default_env_tpl
 
 from bot_cli import fs as filesystem
 
-APP_ENV_FILE = '.env'
+APP_ENV_FILE = '.pytmbotenv'
 
 
 def ask_for_user_id() -> str:
@@ -89,11 +89,11 @@ def create_dot_env() -> None:
 
 @click.command()
 def build_config() -> None:
-    click.secho("*** Starting build default .env ***", fg="green", bold=True)
+    click.secho("*** Starting build default .pytmbotenv ***", fg="green", bold=True)
 
     # .env
     if filesystem.has_file(APP_ENV_FILE):
-        click.secho("Looks like you already have .env, if you need reconfigure bot, remove it.", blink=True,
+        click.secho("Looks like you already have .pytmbotenv, if you need reconfigure bot, remove it.", blink=True,
                     fg="yellow", bold=True)
     else:
         create_dot_env()

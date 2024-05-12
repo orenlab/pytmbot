@@ -62,7 +62,7 @@ ENV TZ="Asia/Yekaterinburg"
 COPY --from=builder /venv /venv
 
 # Copy .env file with token (prod, dev)
-COPY .env /opt/pytmbot
+COPY .pytmbotenv /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/

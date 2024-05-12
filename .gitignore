@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 # Env secrets
-.env
+.pytmbotenv
 
 # C extensions
 *.so
