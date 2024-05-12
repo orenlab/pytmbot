@@ -1,4 +1,4 @@
-DEFAULT_BOT_SETTINGS = '''#!/venv/bin/python3
+#!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot designed to gather basic information about
@@ -9,26 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class BotSettings(BaseSettings):
-    """Add your telegram IDs. And your bot too!"""
-    ALLOWED_USER_IDS: list[int] = [$user_id]
-
-
-class DockerSettings:
-    """Set Docker Socket o TCP param"""
-    docker_host: str = '$docker_host'
-
-    
-class PodmanSettings:
-    """Set Podman Socket o TCP param"""
-    podman_host: str = '$podman_host'
-
-
-class BotTokenSettings(BaseSettings):
     """Bot Token Settings. Get token from CLI"""
     bot_token: SecretStr
     dev_bot_token: SecretStr
+    allowed_user_ids: list[int]
+    docker_host: str
+    podman_host: str
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
-
-
-token_settings = BotTokenSettings()
-'''
