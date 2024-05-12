@@ -80,6 +80,6 @@ To launch a Docker container:
 
 _Or use Docker Desktop (if run workstation)_
 
-## 👾 Support
+## 👾 Support, source code, questions
 
-Please create issue on Github: [https://github.com/orenlab/pytmbot](https://github.com/orenlab/pytmbot)
+Please create issue on GitHub: [https://github.com/orenlab/pytmbot](https://github.com/orenlab/pytmbot)
