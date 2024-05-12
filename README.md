@@ -102,6 +102,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   └── auth.py                     - Auth middleware class
 │   │   └── settings
 │   │       ├── __init__.py
+│   │       ├── bot_settings.py             - Class to load configuration from .pytmbotenv
 │   │       ├── keyboards.py                - Keyboards settings
 │   │       └── loggers.py                  - Logger templates
 │   ├── main.py                             - Main bot class
@@ -121,15 +122,17 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │       └── utilities.py                    - Some utility
 ├── bot_cli
 │   ├── cfg_templates
-│   │   ├── bot_settings.py                 - Template for initial setup
 │   │   └── env.py                          - Template for initial setup
 │   └── fs.py                               - Filesystem utility
 ├── dev.Dockerfile                          - Dockerfile with mode=dev 
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
+│   ├── docker.md                           - README for hub.docker.com
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
+├── hub.alpine.Dockerfile                   - Dockerfile for Docker CI/CD based on Alpine
+├── hub.ubuntu.Dockerfile                   - Dockerfile for Docker CI/CD based on Ubuntu
 ├── logs
 │   └── pytmbot.log                         - Main logs file
 ├── poetry.lock                             - Poetry file
