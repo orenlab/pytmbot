@@ -90,7 +90,7 @@ To access to bot logs, please run in terminal:
   docker ps
 ```
 
-And grap pyTMbot container id. Then, run:
+And grab pyTMbot container id. Then, run:
 
 ```bash
   docker logs bot_contaner_id

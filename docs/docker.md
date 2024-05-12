@@ -22,7 +22,8 @@ gather information.
 - Use docker logs collector (`sudo docker logs container_id`)
 - Use emoji :)
 
-Screenshots are available here: [screenshots.md](docs/screenshots.md).
+Screenshots are available here on
+GitHub: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
 Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🧪 Configure bot
@@ -64,6 +65,7 @@ To launch a Docker container:
   sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.env:/opt/pytmbot/.env:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
 
+
 ## 🚀 Bot logs
 
 - To access to bot logs, please run in terminal:
@@ -72,7 +74,7 @@ To launch a Docker container:
   docker ps
 ```
 
-- And grap pyTMbot container id. Then, run:
+- And grab pyTMbot container id. Then, run:
 
 ```bash
   docker logs bot_contaner_id
