@@ -11,7 +11,7 @@ import sys
 import telebot
 import argparse
 
-from app.core.settings.bot_settings import token_settings, BotSettings
+from app.core.settings.bot_settings import BotSettings
 from app.core import exceptions
 
 # Main config
@@ -49,12 +49,12 @@ def build_bot_instance() -> telebot.TeleBot:
     match bot_mode.mode:
         case "dev":
             configured_bot = telebot.TeleBot(
-                token_settings.dev_bot_token.get_secret_value(),
+                config.dev_bot_token.get_secret_value(),
                 use_class_middlewares=True
             )
         case "prod":
             configured_bot = telebot.TeleBot(
-                token_settings.bot_token.get_secret_value(),
+                config.bot_token.get_secret_value(),
                 use_class_middlewares=True
             )
         case _:

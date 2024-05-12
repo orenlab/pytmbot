@@ -29,7 +29,7 @@ class AllowedUser(BaseMiddleware):
 
     def pre_process(self, message: Message, data):
         """Check allowed users"""
-        if message.from_user.id in config.ALLOWED_USER_IDS:
+        if message.from_user.id in config.allowed_user_ids:
             bot_logger.info(
                 self.bot_msg_tpl.ACCESS_SUCCESS.format(
                     message.from_user.username,

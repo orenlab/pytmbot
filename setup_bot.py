@@ -11,12 +11,10 @@ except ImportError:
     raise ImportError("Error loading 'click' package. Install it!")
 from string import Template
 
-import bot_cli.cfg_templates.bot_settings as default_bot_tpl
 import bot_cli.cfg_templates.env as default_env_tpl
 
 from bot_cli import fs as filesystem
 
-APP_CONFIG_FILE = 'app/core/settings/bot_settings.py'
 APP_ENV_FILE = '.env'
 
 
@@ -66,32 +64,19 @@ def ask_for_prod_token() -> str:
     return click.prompt("Production bot token")
 
 
-def create_default_config() -> None:
+def create_dot_env() -> None:
+    dev_token = ask_for_dev_token()
+    prod_token = ask_for_prod_token()
     user_id = ask_for_user_id()
     docker_host = ask_for_docker_host()
     podman_host = ask_for_podman_host()
 
     variables: dict = {
+        "dev_token": dev_token,
+        "prod_token": prod_token,
         "user_id": user_id,
         "docker_host": docker_host,
         "podman_host": podman_host,
-    }
-
-    filesystem.set_file(
-        APP_CONFIG_FILE,
-        Template(default_bot_tpl.DEFAULT_BOT_SETTINGS).substitute(variables)
-    )
-
-    click.echo(click.style("[+] %s created." % APP_CONFIG_FILE, fg="green", bold=True))
-
-
-def create_dot_env() -> None:
-    dev_token = ask_for_dev_token()
-    prod_token = ask_for_prod_token()
-
-    variables: dict = {
-        "dev_token": dev_token,
-        "prod_token": prod_token,
     }
 
     filesystem.set_file(
@@ -104,15 +89,6 @@ def create_dot_env() -> None:
 
 @click.command()
 def build_config() -> None:
-    click.secho("*** Starting build default app configuration ***", fg="green", bold=True)
-
-    # app/core/settings/bot_settings.py
-    if filesystem.has_file(APP_CONFIG_FILE):
-        click.secho("Looks like you already have %s, if you need reconfigure bot, remove it." % APP_CONFIG_FILE,
-                    blink=True, fg="yellow", bold=True)
-    else:
-        create_default_config()
-
     click.secho("*** Starting build default .env ***", fg="green", bold=True)
 
     # .env

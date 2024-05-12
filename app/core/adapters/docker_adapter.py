@@ -9,8 +9,7 @@ from humanize import naturalsize, naturaltime
 import docker
 
 from app.core import exceptions
-from app import bot_logger
-from app.core.settings.bot_settings import DockerSettings
+from app import config, bot_logger
 
 
 class DockerAdapter:
@@ -18,7 +17,7 @@ class DockerAdapter:
 
     def __init__(self) -> None:
         """Init docker-py adapter class"""
-        self.docker_url: str = DockerSettings.docker_host
+        self.docker_url: str = config.docker_host
         self.client = None
         self.registry_digest: None = None
         self.local_image_digest: None = None
