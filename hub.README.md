@@ -29,7 +29,7 @@ Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
 
 1. Secret Settings:
 
-* Let's create the necessary files:
+- Let's create the necessary files:
 
 ```bash
   sudo -i
@@ -38,7 +38,7 @@ Video demo see in Youtube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
   touch bot_settings.py
 ```
 
-* Now let's add the necessary data to the .env file:
+- Now let's add the necessary data to the .env file:
 
 ```bash
   nano .env

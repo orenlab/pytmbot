@@ -30,10 +30,9 @@ And follow the wizard's instructions.
 
 This wizard will generate the necessary configuration files for you:
 
-| Files                             | Assignment                                                                                      |
-|-----------------------------------|-------------------------------------------------------------------------------------------------|
-| .env                              | To store bot tokens                                                                             |
-| app/core/settings/bot_settings.py | To store bot settings, including the allowed user ID and paths to the Docker and Podman socket. |
+| Files | Assignment                                                                                         |
+|-------|----------------------------------------------------------------------------------------------------|
+| .env  | To store bot settings, including tokens, allowed user ID and paths to the Docker and Podman socket |
 
 You can leave the steps with the default settings by simply pressing "Enter".
 
