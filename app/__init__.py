@@ -9,6 +9,7 @@ import logging
 import sys
 
 import telebot
+from telebot import ExceptionHandler
 import argparse
 
 from app.core.settings.bot_settings import BotSettings
@@ -22,6 +23,13 @@ __version__ = '0.0.5'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
+
+
+class CustomExceptionHandler(ExceptionHandler):
+    """Custom exception handler that handles exceptions raised during the execution"""
+
+    def handle(self, exception):
+        bot_logger.error(exception)
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -50,12 +58,14 @@ def build_bot_instance() -> telebot.TeleBot:
         case "dev":
             configured_bot = telebot.TeleBot(
                 config.dev_bot_token.get_secret_value(),
-                use_class_middlewares=True
+                use_class_middlewares=True,
+                exception_handler=CustomExceptionHandler()
             )
         case "prod":
             configured_bot = telebot.TeleBot(
                 config.bot_token.get_secret_value(),
-                use_class_middlewares=True
+                use_class_middlewares=True,
+                exception_handler=CustomExceptionHandler()
             )
         case _:
             raise ValueError(f"Invalid PyTMBot mode: {bot_mode.mode}, use -h option to see more")
