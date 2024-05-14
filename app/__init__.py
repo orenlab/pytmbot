@@ -29,7 +29,7 @@ class CustomExceptionHandler(ExceptionHandler):
     """Custom exception handler that handles exceptions raised during the execution"""
 
     def handle(self, exception):
-        bot_logger.error(exception)
+        bot_logger.error(exception, exc_info=False)
 
 
 def parse_cli_args() -> argparse.Namespace:
