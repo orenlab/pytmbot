@@ -153,6 +153,10 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 
 - You tell me :)
 
+## 🐋 pyTMBot on Docker Hub
+
+- [pyTMbot on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot)
+
 ## 🧬 Authors
 
 - [@orenlab](https://github.com/orenlab)
