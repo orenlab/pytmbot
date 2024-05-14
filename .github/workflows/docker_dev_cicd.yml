@@ -24,10 +24,3 @@ jobs:
           file: hub.alpine.Dockerfile
           push: true
           tags: orenlab/pytmbot:alpine-dev
-
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          docker: true
