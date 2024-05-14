@@ -48,6 +48,7 @@ class PyTMBot:
                 self.bot.stop_polling()
                 bot_logger.debug(f'Telegram API error: {e}. Connection attempt after {self.sleep_time} seconds.')
                 bot_logger.error(f'Telegram API error. Connection attempt after {self.sleep_time} seconds.')
+                sleep(self.sleep_time)
                 continue
             except Exception as e:
                 self.bot.stop_polling()
