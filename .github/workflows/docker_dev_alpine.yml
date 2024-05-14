@@ -1,4 +1,4 @@
-name: Push Alpine Dev Docker Image
+name: Push Alpine Dev Image
 
 on:
   push:

@@ -23,4 +23,4 @@ jobs:
         with:
           file: hub.ubuntu.Dockerfile
           push: true
-          tags: orenlab/pytmbot:alpine-dev
+          tags: orenlab/pytmbot:ubuntu-dev
