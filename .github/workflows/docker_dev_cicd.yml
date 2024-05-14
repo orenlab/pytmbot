@@ -21,6 +21,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
+          context: .
           file: ./hub.alpine.Dockerfile
           push: true
           tags: orenlab/pytmbot:alpine-dev
