@@ -9,10 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class BotSettings(BaseSettings):
-    """Bot Settings. Get token from .pytmbotenv"""
+    """Bot Settings. Get token from .env"""
     bot_token: SecretStr
     dev_bot_token: SecretStr
     allowed_user_ids: list[int]
     docker_host: str
     podman_host: str
-    model_config = SettingsConfigDict(env_file='.pytmbotenv', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')

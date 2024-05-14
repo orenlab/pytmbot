@@ -33,13 +33,13 @@ Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
 ```bash
   sudo -i
   cd /root/
-  touch .pytmbotenv
+  touch .env
 ```
 
-- Now let's add the necessary data to the .pytmbotenv file:
+- Now let's add the necessary data to the .env file:
 
 ```bash
-  nano .pytmbotenv
+  nano .env
 ```
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
@@ -60,7 +60,7 @@ PODMAN_HOST='<PUT YOUR VALUE HERE>'
 To launch a Docker container:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
+  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.env:/opt/pytmbot/.env:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
 
 ## 🚀 Bot logs

@@ -51,7 +51,7 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 COPY --from=builder /venv /venv
 
 # Copy .env file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot
+COPY .env /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/
