@@ -37,9 +37,9 @@ And follow the wizard's instructions.
 
 This wizard will generate the necessary configuration file for you:
 
-| Files       | Assignment                                                                                         |
-|-------------|----------------------------------------------------------------------------------------------------|
-| .pytmbotenv | To store bot settings, including tokens, allowed user ID and paths to the Docker and Podman socket |
+| Files | Assignment                                                                                         |
+|-------|----------------------------------------------------------------------------------------------------|
+| .env  | To store bot settings, including tokens, allowed user ID and paths to the Docker and Podman socket |
 
 You can leave the steps with the default settings by simply pressing "Enter".
 
@@ -81,7 +81,7 @@ To launch a Docker container:
   sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
 
-Docker image size ~80,5 Мб.
+Docker image size ~90,5 Мб.
 
 ## 🛠 Logs
 
