@@ -24,6 +24,15 @@ Screenshots are available here on
 GitHub: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
+## 🐋 pyTMBot tag info
+
+| Tag          | Content                                                                                                                                                                 |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `latest`     | The latest stable release image, based on Alpine Linux                                                                                                                  |
+| `0.0.X`      | Stable release, based on Alpine Linux                                                                                                                                   |
+| `alpine-dev` | The latest version, which is compiled each time it is successfully added to the development branch, is not guaranteed to be stable. The image is based on Alpine Linux. |
+| `ubuntu-dev` | The latest version, which is compiled each time it is successfully added to the development branch, is not guaranteed to be stable. The image is based on Ubuntu Linux. |
+
 ## 🧪 Configure bot
 
 1. Secret Settings:
