@@ -3,12 +3,10 @@ Original code from: https://github.com/abstractkitchen/flask-backbone
 @MIT license
 """
 
-import os
 import glob
+import os
 import shutil
-
 import typing as t
-
 from pathlib import Path
 from string import Template
 

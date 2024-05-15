@@ -10,6 +10,7 @@ from telebot.handler_backends import (
     CancelUpdate
 )
 from telebot.types import Message
+
 from app import (
     config,
     bot,

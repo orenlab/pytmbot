@@ -5,11 +5,12 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
-from humanize import naturalsize, naturaltime
-import docker
 
-from app.core import exceptions
+import docker
+from humanize import naturalsize, naturaltime
+
 from app import config, bot_logger
+from app.core import exceptions
 
 
 class DockerAdapter:

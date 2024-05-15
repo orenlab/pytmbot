@@ -12,7 +12,6 @@ except ImportError:
 from string import Template
 
 import bot_cli.cfg_templates.env as default_env_tpl
-
 from bot_cli import fs as filesystem
 
 APP_ENV_FILE = '.pytmbotenv'

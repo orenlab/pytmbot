@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from time import sleep
+
 from requests.exceptions import (
     ReadTimeout,
     HTTPError,
@@ -17,7 +18,6 @@ from app import (
     bot_logger,
     telebot
 )
-
 from app.core.handlers.handlers_aggregator import HandlersAggregator
 from app.core.middleware.auth import AllowedUser
 

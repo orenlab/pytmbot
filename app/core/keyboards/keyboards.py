@@ -5,10 +5,12 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-from telebot import types
-from app.utilities.utilities import get_emoji
-from app.core.settings.keyboards import KeyboardSettings
 from functools import lru_cache
+
+from telebot import types
+
+from app.core.settings.keyboards import KeyboardSettings
+from app.utilities.utilities import get_emoji
 
 
 def keyboard_constructor(keyboard: dict) -> list[str]:
