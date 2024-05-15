@@ -34,7 +34,7 @@ RUN python${PYTHON_VERSION} -m venv --without-pip venv
 RUN python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
     -r requirements.txt
 
-RUN apt-get remove -y python3-pip
+RUN apt-get remove -y python3-pip python3-wheel python3-dev build-essential
 
 # Second unnamed stage
 FROM ubuntu:$IMAGE_VERSION

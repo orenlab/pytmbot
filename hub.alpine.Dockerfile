@@ -24,7 +24,7 @@ RUN apk --no-cache update && \
 RUN python$PYTHON_VERSION -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
 
-RUN python -m pip uninstall pip setuptools -y
+RUN python -m pip uninstall pip setuptools python3-wheel python3-dev -y
 
 # Second unnamed stage
 FROM alpine:$IMAGE_VERSION_SECOND
