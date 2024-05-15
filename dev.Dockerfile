@@ -24,6 +24,8 @@ RUN apk --no-cache update && \
 RUN python$PYTHON_VERSION -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
 
+RUN python -m pip uninstall pip setuptools -y
+
 # Second unnamed stage
 FROM alpine:$IMAGE_VERSION_SECOND
 # Python version (minimal - 3.12)
@@ -50,8 +52,11 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
-# Copy .env file with token (prod, dev)
-COPY .env /opt/pytmbot
+# Copy .pytmbotenv file with token (prod, dev)
+COPY .pytmbotenv /opt/pytmbot
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/

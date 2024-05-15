@@ -50,12 +50,16 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
-# Copy .env file with token (prod, dev)
-COPY .env /opt/pytmbot
+# Copy .pytmbotenv file with token (prod, dev)
+COPY .pytmbotenv /opt/pytmbot
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/
 COPY ./logs /opt/logs/
+
 
 # Update base os components
 RUN apk --no-cache update && \
