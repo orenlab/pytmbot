@@ -36,16 +36,26 @@ For stable tag `0.0.5`, `latest`:
   sudo -i
   cd /root/
   touch .env
-  nano .env
 ```
 
-For over tag version (`ubuntu-dev`, `alpine-dev`):
+For over tag (`ubuntu-dev`, `alpine-dev`):
 
 ```bash
   sudo -i
   cd /root/
   touch .pytmbotenv
-  nano .pytmbotenv
+```
+
+Then, for stable tag `0.0.5`, `latest`:
+
+```bash
+  nano .env
+```
+
+or for over tag (`ubuntu-dev`, `alpine-dev`)::
+
+```bash
+nano .pytmbotenv
 ```
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
@@ -71,10 +81,11 @@ For stable tag `0.0.5`, `latest`:
   sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.env:/opt/pytmbot/.env:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
 ```
 
-For over tag version (`ubuntu-dev`, `alpine-dev`):
+For over tag version (`ubuntu-dev`, `alpine-dev`). Please remember to check and change the tag as necessary.
+:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
+  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:alpine-dev
 ```
 
 _This difference in the naming convention for environment files will be removed with the release of version 0.0.6, which
