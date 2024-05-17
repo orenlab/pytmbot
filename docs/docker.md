@@ -5,7 +5,7 @@
 A simple Telegram bot designed to gather basic information about the status of your **local** servers. The bot operates
 synchronously. It does not use webhooks.
 
-[![Docker Image CI](https://github.com/orenlab/pytmbot/actions/workflows/docker-image.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/docker-image.yml)
+[![Docker Image Build CI/CD](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml)
 
 ## 💡 Features
 
