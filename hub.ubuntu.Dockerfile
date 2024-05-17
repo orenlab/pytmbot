@@ -34,6 +34,8 @@ RUN python${PYTHON_VERSION} -m venv --without-pip venv
 RUN python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
     -r requirements.txt
 
+RUN apt-get remove -y python3-pip python3-wheel python3-dev build-essential
+
 # Second unnamed stage
 FROM ubuntu:$IMAGE_VERSION
 # Python version (minimal - 3.12)
@@ -55,11 +57,12 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone (can ovveride on docker run args)
-ENV TZ="Asia/Yekaterinburg"
 
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/
@@ -67,6 +70,11 @@ COPY ./logs /opt/logs/
 
 # forward logs to Docker's log collector
 RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
+
+# Label docker image
+LABEL version="ubuntu-dev"
+LABEL maintaner="Orenlab <Denis Rozhnovskiy>"
+LABEL github-repo="https://github.com/orenlab/pytmbot/"
 
 # Run app
 # !!! needed set log level:

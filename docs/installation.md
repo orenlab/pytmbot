@@ -11,8 +11,8 @@ There are two ways for today:
 So, to install this project:
 
 ```bash
-  git clone https://github.com/orenlab/pytmbot.git
-  cd ~/pytmbot
+git clone https://github.com/orenlab/pytmbot.git
+cd ~/pytmbot
 ```
 
 ## 🧪 Configure bot
@@ -43,12 +43,6 @@ This wizard will generate the necessary configuration file for you:
 
 You can leave the steps with the default settings by simply pressing "Enter".
 
-3. Set your local TZ in `Dockerfile`:
-
-```dockerfile
-ENV TZ="Asia/Yekaterinburg"
-```
-
 If needed, set log level and operational mode in `Dockerfile`:
 
 ```dockerfile
@@ -69,8 +63,8 @@ CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
 To build a Docker image:
 
 ```bash
-  cd ~/pytmbot
-  docker build -t orenlab/pytmbot:latest .
+cd ~/pytmbot
+docker build -t orenlab/pytmbot:latest .
 ```
 
 *Also, available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
@@ -78,23 +72,35 @@ To build a Docker image:
 To launch a Docker container:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest
 ```
 
-Docker image size ~80,5 Мб.
+##### **Note**
+
+_Please don't forget to specify your time zone! You can find a list of available time zones, for
+example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
+
+Docker image size ~90,5 Мб.
 
 ## 🛠 Logs
 
 To access to bot logs, please run in terminal:
 
 ```bash
-  docker ps
+docker ps
 ```
 
 And grab pyTMbot container id. Then, run:
 
 ```bash
-  docker logs bot_contaner_id
+docker logs bot_contaner_id
 ```
 
 Or use Docker Desktop (if run workstation)

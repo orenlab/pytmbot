@@ -6,14 +6,15 @@ the status of your local servers
 """
 
 import abc
-from app.core.adapters.psutil_adapter import PsutilAdapter
-from app.core.keyboards.keyboards import Keyboard
-from app.core.settings.loggers import MessageTpl
+
 from app import (
     config,
     exceptions,
 )
+from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
+from app.core.keyboards.keyboards import Keyboard
+from app.core.settings.loggers import MessageTpl
 from app.utilities.utilities import (
     get_emoji,
     round_up_tuple,

@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from app import bot_logger
 from app.core.handlers.default_handlers import (
     StartHandler,
     LoadAvgHandler,
@@ -16,7 +17,6 @@ from app.core.handlers.default_handlers import (
 )
 from app.core.handlers.inline_handlers import InlineQueryHandler
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
-from app import bot_logger
 
 
 class HandlersAggregator:

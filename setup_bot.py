@@ -12,7 +12,6 @@ except ImportError:
 from string import Template
 
 import bot_cli.cfg_templates.env as default_env_tpl
-
 from bot_cli import fs as filesystem
 
 APP_ENV_FILE = '.pytmbotenv'
@@ -91,7 +90,7 @@ def create_dot_env() -> None:
 def build_config() -> None:
     click.secho("*** Starting build default .pytmbotenv ***", fg="green", bold=True)
 
-    # .env
+    # .pytmbotenv
     if filesystem.has_file(APP_ENV_FILE):
         click.secho("Looks like you already have .pytmbotenv, if you need reconfigure bot, remove it.", blink=True,
                     fg="yellow", bold=True)

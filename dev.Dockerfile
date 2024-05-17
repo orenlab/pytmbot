@@ -24,10 +24,15 @@ RUN apk --no-cache update && \
 RUN python$PYTHON_VERSION -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
 
+RUN python -m pip uninstall pip setuptools python3-wheel python3-dev -y
+
 # Second unnamed stage
 FROM alpine:$IMAGE_VERSION_SECOND
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
+
+# Add Timezone support in Alpine image
+RUN apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -50,8 +55,11 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
-# Copy .env file with token (prod, dev)
+# Copy .pytmbotenv file with token (prod, dev)
 COPY .pytmbotenv /opt/pytmbot
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/

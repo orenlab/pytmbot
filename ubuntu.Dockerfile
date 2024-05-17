@@ -34,6 +34,8 @@ RUN python${PYTHON_VERSION} -m venv --without-pip venv
 RUN python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
     -r requirements.txt
 
+RUN apt-get remove -y python3-pip python3-wheel python3-dev build-essential
+
 # Second unnamed stage
 FROM ubuntu:$IMAGE_VERSION
 # Python version (minimal - 3.12)
@@ -61,8 +63,11 @@ ENV TZ="Asia/Yekaterinburg"
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
-# Copy .env file with token (prod, dev)
+# Copy .pytmbotenv file with token (prod, dev)
 COPY .pytmbotenv /opt/pytmbot
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/

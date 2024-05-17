@@ -4,12 +4,13 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from jinja2.sandbox import SandboxedEnvironment
 from jinja2 import (
     FileSystemLoader,
     select_autoescape
 )
 from jinja2.exceptions import TemplateError
+from jinja2.sandbox import SandboxedEnvironment
+
 from app.core import exceptions
 
 

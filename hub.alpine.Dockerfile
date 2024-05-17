@@ -24,10 +24,15 @@ RUN apk --no-cache update && \
 RUN python$PYTHON_VERSION -m venv --without-pip venv
 RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
 
+RUN python -m pip uninstall pip setuptools python3-wheel python3-dev -y
+
 # Second unnamed stage
 FROM alpine:$IMAGE_VERSION_SECOND
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
+
+# Add Timezone support in Alpine image
+RUN apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -37,8 +42,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone (can ovveride on docker run args)
-ENV TZ="Asia/Yekaterinburg"
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
@@ -49,6 +52,9 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
+
+# Copy lisence
+COPY LICENSE /opt/pytmbot
 
 # Copy bot files
 COPY ./app ./app/
@@ -61,6 +67,11 @@ RUN apk --no-cache update && \
     source /venv/bin/activate && \
 # forward logs to Docker's log collector
     ln -sf /dev/stdout /opt/logs/pytmbot.log
+
+# Label docker image
+LABEL version="alpine-dev"
+LABEL maintaner="Orenlab <Denis Rozhnovskiy>"
+LABEL github-repo="https://github.com/orenlab/pytmbot/"
 
 # Run app
 # !!! needed set log level:

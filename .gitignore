@@ -5,6 +5,7 @@ __pycache__/
 
 # Env secrets
 .pytmbotenv
+.env
 
 # C extensions
 *.so

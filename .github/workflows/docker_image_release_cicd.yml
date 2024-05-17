@@ -1,17 +1,8 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# GitHub recommends pinning actions to a commit SHA.
-# To get a newer version, you will need to update the SHA.
-# You can also reference a tag or branch, but the action may change without warning.
-
-name: Publish Docker image
+name: Push Release Docker Image
 
 on:
   release:
-    types: [published]
+    types: [ published ]
 
 jobs:
   push_to_registry:
@@ -42,12 +33,12 @@ jobs:
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
           context: .
-          file: ./hub.alpine.Dockerfile
+          file: hub.alpine.Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      
-      
+
+
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:

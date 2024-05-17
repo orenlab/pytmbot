@@ -6,10 +6,8 @@ the status of your local servers
 """
 from telebot import types
 
-from app.core.adapters.psutil_adapter import PsutilAdapter
-
 from app import bot_logger
-
+from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.handlers.handler import Handler
 
 
