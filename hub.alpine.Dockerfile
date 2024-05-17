@@ -43,7 +43,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
 
-
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
 COPY --from=builder /usr/local/bin/python$PYTHON_VERSION /usr/local/bin/python$PYTHON_VERSION
