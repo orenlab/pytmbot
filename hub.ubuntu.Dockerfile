@@ -57,8 +57,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone (can ovveride on docker run args)
-ENV TZ="Asia/Yekaterinburg"
 
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
@@ -72,6 +70,11 @@ COPY ./logs /opt/logs/
 
 # forward logs to Docker's log collector
 RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
+
+# Label docker image
+LABEL version="ubuntu-dev"
+LABEL maintaner="Orenlab <Denis Rozhnovskiy>"
+LABEL github-repo="https://github.com/orenlab/pytmbot/"
 
 # Run app
 # !!! needed set log level:

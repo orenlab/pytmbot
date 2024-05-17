@@ -42,8 +42,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone (can ovveride on docker run args)
-ENV TZ="Asia/Yekaterinburg"
+
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
@@ -69,6 +68,11 @@ RUN apk --no-cache update && \
     source /venv/bin/activate && \
 # forward logs to Docker's log collector
     ln -sf /dev/stdout /opt/logs/pytmbot.log
+
+# Label docker image
+LABEL version="alpine-dev"
+LABEL maintaner="Orenlab <Denis Rozhnovskiy>"
+LABEL github-repo="https://github.com/orenlab/pytmbot/"
 
 # Run app
 # !!! needed set log level:
