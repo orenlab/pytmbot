@@ -40,20 +40,20 @@ class PyTMBot:
                 self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True, skip_pending=True)
             except (ReadTimeout, HTTPError, ConnectionError) as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f"Connection error: {e}. Retry after {self.sleep_time} seconds")
+                bot_logger.debug(f"{e}. Retry after {self.sleep_time} seconds")
                 bot_logger.error(f'Connection error. Retry after {self.sleep_time} seconds')
                 sleep(self.sleep_time)
                 continue
             except telebot.apihelper.ApiTelegramException as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f'Telegram API error: {e}. Connection attempt after {self.sleep_time} seconds.')
-                bot_logger.error(f'Telegram API error. Connection attempt after {self.sleep_time} seconds.')
+                bot_logger.debug(f'{e}. Retry after {self.sleep_time} seconds.')
+                bot_logger.error(f'Telegram API error. Retry after {self.sleep_time} seconds.')
                 sleep(self.sleep_time)
                 continue
             except Exception as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart. Shutdown bot ")
-                bot_logger.error("Unexpected exception. Unable to perform an automatic restart. Shutdown bot")
+                bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart.")
+                bot_logger.error("Unexpected exception. Unable to perform an automatic restart.")
             break
 
     def run_bot(self):
@@ -63,8 +63,8 @@ class PyTMBot:
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self.start_polling()
-        except ConnectionError:
-            bot_logger.error("Connection error.")
+        except ConnectionError as e:
+            bot_logger.error(f"Connection error.: {e}", exc_info=False)
 
 
 if __name__ == "__main__":
