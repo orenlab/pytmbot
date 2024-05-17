@@ -42,23 +42,23 @@ Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
 For stable tag `0.0.5`, `latest`:
 
 ```bash
-  sudo -i
-  cd /root/
-  touch .env
+sudo -i
+cd /root/
+touch .env
 ```
 
 For over tag (`ubuntu-dev`, `alpine-dev`):
 
 ```bash
-  sudo -i
-  cd /root/
-  touch .pytmbotenv
+sudo -i
+cd /root/
+touch .pytmbotenv
 ```
 
 Then, for stable tag `0.0.5`, `latest`:
 
 ```bash
-  nano .env
+nano .env
 ```
 
 or for over tag (`ubuntu-dev`, `alpine-dev`)::
@@ -87,15 +87,42 @@ To launch a Docker container:
 For stable tag `0.0.5`, `latest`:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.env:/opt/pytmbot/.env:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:latest
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.env:/opt/pytmbot/.env:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest
 ```
 
-For over tag version (`ubuntu-dev`, `alpine-dev`). Please remember to check and change the tag as necessary.
-:
+##### **Note**
+
+_Please don't forget to specify your time zone! You can find a list of available time zones, for
+example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
+
+For over tag version (`ubuntu-dev`, `alpine-dev`). Please remember to check and change the tag as necessary:
 
 ```bash
-  sudo docker run -d -m 100M -v /var/run/docker.sock:/var/run/docker.sock:ro -v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro --restart=always --name=pytmbot --pid=host --security-opt=no-new-privileges orenlab/pytmbot:alpine-dev
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:alpine-dev
 ```
+
+##### **Note**
+
+_Please don't forget to specify your time zone! You can find a list of available time zones, for
+example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
+
+##### **Note:**
 
 _This difference in the naming convention for environment files will be removed with the release of version 0.0.6, which
 is expected in early June 2024._
@@ -105,13 +132,13 @@ is expected in early June 2024._
 - To access to bot logs, please run in terminal:
 
 ```bash
-  docker ps
+docker ps
 ```
 
 - And grab pyTMbot container id. Then, run:
 
 ```bash
-  docker logs bot_contaner_id
+docker logs bot_contaner_id
 ```
 
 _Or use Docker Desktop (if run workstation)_
