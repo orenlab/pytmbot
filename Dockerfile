@@ -31,6 +31,9 @@ FROM alpine:$IMAGE_VERSION_SECOND
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
+# Add Timezone support in Alpine image
+RUN apk --no-cache add tzdata
+
 # App workdir
 WORKDIR /opt/pytmbot/
 
