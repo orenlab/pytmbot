@@ -52,8 +52,7 @@ class PyTMBot:
                 continue
             except telebot.apihelper.ApiTelegramException as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f'{e}. Retry after {self.sleep_time} seconds.')
-                bot_logger.error(f'Telegram API error. Retry after {self.sleep_time} seconds.')
+                bot_logger.error(f'{e}. Retry after {self.sleep_time} seconds.')
                 sleep(self.sleep_time)
                 continue
             except Exception as e:
