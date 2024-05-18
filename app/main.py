@@ -9,14 +9,15 @@ from time import sleep
 from requests.exceptions import (
     ReadTimeout,
     HTTPError,
-    ConnectionError)
+    ConnectionError,
+    BaseHTTPError)
 
 from app import (
     __version__,
     __repository__,
     bot,
     bot_logger,
-    telebot
+    telebot,
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
 from app.core.middleware.auth import AllowedUser
@@ -31,30 +32,29 @@ class PyTMBot:
         self.handler = HandlersAggregator(self.bot)
         self.sleep_time: int = 0
 
-    def start_polling(self):
+    def _start_polling(self):
         """Start bot polling"""
-        while True:
-            try:
-                self.sleep_time += 5  # The time in seconds that we sleep for after each cycle.
-                bot_logger.info('Start polling')
-                self.bot.polling(timeout=60, long_polling_timeout=60, none_stop=True, skip_pending=True)
-            except (ReadTimeout, HTTPError, ConnectionError) as e:
-                self.bot.stop_polling()
-                bot_logger.debug(f"{e}. Retry after {self.sleep_time} seconds")
-                bot_logger.error(f'Connection error. Retry after {self.sleep_time} seconds')
-                sleep(self.sleep_time)
-                continue
-            except telebot.apihelper.ApiTelegramException as e:
-                self.bot.stop_polling()
-                bot_logger.debug(f'{e}. Retry after {self.sleep_time} seconds.')
-                bot_logger.error(f'Telegram API error. Retry after {self.sleep_time} seconds.')
-                sleep(self.sleep_time)
-                continue
-            except Exception as e:
-                self.bot.stop_polling()
-                bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart.")
-                bot_logger.error("Unexpected exception. Unable to perform an automatic restart.")
-            break
+        try:
+            bot_logger.info('Start polling session')
+            self.bot.infinity_polling(
+                timeout=60,
+                long_polling_timeout=60,
+                skip_pending=True
+            )
+        except (ReadTimeout, HTTPError, ConnectionError, BaseHTTPError) as e:
+            self.bot.stop_polling()
+            bot_logger.debug(f"{e}. Retry after {self.sleep_time} seconds")
+            bot_logger.error(f'Connection error. Retry after {self.sleep_time} seconds')
+            sleep(self.sleep_time)
+        except telebot.apihelper.ApiTelegramException as e:
+            self.bot.stop_polling()
+            bot_logger.debug(f'{e}. Retry after {self.sleep_time} seconds.')
+            bot_logger.error(f'Telegram API error. Retry after {self.sleep_time} seconds.')
+            sleep(self.sleep_time)
+        except Exception as e:
+            self.bot.stop_polling()
+            bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart.")
+            bot_logger.error("Unexpected exception. Unable to perform an automatic restart.")
 
     def run_bot(self):
         """Run the bot"""
@@ -62,7 +62,7 @@ class PyTMBot:
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
-            self.start_polling()
+            self._start_polling()
         except ConnectionError as e:
             bot_logger.error(f"Connection error.: {e}", exc_info=False)
 
