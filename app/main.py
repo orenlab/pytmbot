@@ -4,6 +4,7 @@
 pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+import logging
 from time import sleep
 
 from requests.exceptions import (
@@ -42,6 +43,7 @@ class PyTMBot:
                     timeout=60,
                     long_polling_timeout=60,
                     skip_pending=True,
+                    logger_level=None
                 )
             except (ReadTimeout, HTTPError, ConnectionError, BaseHTTPError) as e:
                 self.bot.stop_polling()

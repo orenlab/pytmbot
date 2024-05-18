@@ -42,8 +42,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
-# Setup time zone
-ENV TZ="Asia/Yekaterinburg"
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
@@ -56,14 +54,15 @@ COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 COPY --from=builder /venv /venv
 
 # Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot
+COPY .pytmbotenv /opt/pytmbot/
 
 # Copy lisence
-COPY LICENSE /opt/pytmbot
+COPY LICENSE /opt/pytmbot/
 
 # Copy bot files
 COPY ./app ./app/
 COPY ./logs /opt/logs/
+
 
 # Update base os components
 RUN apk --no-cache update && \
