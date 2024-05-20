@@ -26,7 +26,7 @@ class AllowedUser(BaseMiddleware):
         """Initialize the middleware"""
         super().__init__()
         self.bot_msg_tpl = MessageTpl()
-        self.update_types = ['message']  # Needed for correctly work middleware
+        self.update_types = ['message', 'inline_query']  # Needed for correctly work middleware
 
     def pre_process(self, message: Message, data):
         """Check allowed users"""
