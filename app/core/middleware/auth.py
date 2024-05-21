@@ -28,7 +28,7 @@ class AllowedUser(BaseMiddleware):
         self.bot_msg_tpl = MessageTpl()
         self.update_types = ['message', 'inline_query']  # Needed for correctly work middleware
 
-    def pre_process(self, message: Message, data):
+    def pre_process(self, message: Message, data) -> CancelUpdate:
         """Check allowed users"""
         if message.from_user.id in config.allowed_user_ids:
             bot_logger.info(
@@ -53,5 +53,5 @@ class AllowedUser(BaseMiddleware):
             )
             return CancelUpdate()
 
-    def post_process(self, message: Message, data, exception):  # Not needed in this case, but needed for method
+    def post_process(self, message: Message, data, exception) -> None:  # Not needed in this case, but needed for method
         """Method need to correctly work middleware"""

@@ -49,9 +49,7 @@ class ProcessHandler(Handler):
     def handle(self):
         @self.bot.message_handler(regexp="Process")
         def get_process(message: Message) -> None:
-            """
-            Get process count
-            """
+            """Get process count"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(

@@ -38,9 +38,7 @@ class FileSystemHandler(Handler):
     def handle(self):
         @self.bot.message_handler(regexp="File system")
         def get_fs(message: Message) -> None:
-            """
-            Get file system info
-            """
+            """Get file system info"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
