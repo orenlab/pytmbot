@@ -16,7 +16,7 @@ pydantic_core==2.18.2
 pyTelegramBotAPI==4.18.1
 python-dotenv==1.0.1
 pyxdg==0.28
-requests==2.32.1
+requests==2.31.0
 telebot==0.0.5
 typing_extensions==4.11.0
 urllib3==2.2.1

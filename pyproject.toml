@@ -19,6 +19,7 @@ click = "^8.1.7"
 psutil = "^5.9.8"
 humanize = "^4.9.0"
 podman = "^5.0.0"
+requests = "2.31.0"
 
 
 [build-system]
