@@ -124,7 +124,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   ├── cfg_templates
 │   │   └── env.py                          - Template for initial setup
 │   └── fs.py                               - Filesystem utility
-├── dev.Dockerfile                          - Dockerfile with mode=dev 
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
 │   ├── docker.md                           - README for hub.docker.com

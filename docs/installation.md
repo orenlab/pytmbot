@@ -43,30 +43,19 @@ This wizard will generate the necessary configuration file for you:
 
 You can leave the steps with the default settings by simply pressing "Enter".
 
-If needed, set log level and operational mode in `Dockerfile`:
-
-```dockerfile
-# run app
-# !!! needed set log level:
-#   - DEBUG
-#   - INFO (default)
-#   - ERROR
-#   - CRITICAL
-# !!! needed set pyTMBot mode:
-#   - dev
-#   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
-```
-
 ## 💰 Run bot
 
 To build a Docker image:
 
 ```bash
 cd ~/pytmbot
-docker build -t orenlab/pytmbot:latest .
-```
 
+# To launch with a production token. Default way:
+docker --target prod build -t orenlab/pytmbot:latest .
+
+# To launch with a development token. Only for development:
+docker --target dev build -t orenlab/pytmbot:latest .
+```
 *Also, available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
 
 To launch a Docker container:

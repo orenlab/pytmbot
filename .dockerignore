@@ -64,7 +64,6 @@ setup_req.txt
 ### Docker
 # .dockerignore
 .dockerignore
-dev.Dockerfile
 docker-compose.yml
 Dockerfile
 hub.alpine.Dockerfile
