@@ -89,7 +89,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── handler.py                  - Base handler class (abc)
 │   │   │   ├── handlers_aggregator.py      - Main handlers aggregator
 │   │   │   └── inline_handlers
-│   │   │       ├── __init__.py             - Import all inline handlers
+│   │   │       ├── __init__.py
 │   │   │       └── swap_handler.py         - Swap inline handler
 │   │   ├── jinja2
 │   │   │   ├── __init__.py
