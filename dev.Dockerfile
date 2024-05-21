@@ -10,29 +10,25 @@ ARG IMAGE_VERSION_SECOND=3.19.1
 
 # First stage
 FROM python:$IMAGE_VERSION_FIRST AS builder
+
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
 COPY requirements.txt .
 
 # Update base os components and install all deps (need to build psutil)
-RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
-    apk --no-cache add gcc python3-dev musl-dev linux-headers
+RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
-RUN python$PYTHON_VERSION -m venv --without-pip venv
-RUN pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt
-
-RUN python -m pip uninstall pip setuptools python3-wheel python3-dev -y
+RUN python$PYTHON_VERSION -m venv --without-pip venv && \
+    pip install --no-cache --target="/venv/lib/python$PYTHON_VERSION/site-packages" -r requirements.txt && \
+    python -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
 
 # Second unnamed stage
 FROM alpine:$IMAGE_VERSION_SECOND
+
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
-
-# Add Timezone support in Alpine image
-RUN apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -67,18 +63,11 @@ COPY ./logs /opt/logs/
 # Update base os components
 RUN apk --no-cache update && \
     apk --no-cache upgrade && \
+# Add Timezone support in Alpine image
+    apk --no-cache add tzdata && \
 # activate venv
     source /venv/bin/activate && \
 # forward logs to Docker's log collector
     ln -sf /dev/stdout /opt/logs/pytmbot.log
 
-# Run app
-# !!! needed set log level:
-#   - DEBUG
-#   - INFO (default)
-#   - ERROR
-#   - CRITICAL
-# !!! needed set pyTMBot mode:
-#   - dev
-#   - prod (default)
 CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
