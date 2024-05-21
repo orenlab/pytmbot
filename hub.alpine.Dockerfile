@@ -1,13 +1,7 @@
 #############################################################
-## pyTMbot Dockerfile (based on Alpine)
+# pyTMbot Dockerfile (based on Alpine)
 # image size: ~ 78Mb
-## https://github.com/orenlab/pytmbot
-#
-## To launch with a production token. Default way:
-# docker --target prod build -t orenlab/pytmbot:latest .
-#
-## To launch with a development token. Only for development:
-# docker --target dev build -t orenlab/pytmbot:latest .
+# https://github.com/orenlab/pytmbot
 #############################################################
 
 # Set Alpine tag version for all stage
