@@ -90,7 +90,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── handlers_aggregator.py      - Main handlers aggregator
 │   │   │   └── inline_handlers
 │   │   │       ├── __init__.py             - Import all inline handlers
-│   │   │       ├── inline_query_handler.py - Deprecated in next release
 │   │   │       └── swap_handler.py         - Swap inline handler
 │   │   ├── jinja2
 │   │   │   ├── __init__.py
