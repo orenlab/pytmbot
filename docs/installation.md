@@ -56,7 +56,7 @@ docker --target prod build -t orenlab/pytmbot:latest .
 # To launch with a development token. Only for development:
 docker --target dev build -t orenlab/pytmbot:latest .
 ```
-*Also, available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
+*Also, available in the root of the project is a Dockerfile based on the Ubuntu image: `ubuntu.Dockerfile`*
 
 To launch a Docker container:
 
