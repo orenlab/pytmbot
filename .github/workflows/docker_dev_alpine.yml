@@ -22,6 +22,5 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           build-args: --target prod
-          file: Dockerfile
           push: true
           tags: orenlab/pytmbot:alpine-dev
