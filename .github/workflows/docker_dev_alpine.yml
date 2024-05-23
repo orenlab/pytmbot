@@ -35,5 +35,5 @@ jobs:
           sbom: true
           push: true
           provenance: mode=max
-          tags: alpine-dev
+          tags: orenlab/pytmbot:alpine-dev
           labels: ${{ steps.meta.outputs.labels }}
