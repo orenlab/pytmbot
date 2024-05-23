@@ -31,7 +31,7 @@ COPY requirements.txt .
 
 # Install dependencies to the venv path
 RUN python${PYTHON_VERSION} -m venv --without-pip venv
-RUN python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
+RUN pip install --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
     -r requirements.txt
 
 RUN apt-get remove -y python3-pip python3-wheel python3-dev build-essential
@@ -43,11 +43,11 @@ ARG PYTHON_VERSION=3.12
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Update base os components and install minimal deps
-RUN apt-get update && apt-get upgrade -y && apt-get clean && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
     python3 \
-  && apt-get clean \
-  && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
 
 # App workdir
 WORKDIR /opt/pytmbot/
@@ -76,13 +76,4 @@ COPY ./logs /opt/logs/
 # forward logs to Docker's log collector
 RUN ln -sf /dev/stdout /opt/logs/pytmbot.log
 
-# Run app
-# !!! needed set log level:
-#   - DEBUG
-#   - INFO (default)
-#   - ERROR
-#   - CRITICAL
-# !!! needed set pyTMBot mode:
-#   - dev
-#   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
