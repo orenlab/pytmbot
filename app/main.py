@@ -42,7 +42,7 @@ class PyTMBot:
                     timeout=60,
                     long_polling_timeout=60,
                     skip_pending=True,
-                    logger_level=None
+                    logger_level=bot_logger.level
                 )
             except (ReadTimeout, HTTPError, ConnectionError, BaseHTTPError) as e:
                 self.bot.stop_polling()

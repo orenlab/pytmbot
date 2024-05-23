@@ -19,7 +19,7 @@ from app.core.settings.bot_settings import BotSettings
 config = BotSettings()
 
 # Set global name
-__version__ = '0.0.6-dev-20240521'
+__version__ = '0.0.6-dev-20240523'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
