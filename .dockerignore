@@ -66,6 +66,7 @@ setup_req.txt
 .dockerignore
 docker-compose.yml
 Dockerfile
+hub.Dockerfile
 #######################################
 ### pyTMbot
 # app dir
