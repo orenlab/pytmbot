@@ -130,8 +130,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
-├── hub.alpine.Dockerfile                   - Dockerfile for Docker CI/CD based on Alpine
-├── hub.ubuntu.Dockerfile                   - Dockerfile for Docker CI/CD based on Ubuntu
+├── hub.Dockerfile                          - Dockerfile for Docker CI/CD based on Alpine
 ├── logs
 │   └── pytmbot.log                         - Main logs file
 ├── poetry.lock                             - Poetry file
@@ -141,7 +140,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── setup_req.txt                           - Setup requirements
 ├── tests
 │   └── bot_tests.py                        - Bots tests
-└── ubuntu.Dockerfile                       - Dockerfile, based on Ubuntu image
 ```
 
 ## 📈 Roadmap
