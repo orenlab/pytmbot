@@ -57,6 +57,7 @@ RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 RUN python$PYTHON_VERSION -m venv --without-pip venv
 RUN pip install --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
     -r requirements.txt
+
 RUN python -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
 
 # Second stage - based on the base stage. Setup bot to mode == prod
