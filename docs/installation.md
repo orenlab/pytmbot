@@ -77,18 +77,12 @@ example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZ
 
 Docker image size ~79 Мб.
 
-## 🛠 Logs
+## 🚀 Bot logs
 
-To access to bot logs, please run in terminal:
-
-```bash
-docker ps
-```
-
-And grab pyTMbot container id. Then, run:
+- To access the bot logs, please run the following command in the terminal:
 
 ```bash
-docker logs bot_contaner_id
+sudo docker logs pytmbot
 ```
 
-Or use Docker Desktop (if run workstation)
+_Alternatively, if the container is running on your workstation, you can use Docker Desktop._

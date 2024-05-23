@@ -1,5 +1,3 @@
-![pytmbot](https://socialify.git.ci/orenlab/pytmbot/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pattern=Floating%20Cogs&pulls=1&stargazers=1&theme=Auto)
-
 # pyTMbot
 
 A simple Telegram bot designed to gather basic information about the status of your **local** servers. The bot operates
@@ -31,7 +29,6 @@ Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?f
 | `latest`     | The latest stable release image, based on Alpine Linux                                                                                                                  |
 | `0.0.X`      | Stable release, based on Alpine Linux                                                                                                                                   |
 | `alpine-dev` | The latest version, which is compiled each time it is successfully added to the development branch, is not guaranteed to be stable. The image is based on Alpine Linux. |
-| `ubuntu-dev` | The latest version, which is compiled each time it is successfully added to the development branch, is not guaranteed to be stable. The image is based on Ubuntu Linux. |
 
 ## 🧪 Configure bot
 
@@ -54,13 +51,15 @@ nano .pytmbotenv
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 
 ```bash
-# Prod bot token:
+# The bot token that you received from the BotFather:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
 # Add your telegram IDs:
 ALLOWED_USER_IDS=[00000000000, 00000000000]
 # Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
-DOCKER_HOST='<PUT YOUR VALUE HERE>'
+DOCKER_HOST='unix:///var/run/docker.sock'
 ```
+
+Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` editor.
 
 ## 🔌 Run bot
 
@@ -89,19 +88,13 @@ _Please don't forget to specify Tag version!_
 
 ## 🚀 Bot logs
 
-- To access to bot logs, please run in terminal:
+- To access the bot logs, please run the following command in the terminal:
 
 ```bash
-docker ps
+sudo docker logs pytmbot
 ```
 
-- And grab pyTMbot container id. Then, run:
-
-```bash
-docker logs bot_contaner_id
-```
-
-_Or use Docker Desktop (if run workstation)_
+_Alternatively, if the container is running on your workstation, you can use Docker Desktop._
 
 ## 👾 Support, source code, questions and discussions
 
