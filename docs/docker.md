@@ -54,14 +54,12 @@ nano .pytmbotenv
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 
 ```bash
-# Prod bot token
+# Prod bot token:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
-# Add your telegram IDs. And your bot too!
+# Add your telegram IDs:
 ALLOWED_USER_IDS=[00000000000, 00000000000]
 # Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
 DOCKER_HOST='<PUT YOUR VALUE HERE>'
-# Set Podman Socket o TCP param. Usually: unix:///run/user/1000/podman/podman.sock 
-PODMAN_HOST='<PUT YOUR VALUE HERE>'
 ```
 
 ## 🔌 Run bot
