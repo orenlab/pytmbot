@@ -1,21 +1,24 @@
 #############################################################
-## pyTMbot Dockerfile (based on Alpine)
-# image size: ~ 78Mb
-## https://github.com/orenlab/pytmbot
+## pyTMbot Dockerfile
+# https://github.com/orenlab/pytmbot
 #
-## To launch with a production token. Default way:
+# To launch with a production token. Default way:
 # docker --target prod build -t orenlab/pytmbot:latest .
 #
-## To launch with a development token. Only for development:
+# To launch with a development token. Only for development:
 # docker --target dev build -t orenlab/pytmbot:latest .
 #############################################################
 
-# Set Alpine tag version for all stage
-ARG IMAGE_VERSION_FIRST=3.12.3-alpine3.19
-ARG IMAGE_VERSION_SECOND=3.19.1
+# Set base images tag
+ARG PYTHON_IMAGE=3.12.3-alpine3.19
+ARG ALPINE_IMAGE=3.19.1
 
-# Zero stage - setup base image
-FROM alpine:$IMAGE_VERSION_SECOND AS base
+########################################################################################################################
+######################### BUILD ALPINE BASED IMAGE #####################################################################
+########################################################################################################################
+
+# Zero Alpine stage - setup base image
+FROM alpine:${ALPINE_IMAGE} AS alpine_base
 
 # Update base os components
 RUN apk --no-cache update && \
@@ -32,9 +35,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
 
-# Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
-
 # Copy lisence
 COPY LICENSE /opt/pytmbot/
 
@@ -42,8 +42,8 @@ COPY LICENSE /opt/pytmbot/
 COPY ./app ./app/
 COPY ./logs /opt/logs/
 
-# First stage - build Python deps
-FROM python:$IMAGE_VERSION_FIRST AS builder
+# First Alpine stage - build Python deps
+FROM python:${PYTHON_IMAGE} AS builder
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
@@ -54,22 +54,22 @@ COPY requirements.txt .
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
-RUN python$PYTHON_VERSION -m venv --without-pip venv
+RUN python${PYTHON_VERSION} -m venv --without-pip venv
 RUN pip install --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt
 
-RUN python$PYTHON_VERSION -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
+RUN python${PYTHON_VERSION} -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
 
-# Second stage - based on the base stage. Setup bot to mode == prod
-FROM base AS prod
+# Second Alpine stage - based on the base stage. Setup bot
+FROM alpine_base AS reliase_base
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
-COPY --from=builder /usr/local/bin/python$PYTHON_VERSION /usr/local/bin/python$PYTHON_VERSION
-COPY --from=builder /usr/local/lib/python$PYTHON_VERSION /usr/local/lib/python$PYTHON_VERSION
-COPY --from=builder /usr/local/lib/libpython$PYTHON_VERSION.so.1.0 /usr/local/lib/libpython$PYTHON_VERSION.so.1.0
+COPY --from=builder /usr/local/bin/python${PYTHON_VERSION} /usr/local/bin/python${PYTHON_VERSION}
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
+COPY --from=builder /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0 /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0
 COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
 
 # Copy only the dependencies installation from the first stage image
@@ -79,28 +79,25 @@ COPY --from=builder /venv /venv
 RUN source /venv/bin/activate && \
 # forward logs to Docker's log collector
     ln -sf /dev/stdout /opt/logs/pytmbot.log
+
+
+# Target for CI/CD image, --mode = prod
+FROM reliase_base AS prod
 
 CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
 
-# Third stage - based on the base stage. Setup bot to mode == dev
-FROM base AS dev
+# Target for self biuld image, --mode = prod
+FROM reliase_base AS selfbuild_prod
 
-# Python version (minimal - 3.12)
-ARG PYTHON_VERSION=3.12
+# Copy .pytmbotenv file with token (prod, dev)
+COPY .pytmbotenv /opt/pytmbot/
 
-# Сopy only the necessary python files and directories from first stage
-COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
-COPY --from=builder /usr/local/bin/python$PYTHON_VERSION /usr/local/bin/python$PYTHON_VERSION
-COPY --from=builder /usr/local/lib/python$PYTHON_VERSION /usr/local/lib/python$PYTHON_VERSION
-COPY --from=builder /usr/local/lib/libpython$PYTHON_VERSION.so.1.0 /usr/local/lib/libpython$PYTHON_VERSION.so.1.0
-COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
 
-# Copy only the dependencies installation from the first stage image
-COPY --from=builder /venv /venv
+# Target for self biuld image, --mode = dev
+FROM reliase_base AS selfbuild_dev
 
-# activate venv
-RUN source /venv/bin/activate && \
-# forward logs to Docker's log collector
-    ln -sf /dev/stdout /opt/logs/pytmbot.log
+# Copy .pytmbotenv file with token (prod, dev)
+COPY .pytmbotenv /opt/pytmbot/
 
 CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
