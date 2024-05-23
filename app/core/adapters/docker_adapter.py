@@ -94,7 +94,7 @@ class DockerAdapter:
                         ).time().strftime("%H:%M:%S")
                         details.append(
                             {
-                                'name': container_details.attrs['Name'].title(),
+                                'name': container_details.attrs['Name'].title().replace('/', ''),
                                 'image': container_details.attrs['Config']['Image'],
                                 'created': f'{created_day}, {created_time}',
                                 'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),

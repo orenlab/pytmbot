@@ -5,21 +5,21 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
+import argparse
 import logging
 import sys
 
 import telebot
 from telebot import ExceptionHandler
-import argparse
 
-from app.core.settings.bot_settings import BotSettings
 from app.core import exceptions
+from app.core.settings.bot_settings import BotSettings
 
 # Main config
 config = BotSettings()
 
 # Set global name
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -29,7 +29,11 @@ class CustomExceptionHandler(ExceptionHandler):
     """Custom exception handler that handles exceptions raised during the execution"""
 
     def handle(self, exception):
-        bot_logger.error(exception, exc_info=False)
+        if bot_logger.level == 20:
+            if "Bad getaway" in str(exception):
+                bot_logger.error('Connection error to Telegram API. Bad getaway. Error code: 502')
+        else:
+            bot_logger.error(exception, exc_info=False)
         return True
 
 

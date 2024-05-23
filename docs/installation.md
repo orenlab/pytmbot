@@ -43,31 +43,19 @@ This wizard will generate the necessary configuration file for you:
 
 You can leave the steps with the default settings by simply pressing "Enter".
 
-If needed, set log level and operational mode in `Dockerfile`:
-
-```dockerfile
-# run app
-# !!! needed set log level:
-#   - DEBUG
-#   - INFO (default)
-#   - ERROR
-#   - CRITICAL
-# !!! needed set pyTMBot mode:
-#   - dev
-#   - prod (default)
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
-```
-
 ## 💰 Run bot
 
 To build a Docker image:
 
 ```bash
 cd ~/pytmbot
-docker build -t orenlab/pytmbot:latest .
-```
 
-*Also, available in the root of the project is a Dockerfile based on the Ubuntu image: ubuntu.Dockerfile*
+# To launch with a production token. Default way:
+docker --target selfbuild_prod build -t orenlab/pytmbot:latest .
+
+# To launch with a development token. Only for development:
+docker --target selfbuild_dev build -t orenlab/pytmbot:latest .
+```
 
 To launch a Docker container:
 
@@ -87,7 +75,7 @@ orenlab/pytmbot:latest
 _Please don't forget to specify your time zone! You can find a list of available time zones, for
 example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
 
-Docker image size ~90,5 Мб.
+Docker image size ~79 Мб.
 
 ## 🛠 Logs
 

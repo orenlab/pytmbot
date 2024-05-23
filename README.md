@@ -14,6 +14,7 @@ The bot operates synchronously. It does not use webhooks.
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Docker Image Build CI/CD](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml)
+![Docker Pulls](https://img.shields.io/docker/pulls/orenlab/pytmbot?link=https%3A%2F%2Fhub.docker.com%2Fr%2Forenlab%2Fpytmbot)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
 Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
@@ -88,8 +89,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── handler.py                  - Base handler class (abc)
 │   │   │   ├── handlers_aggregator.py      - Main handlers aggregator
 │   │   │   └── inline_handlers
-│   │   │       ├── __init__.py             - Import all inline handlers
-│   │   │       ├── inline_query_handler.py - Deprecated in next release
+│   │   │       ├── __init__.py
 │   │   │       └── swap_handler.py         - Swap inline handler
 │   │   ├── jinja2
 │   │   │   ├── __init__.py
@@ -124,15 +124,13 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   ├── cfg_templates
 │   │   └── env.py                          - Template for initial setup
 │   └── fs.py                               - Filesystem utility
-├── dev.Dockerfile                          - Dockerfile with mode=dev 
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
 │   ├── docker.md                           - README for hub.docker.com
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
-├── hub.alpine.Dockerfile                   - Dockerfile for Docker CI/CD based on Alpine
-├── hub.ubuntu.Dockerfile                   - Dockerfile for Docker CI/CD based on Ubuntu
+├── hub.Dockerfile                          - Dockerfile for Docker CI/CD based on Alpine
 ├── logs
 │   └── pytmbot.log                         - Main logs file
 ├── poetry.lock                             - Poetry file
@@ -142,7 +140,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── setup_req.txt                           - Setup requirements
 ├── tests
 │   └── bot_tests.py                        - Bots tests
-└── ubuntu.Dockerfile                       - Dockerfile, based on Ubuntu image
 ```
 
 ## 📈 Roadmap

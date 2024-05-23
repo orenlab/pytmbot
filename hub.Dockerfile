@@ -4,9 +4,6 @@
 #
 # To launch with a production token. Default way:
 # docker --target prod build -t orenlab/pytmbot:latest .
-#
-# To launch with a development token. Only for development:
-# docker --target dev build -t orenlab/pytmbot:latest .
 #############################################################
 
 # Set base images tag
@@ -85,19 +82,3 @@ RUN source /venv/bin/activate && \
 FROM reliase_base AS prod
 
 CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
-
-# Target for self biuld image, --mode = prod
-FROM reliase_base AS selfbuild_prod
-
-# Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
-
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
-
-# Target for self biuld image, --mode = dev
-FROM reliase_base AS selfbuild_dev
-
-# Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
-
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]

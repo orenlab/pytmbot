@@ -15,7 +15,6 @@ from app.core.handlers.default_handlers import (
     FileSystemHandler,
     ContainersHandler
 )
-from app.core.handlers.inline_handlers import InlineQueryHandler
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
 
 
@@ -30,7 +29,6 @@ class HandlersAggregator:
         self.uptime_handler = UptimeHandler(self.bot)
         self.fs_handler = FileSystemHandler(self.bot)
         self.containers_handler = ContainersHandler(self.bot)
-        self.inline_query_handler = InlineQueryHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
 
     def run_handlers(self):
@@ -42,7 +40,6 @@ class HandlersAggregator:
             self.process_handler.handle()
             self.uptime_handler.handle()
             self.fs_handler.handle()
-            self.inline_query_handler.handle()
             self.inline_swap_handler.handle()
             # check if Docker sock available
             try:

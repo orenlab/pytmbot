@@ -51,9 +51,7 @@ class ContainersHandler(Handler):
     def handle(self):
         @self.bot.message_handler(regexp="Containers")
         def get_containers(message: Message) -> None:
-            """
-            Get docker containers info
-            """
+            """Get docker containers info"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(

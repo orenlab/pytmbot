@@ -42,7 +42,7 @@ class PyTMBot:
                     timeout=60,
                     long_polling_timeout=60,
                     skip_pending=True,
-                    logger_level=None
+                    logger_level=bot_logger.level
                 )
             except (ReadTimeout, HTTPError, ConnectionError, BaseHTTPError) as e:
                 self.bot.stop_polling()
@@ -52,8 +52,7 @@ class PyTMBot:
                 continue
             except telebot.apihelper.ApiTelegramException as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f'{e}. Retry after {self.sleep_time} seconds.')
-                bot_logger.error(f'Telegram API error. Retry after {self.sleep_time} seconds.')
+                bot_logger.error(f'{e}. Retry after {self.sleep_time} seconds.')
                 sleep(self.sleep_time)
                 continue
             except Exception as e:
