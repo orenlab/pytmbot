@@ -23,5 +23,7 @@ jobs:
         with:
           build-args: --target prod
           file: hub.Dockerfile
+          sbom: true
           push: true
+          provenance: mode=max
           tags: orenlab/pytmbot:alpine-dev
