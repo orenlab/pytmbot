@@ -33,7 +33,6 @@ class BotUpdatesHandler(Handler):
             )
             bot_logger.debug("Request has been submitted")
             if resp.status_code == 200:
-                bot_logger.debug("Response code - 200")
                 release_info.update(
                     {
                         'tag_name': resp.json()['tag_name'],
@@ -42,6 +41,7 @@ class BotUpdatesHandler(Handler):
                     },
 
                 )
+                bot_logger.debug("Response code - 200")
                 return release_info
             else:
                 bot_logger.debug(f"Response code - {resp.status_code}. Return empty dict")
