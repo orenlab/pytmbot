@@ -79,6 +79,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── __init__.py
 │   │   │   ├── default_handlers
 │   │   │   │   ├── __init__.py             - Import all defaults handlers
+│   │   │   │   ├── check_bot_update.py     - Check pyTMbot updates
 │   │   │   │   ├── containers_handler.py   - Container handler
 │   │   │   │   ├── fs_handler.py           - Filesystem handler
 │   │   │   │   ├── load_avg_handler.py     - Load average handler
