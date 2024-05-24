@@ -4,6 +4,7 @@
 pyTeleMonBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from .check_bot_update import BotUpdatesHandler
 from .containers_handler import ContainersHandler
 from .fs_handler import FileSystemHandler
 from .load_avg_handler import LoadAvgHandler

@@ -19,10 +19,11 @@ from app.core.settings.bot_settings import BotSettings
 config = BotSettings()
 
 # Set global name
-__version__ = '0.0.8-dev-20240523'
+__version__ = '0.0.8-dev-20240524'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
+__github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/latest'
 
 
 class CustomExceptionHandler(ExceptionHandler):

@@ -66,7 +66,10 @@ class MemoryHandler(Handler):
                     "Swap info",
                     "swap_info"
                 )
-                self.bot.send_message(message.chat.id, text=self._get_answer(), reply_markup=inline_button)
+                self.bot.send_message(
+                    message.chat.id,
+                    text=self._get_answer(),
+                    reply_markup=inline_button)
             except ConnectionError:
                 raise self.exceptions.PyTeleMonBotConnectionError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

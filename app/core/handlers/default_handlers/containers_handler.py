@@ -35,7 +35,8 @@ class ContainersHandler(Handler):
             if context == {} or not context:
                 bot_answer = self.jinja.render_templates(
                     'none.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon')
+                    thought_balloon=self.get_emoji('thought_balloon'),
+                    context="There are no containers or incorrect settings are specified...."
                 )
             else:
                 bot_answer = self.jinja.render_templates(

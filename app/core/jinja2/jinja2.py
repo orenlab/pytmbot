@@ -31,6 +31,7 @@ class Jinja2Renderer:
             'process.jinja2',
             'sensors.jinja2',
             'uptime.jinja2',
+            'bot_update.jinja2',
             'swap.jinja2'
         ]
 

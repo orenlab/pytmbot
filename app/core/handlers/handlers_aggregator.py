@@ -13,7 +13,8 @@ from app.core.handlers.default_handlers import (
     ProcessHandler,
     UptimeHandler,
     FileSystemHandler,
-    ContainersHandler
+    ContainersHandler,
+    BotUpdatesHandler
 )
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
 
@@ -29,6 +30,7 @@ class HandlersAggregator:
         self.uptime_handler = UptimeHandler(self.bot)
         self.fs_handler = FileSystemHandler(self.bot)
         self.containers_handler = ContainersHandler(self.bot)
+        self.bot_updates_handler = BotUpdatesHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
 
     def run_handlers(self):
@@ -47,5 +49,6 @@ class HandlersAggregator:
             except ConnectionError:
                 bot_logger.error("Error initialise the containers handler")
                 return
+            self.bot_updates_handler.handle()
         except (ConnectionError, ValueError):
             bot_logger.error("Error running handlers")
