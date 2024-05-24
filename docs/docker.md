@@ -87,6 +87,30 @@ example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZ
 
 _Please don't forget to specify Tag version!_
 
+## 🏗 Updating the image
+
+In order to update the image to the latest version, please follow these steps:
+
+* Stopping the container:
+
+```bash
+sudo docker stop pytmbot
+```
+
+* Deleting an outdated image:
+
+```bash
+sudo docker rm pytmbot
+```
+
+* Uploading an updated image:
+
+```bash
+sudo docker pull orenlab/pytmbot:latest
+```
+
+And we run it in the same way as we would if we had just installed the bot (see the instructions above).
+
 ## 🚀 Bot logs
 
 - To access the bot logs, please run the following command in the terminal:

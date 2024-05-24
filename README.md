@@ -37,7 +37,7 @@ gather information.
 Screenshots are available here: [screenshots.md](docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
-## 🪤 Requirements
+## 🕸 Requirements
 
 Initially, the bot was designed to ensure its correct operation only within the Docker container. I have not tested it
 running on a local system, either inside or outside a virtual environment.
