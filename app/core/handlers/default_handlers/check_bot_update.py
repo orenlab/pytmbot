@@ -31,7 +31,9 @@ class BotUpdatesHandler(Handler):
                 __github_api_url__,
                 timeout=5
             )
+            bot_logger.debug("Request has been submitted")
             if resp.status_code == 200:
+                bot_logger.debug("Response code - 200")
                 release_info.update(
                     {
                         'tag_name': resp.json()['tag_name'],
@@ -43,8 +45,8 @@ class BotUpdatesHandler(Handler):
                 return release_info
             else:
                 return {}
-        except requests.exceptions.RequestException as e:
-            bot_logger.error("Cant get update info: ", e, exc_info=False)
+        except ConnectionError as e:
+            bot_logger.error(f"Cant get update info: {e}", exc_info=False)
 
     @staticmethod
     def _is_bot_development(app_version: str) -> bool:
