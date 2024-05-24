@@ -100,4 +100,4 @@ FROM reliase_base AS selfbuild_dev
 # Copy .pytmbotenv file with token (prod, dev)
 COPY .pytmbotenv /opt/pytmbot/
 
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=dev" ]
+CMD [ "/venv/bin/python3", "app/main.py", "--log-level=DEBUG", "--mode=dev" ]
