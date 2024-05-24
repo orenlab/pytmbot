@@ -109,7 +109,7 @@ class BotUpdatesHandler(Handler):
     def handle(self):
         @self.bot.message_handler(commands=['check_bot_updates'])
         def updates(message: Message) -> None:
-            """Get callback query - check bot update"""
+            """Check bot update handler"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
