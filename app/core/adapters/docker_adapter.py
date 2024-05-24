@@ -5,6 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
+from functools import lru_cache
 
 import docker
 from humanize import naturalsize, naturaltime
@@ -26,19 +27,22 @@ class DockerAdapter:
         self.container: None = None
         self.log = bot_logger
 
+    @lru_cache(maxsize=None)
     def _create_docker_client(self) -> docker.DockerClient:
         """Creates the docker client instance"""
         try:
             self.client = docker.DockerClient(self.docker_url)
+            self.log.debug("Created docker client success")
             return self.client
         except (ConnectionAbortedError, FileNotFoundError):
-            self.log.error("Can't connect to docker sock")
+            self.log.error("Can't create docker client")
 
     def _is_docker_available(self) -> bool:
         """Check if the docker socket is available"""
         try:
             client = self._create_docker_client()
             ping = client.ping()
+            self.log.debug("Docker client alive")
             return ping
         except (ConnectionAbortedError, FileNotFoundError):
             self.log.error("Can't connect to docker sock")
@@ -56,6 +60,7 @@ class DockerAdapter:
                     image_tag.append(
                         container.split(': ')[1].strip().split('>')[0].strip()
                     )
+                self.log.debug("Container list created")
                 return image_tag
         except FileNotFoundError:
             raise exceptions.DockerAdapterException('No container found')
@@ -68,6 +73,7 @@ class DockerAdapter:
         try:
             client = self._create_docker_client()
             container = client.containers.get(container_id)
+            self.log.debug("Container details retrieved")
             return container
         except (ValueError, FileNotFoundError):
             raise exceptions.DockerAdapterException('Container not found')
@@ -76,6 +82,7 @@ class DockerAdapter:
     def _container_stats(container_details) -> dict:
         """Get docker container stats"""
         usage_stats = container_details.stats(decode=None, stream=False)
+        bot_logger.debug("Container stats generated")
         return usage_stats
 
     def check_image_details(self):
@@ -106,6 +113,7 @@ class DockerAdapter:
                                 'status': container_details.attrs['State']['Status']
                             }
                         )
+                    self.log.debug("Container image details append done")
                     return details
                 else:
                     self.log.debug('Docker image not found: see "docker ps" command')
