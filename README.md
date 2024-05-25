@@ -109,6 +109,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │       └── loggers.py                  - Logger templates
 │   ├── main.py                             - Main bot class
 │   ├── templates
+│   │   ├── bot_update.jinja2               - Bot update jinja2 template
 │   │   ├── containers.jinja2               - Containers jinja2 template 
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
 │   │   ├── index.jinja2                    - Start jinja2 template

@@ -75,7 +75,7 @@ orenlab/pytmbot:latest
 _Please don't forget to specify your time zone! You can find a list of available time zones, for
 example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
 
-Docker image size ~79 Мб.
+Docker image size ~70 Mb.
 
 ## 🚀 Bot logs
 
