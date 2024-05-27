@@ -64,7 +64,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── Dockerfile                              - Main Dockerfile
 ├── LICENSE                                 - Licence file
 ├── README.md                               - Main README
-├── SECURITY.md                             - Security police
+├── SECURITY.md                             - Security policy
 ├── app
 │   ├── __init__.py                         
 │   ├── core
