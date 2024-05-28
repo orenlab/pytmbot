@@ -87,7 +87,7 @@ example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZ
 
 _Please don't forget to specify Tag version!_
 
-Now everything is ready to launch the bot. All you need to do is run the `/start` command in your Telegram app
+Now everything is ready for you to use the bot. All you need to do is run the `/start` command in your Telegram app.
 
 ## 🏗 Updating the image
 
