@@ -6,6 +6,7 @@ the status of your local servers
 """
 
 import requests
+from telebot.formatting import escape_html
 from telebot.types import Message
 
 from app import (
@@ -89,7 +90,7 @@ class BotUpdatesHandler(Handler):
                         cooking=self.get_emoji('cooking'),
                         current_version=context.get('tag_name'),
                         release_date=context.get('published_at'),
-                        body=context.get('body'),
+                        release_notes=context.get('body')
                     )
                     return bot_answer
                 elif context.get('tag_name') == __version__:
@@ -125,7 +126,8 @@ class BotUpdatesHandler(Handler):
                 bot_answer = self._compile_message()
                 self.bot.send_message(
                     message.chat.id,
-                    text=bot_answer
+                    text=bot_answer,
+                    parse_mode='HTML'
                 )
             except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
