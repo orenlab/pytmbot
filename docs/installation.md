@@ -77,6 +77,8 @@ example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZ
 
 Docker image size ~70 Mb.
 
+Now everything is ready to launch the bot. All you need to do is run the `/start` command in your Telegram app
+
 ## 🚀 Bot logs
 
 - To access the bot logs, please run the following command in the terminal:
