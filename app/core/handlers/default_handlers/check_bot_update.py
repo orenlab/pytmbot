@@ -6,7 +6,6 @@ the status of your local servers
 """
 
 import requests
-from telebot.formatting import escape_html
 from telebot.types import Message
 
 from app import (
