@@ -28,11 +28,11 @@ gather information.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (only docker and only on Linux) base information
-- Ability to check for bot software updates: `/check_bot_updates`
-- Use `Jinja2` for answers template
-- Use docker logs collector (`sudo docker logs pytmbot`)
-- Use emoji :)
+- Containers (so far, only Docker and only on Linux) base information
+- Ability to check for bot software updates: `/check_bot_updates` (Available in the alpine-dev version)
+- `Jinja2` is used for creating templates.
+- Bot logs are available in the Docker logging system.
+- Emoji are used :)
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
