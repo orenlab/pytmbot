@@ -14,7 +14,7 @@ synchronously. It does not use webhooks.
 - Uptime information
 - File system base information
 - Containers (only docker and only on Linux) base information
-- Ability to check for bot software updates: `/check_bot_updates`
+- Ability to check for bot software updates: `/check_bot_updates` (Available in the alpine-dev version)
 - Use `Jinja2` for answers template
 - Use docker logs collector (`sudo docker logs pytmbot`)
 - Use emoji :)
