@@ -47,7 +47,7 @@ class PyTMBot:
             except (ReadTimeout, HTTPError, ConnectionError, BaseHTTPError) as e:
                 self.bot.stop_polling()
                 bot_logger.debug(f"{e}. Retry after {self.sleep_time} seconds")
-                bot_logger.error(f'Connection error. Retry after {self.sleep_time} seconds')
+                bot_logger.error(f'Connection failed. Retry after {self.sleep_time} seconds')
                 sleep(self.sleep_time)
                 continue
             except telebot.apihelper.ApiTelegramException as e:
@@ -57,7 +57,7 @@ class PyTMBot:
                 continue
             except Exception as e:
                 self.bot.stop_polling()
-                bot_logger.debug(f"Unexpected exception: {e}. Unable to perform an automatic restart.")
+                bot_logger.debug(f"Failed: {e}. Unable to perform an automatic restart.")
                 bot_logger.error("Unexpected exception. Unable to perform an automatic restart.")
             break
 
@@ -69,9 +69,9 @@ class PyTMBot:
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self._start_polling()
         except ConnectionError as e:
-            bot_logger.error(f"Connection error: {e}", exc_info=False)
+            bot_logger.error(f"Connection failed: {e}", exc_info=False)
         except ImportError as e:
-            bot_logger.error(f"Cannot import name {e}", exc_info=False)
+            bot_logger.error(f"Failed: cannot import name {e}", exc_info=False)
 
 
 if __name__ == "__main__":
