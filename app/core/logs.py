@@ -45,7 +45,7 @@ def build_bot_logger() -> logging.Logger:
 
 
 def get_message_full_info(*args, **kwargs):
-    """Get full info for logs"""
+    """Get full info for default handlers logs"""
     message_args = find_in_args(args, Message)
     if message_args is not None:
         return (message_args.from_user.username,
@@ -68,7 +68,7 @@ def get_message_full_info(*args, **kwargs):
 
 
 def get_inline_message_full_info(*args, **kwargs):
-    """Get full info for logs"""
+    """Get full info for inline handlers logs"""
     message_args = find_in_args(args, CallbackQuery)
     if message_args is not None:
         return (message_args.message.from_user.username,

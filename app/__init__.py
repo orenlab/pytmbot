@@ -32,13 +32,13 @@ def build_bot_instance() -> telebot.TeleBot:
             configured_bot = telebot.TeleBot(
                 config.dev_bot_token.get_secret_value(),
                 use_class_middlewares=True,
-                exception_handler=exceptions.CustomExceptionHandler()
+                exception_handler=exceptions.TelebotCustomExceptionHandler()
             )
         case "prod":
             configured_bot = telebot.TeleBot(
                 config.bot_token.get_secret_value(),
                 use_class_middlewares=True,
-                exception_handler=exceptions.CustomExceptionHandler()
+                exception_handler=exceptions.TelebotCustomExceptionHandler()
             )
         case _:
             raise ValueError(f"Invalid PyTMBot mode: {bot_mode.mode}, use -h option to see more")
