@@ -6,9 +6,9 @@ the status of your local servers
 """
 from telebot.types import CallbackQuery
 
-from app import logged_inline_handler_session
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_inline_handler_session
 
 
 class InlineSwapHandler(Handler):

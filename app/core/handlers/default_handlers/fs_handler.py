@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import logged_handler_session
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class FileSystemHandler(Handler):
@@ -43,7 +43,8 @@ class FileSystemHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_answer: str = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
                     text=bot_answer
                 )

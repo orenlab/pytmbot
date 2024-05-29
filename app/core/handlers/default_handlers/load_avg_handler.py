@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import logged_handler_session
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class LoadAvgHandler(Handler):
@@ -45,7 +45,11 @@ class LoadAvgHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_answer: str = self._compile_message()
-                Handler._send_bot_answer(self, message, bot_answer)
+                Handler._send_bot_answer(
+                    self,
+                    message.chat.id,
+                    text=bot_answer
+                )
             except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

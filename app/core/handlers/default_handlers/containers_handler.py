@@ -7,9 +7,10 @@ the status of your local servers
 from docker.errors import DockerException
 from telebot.types import Message
 
-from app import bot_logger, logged_handler_session
+from app import bot_logger
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class ContainersHandler(Handler):
@@ -57,7 +58,8 @@ class ContainersHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 containers_bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
                     text=containers_bot_answer
                 )

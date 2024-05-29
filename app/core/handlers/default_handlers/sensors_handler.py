@@ -7,8 +7,9 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import bot_logger, logged_handler_session
+from app import bot_logger
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class SensorsHandler(Handler):
@@ -50,9 +51,10 @@ class SensorsHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 sensors_bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
-                    text=sensors_bot_answer
+                    text=sensors_bot_answer,
                 )
             except (ConnectionError, ValueError):
                 self.log.exception("Error while handling message")

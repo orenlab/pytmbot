@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import logged_handler_session
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class UptimeHandler(Handler):
@@ -42,9 +42,10 @@ class UptimeHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 uptime_bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
-                    text=uptime_bot_answer
+                    text=uptime_bot_answer,
                 )
             except ConnectionError:
                 raise self.exceptions.PyTeleMonBotHandlerError(

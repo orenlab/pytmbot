@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import logged_handler_session
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class StartHandler(Handler):
@@ -28,7 +28,8 @@ class StartHandler(Handler):
                     'index.jinja2',
                     first_name=first_name
                 )
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
                     text=bot_answer,
                     reply_markup=main_keyboard

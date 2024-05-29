@@ -36,7 +36,7 @@ class Jinja2Renderer:
         ]
 
     def _init_jinja2(self):
-        """Initializes the Jinja2. Protected method for secure reason"""
+        """Initializes the Jinja2."""
         try:
             self.loader = FileSystemLoader(self.template_folder)
             jinja2 = SandboxedEnvironment(

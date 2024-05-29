@@ -12,9 +12,9 @@ from app import (
     __github_api_url__,
     __version__,
     bot_logger,
-    logged_handler_session
 )
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class BotUpdatesHandler(Handler):
@@ -118,7 +118,8 @@ class BotUpdatesHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
                     text=bot_answer,
                     parse_mode='HTML'
