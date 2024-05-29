@@ -34,3 +34,15 @@ def round_up_tuple(n: tuple) -> dict:
         value.update({i: old_value})
         i += 1
     return value
+
+
+def find_in_args(args, target_type):
+    """Find args in args tuple"""
+    for arg in args:
+        if isinstance(arg, target_type):
+            return arg
+
+
+def find_in_kwargs(kwargs, target_type):
+    """Find kwargs in kwargs dictionary"""
+    return find_in_args(kwargs.values(), target_type)

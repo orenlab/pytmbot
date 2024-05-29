@@ -15,6 +15,7 @@ from telebot.types import Message, CallbackQuery
 
 from app.core import exceptions
 from app.core.settings.bot_settings import BotSettings
+from app.utilities.utilities import find_in_args, find_in_kwargs
 
 # Main config
 config = BotSettings()
@@ -108,18 +109,6 @@ def build_bot_logger() -> logging.Logger:
     return logger
 
 
-def find_in_args(args, target_type):
-    """Find args in args dictionary"""
-    for arg in args:
-        if isinstance(arg, target_type):
-            return arg
-
-
-def find_in_kwargs(kwargs, target_type):
-    """Find kwargs in kwargs dictionary"""
-    return find_in_args(kwargs.values(), target_type)
-
-
 def get_message_full_info(*args, **kwargs):
     """Get full info for logs"""
     message_args = find_in_args(args, Message)
@@ -149,8 +138,7 @@ def get_inline_message_full_info(*args, **kwargs):
     if message_args is not None:
         return (message_args.message.from_user.username,
                 message_args.message.from_user.id,
-                message_args.message.from_user.is_bot,
-                message_args.message.text
+                message_args.message.from_user.is_bot
                 )
 
     message_kwargs = find_in_kwargs(kwargs, CallbackQuery)
@@ -158,10 +146,9 @@ def get_inline_message_full_info(*args, **kwargs):
         return (message_kwargs.message.from_user.username,
                 message_kwargs.message.from_user.id,
                 message_kwargs.message.from_user.is_bot,
-                message_kwargs.message.text
                 )
 
-    return "None", "None", "None", "None"
+    return "None", "None", "None"
 
 
 def logged_handler_session(func):
@@ -196,7 +183,7 @@ def logged_inline_handler_session(func):
     """Logging inline handlers"""
 
     def inline_handler_session_wrapper(*args, **kwargs):
-        username, user_id, is_bot, text = get_inline_message_full_info(*args, **kwargs)
+        username, user_id, is_bot = get_inline_message_full_info(*args, **kwargs)
 
         bot_logger.info(
             f"Start handling session @{func.__name__}: "
@@ -204,7 +191,7 @@ def logged_inline_handler_session(func):
         )
         bot_logger.debug(
             f"Debug inline handling session @{func.__name__}: "
-            f"Text: {text} - arg: {str(args)} - kwarg: {str(kwargs)}"
+            f"- arg: {str(args)} - kwarg: {str(kwargs)}"
         )
         try:
             func(*args, **kwargs)
