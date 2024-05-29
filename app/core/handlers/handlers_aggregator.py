@@ -52,4 +52,4 @@ class HandlersAggregator:
             self.bot_updates_handler.handle()
         except (ConnectionError, ValueError) as e:
             bot_logger.error("Error running handlers")
-            bot_logger.debug("Error running handlers: ", str(e))
+            bot_logger.debug(f"Error running handlers: {str(e)}")

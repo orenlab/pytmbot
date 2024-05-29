@@ -11,7 +11,7 @@ import sys
 
 import telebot
 from telebot import ExceptionHandler
-from telebot.types import Message
+from telebot.types import Message, CallbackQuery
 
 from app.core import exceptions
 from app.core.settings.bot_settings import BotSettings
@@ -35,9 +35,9 @@ class CustomExceptionHandler(ExceptionHandler):
             if "Bad getaway" in str(exception):
                 bot_logger.error('Connection error to Telegram API. Bad getaway. Error code: 502')
             else:
-                bot_logger.error("Error occurred: ", exception, exc_info=False)
+                bot_logger.error(f"Error occurred: {exception}", exc_info=False)
         else:
-            bot_logger.error(exception, exc_info=True)
+            bot_logger.error(f"Error occurred: {exception}", exc_info=True)
         return True
 
 
@@ -140,7 +140,28 @@ def get_message_full_info(*args, **kwargs):
                 message_kwargs.text
                 )
 
-    return "UNKNOWN", "UNKNOWN"
+    return "None", "None", "None", "None", "None"
+
+
+def get_inline_message_full_info(*args, **kwargs):
+    """Get full info for logs"""
+    message_args = find_in_args(args, CallbackQuery)
+    if message_args is not None:
+        return (message_args.message.from_user.username,
+                message_args.message.from_user.id,
+                message_args.message.from_user.is_bot,
+                message_args.message.text
+                )
+
+    message_kwargs = find_in_kwargs(kwargs, CallbackQuery)
+    if message_kwargs is not None:
+        return (message_kwargs.message.from_user.username,
+                message_kwargs.message.from_user.id,
+                message_kwargs.message.from_user.is_bot,
+                message_kwargs.message.text
+                )
+
+    return "None", "None", "None", "None"
 
 
 def logged_handler_session(func):
@@ -161,7 +182,7 @@ def logged_handler_session(func):
         try:
             func(*args, **kwargs)
             bot_logger.info(
-                f"Finished @{func.__name__}: User: {username} - UserID: {user_id}"
+                f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
             bot_logger.error(
@@ -175,20 +196,20 @@ def logged_inline_handler_session(func):
     """Logging inline handlers"""
 
     def inline_handler_session_wrapper(*args, **kwargs):
-        username, is_bot = get_message_full_info(*args, **kwargs)
+        username, user_id, is_bot, text = get_inline_message_full_info(*args, **kwargs)
 
         bot_logger.info(
             f"Start handling session @{func.__name__}: "
-            f"User: {username} - is_bot: {is_bot}"
+            f"User: {username} - UserID: {user_id} - is_bot: {is_bot}"
         )
         bot_logger.debug(
-            f"Debug handling session @{func.__name__}: "
-            f"- arg: {str(args)} - kwarg: {str(kwargs)}"
+            f"Debug inline handling session @{func.__name__}: "
+            f"Text: {text} - arg: {str(args)} - kwarg: {str(kwargs)}"
         )
         try:
             func(*args, **kwargs)
             bot_logger.info(
-                f"Finished @{func.__name__}: User: {username}"
+                f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
             bot_logger.error(
