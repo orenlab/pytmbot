@@ -40,13 +40,13 @@ class Handler(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def handle(self):
-        """Main abstract method"""
+        """Main abstract method for handling"""
 
-    def _send_bot_answer(self, chat_id, **kwargs) -> None:
+    def _send_bot_answer(self, *args, **kwargs) -> None:
         """Send the bot answer"""
         try:
             self.bot.send_message(
-                chat_id,
+                *args,
                 **kwargs
             )
         except ConnectionError:
