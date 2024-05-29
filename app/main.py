@@ -69,7 +69,9 @@ class PyTMBot:
             bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
             self._start_polling()
         except ConnectionError as e:
-            bot_logger.error(f"Connection error.: {e}", exc_info=False)
+            bot_logger.error(f"Connection error: {e}", exc_info=False)
+        except ImportError as e:
+            bot_logger.error(f"Cannot import name {e}", exc_info=False)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import bot_logger
+from app import logged_handler_session
 from app.core.handlers.handler import Handler
 
 
@@ -36,15 +36,11 @@ class UptimeHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Uptime")
+        @logged_handler_session
         def get_uptime(message: Message) -> None:
             """Get uptime info"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                    message.from_user.language_code,
-                    message.from_user.is_bot))
                 uptime_bot_answer = self._compile_message()
                 self.bot.send_message(
                     message.chat.id,

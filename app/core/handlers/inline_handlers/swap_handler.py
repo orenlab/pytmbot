@@ -4,9 +4,9 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from telebot import types
+from telebot.types import CallbackQuery
 
-from app import bot_logger
+from app import logged_inline_handler_session
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.handlers.handler import Handler
 
@@ -18,17 +18,10 @@ class InlineSwapHandler(Handler):
 
     def handle(self):
         @self.bot.callback_query_handler(func=lambda call: call.data == 'swap_info')
-        def swap(call: types.CallbackQuery):
+        @logged_inline_handler_session
+        def swap(call: CallbackQuery):
             """Get callback query - swap information from psutil"""
             try:
-                bot_logger.info(
-                    self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                        call.message.from_user.username,
-                        call.message.from_user.id,
-                        call.message.from_user.language_code,
-                        call.message.from_user.is_bot
-                    )
-                )
                 context = self.psutil_adapter.get_swap_memory()  # need refactoring code
                 bot_answer = self.jinja.render_templates(
                     'swap.jinja2',

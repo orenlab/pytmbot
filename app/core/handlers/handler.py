@@ -10,6 +10,7 @@ import abc
 from app import (
     config,
     exceptions,
+    bot_logger
 )
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
@@ -40,3 +41,13 @@ class Handler(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def handle(self):
         """Main abstract method"""
+
+    def _send_bot_answer(self, message, bot_answer: str) -> None:
+        """Send the bot answer"""
+        try:
+            self.bot.send_message(
+                message.chat.id,
+                text=bot_answer
+            )
+        except ConnectionError:
+            bot_logger.error("Connection error")

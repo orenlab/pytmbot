@@ -11,6 +11,7 @@ import sys
 
 import telebot
 from telebot import ExceptionHandler
+from telebot.types import Message
 
 from app.core import exceptions
 from app.core.settings.bot_settings import BotSettings
@@ -19,7 +20,7 @@ from app.core.settings.bot_settings import BotSettings
 config = BotSettings()
 
 # Set global name
-__version__ = '0.0.8-dev-20240528'
+__version__ = '0.0.8-dev-20240529'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -33,8 +34,10 @@ class CustomExceptionHandler(ExceptionHandler):
         if bot_logger.level == 20:
             if "Bad getaway" in str(exception):
                 bot_logger.error('Connection error to Telegram API. Bad getaway. Error code: 502')
+            else:
+                bot_logger.error("Error occurred: ", exception, exc_info=False)
         else:
-            bot_logger.error(exception, exc_info=False)
+            bot_logger.error(exception, exc_info=True)
         return True
 
 
@@ -103,6 +106,96 @@ def build_bot_logger() -> logging.Logger:
             raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
 
     return logger
+
+
+def find_in_args(args, target_type):
+    """Find args in args dictionary"""
+    for arg in args:
+        if isinstance(arg, target_type):
+            return arg
+
+
+def find_in_kwargs(kwargs, target_type):
+    """Find kwargs in kwargs dictionary"""
+    return find_in_args(kwargs.values(), target_type)
+
+
+def get_message_full_info(*args, **kwargs):
+    """Get full info for logs"""
+    message_args = find_in_args(args, Message)
+    if message_args is not None:
+        return (message_args.from_user.username,
+                message_args.from_user.id,
+                message_args.from_user.language_code,
+                message_args.from_user.is_bot,
+                message_args.text
+                )
+
+    message_kwargs = find_in_kwargs(kwargs, Message)
+    if message_kwargs is not None:
+        return (message_kwargs.from_user.username,
+                message_kwargs.from_user.id,
+                message_kwargs.from_user.language_code,
+                message_kwargs.from_user.is_bot,
+                message_kwargs.text
+                )
+
+    return "UNKNOWN", "UNKNOWN"
+
+
+def logged_handler_session(func):
+    """Logging default handlers"""
+
+    def handler_session_wrapper(*args, **kwargs):
+        username, user_id, language_code, is_bot, text = get_message_full_info(*args, **kwargs)
+
+        bot_logger.info(
+            f"Start handling session @{func.__name__}: "
+            f"User: {username} - UserID: {user_id} - language: {language_code} - "
+            f"is_bot: {is_bot}"
+        )
+        bot_logger.debug(
+            f"Debug handling session @{func.__name__}: "
+            f"Text: {text} - arg: {str(args)} - kwarg: {str(kwargs)}"
+        )
+        try:
+            func(*args, **kwargs)
+            bot_logger.info(
+                f"Finished @{func.__name__}: User: {username} - UserID: {user_id}"
+            )
+        except Exception as e:
+            bot_logger.error(
+                f"Failed @{func.__name__} - exception {e}", exc_info=False
+            )
+
+    return handler_session_wrapper
+
+
+def logged_inline_handler_session(func):
+    """Logging inline handlers"""
+
+    def inline_handler_session_wrapper(*args, **kwargs):
+        username, is_bot = get_message_full_info(*args, **kwargs)
+
+        bot_logger.info(
+            f"Start handling session @{func.__name__}: "
+            f"User: {username} - is_bot: {is_bot}"
+        )
+        bot_logger.debug(
+            f"Debug handling session @{func.__name__}: "
+            f"- arg: {str(args)} - kwarg: {str(kwargs)}"
+        )
+        try:
+            func(*args, **kwargs)
+            bot_logger.info(
+                f"Finished @{func.__name__}: User: {username}"
+            )
+        except Exception as e:
+            bot_logger.error(
+                f"Failed @{func.__name__} - exception {e}", exc_info=False
+            )
+
+    return inline_handler_session_wrapper
 
 
 # Bot one common instance
