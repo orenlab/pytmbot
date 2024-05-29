@@ -6,7 +6,7 @@ the status of your local servers
 """
 
 import abc
-
+from telebot.apihelper import ApiTelegramException
 from app import (
     config,
     exceptions,
@@ -49,5 +49,7 @@ class Handler(metaclass=abc.ABCMeta):
                 *args,
                 **kwargs
             )
-        except ConnectionError:
-            bot_logger.error("Connection error")
+        except ConnectionError as e:
+            bot_logger.error(f"Failed: {e}", exc_info=False)
+        except ApiTelegramException as e:
+            bot_logger.error(f"Failed: {e}", exc_info=False)
