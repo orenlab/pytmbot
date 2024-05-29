@@ -30,7 +30,7 @@ class DockerAdapterException(PyTeleMonBotError):
     """Exception raised when an error occurs while checking Docker image"""
 
 
-class CustomExceptionHandler(ExceptionHandler):
+class TelebotCustomExceptionHandler(ExceptionHandler):
     """Custom exception handler that handles exceptions raised during the execution"""
 
     def handle(self, exception):
