@@ -43,12 +43,7 @@ class HandlersAggregator:
             self.uptime_handler.handle()
             self.fs_handler.handle()
             self.inline_swap_handler.handle()
-            # check if Docker sock available
-            try:
-                self.containers_handler.handle()
-            except ConnectionError:
-                bot_logger.error("Error initialise the containers handler")
-                return
+            self.containers_handler.handle()
             self.bot_updates_handler.handle()
         except (ConnectionError, ValueError) as e:
             bot_logger.error("Error running handlers")
