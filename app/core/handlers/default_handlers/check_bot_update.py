@@ -4,10 +4,12 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Tuple, Any
 
+import markdown
 import requests
 from telebot.types import Message
-
+from telebot.formatting import escape_html
 from app import (
     __github_api_url__,
     __version__,
@@ -59,7 +61,7 @@ class BotUpdatesHandler(Handler):
             is_development = False
         return is_development
 
-    def _compile_message(self) -> str:
+    def _compile_message(self) -> tuple[Any, bool] | Any:
         """Compile the message to be sent to the bot"""
         none_tpl_name = 'none.jinja2'
         check_system_version = self._is_bot_development(__version__)
@@ -92,14 +94,16 @@ class BotUpdatesHandler(Handler):
                         release_date=context.get('published_at'),
                         release_notes=context.get('body')
                     )
-                    return bot_answer
+                    need_inline = True
+                    return bot_answer, need_inline
                 elif context.get('tag_name') == __version__:
                     bot_answer = self.jinja.render_templates(
                         none_tpl_name,
                         thought_balloon=self.get_emoji('thought_balloon'),
                         context=f"Current version: {__version__}. No update available."
                     )
-                    return bot_answer
+                    need_inline = False
+                    return bot_answer, need_inline
                 elif context.get('tag_name') < __version__:
                     bot_answer = self.jinja.render_templates(
                         none_tpl_name,
@@ -108,7 +112,8 @@ class BotUpdatesHandler(Handler):
                                 f" You are living in the future, "
                                 f"and I am glad to say that I will continue to grow and evolve!"
                     )
-                    return bot_answer
+                    need_inline = False
+                    return bot_answer, need_inline
 
     def handle(self):
         @self.bot.message_handler(commands=['check_bot_updates'])
@@ -117,12 +122,20 @@ class BotUpdatesHandler(Handler):
             """Check bot update handler"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                bot_answer = self._compile_message()
+                bot_answer, need_inline = self._compile_message()
+                if need_inline:
+                    inline_button = self.keyboard.build_inline_keyboard(
+                        "How update the bot's image?",
+                        "update_info"
+                    )
+                else:
+                    inline_button = None
                 Handler._send_bot_answer(
                     self,
                     message.chat.id,
                     text=bot_answer,
-                    parse_mode='HTML'
+                    parse_mode='HTML',
+                    reply_markup=inline_button
                 )
             except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)

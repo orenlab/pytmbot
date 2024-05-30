@@ -32,7 +32,8 @@ class Jinja2Renderer:
             'sensors.jinja2',
             'uptime.jinja2',
             'bot_update.jinja2',
-            'swap.jinja2'
+            'swap.jinja2',
+            'how_update.jinja2'
         ]
 
     def _init_jinja2(self):

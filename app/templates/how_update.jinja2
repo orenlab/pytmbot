@@ -1,0 +1,34 @@
+{# templates/how_update.jinja2 #}
+{{ thought_balloon }}Here is:
+
+1. Stop the bot container running the old software version.
+
+```bash
+sudo docker stop pytmbot
+```
+
+2. Delete the old images
+
+```bash
+sudo docker rm pytmbot
+```
+
+3. Download the updated bot image
+
+```bash
+sudo docker pull ghcr.io/orenlab/pytmbot:latest
+```
+
+- Launch the updated container:
+
+```bash
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+ghcr.io/orenlab/pytmbot:latest
+```

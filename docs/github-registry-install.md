@@ -2,9 +2,9 @@
 
 ## 🔌 Installation
 
-To select the version of the application that best suits your needs, please go to
-the "[Packages](https://github.com/orenlab/pytmbot/pkgs/container/pytmbot)" section of the pyTMbot repository. From
-there, you can download the desired version by running the appropriate command.
+```bash
+sudo docker pull ghcr.io/orenlab/pytmbot:latest
+```
 
 ## 🧪 Configure bot
 

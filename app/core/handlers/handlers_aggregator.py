@@ -17,6 +17,7 @@ from app.core.handlers.default_handlers import (
     BotUpdatesHandler
 )
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
+from app.core.handlers.inline_handlers.update_info import InlineUpdateInfoHandler
 
 
 class HandlersAggregator:
@@ -32,6 +33,7 @@ class HandlersAggregator:
         self.containers_handler = ContainersHandler(self.bot)
         self.bot_updates_handler = BotUpdatesHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
+        self.inline_update_info = InlineUpdateInfoHandler(self.bot)
 
     def run_handlers(self):
         try:
@@ -42,9 +44,10 @@ class HandlersAggregator:
             self.process_handler.handle()
             self.uptime_handler.handle()
             self.fs_handler.handle()
-            self.inline_swap_handler.handle()
             self.containers_handler.handle()
             self.bot_updates_handler.handle()
+            self.inline_swap_handler.handle()
+            self.inline_update_info.handle()
         except (ConnectionError, ValueError) as e:
             bot_logger.error("Error running handlers")
             bot_logger.debug(f"Error running handlers: {str(e)}")

@@ -69,7 +69,7 @@ orenlab/pytmbot:latest
 _Please don't forget to specify your time zone! You can find a list of available time zones, for
 example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
 
-Docker image size ~70 Mb.
+Docker image size ~69 Mb.
 
 Now everything is ready for you to use the bot. All you need to do is run the `/start` command in your Telegram app.
 
