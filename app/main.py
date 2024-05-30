@@ -66,7 +66,7 @@ class PyTMBot:
         try:
             self.bot.setup_middleware(AllowedUser())
             self.handler.run_handlers()
-            bot_logger.info(f"New instance started! PyTMBot v.{__version__} ({__repository__})")
+            bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
             self._start_polling()
         except ConnectionError as e:
             bot_logger.error(f"Connection failed: {e}", exc_info=False)
