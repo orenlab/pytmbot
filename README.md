@@ -99,6 +99,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── keyboards
 │   │   │   ├── __init__.py
 │   │   │   └── keyboards.py                - Main keyboards class  
+│   │   ├── logs.py                         - Custom logger
 │   │   ├── middleware
 │   │   │   ├── __init__.py
 │   │   │   └── auth.py                     - Auth middleware class
@@ -129,13 +130,10 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   └── fs.py                               - Filesystem utility
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
-│   ├── docker.md                           - README for hub.docker.com
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
 ├── hub.Dockerfile                          - Dockerfile for Docker CI/CD based on Alpine
-├── logs
-│   └── pytmbot.log                         - Main logs file
 ├── poetry.lock                             - Poetry file
 ├── pyproject.toml                          - Poetry file
 ├── requirements.txt                        - Requirements for build Docker image
@@ -152,10 +150,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ## 👾 Known issues
 
 - You tell me :)
-
-## 🐋 pyTMBot on Docker Hub
-
-- [pyTMbot on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot)
 
 ## 🧬 Authors
 
