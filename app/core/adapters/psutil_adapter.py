@@ -9,6 +9,8 @@ from datetime import datetime
 import psutil
 from humanize import naturalsize
 
+from app import bot_logger
+
 
 class PsutilAdapter:
     """Class to adapt psutil to pyTMBot"""
@@ -32,11 +34,13 @@ class PsutilAdapter:
     @staticmethod
     def get_load_average():
         """Get the load average"""
+        bot_logger.debug("Load Average stats is received")
         return psutil.getloadavg()
 
     @staticmethod
     def get_cpu_count():
         """Get cpu count"""
+        bot_logger.debug("CPU count is received")
         return psutil.cpu_count()
 
     def get_memory(self):
@@ -55,6 +59,7 @@ class PsutilAdapter:
                 'cached': naturalsize(self.memory_stat.cached, binary=True),
                 'shared': naturalsize(self.memory_stat.shared, binary=True),
             }
+            bot_logger.debug("Memory stats is received")
             return self.memory_current
         except PermissionError:
             raise PermissionError('Error get memory info')
@@ -64,6 +69,7 @@ class PsutilAdapter:
         try:
             self.fs_current = []  # Unset attr
             self.fs_stats = psutil.disk_partitions(all=False)
+            bot_logger.debug("Partitions stats is received")
             for fs in self.fs_stats:
                 try:
                     self.fs_usage = self.psutil.disk_usage(fs.mountpoint)
@@ -78,6 +84,7 @@ class PsutilAdapter:
                     'free': naturalsize(self.fs_usage.free, binary=True),
                     'percent': self.fs_usage.percent
                 }, )
+            bot_logger.debug("File system stats is received")
             return self.fs_current
         except PermissionError:
             raise PermissionError('FS: Permission denied')
@@ -95,6 +102,7 @@ class PsutilAdapter:
                 'free': naturalsize(swap.free, binary=True),
                 'percent': swap.percent,
             }
+            bot_logger.debug("Swap memory stats is received")
             return self.sw_current
         except PermissionError:
             raise PermissionError('SW: cannot get swap info')
@@ -104,11 +112,13 @@ class PsutilAdapter:
         try:
             self.sensors_current = []  # unset attr
             self.sensors_stat = self.psutil.sensors_temperatures()
+            bot_logger.debug("Sensors stats is received")
             for key, value in self.sensors_stat.items():
                 self.sensors_current.append({
                     'sensor_name': key,
                     'sensor_value': value[0][1],
                 })
+            bot_logger.debug("Sensors stats append")
             return self.sensors_current
         except AttributeError:
             raise AttributeError(
@@ -127,6 +137,7 @@ class PsutilAdapter:
         """Get system uptime"""
         uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
+        bot_logger.debug("Uptime stats is received")
         return uptime
 
     def get_process_counts(self):
@@ -143,12 +154,14 @@ class PsutilAdapter:
                         self.running += 1
                     case "idle":
                         self.idle += 1
+            bot_logger.debug("Proc iterate stats done")
             self.process_count = {
                 'running': self.running,
                 'sleeping': self.sleeping,
                 'idle': self.idle,
                 'total': self.sleeping + self.running + self.idle
             }
+            bot_logger.debug("Proc stats is received")
             return self.process_count
         except AttributeError:
             raise AttributeError('Cannot get process counters')

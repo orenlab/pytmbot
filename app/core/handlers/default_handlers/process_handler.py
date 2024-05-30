@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import bot_logger
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class ProcessHandler(Handler):
@@ -48,17 +48,17 @@ class ProcessHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Process")
+        @logged_handler_session
         def get_process(message: Message) -> None:
             """Get process count"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                    message.from_user.language_code,
-                    message.from_user.is_bot
-                ))
-                self.bot.send_message(message.chat.id, text=self._get_answer())
+                bot_answer = self._get_answer()
+                Handler._send_bot_answer(
+                    self,
+                    message.chat.id,
+                    text=bot_answer,
+                )
             except ConnectionError:
                 raise self.exceptions.PyTeleMonBotHandlerError(
                     self.bot_msg_tpl.VALUE_ERR_TEMPLATE

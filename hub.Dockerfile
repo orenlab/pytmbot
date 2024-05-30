@@ -7,8 +7,8 @@
 #############################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.12.3-alpine3.19
-ARG ALPINE_IMAGE=3.19.1
+ARG PYTHON_IMAGE=alpine3.20
+ARG ALPINE_IMAGE=3.20
 
 ########################################################################################################################
 ######################### BUILD ALPINE BASED IMAGE #####################################################################
@@ -37,7 +37,6 @@ COPY LICENSE /opt/pytmbot/
 
 # Copy bot files
 COPY ./app ./app/
-COPY ./logs /opt/logs/
 
 # First Alpine stage - build Python deps
 FROM python:${PYTHON_IMAGE} AS builder
@@ -75,7 +74,8 @@ COPY --from=builder /venv /venv
 # activate venv
 RUN source /venv/bin/activate && \
 # forward logs to Docker's log collector
-    ln -sf /dev/stdout /opt/logs/pytmbot.log
+    ln -sf /dev/stdout /dev/stdout && \
+    ln -sf /dev/stderr /dev/stderr
 
 
 # Target for CI/CD image, --mode = prod

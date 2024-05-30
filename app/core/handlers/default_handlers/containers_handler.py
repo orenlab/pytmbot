@@ -10,6 +10,7 @@ from telebot.types import Message
 from app import bot_logger
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class ContainersHandler(Handler):
@@ -35,7 +36,8 @@ class ContainersHandler(Handler):
             if context == {} or not context:
                 bot_answer = self.jinja.render_templates(
                     'none.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon')
+                    thought_balloon=self.get_emoji('thought_balloon'),
+                    context="There are no containers or incorrect settings are specified...."
                 )
             else:
                 bot_answer = self.jinja.render_templates(
@@ -50,18 +52,14 @@ class ContainersHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Containers")
+        @logged_handler_session
         def get_containers(message: Message) -> None:
             """Get docker containers info"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                    message.from_user.language_code,
-                    message.from_user.is_bot
-                ))
                 containers_bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
                     text=containers_bot_answer
                 )

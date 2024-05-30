@@ -6,10 +6,11 @@ the status of your local servers
 """
 
 import abc
-
+from telebot.apihelper import ApiTelegramException
 from app import (
     config,
     exceptions,
+    bot_logger
 )
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
@@ -39,4 +40,16 @@ class Handler(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def handle(self):
-        """Main abstract method"""
+        """Main abstract method for handling"""
+
+    def _send_bot_answer(self, *args, **kwargs) -> None:
+        """Send the bot answer"""
+        try:
+            self.bot.send_message(
+                *args,
+                **kwargs
+            )
+        except ConnectionError as e:
+            bot_logger.error(f"Failed: {e}", exc_info=False)
+        except ApiTelegramException as e:
+            bot_logger.error(f"Failed: {e}", exc_info=False)

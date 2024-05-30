@@ -21,12 +21,3 @@ class PodmanAdapter:
 
     def ping_podman(self):
         return self.client.ping()
-
-
-if __name__ == '__main__':
-    adapter = PodmanAdapter()
-    print("Pinging Podman...")
-    print("Podman is run: ", adapter.ping_podman())
-    print("Release: ", adapter.get_podman_version()["Version"])
-    print("Compatible API: ", adapter.get_podman_version()["ApiVersion"])
-    print("Podman API: ", adapter.get_podman_version()["Components"][0]["Details"]["APIVersion"], "\n")

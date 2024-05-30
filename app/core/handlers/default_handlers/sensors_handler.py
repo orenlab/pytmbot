@@ -9,6 +9,7 @@ from telebot.types import Message
 
 from app import bot_logger
 from app.core.handlers.handler import Handler
+from app.core.logs import logged_handler_session
 
 
 class SensorsHandler(Handler):
@@ -44,20 +45,16 @@ class SensorsHandler(Handler):
 
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
+        @logged_handler_session
         def get_sensors(message: Message) -> None:
             """Get all sensors information"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                bot_logger.info(self.bot_msg_tpl.HANDLER_START_TEMPLATE.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                    message.from_user.language_code,
-                    message.from_user.is_bot
-                ))
                 sensors_bot_answer = self._compile_message()
-                self.bot.send_message(
+                Handler._send_bot_answer(
+                    self,
                     message.chat.id,
-                    text=sensors_bot_answer
+                    text=sensors_bot_answer,
                 )
             except (ConnectionError, ValueError):
                 self.log.exception("Error while handling message")

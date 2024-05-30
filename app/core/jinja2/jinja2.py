@@ -31,11 +31,12 @@ class Jinja2Renderer:
             'process.jinja2',
             'sensors.jinja2',
             'uptime.jinja2',
+            'bot_update.jinja2',
             'swap.jinja2'
         ]
 
     def _init_jinja2(self):
-        """Initializes the Jinja2. Protected method for secure reason"""
+        """Initializes the Jinja2."""
         try:
             self.loader = FileSystemLoader(self.template_folder)
             jinja2 = SandboxedEnvironment(

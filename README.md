@@ -1,4 +1,4 @@
-![pytmbot](https://socialify.git.ci/orenlab/pytmbot/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pattern=Floating%20Cogs&pulls=1&stargazers=1&theme=Auto)
+![pytmbot](https://socialify.git.ci/orenlab/pytmbot/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Light)
 
 # pyTMbot
 
@@ -14,7 +14,6 @@ The bot operates synchronously. It does not use webhooks.
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Docker Image Build CI/CD](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/docker_build_on_push.yml)
-![Docker Pulls](https://img.shields.io/docker/pulls/orenlab/pytmbot?link=https%3A%2F%2Fhub.docker.com%2Fr%2Forenlab%2Fpytmbot)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
 Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
@@ -28,15 +27,16 @@ gather information.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (only docker and only on Linux) base information
-- Use `Jinja2` for answers template
-- Use docker logs collector (`sudo docker logs container_id`)
-- Use emoji :)
+- Containers (so far, only Docker and only on Linux) base information
+- Ability to check for bot software updates: `/check_bot_updates` (Available in the alpine-dev version)
+- `Jinja2` is used for creating templates.
+- Bot logs are available in the Docker logging system.
+- Emoji are used :)
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
-## 🪤 Requirements
+## 🕸 Requirements
 
 Initially, the bot was designed to ensure its correct operation only within the Docker container. I have not tested it
 running on a local system, either inside or outside a virtual environment.
@@ -63,7 +63,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── Dockerfile                              - Main Dockerfile
 ├── LICENSE                                 - Licence file
 ├── README.md                               - Main README
-├── SECURITY.md                             - Security police
+├── SECURITY.md                             - Security policy
 ├── app
 │   ├── __init__.py                         
 │   ├── core
@@ -78,6 +78,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── __init__.py
 │   │   │   ├── default_handlers
 │   │   │   │   ├── __init__.py             - Import all defaults handlers
+│   │   │   │   ├── check_bot_update.py     - Check pyTMbot updates
 │   │   │   │   ├── containers_handler.py   - Container handler
 │   │   │   │   ├── fs_handler.py           - Filesystem handler
 │   │   │   │   ├── load_avg_handler.py     - Load average handler
@@ -97,6 +98,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── keyboards
 │   │   │   ├── __init__.py
 │   │   │   └── keyboards.py                - Main keyboards class  
+│   │   ├── logs.py                         - Custom logger
 │   │   ├── middleware
 │   │   │   ├── __init__.py
 │   │   │   └── auth.py                     - Auth middleware class
@@ -107,6 +109,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │       └── loggers.py                  - Logger templates
 │   ├── main.py                             - Main bot class
 │   ├── templates
+│   │   ├── bot_update.jinja2               - Bot update jinja2 template
 │   │   ├── containers.jinja2               - Containers jinja2 template 
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
 │   │   ├── index.jinja2                    - Start jinja2 template
@@ -126,13 +129,10 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   └── fs.py                               - Filesystem utility
 ├── docker-compose.yml                      - Docker Compose file (used main Dockerfile)
 ├── docs
-│   ├── docker.md                           - README for hub.docker.com
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
 ├── hub.Dockerfile                          - Dockerfile for Docker CI/CD based on Alpine
-├── logs
-│   └── pytmbot.log                         - Main logs file
 ├── poetry.lock                             - Poetry file
 ├── pyproject.toml                          - Poetry file
 ├── requirements.txt                        - Requirements for build Docker image
@@ -149,10 +149,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ## 👾 Known issues
 
 - You tell me :)
-
-## 🐋 pyTMBot on Docker Hub
-
-- [pyTMbot on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot)
 
 ## 🧬 Authors
 
