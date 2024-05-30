@@ -92,6 +92,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   └── inline_handlers
 │   │   │       ├── __init__.py
 │   │   │       └── swap_handler.py         - Swap inline handler
+│   │   │       └── update_info.py          - Updates info inline handler
 │   │   ├── jinja2
 │   │   │   ├── __init__.py
 │   │   │   └── jinja2.py                   - Main jinja2 class
@@ -112,6 +113,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── bot_update.jinja2               - Bot update jinja2 template
 │   │   ├── containers.jinja2               - Containers jinja2 template 
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
+│   │   ├── how_update.jinja2               - Update instruction jinja2 template
 │   │   ├── index.jinja2                    - Start jinja2 template
 │   │   ├── load_average.jinja2             - Load average jinja2 template
 │   │   ├── memory.jinja2                   - Memory jinja2 template
