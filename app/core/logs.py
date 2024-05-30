@@ -113,9 +113,14 @@ def logged_handler_session(func):
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
-            bot_logger.error(
-                f"Failed @{func.__name__} - exception: {e}", exc_info=False
-            )
+            if bot_logger.level == 10:
+                bot_logger.exception(
+                    f"Failed @{func.__name__} - exception: {e}"
+                )
+            else:
+                bot_logger.error(
+                    f"Failed @{func.__name__} - exception: {e}", exc_info=False
+                )
 
     return handler_session_wrapper
 

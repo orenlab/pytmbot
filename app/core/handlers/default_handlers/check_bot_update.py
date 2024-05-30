@@ -71,7 +71,8 @@ class BotUpdatesHandler(Handler):
                 context=(f"You are using the development version: {__version__}. "
                          "We recommend upgrading to a stable release for a better experience.")
             )
-            return bot_answer
+            need_inline = False
+            return bot_answer, need_inline
         else:
             context = self.__check_bot_update()
             if context == {} or not context:
@@ -80,7 +81,8 @@ class BotUpdatesHandler(Handler):
                     thought_balloon=self.get_emoji('thought_balloon'),
                     context="There were some difficulties checking for updates. We should try again later."
                 )
-                return bot_answer
+                need_inline = False
+                return bot_answer, need_inline
             else:
                 if context.get('tag_name') > __version__:
                     bot_answer = self.jinja.render_templates(
@@ -127,15 +129,21 @@ class BotUpdatesHandler(Handler):
                         "How update the bot's image?",
                         "update_info"
                     )
+                    Handler._send_bot_answer(
+                        self,
+                        message.chat.id,
+                        text=bot_answer,
+                        parse_mode='HTML',
+                        reply_markup=inline_button
+                    )
                 else:
-                    inline_button = None
-                Handler._send_bot_answer(
-                    self,
-                    message.chat.id,
-                    text=bot_answer,
-                    parse_mode='HTML',
-                    reply_markup=inline_button
-                )
+                    Handler._send_bot_answer(
+                        self,
+                        message.chat.id,
+                        text=bot_answer,
+                        parse_mode='HTML',
+                    )
+
             except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
             except self.TemplateError:
