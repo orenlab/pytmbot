@@ -7,13 +7,11 @@ name: Production Docker CI
 
 on:
   schedule:
-    - cron: '16 15 * * *'
-  push:
-    branches: [ "master" ]
-    # Publish semver tags as releases.
+    - cron: '16 5 * * *'
+  release:
+    types: [ published ]
     tags: [ 'v*.*.*' ]
-  pull_request:
-    branches: [ "master" ]
+
 
 env:
   # Use docker.io for Docker Hub if empty
