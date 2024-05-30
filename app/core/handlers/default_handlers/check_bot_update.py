@@ -53,7 +53,7 @@ class BotUpdatesHandler(Handler):
     @staticmethod
     def _is_bot_development(app_version: str) -> bool:
         """Check bot mode"""
-        if len(app_version) > 5:
+        if len(app_version) > 6:
             is_development = True
         else:
             is_development = False
