@@ -21,7 +21,7 @@ class InlineUpdateInfoHandler(Handler):
         @self.bot.callback_query_handler(func=lambda call: call.data == 'update_info')
         @logged_inline_handler_session
         def swap(call: CallbackQuery):
-            """Get callback query - swap information from psutil"""
+            """Get callback query - update information"""
             try:
                 bot_answer = self.jinja.render_templates(
                     'how_update.jinja2',
