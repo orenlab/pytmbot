@@ -7,7 +7,7 @@ name: Production Docker CI
 
 on:
   schedule:
-    - cron: '16 5 * * *'
+    - cron: '16 1 * * *'
   release:
     types: [ published ]
 

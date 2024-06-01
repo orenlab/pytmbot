@@ -16,7 +16,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.0.9-dev-20240531'
+__version__ = 'v0.0.9-dev-20240601'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -24,7 +24,12 @@ __github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/late
 
 
 def build_bot_instance() -> telebot.TeleBot:
-    """Build PyTMBot instance"""
+    """
+    Build PyTMBot instance
+
+    Returns: pyTMbot instance
+
+    """
     bot_mode = parse_cli_args()
 
     match bot_mode.mode:

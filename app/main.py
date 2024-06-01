@@ -34,6 +34,7 @@ class PyTMBot:
 
     def _start_polling(self):
         """Start bot polling"""
+
         while True:
             try:
                 self.sleep_time += 5

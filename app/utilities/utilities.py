@@ -13,7 +13,12 @@ from emoji import emojize as em_func
 # Utility functions
 
 def parse_cli_args() -> argparse.Namespace:
-    """Parse command line args (see Dockerfile)"""
+    """
+    Parsing command line arguments
+
+    Returns:
+        object: CLI args
+    """
     parser = argparse.ArgumentParser(description="PyTMBot CLI")
     parser.add_argument(
         "--mode",
@@ -33,9 +38,13 @@ def parse_cli_args() -> argparse.Namespace:
 @lru_cache
 def get_emoji(emoji_name: str) -> str:
     """
-    Return emoji
-    @param: emoji_name: str
-    @return: str
+    Emoji for handlers
+
+    Args:
+        emoji_name (): str
+
+    Returns:
+        object: Emoji
     """
     return em_func(f":{emoji_name}:")
 
@@ -43,8 +52,12 @@ def get_emoji(emoji_name: str) -> str:
 def round_up_tuple(n: tuple) -> dict:
     """
     Round up a number in tuple
-    @param: n- float
-    @return: float
+
+    Args:
+        n (): Number
+
+    Returns: Dict
+
     """
     value: dict = {}
     i = 0
@@ -56,12 +69,28 @@ def round_up_tuple(n: tuple) -> dict:
 
 
 def find_in_args(args, target_type):
-    """Find args in args tuple"""
+    """
+    Find args in args tuple
+
+    Args:
+        args (): tuple[Any | None]
+        target_type (): dict
+
+    Returns: Arg: Any
+
+    """
     for arg in args:
         if isinstance(arg, target_type):
             return arg
 
 
 def find_in_kwargs(kwargs, target_type):
-    """Find kwargs in kwargs dictionary"""
+    """Find kwargs in kwargs dictionary
+
+        Args:
+        args (): tuple[Any | None]
+        target_type (): dict
+
+    Returns: Arg: Any
+    """
     return find_in_args(kwargs.values(), target_type)

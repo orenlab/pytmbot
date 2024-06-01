@@ -6,7 +6,9 @@ the status of your local servers
 """
 
 import abc
+
 from telebot.apihelper import ApiTelegramException
+
 from app import (
     config,
     exceptions,

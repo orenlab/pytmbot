@@ -29,7 +29,15 @@ class AllowedUser(BaseMiddleware):
         self.update_types = ['message', 'inline_query']  # Needed for correctly work middleware
 
     def pre_process(self, message: Message, data) -> CancelUpdate:
-        """Check allowed users"""
+        """Check allowed users
+
+        Args:
+            message (): Object from Telebot
+            data (): Object from Telebot
+
+        Returns:
+            object: CancelUpdate() instance class
+        """
         if message.from_user.id in config.allowed_user_ids:
             bot_logger.info(
                 self.bot_msg_tpl.ACCESS_SUCCESS.format(

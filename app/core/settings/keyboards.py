@@ -9,8 +9,8 @@ the status of your local servers
 class KeyboardSettings:
     """
     Settings for main bot keyboard
-    @key: emoji name
-    @value: function name
+    key: emoji name
+    value: function name
     """
     main_keyboard: dict = {
         'low_battery': 'Load average',

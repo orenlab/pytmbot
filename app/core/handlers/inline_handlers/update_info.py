@@ -5,7 +5,6 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from telebot.types import CallbackQuery
-from telebot.formatting import escape_markdown
 
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.handlers.handler import Handler

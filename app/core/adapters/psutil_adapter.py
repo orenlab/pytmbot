@@ -134,14 +134,26 @@ class PsutilAdapter:
 
     @staticmethod
     def get_uptime():
-        """Get system uptime"""
+        """
+        Get system uptime
+
+        Returns:
+            object: Uptime
+
+        """
         uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
         bot_logger.debug("Uptime stats is received")
         return uptime
 
     def get_process_counts(self):
-        """Get process count information"""
+        """
+        Get process count information
+
+        Returns:
+            object: Process count
+
+        """
         try:
             self.sleeping = 0  # unset attr
             self.running = 0  # unset attr

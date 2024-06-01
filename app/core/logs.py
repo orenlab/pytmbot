@@ -17,7 +17,16 @@ from app.utilities.utilities import (
 
 
 def build_bot_logger() -> logging.Logger:
-    """Build bot custom logger"""
+    """
+    Build bot custom logger
+
+    Args:
+        -
+
+    Returns:
+        object: logger
+
+    """
     logs_level = parse_cli_args()
 
     logger = logging.getLogger('pyTMbot')
@@ -51,7 +60,17 @@ def build_bot_logger() -> logging.Logger:
 
 
 def get_message_full_info(*args, **kwargs):
-    """Get full info for default handlers logs"""
+    """
+    Get full info for inline handlers logs
+
+    Args:
+        *args (): Any
+        **kwargs (): Any
+
+    Returns:
+        object: Objects to write to the logs
+    """
+
     message_args = find_in_args(args, Message)
     if message_args is not None:
         return (message_args.from_user.username,
@@ -73,8 +92,17 @@ def get_message_full_info(*args, **kwargs):
     return "None", "None", "None", "None", "None"
 
 
-def get_inline_message_full_info(*args, **kwargs):
-    """Get full info for inline handlers logs"""
+def get_inline_message_full_info(*args, **kwargs) -> object:
+    """
+    Get full info for inline handlers logs
+
+    Args:
+        *args (): Any
+        **kwargs (): Any
+
+    Returns:
+        object: Objects to write to the logs
+    """
     message_args = find_in_args(args, CallbackQuery)
     if message_args is not None:
         return (message_args.message.from_user.username,
@@ -93,9 +121,27 @@ def get_inline_message_full_info(*args, **kwargs):
 
 
 def logged_handler_session(func):
-    """Logging default handlers"""
+    """
+    Logging handlers
+
+    Args:
+        func (): Any handler
+
+    Returns:
+        object: Logs
+    """
 
     def handler_session_wrapper(*args, **kwargs):
+        """
+        Recording logs of work with handlers
+
+        Args:
+            *args (): tuple[Any | none]
+            **kwargs (): dict[str, Any]
+
+        Returns:
+            object: Any
+        """
         username, user_id, language_code, is_bot, text = get_message_full_info(*args, **kwargs)
 
         bot_logger.info(
@@ -126,9 +172,27 @@ def logged_handler_session(func):
 
 
 def logged_inline_handler_session(func):
-    """Logging inline handlers"""
+    """
+    Logging inline handlers
+
+    Args:
+        func (): Any handler
+
+    Returns:
+        object: Logs
+    """
 
     def inline_handler_session_wrapper(*args, **kwargs):
+        """
+        Recording logs of work with handlers
+
+        Args:
+            *args (): tuple[Any | none]
+            **kwargs (): dict[str, Any]
+
+        Returns:
+            object: Any
+        """
         username, user_id, is_bot = get_inline_message_full_info(*args, **kwargs)
 
         bot_logger.info(

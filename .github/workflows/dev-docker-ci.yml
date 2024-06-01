@@ -8,7 +8,6 @@ name: Development Docker CI
 on:
   push:
     branches: [ "development" ]
-    # Publish semver tags as releases.
   pull_request:
     branches: [ "development" ]
 
@@ -78,7 +77,7 @@ jobs:
           build-args: --target prod
           file: hub.Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ghcr.io/orenlab/pytmbot:alpine-dev
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
