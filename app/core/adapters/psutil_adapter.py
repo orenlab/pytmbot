@@ -9,7 +9,7 @@ from datetime import datetime
 import psutil
 from humanize import naturalsize
 
-from app import bot_logger
+from app.core.logs import bot_logger
 
 
 class PsutilAdapter:

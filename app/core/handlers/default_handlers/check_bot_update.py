@@ -12,9 +12,9 @@ from telebot.types import Message
 from app import (
     __github_api_url__,
     __version__,
-    bot_logger,
 )
 from app.core.handlers.handler import HandlerConstructor
+from app.core.logs import bot_logger
 from app.core.logs import logged_handler_session
 
 

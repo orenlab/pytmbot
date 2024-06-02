@@ -16,10 +16,10 @@ from app import (
     __version__,
     __repository__,
     bot,
-    bot_logger,
     telebot,
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
+from app.core.logs import bot_logger
 from app.core.middleware.auth import AllowedUser
 
 

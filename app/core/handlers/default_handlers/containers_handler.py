@@ -7,9 +7,9 @@ the status of your local servers
 from docker.errors import DockerException
 from telebot.types import Message
 
-from app import bot_logger
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
+from app.core.logs import bot_logger
 from app.core.logs import logged_handler_session
 
 

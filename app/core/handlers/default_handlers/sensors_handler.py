@@ -7,8 +7,8 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app import bot_logger
 from app.core.handlers.handler import HandlerConstructor
+from app.core.logs import bot_logger
 from app.core.logs import logged_handler_session
 
 

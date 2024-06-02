@@ -10,8 +10,9 @@ from functools import lru_cache
 import docker
 from humanize import naturalsize, naturaltime
 
-from app import config, bot_logger
+from app import config
 from app.core import exceptions
+from app.core.logs import bot_logger
 
 
 class DockerAdapter:

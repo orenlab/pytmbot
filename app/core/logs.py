@@ -59,6 +59,10 @@ def build_bot_logger() -> logging.Logger:
     return logger
 
 
+# Logger on common instance
+bot_logger = build_bot_logger()
+
+
 def get_message_full_info(*args, **kwargs):
     """
     Get full info for inline handlers logs
@@ -219,7 +223,3 @@ def logged_inline_handler_session(func):
                 )
 
     return inline_handler_session_wrapper
-
-
-# Logger on common instance
-bot_logger = build_bot_logger()

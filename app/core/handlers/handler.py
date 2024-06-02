@@ -10,11 +10,11 @@ from telebot.apihelper import ApiTelegramException
 from app import (
     config,
     exceptions,
-    bot_logger
 )
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.core.keyboards.keyboards import Keyboard
+from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 from app.utilities.utilities import (
     get_emoji,

@@ -14,8 +14,8 @@ from telebot.types import Message
 from app import (
     config,
     bot,
-    bot_logger
 )
+from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 
 

@@ -8,7 +8,6 @@ the status of your local servers
 import telebot
 
 from app.core import exceptions
-from app.core.logs import bot_logger
 from app.core.settings.bot_settings import BotSettings
 from app.utilities.utilities import parse_cli_args
 
