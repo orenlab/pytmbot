@@ -6,6 +6,7 @@ the status of your local servers
 """
 import logging
 import sys
+from functools import partial
 
 from telebot.types import Message, CallbackQuery
 
@@ -45,6 +46,7 @@ def build_bot_logger() -> logging.Logger:
 
     if logs_level.log_level == "DEBUG":
         logger.setLevel(logging.DEBUG)
+        logger.error = partial(logger.error, exc_info=True)
     elif logs_level.log_level == "INFO":
         logger.setLevel(logging.INFO)
     elif logs_level.log_level == "WARN":
@@ -169,7 +171,7 @@ def logged_handler_session(func):
                 )
             else:
                 bot_logger.error(
-                    f"Failed @{func.__name__} - exception: {e}", exc_info=False
+                    f"Failed @{func.__name__} - exception: {e}"
                 )
 
     return handler_session_wrapper
@@ -219,7 +221,7 @@ def logged_inline_handler_session(func):
                 )
             else:
                 bot_logger.error(
-                    f"Failed @{func.__name__} - exception: {e}", exc_info=False
+                    f"Failed @{func.__name__} - exception: {e}"
                 )
 
     return inline_handler_session_wrapper

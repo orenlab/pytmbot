@@ -46,7 +46,7 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
             if "Bad getaway" in str(exception):
                 bot_logger.error('Connection error to Telegram API. Bad getaway. Error code: 502')
             else:
-                bot_logger.error(f"Failed: {exception}", exc_info=False)
+                bot_logger.error(f"Failed: {exception}")
         else:
-            bot_logger.error(f"Failed: {exception}", exc_info=True)
+            bot_logger.error(f"Failed: {exception}")
         return True

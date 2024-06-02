@@ -34,7 +34,7 @@ class DockerAdapter:
             bot_logger.debug("Created docker client success")
             return self.client
         except (ConnectionAbortedError, FileNotFoundError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def _is_docker_available(self) -> bool:
         """Check if the docker socket is available"""
@@ -44,7 +44,7 @@ class DockerAdapter:
             bot_logger.debug(f"Docker alive: {ping}")
             return ping
         except (ConnectionAbortedError, FileNotFoundError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def _containers_list(self):
         """List all docker containers"""
@@ -62,7 +62,7 @@ class DockerAdapter:
                 bot_logger.debug(f"Container list created: {image_tag}")
                 return image_tag
         except (FileNotFoundError, ConnectionError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def _container_details(self, container_id: str):
         """Get docker containers details"""
@@ -72,7 +72,7 @@ class DockerAdapter:
             bot_logger.debug(f"Container details retrieved: {container}")
             return container
         except (ValueError, FileNotFoundError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     @staticmethod
     def _container_stats(container_details) -> dict:
@@ -118,4 +118,4 @@ class DockerAdapter:
                 bot_logger.error('Docker socket not found. Check docker URL')
                 return {}
         except ValueError as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")

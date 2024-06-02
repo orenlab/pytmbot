@@ -69,10 +69,8 @@ class PyTMBot:
             self.handler.run_handlers()
             bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
             self._start_polling()
-        except ConnectionError as e:
-            bot_logger.error(f"Connection failed: {e}", exc_info=False)
-        except ImportError as e:
-            bot_logger.error(f"Failed: cannot import name {e}", exc_info=False)
+        except (ConnectionError, ImportError, AttributeError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
 
 if __name__ == "__main__":

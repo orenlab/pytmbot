@@ -62,7 +62,7 @@ class PsutilAdapter:
             bot_logger.debug(f"Memory stats is received: {self.memory_current}")
             return self.memory_current
         except PermissionError as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_disk_usage(self):
         """Get partition usage"""
@@ -88,7 +88,7 @@ class PsutilAdapter:
             bot_logger.debug(f"File system stats is received: {self.fs_current}")
             return self.fs_current
         except (PermissionError, KeyError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_swap_memory(self):
         """Get swap memory usage"""
@@ -104,7 +104,7 @@ class PsutilAdapter:
             bot_logger.debug(f"Swap memory stats is received: {self.sw_current}")
             return self.sw_current
         except PermissionError as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
@@ -120,7 +120,7 @@ class PsutilAdapter:
             bot_logger.debug(f"Sensors stats append: {self.sensors_current}")
             return self.sensors_current
         except (AttributeError, KeyError) as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
     @staticmethod
     def get_sensors_fans():
@@ -171,4 +171,4 @@ class PsutilAdapter:
             bot_logger.debug(f"Proc stats is received: {self.process_count}")
             return self.process_count
         except AttributeError as e:
-            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
+            bot_logger.error(f"Failed at @{__name__}: {e}")

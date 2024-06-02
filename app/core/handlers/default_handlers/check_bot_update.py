@@ -46,7 +46,7 @@ class BotUpdatesHandler(HandlerConstructor):
                 bot_logger.debug(f"Response code - {resp.status_code}. Return empty dict")
                 return {}
         except ConnectionError as e:
-            bot_logger.error(f"Cant get update info: {e}", exc_info=False)
+            bot_logger.error(f"Cant get update info: {e}")
 
     @staticmethod
     def _is_bot_development(app_version: str) -> bool:

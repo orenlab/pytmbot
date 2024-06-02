@@ -45,7 +45,5 @@ class HandlerConstructor:
                 *args,
                 **kwargs
             )
-        except ConnectionError as e:
-            bot_logger.error(f"Failed: {e}", exc_info=False)
-        except ApiTelegramException as e:
-            bot_logger.error(f"Failed: {e}", exc_info=False)
+        except (ConnectionError, ApiTelegramException) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}")

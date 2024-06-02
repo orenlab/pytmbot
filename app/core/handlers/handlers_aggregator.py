@@ -36,6 +36,7 @@ class HandlersAggregator:
         self.inline_update_info = InlineUpdateInfoHandler(self.bot)
 
     def run_handlers(self):
+        """Run all handlers"""
         try:
             self.start_handler.handle()
             self.load_avg_handler.handle()
@@ -49,5 +50,4 @@ class HandlersAggregator:
             self.inline_swap_handler.handle()
             self.inline_update_info.handle()
         except (ConnectionError, ValueError) as e:
-            bot_logger.error(f"Failed at @{__name__}: Error running handlers")
-            bot_logger.debug(f"Failed at @{__name__}: {str(e)}")
+            bot_logger.error(f"Failed at @{__name__}: {str(e)}")
