@@ -11,7 +11,6 @@ import docker
 from humanize import naturalsize, naturaltime
 
 from app import config
-from app.core import exceptions
 from app.core.logs import bot_logger
 
 
@@ -26,27 +25,26 @@ class DockerAdapter:
         self.local_image_digest: None = None
         self.containers: None = None
         self.container: None = None
-        self.log = bot_logger
 
     @lru_cache(maxsize=None)
     def _create_docker_client(self) -> docker.DockerClient:
         """Creates the docker client instance"""
         try:
             self.client = docker.DockerClient(self.docker_url)
-            self.log.debug("Created docker client success")
+            bot_logger.debug("Created docker client success")
             return self.client
-        except (ConnectionAbortedError, FileNotFoundError):
-            self.log.error("Can't create docker client")
+        except (ConnectionAbortedError, FileNotFoundError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def _is_docker_available(self) -> bool:
         """Check if the docker socket is available"""
         try:
             client = self._create_docker_client()
             ping = client.ping()
-            self.log.debug("Docker client alive")
+            bot_logger.debug(f"Docker alive: {ping}")
             return ping
-        except (ConnectionAbortedError, FileNotFoundError):
-            self.log.error("Can't connect to docker sock")
+        except (ConnectionAbortedError, FileNotFoundError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def _containers_list(self):
         """List all docker containers"""
@@ -54,36 +52,33 @@ class DockerAdapter:
             client = self._create_docker_client()
             containers_raw = repr(client.containers.list())
             if containers_raw == '[]':
-                self.log.debug('No containers found. Docker is run.')
+                bot_logger.debug('No containers found. Docker is run.')
             else:
                 image_tag = []
                 for container in containers_raw.split(', '):
                     image_tag.append(
                         container.split(': ')[1].strip().split('>')[0].strip()
                     )
-                self.log.debug("Container list created")
+                bot_logger.debug(f"Container list created: {image_tag}")
                 return image_tag
-        except FileNotFoundError:
-            raise exceptions.DockerAdapterException('No container found')
-        except ConnectionError:
-            self.log.debug('Check auth credentials in Docker')
-            raise exceptions.DockerAdapterException('Check auth credentials in Docker')
+        except (FileNotFoundError, ConnectionError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def _container_details(self, container_id: str):
         """Get docker containers details"""
         try:
             client = self._create_docker_client()
             container = client.containers.get(container_id)
-            self.log.debug("Container details retrieved")
+            bot_logger.debug(f"Container details retrieved: {container}")
             return container
-        except (ValueError, FileNotFoundError):
-            raise exceptions.DockerAdapterException('Container not found')
+        except (ValueError, FileNotFoundError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     @staticmethod
     def _container_stats(container_details) -> dict:
         """Get docker container stats"""
         usage_stats = container_details.stats(decode=None, stream=False)
-        bot_logger.debug("Container stats generated")
+        bot_logger.debug(f"Container stats generated: {usage_stats}")
         return usage_stats
 
     def check_image_details(self):
@@ -114,14 +109,13 @@ class DockerAdapter:
                                 'status': container_details.attrs['State']['Status']
                             }
                         )
-                    self.log.debug("Container image details append done")
+                    bot_logger.debug(f"Container image details append: {details}")
                     return details
                 else:
-                    self.log.debug('Docker image not found: see "docker ps" command')
+                    bot_logger.debug('Docker image not found: see "docker ps" command')
                     return {}
             else:
-                self.log.error('Docker socket not found. Check docker URL')
+                bot_logger.error('Docker socket not found. Check docker URL')
                 return {}
-        except ValueError:
-            self.log.debug('Image value error')
-            raise exceptions.DockerAdapterException('Image value error')
+        except ValueError as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)

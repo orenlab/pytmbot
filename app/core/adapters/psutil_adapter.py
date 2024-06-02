@@ -59,17 +59,17 @@ class PsutilAdapter:
                 'cached': naturalsize(self.memory_stat.cached, binary=True),
                 'shared': naturalsize(self.memory_stat.shared, binary=True),
             }
-            bot_logger.debug("Memory stats is received")
+            bot_logger.debug(f"Memory stats is received: {self.memory_current}")
             return self.memory_current
-        except PermissionError:
-            raise PermissionError('Error get memory info')
+        except PermissionError as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def get_disk_usage(self):
         """Get partition usage"""
         try:
             self.fs_current = []  # Unset attr
             self.fs_stats = psutil.disk_partitions(all=False)
-            bot_logger.debug("Partitions stats is received")
+            bot_logger.debug(f"Partitions stats is received: {self.fs_stats}")
             for fs in self.fs_stats:
                 try:
                     self.fs_usage = self.psutil.disk_usage(fs.mountpoint)
@@ -83,13 +83,12 @@ class PsutilAdapter:
                     'used': naturalsize(self.fs_usage.used, binary=True),
                     'free': naturalsize(self.fs_usage.free, binary=True),
                     'percent': self.fs_usage.percent
-                }, )
-            bot_logger.debug("File system stats is received")
+                },
+                )
+            bot_logger.debug(f"File system stats is received: {self.fs_current}")
             return self.fs_current
-        except PermissionError:
-            raise PermissionError('FS: Permission denied')
-        except KeyError:
-            raise KeyError('FS: Key error')
+        except (PermissionError, KeyError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def get_swap_memory(self):
         """Get swap memory usage"""
@@ -102,10 +101,10 @@ class PsutilAdapter:
                 'free': naturalsize(swap.free, binary=True),
                 'percent': swap.percent,
             }
-            bot_logger.debug("Swap memory stats is received")
+            bot_logger.debug(f"Swap memory stats is received: {self.sw_current}")
             return self.sw_current
-        except PermissionError:
-            raise PermissionError('SW: cannot get swap info')
+        except PermissionError as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     def get_sensors_temperatures(self):
         """Get sensors temperatures"""
@@ -118,14 +117,10 @@ class PsutilAdapter:
                     'sensor_name': key,
                     'sensor_value': value[0][1],
                 })
-            bot_logger.debug("Sensors stats append")
+            bot_logger.debug(f"Sensors stats append: {self.sensors_current}")
             return self.sensors_current
-        except AttributeError:
-            raise AttributeError(
-                'Cannot get sensors temperatures'
-            )
-        except KeyError:
-            raise KeyError('Sensors: Key error')
+        except (AttributeError, KeyError) as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
 
     @staticmethod
     def get_sensors_fans():
@@ -143,7 +138,7 @@ class PsutilAdapter:
         """
         uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
-        bot_logger.debug("Uptime stats is received")
+        bot_logger.debug(f"Uptime stats is received: {uptime}")
         return uptime
 
     def get_process_counts(self):
@@ -173,7 +168,7 @@ class PsutilAdapter:
                 'idle': self.idle,
                 'total': self.sleeping + self.running + self.idle
             }
-            bot_logger.debug("Proc stats is received")
+            bot_logger.debug(f"Proc stats is received: {self.process_count}")
             return self.process_count
-        except AttributeError:
-            raise AttributeError('Cannot get process counters')
+        except AttributeError as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}", exc_info=False)
