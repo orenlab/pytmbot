@@ -9,15 +9,14 @@ from telebot.types import Message
 
 from app import bot_logger
 from app.core.adapters.docker_adapter import DockerAdapter
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class ContainersHandler(Handler):
+class ContainersHandler(HandlerConstructor):
     def __init__(self, bot):
         """Initialize the ContainersHandler"""
         super().__init__(bot)
-        self.log = bot_logger
         self.docker_adapter = DockerAdapter()
 
     def _get_data(self):
@@ -26,7 +25,7 @@ class ContainersHandler(Handler):
             data = self.docker_adapter.check_image_details()
             return data
         except DockerException:
-            bot_logger.error('Error connecting to the Docker socket')
+            bot_logger.error(f'Failed at {__name__}: Error connecting to the Docker socket')
             return {}
 
     def _compile_message(self) -> str:
@@ -58,13 +57,13 @@ class ContainersHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 containers_bot_answer = self._compile_message()
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=containers_bot_answer
                 )
             except ValueError:
-                self.log.error("Error while handling message")
+                bot_logger.error(f"Failed at {__name__}: Error while handling message")
                 self.bot.send_message(
                     message.chat.id,
                     text="Error occurred while getting containers info :("

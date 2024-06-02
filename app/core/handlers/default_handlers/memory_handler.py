@@ -6,16 +6,12 @@ the status of your local servers
 """
 from telebot.types import Message
 
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class MemoryHandler(Handler):
+class MemoryHandler(HandlerConstructor):
     """Class for handling memory usage"""
-
-    def __init__(self, bot):
-        """Initialize memory handler"""
-        super().__init__(bot)
 
     def _get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
@@ -64,7 +60,7 @@ class MemoryHandler(Handler):
                     "swap_info"
                 )
 
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=bot_answer,

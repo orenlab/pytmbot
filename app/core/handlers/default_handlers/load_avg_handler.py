@@ -7,16 +7,12 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class LoadAvgHandler(Handler):
+class LoadAvgHandler(HandlerConstructor):
     """Class to handle loading the average"""
-
-    def __init__(self, bot) -> None:
-        """Initialize the LoadAvgHandler"""
-        super().__init__(bot)
 
     def _get_data(self) -> tuple:
         """Use psutil to gather data on the processor load"""
@@ -36,7 +32,9 @@ class LoadAvgHandler(Handler):
             self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
-        """Abstract method"""
+        """
+        Methods to handle Load average data
+        """
 
         @self.bot.message_handler(regexp="Load average")
         @logged_handler_session
@@ -45,7 +43,7 @@ class LoadAvgHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_answer: str = self._compile_message()
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=bot_answer

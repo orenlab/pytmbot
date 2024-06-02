@@ -7,13 +7,11 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class ProcessHandler(Handler):
-    def __init__(self, bot):
-        super().__init__(bot)
+class ProcessHandler(HandlerConstructor):
 
     def _get_data(self) -> tuple:
         """Use psutil to gather data off memory used"""
@@ -54,7 +52,7 @@ class ProcessHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 bot_answer = self._get_answer()
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=bot_answer,

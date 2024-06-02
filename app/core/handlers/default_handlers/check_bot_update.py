@@ -14,15 +14,12 @@ from app import (
     __version__,
     bot_logger,
 )
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class BotUpdatesHandler(Handler):
+class BotUpdatesHandler(HandlerConstructor):
     """Class for handling bot updates"""
-
-    def __init__(self, bot):
-        super().__init__(bot)
 
     @staticmethod
     def __check_bot_update():
@@ -129,7 +126,7 @@ class BotUpdatesHandler(Handler):
                         "How update the bot's image?",
                         "update_info"
                     )
-                    Handler._send_bot_answer(
+                    HandlerConstructor._send_bot_answer(
                         self,
                         message.chat.id,
                         text=bot_answer,
@@ -137,7 +134,7 @@ class BotUpdatesHandler(Handler):
                         reply_markup=inline_button
                     )
                 else:
-                    Handler._send_bot_answer(
+                    HandlerConstructor._send_bot_answer(
                         self,
                         message.chat.id,
                         text=bot_answer,

@@ -7,13 +7,11 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class StartHandler(Handler):
-    def __init__(self, bot):
-        super().__init__(bot)
+class StartHandler(HandlerConstructor):
 
     def handle(self):
         @self.bot.message_handler(commands=['help', 'start'])
@@ -28,7 +26,7 @@ class StartHandler(Handler):
                     'index.jinja2',
                     first_name=first_name
                 )
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=bot_answer,

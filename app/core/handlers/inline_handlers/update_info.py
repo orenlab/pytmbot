@@ -6,15 +6,11 @@ the status of your local servers
 """
 from telebot.types import CallbackQuery
 
-from app.core.adapters.psutil_adapter import PsutilAdapter
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session
 
 
-class InlineUpdateInfoHandler(Handler):
-    def __init__(self, bot):
-        super().__init__(bot)
-        self.psutil_adapter = PsutilAdapter()
+class InlineUpdateInfoHandler(HandlerConstructor):
 
     def handle(self):
         @self.bot.callback_query_handler(func=lambda call: call.data == 'update_info')

@@ -5,8 +5,6 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-import abc
-
 from telebot.apihelper import ApiTelegramException
 
 from app import (
@@ -24,7 +22,7 @@ from app.utilities.utilities import (
 )
 
 
-class Handler(metaclass=abc.ABCMeta):
+class HandlerConstructor:
     """Abstract base class for handlers"""
 
     def __init__(self, bot):
@@ -39,10 +37,6 @@ class Handler(metaclass=abc.ABCMeta):
         self.get_emoji = get_emoji
         self.round_up_tuple = round_up_tuple
         self.psutil_adapter = PsutilAdapter()
-
-    @abc.abstractmethod
-    def handle(self):
-        """Main abstract method for handling"""
 
     def _send_bot_answer(self, *args, **kwargs) -> None:
         """Send the bot answer"""

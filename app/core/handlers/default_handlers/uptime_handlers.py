@@ -7,13 +7,11 @@ the status of your local servers
 
 from telebot.types import Message
 
-from app.core.handlers.handler import Handler
+from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 
 
-class UptimeHandler(Handler):
-    def __init__(self, bot):
-        super().__init__(bot)
+class UptimeHandler(HandlerConstructor):
 
     def _get_data(self):
         """Use psutil to gather data on the local filesystem"""
@@ -42,7 +40,7 @@ class UptimeHandler(Handler):
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
                 uptime_bot_answer = self._compile_message()
-                Handler._send_bot_answer(
+                HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,
                     text=uptime_bot_answer,
