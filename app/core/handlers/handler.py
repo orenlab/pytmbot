@@ -23,7 +23,7 @@ from app.utilities.utilities import (
 
 
 class HandlerConstructor:
-    """Abstract base class for handlers"""
+    """Base class for handlers"""
 
     def __init__(self, bot):
         """Initialize the handler class"""
