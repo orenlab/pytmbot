@@ -24,7 +24,7 @@ class SensorsHandler(HandlerConstructor):
         try:
             context = self._get_data()
             if not context:
-                bot_logger.error("Cannot get sensors data")
+                bot_logger.error("Cannot get sensors data. Psutil return empty list")
                 bot_answer = "Sorry, I couldn't find any sensors. Something went wrong :("
             else:
                 bot_answer = self.jinja.render_templates(
@@ -37,7 +37,7 @@ class SensorsHandler(HandlerConstructor):
                 )
             return bot_answer
         except ValueError:
-            bot_logger.exception("Error while compiling message")
+            bot_logger.error("Error while compiling message")
 
     def handle(self):
         @self.bot.message_handler(regexp="Sensors")
@@ -52,5 +52,5 @@ class SensorsHandler(HandlerConstructor):
                     message.chat.id,
                     text=sensors_bot_answer,
                 )
-            except (ConnectionError, ValueError):
-                bot_logger.exception("Error while handling message")
+            except ConnectionError:
+                bot_logger.error("Error while handling message")

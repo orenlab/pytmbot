@@ -61,7 +61,7 @@ class PsutilAdapter:
             }
             bot_logger.debug(f"Memory stats is received: {self.memory_current}")
             return self.memory_current
-        except PermissionError as e:
+        except (PermissionError, ValueError) as e:
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_disk_usage(self):
@@ -112,14 +112,17 @@ class PsutilAdapter:
             self.sensors_current = []  # unset attr
             self.sensors_stat = self.psutil.sensors_temperatures()
             bot_logger.debug("Sensors stats is received")
-            for key, value in self.sensors_stat.items():
-                self.sensors_current.append({
-                    'sensor_name': key,
-                    'sensor_value': value[0][1],
-                })
+            if not self.sensors_stat:
+                bot_logger.debug(f"Error receiving data from temperature sensors")
+            else:
+                for key, value in self.sensors_stat.items():
+                    self.sensors_current.append({
+                        'sensor_name': key,
+                        'sensor_value': value[0][1],
+                    })
             bot_logger.debug(f"Sensors stats append: {self.sensors_current}")
             return self.sensors_current
-        except (AttributeError, KeyError) as e:
+        except (AttributeError, KeyError, ValueError) as e:
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     @staticmethod
