@@ -7,9 +7,9 @@ the status of your local servers
 
 from telebot.types import Message
 
+from app import __version__
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
-from app import __version__
 
 
 class AboutBotHandler(HandlerConstructor):
@@ -18,10 +18,9 @@ class AboutBotHandler(HandlerConstructor):
         @self.bot.message_handler(regexp="About me")
         @logged_handler_session
         def start(message: Message) -> None:
-            """The entry point for starting a dialogue with the bot"""
+            """About bot handler"""
             try:
                 self.bot.send_chat_action(message.chat.id, 'typing')
-                main_keyboard = self.keyboard.build_reply_keyboard()
                 first_name: str = message.from_user.first_name
                 bot_answer: str = self.jinja.render_templates(
                     'about_bot.jinja2',
