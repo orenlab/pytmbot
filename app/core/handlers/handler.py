@@ -23,10 +23,31 @@ from app.utilities.utilities import (
 
 
 class HandlerConstructor:
-    """Base class for handlers"""
+    """
+    Base class for handlers.
+
+    This class initializes the handler with necessary attributes and dependencies.
+
+    Attributes:
+        bot (telebot.TeleBot): The Telegram bot instance.
+        keyboard (Keyboard): The keyboard object for building reply and inline keyboards.
+        bot_msg_tpl (MessageTpl): The message template object for formatting bot messages.
+        config (Config): The configuration object containing bot settings.
+        jinja (Jinja2Renderer): The Jinja2 renderer object for templating bot messages.
+        TemplateError (TemplateError): The exception class for template errors.
+        exceptions (Exceptions): The custom exception class for handling Telegram API errors.
+        get_emoji (function): The utility function for getting emoji by name.
+        round_up_tuple (function): The utility function for rounding up tuple values.
+        psutil_adapter (PsutilAdapter): The adapter object for interacting with the psutil library.
+    """
 
     def __init__(self, bot):
-        """Initialize the handler class"""
+        """
+        Initialize the handler class.
+
+        Args:
+            bot (telebot.TeleBot): The Telegram bot instance.
+        """
         self.bot = bot
         self.keyboard = Keyboard()
         self.bot_msg_tpl = MessageTpl()
@@ -39,11 +60,23 @@ class HandlerConstructor:
         self.psutil_adapter = PsutilAdapter()
 
     def _send_bot_answer(self, *args, **kwargs) -> None:
-        """Send the bot answer"""
+        """
+        Send the bot answer.
+
+        Args:
+            *args: Positional arguments to be passed to bot.send_message().
+            **kwargs: Keyword arguments to be passed to bot.send_message().
+
+        Raises:
+            ConnectionError: If there is a connection error while sending the message.
+            ApiTelegramException: If there is an API Telegram exception while sending the message.
+
+        Returns:
+            None
+        """
         try:
-            self.bot.send_message(
-                *args,
-                **kwargs
-            )
+            # Send the message using the bot object
+            self.bot.send_message(*args, **kwargs)
         except (ConnectionError, ApiTelegramException) as e:
+            # Log the error if there is an exception
             bot_logger.error(f"Failed at @{__name__}: {e}")

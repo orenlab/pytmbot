@@ -35,18 +35,25 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
 
     def handle(self, exception):
         """
+        Handle the exception and log it.
 
         Args:
-            exception (): exception from Telebot
+            exception (Exception): The exception raised by Telebot.
 
-        Returns: True object
+        Returns:
+            bool: True if the exception was handled successfully.
 
+        Logs:
+            If the log level is set to DEBUG, logs the exception with the DEBUG level.
+            Otherwise, logs the exception with the ERROR level.
         """
+        # Check the log level
         if bot_logger.level == 10:
-            if "Bad getaway" in str(exception):
-                bot_logger.error('Connection error to Telegram API. Bad getaway. Error code: 502')
-            else:
-                bot_logger.error(f"Failed: {exception}")
+            # Log the exception with the DEBUG level
+            bot_logger.debug(f"Failed: {exception}")
         else:
+            # Log the exception with the ERROR level
             bot_logger.error(f"Failed: {exception}")
+
+        # Return True to indicate that the exception was handled successfully
         return True
