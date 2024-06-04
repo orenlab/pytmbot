@@ -14,6 +14,7 @@ synchronously. It does not use webhooks.
 - Uptime information
 - File system base information
 - Containers (only docker and only on Linux) base information
+- Basic information about the network connection
 - Ability to check for bot software updates: `/check_bot_updates`
 - Use `Jinja2` for answers template
 - Use docker logs collector (`sudo docker logs pytmbot`)

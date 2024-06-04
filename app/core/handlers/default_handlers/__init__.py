@@ -13,3 +13,6 @@ from .process_handler import ProcessHandler
 from .sensors_handler import SensorsHandler
 from .start_handler import StartHandler
 from .uptime_handlers import UptimeHandler
+from .net_io_stat import NetIOHandler
+from .about_bot import AboutBotHandler
+from .echo import EchoHandler

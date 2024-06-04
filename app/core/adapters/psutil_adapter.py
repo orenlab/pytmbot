@@ -30,6 +30,7 @@ class PsutilAdapter:
         self.sleeping: int = 0
         self.running: int = 0
         self.idle: int = 0
+        self.net_io_stat = None
 
     @staticmethod
     def get_load_average():
@@ -175,3 +176,29 @@ class PsutilAdapter:
             return self.process_count
         except AttributeError as e:
             bot_logger.error(f"Failed at @{__name__}: {e}")
+
+    def get_net_io_counters(self):
+        try:
+            net_io_stat_current = []
+            self.net_io_stat = self.psutil.net_io_counters()
+            bot_logger.debug("Network IO stat recv")
+            net_io_stat_current.append({
+                'bytes_sent': naturalsize(self.net_io_stat.bytes_recv, binary=True),
+                'bytes_recv': naturalsize(self.net_io_stat.packets_recv, binary=True),
+                'packets_sent': self.net_io_stat.packets_sent,
+                'packets_recv': self.net_io_stat.packets_recv,
+                'err_in': self.net_io_stat.errin,
+                'err_out': self.net_io_stat.errout,
+                'drop_in': self.net_io_stat.dropin,
+                'drop_out': self.net_io_stat.dropout
+            })
+            bot_logger.debug(f"Network IO stat append done: {net_io_stat_current}")
+            return net_io_stat_current
+        except AttributeError as e:
+            bot_logger.error(f"Failed at @{__name__}: {e}")
+
+
+if __name__ == "__main__":
+    adapter = PsutilAdapter()
+
+    print(adapter.get_net_io_counters())

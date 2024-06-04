@@ -28,7 +28,9 @@ gather information.
 - Uptime information
 - File system base information
 - Containers (so far, only Docker and only on Linux) base information
-- Ability to check for bot software updates: `/check_bot_updates` (Available in the alpine-dev version)
+- Basic information about the network connection
+- The "About Me" section
+- Ability to check for bot software updates: `/check_bot_updates`
 - `Jinja2` is used for creating templates.
 - Bot logs are available in the Docker logging system.
 - Emoji are used :)

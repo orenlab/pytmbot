@@ -13,7 +13,10 @@ from app.core.handlers.default_handlers import (
     UptimeHandler,
     FileSystemHandler,
     ContainersHandler,
-    BotUpdatesHandler
+    BotUpdatesHandler,
+    NetIOHandler,
+    AboutBotHandler,
+    EchoHandler
 )
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
 from app.core.handlers.inline_handlers.update_info import InlineUpdateInfoHandler
@@ -34,6 +37,9 @@ class HandlersAggregator:
         self.bot_updates_handler = BotUpdatesHandler(self.bot)
         self.inline_swap_handler = InlineSwapHandler(self.bot)
         self.inline_update_info = InlineUpdateInfoHandler(self.bot)
+        self.net_io_stats_handler = NetIOHandler(self.bot)
+        self.about_bot = AboutBotHandler(self.bot)
+        self.echo = EchoHandler(self.bot)
 
     def run_handlers(self):
         """Run all handlers"""
@@ -47,7 +53,10 @@ class HandlersAggregator:
             self.fs_handler.handle()
             self.containers_handler.handle()
             self.bot_updates_handler.handle()
+            self.net_io_stats_handler.handle()
+            self.about_bot.handle()
             self.inline_swap_handler.handle()
             self.inline_update_info.handle()
+            self.echo.handle()
         except (ConnectionError, ValueError) as e:
             bot_logger.error(f"Failed at @{__name__}: {str(e)}")

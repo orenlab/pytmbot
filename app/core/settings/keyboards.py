@@ -20,4 +20,6 @@ class KeyboardSettings:
         'flying_saucer': 'Uptime',
         'floppy_disk': 'File system',
         'luggage': 'Containers',
+        'satellite': 'Network',
+        'turtle': 'About me'
     }
