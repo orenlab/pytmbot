@@ -196,9 +196,3 @@ class PsutilAdapter:
             return net_io_stat_current
         except AttributeError as e:
             bot_logger.error(f"Failed at @{__name__}: {e}")
-
-
-if __name__ == "__main__":
-    adapter = PsutilAdapter()
-
-    print(adapter.get_net_io_counters())
