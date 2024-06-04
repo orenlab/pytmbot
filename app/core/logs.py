@@ -8,7 +8,6 @@ the status of your local servers
 import logging
 import sys
 from functools import partial
-from typing import Tuple, Union
 
 from telebot.types import Message, CallbackQuery
 
