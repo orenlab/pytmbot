@@ -148,28 +148,22 @@ class PsutilAdapter:
 
     def get_disk_usage(self):
         """
-        Get partition usage.
+    Get partition usage statistics.
 
-        This function retrieves the usage statistics for each partition on the system.
-        It iterates over the list of disk partitions and retrieves the usage statistics
-        for each partition. The usage statistics include the device name, file system
-        type, mount point, total size, used space, free space, and usage percentage.
-
-        Returns:
-            A list of dictionaries containing the usage statistics for each partition.
-            Each dictionary contains the following keys:
-                - device_name (str): The device name.
-                - fs_type (str): The file system type.
-                - mnt_point (str): The mount point.
-                - size (str): The total size of the partition in a human-readable format.
-                - used (str): The used space of the partition in a human-readable format.
-                - free (str): The free space of the partition in a human-readable format.
-                - percent (float): The usage percentage of the partition.
-
-        Raises:
-            PermissionError: If the user does not have permission to access the disk partitions.
-            KeyError: If there is an error retrieving the disk partitions.
-        """
+    Returns:
+        A list of dictionaries containing the usage statistics for each partition.
+        Each dictionary contains the following keys:
+            - device_name (str): The device name.
+            - fs_type (str): The file system type.
+            - mnt_point (str): The mount point.
+            - size (str): The total size of the partition in a human-readable format.
+            - used (str): The used space of the partition in a human-readable format.
+            - free (str): The free space of the partition in a human-readable format.
+            - percent (float): The usage percentage of the partition.
+    Raises:
+        PermissionError: If the user does not have permission to access the disk partitions.
+        KeyError: If there is an error retrieving the disk partitions.
+    """
         try:
             self.fs_current = []  # Unset attribute
             self.fs_stats = psutil.disk_partitions(all=False)
@@ -266,16 +260,18 @@ class PsutilAdapter:
             # If no sensors statistics are available, log an error message
             if not self.sensors_stat:
                 bot_logger.debug("Error receiving data from temperature sensors")
-            else:
-                # Iterate over the sensors and their temperature statistics
-                for key, value in self.sensors_stat.items():
-                    # Create a dictionary with sensor name and temperature value
-                    sensor_data = {
-                        'sensor_name': key,
-                        'sensor_value': value[0][1],
-                    }
-                    # Append the sensor data to the sensors_current list
-                    self.sensors_current.append(sensor_data)
+
+            # Create a list of dictionaries, where each dictionary contains the sensor name
+            # and its current temperature
+            # Iterate over the sensors and their temperature statistics
+            for sensor_name, temperature_stats in self.sensors_stat.items():
+                sensor_data = {
+                    'sensor_name': sensor_name,
+                    'sensor_value': temperature_stats[0][1],
+                }
+
+                # Append the sensor data to the sensors_current list
+                self.sensors_current.append(sensor_data)
 
             # Log a debug message indicating the sensors statistics have been appended
             bot_logger.debug(f"Sensors stats append: {self.sensors_current}")
@@ -337,26 +333,17 @@ class PsutilAdapter:
 
         try:
             for proc in self.psutil.process_iter():
-                match proc.status():
-                    case "sleeping":
-                        process_counts['sleeping'] += 1
-                    case "running":
-                        process_counts['running'] += 1
-                    case "idle":
-                        process_counts['idle'] += 1
+                process_status = proc.status()
+                process_counts[process_status] += 1
 
             # Log the completion of process iteration
             bot_logger.debug("Proc iterate stats done")
 
             process_counts['total'] = sum(process_counts.values())
 
-            # Log the process counts
-            bot_logger.debug(f"Proc stats is received: {self.process_count}")
-
             return process_counts
 
         except AttributeError as e:
-            # Log the error if an AttributeError occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_net_io_counters(self):

@@ -25,29 +25,22 @@ def build_bot_logger() -> logging.Logger:
     Returns:
         logging.Logger: The logger object.
     """
-    # Parse command line arguments to get the log level
-    logs_level = parse_cli_args()
+    # Get the log level from command line arguments
+    log_level = parse_cli_args().log_level
 
     # Create a logger with the name 'pyTMbot'
     logger = logging.getLogger('pyTMbot')
-
-    # Create a stream handler to output logs to stdout
-    handler = logging.StreamHandler(sys.stdout)
-
-    # Set the log message format based on the log level
-    if logs_level.log_level == "DEBUG":
-        str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:%(lineno)d]"
-    else:
-        str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    logger.setLevel(log_level.upper())
 
     # Set the date format for the log messages
     date_format = '%Y-%m-%d %H:%M:%S'
 
-    # Create a formatter with the specified format and date format
-    formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
-
-    # Set the formatter for the handler
-    handler.setFormatter(formatter)
+    # Create a stream handler to output logs to stdout
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s' +
+        (' [%(filename)s | %(funcName)s:%(lineno)d]' if log_level == 'DEBUG' else ''), datefmt=date_format
+    ))
 
     # Add the handler to the logger
     logger.addHandler(handler)
@@ -55,21 +48,9 @@ def build_bot_logger() -> logging.Logger:
     # Disable propagation of logs to parent loggers
     logger.propagate = False
 
-    # Set the log level based on the log level argument
-    if logs_level.log_level == "DEBUG":
-        logger.setLevel(logging.DEBUG)
-        # Override the error method to include exception information
+    # Override the error method to include exception information
+    if log_level == 'DEBUG':
         logger.error = partial(logger.error, exc_info=True)
-    elif logs_level.log_level == "INFO":
-        logger.setLevel(logging.INFO)
-    elif logs_level.log_level == "WARN":
-        logger.setLevel(logging.WARN)
-    elif logs_level.log_level == "ERROR":
-        logger.setLevel(logging.ERROR)
-    elif logs_level.log_level == "CRITICAL":
-        logger.setLevel(logging.CRITICAL)
-    else:
-        raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
 
     return logger
 

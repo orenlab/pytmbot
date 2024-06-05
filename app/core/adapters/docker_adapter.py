@@ -123,21 +123,21 @@ class DockerAdapter:
             containers_raw = repr(client.containers.list())
 
             # If no containers are found, log a debug message
-            if containers_raw == '[]':
+            if not containers_raw:
                 bot_logger.debug('No containers found. Docker is run.')
-            else:
-                # Extract the image tags from the container list
-                image_tag = []
-                for container in containers_raw.split(', '):
-                    image_tag.append(
-                        container.split(': ')[1].strip().split('>')[0].strip()
-                    )
+
+            # Extract the image tags from the container list
+            image_tag = []
+            for container in containers_raw.split(', '):
+                image_tag.append(
+                    container.split(': ')[1].strip().split('>')[0].strip()
+                )
 
                 # Log the created container list
-                bot_logger.debug(f"Container list created: {image_tag}")
+            bot_logger.debug(f"Container list created: {image_tag}")
 
-                # Return the list of image tags
-                return image_tag
+            # Return the list of image tags
+            return image_tag
 
         except (FileNotFoundError, ConnectionError) as e:
             # Log an error message if an exception occurs
@@ -212,49 +212,46 @@ class DockerAdapter:
             list: A list of dictionaries containing the details of each Docker image.
         """
         try:
-            # Check if the Docker socket is available
-            if self._is_docker_available():
-                # Get the list of containers
-                self.containers = self._containers_list()
-                details = []
-                if self.containers:
-                    # Iterate over each container
-                    for container in self.containers:
-                        # Get the details of the container
-                        container_details = self._container_details(container)
-                        # Get the usage statistics of the container
-                        usage_stats = self._container_stats(container_details)
-                        # Extract the creation date and time from the container details
-                        created_day = datetime.fromisoformat(container_details.attrs['Created']).date()
-                        created_time = datetime.fromisoformat(
-                            container_details.attrs['Created']
-                        ).time().strftime("%H:%M:%S")
-                        # Append the container details to the list
-                        details.append(
-                            {
-                                'name': container_details.attrs['Name'].title().replace('/', ''),
-                                'image': container_details.attrs['Config']['Image'],
-                                'created': f'{created_day}, {created_time}',
-                                'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-                                'run_at': naturaltime(
-                                    datetime.fromisoformat(
-                                        container_details.attrs['State']['StartedAt']
-                                    )
-                                ),
-                                'status': container_details.attrs['State']['Status']
-                            }
-                        )
-                    # Log the generated container details
-                    bot_logger.debug(f"Container image details append: {details}")
-                    return details
-                else:
-                    # Log a message if no containers are found
-                    bot_logger.debug('Docker image not found: see "docker ps" command')
-                    return {}
-            else:
+            if not self._is_docker_available():
                 # Log an error message if the Docker socket is not available
                 bot_logger.error('Docker socket not found. Check docker URL')
+                # Return an empty dictionary
                 return {}
+
+            containers = self._containers_list()
+            if not containers:
+                # Log a message if no containers are not found
+                bot_logger.debug('Docker image not found: see "docker ps" command')
+                # Return an empty dictionary
+                return {}
+
+            details = []
+            for container in containers:
+                container_details = self._container_details(container)
+                usage_stats = self._container_stats(container_details)
+                created_at = datetime.fromisoformat(container_details.attrs['Created'])
+                created_day = created_at.date()
+                created_time = created_at.time().strftime("%H:%M:%S")
+                details.append({
+                    'name': container_details.attrs['Name'].title().replace('/', ''),
+                    'image': container_details.attrs['Config']['Image'],
+                    'created': f'{created_day}, {created_time}',
+                    'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
+                    'run_at': naturaltime(
+                        datetime.fromisoformat(
+                            container_details.attrs['State']['StartedAt']
+                        )),
+                    'status': container_details.attrs['State']['Status']
+                })
+
+            # Log the generated container details
+            bot_logger.debug(f"Container image details append: {details}")
+
+            # Return the generated container details
+            return details
+
         except ValueError as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
+            # Return an empty dictionary
+            return {}
