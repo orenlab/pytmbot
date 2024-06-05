@@ -47,9 +47,9 @@ class ContainersHandler(HandlerConstructor):
         """
         Compile the message to be sent to the bot.
 
-        This function retrieves data using the _get_data method and generates a message based on the data.
-        If the data is empty or None, it renders a template with a message indicating that there are no containers or
-        incorrect settings. Otherwise, it renders a template with the container information.
+        Retrieves data using the _get_data method and generates a message based on the data.
+        If the data is empty or None, renders a template with a message indicating that there are no containers or
+        incorrect settings. Otherwise, renders a template with the container information.
 
         Returns:
             str: The compiled message to be sent to the bot.
@@ -58,25 +58,24 @@ class ContainersHandler(HandlerConstructor):
             PyTeleMonBotHandlerError: If there is an error parsing the data.
         """
         try:
-            # Retrieve data using the _get_data method
-            context = self._get_data()
+            data = self._get_data()
 
-            if context == {} or not context:
-                # Render a template with a message indicating that there are no containers or incorrect settings
-                bot_answer = self.jinja.render_templates(
-                    'none.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    context="There are no containers or incorrect settings are specified...."
-                )
+            if not data:
+                template_name = 'none.jinja2'
+                template_context = {
+                    'thought_balloon': self.get_emoji('thought_balloon'),
+                    'context': "There are no containers or incorrect settings are specified...."
+                }
             else:
-                # Render a template with the container information
-                bot_answer = self.jinja.render_templates(
-                    'containers.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    luggage=self.get_emoji('pushpin'),
-                    minus=self.get_emoji('minus'),
-                    context=context
-                )
+                template_name = 'containers.jinja2'
+                template_context = {
+                    'thought_balloon': self.get_emoji('thought_balloon'),
+                    'luggage': self.get_emoji('pushpin'),
+                    'minus': self.get_emoji('minus'),
+                    'context': data
+                }
+
+            bot_answer = self.jinja.render_templates(template_name, **template_context)
             return bot_answer
         except ValueError:
             # Raise an exception if there is an error parsing the data

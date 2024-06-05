@@ -20,7 +20,9 @@ from app.core.settings.loggers import MessageTpl
 
 
 class AllowedUser(BaseMiddleware):
-    """Custom middleware class that check allowed users"""
+    """
+    Custom middleware class that checks if the user is allowed to access the bot.
+    """
 
     def __init__(self) -> None:
         """
@@ -32,13 +34,8 @@ class AllowedUser(BaseMiddleware):
         Returns:
             None
         """
-        # Call the parent class's __init__ method
         super().__init__()
-
-        # Set the bot message template
         self.bot_msg_tpl = MessageTpl()
-
-        # Set the update types
         self.update_types = ['message', 'inline_query']
 
     def pre_process(self, message: Message, data) -> CancelUpdate:
@@ -51,43 +48,33 @@ class AllowedUser(BaseMiddleware):
 
         Returns:
             CancelUpdate: An instance of the CancelUpdate class.
-
-        This function checks if the user is allowed to access the bot based on their ID.
-        If the user is allowed, it logs a success message.
-        If the user is not allowed, it sends a typing action, logs an error message,
-        and sends a blocked user message to the user.
-        It then returns a CancelUpdate object to stop further processing of the message.
         """
+        # Extract user information from the message
+        user_id = message.from_user.id
+        user_name = message.from_user.username
+        chat_id = message.chat.id
+
         # Check if the user is allowed
-        if message.from_user.id in config.allowed_user_ids:
-            # Log a success message
+        if user_id in config.allowed_user_ids:
+            # Log the successful access
             bot_logger.info(
-                self.bot_msg_tpl.ACCESS_SUCCESS.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                )
+                self.bot_msg_tpl.ACCESS_SUCCESS.format(user_name, user_id)
             )
         else:
             # Send a typing action to indicate that the bot is processing
-            bot.send_chat_action(message.chat.id, 'typing')
+            bot.send_chat_action(chat_id, 'typing')
 
-            # Log an error message
-            bot_logger.error(
-                self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                    message.from_user.username,
-                    message.from_user.id,
-                    message.from_user.language_code,
-                    message.from_user.is_bot
-                )
+            # Log the failed access
+            error_message = self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
+                user_name, user_id, message.from_user.language_code, message.from_user.is_bot
             )
+            bot_logger.error(error_message)
 
             # Send a message to the user indicating that they are blocked
-            bot.send_message(
-                message.chat.id,
-                self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
-            )
+            blocked_message = self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
+            bot.send_message(chat_id, blocked_message)
 
-            # Return a CancelUpdate object to stop further processing of the message
+            # Cancel any further processing of the message
             return CancelUpdate()
 
     def post_process(self, message: Message, data, exception) -> None:

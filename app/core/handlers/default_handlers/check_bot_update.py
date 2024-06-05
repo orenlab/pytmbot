@@ -4,7 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from typing import Any
 
 import requests
 from telebot.types import Message
@@ -72,7 +71,7 @@ class BotUpdatesHandler(HandlerConstructor):
         """Check if the bot is in development mode."""
         return len(app_version) > 6
 
-    def _compile_message(self) -> tuple[Any, bool] | Any:
+    def _compile_message(self) -> tuple[str, bool]:
         """
         Compile the message to be sent to the bot.
 
@@ -83,69 +82,78 @@ class BotUpdatesHandler(HandlerConstructor):
         Returns:
             A tuple containing the bot answer and a flag indicating if inline messages are needed.
         """
-        none_tpl_name = 'none.jinja2'
 
         # Check if the bot is in development mode
-        check_system_version = self._is_bot_development(__version__)
+        is_development_mode = self._is_bot_development(__version__)
 
-        if check_system_version:
+        if is_development_mode:
             # Return a message indicating that the bot is using the development version
-            bot_answer = self.jinja.render_templates(
-                none_tpl_name,
-                thought_balloon=self.get_emoji('thought_balloon'),
-                context=(f"You are using the development version: {__version__}. "
-                         "We recommend upgrading to a stable release for a better experience.")
-            )
-            need_inline = False
-            return bot_answer, need_inline
+            message = self._render_development_message()
+            return message, False
         else:
             # Check for updates
-            context = self.__check_bot_update()
+            update_context = self.__check_bot_update()
 
-            if context == {} or not context:
+            if not update_context:
                 # Return a message indicating that there were difficulties checking for updates
-                bot_answer = self.jinja.render_templates(
-                    none_tpl_name,
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    context="There were some difficulties checking for updates. We should try again later."
-                )
-                need_inline = False
-                return bot_answer, need_inline
+                message = self._render_update_difficulties_message()
+                return message, False
             else:
-                if context.get('tag_name') > __version__:
+                if update_context['tag_name'] > __version__:
                     # Return a message indicating that there is a new update available
-                    bot_answer = self.jinja.render_templates(
-                        'bot_update.jinja2',
-                        thought_balloon=self.get_emoji('thought_balloon'),
-                        spouting_whale=self.get_emoji('spouting_whale'),
-                        calendar=self.get_emoji('calendar'),
-                        cooking=self.get_emoji('cooking'),
-                        current_version=context.get('tag_name'),
-                        release_date=context.get('published_at'),
-                        release_notes=context.get('body')
-                    )
-                    need_inline = True
-                    return bot_answer, need_inline
-                elif context.get('tag_name') == __version__:
+                    message = self._render_new_update_message(update_context)
+                    return message, True
+                elif update_context['tag_name'] == __version__:
                     # Return a message indicating that there is no update available
-                    bot_answer = self.jinja.render_templates(
-                        none_tpl_name,
-                        thought_balloon=self.get_emoji('thought_balloon'),
-                        context=f"Current version: {__version__}. No update available."
-                    )
-                    need_inline = False
-                    return bot_answer, need_inline
-                elif context.get('tag_name') < __version__:
+                    message = self._render_no_update_message()
+                    return message, False
+                elif update_context['tag_name'] < __version__:
                     # Return a message indicating that the bot is living in the future
-                    bot_answer = self.jinja.render_templates(
-                        none_tpl_name,
-                        thought_balloon=self.get_emoji('thought_balloon'),
-                        context=f"Current version: {context.get('tag_name')}. Your version: {__version__}."
-                                f" You are living in the future, "
-                                f"and I am glad to say that I will continue to grow and evolve!"
-                    )
-                    need_inline = False
-                    return bot_answer, need_inline
+                    message = self._render_future_message(update_context)
+                    return message, False
+
+    def _render_development_message(self) -> str:
+        return self.jinja.render_templates(
+            'none.jinja2',
+            thought_balloon=self.get_emoji('thought_balloon'),
+            context=(f"You are using the development version: {__version__}. "
+                     "We recommend upgrading to a stable release for a better experience.")
+        )
+
+    def _render_update_difficulties_message(self) -> str:
+        return self.jinja.render_templates(
+            'none.jinja2',
+            thought_balloon=self.get_emoji('thought_balloon'),
+            context="There were some difficulties checking for updates. We should try again later."
+        )
+
+    def _render_new_update_message(self, update_context: dict[str, str]) -> str:
+        return self.jinja.render_templates(
+            'bot_update.jinja2',
+            thought_balloon=self.get_emoji('thought_balloon'),
+            spouting_whale=self.get_emoji('spouting_whale'),
+            calendar=self.get_emoji('calendar'),
+            cooking=self.get_emoji('cooking'),
+            current_version=update_context['tag_name'],
+            release_date=update_context['published_at'],
+            release_notes=update_context['body']
+        )
+
+    def _render_no_update_message(self) -> str:
+        return self.jinja.render_templates(
+            'none.jinja2',
+            thought_balloon=self.get_emoji('thought_balloon'),
+            context=f"Current version: {__version__}. No update available."
+        )
+
+    def _render_future_message(self, update_context: dict[str, str]) -> str:
+        return self.jinja.render_templates(
+            'none.jinja2',
+            thought_balloon=self.get_emoji('thought_balloon'),
+            context=f"Current version: {update_context['tag_name']}. Your version: {__version__}."
+                    f" You are living in the future, "
+                    f"and I am glad to say that I will continue to grow and evolve!"
+        )
 
     def handle(self):
         """
