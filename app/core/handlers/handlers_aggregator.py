@@ -57,26 +57,26 @@ class HandlersAggregator:
             EchoHandler(self.bot)  # Initialize the EchoHandler instance
         ]
 
-        def run_handlers(self):
-            """
-            Run all handlers.
+    def run_handlers(self):
+        """
+        Run all handlers.
 
-            This method iterates over each handler and calls its `handle` method.
-            If any handler raises a `ConnectionError` or `ValueError`, it logs the error.
-            If any other exception occurs, it logs the error.
+        This method iterates over each handler and calls its `handle` method.
+        If any handler raises a `ConnectionError` or `ValueError`, it logs the error.
+        If any other exception occurs, it logs the error.
 
-            Raises:
-                None
-            """
-            try:
-                # Iterate over each handler
-                for handler in self.handlers:
-                    try:
-                        # Call the handle method of the handler
-                        handler.handle()
-                    except (ConnectionError, ValueError) as e:
-                        # Log the error if a ConnectionError or ValueError occurs
-                        bot_logger.error(f"Failed at @{__name__}: {str(e)}")
-            except Exception as e:
-                # Log the error if any other exception occurs
-                bot_logger.error(f"Failed at @{__name__}: {str(e)}")
+        Raises:
+            None
+        """
+        try:
+            # Iterate over each handler
+            for handler in self.handlers:
+                try:
+                    # Call the handle method of the handler
+                    handler.handle()
+                except (ConnectionError, ValueError) as e:
+                    # Log the error if a ConnectionError or ValueError occurs
+                    bot_logger.error(f"Failed at @{__name__}: {str(e)}")
+        except Exception as e:
+            # Log the error if any other exception occurs
+            bot_logger.error(f"Failed at @{__name__}: {str(e)}")
