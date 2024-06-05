@@ -8,6 +8,7 @@ the status of your local servers
 import logging
 import sys
 from functools import partial
+from typing import List, Callable, Any, Tuple
 
 from telebot.types import Message, CallbackQuery
 
@@ -25,22 +26,32 @@ def build_bot_logger() -> logging.Logger:
     Returns:
         logging.Logger: The logger object.
     """
+
+    # Get the log level from command line arguments
+    known_log_levels: List[str] = ['ERROR', 'INFO', 'DEBUG']
+
     # Get the log level from command line arguments
     log_level = parse_cli_args().log_level
 
-    # Create a logger with the name 'pyTMbot'
+    # Create a logger object for the bot
     logger = logging.getLogger('pyTMbot')
-    logger.setLevel(log_level.upper())
+
+    # Set the log level based on the command line argument
+    logger.setLevel(log_level.upper() if log_level in known_log_levels else 'INFO')
 
     # Set the date format for the log messages
     date_format = '%Y-%m-%d %H:%M:%S'
 
     # Create a stream handler to output logs to stdout
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s' +
-        (' [%(filename)s | %(funcName)s:%(lineno)d]' if log_level == 'DEBUG' else ''), datefmt=date_format
-    ))
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+    # Add file name and line number to log format if log level is DEBUG
+    if log_level == 'DEBUG':
+        log_format += ' [%(filename)s | %(funcName)s:%(lineno)d]'
+
+    # Set the log format for the handler
+    handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
 
     # Add the handler to the logger
     logger.addHandler(handler)
@@ -48,7 +59,7 @@ def build_bot_logger() -> logging.Logger:
     # Disable propagation of logs to parent loggers
     logger.propagate = False
 
-    # Override the error method to include exception information
+    # Override the error method to include exception information if log level is DEBUG
     if log_level == 'DEBUG':
         logger.error = partial(logger.error, exc_info=True)
 
@@ -135,27 +146,33 @@ def get_inline_message_full_info(*args, **kwargs):
     return "None", "None", "None"
 
 
-def logged_handler_session(func):
+def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator function that logs the handling session of a handler function.
 
     Args:
-        func (function): The handler function to be logged.
+        func (Callable[..., Any]): The handler function to be logged.
 
     Returns:
-        function: The wrapped handler function.
+        Callable[..., Any]: The wrapped handler function.
     """
 
-    def handler_session_wrapper(*args, **kwargs):
+    def handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
         """
         Wrapper function that records logs of work with handlers.
 
         Args:
-            *args (tuple): Positional arguments passed to the handler function.
+            *args (Tuple[Any, ...]): Positional arguments passed to the handler function.
             **kwargs (dict): Keyword arguments passed to the handler function.
 
         Returns:
-            object: The result of the handler function.
+            Any: The result of the handler function.
+            message: Message = args[0]
+            username = message.from_user.username
+            user_id = message.from_user.id
+            language_code = message.from_user.language_code
+            is_bot = message.from_user.is_bot
+            text = message.text
         """
         # Get information about the message
         username, user_id, language_code, is_bot, text = get_message_full_info(*args, **kwargs)
@@ -188,27 +205,31 @@ def logged_handler_session(func):
     return handler_session_wrapper
 
 
-def logged_inline_handler_session(func):
+def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Logging inline handlers
+    Decorator function that logs the handling session of an inline handler function.
 
     Args:
-        func (): Any handler
+        func (Callable[..., Any]): The inline handler function to be logged.
 
     Returns:
-        object: Logs
+        Callable[..., Any]: The wrapped inline handler function.
     """
 
-    def inline_handler_session_wrapper(*args, **kwargs):
+    def inline_handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
         """
-        Recording logs of work with handlers
+        Wrapper function that records logs of work with inline handlers.
 
         Args:
-            *args (): tuple[Any | none]
-            **kwargs (): dict[str, Any]
+            *args (Tuple[Any, ...]): Positional arguments passed to the inline handler function.
+            **kwargs (dict): Keyword arguments passed to the inline handler function.
 
         Returns:
-            object: Any
+            Any: The result of the inline handler function.
+            message: Message = args[0]
+            username (str): The username of the user who sent the message.
+            user_id (int): The ID of the user who sent the message.
+            is_bot (bool): Whether the user is a bot or not.
         """
         username, user_id, is_bot = get_inline_message_full_info(*args, **kwargs)
 
