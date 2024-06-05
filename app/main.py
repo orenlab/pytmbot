@@ -19,35 +19,6 @@ from app.core.logs import bot_logger
 from app.core.middleware.auth import AllowedUser
 
 
-def _log_startup_message():
-    """
-    Log the startup message for the bot.
-
-    This function logs a message indicating that a new instance of the bot has started.
-    The message includes the version and repository information of the bot.
-
-    Returns:
-        None
-    """
-    # Log the startup message
-    bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
-
-
-def _log_error(message: str) -> None:
-    """
-    Log an error message for the bot.
-
-    Args:
-        message (str): The error message to log.
-
-    Returns:
-        None
-    """
-    # Log the error message using the bot logger.
-    # The exc_info parameter is set False to avoid logging the full traceback.
-    bot_logger.error(message, exc_info=False)
-
-
 class PyTMBot:
     """
     Main PyTMBot class.
@@ -234,6 +205,35 @@ class PyTMBot:
         This method calls the `run_handlers` method of the `HandlersAggregator` instance.
         """
         self.handler.run_handlers()
+
+
+def _log_startup_message():
+    """
+    Log the startup message for the bot.
+
+    This function logs a message indicating that a new instance of the bot has started.
+    The message includes the version and repository information of the bot.
+
+    Returns:
+        None
+    """
+    # Log the startup message
+    bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
+
+
+def _log_error(message: str) -> None:
+    """
+    Log an error message for the bot.
+
+    Args:
+        message (str): The error message to log.
+
+    Returns:
+        None
+    """
+    # Log the error message using the bot logger.
+    # The exc_info parameter is set False to avoid logging the full traceback.
+    bot_logger.error(message, exc_info=False)
 
 
 if __name__ == "__main__":
