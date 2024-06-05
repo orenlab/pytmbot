@@ -19,7 +19,7 @@ from app.core.logs import bot_logger
 from app.core.middleware.auth import AllowedUser
 
 
-def log_startup_message():
+def _log_startup_message():
     """
     Log the startup message for the bot.
 
@@ -33,7 +33,7 @@ def log_startup_message():
     bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
 
 
-def log_error(message: str) -> None:
+def _log_error(message: str) -> None:
     """
     Log an error message for the bot.
 
@@ -49,13 +49,18 @@ def log_error(message: str) -> None:
 
 
 class PyTMBot:
-    """Main PyTMBot class"""
+    """
+    Main PyTMBot class.
+
+    This class represents the main PyTMBot instance and initializes it with
+    the necessary dependencies.
+    """
 
     def __init__(self):
         """
-        Initialize the PyTMBot class.
+        Initialize the PyTMBot instance.
 
-        This method initializes the PyTMBot class by setting the bot instance,
+        This method initializes the PyTMBot instance by setting the bot instance,
         initializing the handlers aggregator, and setting the sleep time to 0.
 
         Args:
@@ -65,13 +70,20 @@ class PyTMBot:
             None
         """
         # Set the bot instance
-        self.bot = bot
+        self.bot = bot  # Assuming 'bot' is a valid bot instance
 
         # Initialize the handlers aggregator
         self.handler = HandlersAggregator(self.bot)
+        """
+        The handlers aggregator instance. It aggregates and initializes all the
+        handlers for the bot.
+        """
 
         # Set the sleep time to 0
         self.sleep_time: int = 0
+        """
+        The sleep time in seconds. It is set to 0 by default.
+        """
 
     def __start_polling(self):
         """
@@ -88,13 +100,13 @@ class PyTMBot:
             try:
                 self.sleep_time += 5
                 self._log_start_of_polling_session()
-                self._poll_bot_for_updates()
+                self.__poll_bot_for_updates()
             except (requests.exceptions.ConnectionError, telebot.apihelper.ApiTelegramException) as e:
-                self._handle_connection_error(e, sleep_time=self.sleep_time)
+                self.__handle_connection_error(e, sleep_time=self.sleep_time)
                 sleep(self.sleep_time)
                 continue
             except Exception as e:
-                self._handle_unexpected_error(e)
+                self.__handle_unexpected_error(e)
                 sleep(self.sleep_time)
                 continue
             else:
@@ -113,7 +125,7 @@ class PyTMBot:
         # Log the start of the polling session
         bot_logger.info('Start polling session')
 
-    def _poll_bot_for_updates(self):
+    def __poll_bot_for_updates(self):
         """
         Poll the bot for updates with specified timeout and logging level.
 
@@ -145,7 +157,7 @@ class PyTMBot:
             logger_level=logger_level
         )
 
-    def _handle_connection_error(self, e, sleep_time):
+    def __handle_connection_error(self, e, sleep_time):
         """
         Handle connection error by stopping polling, logging the error message,
         and indicating the time to retry.
@@ -161,9 +173,9 @@ class PyTMBot:
         bot_logger.debug(f"{e}. Retry after {sleep_time} seconds")
 
         # Log the error message with the sleep time
-        log_error(f'Failed at @{__name__}: Connection error. Retry after {sleep_time} seconds')
+        _log_error(f'Failed at @{__name__}: Connection error. Retry after {sleep_time} seconds')
 
-    def _handle_unexpected_error(self, e):
+    def __handle_unexpected_error(self, e):
         """
         Handle unexpected errors by stopping polling, logging the error message,
         and indicating that an automatic restart is not possible.
@@ -178,7 +190,7 @@ class PyTMBot:
         bot_logger.debug(f"Failed: {e}. Unable to perform an automatic restart.")
 
         # Log a generic error message indicating that an automatic restart is not possible
-        log_error("Unexpected exception.")
+        _log_error("Unexpected exception.")
 
     def run_bot(self):
         """
@@ -193,16 +205,16 @@ class PyTMBot:
             ImportError: If there is an issue importing a required module.
         """
         try:
-            self.setup_middleware()  # Set up middleware for the bot
-            self.run_handlers()  # Run the handlers for the bot
-            log_startup_message()  # Log the startup message
+            self.__setup_middleware()  # Set up middleware for the bot
+            self.__run_handlers()  # Run the handlers for the bot
+            _log_startup_message()  # Log the startup message
             self.__start_polling()  # Start polling for updates from the bot
         except ConnectionError as e:
-            log_error(f"Failed at @{__name__}: {e}")  # Log the connection error
+            _log_error(f"Failed at @{__name__}: {e}")  # Log the connection error
         except ImportError as e:
-            log_error(f"Failed: cannot import name {e}")  # Log the import error
+            _log_error(f"Failed: cannot import name {e}")  # Log the import error
 
-    def setup_middleware(self):
+    def __setup_middleware(self):
         """
         Setup middleware for the bot.
 
@@ -215,7 +227,7 @@ class PyTMBot:
         # Set up the middleware for the bot by passing the instance of AllowedUser to the bot's setup_middleware method
         self.bot.setup_middleware(allowed_user)
 
-    def run_handlers(self):
+    def __run_handlers(self):
         """
         Run the handlers for the bot.
 
