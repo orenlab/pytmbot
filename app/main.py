@@ -187,7 +187,7 @@ class PyTMBot:
         self.bot.stop_polling()
 
         # Log the error message with the error details
-        bot_logger.debug(f"Failed: {e}. Unable to perform an automatic restart.")
+        bot_logger.debug(f"Failed: {e}.")
 
         # Log a generic error message indicating that an automatic restart is not possible
         _log_error("Unexpected exception.")
