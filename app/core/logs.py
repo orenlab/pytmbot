@@ -25,12 +25,17 @@ def build_bot_logger() -> logging.Logger:
 
     Returns:
         logging.Logger: The logger object.
+
+    This function creates a logger object for the bot and configures it based on the log level
+    provided in the command line arguments. The logger object is configured to output logs to
+    the standard output (stdout) and has a date format of '%Y-%m-%d %H:%M:%S'. If the log level
+    is set to 'DEBUG', the log format includes the file name and line number. The logger object
+    is configured to disable propagation of logs to parent loggers and override the error method
+    to include exception information if the log level is 'DEBUG'.
     """
 
     # Get the log level from command line arguments
     known_log_levels: List[str] = ['ERROR', 'INFO', 'DEBUG']
-
-    # Get the log level from command line arguments
     log_level = parse_cli_args().log_level
 
     # Create a logger object for the bot
@@ -64,10 +69,6 @@ def build_bot_logger() -> logging.Logger:
         logger.error = partial(logger.error, exc_info=True)
 
     return logger
-
-
-# Logger on common instance
-bot_logger = build_bot_logger()
 
 
 def get_message_full_info(*args, **kwargs):
@@ -257,3 +258,7 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
                 )
 
     return inline_handler_session_wrapper
+
+
+# Logger on common instance
+bot_logger = build_bot_logger()
