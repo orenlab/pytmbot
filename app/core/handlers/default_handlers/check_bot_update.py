@@ -113,46 +113,119 @@ class BotUpdatesHandler(HandlerConstructor):
                     return message, False
 
     def _render_development_message(self) -> str:
+        """
+        Render a message indicating that the bot is using the development version.
+
+        Returns:
+            str: The rendered message.
+        """
+        # Define the template name for rendering
+        template_name = 'none.jinja2'
+
+        # Get the thought balloon emoji for the message
+        thought_balloon = self.get_emoji('thought_balloon')
+
+        # Create the message context with the current version
+        message_context = (
+            f"You are using the development version: {__version__}. "
+            "We recommend upgrading to a stable release for a better experience."
+        )
+
+        # Render the message using the template and message context
         return self.jinja.render_templates(
-            'none.jinja2',
-            thought_balloon=self.get_emoji('thought_balloon'),
-            context=(f"You are using the development version: {__version__}. "
-                     "We recommend upgrading to a stable release for a better experience.")
+            template_name,
+            thought_balloon=thought_balloon,
+            context=message_context
         )
 
     def _render_update_difficulties_message(self) -> str:
+        """
+        Render a message indicating that there were difficulties checking for updates.
+
+        Returns:
+            str: The rendered message.
+        """
+        # Render the 'none.jinja2' template with the context message
         return self.jinja.render_templates(
             'none.jinja2',
-            thought_balloon=self.get_emoji('thought_balloon'),
+            thought_balloon=self.get_emoji('thought_balloon'),  # Get the thought balloon emoji
             context="There were some difficulties checking for updates. We should try again later."
         )
 
     def _render_new_update_message(self, update_context: dict[str, str]) -> str:
+        """
+        Render a message indicating a new update is available.
+
+        Args:
+            update_context (dict): A dictionary containing the update context.
+                It should have the following keys:
+                - 'tag_name' (str): The version of the update.
+                - 'published_at' (str): The release date of the update.
+                - 'body' (str): The release notes of the update.
+
+        Returns:
+            str: The rendered message.
+        """
+        # Define the emojis to be used in the message
+        emojis = {
+            'thought_balloon': self.get_emoji('thought_balloon'),
+            'spouting_whale': self.get_emoji('spouting_whale'),
+            'calendar': self.get_emoji('calendar'),
+            'cooking': self.get_emoji('cooking'),
+        }
+
+        # Render the message using Jinja templates
         return self.jinja.render_templates(
-            'bot_update.jinja2',
-            thought_balloon=self.get_emoji('thought_balloon'),
-            spouting_whale=self.get_emoji('spouting_whale'),
-            calendar=self.get_emoji('calendar'),
-            cooking=self.get_emoji('cooking'),
-            current_version=update_context['tag_name'],
-            release_date=update_context['published_at'],
-            release_notes=update_context['body']
+            'bot_update.jinja2',  # Template file name
+            **emojis,  # Pass the emojis as keyword arguments
+            current_version=update_context['tag_name'],  # Current version of the update
+            release_date=update_context['published_at'],  # Release date of the update
+            release_notes=update_context['body']  # Release notes of the update
         )
 
     def _render_no_update_message(self) -> str:
+        """
+        Render a message indicating that there is no update available.
+
+        Returns:
+            str: The rendered message.
+        """
+        # Create the context message with the current version
+        context = f"Current version: {__version__}. No update available."
+
+        # Render the 'none.jinja2' template with the context message and emoji
         return self.jinja.render_templates(
             'none.jinja2',
             thought_balloon=self.get_emoji('thought_balloon'),
-            context=f"Current version: {__version__}. No update available."
+            context=context
         )
 
     def _render_future_message(self, update_context: dict[str, str]) -> str:
+        """
+        Render a message indicating that the user is living in the future.
+
+        Args:
+            update_context (dict): A dictionary containing the update context.
+                It should have the following keys:
+                - 'tag_name' (str): The version of the update.
+
+        Returns:
+            str: The rendered message.
+        """
+        # Extract the current version from the update context
+        current_version = update_context['tag_name']
+
+        # Create the context message with the current and user's versions
+        context = (
+            f"Current version: {current_version}. Your version: {__version__}. "
+            "You are living in the future, and I am glad to say that I will continue to grow and evolve!"
+        )
+
+        # Render the 'none.jinja2' template with the context message and emoji
         return self.jinja.render_templates(
             'none.jinja2',
             thought_balloon=self.get_emoji('thought_balloon'),
-            context=f"Current version: {update_context['tag_name']}. Your version: {__version__}."
-                    f" You are living in the future, "
-                    f"and I am glad to say that I will continue to grow and evolve!"
+            context=context
         )
 
     def handle(self):
