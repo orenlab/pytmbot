@@ -16,17 +16,13 @@ class AboutBotHandler(HandlerConstructor):
 
     def handle(self):
         """
-        Handle 'About me' message.
+        Set up a message handler for the bot to respond to messages containing the phrase "About me".
 
-        This function sets up a message handler for the bot to respond to messages
-        containing the phrase "About me". When such a message is received, it sends
-        a typing action to the chat, renders a template with the user's first name
-        and the current application version, and sends the rendered template as a
-        bot answer.
+        When such a message is received, it sends a typing action to the chat, renders a template with the user's first name
+        and the current application version, and sends the rendered template as a bot answer.
 
         Raises:
-            PyTeleMonBotHandlerError: If there is a ValueError while rendering the
-            template.
+            PyTeleMonBotHandlerError: If there is a ValueError while rendering the template.
         """
 
         @self.bot.message_handler(regexp="About me")
@@ -39,31 +35,29 @@ class AboutBotHandler(HandlerConstructor):
                 message (Message): The message received by the bot.
 
             Raises:
-                PyTeleMonBotHandlerError: If there is a ValueError while rendering
-                the template.
+                PyTeleMonBotHandlerError: If there is a ValueError while rendering the template.
             """
             try:
-                # Send typing action to chat
-                self.bot.send_chat_action(message.chat.id, 'typing')
-
-                # Get user's first name
+                # Get the user's first name from the message
                 user_first_name = message.from_user.first_name
 
-                # Render template with user's first name and current app version
-                bot_answer = self.jinja.render_templates(
-                    'about_bot.jinja2',
-                    first_name=user_first_name,
-                    current_app_version=__version__
-                )
+                # Send a typing action to the chat
+                self.bot.send_chat_action(message.chat.id, 'typing')
 
-                # Send bot answer
-                HandlerConstructor._send_bot_answer(
-                    self,
+                # Render the template with the user's first name and the current application version
+                template_variables = {
+                    'first_name': user_first_name,
+                    'current_app_version': __version__
+                }
+                bot_answer = self.jinja.render_templates('about_bot.jinja2', context=template_variables)
+
+                # Send the rendered template as a bot answer
+                self._send_bot_answer(
                     message.chat.id,
                     text=bot_answer,
-                    parse_mode='Markdown',
+                    parse_mode='Markdown'
                 )
             except ValueError:
-                # Raise error if there is a ValueError while rendering the template
-                error_msg = self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                raise self.exceptions.PyTeleMonBotHandlerError(error_msg)
+                # Raise an exception if there is a ValueError while rendering the template
+                error_message = self.bot_msg_tpl.VALUE_ERROR_TEMPLATE
+                raise self.exceptions.BotHandlerError(error_message)

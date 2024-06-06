@@ -1,8 +1,8 @@
 {# templates/index.jinja2 #}
-Hi {{ first_name }},
+Hi {{ context['first_name'] }},
 I'm a bot for server monitoring here to help you keep an eye on your server.
 
-The current version of my app: *{{ current_app_version }}*
+The current version of my app: *{{ context['current_app_version'] }}*
 
 You can easily and quickly check for updates using this command: */check_bot_updates*
 
