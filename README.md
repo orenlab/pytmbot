@@ -29,20 +29,22 @@ gather information.
 - File system base information
 - Containers (so far, only Docker and only on Linux) base information
 - Basic information about the network connection
-- The "About Me" section
-- Ability to check for bot software updates: `/check_bot_updates`
-- `Jinja2` is used for creating templates.
-- Bot logs are available in the Docker logging system.
-- Emoji are used :)
+
+### 🔖 Additionally:
+
+- The "About Me" section, which allows users to check for updates regarding the bot: `/check_bot_updates`
+- The `Jinja2` templating engine is used to generate the responses.
+- The bot logs are accessible in the Docker log aggregator.
+- And of course we use emoji 😅
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🕸 Requirements
 
-Initially, the bot was designed to ensure its correct operation only within the Docker container. I have not tested it
-running on a local system, either inside or outside a virtual environment.
-Therefore, please make sure that Docker is installed on your system.
+Initially, I designed the bot to run only inside a Docker container. However, this method has some limitations, so from
+version 0.9.0 onward, it is possible to install the bot locally outside the container. At the same time, the bot will
+still be able to function and receive information about Docker containers.
 
 Full list of Python dependencies see in `requirements.txt`
 
@@ -80,6 +82,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── __init__.py
 │   │   │   ├── default_handlers
 │   │   │   │   ├── __init__.py             - Import all defaults handlers
+│   │   │   │   ├── about_bot.py            - About bot handler
 │   │   │   │   ├── check_bot_update.py     - Check pyTMbot updates
 │   │   │   │   ├── containers_handler.py   - Container handler
 │   │   │   │   ├── fs_handler.py           - Filesystem handler
@@ -112,6 +115,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │       └── loggers.py                  - Logger templates
 │   ├── main.py                             - Main bot class
 │   ├── templates
+│   │   ├── about_bot.jinja2                - Bot update jinja2 template
 │   │   ├── bot_update.jinja2               - Bot update jinja2 template
 │   │   ├── containers.jinja2               - Containers jinja2 template 
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
@@ -142,8 +146,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── requirements.txt                        - Requirements for build Docker image
 ├── setup_bot.py                            - Initial setup bot script
 ├── setup_req.txt                           - Setup requirements
-├── tests
-│   └── bot_tests.py                        - Bots tests
+├── tests                                   - Bot tests
 ```
 
 ## 📈 Roadmap

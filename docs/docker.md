@@ -13,12 +13,18 @@ synchronously. It does not use webhooks.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (only docker and only on Linux) base information
+- Containers (so far, only Docker and only on Linux) base information
 - Basic information about the network connection
-- Ability to check for bot software updates: `/check_bot_updates`
-- Use `Jinja2` for answers template
-- Use docker logs collector (`sudo docker logs pytmbot`)
-- Use emoji :)
+
+### 🔖 Additionally:
+
+- The "About Me" section, which allows users to check for updates regarding the bot: `/check_bot_updates`
+- The `Jinja2` templating engine is used to generate the responses.
+- The bot logs are accessible in the Docker log aggregator.
+- And of course we use emoji 😅
+
+Screenshots are available here: [screenshots.md](docs/screenshots.md).
+Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 Screenshots are available here on
 GitHub: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md). Video demo see in YouTube

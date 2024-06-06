@@ -23,8 +23,8 @@
       <settings>
         <option name="imageTag" value="dev-latest-loc" />
         <option name="buildCliOptions" value="--target selfbuild_dev" />
+        <option name="command" value="" />
         <option name="containerName" value="pytmbot" />
-        <option name="entrypoint" value="" />
         <option name="sourceFilePath" value="Dockerfile" />
         <option name="volumeBindings">
           <list>
