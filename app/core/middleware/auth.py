@@ -34,8 +34,13 @@ class AllowedUser(BaseMiddleware):
         Returns:
             None
         """
+        # Call the parent class's __init__ method
         super().__init__()
+
+        # Create an instance of the MessageTpl class and assign it to self.bot_msg_tpl
         self.bot_msg_tpl = MessageTpl()
+
+        # Set the update types to ['message', 'inline_query']
         self.update_types = ['message', 'inline_query']
 
     def pre_process(self, message: Message, data) -> CancelUpdate:
@@ -49,10 +54,13 @@ class AllowedUser(BaseMiddleware):
         Returns:
             CancelUpdate: An instance of the CancelUpdate class.
         """
+
         # Extract user information from the message
         user_id = message.from_user.id
         user_name = message.from_user.username
         chat_id = message.chat.id
+        language_code = message.from_user.language_code
+        is_bot = message.from_user.is_bot
 
         # Check if the user is allowed
         if user_id in config.allowed_user_ids:
@@ -66,7 +74,7 @@ class AllowedUser(BaseMiddleware):
 
             # Log the failed access
             error_message = self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                user_name, user_id, message.from_user.language_code, message.from_user.is_bot
+                user_name, user_id, language_code, is_bot
             )
             bot_logger.error(error_message)
 
