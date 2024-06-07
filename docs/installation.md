@@ -11,6 +11,4 @@ There are four ways for today:
 
 3. Assemble the image of the bot yourself: [instructions in this section](self-build.md)
 
-4. Using the bot directly on the host machine: [coming soon... ](#)
-
 
