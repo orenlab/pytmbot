@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyTMBot"
-version = "0.0.6-dev"
+version = "0.0.9"
 description = "A simple Telegram bot designed to gather basic information about the status of your local computers and/or servers from Glances"
 authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
 readme = "README.md"
@@ -13,7 +13,6 @@ emoji = "^2.9.0"
 jinja2 = "^3.1.3"
 pydantic = "^2.5.3"
 pydantic-settings = "^2.1.0"
-responses = "^0.25.0"
 docker = "^7.0.0"
 click = "^8.1.7"
 psutil = "^5.9.8"

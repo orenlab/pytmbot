@@ -4,8 +4,11 @@
 pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+
 import logging
 import sys
+from functools import partial
+from typing import List, Callable, Any, Tuple
 
 from telebot.types import Message, CallbackQuery
 
@@ -17,87 +20,165 @@ from app.utilities.utilities import (
 
 
 def build_bot_logger() -> logging.Logger:
-    """Build bot custom logger"""
-    logs_level = parse_cli_args()
+    """
+    Builds a custom logger for the bot.
 
+    Returns:
+        logging.Logger: The logger object.
+
+    This function creates a logger object for the bot and configures it based on the log level
+    provided in the command line arguments. The logger object is configured to output logs to
+    the standard output (stdout) and has a date format of '%Y-%m-%d %H:%M:%S'. If the log level
+    is set to 'DEBUG', the log format includes the file name and line number. The logger object
+    is configured to disable propagation of logs to parent loggers and override the error method
+    to include exception information if the log level is 'DEBUG'.
+    """
+
+    # Get the log level from command line arguments
+    known_log_levels: List[str] = ['ERROR', 'INFO', 'DEBUG']
+    log_level = parse_cli_args().log_level
+
+    # Create a logger object for the bot
     logger = logging.getLogger('pyTMbot')
-    handler = logging.StreamHandler(sys.stdout)
 
-    if logs_level.log_level == "DEBUG":
-        str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s | %(funcName)s:%(lineno)d]"
-    else:
-        str_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Set the log level based on the command line argument
+    logger.setLevel(log_level.upper() if log_level in known_log_levels else 'INFO')
 
+    # Set the date format for the log messages
     date_format = '%Y-%m-%d %H:%M:%S'
-    formatter = logging.Formatter(fmt=str_format, datefmt=date_format)
-    handler.setFormatter(formatter)
+
+    # Create a stream handler to output logs to stdout
+    handler = logging.StreamHandler(sys.stdout)
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+    # Add file name and line number to log format if log level is DEBUG
+    if log_level == 'DEBUG':
+        log_format += ' [%(filename)s | %(funcName)s:%(lineno)d]'
+
+    # Set the log format for the handler
+    handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
+
+    # Add the handler to the logger
     logger.addHandler(handler)
+
+    # Disable propagation of logs to parent loggers
     logger.propagate = False
 
-    if logs_level.log_level == "DEBUG":
-        logger.setLevel(logging.DEBUG)
-    elif logs_level.log_level == "INFO":
-        logger.setLevel(logging.INFO)
-    elif logs_level.log_level == "WARN":
-        logger.setLevel(logging.WARN)
-    elif logs_level.log_level == "ERROR":
-        logger.setLevel(logging.ERROR)
-    elif logs_level.log_level == "CRITICAL":
-        logger.setLevel(logging.CRITICAL)
-    else:
-        raise ValueError(f"Unknown log level: {logs_level}, use -h option to see more")
+    # Override the error method to include exception information if log level is DEBUG
+    if log_level == 'DEBUG':
+        logger.error = partial(logger.error, exc_info=True)
 
     return logger
 
 
 def get_message_full_info(*args, **kwargs):
-    """Get full info for default handlers logs"""
+    """
+    Get full info for inline handlers logs.
+
+    Args:
+        *args (): Any
+        **kwargs (): Any
+
+    Returns:
+        Tuple[Union[str, None], Union[int, None], Union[str, None], Union[bool, None], Union[str, None]]:
+            Objects to write to the logs. Returns a tuple containing the username, user ID, language code,
+            is_bot flag, and text of the message. If the message is not found in args or kwargs, returns
+            "None" for all values.
+    """
+
+    # Find message in args
     message_args = find_in_args(args, Message)
     if message_args is not None:
-        return (message_args.from_user.username,
-                message_args.from_user.id,
-                message_args.from_user.language_code,
-                message_args.from_user.is_bot,
-                message_args.text
-                )
+        return (
+            message_args.from_user.username,  # Username of the message sender
+            message_args.from_user.id,  # User ID of the message sender
+            message_args.from_user.language_code,  # Language code of the message sender
+            message_args.from_user.is_bot,  # Flag indicating if the message sender is a bot
+            message_args.text  # Text of the message
+        )
 
+    # Find message in kwargs
     message_kwargs = find_in_kwargs(kwargs, Message)
     if message_kwargs is not None:
-        return (message_kwargs.from_user.username,
-                message_kwargs.from_user.id,
-                message_kwargs.from_user.language_code,
-                message_kwargs.from_user.is_bot,
-                message_kwargs.text
-                )
+        return (
+            message_kwargs.from_user.username,  # Username of the message sender
+            message_kwargs.from_user.id,  # User ID of the message sender
+            message_kwargs.from_user.language_code,  # Language code of the message sender
+            message_kwargs.from_user.is_bot,  # Flag indicating if the message sender is a bot
+            message_kwargs.text  # Text of the message
+        )
 
+    # Return "None" for all values if message is not found
     return "None", "None", "None", "None", "None"
 
 
 def get_inline_message_full_info(*args, **kwargs):
-    """Get full info for inline handlers logs"""
+    """
+    Get full info for inline handlers logs.
+
+    Args:
+        *args (Any): Variable length argument list.
+        **kwargs (Any): Arbitrary keyword arguments.
+
+    Returns:
+        Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
+            A tuple containing the username, user ID, and is_bot flag of the message sender.
+            If the message is not found in args or kwargs, returns "None" for all values.
+    """
+    # Find message in args
     message_args = find_in_args(args, CallbackQuery)
     if message_args is not None:
-        return (message_args.message.from_user.username,
-                message_args.message.from_user.id,
-                message_args.message.from_user.is_bot
-                )
+        return (
+            message_args.message.from_user.username,  # Username of the message sender
+            message_args.message.from_user.id,  # User ID of the message sender
+            message_args.message.from_user.is_bot  # Flag indicating if the message sender is a bot
+        )
 
+    # Find message in kwargs
     message_kwargs = find_in_kwargs(kwargs, CallbackQuery)
     if message_kwargs is not None:
-        return (message_kwargs.message.from_user.username,
-                message_kwargs.message.from_user.id,
-                message_kwargs.message.from_user.is_bot,
-                )
+        return (
+            message_kwargs.message.from_user.username,  # Username of the message sender
+            message_kwargs.message.from_user.id,  # User ID of the message sender
+            message_kwargs.message.from_user.is_bot  # Flag indicating if the message sender is a bot
+        )
 
+    # Return "None" for all values if message is not found
     return "None", "None", "None"
 
 
-def logged_handler_session(func):
-    """Logging default handlers"""
+def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
+    """
+    Decorator function that logs the handling session of a handler function.
 
-    def handler_session_wrapper(*args, **kwargs):
+    Args:
+        func (Callable[..., Any]): The handler function to be logged.
+
+    Returns:
+        Callable[..., Any]: The wrapped handler function.
+    """
+
+    def handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
+        """
+        Wrapper function that records logs of work with handlers.
+
+        Args:
+            *args (Tuple[Any, ...]): Positional arguments passed to the handler function.
+            **kwargs (dict): Keyword arguments passed to the handler function.
+
+        Returns:
+            Any: The result of the handler function.
+            message: Message = args[0]
+            username = message.from_user.username
+            user_id = message.from_user.id
+            language_code = message.from_user.language_code
+            is_bot = message.from_user.is_bot
+            text = message.text
+        """
+        # Get information about the message
         username, user_id, language_code, is_bot, text = get_message_full_info(*args, **kwargs)
 
+        # Log the start of the handling session
         bot_logger.info(
             f"Start handling session @{func.__name__}: "
             f"User: {username} - UserID: {user_id} - language: {language_code} - "
@@ -113,17 +194,44 @@ def logged_handler_session(func):
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
-            bot_logger.error(
-                f"Failed @{func.__name__} - exception: {e}", exc_info=False
-            )
+            if bot_logger.level == 10:
+                bot_logger.exception(
+                    f"Failed @{func.__name__} - exception: {e}"
+                )
+            else:
+                bot_logger.error(
+                    f"Failed @{func.__name__} - exception: {e}"
+                )
 
     return handler_session_wrapper
 
 
-def logged_inline_handler_session(func):
-    """Logging inline handlers"""
+def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
+    """
+    Decorator function that logs the handling session of an inline handler function.
 
-    def inline_handler_session_wrapper(*args, **kwargs):
+    Args:
+        func (Callable[..., Any]): The inline handler function to be logged.
+
+    Returns:
+        Callable[..., Any]: The wrapped inline handler function.
+    """
+
+    def inline_handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
+        """
+        Wrapper function that records logs of work with inline handlers.
+
+        Args:
+            *args (Tuple[Any, ...]): Positional arguments passed to the inline handler function.
+            **kwargs (dict): Keyword arguments passed to the inline handler function.
+
+        Returns:
+            Any: The result of the inline handler function.
+            message: Message = args[0]
+            username (str): The username of the user who sent the message.
+            user_id (int): The ID of the user who sent the message.
+            is_bot (bool): Whether the user is a bot or not.
+        """
         username, user_id, is_bot = get_inline_message_full_info(*args, **kwargs)
 
         bot_logger.info(
@@ -140,9 +248,14 @@ def logged_inline_handler_session(func):
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
-            bot_logger.error(
-                f"Failed @{func.__name__} - exception: {e}", exc_info=False
-            )
+            if bot_logger.level == 10:
+                bot_logger.exception(
+                    f"Failed @{func.__name__} - exception: {e}"
+                )
+            else:
+                bot_logger.error(
+                    f"Failed @{func.__name__} - exception: {e}"
+                )
 
     return inline_handler_session_wrapper
 

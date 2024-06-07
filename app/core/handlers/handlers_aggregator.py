@@ -4,7 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from app import bot_logger
 from app.core.handlers.default_handlers import (
     StartHandler,
     LoadAvgHandler,
@@ -14,37 +13,70 @@ from app.core.handlers.default_handlers import (
     UptimeHandler,
     FileSystemHandler,
     ContainersHandler,
-    BotUpdatesHandler
+    BotUpdatesHandler,
+    NetIOHandler,
+    AboutBotHandler,
+    EchoHandler
 )
 from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
+from app.core.handlers.inline_handlers.update_info import InlineUpdateInfoHandler
+from app.core.logs import bot_logger
 
 
 class HandlersAggregator:
-    def __init__(self, bot):
-        self.bot = bot
-        self.start_handler = StartHandler(self.bot)
-        self.load_avg_handler = LoadAvgHandler(self.bot)
-        self.memory_handler = MemoryHandler(self.bot)
-        self.sensors_handler = SensorsHandler(self.bot)
-        self.process_handler = ProcessHandler(self.bot)
-        self.uptime_handler = UptimeHandler(self.bot)
-        self.fs_handler = FileSystemHandler(self.bot)
-        self.containers_handler = ContainersHandler(self.bot)
-        self.bot_updates_handler = BotUpdatesHandler(self.bot)
-        self.inline_swap_handler = InlineSwapHandler(self.bot)
+    """
+    Class for aggregating and initializing all the handlers for the bot.
+
+    Attributes:
+        bot (telegram.Bot): The bot instance.
+        handlers (list): The list of handler instances.
+    """
+
+    def __init__(self, bot_instance):
+        """
+        Initialize the HandlersAggregator instance.
+
+        Args:
+            bot_instance (telegram.Bot): The bot instance.
+        """
+        self.bot = bot_instance
+        self.handlers = [
+            StartHandler(self.bot),  # Initialize the StartHandler instance
+            LoadAvgHandler(self.bot),  # Initialize the LoadAvgHandler instance
+            MemoryHandler(self.bot),  # Initialize the MemoryHandler instance
+            SensorsHandler(self.bot),  # Initialize the SensorsHandler instance
+            ProcessHandler(self.bot),  # Initialize the ProcessHandler instance
+            UptimeHandler(self.bot),  # Initialize the UptimeHandler instance
+            FileSystemHandler(self.bot),  # Initialize the FileSystemHandler instance
+            ContainersHandler(self.bot),  # Initialize the ContainersHandler instance
+            BotUpdatesHandler(self.bot),  # Initialize the BotUpdatesHandler instance
+            InlineSwapHandler(self.bot),  # Initialize the InlineSwapHandler instance
+            InlineUpdateInfoHandler(self.bot),  # Initialize the InlineUpdateInfoHandler instance
+            NetIOHandler(self.bot),  # Initialize the NetIOHandler instance
+            AboutBotHandler(self.bot),  # Initialize the AboutBotHandler instance
+            EchoHandler(self.bot)  # Initialize the EchoHandler instance
+        ]
 
     def run_handlers(self):
+        """
+        Run all handlers.
+
+        This method iterates over each handler and calls its `handle` method.
+        If any handler raises a `ConnectionError` or `ValueError`, it logs the error.
+        If any other exception occurs, it logs the error.
+
+        Raises:
+            None
+        """
         try:
-            self.start_handler.handle()
-            self.load_avg_handler.handle()
-            self.memory_handler.handle()
-            self.sensors_handler.handle()
-            self.process_handler.handle()
-            self.uptime_handler.handle()
-            self.fs_handler.handle()
-            self.inline_swap_handler.handle()
-            self.containers_handler.handle()
-            self.bot_updates_handler.handle()
-        except (ConnectionError, ValueError) as e:
-            bot_logger.error("Error running handlers")
-            bot_logger.debug(f"Error running handlers: {str(e)}")
+            # Iterate over each handler
+            for handler in self.handlers:
+                try:
+                    # Call the handle method of the handler
+                    handler.handle()
+                except (ConnectionError, ValueError) as e:
+                    # Log the error if a ConnectionError or ValueError occurs
+                    bot_logger.error(f"Failed at @{__name__}: {str(e)}")
+        except Exception as e:
+            # Log the error if any other exception occurs
+            bot_logger.error(f"Failed at @{__name__}: {str(e)}")

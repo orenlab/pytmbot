@@ -8,7 +8,6 @@ the status of your local servers
 import telebot
 
 from app.core import exceptions
-from app.core.logs import bot_logger
 from app.core.settings.bot_settings import BotSettings
 from app.utilities.utilities import parse_cli_args
 
@@ -16,7 +15,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.0.8'
+__version__ = 'v0.0.9'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -24,26 +23,24 @@ __github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/late
 
 
 def build_bot_instance() -> telebot.TeleBot:
-    """Build PyTMBot instance"""
+    """
+    Build PyTMBot instance based on the provided mode.
+
+    Returns:
+        telebot.TeleBot: The configured PyTMBot instance.
+
+    Raises:
+        ValueError: If the provided mode is invalid.
+    """
     bot_mode = parse_cli_args()
 
-    match bot_mode.mode:
-        case "dev":
-            configured_bot = telebot.TeleBot(
-                config.dev_bot_token.get_secret_value(),
-                use_class_middlewares=True,
-                exception_handler=exceptions.TelebotCustomExceptionHandler()
-            )
-        case "prod":
-            configured_bot = telebot.TeleBot(
-                config.bot_token.get_secret_value(),
-                use_class_middlewares=True,
-                exception_handler=exceptions.TelebotCustomExceptionHandler()
-            )
-        case _:
-            raise ValueError(f"Invalid PyTMBot mode: {bot_mode.mode}, use -h option to see more")
+    bot_token = config.dev_bot_token.get_secret_value() if bot_mode.mode == "dev" else config.bot_token.get_secret_value()
 
-    return configured_bot
+    return telebot.TeleBot(
+        bot_token,
+        use_class_middlewares=True,
+        exception_handler=exceptions.TelebotCustomExceptionHandler()
+    )
 
 
 # Bot one common instance

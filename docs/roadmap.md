@@ -7,7 +7,7 @@
 | Tests                                                                         | `in progress`  |
 | Check Docker image updates                                                    | `in progress`  |
 | Podman support                                                                | `in progress`  |
-| Change the authorization mechanism to prevent bots from accessing our system. | `in progress`  |
+| Change the authorization mechanism to prevent bots from accessing our system. | `Done`         |
 | Perform an audit of the Dockerfile (pip -> poetry).                           | `in progress`  |
 | Initial documentation                                                         | `Done`         |
 | Bot tree                                                                      | `Done`         |

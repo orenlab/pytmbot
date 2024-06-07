@@ -4,6 +4,9 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Optional, Dict, Any, List
+
+import jinja2
 from jinja2 import (
     FileSystemLoader,
     select_autoescape
@@ -15,13 +18,21 @@ from app.core import exceptions
 
 
 class Jinja2Renderer:
-    """Class to render Jinja2 templates"""
+    def __init__(self) -> None:
+        """
+        Initialize the Jinja2 variables.
 
-    def __init__(self):
-        """Initialize the Jinja2 variables"""
-        self.loader = None
+        Args:
+            self (Jinja2Renderer): The Jinja2Renderer instance.
+
+        Returns:
+            None
+
+        Initializes the Jinja2 variables, including the loader, template folder, and known templates.
+        """
+        self.loader: Optional[jinja2.BaseLoader] = None
         self.template_folder: str = "app/templates/"
-        self.known_templates: list[str] = [
+        self.known_templates: List[str] = [
             'containers.jinja2',
             'fs.jinja2',
             'index.jinja2',
@@ -32,39 +43,79 @@ class Jinja2Renderer:
             'sensors.jinja2',
             'uptime.jinja2',
             'bot_update.jinja2',
-            'swap.jinja2'
+            'swap.jinja2',
+            'how_update.jinja2',
+            'net_io.jinja2',
+            'about_bot.jinja2'
         ]
 
-    def _init_jinja2(self):
-        """Initializes the Jinja2."""
+    def __initialize_jinja_environment(self) -> jinja2.Environment:
+        """
+        Initializes the Jinja2 environment.
+
+        Args:
+            self (Jinja2Renderer): The Jinja2Renderer instance.
+
+        Returns:
+            jinja2.Environment: The initialized Jinja2 environment.
+
+        Raises:
+            TemplateError: If there is an error loading the template.
+        """
         try:
-            self.loader = FileSystemLoader(self.template_folder)
-            jinja2 = SandboxedEnvironment(
-                loader=self.loader,
-                autoescape=select_autoescape(
-                    ['html', 'txt', 'jinja2'],
-                    default_for_string=True
-                )
-            )
-            return jinja2
-        except TemplateError:
-            raise exceptions.PyTeleMonBotTemplateError(
-                "Error loading template"
+            # Create a FileSystemLoader for the template folder
+            loader: FileSystemLoader = FileSystemLoader(self.template_folder)
+
+            # Select appropriate autoescape configuration for HTML, text, and Jinja2 templates
+            autoescape_config = select_autoescape(
+                ['html', 'txt', 'jinja2'],
+                default_for_string=True
             )
 
-    def render_templates(self, template_name: str, **context: dict):
-        """Render template on Jinja2"""
-        try:
-            if template_name in self.known_templates:
-                jinja = self._init_jinja2()
-                template = jinja.get_template(template_name)
-                rendered_template = template.render(**context)
-                return rendered_template
-            else:
-                raise exceptions.PyTeleMonBotTemplateError(
-                    "Unknown template name"
-                )
-        except TemplateError:
-            raise exceptions.PyTeleMonBotTemplateError(
-                "Error parsing template"
+            # Set up a SandboxedEnvironment with the loader and autoescape configuration
+            environment: SandboxedEnvironment = SandboxedEnvironment(
+                loader=loader,
+                autoescape=autoescape_config
             )
+
+            # Return the initialized Jinja2 environment
+            return environment
+
+        # If there is an error loading the template, raise a TemplateError with a descriptive message
+        except TemplateError as error:
+            raise TemplateError("Error loading template") from error
+
+    def render_templates(self, template_name: str, *, emojis: Optional[Dict[str, str]] = None,
+                         **context: Dict[str, Any]) -> str:
+        """
+        Render a template using Jinja2.
+
+        Args:
+            template_name (str): The name of the template to render.
+            emojis (Optional[Dict[str, str]]): A dictionary of emojis to be used in the template.
+            **context (Dict[str, Any]): The context variables to pass to the template.
+
+        Returns:
+            str: The rendered template.
+
+        Raises:
+            exceptions.PyTeleMonBotTemplateError: If the template name is unknown or if there is an error parsing
+            the template.
+        """
+        # Check if the template name is known
+        if template_name not in self.known_templates:
+            raise exceptions.PyTeleMonBotTemplateError("Unknown template name")
+
+        try:
+            # Initialize the Jinja2 environment
+            jinja_env = self.__initialize_jinja_environment()
+
+            # Get the template by name
+            template = jinja_env.get_template(template_name)
+
+            # Render the template with the provided context and emojis
+            rendered_template = template.render(emojis=emojis, **context)
+
+            return rendered_template
+        except TemplateError as e:
+            raise exceptions.PyTeleMonBotTemplateError("Error parsing template") from e
