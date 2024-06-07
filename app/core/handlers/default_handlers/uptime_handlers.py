@@ -13,7 +13,7 @@ from app.core.logs import logged_handler_session
 
 class UptimeHandler(HandlerConstructor):
 
-    def _get_data(self):
+    def _get_data(self) -> dict:
         """
         Use psutil to gather data on the local filesystem.
 
@@ -21,16 +21,16 @@ class UptimeHandler(HandlerConstructor):
             dict: A dictionary containing the uptime information.
         """
         # Use the psutil_adapter to get the uptime data
-        data = self.psutil_adapter.get_uptime()
+        data: dict = self.psutil_adapter.get_uptime()
 
         return data
 
     def _compile_message(self) -> str:
         """
-        Compile the message to be sent to the bot.
+        Compile the message to be sent to the bot with context data and emojis.
 
-        This method retrieves data using the `_get_data` method and generates a message based on the data.
-        It uses Jinja2 templates to render the message.
+        Args:
+            self: Instance of the UptimeHandler class.
 
         Returns:
             str: The compiled message to be sent to the bot.
@@ -38,21 +38,26 @@ class UptimeHandler(HandlerConstructor):
         Raises:
             PyTeleMonBotHandlerError: If there is an error parsing the data.
         """
+
         try:
             # Retrieve data using the `_get_data` method
-            context = self._get_data()
+            context: dict = self._get_data()
 
-            # Render a Jinja2 template with the message
-            bot_answer = self.jinja.render_templates(
-                'uptime.jinja2',  # Template name
-                thought_balloon=self.get_emoji('thought_balloon'),  # Emoji for thought balloon
-                hourglass_not_done=self.get_emoji('hourglass_not_done'),  # Emoji for hourglass not done
-                context=context  # Data to be used in the template
-            )
+            # Define the Jinja template to be used
+            template_name: str = 'uptime.jinja2'
+
+            # Prepare the context variables for the Jinja template
+            emojis: dict = {
+                'thought_balloon': self.get_emoji('thought_balloon'),  # Emoji for 'thought balloon'
+                'hourglass_not_done': self.get_emoji('hourglass_not_done'),  # Emoji for 'hourglass not done'
+            }
+
+            # Render the Jinja template with the context variables
+            bot_answer: str = self.jinja.render_templates(template_name, context=context, **emojis)
             return bot_answer
         except ValueError:
-            # Raise an exception if there is an error parsing the data
-            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
+            # Raise a custom exception if there is an error parsing the data
+            raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
         """

@@ -27,7 +27,7 @@ class ContainersHandler(HandlerConstructor):
         # Initialize the DockerAdapter instance
         self.docker_adapter = DockerAdapter()
 
-    def _get_data(self):
+    def _get_container_data(self):
         """
         Use the DockerAdapter to gather information about containers.
 
@@ -45,11 +45,7 @@ class ContainersHandler(HandlerConstructor):
 
     def _compile_message(self) -> str:
         """
-        Compile the message to be sent to the bot.
-
-        Retrieves data using the _get_data method and generates a message based on the data.
-        If the data is empty or None, renders a template with a message indicating that there are no containers or
-        incorrect settings. Otherwise, renders a template with the container information.
+        Compiles the message to be sent to the bot based on the container data.
 
         Returns:
             str: The compiled message to be sent to the bot.
@@ -58,28 +54,39 @@ class ContainersHandler(HandlerConstructor):
             PyTeleMonBotHandlerError: If there is an error parsing the data.
         """
         try:
-            data = self._get_data()
+            # Get container data
+            container_data: dict = self._get_container_data()
 
-            if not data:
-                template_name = 'none.jinja2'
-                template_context = {
+            # Check if there are no container data
+            if not container_data:
+                # Use 'none.jinja2' template if no container data
+                template_name: str = 'none.jinja2'
+
+                # Define context and emojis
+                context: str = "There are no containers or incorrect settings are specified."
+                emojis: dict = {
                     'thought_balloon': self.get_emoji('thought_balloon'),
-                    'context': "There are no containers or incorrect settings are specified...."
                 }
             else:
-                template_name = 'containers.jinja2'
-                template_context = {
+                # Use 'containers.jinja2' template if there is container data
+                template_name: str = 'containers.jinja2'
+
+                # Use container_data as the context
+                context: dict = container_data
+
+                # Define emojis for rendering
+                emojis: dict = {
                     'thought_balloon': self.get_emoji('thought_balloon'),
                     'luggage': self.get_emoji('pushpin'),
                     'minus': self.get_emoji('minus'),
-                    'context': data
                 }
 
-            bot_answer = self.jinja.render_templates(template_name, **template_context)
-            return bot_answer
+            # Render the template with the context data and emojis
+            return self.jinja.render_templates(template_name, **emojis, context=context)
+
         except ValueError:
-            # Raise an exception if there is an error parsing the data
-            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
+            # Raise an error if there is an issue parsing the data
+            raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
         """

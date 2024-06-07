@@ -28,17 +28,29 @@ class InlineUpdateInfoHandler(HandlerConstructor):
         @logged_inline_handler_session
         def swap(call: CallbackQuery):
             """
-            This function handles the callback query for updating information.
-            It renders a template with the 'how_update.jinja2' template and edits the message text with the rendered
-            template. If there's a ValueError or TemplateError, it raises a PyTeleMonBotHandlerError
-            or PyTeleMonBotTemplateError respectively.
+            Handles the callback query for updating information.
+
+            This function is called when a callback query with the data 'update_info' is received.
+            It renders a template with the 'how_update.jinja2' template and edits the message text
+            with the rendered template.
+
+            Args:
+                call (CallbackQuery): The callback query object.
+
+            Raises:
+                PyTeleMonBotHandlerError: If there is a ValueError while retrieving swap memory.
+                PyTeleMonBotTemplateError: If there is a TemplateError while rendering the template.
             """
             try:
-                # Render the 'how_update.jinja2' template with the 'thought_balloon' emoji
-                bot_answer = self.jinja.render_templates(
-                    'how_update.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon')
-                )
+                # Define the name of the template to render
+                template_name: str = 'how_update.jinja2'
+
+                # Define the emojis to use in the template
+                emojis: dict = {'thought_balloon': self.get_emoji('thought_balloon')}
+
+                # Render the template with the defined emojis
+                bot_answer: str = self.jinja.render_templates(template_name, **emojis)
+
                 # Edit the message text with the rendered template
                 self.bot.edit_message_text(
                     chat_id=call.message.chat.id,
@@ -47,8 +59,8 @@ class InlineUpdateInfoHandler(HandlerConstructor):
                     parse_mode="Markdown"
                 )
             except ValueError:
-                # Raise a PyTeleMonBotHandlerError if there's a ValueError
+                # Raise an exception if there is a ValueError while retrieving swap memory
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
             except self.TemplateError:
-                # Raise a PyTeleMonBotTemplateError if there's a TemplateError
+                # Raise an exception if there is a TemplateError while rendering the template
                 raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)

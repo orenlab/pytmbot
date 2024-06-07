@@ -28,10 +28,13 @@ class LoadAvgHandler(HandlerConstructor):
 
     def _compile_message(self) -> str:
         """
-        Compile the message to send to the bot.
+        Compiles a message to send to the bot with load average data.
 
-        This function uses Jinja templates to generate a message with the load average data.
-        It renders the 'load_average.jinja2' template and passes the necessary variables.
+        This function compiles the load average data retrieved using the _get_data method,
+        sets up template variables for emojis, renders the template, and returns the bot's answer.
+
+        Args:
+            self (LoadAvgHandler): Instance of the LoadAvgHandler class.
 
         Returns:
             str: The compiled message to send to the bot.
@@ -40,19 +43,25 @@ class LoadAvgHandler(HandlerConstructor):
             PyTeleMonBotHandlerError: If there is an error parsing the data.
         """
         try:
-            # Render the 'load_average.jinja2' template and pass the necessary variables
-            bot_answer: str | None = self.jinja.render_templates(
-                'load_average.jinja2',
-                thought_balloon=self.get_emoji('thought_balloon'),
-                desktop_computer=self.get_emoji('desktop_computer'),
-                context=self.round_up_tuple(self._get_data())
-            )
+            # Getting the load average data and rounding it up
+            load_average_data = self.round_up_tuple(self._get_data())
+
+            # Setting up the template variables for emojis
+            emojis: dict[str, dict | str] = {
+                'thought_balloon': self.get_emoji('thought_balloon'),
+                'desktop_computer': self.get_emoji('desktop_computer'),
+            }
+
+            # Rendering the template to get the bot's answer
+            bot_answer = self.jinja.render_templates('load_average.jinja2', context=load_average_data, **emojis)
+
+            # Returning the bot's answer
             return bot_answer
         except ValueError:
-            # Raise an exception if there is an error parsing the data
-            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
+            # Handling error if there is an issue parsing the data
+            raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
-    def handle(self):
+    def handle(self) -> None:
         """
         Methods to handle Load average data
         """

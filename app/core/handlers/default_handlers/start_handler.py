@@ -16,6 +16,12 @@ class StartHandler(HandlerConstructor):
     def handle(self):
         """
         Handle the start command and initiate a dialogue with the bot.
+
+        Args:
+            self: StartHandler object.
+
+        Returns:
+            None
         """
 
         @self.bot.message_handler(commands=['help', 'start'])
@@ -26,6 +32,9 @@ class StartHandler(HandlerConstructor):
 
             Args:
                 message (telebot.types.Message): The message object received from the user.
+
+            Returns:
+                None
 
             Raises:
                 PyTeleMonBotHandlerError: If there is a ValueError while rendering the templates.
@@ -40,9 +49,11 @@ class StartHandler(HandlerConstructor):
                 # Get the first name of the user
                 first_name: str = message.from_user.first_name
 
+                template_name: str = 'index.jinja2'
+
                 # Render the templates and get the bot answer
                 bot_answer: str = self.jinja.render_templates(
-                    'index.jinja2',
+                    template_name,
                     first_name=first_name
                 )
 

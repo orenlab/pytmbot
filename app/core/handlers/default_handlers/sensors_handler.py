@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Dict, List, Any
 
 from telebot.types import Message
 
@@ -14,17 +15,22 @@ from app.core.logs import logged_handler_session
 
 class SensorsHandler(HandlerConstructor):
 
-    def _get_data(self):
+    def _get_data(self) -> Dict[str, List[Dict[str, float]]]:
         """
-        Use psutil to gather data on the local filesystem.
+        Retrieve sensor temperature data using psutil.
+
+        Args:
+            self: The instance of the class.
 
         Returns:
-            dict: A dictionary containing the sensors temperatures.
+            sensor_temperatures (Dict[str, List[Dict[str, float]]]): A dictionary containing the sensor temperatures.
+                The keys are the sensor names, and the values are lists of dictionaries. Each dictionary represents
+                a temperature reading and contains the keys 'sensor_name' and 'sensor_value'.
         """
-        # Use psutil to gather data on the local filesystem
-        data = self.psutil_adapter.get_sensors_temperatures()
+        # Use psutil_adapter to retrieve sensor temperature data
+        sensor_temperatures = self.psutil_adapter.get_sensors_temperatures()
 
-        return data
+        return sensor_temperatures
 
     def _compile_message(self) -> str:
         """
@@ -40,6 +46,9 @@ class SensorsHandler(HandlerConstructor):
         Raises:
             ValueError: If there is an error while compiling the message.
 
+        Args:
+            self (SensorsHandler): The instance of the SensorsHandler class.
+
         """
         try:
             # Get sensor data
@@ -48,24 +57,27 @@ class SensorsHandler(HandlerConstructor):
             # If no data is found, log an error and return an error message
             if not context:
                 bot_logger.error("Cannot get sensors data. Psutil return empty list")
-                bot_answer = "Sorry, I couldn't find any sensors. Something went wrong :("
+                bot_answer: str = "Sorry, I couldn't find any sensors. Something went wrong :("
             else:
+                # Define the template name and context
+                template_name: str = 'sensors.jinja2'
+                emojis: Dict[str, Any] = {
+                    'thought_balloon': self.get_emoji('thought_balloon'),
+                    'thermometer': self.get_emoji('thermometer'),
+                    'exclamation': self.get_emoji('red_exclamation_mark'),
+                    'melting_face': self.get_emoji('melting_face'),
+                }
+
                 # Render the message using the template and context data
-                bot_answer = self.jinja.render_templates(
-                    'sensors.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    thermometer=self.get_emoji('thermometer'),
-                    exclamation=self.get_emoji('red_exclamation_mark'),
-                    melting_face=self.get_emoji('melting_face'),
-                    context=context
-                )
+                bot_answer: str = self.jinja.render_templates(template_name, context=context, **emojis)
+
             return bot_answer
+
         except ValueError:
             # Log an error if there is an exception while compiling the message
             bot_logger.error("Error while compiling message")
-            raise
 
-    def handle(self):
+    def handle(self) -> None:
         """
         Handle the "Sensors" message from the user.
         """

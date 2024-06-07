@@ -14,49 +14,54 @@ from app.core.logs import logged_handler_session
 class NetIOHandler(HandlerConstructor):
     """Class to handle loading the average"""
 
-    def _get_data(self):
+    def _get_data(self) -> dict:
         """
         Get network card IO statistics using psutil.
 
-        This function uses the psutil_adapter to gather data on the network card IO statistics.
-        It returns the gathered data.
+        This method utilizes the psutil_adapter to collect network card IO statistics.
 
         Returns:
             dict: A dictionary containing the network card IO statistics.
         """
-        # Use psutil to gather data on the network card IO statistics
+        # Utilize psutil to collect network card IO statistics
         data = self.psutil_adapter.get_net_io_counters()
 
         return data
 
     def _compile_message(self) -> str:
         """
-        Compile the message to send to the bot.
+        Compiles the message using network card IO statistics.
 
-        This method uses Jinja2 templates to generate a message with network card IO statistics.
-        It renders the 'net_io.jinja2' template and passes the necessary variables.
+        Retrieves network card IO statistics and generates a message based on the data.
+        Utilizes Jinja2 templates to render the message.
 
         Returns:
-            str: The compiled message to send to the bot.
+            str: The compiled message to be sent to the bot.
 
         Raises:
             PyTeleMonBotHandlerError: If there is an error parsing the data.
         """
         try:
-            # Render the 'net_io.jinja2' template and pass the necessary variables
-            bot_answer: str | None = self.jinja.render_templates(
-                'net_io.jinja2',
-                thought_balloon=self.get_emoji('thought_balloon'),  # Thought balloon emoji
-                up_left_arrow=self.get_emoji('up-left_arrow'),  # Up left arrow emoji
-                up_right_arrow=self.get_emoji('up-right_arrow'),  # Up right arrow emoji
-                globe_showing_europe_africa=self.get_emoji('globe_showing_Europe-Africa'),  # Globe emoji
-                hugging_face=self.get_emoji('smiling_face_with_open_hands'),  # Hugging face emoji
-                context=self._get_data()  # Network card IO statistics
-            )
+            # Retrieve network card IO statistics
+            context: dict = self._get_data()
+
+            # Define the template name and context variables for network IO statistics
+            template_name: str = 'net_io.jinja2'
+
+            emojis: dict = {
+                'thought_balloon': self.get_emoji('thought_balloon'),
+                'up_left_arrow': self.get_emoji('up-left_arrow'),
+                'up_right_arrow': self.get_emoji('up-right_arrow'),
+                'globe_showing_europe_africa': self.get_emoji('globe_showing_Europe-Africa'),
+                'hugging_face': self.get_emoji('smiling_face_with_open_hands'),
+            }
+
+            # Render the 'net_io.jinja2' template with the context variables for network IO statistics
+            bot_answer: str = self.jinja.render_templates(template_name, **emojis, context=context)
             return bot_answer
         except ValueError:
             # Raise an exception if there is an error parsing the data
-            self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
+            raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     def handle(self):
         """

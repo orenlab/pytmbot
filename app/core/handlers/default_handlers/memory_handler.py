@@ -4,6 +4,8 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Dict, Union
+
 from telebot.types import Message
 
 from app.core.handlers.handler import HandlerConstructor
@@ -38,11 +40,17 @@ class MemoryHandler(HandlerConstructor):
             tuple: The compiled message to send to the bot.
         """
         try:
-            # Use psutil to gather memory data
+            # Use the psutil_adapter to get memory data
+            # This method is responsible for retrieving memory data using psutil
+            # and returning it as a tuple
             context = self._get_data()
+
+            # Return the memory data as a tuple
             return context
+
         except ValueError:
-            # Raise an exception if there is an error parsing the data
+            # If there is an error parsing the data, raise a PyTeleMonBotHandlerError
+            # with a specific error message
             raise self.exceptions.PyTeleMonBotHandlerError(
                 self.bot_msg_tpl.VALUE_ERR_TEMPLATE
             )
@@ -55,6 +63,9 @@ class MemoryHandler(HandlerConstructor):
         If the compilation is successful, it renders the 'memory.jinja2' template with the compiled message.
         If there is a TemplateError during rendering, it raises a PyTeleMonBotTemplateError.
 
+        Args:
+            self (MemoryHandler): The instance of the MemoryHandler class.
+
         Returns:
             str: The compiled message to be sent to the bot.
 
@@ -63,16 +74,22 @@ class MemoryHandler(HandlerConstructor):
         """
         try:
             # Compile the message to be sent to the bot
-            context = self._compile_message()
+            context: tuple = self._compile_message()
+
+            # Define the template name for rendering
+            template_name: str = 'memory.jinja2'
+
+            emojis: Dict[str, Union[str, str]] = {
+                'thought_balloon': self.get_emoji('thought_balloon'),  # Get the thought balloon emoji
+                'abacus': self.get_emoji('abacus'),  # Get the abacus emoji
+            }
 
             # Render the 'memory.jinja2' template with the compiled message
-            bot_answer = self.jinja.render_templates(
-                'memory.jinja2',
-                thought_balloon=self.get_emoji('thought_balloon'),  # Get the thought balloon emoji
-                abacus=self.get_emoji('abacus'),  # Get the abacus emoji
-                context=context  # Pass the compiled message as context
-            )
+            bot_answer: str = self.jinja.render_templates(template_name, **emojis, context=context)
+
+            # Return the compiled message
             return bot_answer
+
         except self.TemplateError:
             # Raise a PyTeleMonBotTemplateError if there is a TemplateError during rendering
             raise self.exceptions.PyTeleMonBotTemplateError(

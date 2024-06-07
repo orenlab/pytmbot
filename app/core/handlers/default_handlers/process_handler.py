@@ -68,14 +68,20 @@ class ProcessHandler(HandlerConstructor):
             # Compile the message to be sent to the bot
             context = self._compile_message()
 
+            # Define the template name for rendering
+            template_name = 'process.jinja2'
+
+            # Prepare the context for the template rendering
+            emojis = {
+                'thought_balloon': self.get_emoji('thought_balloon'),
+                'horizontal_traffic_light': self.get_emoji('horizontal_traffic_light'),
+
+            }
+
             # Render the 'process.jinja2' template with the compiled message
-            bot_answer = self.jinja.render_templates(
-                'process.jinja2',
-                thought_balloon=self.get_emoji('thought_balloon'),  # Get the thought balloon emoji
-                horizontal_traffic_light=self.get_emoji('horizontal_traffic_light'),
-                # Get the horizontal traffic light emoji
-                context=context  # Pass the compiled message as context
-            )
+            bot_answer = self.jinja.render_templates(template_name, context=context, **emojis)
+
+            # Return the compiled message
             return bot_answer
         except self.TemplateError:
             # Raise a PyTeleMonBotTemplateError if there is a TemplateError during rendering

@@ -4,6 +4,8 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Dict
+
 from telebot.types import CallbackQuery
 
 from app.core.handlers.handler import HandlerConstructor
@@ -21,12 +23,13 @@ class InlineSwapHandler(HandlerConstructor):
 
         @self.bot.callback_query_handler(func=lambda call: call.data == 'swap_info')
         @logged_inline_handler_session
-        def swap(call: CallbackQuery):
+        def swap(call: CallbackQuery) -> None:
             """
-            This method handles the callback query when the data is 'swap_info'.
-            It retrieves swap memory information using the `psutil_adapter` object.
-            It then renders a template using the `jinja` object and the retrieved context.
-            Finally, it edits the message text with the rendered template.
+            Handle the callback query when the data is 'swap_info'.
+
+            Retrieves swap memory information using the `psutil_adapter` object.
+            Renders a template using the `jinja` object and the retrieved context.
+            Edits the message text with the rendered template.
 
             Raises:
                 PyTeleMonBotHandlerError: If there is a ValueError while retrieving swap memory.
@@ -36,13 +39,17 @@ class InlineSwapHandler(HandlerConstructor):
                 # Retrieve swap memory information
                 context = self.psutil_adapter.get_swap_memory()
 
+                # Render the 'swap.jinja2' template
+                template_name: str = 'swap.jinja2'
+
+                # Define the template context
+                emojis: Dict[str, str] = {
+                    'thought_balloon': self.get_emoji('thought_balloon'),  # Emoji for thought balloon
+                    'paperclip': self.get_emoji('paperclip'),  # Emoji for paperclip
+                }
+
                 # Render the template with the retrieved context
-                bot_answer = self.jinja.render_templates(
-                    'swap.jinja2',
-                    thought_balloon=self.get_emoji('thought_balloon'),
-                    paperclip=self.get_emoji('paperclip'),
-                    context=context
-                )
+                bot_answer: str = self.jinja.render_templates(template_name, context=context, **emojis)
 
                 # Edit the message text with the rendered template
                 self.bot.edit_message_text(

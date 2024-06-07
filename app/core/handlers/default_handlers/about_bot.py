@@ -45,7 +45,7 @@ class AboutBotHandler(HandlerConstructor):
                 self.bot.send_chat_action(message.chat.id, 'typing')
 
                 # Render the template with the user's first name and the current application version
-                template_variables = {
+                template_variables: dict[str, str] = {
                     'first_name': user_first_name,
                     'current_app_version': __version__
                 }
