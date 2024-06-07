@@ -42,7 +42,7 @@ def parse_cli_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "ERROR"],  # Only 'DEBUG', 'INFO', and 'ERROR' are valid choices
         type=str,  # The argument should be a string
         help="Log level",  # Help message for the argument
-        default="CRITICAL"  # Default value for the argument
+        default="INFO"  # Default value for the argument
     )
 
     # Parse the command line arguments
