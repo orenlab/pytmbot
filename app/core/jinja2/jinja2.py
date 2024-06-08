@@ -109,10 +109,11 @@ class Jinja2Renderer:
             raise exceptions.PyTeleMonBotTemplateError("Unknown template name")
 
         try:
+            # Initialize Jinja2 environment
             bot_logger.debug("Initializing Jinja2 environment")
             jinja_env = self.__initialize_jinja_environment()
 
-            # Load the template from cache if available, otherwise load it from the file system
+            # Load the template either from cache or the file system
             bot_logger.debug(f"Loading template: {template_name}")
             template = self.template_cache.get(template_name)
             if template is None:
@@ -120,7 +121,7 @@ class Jinja2Renderer:
                 template = jinja_env.get_template(template_name)
                 self.template_cache[template_name] = template
 
-            # Render the template with the provided context and emojis
+            # Render the template with provided context and emojis
             bot_logger.debug("Rendering template")
             rendered_template = template.render(emojis=emojis, **context)
 
