@@ -15,6 +15,7 @@ from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from app.core import exceptions
+from app.core.logs import bot_logger
 
 
 class Jinja2Renderer:
@@ -30,9 +31,10 @@ class Jinja2Renderer:
 
         Initializes the Jinja2 variables, including the loader, template folder, and known templates.
         """
-        self.loader: Optional[jinja2.BaseLoader] = None
-        self.template_folder: str = "app/templates/"
-        self.known_templates: List[str] = [
+        self.loader: Optional[jinja2.BaseLoader] = None  # Initialize loader as None
+        self.template_cache: Dict[str, jinja2.Template] = {}  # Initialize template_cache as an empty dictionary
+        self.template_folder: str = "app/templates/"  # Set the template folder path
+        self.known_templates: List[str] = [  # Known templates list
             'containers.jinja2',
             'fs.jinja2',
             'index.jinja2',
@@ -107,13 +109,19 @@ class Jinja2Renderer:
             raise exceptions.PyTeleMonBotTemplateError("Unknown template name")
 
         try:
-            # Initialize the Jinja2 environment
+            bot_logger.debug("Initializing Jinja2 environment")
             jinja_env = self.__initialize_jinja_environment()
 
-            # Get the template by name
-            template = jinja_env.get_template(template_name)
+            # Load the template from cache if available, otherwise load it from the file system
+            bot_logger.debug(f"Loading template: {template_name}")
+            template = self.template_cache.get(template_name)
+            if template is None:
+                bot_logger.debug("Template not in cache, loading from file system")
+                template = jinja_env.get_template(template_name)
+                self.template_cache[template_name] = template
 
             # Render the template with the provided context and emojis
+            bot_logger.debug("Rendering template")
             rendered_template = template.render(emojis=emojis, **context)
 
             return rendered_template
