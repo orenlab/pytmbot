@@ -23,18 +23,27 @@ class Jinja2Renderer:
         """
         Initialize the Jinja2 variables.
 
+        This method initializes the Jinja2 variables for the Jinja2Renderer class.
+        It sets the loader to None, initializes the template_cache as an empty dictionary,
+        sets the template folder path, and defines the list of known templates.
+
         Args:
             self (Jinja2Renderer): The Jinja2Renderer instance.
 
         Returns:
             None
-
-        Initializes the Jinja2 variables, including the loader, template folder, and known templates.
         """
-        self.loader: Optional[jinja2.BaseLoader] = None  # Initialize loader as None
-        self.template_cache: Dict[str, jinja2.Template] = {}  # Initialize template_cache as an empty dictionary
-        self.template_folder: str = "app/templates/"  # Set the template folder path
-        self.known_templates: List[str] = [  # Known templates list
+        # Initialize loader as None
+        self.loader: Optional[jinja2.BaseLoader] = None
+
+        # Initialize template_cache as an empty dictionary
+        self.template_cache: Dict[str, jinja2.Template] = {}
+
+        # Set the template folder path
+        self.template_folder: str = "app/templates/"
+
+        # Define the list of known templates
+        self.known_templates: List[str] = [
             'containers.jinja2',
             'fs.jinja2',
             'index.jinja2',
