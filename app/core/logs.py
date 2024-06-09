@@ -19,6 +19,33 @@ from app.utilities.utilities import (
 )
 
 
+class BotLogger:
+    """
+    Custom logger for the bot. Uses the 'pyTMbot' logger name.
+
+    Attributes:
+        _logger (logging.Logger): The logger object.
+
+    Methods:
+        get_logger()
+
+    Returns:
+        logging.Logger: The logger object.
+    """
+    _logger = None
+
+    @classmethod
+    def get_logger(cls) -> logging.Logger:
+        """
+        Retrieves the logger object for the bot. If the logger object is not set, it initializes it with the 'pyTMbot' logger name.
+
+        Returns:
+            logging.Logger: The logger object.
+        """
+        cls._logger = cls._logger or logging.getLogger('pyTMbot')
+        return cls._logger
+
+
 def build_bot_logger() -> logging.Logger:
     """
     Builds a custom logger for the bot.
@@ -39,7 +66,7 @@ def build_bot_logger() -> logging.Logger:
     log_level = parse_cli_args().log_level
 
     # Create a logger object for the bot
-    logger = logging.getLogger('pyTMbot')
+    logger = BotLogger.get_logger()
 
     # Set the log level based on the command line argument
     logger.setLevel(log_level.upper() if log_level in known_log_levels else 'INFO')
