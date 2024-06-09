@@ -95,6 +95,9 @@ def build_bot_logger() -> logging.Logger:
     if log_level == 'DEBUG':
         logger.error = partial(logger.error, exc_info=True)
 
+    logger.debug("Logger initialized")
+    logger.debug(f"Logger level: {logger.level}")
+
     return logger
 
 
