@@ -117,7 +117,7 @@ class DockerAdapter:
 
             # Retrieve a list of all running containers
             containers_raw = repr(client.containers.list())
-            print(f"Raw container list: {containers_raw}")
+            bot_logger.debug(f"Raw container list: {containers_raw}")
 
             # If no containers are found, log a debug message
             if not containers_raw:
