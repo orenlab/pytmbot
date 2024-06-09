@@ -47,6 +47,7 @@ class Keyboard(KeyboardSettings):
         types.ReplyKeyboardMarkup: The constructed reply keyboard.
     """
 
+    @lru_cache
     def build_reply_keyboard(self) -> types.ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
