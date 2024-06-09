@@ -41,7 +41,10 @@ class HandlersAggregator:
         Args:
             bot_instance (telegram.Bot): The bot instance.
         """
+        # Assign the bot instance to the bot attribute
         self.bot = bot_instance
+
+        # Initialize all handler instances
         self.handlers = [handler(self.bot) for handler in [
             StartHandler, LoadAvgHandler, MemoryHandler, SensorsHandler, ProcessHandler,
             UptimeHandler, FileSystemHandler, ContainersHandler, BotUpdatesHandler,
