@@ -202,68 +202,74 @@ class DockerAdapter:
         # Return the retrieved usage statistics of the container
         return usage_stats
 
-    def check_image_details(self) -> List[Dict[str, str]] | Dict[None, None]:
+    def _get_container_details(self, container: str) -> dict:
         """
-        Check the details of Docker images and retrieve usage statistics.
+        Get the details of a Docker container.
 
-        Retrieves the list of containers and their details. Returns a list of dictionaries containing the following
-        details for each container:
-        - 'name': The title-cased name of the container.
-        - 'image': The image of the container.
-        - 'created': The creation date and time of the container.
-        - 'mem_usage': The memory usage of the container.
-        - 'run_at': The run time of the container.
-        - 'status': The status of the container.
+        Args:
+            container (str): The ID of the container.
 
         Returns:
-            List[Dict[str, str]] | Dict[None, None]: A list of dictionaries containing the details of each Docker
-            container, or a dictionary with an empty key if Docker is not available or there are no container.
+            dict: A dictionary containing various details of the container.
+
+        Raises:
+            ValueError: If there is an issue with retrieving container details.
+        """
+        # Get the container details
+        container_details = self._container_details(container)
+
+        # Get the usage statistics of the container
+        usage_stats = self._container_stats(container_details)
+
+        # Extract creation date and time
+        created_at = datetime.fromisoformat(container_details.attrs['Created'])
+        created_day = created_at.date()
+        created_time = created_at.time().strftime("%H:%M:%S")
+
+        # Return a dictionary with container details
+        return {
+            'name': container_details.attrs['Name'].title().replace('/', ''),
+            'image': container_details.attrs['Config']['Image'],
+            'created': f'{created_day}, {created_time}',
+            'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
+            'run_at': naturaltime(datetime.fromisoformat(container_details.attrs['State']['StartedAt'])),
+            'status': container_details.attrs['State']['Status']
+        }
+
+    def check_image_details(self) -> List[Dict[str, str]] | Dict[None, None]:
+        """
+        Retrieve and return details of Docker images.
+
+        Returns:
+            List[Dict[str, str]] | Dict[None, None]: A list of image details or an empty dictionary.
+
+        Raises:
+            ValueError: If an exception occurs during the retrieval process.
         """
         try:
-            # Check if Docker is available
             if not self._is_docker_available():
-                # Log an error message and return an empty dictionary
-                bot_logger.error("Docker is not available")
+                # Log a message if Docker is not available
+                bot_logger.debug("Docker is not available. Returning empty dictionary.")
                 return {}
 
             # Retrieve the list of containers
+            bot_logger.debug("Retrieving list of containers...")
             containers = self._containers_list()
+
             if not containers:
-                # Log an error message and return an empty dictionary
-                bot_logger.error("No containers found")
+                # Log a message if no containers are found
+                bot_logger.debug("No containers found. Returning empty dictionary.")
                 return {}
 
-            details = []
-            for container in containers:
-                # Retrieve the details of the container
-                container_details = self._container_details(container)
+            # Retrieve details for each container
+            bot_logger.debug("Retrieving details for each container...")
+            details = [self._get_container_details(container) for container in containers]
 
-                # Retrieve the usage statistics of the container
-                usage_stats = self._container_stats(container_details)
-
-                # Extract the creation date and time from the container details
-                created_at = datetime.fromisoformat(container_details.attrs['Created'])
-                created_day = created_at.date()
-                created_time = created_at.time().strftime("%H:%M:%S")
-
-                # Append the container details to the list
-                details.append({
-                    'name': container_details.attrs['Name'].title().replace('/', ''),
-                    'image': container_details.attrs['Config']['Image'],
-                    'created': f'{created_day}, {created_time}',
-                    'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-                    'run_at': naturaltime(
-                        datetime.fromisoformat(
-                            container_details.attrs['State']['StartedAt']
-                        )),
-                    'status': container_details.attrs['State']['Status']
-                })
-
-            # Log a debug message and return the generated container details
-            bot_logger.debug("Generated container details successfully")
+            # Log a message indicating successful retrieval of details
+            bot_logger.debug("Details retrieved successfully. Returning list of details.")
             return details
 
         except ValueError as e:
-            # Log an error message and return an empty dictionary
+            # Log an error if an exception occurs
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
