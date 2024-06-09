@@ -45,19 +45,17 @@ class DockerAdapter:
 
     def _create_docker_client(self) -> docker.DockerClient:
         """
-        Creates a Docker client instance if it doesn't exist.
+        Create and return a Docker client instance.
 
-        This method creates a Docker client instance using the Docker URL specified in the config.
-        The client is cached using the `lru_cache` decorator, so subsequent calls to this method
-        with the same arguments will return the cached client instance.
+        This function initializes the Docker client if it hasn't been initialized yet.
+        It logs debug messages at the start and end of the client creation process.
 
         Returns:
             docker.DockerClient: The Docker client instance.
 
         Raises:
-            ConnectionAbortedError: If the connection to the Docker daemon is aborted.
+            ConnectionAbortedError: If an error occurs during client creation.
             FileNotFoundError: If the Docker executable is not found.
-
         """
         try:
             # Log a debug message indicating the start of client creation
