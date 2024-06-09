@@ -11,29 +11,84 @@ from app.core.logs import bot_logger
 
 
 class PyTeleMonBotError(Exception):
-    """General pyTeleMonBot exception occurred."""
+    """
+    Base class for all PyTeleMonBot exceptions.
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
 
 
 class PyTeleMonBotConnectionError(PyTeleMonBotError):
-    """Exception raised when an error occurs while connecting to the Telegram"""
+    """
+    Exception raised when an error occurs while connecting to the server
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
 
 
 class PyTeleMonBotHandlerError(PyTeleMonBotError):
-    """Exception raised when an error occurs while handling Telegram"""
+    """
+    Exception raised when an error occurs while handling a message
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
 
 
 class PyTeleMonBotTemplateError(PyTeleMonBotError):
-    """Exception raised when an error template not found"""
+    """
+    Exception raised when an error occurs while using a template
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
 
 
 class DockerAdapterException(PyTeleMonBotError):
-    """Exception raised when an error occurs while checking Docker image"""
+    """
+    Exception raised when an error occurs while using Docker
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
 
 
 class TelebotCustomExceptionHandler(ExceptionHandler):
-    """Custom exception handler that handles exceptions raised during the execution"""
+    """
+    Custom exception handler for Telebot.
 
-    def handle(self, exception):
+    This class overrides the `handle` method of the `ExceptionHandler` class
+    and handles exceptions raised by the `Telebot` class.
+
+    Returns:
+        bool: True if the exception was handled successfully.
+
+    Logs:
+        If the log level is set to DEBUG, logs the exception with the DEBUG level.
+        Otherwise, logs the exception with the ERROR level.
+
+    Raises:
+        None
+    """
+
+    def handle(self, exception: Exception) -> bool:
         """
         Handle the exception and log it.
 

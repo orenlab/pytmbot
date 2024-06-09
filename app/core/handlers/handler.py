@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Any
 
 from telebot.apihelper import ApiTelegramException
 
@@ -47,36 +48,54 @@ class HandlerConstructor:
 
         Args:
             bot (telebot.TeleBot): The Telegram bot instance.
+
+        This method initializes the handler class with necessary attributes and dependencies.
+        It sets the bot instance, keyboard, message template, configuration, Jinja2 renderer,
+        template error class, custom exception class, utility functions for getting emoji and rounding up tuple values,
+        and an adapter for interacting with the psutil library.
         """
+        # Set the bot instance
         self.bot = bot
+
+        # Initialize the keyboard object for building reply and inline keyboards
         self.keyboard = Keyboard()
+
+        # Initialize the message template object for formatting bot messages
         self.bot_msg_tpl = MessageTpl()
+
+        # Set the configuration object containing bot settings
         self.config = config
+
+        # Initialize the Jinja2 renderer object for templating bot messages
         self.jinja = Jinja2Renderer()
+
+        # Set the exception class for template errors
         self.TemplateError = TemplateError
+
+        # Set the custom exception class for handling errors
         self.exceptions = exceptions
+
+        # Set the utility function for getting emoji by name
         self.get_emoji = get_emoji
+
+        # Set the utility function for rounding up tuple values
         self.round_up_tuple = round_up_tuple
+
+        # Initialize the adapter object for interacting with the psutil library
         self.psutil_adapter = PsutilAdapter()
 
-    def _send_bot_answer(self, *args, **kwargs) -> None:
+    def _send_bot_answer(self, *args: Any, **kwargs: Any) -> None:
         """
         Send the bot answer.
 
         Args:
-            *args: Positional arguments to be passed to bot.send_message().
-            **kwargs: Keyword arguments to be passed to bot.send_message().
-
-        Raises:
-            ConnectionError: If there is a connection error while sending the message.
-            ApiTelegramException: If there is an API Telegram exception while sending the message.
+            *args (Any): Positional arguments to be passed to bot.send_message().
+            **kwargs (Any): Keyword arguments to be passed to bot.send_message().
 
         Returns:
             None
         """
         try:
-            # Send the message using the bot object
             self.bot.send_message(*args, **kwargs)
         except (ConnectionError, ApiTelegramException) as e:
-            # Log the error if there is an exception
-            bot_logger.error(f"Failed at @{__name__}: {e}")
+            bot_logger.error(f"Failed at @{self.__class__.__name__}: {e}")
