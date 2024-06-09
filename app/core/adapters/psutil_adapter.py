@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+import re
 from datetime import datetime
 from typing import Tuple
 
@@ -15,45 +16,35 @@ from app.core.logs import bot_logger
 
 class PsutilAdapter:
     """
-    Class to adapt psutil to pyTMBot.
+    A class that wraps the psutil library for easier usage.
+
+    Methods:
+        get_load_average()
+        get_disk_usage()
+        get_memory()
+        get_swap_memory()
+        get_net_io_counters()
 
     Attributes:
-        psutil (module): The psutil module.
-        fs_current (None): The current file system statistics.
-        sensors_current (list): The current sensor statistics.
-        memory_stat (None): The current memory statistics.
-        fs_stats (None): The file system statistics.
-        fs_usage (None): The file system usage statistics.
-        memory_current (None): The current memory usage.
-        sensors_stat (None): The sensor statistics.
-        sw_current (None): The current software information.
-        process_count (dict): The count of running, sleeping, and idle processes.
-        sleeping (int): The count of sleeping processes.
-        running (int): The count of running processes.
-        idle (int): The count of idle processes.
-        net_io_stat (None): The network I/O statistics.
+        psutil (psutil): An instance of the psutil library.
+        sensors_current (list): An empty list to store the current sensor data.
     """
 
     def __init__(self):
         """
         Initialize the PsutilAdapter class.
 
-        This method initializes all the attributes of the class.
+        This method initializes the PsutilAdapter class by creating an instance of the psutil library and an empty list
+        to store the current sensor data.
+
+        Returns:
+            None
         """
-        self.psutil = psutil  # Import the psutil module
-        self.fs_current = None  # Initialize the current file system statistics
-        self.sensors_current = []  # Initialize the current sensor statistics
-        self.memory_stat = None  # Initialize the current memory statistics
-        self.fs_stats = None  # Initialize the file system statistics
-        self.fs_usage = None  # Initialize the file system usage statistics
-        self.memory_current = None  # Initialize the current memory usage
-        self.sensors_stat = None  # Initialize the sensor statistics
-        self.sw_current = None  # Initialize the current software information
-        self.process_count = {}  # Initialize the count of running, sleeping, and idle processes
-        self.sleeping = 0  # Initialize the count of sleeping processes
-        self.running = 0  # Initialize the count of running processes
-        self.idle = 0  # Initialize the count of idle processes
-        self.net_io_stat = None  # Initialize the network I/O statistics
+        # Create an instance of the psutil library
+        self.psutil = psutil
+
+        # Create an empty list to store the current sensor data
+        self.sensors_current = []
 
     @staticmethod
     def get_load_average() -> Tuple[float, float, float]:
@@ -75,123 +66,91 @@ class PsutilAdapter:
 
         return load_average
 
-    @staticmethod
-    def get_cpu_count() -> int:
-        """
-        Get the number of CPU cores available on the system.
-
-        Returns:
-            The number of CPU cores as an integer.
-        """
-        # Log a debug message indicating that the CPU count is being retrieved
-        bot_logger.debug("Retrieving CPU count")
-
-        # Use the `psutil` library to get the number of CPU cores
-        cpu_count = psutil.cpu_count()
-
-        # Log a debug message indicating that the CPU count has been received
-        bot_logger.debug("CPU count received")
-
-        return cpu_count
-
     def get_memory(self):
         """
-        Get current memory usage.
-
-        This function retrieves the current memory usage statistics and returns them as a dictionary.
+        Retrieve current memory usage statistics.
 
         Returns:
-            dict: A dictionary containing the following memory usage statistics:
-                - total: The total amount of memory in bytes.
-                - available: The amount of available memory in bytes.
-                - percent: The percentage of memory used.
-                - used: The amount of memory used in bytes.
-                - free: The amount of free memory in bytes.
-                - active: The amount of active memory in bytes.
-                - inactive: The amount of inactive memory in bytes.
-                - cached: The amount of cached memory in bytes.
-                - shared: The amount of shared memory in bytes.
+            dict: Dictionary with memory usage statistics:
+                - total: Total memory in bytes.
+                - available: Available memory in bytes.
+                - percent: Percentage of memory used.
+                - used: Memory used in bytes.
+                - free: Free memory in bytes.
+                - active: Active memory in bytes.
+                - inactive: Inactive memory in bytes.
+                - cached: Cached memory in bytes.
+                - shared: Shared memory in bytes.
 
         Raises:
-            PermissionError: If the user does not have permission to access memory statistics.
+            PermissionError: If permission to access memory statistics is denied.
             ValueError: If there is an error retrieving memory statistics.
         """
         try:
-            # Unset the memory_current attribute
-            self.memory_current = ''
+            # Print a debug message before retrieving memory stats
+            bot_logger.debug("Retrieving memory statistics...")
 
             # Retrieve memory statistics using the psutil library
-            self.memory_stat = self.psutil.virtual_memory()
+            memory_stats = self.psutil.virtual_memory()
 
-            # Create a dictionary with memory usage statistics
-            self.memory_current = {
-                'total': naturalsize(self.memory_stat.total, binary=True),
-                'available': naturalsize(self.memory_stat.available, binary=True),
-                'percent': self.memory_stat.percent,
-                'used': naturalsize(self.memory_stat.used, binary=True),
-                'free': naturalsize(self.memory_stat.free, binary=True),
-                'active': naturalsize(self.memory_stat.active, binary=True),
-                'inactive': naturalsize(self.memory_stat.inactive, binary=True),
-                'cached': naturalsize(self.memory_stat.cached, binary=True),
-                'shared': naturalsize(self.memory_stat.shared, binary=True),
+            # Generate the memory usage dictionary
+            memory_current = {
+                stat: naturalsize(getattr(memory_stats, stat), binary=True)
+                for stat in ['total', 'available', 'percent', 'used', 'free', 'active', 'inactive', 'cached', 'shared']
             }
 
-            # Log a debug message indicating that memory statistics have been received
-            bot_logger.debug(f"Memory stats is received: {self.memory_current}")
+            # Print a debug message after retrieving memory stats
+            bot_logger.debug(f"Memory statistics retrieved successfully: {memory_current}")
 
-            # Return the memory usage statistics
-            return self.memory_current
+            return memory_current
 
         except (PermissionError, ValueError) as e:
-            # Log an error message if there is an error retrieving memory statistics
-            bot_logger.error(f"Failed at @{__name__}: {e}")
+            # Log an error message if there is an exception
+            bot_logger.error(f"Failed to retrieve memory statistics: {e}")
 
     def get_disk_usage(self):
         """
-    Get partition usage statistics.
+        Get partition usage statistics.
 
-    Returns:
-        A list of dictionaries containing the usage statistics for each partition.
-        Each dictionary contains the following keys:
-            - device_name (str): The device name.
-            - fs_type (str): The file system type.
-            - mnt_point (str): The mount point.
-            - size (str): The total size of the partition in a human-readable format.
-            - used (str): The used space of the partition in a human-readable format.
-            - free (str): The free space of the partition in a human-readable format.
-            - percent (float): The usage percentage of the partition.
-    Raises:
-        PermissionError: If the user does not have permission to access the disk partitions.
-        KeyError: If there is an error retrieving the disk partitions.
-    """
+        Returns:
+            A list of dictionaries containing the usage statistics for each partition.
+            Each dictionary contains the following keys:
+                - device_name (str): The device name.
+                - fs_type (str): The file system type.
+                - mnt_point (str): The mount point.
+                - size (str): The total size of the partition in a human-readable format.
+                - used (str): The used space of the partition in a human-readable format.
+                - free (str): The free space of the partition in a human-readable format.
+                - percent (float): The usage percentage of the partition.
+
+        Raises:
+            PermissionError: If the user does not have permission to access the disk partitions.
+            KeyError: If there is an error retrieving the disk partitions.
+        """
         try:
-            self.fs_current = []  # Unset attribute
-            self.fs_stats = psutil.disk_partitions(all=False)
-            bot_logger.debug(f"Partitions stats is received: {self.fs_stats}")
+            # Retrieve disk partitions
+            fs_stats = psutil.disk_partitions(all=False)
+            bot_logger.debug(f"Partitions stats is received: {fs_stats}")
 
-            for fs in self.fs_stats:
-                try:
-                    self.fs_usage = self.psutil.disk_usage(fs.mountpoint)
-                except OSError:
-                    continue
-
-                # Create a dictionary with the usage statistics for the partition
-                fs_stat = {
-                    'device_name': fs.device,
-                    'fs_type': fs.fstype,
-                    'mnt_point': fs.mountpoint.replace(u'\u00A0', ' '),
-                    'size': naturalsize(self.fs_usage.total, binary=True),
-                    'used': naturalsize(self.fs_usage.used, binary=True),
-                    'free': naturalsize(self.fs_usage.free, binary=True),
-                    'percent': self.fs_usage.percent
+            # Generate a list of dictionaries containing the usage statistics for each partition
+            fs_current = [
+                {
+                    'device_name': fs.device,  # Device name
+                    'fs_type': fs.fstype,  # File system type
+                    'mnt_point': re.sub(r'\u00A0', ' ', fs.mountpoint),  # Mount point
+                    'size': naturalsize(self.psutil.disk_usage(fs.mountpoint).total, binary=True),  # Total size
+                    'used': naturalsize(self.psutil.disk_usage(fs.mountpoint).used, binary=True),  # Used space
+                    'free': naturalsize(self.psutil.disk_usage(fs.mountpoint).free, binary=True),  # Free space
+                    'percent': self.psutil.disk_usage(fs.mountpoint).percent  # Usage percentage
                 }
+                for fs in fs_stats
+            ]
 
-                self.fs_current.append(fs_stat)
-
-            bot_logger.debug(f"File system stats is received: {self.fs_current}")
-            return self.fs_current
+            bot_logger.debug(f"File system stats is received: {fs_current}")
+            return fs_current
 
         except (PermissionError, KeyError) as e:
+            # Log an error message if there is an exception
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_swap_memory(self):
@@ -211,14 +170,14 @@ class PsutilAdapter:
             PermissionError: If the user does not have permission to access swap memory statistics.
         """
         try:
-            # Unset the sw_current attribute
-            self.sw_current = []
+            # Print a debug message before retrieving swap memory stats
+            bot_logger.debug("Retrieving swap memory statistics...")
 
             # Retrieve swap memory statistics using the psutil library
-            swap = psutil.swap_memory()
+            swap = self.psutil.swap_memory()
 
             # Create a dictionary with swap memory usage statistics
-            self.sw_current = {
+            sw_current = {
                 'total': naturalsize(swap.total, binary=True),
                 'used': naturalsize(swap.used, binary=True),
                 'free': naturalsize(swap.free, binary=True),
@@ -226,10 +185,10 @@ class PsutilAdapter:
             }
 
             # Log a debug message indicating that swap memory statistics have been received
-            bot_logger.debug(f"Swap memory stats is received: {self.sw_current}")
+            bot_logger.debug(f"Swap memory stats is received: {sw_current}")
 
             # Return the swap memory usage statistics
-            return self.sw_current
+            return sw_current
 
         except PermissionError as e:
             # Log an error message if there is an error retrieving swap memory statistics
@@ -248,23 +207,20 @@ class PsutilAdapter:
             and its current temperature.
         """
         try:
-            # Unset the sensors_current attribute
-            self.sensors_current = []
+            # Print a debug message before retrieving sensors statistics
+            bot_logger.debug("Retrieving sensors statistics...")
 
             # Retrieve the current temperature statistics from the system's sensors
-            self.sensors_stat = self.psutil.sensors_temperatures()
-
-            # Log a debug message indicating that sensors statistics have been received
-            bot_logger.debug("Sensors stats is received")
+            sensors_stat = self.psutil.sensors_temperatures()
 
             # If no sensors statistics are available, log an error message
-            if not self.sensors_stat:
+            if not sensors_stat:
                 bot_logger.debug("Error receiving data from temperature sensors")
 
             # Create a list of dictionaries, where each dictionary contains the sensor name
             # and its current temperature
             # Iterate over the sensors and their temperature statistics
-            for sensor_name, temperature_stats in self.sensors_stat.items():
+            for sensor_name, temperature_stats in sensors_stat.items():
                 sensor_data = {
                     'sensor_name': sensor_name,
                     'sensor_value': temperature_stats[0][1],
@@ -282,20 +238,6 @@ class PsutilAdapter:
         except (AttributeError, KeyError, ValueError) as e:
             # Log an error message if there is an error retrieving sensors statistics
             bot_logger.error(f"Failed at @{__name__}: {e}")
-
-    @staticmethod
-    def get_sensors_fans():
-        """
-        Get the speed of all fans in the system's sensors.
-
-        Returns:
-            A dictionary containing the speed of each fan in RPM.
-        """
-        # Use the psutil library to retrieve the speed of all fans in the system's sensors
-        fans_speeds = psutil.sensors_fans()
-
-        # Return the dictionary containing the speed of each fan
-        return fans_speeds
 
     @staticmethod
     def get_uptime() -> str:
@@ -324,26 +266,22 @@ class PsutilAdapter:
         Returns:
             dict: A dictionary containing the counts of running, sleeping, idle, and total processes.
         """
-        process_counts = {
-            'running': 0,
-            'sleeping': 0,
-            'idle': 0,
-            'total': 0
-        }
-
         try:
-            for proc in self.psutil.process_iter():
-                process_status = proc.status()
-                process_counts[process_status] += 1
+            # Get the counts of running, sleeping, and idle processes
+            process_counts = {
+                status: sum(1 for proc in self.psutil.process_iter() if proc.status() == status)
+                for status in ['running', 'sleeping', 'idle']
+            }
 
-            # Log the completion of process iteration
-            bot_logger.debug("Proc iterate stats done")
-
+            # Calculate the total number of processes
             process_counts['total'] = sum(process_counts.values())
 
-            return process_counts
+            # Log the process counts for debugging
+            bot_logger.debug("Process Counts:", process_counts)
 
+            return process_counts
         except AttributeError as e:
+            # Log an error if an attribute error occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     def get_net_io_counters(self):
@@ -358,21 +296,21 @@ class PsutilAdapter:
             net_io_stat_current = []
 
             # Retrieve the network I/O statistics using the psutil library
-            self.net_io_stat = self.psutil.net_io_counters()
+            net_io_stat = self.psutil.net_io_counters()
 
             # Log the receipt of network I/O statistics
             bot_logger.debug("Network IO stat recv")
 
             # Append the network I/O statistics to the list
             net_io_stat_current.append({
-                'bytes_sent': naturalsize(self.net_io_stat.bytes_recv, binary=True),
-                'bytes_recv': naturalsize(self.net_io_stat.packets_recv, binary=True),
-                'packets_sent': self.net_io_stat.packets_sent,
-                'packets_recv': self.net_io_stat.packets_recv,
-                'err_in': self.net_io_stat.errin,
-                'err_out': self.net_io_stat.errout,
-                'drop_in': self.net_io_stat.dropin,
-                'drop_out': self.net_io_stat.dropout
+                'bytes_sent': naturalsize(net_io_stat.bytes_recv, binary=True),
+                'bytes_recv': naturalsize(net_io_stat.packets_recv, binary=True),
+                'packets_sent': net_io_stat.packets_sent,
+                'packets_recv': net_io_stat.packets_recv,
+                'err_in': net_io_stat.errin,
+                'err_out': net_io_stat.errout,
+                'drop_in': net_io_stat.dropin,
+                'drop_out': net_io_stat.dropout
             })
 
             # Log the completion of appending the network I/O statistics
