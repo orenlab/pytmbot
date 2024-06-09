@@ -4,6 +4,8 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+import multiprocessing as mp
+
 from app.core.handlers.default_handlers import (
     StartHandler,
     LoadAvgHandler,
@@ -40,43 +42,45 @@ class HandlersAggregator:
             bot_instance (telegram.Bot): The bot instance.
         """
         self.bot = bot_instance
-        self.handlers = [
-            StartHandler(self.bot),  # Initialize the StartHandler instance
-            LoadAvgHandler(self.bot),  # Initialize the LoadAvgHandler instance
-            MemoryHandler(self.bot),  # Initialize the MemoryHandler instance
-            SensorsHandler(self.bot),  # Initialize the SensorsHandler instance
-            ProcessHandler(self.bot),  # Initialize the ProcessHandler instance
-            UptimeHandler(self.bot),  # Initialize the UptimeHandler instance
-            FileSystemHandler(self.bot),  # Initialize the FileSystemHandler instance
-            ContainersHandler(self.bot),  # Initialize the ContainersHandler instance
-            BotUpdatesHandler(self.bot),  # Initialize the BotUpdatesHandler instance
-            InlineSwapHandler(self.bot),  # Initialize the InlineSwapHandler instance
-            InlineUpdateInfoHandler(self.bot),  # Initialize the InlineUpdateInfoHandler instance
-            NetIOHandler(self.bot),  # Initialize the NetIOHandler instance
-            AboutBotHandler(self.bot),  # Initialize the AboutBotHandler instance
-            EchoHandler(self.bot)  # Initialize the EchoHandler instance
-        ]
+        self.handlers = [handler(self.bot) for handler in [
+            StartHandler, LoadAvgHandler, MemoryHandler, SensorsHandler, ProcessHandler,
+            UptimeHandler, FileSystemHandler, ContainersHandler, BotUpdatesHandler,
+            InlineSwapHandler, InlineUpdateInfoHandler, NetIOHandler, AboutBotHandler, EchoHandler
+        ]]
 
     def run_handlers(self):
         """
-        Run all handlers.
+        Run all handlers using multiprocessing.
 
-        This method iterates over each handler and calls its `handle` method.
-        If any handler raises a `ConnectionError` or `ValueError`, it logs the error.
-        If any other exception occurs, it logs the error.
+        This method spawns a process for each handler to run concurrently.
+        It captures any exceptions that occur during the handling process.
 
         Raises:
             None
         """
-        try:
-            # Iterate over each handler
+
+        # Create a multiprocessing pool
+        with mp.Pool() as pool:
+            # Apply async to each handler
             for handler in self.handlers:
-                try:
-                    # Call the handle method of the handler
-                    handler.handle()
-                except (ConnectionError, ValueError) as e:
-                    # Log the error if a ConnectionError or ValueError occurs
-                    bot_logger.error(f"Failed at @{__name__}: {str(e)}")
-        except Exception as e:
-            # Log the error if any other exception occurs
-            bot_logger.error(f"Failed at @{__name__}: {str(e)}")
+                pool.apply_async(handler.handle(), error_callback=self._log_error)
+
+        # Close the pool to prevent any more work
+        pool.close()
+        # Block until all tasks are done
+        pool.join()
+
+    @staticmethod
+    def _log_error(e):
+        """
+        Log an exception that occurred during the handling process.
+
+        Args:
+            e (Exception): The exception that occurred.
+
+        This function logs the exception that occurred during the handling process.
+        It uses the bot_logger to log the error message, which includes the module
+        name and the string representation of the exception.
+        """
+        # Log the error message
+        bot_logger.error(f"Failed at @{__name__}: {str(e)}")
