@@ -80,14 +80,11 @@ def find_in_args(args: tuple, target_type: type) -> Any:
         Any: The first occurrence of an argument of the specified type, or None if not found.
 
     """
-    # Iterate over each element in the tuple
-    for arg in args:
-        # Check if the argument is an instance of the target type
-        if isinstance(arg, target_type):
-            # Return the first occurrence of the argument
-            return arg
-    # Return None if the argument is not found
-    return None
+    # Use list comprehension to filter the elements of the tuple based on type
+    found_args = [arg for arg in args if isinstance(arg, target_type)]
+
+    # Return the first element of the filtered list, or None if the list is empty
+    return found_args[0] if found_args else None
 
 
 def find_in_kwargs(kwargs, target_type):
@@ -100,13 +97,10 @@ def find_in_kwargs(kwargs, target_type):
     Returns:
         Any: The first occurrence of an argument of the specified type, or None if not found.
     """
-    # Iterate over the values of the dictionary
-    for value in kwargs.values():
-        # Check if the value is an instance of the target type
-        if isinstance(value, target_type):
-            return value
-    # Return None if the argument is not found
-    return None
+    # Use a generator expression to filter values of the dictionary
+    # based on whether they are an instance of the target type
+    found_value = next((value for value in kwargs.values() if isinstance(value, target_type)), None)
+    return found_value
 
 
 class EmojiConverter:

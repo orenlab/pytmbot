@@ -116,29 +116,17 @@ def get_message_full_info(*args, **kwargs):
             "None" for all values.
     """
 
-    # Find message in args
-    message_args = find_in_args(args, Message)
-    if message_args is not None:
+    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
+    if message is not None:
+        user = message.from_user
         return (
-            message_args.from_user.username,  # Username of the message sender
-            message_args.from_user.id,  # User ID of the message sender
-            message_args.from_user.language_code,  # Language code of the message sender
-            message_args.from_user.is_bot,  # Flag indicating if the message sender is a bot
-            message_args.text  # Text of the message
+            user.username,
+            user.id,
+            user.language_code,
+            user.is_bot,
+            message.text
         )
 
-    # Find message in kwargs
-    message_kwargs = find_in_kwargs(kwargs, Message)
-    if message_kwargs is not None:
-        return (
-            message_kwargs.from_user.username,  # Username of the message sender
-            message_kwargs.from_user.id,  # User ID of the message sender
-            message_kwargs.from_user.language_code,  # Language code of the message sender
-            message_kwargs.from_user.is_bot,  # Flag indicating if the message sender is a bot
-            message_kwargs.text  # Text of the message
-        )
-
-    # Return "None" for all values if message is not found
     return "None", "None", "None", "None", "None"
 
 
@@ -155,25 +143,13 @@ def get_inline_message_full_info(*args, **kwargs):
             A tuple containing the username, user ID, and is_bot flag of the message sender.
             If the message is not found in args or kwargs, returns "None" for all values.
     """
-    # Find message in args
-    message_args = find_in_args(args, CallbackQuery)
-    if message_args is not None:
-        return (
-            message_args.message.from_user.username,  # Username of the message sender
-            message_args.message.from_user.id,  # User ID of the message sender
-            message_args.message.from_user.is_bot  # Flag indicating if the message sender is a bot
-        )
+    # Find message in args or kwargs
+    message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
 
-    # Find message in kwargs
-    message_kwargs = find_in_kwargs(kwargs, CallbackQuery)
-    if message_kwargs is not None:
-        return (
-            message_kwargs.message.from_user.username,  # Username of the message sender
-            message_kwargs.message.from_user.id,  # User ID of the message sender
-            message_kwargs.message.from_user.is_bot  # Flag indicating if the message sender is a bot
-        )
+    if message is not None:
+        user = message.message.from_user
+        return user.username, user.id, user.is_bot
 
-    # Return "None" for all values if message is not found
     return "None", "None", "None"
 
 
