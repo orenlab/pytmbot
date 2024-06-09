@@ -80,7 +80,7 @@ def find_in_args(args: tuple, target_type: type) -> Any:
         Any: The first occurrence of an argument of the specified type, or None if not found.
 
     """
-    # Use list comprehension to filter the elements of the tuple based on type
+    # Filter the elements of the tuple based on type
     found_args = [arg for arg in args if isinstance(arg, target_type)]
 
     # Return the first element of the filtered list, or None if the list is empty
@@ -88,7 +88,8 @@ def find_in_args(args: tuple, target_type: type) -> Any:
 
 
 def find_in_kwargs(kwargs, target_type):
-    """Find the first occurrence of an argument of the specified type in the values of a dictionary.
+    """
+    Find the first occurrence of an argument of the specified type in the values of a dictionary.
 
     Args:
         kwargs (dict): The dictionary to search in.
@@ -99,7 +100,10 @@ def find_in_kwargs(kwargs, target_type):
     """
     # Use a generator expression to filter values of the dictionary
     # based on whether they are an instance of the target type
+    # The `next` function is used to get the first value that matches the condition
+    # If no value is found, `None` is returned
     found_value = next((value for value in kwargs.values() if isinstance(value, target_type)), None)
+
     return found_value
 
 
