@@ -200,7 +200,7 @@ class DockerAdapter:
         # Return the retrieved usage statistics of the container
         return usage_stats
 
-    def _get_container_details(self, container: str) -> dict:
+    def _aggregate_container_details(self, container: str) -> dict:
         """
         Get the details of a Docker container.
 
@@ -261,7 +261,7 @@ class DockerAdapter:
 
             # Retrieve details for each container
             bot_logger.debug("Retrieving details for each container...")
-            details = [self._get_container_details(container) for container in containers]
+            details = [self._aggregate_container_details(container) for container in containers]
 
             # Log a message indicating successful retrieval of details
             bot_logger.debug("Details retrieved successfully. Returning list of details.")
