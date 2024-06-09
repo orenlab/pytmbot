@@ -81,9 +81,16 @@ def round_up_tuple(numbers: tuple) -> dict:
 
     Returns:
         dict: A dictionary mapping the index of each number to its rounded value.
+
+    This function takes in a tuple of numbers and rounds each number to two decimal places. It then returns a dictionary
+    where the keys are the indices of the input numbers and the values are the rounded numbers.
+
+    Example:
+        >>> round_up_tuple((1.2345, 2.3456, 3.4567))
+        {0: 1.23, 1: 2.35, 2: 3.46}
     """
-    rounded_values = {i: round(num, 2) for i, num in enumerate(numbers)}
-    return rounded_values
+    # Use a dictionary comprehension to round each number in the input tuple and map the index to the rounded number
+    return {i: round(num, 2) for i, num in enumerate(numbers)}
 
 
 def find_in_args(args: tuple, target_type: type) -> Any:
