@@ -11,7 +11,7 @@ psutil==5.9.8
 pydantic==2.7.3
 pydantic-settings==2.3.1
 pydantic_core==2.18.4
-pyTelegramBotAPI==4.19.0
+pyTelegramBotAPI==4.19.1
 python-dotenv==1.0.1
 requests==2.32.3
 telebot==0.0.5

@@ -474,13 +474,13 @@ yaml = ["pyyaml (>=6.0.1)"]
 
 [[package]]
 name = "pytelegrambotapi"
-version = "4.19.0"
+version = "4.19.1"
 description = "Python Telegram bot api."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pytelegrambotapi-4.19.0-py3-none-any.whl", hash = "sha256:9416a36ad8aad78ca8a3962e184a287bb5e299bc24082e350a4c691f99f608fc"},
-    {file = "pytelegrambotapi-4.19.0.tar.gz", hash = "sha256:a8507a39892c635d605ae19adb247be645e7efb59986684d648f04aaeff6ea88"},
+    {file = "pytelegrambotapi-4.19.1-py3-none-any.whl", hash = "sha256:22b0835f06a79eea93cc2c29079e4bb10f706b282ae10a3e537557b4679b12f2"},
+    {file = "pytelegrambotapi-4.19.1.tar.gz", hash = "sha256:cd5e5188a49f50a5c1fb1d8d195a852a05ae3525d21f26fbe8365cb408ee1342"},
 ]
 
 [package.dependencies]
