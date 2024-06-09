@@ -49,9 +49,9 @@ class FileSystemHandler(HandlerConstructor):
             template_name: str = 'fs.jinja2'
 
             emojis: dict[str, str] = {
-                'thought_balloon': self.get_emoji('thought_balloon'),
-                'floppy_disk': self.get_emoji('floppy_disk'),
-                'minus': self.get_emoji('minus'),
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                'floppy_disk': self.emojis.get_emoji('floppy_disk'),
+                'minus': self.emojis.get_emoji('minus'),
             }
 
             # Render the template with the context data

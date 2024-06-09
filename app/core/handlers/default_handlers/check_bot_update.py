@@ -140,7 +140,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Create the message context with the current version
@@ -168,7 +168,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Define the message to be rendered
@@ -201,10 +201,10 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Define the emojis to be used in the message
         emojis = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
-            'spouting_whale': self.get_emoji('spouting_whale'),
-            'calendar': self.get_emoji('calendar'),
-            'cooking': self.get_emoji('cooking'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            'spouting_whale': self.emojis.get_emoji('spouting_whale'),
+            'calendar': self.emojis.get_emoji('calendar'),
+            'cooking': self.emojis.get_emoji('cooking'),
         }
 
         # Render the message using Jinja templates
@@ -232,7 +232,7 @@ class BotUpdatesHandler(HandlerConstructor):
         template_name: str = 'none.jinja2'
 
         emojis: dict = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji
@@ -263,7 +263,7 @@ class BotUpdatesHandler(HandlerConstructor):
         template_name: str = 'none.jinja2'
 
         emojis: dict = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji

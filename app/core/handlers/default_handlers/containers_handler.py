@@ -65,7 +65,7 @@ class ContainersHandler(HandlerConstructor):
                 # Define context and emojis
                 context: str = "There are no containers or incorrect settings are specified."
                 emojis: dict = {
-                    'thought_balloon': self.get_emoji('thought_balloon'),
+                    'thought_balloon': self.emojis('thought_balloon'),
                 }
             else:
                 # Use 'containers.jinja2' template if there is container data
@@ -76,9 +76,9 @@ class ContainersHandler(HandlerConstructor):
 
                 # Define emojis for rendering
                 emojis: dict = {
-                    'thought_balloon': self.get_emoji('thought_balloon'),
-                    'luggage': self.get_emoji('pushpin'),
-                    'minus': self.get_emoji('minus'),
+                    'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                    'luggage': self.emojis.get_emoji('pushpin'),
+                    'minus': self.emojis.get_emoji('minus'),
                 }
 
             # Render the template with the context data and emojis

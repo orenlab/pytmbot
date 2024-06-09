@@ -5,10 +5,8 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local computers and/or servers from Glances
 """
 import argparse
-from functools import lru_cache
+from functools import cached_property
 from typing import Any
-
-from emoji import emojize as em_func
 
 
 # Utility functions
@@ -47,29 +45,6 @@ def parse_cli_args() -> argparse.Namespace:
 
     # Parse the command line arguments
     return parser.parse_args()
-
-
-@lru_cache
-def get_emoji(emoji_name: str) -> str:
-    """
-    Get the emoji corresponding to the given emoji name.
-
-    Args:
-        emoji_name (str): The name of the emoji.
-
-    Returns:
-        str: The emoji corresponding to the given emoji name.
-
-    Note:
-        This function uses the `emoji` library to convert the emoji name into the actual emoji.
-        The `lru_cache` decorator is used to cache the results of this function, so that subsequent calls
-        with the same emoji name don't need to recompute the emoji.
-    """
-    # Construct the emoji string by adding colons around the emoji name
-    emoji_str = f":{emoji_name}:"
-
-    # Use the `emojize` function from the `emoji` library to convert the emoji string into the actual emoji
-    return em_func(emoji_str)
 
 
 def round_up_tuple(numbers: tuple) -> dict:
@@ -132,3 +107,40 @@ def find_in_kwargs(kwargs, target_type):
             return value
     # Return None if the argument is not found
     return None
+
+
+class EmojiConverter:
+    """
+    A class to convert emoji names to emoji characters.
+
+    Methods:
+        get_emoji(self, emoji_name: str)
+    """
+
+    @cached_property
+    def emoji_library(self):
+        """
+        Returns the emoji library module.
+
+        The emoji library is imported using the `__import__` function.
+
+        Returns:
+            module: The emoji library module.
+        """
+        return __import__('emoji')
+
+    def get_emoji(self, emoji_name: str) -> str:
+        """
+        Get the emoji corresponding to the given emoji name.
+
+        Args:
+            emoji_name (str): The name of the emoji to retrieve.
+
+        Returns:
+            str: The emoji character corresponding to the given emoji name.
+        """
+        # Construct the emoji string using the emoji name
+        emoji_str = f":{emoji_name}:"
+
+        # Use the emoji library to convert the emoji string to the corresponding emoji character
+        return self.emoji_library.emojize(emoji_str)

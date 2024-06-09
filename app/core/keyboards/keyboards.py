@@ -11,21 +11,7 @@ from typing import Dict, List
 from telebot import types
 
 from app.core.settings.keyboards import KeyboardSettings
-from app.utilities.utilities import get_emoji
-
-
-def construct_keyboard(keyboard_data: Dict[str, str]) -> List[str]:
-    """
-    Constructs a keyboard from a dictionary of emoji-title pairs.
-
-    Args:
-        keyboard_data (Dict[str, str]): A dictionary where the keys are emojis and the values are titles.
-
-    Returns:
-        List[str]: A list of strings representing the constructed keyboard.
-    """
-    constructed_keyboard = [f"{get_emoji(emoji)} {title}" for emoji, title in keyboard_data.items()]
-    return constructed_keyboard
+from app.utilities.utilities import EmojiConverter
 
 
 class Keyboard(KeyboardSettings):
@@ -47,6 +33,37 @@ class Keyboard(KeyboardSettings):
         types.ReplyKeyboardMarkup: The constructed reply keyboard.
     """
 
+    def __init__(self) -> None:
+        """
+        Initializes the Keyboard class.
+
+        This method initializes the Keyboard class and sets up the EmojiConverter attribute.
+
+        Args:
+            self (Keyboard): The instance of the Keyboard class.
+
+        Returns:
+            None
+        """
+        # Call the superclass initialization method
+        super().__init__()
+
+        # Initialize the emojis attribute with an instance of EmojiConverter
+        self.emojis: EmojiConverter = EmojiConverter()
+
+    def construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
+        """
+        Constructs a keyboard from a dictionary of emoji-title pairs.
+
+        Args:
+            keyboard_data (Dict[str, str]): A dictionary where the keys are emojis and the values are titles.
+
+        Returns:
+            List[str]: A list of strings representing the constructed keyboard.
+        """
+        constructed_keyboard = [f"{self.emojis.get_emoji(emoji)} {title}" for emoji, title in keyboard_data.items()]
+        return constructed_keyboard
+
     @lru_cache
     def build_reply_keyboard(self) -> types.ReplyKeyboardMarkup:
         """
@@ -62,7 +79,7 @@ class Keyboard(KeyboardSettings):
         reply_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
         # Construct the keyboard using the main keyboard settings
-        keyboard_buttons = construct_keyboard(self._get_main_keyboard())
+        keyboard_buttons = self.construct_keyboard(self._get_main_keyboard())
 
         # Add the constructed keyboard to the reply keyboard
         reply_keyboard.add(*keyboard_buttons)

@@ -80,8 +80,8 @@ class MemoryHandler(HandlerConstructor):
             template_name: str = 'memory.jinja2'
 
             emojis: Dict[str, Union[str, str]] = {
-                'thought_balloon': self.get_emoji('thought_balloon'),  # Get the thought balloon emoji
-                'abacus': self.get_emoji('abacus'),  # Get the abacus emoji
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),  # Get the thought balloon emoji
+                'abacus': self.emojis.get_emoji('abacus'),  # Get the abacus emoji
             }
 
             # Render the 'memory.jinja2' template with the compiled message

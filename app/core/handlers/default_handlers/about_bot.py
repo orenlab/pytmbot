@@ -18,8 +18,8 @@ class AboutBotHandler(HandlerConstructor):
         """
         Set up a message handler for the bot to respond to messages containing the phrase "About me".
 
-        When such a message is received, it sends a typing action to the chat, renders a template with the user's first name
-        and the current application version, and sends the rendered template as a bot answer.
+        When such a message is received, it sends a typing action to the chat, renders a template with the user's first
+        name and the current application version, and sends the rendered template as a bot answer.
 
         Raises:
             PyTeleMonBotHandlerError: If there is a ValueError while rendering the template.

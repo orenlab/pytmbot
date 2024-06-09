@@ -18,7 +18,7 @@ from app.core.keyboards.keyboards import Keyboard
 from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 from app.utilities.utilities import (
-    get_emoji,
+    EmojiConverter,
     round_up_tuple,
 )
 
@@ -37,7 +37,7 @@ class HandlerConstructor:
         jinja (Jinja2Renderer): The Jinja2 renderer object for templating bot messages.
         TemplateError (TemplateError): The exception class for template errors.
         exceptions (Exceptions): The custom exception class for handling Telegram API errors.
-        get_emoji (function): The utility function for getting emoji by name.
+        emojis (function): The utility function for getting emoji by name.
         round_up_tuple (function): The utility function for rounding up tuple values.
         psutil_adapter (PsutilAdapter): The adapter object for interacting with the psutil library.
     """
@@ -76,7 +76,7 @@ class HandlerConstructor:
         self.exceptions = exceptions
 
         # Set the utility function for getting emoji by name
-        self.get_emoji = get_emoji
+        self.emojis = EmojiConverter()
 
         # Set the utility function for rounding up tuple values
         self.round_up_tuple = round_up_tuple
