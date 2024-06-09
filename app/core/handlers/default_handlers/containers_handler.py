@@ -36,7 +36,7 @@ class ContainersHandler(HandlerConstructor):
         """
         try:
             # Use the DockerAdapter to check the image details
-            data = self.docker_adapter.check_image_details()
+            data = self.docker_adapter.retrieve_image_details()
             return data
         except DockerException:
             # Log an error if there is a DockerException

@@ -95,7 +95,7 @@ class DockerAdapter:
             bot_logger.error(f"Failed at @{__name__}: {e}")
             return False
 
-    def _containers_list(self):
+    def _list_containers(self):
         """
         List all docker containers.
 
@@ -175,12 +175,12 @@ class DockerAdapter:
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
     @staticmethod
-    def _container_stats(container_details) -> dict:
+    def _container_stats(container) -> dict:
         """
         Retrieve the usage statistics of the specified Docker container.
 
         Args:
-            container_details (docker.models.containers.Container): The container object.
+            container (docker.models.containers.Container): The container object.
 
         Returns:
             dict: A dictionary containing the usage statistics of the container.
@@ -189,10 +189,10 @@ class DockerAdapter:
             docker.errors.APIError: If there is an error while retrieving the container statistics.
         """
         # Log a message for debugging to indicate that container stats are being retrieved
-        bot_logger.debug(f"Retrieving container stats for: {container_details.name}")
+        bot_logger.debug(f"Retrieving container stats for: {container.name}")
 
         # Retrieve the usage statistics of the container
-        usage_stats = container_details.stats(decode=None, stream=False)
+        usage_stats = container.stats(decode=None, stream=False)
 
         # Log a message for debugging to indicate that usage stats have been successfully retrieved
         bot_logger.debug(f"Usage stats retrieved: {usage_stats}")
@@ -234,7 +234,7 @@ class DockerAdapter:
             'status': container_details.attrs['State']['Status']
         }
 
-    def check_image_details(self) -> List[Dict[str, str]] | Dict[None, None]:
+    def retrieve_image_details(self) -> List[Dict[str, str]] | Dict[None, None]:
         """
         Retrieve and return details of Docker images.
 
@@ -252,7 +252,7 @@ class DockerAdapter:
 
             # Retrieve the list of containers
             bot_logger.debug("Retrieving list of containers...")
-            containers = self._containers_list()
+            containers = self._list_containers()
 
             if not containers:
                 # Log a message if no containers are found
