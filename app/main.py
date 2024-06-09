@@ -101,31 +101,32 @@ class PyTMBot:
         Poll the bot for updates with specified timeout and logging level.
 
         This function uses the `infinity_polling` method of the `bot` object to continuously
-        check for updates. The timeout and long polling timeout are set to 60 seconds, and
-        the `skip_pending` parameter is set to True to skip pending updates. The logging
-        level is set to the current logging level of the `bot_logger`.
+        check for updates.
+
+        Parameters:
+            self (PyTMBot): The PyTMBot instance.
 
         Returns:
             None
         """
         # Set the timeout for checking for updates
-        timeout = 60
+        update_timeout = 60
 
         # Set the long polling timeout
-        long_polling_timeout = 60
+        polling_timeout = 60
 
         # Skip pending updates
-        skip_pending = True
+        skip_pending_updates = True
 
         # Set the logging level to the current logging level of the bot_logger
-        logger_level = bot_logger.level
+        log_level = bot_logger.level
 
         # Poll the bot for updates
         self.bot.infinity_polling(
-            timeout=timeout,
-            long_polling_timeout=long_polling_timeout,
-            skip_pending=skip_pending,
-            logger_level=logger_level
+            timeout=update_timeout,
+            long_polling_timeout=polling_timeout,
+            skip_pending=skip_pending_updates,
+            logger_level=log_level
         )
 
     def __handle_connection_error(self, e, sleep_time):
