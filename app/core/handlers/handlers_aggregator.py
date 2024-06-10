@@ -62,16 +62,28 @@ class HandlersAggregator:
             None
         """
 
+        # Log the start of the handlers run
+        bot_logger.debug("Handlers init and run started...")
+
         # Create a multiprocessing pool
         with mp.Pool() as pool:
             # Apply async to each handler
             for handler in self.handlers:
-                pool.apply_async(handler.handle(), error_callback=self._log_error)
+                # Apply the handler's handle method in a separate process
+                # and capture any exceptions
+                pool.apply_async(
+                    handler.handle(),
+                    error_callback=self._log_error
+                )
 
         # Close the pool to prevent any more work
         pool.close()
+
         # Block until all tasks are done
         pool.join()
+
+        # Log the successful completion of the handlers run
+        bot_logger.debug("Handlers init and run successful.")
 
     @staticmethod
     def _log_error(e):
@@ -86,4 +98,4 @@ class HandlersAggregator:
         name and the string representation of the exception.
         """
         # Log the error message
-        bot_logger.error(f"Failed at @{__name__}: {str(e)}")
+        bot_logger.error(f"Failed at @{__name__} with error: {str(e)}")

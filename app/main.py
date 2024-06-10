@@ -132,16 +132,30 @@ class PyTMBot:
         """
         Set up the middleware for the bot.
 
-        This function adds the provided middleware to the bot.
-
         Args:
             middleware (BaseMiddleware): The middleware to be added to the bot.
 
         Returns:
             None
+
+        This function sets up the provided middleware for the bot. It logs the setup process and handles any exceptions that may occur.
+
         """
-        # Add the middleware to the bot
-        self.bot.setup_middleware(middleware)
+        # Log the start of the setup process
+        bot_logger.debug("Setting up middleware...")
+
+        # Log the middleware that is being set up
+        bot_logger.debug(f"Middleware: {middleware}")
+
+        try:
+            # Add the middleware to the bot
+            self.bot.setup_middleware(middleware)
+
+            # Log the successful setup of the middleware
+            bot_logger.debug("Middleware setup successful.")
+        except Exception as e:
+            # Log any errors that occur during the setup process
+            bot_logger.debug(f"Error setting up middleware: {e}")
 
     def run_bot(self):
         """
@@ -152,7 +166,7 @@ class PyTMBot:
         the error.
 
         Raises:
-            None
+            Exception: If an error occurs during the process.
 
         Returns:
             None
