@@ -96,7 +96,7 @@ def build_bot_logger() -> logging.Logger:
         logger.error = partial(logger.error, exc_info=True)
 
     logger.debug("Logger initialized")
-    logger.debug(f"Logger level: {logger.level}")
+    logger.debug(f"Log level: {logger.level}")
 
     return logger
 
