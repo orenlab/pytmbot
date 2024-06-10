@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Union
 
 import docker
 from humanize import naturalsize, naturaltime
@@ -30,18 +30,6 @@ class DockerAdapter:
 
         # Initialize the Docker client
         self.client = None
-
-        # Initialize the registry digest
-        self.registry_digest: None = None
-
-        # Initialize the local image digest
-        self.local_image_digest: None = None
-
-        # Initialize the list of containers
-        self.containers: None = None
-
-        # Initialize the container
-        self.container: None = None
 
     def _create_docker_client(self) -> docker.DockerClient:
         """
@@ -95,7 +83,7 @@ class DockerAdapter:
             bot_logger.error(f"Failed at @{__name__}: {e}")
             return False
 
-    def _list_containers(self):
+    def _list_containers(self) -> List[str]:
         """
         List all docker containers.
 
@@ -103,7 +91,7 @@ class DockerAdapter:
         It then extracts the image tags from the container list and returns them as a list.
 
         Returns:
-            list: A list of image tags of all running containers.
+            List[str]: A list of image tags of all running containers.
 
         Raises:
             FileNotFoundError: If the Docker executable is not found.
@@ -114,21 +102,15 @@ class DockerAdapter:
             client = self._create_docker_client()
 
             # Retrieve a list of all running containers
-            containers_raw = repr(client.containers.list())
+            containers_raw = client.containers.list()
             bot_logger.debug(f"Raw container list: {containers_raw}")
 
             # If no containers are found, log a debug message
             if not containers_raw:
                 bot_logger.debug('No containers found. Docker is run.')
 
-            # Extract the image tags from the container list
-            image_tag = []
-            for container in containers_raw.split(', '):
-                bot_logger.debug(f"Processing container: {container}")
-                image_tag.append(
-                    container.split(': ')[1].strip().split('>')[0].strip()
-                )
-                bot_logger.debug(f"Extracted image tag: {image_tag[-1]}")
+            # Process the containers and extract the image tags
+            image_tag: List[str] = [container.short_id for container in containers_raw]
 
             # Log the created container list
             bot_logger.debug(f"Container list created: {image_tag}")
@@ -174,32 +156,6 @@ class DockerAdapter:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    @staticmethod
-    def _container_stats(container) -> dict:
-        """
-        Retrieve the usage statistics of the specified Docker container.
-
-        Args:
-            container (docker.models.containers.Container): The container object.
-
-        Returns:
-            dict: A dictionary containing the usage statistics of the container.
-
-        Raises:
-            docker.errors.APIError: If there is an error while retrieving the container statistics.
-        """
-        # Log a message for debugging to indicate that container stats are being retrieved
-        bot_logger.debug(f"Retrieving container stats for: {container.name}")
-
-        # Retrieve the usage statistics of the container
-        usage_stats = container.stats(decode=None, stream=False)
-
-        # Log a message for debugging to indicate that usage stats have been successfully retrieved
-        bot_logger.debug(f"Usage stats retrieved: {usage_stats}")
-
-        # Return the retrieved usage statistics of the container
-        return usage_stats
-
     def _aggregate_container_details(self, container: str) -> dict:
         """
         Get the details of a Docker container.
@@ -217,7 +173,7 @@ class DockerAdapter:
         container_details = self._container_details(container)
 
         # Get the usage statistics of the container
-        usage_stats = self._container_stats(container_details)
+        usage_stats = container_details.stats(decode=None, stream=False)
 
         # Extract creation date and time
         created_at = datetime.fromisoformat(container_details.attrs['Created'])
@@ -234,12 +190,12 @@ class DockerAdapter:
             'status': container_details.attrs['State']['Status']
         }
 
-    def retrieve_image_details(self) -> List[Dict[str, str]] | Dict[None, None]:
+    def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
         """
         Retrieve and return details of Docker images.
 
         Returns:
-            List[Dict[str, str]] | Dict[None, None]: A list of image details or an empty dictionary.
+            Union[List[Dict[str, str]], Dict[None, None]]: A list of image details or an empty dictionary.
 
         Raises:
             ValueError: If an exception occurs during the retrieval process.
