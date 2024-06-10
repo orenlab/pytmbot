@@ -31,7 +31,7 @@ class DockerAdapter:
         # Initialize the Docker client
         self.client = None
 
-    def _create_docker_client(self) -> docker.DockerClient:
+    def __create_docker_client(self) -> docker.DockerClient:
         """
         Create and return a Docker client instance.
 
@@ -46,16 +46,13 @@ class DockerAdapter:
             FileNotFoundError: If the Docker executable is not found.
         """
         try:
-            # Log a debug message indicating the start of client creation
-            bot_logger.debug("Creating Docker client instance...")
-
             # If the client instance is not already initialized, create it
             if self.client is None:
                 bot_logger.debug("Client is None. Initializing Docker client instance...")
                 self.client = docker.DockerClient(self.docker_url)
 
             # Log a debug message indicating the success of client creation
-            bot_logger.debug("Success! Returning the Docker client instance.")
+            bot_logger.debug("Returning the Docker client instance.")
 
             # Return the client instance
             return self.client
@@ -76,7 +73,7 @@ class DockerAdapter:
         """
         try:
             # Ping the Docker daemon and return the result
-            return self._create_docker_client().ping()
+            return self.__create_docker_client().ping()
 
         except (ConnectionAbortedError, FileNotFoundError) as e:
             # Log an error message if an exception occurs
@@ -99,7 +96,7 @@ class DockerAdapter:
         """
         try:
             # Create a Docker client instance
-            client = self._create_docker_client()
+            client = self.__create_docker_client()
 
             # Retrieve a list of all running containers
             containers_raw = client.containers.list()
@@ -138,7 +135,7 @@ class DockerAdapter:
         """
         try:
             # Create a Docker client
-            client = self._create_docker_client()
+            client = self.__create_docker_client()
 
             # Log the creation of the Docker client
             bot_logger.debug(f"Created Docker client for container: {container_id}")
