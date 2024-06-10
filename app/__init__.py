@@ -16,7 +16,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.1.0-dev-20240609'
+__version__ = 'v0.1.0-dev-20240610'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -42,7 +42,8 @@ def build_bot_instance() -> telebot.TeleBot:
         if bot_mode.mode == "dev"
         else config.bot_token.get_secret_value()
     )
-    bot_logger.debug(f"The bot token has been successfully received. Bot configured")
+    bot_logger.debug(f"The bot token has been successfully received.")
+    bot_logger.debug(f"Bot configured successfully.")
 
     return telebot.TeleBot(
         bot_token,
