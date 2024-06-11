@@ -15,20 +15,21 @@ from app.core.logs import bot_logger
 
 
 class DockerAdapter:
-    """Class to adapt docker-py to pyTMbot.
-
-    This class initializes the DockerAdapter with the necessary attributes.
-    """
+    """Class to adapt docker-py to pyTMbot."""
 
     def __init__(self) -> None:
-        """Initialize the DockerAdapter.
-
-        Initializes the DockerAdapter with the necessary attributes.
         """
-        # Set the Docker URL from the config
+        Initialize the DockerCustomClient.
+
+        This method sets the Docker URL from the config and initializes the Docker client.
+
+        Returns:
+            None
+        """
+        # The Docker URL is obtained from the config module
         self.docker_url: str = config.docker_host
 
-        # Initialize the Docker client
+        # The Docker client is initialized as None
         self.client = None
 
     def __create_docker_client(self) -> docker.DockerClient:
@@ -46,22 +47,26 @@ class DockerAdapter:
             FileNotFoundError: If the Docker executable is not found.
         """
         try:
-            # If the client instance is not already initialized, create it
+            # Check if the Docker client instance is not already initialized
             if self.client is None:
-                bot_logger.debug("Client is None. Initializing Docker client instance...")
+                # Log a debug message indicating the start of client creation
+                bot_logger.debug("Initializing Docker client instance...")
+
+                # Create the Docker client instance
                 self.client = docker.DockerClient(self.docker_url)
 
-            # Log a debug message indicating the success of client creation
-            bot_logger.debug("Returning the Docker client instance.")
+                # Log a debug message indicating the success of client creation
+                bot_logger.debug("Returning the Docker client instance.")
 
             # Return the client instance
             return self.client
 
         # If an error occurs during client creation, log an error message
         except (ConnectionAbortedError, FileNotFoundError) as e:
+            # Log an error message with the exception details
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _is_docker_available(self) -> bool:
+    def __is_docker_available(self) -> bool:
         """
         Check if the Docker socket is available.
 
@@ -78,14 +83,38 @@ class DockerAdapter:
         except (ConnectionAbortedError, FileNotFoundError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
-            return False
 
-    def _list_containers(self) -> List[str]:
+    @staticmethod
+    def _naturalsize(size: int) -> str:
+        """
+        Convert a size in bytes to a human-readable format.
+
+        Args:
+            size (int): The size in bytes.
+
+        Returns:
+            str: The size in a human-readable format.
+        """
+        return naturalsize(size, binary=True)
+
+    @staticmethod
+    def _naturaltime(timestamp: datetime) -> str:
+        """
+        Convert a timestamp to a human-readable format.
+
+        Args:
+            timestamp (datetime): The timestamp to convert.
+
+        Returns:
+            str: The timestamp in a human-readable format.
+        """
+        return naturaltime(timestamp)
+
+    def __list_containers(self) -> List[str]:
         """
         List all docker containers.
 
-        This function creates a Docker client instance and retrieves a list of all running containers.
-        It then extracts the image tags from the container list and returns them as a list.
+        This function retrieves a list of all running containers and returns their image tags.
 
         Returns:
             List[str]: A list of image tags of all running containers.
@@ -98,28 +127,21 @@ class DockerAdapter:
             # Create a Docker client instance
             client = self.__create_docker_client()
 
-            # Retrieve a list of all running containers
-            containers_raw = client.containers.list()
-            bot_logger.debug(f"Raw container list: {containers_raw}")
-
-            # If no containers are found, log a debug message
-            if not containers_raw:
-                bot_logger.debug('No containers found. Docker is run.')
-
-            # Process the containers and extract the image tags
-            image_tag: List[str] = [container.short_id for container in containers_raw]
+            # Retrieve a list of all running containers and extract the image tags
+            containers_raw = client.containers.list(all=True)
+            image_tags = [container.short_id for container in containers_raw]
 
             # Log the created container list
-            bot_logger.debug(f"Container list created: {image_tag}")
+            bot_logger.debug(f"Container list created: {image_tags}")
 
             # Return the list of image tags
-            return image_tag
+            return image_tags
 
         except (FileNotFoundError, ConnectionError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _container_details(self, container_id: str):
+    def __get_container_details(self, container_id: str):
         """
         Get the details of a Docker container.
 
@@ -137,14 +159,11 @@ class DockerAdapter:
             # Create a Docker client
             client = self.__create_docker_client()
 
-            # Log the creation of the Docker client
-            bot_logger.debug(f"Created Docker client for container: {container_id}")
-
             # Get the container object
             container = client.containers.get(container_id)
 
             # Log the retrieved container details
-            bot_logger.debug(f"Retrieved container object: {container}")
+            bot_logger.debug(f"Retrieved container object for container: {container_id}")
 
             # Return the container object
             return container
@@ -153,38 +172,41 @@ class DockerAdapter:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _aggregate_container_details(self, container: str) -> dict:
+    def __aggregate_container_details(self, container_id: str) -> dict:
         """
-        Get the details of a Docker container.
+        Retrieve details of a Docker container.
 
         Args:
-            container (str): The ID of the container.
+            container_id (str): The ID of the container.
 
         Returns:
-            dict: A dictionary containing various details of the container.
+            dict: A dictionary containing container details.
 
         Raises:
-            ValueError: If there is an issue with retrieving container details.
+            ValueError: If container details retrieval fails.
+
         """
         # Get the container details
-        container_details = self._container_details(container)
+        container_details = self.__get_container_details(container_id)
 
-        # Get the usage statistics of the container
-        usage_stats = container_details.stats(decode=None, stream=False)
+        # Extract the attributes and stats from the container details
+        attrs = container_details.attrs
+        stats = container_details.stats(decode=None, stream=False)
 
-        # Extract creation date and time
-        created_at = datetime.fromisoformat(container_details.attrs['Created'])
-        created_day = created_at.date()
-        created_time = created_at.time().strftime("%H:%M:%S")
+        # Convert the 'Created' attribute to a datetime object
+        created_at = datetime.fromisoformat(attrs['Created'])
 
-        # Return a dictionary with container details
+        # Extract the day and time from the datetime object
+        created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
+
+        # Return a dictionary containing the container details
         return {
-            'name': container_details.attrs['Name'].title().replace('/', ''),
-            'image': container_details.attrs['Config']['Image'],
+            'name': attrs['Name'].title().replace('/', ''),
+            'image': attrs['Config']['Image'],
             'created': f'{created_day}, {created_time}',
-            'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-            'run_at': naturaltime(datetime.fromisoformat(container_details.attrs['State']['StartedAt'])),
-            'status': container_details.attrs['State']['Status']
+            'mem_usage': self._naturalsize(stats['memory_stats']['usage']),
+            'run_at': self._naturaltime(datetime.fromisoformat(attrs['State']['StartedAt'])),
+            'status': attrs['State']['Status'],
         }
 
     def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
@@ -198,14 +220,14 @@ class DockerAdapter:
             ValueError: If an exception occurs during the retrieval process.
         """
         try:
-            if not self._is_docker_available():
+            if not self.__is_docker_available():
                 # Log a message if Docker is not available
                 bot_logger.debug("Docker is not available. Returning empty dictionary.")
                 return {}
 
             # Retrieve the list of containers
             bot_logger.debug("Retrieving list of containers...")
-            containers = self._list_containers()
+            containers = self.__list_containers()
 
             if not containers:
                 # Log a message if no containers are found
@@ -214,10 +236,10 @@ class DockerAdapter:
 
             # Retrieve details for each container
             bot_logger.debug("Retrieving details for each container...")
-            details = [self._aggregate_container_details(container) for container in containers]
+            details = [self.__aggregate_container_details(container) for container in containers]
 
             # Log a message indicating successful retrieval of details
-            bot_logger.debug("Details retrieved successfully. Returning list of details.")
+            bot_logger.debug(f"Details retrieved successfully: {details}")
             return details
 
         except ValueError as e:
