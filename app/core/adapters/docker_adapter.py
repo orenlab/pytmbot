@@ -201,9 +201,9 @@ class DockerAdapter:
 
         # Return a dictionary containing the container details
         return {
-            'name': attrs['Name'].title().replace('/', ''),
+            'name': attrs['Name'].strip("/").title(),
             'image': attrs['Config']['Image'],
-            'created': f'{created_day}, {created_time}',
+            'created': f"{created_day}, {created_time}",
             'mem_usage': self._naturalsize(stats['memory_stats']['usage']),
             'run_at': self._naturaltime(datetime.fromisoformat(attrs['State']['StartedAt'])),
             'status': attrs['State']['Status'],
