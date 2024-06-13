@@ -8,8 +8,8 @@ idna==3.7
 Jinja2==3.1.4
 MarkupSafe==2.1.5
 psutil==5.9.8
-pydantic==2.7.3
-pydantic-settings==2.3.2
+pydantic==2.7.4
+pydantic-settings==2.3.3
 pydantic_core==2.18.4
 pyTelegramBotAPI==4.19.1
 python-dotenv==1.0.1
