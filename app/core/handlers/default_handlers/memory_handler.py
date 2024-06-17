@@ -115,6 +115,8 @@ class MemoryHandler(HandlerConstructor):
             """
             Main handler for the Memory info.
 
+            This function handles incoming messages related to memory load information.
+
             Args:
                 message (Message): The message received by the bot.
 
@@ -122,14 +124,16 @@ class MemoryHandler(HandlerConstructor):
                 PyTeleMonBotConnectionError: If there is a ConnectionError while sending the typing action.
             """
             try:
+                # Send a typing action to indicate the bot is processing
                 self.bot.send_chat_action(message.chat.id, 'typing')
+
+                # Get the bot's answer for memory info
                 bot_answer = self._get_answer()
 
-                inline_button = self.keyboard.build_inline_keyboard(
-                    "Swap info",
-                    "swap_info"
-                )
+                # Build an inline button for swapping information
+                inline_button = self.keyboard.build_inline_keyboard("Swap info")
 
+                # Send the bot answer with the inline button
                 HandlerConstructor._send_bot_answer(
                     self,
                     message.chat.id,

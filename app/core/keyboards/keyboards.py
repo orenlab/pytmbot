@@ -8,7 +8,7 @@ the status of your local servers
 from functools import lru_cache
 from typing import Dict, List
 
-from telebot import types
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from app.core.settings.keyboards import KeyboardSettings
 from app.utilities.utilities import EmojiConverter
@@ -65,7 +65,7 @@ class Keyboard(KeyboardSettings):
         return constructed_keyboard
 
     @lru_cache
-    def build_reply_keyboard(self) -> types.ReplyKeyboardMarkup:
+    def build_reply_keyboard(self) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
 
@@ -76,7 +76,7 @@ class Keyboard(KeyboardSettings):
             types.ReplyKeyboardMarkup: The constructed reply keyboard markup.
         """
         # Create a new ReplyKeyboardMarkup object with resize_keyboard set to True
-        reply_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 
         # Construct the keyboard using the main keyboard settings
         keyboard_buttons = self.construct_keyboard(self._get_main_keyboard())
@@ -87,25 +87,20 @@ class Keyboard(KeyboardSettings):
         return reply_keyboard
 
     @lru_cache
-    def build_inline_keyboard(self, button_text: str, callback_data: str) -> types.InlineKeyboardMarkup:
+    def build_inline_keyboard(self, *button_text: str) -> InlineKeyboardMarkup:
         """
-        Build an inline keyboard with a single button.
+        Constructs an InlineKeyboardMarkup object with the provided button texts.
 
         Args:
-            button_text (str): The text to display on the button.
-            callback_data (str): The data to send when the button is clicked.
+            self: The instance of the Keyboard class.
+            *button_text (str): Variable length argument list of button texts.
 
         Returns:
-            types.InlineKeyboardMarkup: The built inline keyboard.
+            InlineKeyboardMarkup: The constructed inline keyboard markup.
         """
-        # Create a new InlineKeyboardMarkup object
-        keyboard = types.InlineKeyboardMarkup()
-
-        # Create a new InlineKeyboardButton object with the specified button text and callback data
-        button = types.InlineKeyboardButton(text=button_text, callback_data=callback_data)
-
-        # Add the button to the keyboard
-        keyboard.add(button)
-
-        # Return the built keyboard
-        return keyboard
+        return InlineKeyboardMarkup(
+            [[
+                InlineKeyboardButton(text=text, callback_data=f"{text.lower().replace(' ', '_')}")
+                for text in button_text
+            ]]
+        )

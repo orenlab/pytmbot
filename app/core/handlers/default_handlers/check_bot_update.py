@@ -300,10 +300,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
                 # Send the bot's answer to the chat
                 if need_inline:
-                    inline_button = self.keyboard.build_inline_keyboard(
-                        "How update the bot's image?",
-                        "update_info"
-                    )
+                    inline_button = self.keyboard.build_inline_keyboard("How update?")
                     HandlerConstructor._send_bot_answer(
                         self,
                         message.chat.id,

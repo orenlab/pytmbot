@@ -24,7 +24,7 @@ class InlineUpdateInfoHandler(HandlerConstructor):
             PyTeleMonBotTemplateError: If there is a TemplateError while rendering the template.
         """
 
-        @self.bot.callback_query_handler(func=lambda call: call.data == 'update_info')
+        @self.bot.callback_query_handler(func=lambda call: call.data == 'how_update?')
         @logged_inline_handler_session
         def swap(call: CallbackQuery):
             """
