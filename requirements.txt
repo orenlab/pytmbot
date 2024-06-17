@@ -16,4 +16,4 @@ python-dotenv==1.0.1
 requests==2.32.3
 telebot==0.0.5
 typing_extensions==4.12.1
-urllib3==2.2.1
+urllib3==2.2.2
