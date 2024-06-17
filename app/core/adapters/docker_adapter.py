@@ -180,7 +180,13 @@ class DockerAdapter:
             container_id (str): The ID of the container.
 
         Returns:
-            dict: A dictionary containing container details.
+            dict: A dictionary containing container details. The dictionary contains the following keys:
+                - 'name' (str): The name of the container.
+                - 'image' (str): The image used by the container.
+                - 'created' (str): The date and time the container was created.
+                - 'mem_usage' (str): The memory usage of the container.
+                - 'run_at' (str): The date and time the container was started.
+                - 'status' (str): The status of the container.
 
         Raises:
             ValueError: If container details retrieval fails.
@@ -188,25 +194,23 @@ class DockerAdapter:
         """
         # Get the container details
         container_details = self.__get_container_details(container_id)
-
-        # Extract the attributes and stats from the container details
         attrs = container_details.attrs
         stats = container_details.stats(decode=None, stream=False)
 
-        # Convert the 'Created' attribute to a datetime object
+        # Extract the creation date and time
         created_at = datetime.fromisoformat(attrs['Created'])
+        created_day = created_at.date()
+        created_time = created_at.time().strftime("%H:%M:%S")
 
-        # Extract the day and time from the datetime object
-        created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
-
-        # Return a dictionary containing the container details
+        # Return the container details as a dictionary
         return {
-            'name': attrs['Name'].strip("/").title(),
-            'image': attrs['Config']['Image'],
-            'created': f"{created_day}, {created_time}",
-            'mem_usage': self._naturalsize(stats['memory_stats']['usage']),
-            'run_at': self._naturaltime(datetime.fromisoformat(attrs['State']['StartedAt'])),
-            'status': attrs['State']['Status'],
+            'name': attrs['Name'].strip("/").title(),  # Remove leading slash and capitalize the name
+            'image': attrs['Config']['Image'],  # Get the image used by the container
+            'created': f"{created_day}, {created_time}",  # Format the creation date and time
+            'mem_usage': self._naturalsize(stats.get('memory_stats', {}).get('usage', 0)),  # Get the memory usage
+            'run_at': self._naturaltime(datetime.fromisoformat(attrs.get('State', {}).get('StartedAt', ''))),
+            # Format the start date and time
+            'status': attrs.get('State', {}).get('Status', ''),  # Get the status of the container
         }
 
     def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:

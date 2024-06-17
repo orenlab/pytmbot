@@ -30,18 +30,18 @@ class ContainersHandler(HandlerConstructor):
 
     def _get_container_data(self):
         """
-        Use the DockerAdapter to gather information about containers.
+        Retrieve information about containers using the DockerAdapter.
 
         Returns:
-            dict: The container information if successful, an empty dictionary otherwise.
+            dict: A dictionary containing container information if successful, otherwise an empty dictionary.
         """
         try:
-            # Use the DockerAdapter to check the image details
-            data = self.docker_adapter.retrieve_image_details()
-            return data
-        except DockerException:
-            # Log an error if there is a DockerException
-            bot_logger.error(f'Failed at {__name__}: Error connecting to the Docker socket')
+            # Attempt to retrieve image details using the DockerAdapter
+            return self.docker_adapter.retrieve_image_details()
+        except DockerException as e:
+            # Log an error message if a DockerException occurs
+            error_msg = f'Failed at {__name__}: {e}'
+            bot_logger.error(error_msg)
             return {}
 
     def _compile_message(self) -> tuple[str, list[str] | None]:
