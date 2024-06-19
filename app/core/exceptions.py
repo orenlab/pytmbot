@@ -3,6 +3,9 @@
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
+
+This module defines custom exceptions for the PyTeleMonBot application.
+
 """
 
 from telebot import ExceptionHandler
@@ -13,60 +16,30 @@ from app.core.logs import bot_logger
 class PyTeleMonBotError(Exception):
     """
     Base class for all PyTeleMonBot exceptions.
-
-    Returns:
-        None
-
-    Raises:
-        None
     """
 
 
 class PyTeleMonBotConnectionError(PyTeleMonBotError):
     """
-    Exception raised when an error occurs while connecting to the server
-
-    Returns:
-        None
-
-    Raises:
-        None
+    Exception raised when an error occurs while connecting to the server.
     """
 
 
 class PyTeleMonBotHandlerError(PyTeleMonBotError):
     """
-    Exception raised when an error occurs while handling a message
-
-    Returns:
-        None
-
-    Raises:
-        None
+    Exception raised when an error occurs while handling a message.
     """
 
 
 class PyTeleMonBotTemplateError(PyTeleMonBotError):
     """
-    Exception raised when an error occurs while using a template
-
-    Returns:
-        None
-
-    Raises:
-        None
+    Exception raised when an error occurs while using a template.
     """
 
 
 class DockerAdapterException(PyTeleMonBotError):
     """
-    Exception raised when an error occurs while using Docker
-
-    Returns:
-        None
-
-    Raises:
-        None
+    Exception raised when an error occurs while using Docker.
     """
 
 
