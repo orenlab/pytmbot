@@ -114,22 +114,36 @@ class ContainersHandler(HandlerConstructor):
                 None
             """
             try:
-                send_typing_action(message)
+                # Send a typing action to indicate processing
+                __send_typing_action(message)
+
+                # Compile the message to be sent to the user
                 containers_info = self._compile_message()
-                inline_keyboard = build_inline_keyboard(containers_info[1])
-                send_message(message, containers_info[0], inline_keyboard)
+
+                # Build an inline keyboard for the message
+                inline_keyboard = __build_inline_keyboard(containers_info[1])
+
+                # Send the message to the user
+                __send_message(message, containers_info[0], inline_keyboard)
 
             except ValueError as error:
-                log_error(error)
-                send_error_message(message)
+                # Log the error and send an error message to the user
+                __log_error(error)
+                __send_error_message(message)
 
-        def send_typing_action(message):
+        def __send_typing_action(message):
             """
             Sends a typing action to indicate processing.
+
+            Args:
+                message (telegram.Message): The message object.
+
+            Returns:
+                None
             """
             self.bot.send_chat_action(message.chat.id, 'typing')
 
-        def build_inline_keyboard(container_names: list) -> InlineKeyboardMarkup:
+        def __build_inline_keyboard(container_names: list) -> InlineKeyboardMarkup:
             """
             Constructs an InlineKeyboardMarkup with buttons for each container name.
 
@@ -138,22 +152,33 @@ class ContainersHandler(HandlerConstructor):
 
             Returns:
                 InlineKeyboardMarkup: Inline keyboard with buttons.
-            """
-            return InlineKeyboardMarkup(
-                [[
-                    InlineKeyboardButton(text=container_name, callback_data=f"get_full[{container_name}]")
-                    for container_name in container_names
-                ]]
-            )
 
-        def send_message(message, text, reply_markup=None):
+            This function takes a list of container names and constructs an InlineKeyboardMarkup
+            with buttons for each container name. The buttons are created using the InlineKeyboardButton
+            class and the callback_data is set to a specific format.
+            """
+            # Create a list of InlineKeyboardButton objects for each container name
+            buttons = [
+                InlineKeyboardButton(text=container_name, callback_data=f"get_full[{container_name}]")
+                for container_name in container_names
+            ]
+
+            # Create an InlineKeyboardMarkup with the list of buttons
+            inline_keyboard = InlineKeyboardMarkup([buttons])
+
+            return inline_keyboard
+
+        def __send_message(message, text, reply_markup=None):
             """
             Sends a message to the user.
 
             Args:
-                message (telegram.Message): The message object.
+                message (telebot.Message): The message object.
                 text (str): The text of the message.
                 reply_markup (telegram.ReplyKeyboardMarkup, optional): The inline keyboard. Defaults to None.
+
+            Returns:
+                None
             """
             self.bot.send_message(
                 message.chat.id,
@@ -161,23 +186,27 @@ class ContainersHandler(HandlerConstructor):
                 reply_markup=reply_markup
             )
 
-        def log_error(error):
+        def __log_error(error):
             """
             Logs the error.
 
             Args:
-                error (Exception): The error object.
-            """
-            bot_logger.error(f"Failed at {__name__}: {str(error)}")
+                error (Exception): The error to be logged.
 
-        def send_error_message(message):
+            Returns:
+                None
+            """
+            bot_logger.error(error)
+
+        def __send_error_message(message):
             """
             Sends an error message to the user.
 
             Args:
                 message (telegram.Message): The message object.
+
+            Returns:
+                None
             """
-            self.bot.send_message(
-                message.chat.id,
-                text="Error occurred while getting containers info :("
-            )
+            error_message = "An error occurred. Please try again later."
+            self.bot.send_message(message.chat.id, error_message)
