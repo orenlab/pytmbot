@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from functools import lru_cache
 
 import telebot
 from telebot import AdvancedCustomFilter
@@ -75,6 +76,7 @@ class PytmbotInstance:
         """
         self.bot = None
 
+    @lru_cache(maxsize=1)
     def build_bot_instance(self) -> telebot.TeleBot:
         """
         Constructs a PyTMBot instance with the provided mode.

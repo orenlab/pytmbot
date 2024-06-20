@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from functools import lru_cache
 from typing import Dict
 
 import requests
@@ -66,6 +67,7 @@ class BotUpdatesHandler(HandlerConstructor):
             return {}
 
     @staticmethod
+    @lru_cache
     def _is_bot_development(app_version: str) -> bool:
         """
         Check if the bot is in development mode.
