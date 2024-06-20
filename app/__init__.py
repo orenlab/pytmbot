@@ -77,20 +77,20 @@ class PytmbotInstance:
 
     def build_bot_instance(self) -> telebot.TeleBot:
         """
-        Builds a PyTMBot instance based on the provided mode.
+        Constructs a PyTMBot instance with the provided mode.
 
         Returns:
             telebot.TeleBot: The configured PyTMBot instance.
 
         Raises:
-            ValueError: If the provided mode is invalid.
+            ValueError: If the mode provided is invalid.
         """
         # Check if bot instance already exists
         if self.bot is None:
-            # Log that bot instance is being built
+            # Log that the bot instance is being built
             bot_logger.debug("Building bot instance...")
 
-            # Get the bot mode from command line arguments
+            # Get the bot mode from the command line arguments
             bot_mode = parse_cli_args()
 
             # Log the bot mode
@@ -103,21 +103,23 @@ class PytmbotInstance:
                 else config.bot_token.get_secret_value()  # Get regular bot token otherwise
             )
 
-            # Log that bot token has been received successfully
+            # Log that the bot token has been successfully received
             bot_logger.debug(f"The bot token has been successfully received.")
-
-            # Log that bot has been configured successfully
-            bot_logger.debug(f"Bot configured successfully.")
 
             # Create a new TeleBot instance with the bot token and custom middleware
             self.bot = telebot.TeleBot(
-                bot_token,
+                token=bot_token,
                 use_class_middlewares=True,
                 exception_handler=exceptions.TelebotCustomExceptionHandler(),
             )
 
             # Add a custom filter for callback queries to the bot
             self.bot.add_custom_filter(ContainersCallbackFilter())
+
+            bot_logger.debug("Filters added successfully.")
+
+            # Log that the bot has been configured successfully
+            bot_logger.debug(f"Bot configured successfully.")
 
         return self.bot
 
