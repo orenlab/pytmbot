@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Union, Dict
 
 from docker.errors import DockerException
 from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,36 +16,28 @@ from app.core.logs import logged_handler_session
 
 
 class ContainersHandler(HandlerConstructor):
-    def __init__(self, bot):
-        """
-        Initialize the ContainersHandler.
 
-        Args:
-            bot (telebot.TeleBot): The Telegram bot instance.
+    @staticmethod
+    def __get_container_data() -> Union[list[Dict[str, str]], Dict[None, None]]:
         """
-        # Call the parent class initializer
-        super().__init__(bot)
-
-        # Initialize the DockerAdapter instance
-        self.docker_adapter = DockerAdapter()
-
-    def _get_container_data(self):
-        """
-        Retrieve information about containers using the DockerAdapter.
+        Gets container data from the DockerAdapter.
 
         Returns:
-            dict: A dictionary containing container information if successful, otherwise an empty dictionary.
+            Union[list[Dict[str, str]], Dict[None, None]]: A list of container data or an empty dictionary.
+
+        Raises:
+            DockerException: If a DockerException occurs during the retrieval process.
         """
         try:
-            # Attempt to retrieve image details using the DockerAdapter
-            return self.docker_adapter.retrieve_image_details()
+            # Create an instance of DockerAdapter and retrieve image details in one line
+            return DockerAdapter().retrieve_image_details()
         except DockerException as e:
             # Log an error message if a DockerException occurs
             error_msg = f'Failed at {__name__}: {e}'
             bot_logger.error(error_msg)
             return {}
 
-    def _compile_message(self) -> tuple[str, list[str] | None]:
+    def __compile_message(self) -> tuple[str, list[str] | None]:
         """
         Compiles the message to be sent to the bot based on the container data.
 
@@ -57,7 +50,7 @@ class ContainersHandler(HandlerConstructor):
         """
         try:
             # Get container data
-            container_data: dict = self._get_container_data()
+            container_data: dict = self.__get_container_data()
 
             if not container_data:
                 # Use 'none.jinja2' template if no container data
@@ -118,7 +111,7 @@ class ContainersHandler(HandlerConstructor):
                 __send_typing_action(message)
 
                 # Compile the message to be sent to the user
-                containers_info = self._compile_message()
+                containers_info = self.__compile_message()
 
                 # Build an inline keyboard for the message
                 inline_keyboard = __build_inline_keyboard(containers_info[1])
@@ -159,7 +152,7 @@ class ContainersHandler(HandlerConstructor):
             """
             # Create a list of InlineKeyboardButton objects for each container name
             buttons = [
-                InlineKeyboardButton(text=container_name, callback_data=f"get_full[{container_name}]")
+                InlineKeyboardButton(text=container_name, callback_data=f"{container_name}")
                 for container_name in container_names
             ]
 
