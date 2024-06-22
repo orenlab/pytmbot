@@ -20,7 +20,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.1.0-dev-20240620'
+__version__ = 'v0.1.0-dev-20240622'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -106,7 +106,7 @@ class PytmbotInstance:
             )
 
             # Log that the bot token has been successfully received
-            bot_logger.debug(f"The bot token has been successfully received.")
+            bot_logger.debug("The bot token has been successfully received.")
 
             # Create a new TeleBot instance with the bot token and custom middleware
             self.bot = telebot.TeleBot(
@@ -121,7 +121,7 @@ class PytmbotInstance:
             bot_logger.debug("Filters added successfully.")
 
             # Log that the bot has been configured successfully
-            bot_logger.debug(f"Bot configured successfully.")
+            bot_logger.debug("Bot configured successfully.")
 
         return self.bot
 
