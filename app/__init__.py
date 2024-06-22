@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+
 from functools import lru_cache
 
 import telebot
@@ -62,10 +63,6 @@ class PytmbotInstance:
 
     Raises:
         ValueError: If the provided mode is invalid.
-
-    Example:
-        bot = PytmbotInstance().build_bot_instance()
-        bot.polling()
     """
 
     def __init__(self):
@@ -75,6 +72,30 @@ class PytmbotInstance:
         This attribute is used to store an instance of the bot object.
         """
         self.bot = None
+
+    @lru_cache(maxsize=1)
+    def __get_bot_token(self) -> str:
+        """
+        Get the bot token based on the bot mode.
+
+        This method retrieves the bot token from the configuration based on the bot mode.
+        The bot mode is determined from the command line arguments.
+
+        Returns:
+            str: The bot token.
+        """
+        # Get the bot mode from the command line arguments
+        bot_mode = parse_cli_args()
+
+        # Log the bot mode
+        bot_logger.debug(f"Bot mode: {bot_mode.mode}")
+
+        # Return the appropriate bot token based on the bot mode
+        return (
+            config.dev_bot_token.get_secret_value()
+            if bot_mode.mode == "dev"
+            else config.bot_token.get_secret_value()
+        )
 
     @lru_cache(maxsize=1)
     def build_bot_instance(self) -> telebot.TeleBot:
@@ -89,24 +110,11 @@ class PytmbotInstance:
         """
         # Check if bot instance already exists
         if self.bot is None:
-            # Log that the bot instance is being built
-            bot_logger.debug("Building bot instance...")
-
-            # Get the bot mode from the command line arguments
-            bot_mode = parse_cli_args()
-
-            # Log the bot mode
-            bot_logger.debug(f"Bot mode: {bot_mode.mode}")
-
             # Get the bot token based on the bot mode
-            bot_token = (
-                config.dev_bot_token.get_secret_value()  # Get dev bot token if mode is 'dev'
-                if bot_mode.mode == "dev"
-                else config.bot_token.get_secret_value()  # Get regular bot token otherwise
-            )
+            bot_token = self.__get_bot_token()
 
-            # Log that the bot token has been successfully received
-            bot_logger.debug("The bot token has been successfully received.")
+            # Log the bot token
+            bot_logger.debug("Bot token setup successful")
 
             # Create a new TeleBot instance with the bot token and custom middleware
             self.bot = telebot.TeleBot(
@@ -118,10 +126,8 @@ class PytmbotInstance:
             # Add a custom filter for callback queries to the bot
             self.bot.add_custom_filter(ContainersCallbackFilter())
 
-            bot_logger.debug("Filters added successfully.")
-
             # Log that the bot has been configured successfully
-            bot_logger.debug("Bot configured successfully.")
+            bot_logger.debug("Bot instance configured successfully.")
 
         return self.bot
 
