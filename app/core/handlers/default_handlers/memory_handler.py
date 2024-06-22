@@ -90,7 +90,7 @@ class MemoryHandler(HandlerConstructor):
             # Return the compiled message
             return bot_answer
 
-        except self.TemplateError:
+        except self.template_error:
             # Raise a PyTeleMonBotTemplateError if there is a TemplateError during rendering
             raise self.exceptions.PyTeleMonBotTemplateError(
                 self.bot_msg_tpl.TPL_ERR_TEMPLATE

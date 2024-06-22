@@ -61,5 +61,5 @@ class InlineSwapHandler(HandlerConstructor):
             # Handle ValueError and TemplateError exceptions
             except ValueError:
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
-            except self.TemplateError:
+            except self.template_error:
                 raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)

@@ -61,6 +61,6 @@ class InlineUpdateInfoHandler(HandlerConstructor):
             except ValueError:
                 # Raise an exception if there is a ValueError while retrieving swap memory
                 raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
-            except self.TemplateError:
+            except self.template_error:
                 # Raise an exception if there is a TemplateError while rendering the template
                 raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)

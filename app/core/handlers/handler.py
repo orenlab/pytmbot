@@ -35,7 +35,7 @@ class HandlerConstructor:
         bot_msg_tpl (MessageTpl): The message template object for formatting bot messages.
         config (Config): The configuration object containing bot settings.
         jinja (Jinja2Renderer): The Jinja2 renderer object for templating bot messages.
-        TemplateError (TemplateError): The exception class for template errors.
+        template_error (TemplateError): The exception class for template errors.
         exceptions (Exceptions): The custom exception class for handling Telegram API errors.
         emojis (function): The utility function for getting emoji by name.
         round_up_tuple (function): The utility function for rounding up tuple values.
@@ -70,7 +70,7 @@ class HandlerConstructor:
         self.jinja = Jinja2Renderer()
 
         # Set the exception class for template errors
-        self.TemplateError = TemplateError
+        self.template_error = TemplateError
 
         # Set the custom exception class for handling errors
         self.exceptions = exceptions
