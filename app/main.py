@@ -12,228 +12,183 @@ from app import (
     __version__,
     __repository__,
     bot,
+    bot_logger,
     telebot,
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
-from app.core.logs import bot_logger
 from app.core.middleware.auth import AllowedUser
 
 
 class PyTMBot:
-    """
-    Main PyTMBot class.
-
-    This class represents the main PyTMBot instance and initializes it with
-    the necessary dependencies.
-    """
+    """Main PyTMBot class"""
 
     def __init__(self):
         """
         Initialize the PyTMBot instance.
 
-        This method initializes the PyTMBot instance by setting the bot instance,
-        initializing the handlers aggregator, and setting the sleep time to 0.
-
-        Args:
-            self: The PyTMBot instance.
+        This method initializes the PyTMBot instance with the necessary attributes and dependencies.
+        It sets the bot instance, handler instance, and sleep time.
 
         Returns:
             None
         """
         # Set the bot instance
-        self.bot = bot  # Assuming 'bot' is a valid bot instance
+        self.bot = bot
 
-        # Initialize the handlers aggregator
+        # Initialize the HandlersAggregator with the bot instance
         self.handler = HandlersAggregator(self.bot)
-        """
-        The handlers aggregator instance. It aggregates and initializes all the
-        handlers for the bot.
-        """
 
-        # Set the sleep time to 0
-        self.sleep_time: int = 0
-        """
-        The sleep time in seconds. It is set to 0 by default.
-        """
-
-    def __start_polling(self):
-        """
-        Continuously poll the bot for updates until an exception occurs.
-        If a ConnectionError or ApiTelegramException is raised, the bot is stopped and the function retries after a
-        certain time. If any other exception occurs, the bot is also stopped and an error message is logged.
-
-        Raises:
-            ConnectionError: If the connection to the Telegram API fails.
-            ApiTelegramException: If there is an issue with the Telegram API.
-            Exception: If any other unexpected exception occurs.
-        """
-        while True:
-            try:
-                self.sleep_time += 5
-                self._log_start_of_polling_session()
-                self.__poll_bot_for_updates()
-            except (requests.exceptions.ConnectionError, telebot.apihelper.ApiTelegramException) as e:
-                self.__handle_connection_error(e, sleep_time=self.sleep_time)
-                sleep(self.sleep_time)
-                continue
-            except Exception as e:
-                self.__handle_unexpected_error(e)
-                sleep(self.sleep_time)
-                continue
-            else:
-                break
-
-    @staticmethod
-    def _log_start_of_polling_session():
-        """
-        Logs the start of a polling session.
-
-        This method is a static method that logs the start of a polling session. It uses the `bot_logger` to log an
-        informational message indicating that the polling session has started.
-
-        This method does not take any parameters and does not return anything.
-        """
-        # Log the start of the polling session
-        bot_logger.info('Start polling session')
+        # Set the initial sleep duration to 0
+        self.sleep_duration = 0
 
     def __poll_bot_for_updates(self):
         """
-        Poll the bot for updates with specified timeout and logging level.
+        Poll the bot for updates indefinitely.
 
-        This function uses the `infinity_polling` method of the `bot` object to continuously
-        check for updates. The timeout and long polling timeout are set to 60 seconds, and
-        the `skip_pending` parameter is set to True to skip pending updates. The logging
-        level is set to the current logging level of the `bot_logger`.
+        This method sets the timeout and long polling timeout for the bot's polling. It also sets whether to skip pending updates.
+        The logger level is set to the current logger level.
 
         Returns:
             None
         """
-        # Set the timeout for checking for updates
-        timeout = 60
+        # Set the timeout for the bot's polling
+        timeout_seconds = 60
 
-        # Set the long polling timeout
-        long_polling_timeout = 60
+        # Set the long polling timeout for the bot's polling
+        long_polling_timeout_seconds = 60
 
-        # Skip pending updates
-        skip_pending = True
+        # Set whether to skip pending updates
+        skip_pending_updates = True
 
-        # Set the logging level to the current logging level of the bot_logger
+        # Set the logger level to the current logger level
         logger_level = bot_logger.level
 
-        # Poll the bot for updates
+        # Poll the bot for updates indefinitely
         self.bot.infinity_polling(
-            timeout=timeout,
-            long_polling_timeout=long_polling_timeout,
-            skip_pending=skip_pending,
+            timeout=timeout_seconds,
+            long_polling_timeout=long_polling_timeout_seconds,
+            skip_pending=skip_pending_updates,
             logger_level=logger_level
         )
 
-    def __handle_connection_error(self, e, sleep_time):
+    def __stop_polling(self, error):
         """
-        Handle connection error by stopping polling, logging the error message,
-        and indicating the time to retry.
+        Stop bot polling on error.
+
+        This method stops the bot polling process when an error occurs. It logs the error message
+        and retries after the sleep duration.
 
         Args:
-            e (Exception): The connection error that occurred.
-            sleep_time (int): The time in seconds to wait before retrying.
+            error (Exception): The error that caused the polling to stop.
         """
-        # Stop polling to avoid further errors
         self.bot.stop_polling()
+        bot_logger.error(f'Failed with error: {error}. Retrying after {self.sleep_duration} seconds')
+        sleep(self.sleep_duration)
 
-        # Log the error message with the sleep time
-        bot_logger.debug(f"{e}. Retry after {sleep_time} seconds")
-
-        # Log the error message with the sleep time
-        _log_error(f'Failed at @{__name__}: Connection error. Retry after {sleep_time} seconds')
-
-    def __handle_unexpected_error(self, e):
+    def __start_polling(self):
         """
-        Handle unexpected errors by stopping polling, logging the error message,
-        and indicating that an automatic restart is not possible.
+        Start bot polling.
+
+        This method continuously polls for updates from the bot until it is stopped.
+        It increases the sleep duration by 5 seconds after each attempt.
+        If a connection error or a Telegram API exception occurs, it stops polling and retries after the sleep duration.
+        If any other unexpected error occurs, it stops polling and logs the error.
+
+        """
+        while True:
+            # Increase sleep duration by 5 seconds
+            self.sleep_duration += 5
+
+            # Log the start of a polling session
+            bot_logger.info('Start polling session')
+
+            try:
+                # Poll for updates
+                self.__poll_bot_for_updates()
+            except (requests.exceptions.ConnectionError, telebot.apihelper.ApiTelegramException) as error:
+                # Stop polling and retry after the sleep duration
+                self.__stop_polling(error)
+            except Exception as unexpected_error:
+                # Stop polling and log the unexpected error
+                self.__stop_polling(unexpected_error)
+
+            # Break the loop after the first iteration
+            break
+
+    @staticmethod
+    def __log_startup() -> None:
+        """
+        Log the bot startup.
+
+        This method logs the startup information of the bot, including the version and repository.
+
+        Returns:
+            None
+        """
+        # Log the startup information
+        bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
+
+    def __setup_middleware(self, middleware) -> None:
+        """
+        Set up the middleware for the bot.
 
         Args:
-            e (Exception): The unexpected error that occurred.
+            middleware (BaseMiddleware): The middleware to be added to the bot.
+
+        Returns:
+            None
+
+        This function sets up the provided middleware for the bot. It logs the setup process and handles any exceptions that may occur.
+
         """
-        # Stop polling to avoid further errors
-        self.bot.stop_polling()
+        # Log the start of the setup process
+        bot_logger.debug("Setting up middleware...")
 
-        # Log the error message with the error details
-        bot_logger.debug(f"Failed: {e}.")
+        # Log the middleware that is being set up
+        bot_logger.debug(f"Middleware: {middleware}")
 
-        # Log a generic error message indicating that an automatic restart is not possible
-        _log_error("Unexpected exception.")
+        try:
+            # Add the middleware to the bot
+            self.bot.setup_middleware(middleware)
+
+            # Log the successful setup of the middleware
+            bot_logger.debug("Middleware setup successful.")
+        except Exception as e:
+            # Log any errors that occur during the setup process
+            bot_logger.debug(f"Error setting up middleware: {e}")
 
     def run_bot(self):
         """
-        Run the bot and handle exceptions.
+        Run the bot.
 
-        This method initializes the bot, sets up middleware, runs handlers,
-        logs the startup message, and starts polling for updates.
-        It handles ConnectionError and ImportError exceptions by logging the errors.
+        This function initializes the bot's handlers, logs the startup, and starts
+        polling for updates. If any exception occurs during the process, it logs
+        the error.
 
         Raises:
-            ConnectionError: If the connection to the Telegram API fails.
-            ImportError: If there is an issue importing a required module.
+            Exception: If an error occurs during the process.
+
+        Returns:
+            None
         """
         try:
-            self.__setup_middleware()  # Set up middleware for the bot
-            self.__run_handlers()  # Run the handlers for the bot
-            _log_startup_message()  # Log the startup message
-            self.__start_polling()  # Start polling for updates from the bot
-        except ConnectionError as e:
-            _log_error(f"Failed at @{__name__}: {e}")  # Log the connection error
-        except ImportError as e:
-            _log_error(f"Failed: cannot import name {e}")  # Log the import error
+            # Initialize the AllowedUser middleware
+            allowed_user = AllowedUser()
 
-    def __setup_middleware(self):
-        """
-        Setup middleware for the bot.
+            # Set up the middleware
+            self.__setup_middleware(allowed_user)
 
-        This method initializes the middleware for the bot by creating an instance of the AllowedUser class
-        and passing it to the bot's setup_middleware method.
-        """
-        # Create an instance of the AllowedUser class
-        allowed_user = AllowedUser()
+            # Run the bot's handlers
+            self.handler.run_handlers()
 
-        # Set up the middleware for the bot by passing the instance of AllowedUser to the bot's setup_middleware method
-        self.bot.setup_middleware(allowed_user)
+            # Log the startup
+            self.__log_startup()
 
-    def __run_handlers(self):
-        """
-        Run the handlers for the bot.
-
-        This method calls the `run_handlers` method of the `HandlersAggregator` instance.
-        """
-        self.handler.run_handlers()
-
-
-def _log_startup_message():
-    """
-    Log the startup message for the bot.
-
-    This function logs a message indicating that a new instance of the bot has started.
-    The message includes the version and repository information of the bot.
-
-    Returns:
-        None
-    """
-    # Log the startup message
-    bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
-
-
-def _log_error(message: str) -> None:
-    """
-    Log an error message for the bot.
-
-    Args:
-        message (str): The error message to log.
-
-    Returns:
-        None
-    """
-    # Log the error message using the bot logger.
-    # The exc_info parameter is set False to avoid logging the full traceback.
-    bot_logger.error(message, exc_info=False)
+            # Start polling for updates
+            self.__start_polling()
+        except Exception as error:
+            # Log the error if any exception occurs
+            bot_logger.error(f"Failed at @{__name__}: {error}")
 
 
 if __name__ == "__main__":

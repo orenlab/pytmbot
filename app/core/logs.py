@@ -19,6 +19,33 @@ from app.utilities.utilities import (
 )
 
 
+class BotLogger:
+    """
+    Custom logger for the bot. Uses the 'pyTMbot' logger name.
+
+    Attributes:
+        _logger (logging.Logger): The logger object.
+
+    Methods:
+        get_logger()
+
+    Returns:
+        logging.Logger: The logger object.
+    """
+    _logger = None
+
+    @classmethod
+    def get_logger(cls) -> logging.Logger:
+        """
+        Retrieves the logger object for the bot. If the logger object is not set, it initializes it with the 'pyTMbot' logger name.
+
+        Returns:
+            logging.Logger: The logger object.
+        """
+        cls._logger = cls._logger or logging.getLogger('pyTMbot')
+        return cls._logger
+
+
 def build_bot_logger() -> logging.Logger:
     """
     Builds a custom logger for the bot.
@@ -39,7 +66,7 @@ def build_bot_logger() -> logging.Logger:
     log_level = parse_cli_args().log_level
 
     # Create a logger object for the bot
-    logger = logging.getLogger('pyTMbot')
+    logger = BotLogger.get_logger()
 
     # Set the log level based on the command line argument
     logger.setLevel(log_level.upper() if log_level in known_log_levels else 'INFO')
@@ -68,6 +95,9 @@ def build_bot_logger() -> logging.Logger:
     if log_level == 'DEBUG':
         logger.error = partial(logger.error, exc_info=True)
 
+    logger.debug("Logger initialized")
+    logger.debug(f"Log level: {logger.level}")
+
     return logger
 
 
@@ -86,29 +116,17 @@ def get_message_full_info(*args, **kwargs):
             "None" for all values.
     """
 
-    # Find message in args
-    message_args = find_in_args(args, Message)
-    if message_args is not None:
+    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
+    if message is not None:
+        user = message.from_user
         return (
-            message_args.from_user.username,  # Username of the message sender
-            message_args.from_user.id,  # User ID of the message sender
-            message_args.from_user.language_code,  # Language code of the message sender
-            message_args.from_user.is_bot,  # Flag indicating if the message sender is a bot
-            message_args.text  # Text of the message
+            user.username,
+            user.id,
+            user.language_code,
+            user.is_bot,
+            message.text
         )
 
-    # Find message in kwargs
-    message_kwargs = find_in_kwargs(kwargs, Message)
-    if message_kwargs is not None:
-        return (
-            message_kwargs.from_user.username,  # Username of the message sender
-            message_kwargs.from_user.id,  # User ID of the message sender
-            message_kwargs.from_user.language_code,  # Language code of the message sender
-            message_kwargs.from_user.is_bot,  # Flag indicating if the message sender is a bot
-            message_kwargs.text  # Text of the message
-        )
-
-    # Return "None" for all values if message is not found
     return "None", "None", "None", "None", "None"
 
 
@@ -125,25 +143,13 @@ def get_inline_message_full_info(*args, **kwargs):
             A tuple containing the username, user ID, and is_bot flag of the message sender.
             If the message is not found in args or kwargs, returns "None" for all values.
     """
-    # Find message in args
-    message_args = find_in_args(args, CallbackQuery)
-    if message_args is not None:
-        return (
-            message_args.message.from_user.username,  # Username of the message sender
-            message_args.message.from_user.id,  # User ID of the message sender
-            message_args.message.from_user.is_bot  # Flag indicating if the message sender is a bot
-        )
+    # Find message in args or kwargs
+    message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
 
-    # Find message in kwargs
-    message_kwargs = find_in_kwargs(kwargs, CallbackQuery)
-    if message_kwargs is not None:
-        return (
-            message_kwargs.message.from_user.username,  # Username of the message sender
-            message_kwargs.message.from_user.id,  # User ID of the message sender
-            message_kwargs.message.from_user.is_bot  # Flag indicating if the message sender is a bot
-        )
+    if message is not None:
+        user = message.message.from_user
+        return user.username, user.id, user.is_bot
 
-    # Return "None" for all values if message is not found
     return "None", "None", "None"
 
 
@@ -196,11 +202,11 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
         except Exception as e:
             if bot_logger.level == 10:
                 bot_logger.exception(
-                    f"Failed @{func.__name__} - exception: {e}"
+                    f"Failed at @{func.__name__} - exception: {e}"
                 )
             else:
                 bot_logger.error(
-                    f"Failed @{func.__name__} - exception: {e}"
+                    f"Failed at @{func.__name__} - exception: {e}"
                 )
 
     return handler_session_wrapper
@@ -250,11 +256,11 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
         except Exception as e:
             if bot_logger.level == 10:
                 bot_logger.exception(
-                    f"Failed @{func.__name__} - exception: {e}"
+                    f"Failed at @{func.__name__} - exception: {e}"
                 )
             else:
                 bot_logger.error(
-                    f"Failed @{func.__name__} - exception: {e}"
+                    f"Failed at @{func.__name__} - exception: {e}"
                 )
 
     return inline_handler_session_wrapper

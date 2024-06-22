@@ -44,8 +44,8 @@ class InlineSwapHandler(HandlerConstructor):
 
                 # Define the template context
                 emojis: Dict[str, str] = {
-                    'thought_balloon': self.get_emoji('thought_balloon'),  # Emoji for thought balloon
-                    'paperclip': self.get_emoji('paperclip'),  # Emoji for paperclip
+                    'thought_balloon': self.emojis.get_emoji('thought_balloon'),  # Emoji for thought balloon
+                    'paperclip': self.emojis.get_emoji('paperclip'),  # Emoji for paperclip
                 }
 
                 # Render the template with the retrieved context

@@ -6,84 +6,101 @@ the status of your local servers
 """
 
 from functools import lru_cache
+from typing import Dict, List
 
-from telebot import types
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from app.core.settings.keyboards import KeyboardSettings
-from app.utilities.utilities import get_emoji
+from app.utilities.utilities import EmojiConverter
 
 
-def keyboard_constructor(keyboard: dict) -> list[str]:
+class Keyboard(KeyboardSettings):
     """
-    Constructs a keyboard from a dictionary of emoji and title pairs.
+    A class for managing keyboard settings.
 
-    Args:
-        keyboard (dict): A dictionary where the keys are emoji strings and the values
-                         are title strings.
+    Attributes:
+        main_keyboard (Dict[str, str]): A dictionary of emoji-title pairs representing the main keyboard.
+
+    Methods:
+        build_reply_keyboard(self)
+        build_inline_keyboard(self, button_text: str, callback_data: str)
+
+    Example:
+        keyboard = Keyboard()
+        reply_keyboard = keyboard.build_reply_keyboard()
 
     Returns:
-        list[str]: A list of strings where each string is a combination of an emoji
-                   and a title, separated by a space.
-    """
-    # Initialize an empty list to store the constructed keyboard
-    keyboard_value = []
-
-    # Iterate over each emoji and title pair in the keyboard dictionary
-    for emoji, title in keyboard.items():
-        # Combine the emoji and title with a space and append to the keyboard_value list
-        keyboard_value.append(get_emoji(emoji) + ' ' + title)
-
-    # Return the constructed keyboard
-    return keyboard_value
-
-
-class Keyboard:
-    """
-    Class for building keyboard objects (reply and inline keyboard).
+        types.ReplyKeyboardMarkup: The constructed reply keyboard.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
-        Initialize the Keyboard class.
+        Initializes the Keyboard class.
 
-        This method initializes the Keyboard class and sets the `kb` attribute
-        to an instance of the KeyboardSettings class.
-        """
-        self.kb = KeyboardSettings()
+        This method initializes the Keyboard class and sets up the EmojiConverter attribute.
 
-    @lru_cache
-    def build_reply_keyboard(self) -> types.ReplyKeyboardMarkup:
-        """
-        Builds a reply keyboard using the main keyboard settings.
+        Args:
+            self (Keyboard): The instance of the Keyboard class.
 
         Returns:
-            types.ReplyKeyboardMarkup: The built reply keyboard.
+            None
+        """
+        # Call the superclass initialization method
+        super().__init__()
+
+        # Initialize the emojis attribute with an instance of EmojiConverter
+        self.emojis: EmojiConverter = EmojiConverter()
+
+    def construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
+        """
+        Constructs a keyboard from a dictionary of emoji-title pairs.
+
+        Args:
+            keyboard_data (Dict[str, str]): A dictionary where the keys are emojis and the values are titles.
+
+        Returns:
+            List[str]: A list of strings representing the constructed keyboard.
+        """
+        constructed_keyboard = [f"{self.emojis.get_emoji(emoji)} {title}" for emoji, title in keyboard_data.items()]
+        return constructed_keyboard
+
+    @lru_cache
+    def build_reply_keyboard(self) -> ReplyKeyboardMarkup:
+        """
+        Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
+
+        Args:
+            self: The instance of the Keyboard class.
+
+        Returns:
+            types.ReplyKeyboardMarkup: The constructed reply keyboard markup.
         """
         # Create a new ReplyKeyboardMarkup object with resize_keyboard set to True
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 
         # Construct the keyboard using the main keyboard settings
-        keyboard = keyboard_constructor(self.kb.main_keyboard)
+        keyboard_buttons = self.construct_keyboard(self._get_main_keyboard())
 
-        # Add the constructed keyboard to the markup
-        markup.add(*keyboard)
+        # Add the constructed keyboard to the reply keyboard
+        reply_keyboard.add(*keyboard_buttons)
 
-        # Return the built reply keyboard
-        return markup
+        return reply_keyboard
 
     @lru_cache
-    def build_inline_keyboard(self, button_name: str, callback_data: str) -> types.InlineKeyboardMarkup:
+    def build_inline_keyboard(self, *button_text: str) -> InlineKeyboardMarkup:
         """
-        Build an inline keyboard with a single button.
+        Constructs an InlineKeyboardMarkup object with the provided button texts.
+
         Args:
-            button_name (str): The text to display on the button.
-            callback_data (str): The data to send when the button is clicked.
+            self: The instance of the Keyboard class.
+            *button_text (str): Variable length argument list of button texts.
+
         Returns:
-            types.InlineKeyboardMarkup: The built inline keyboard.
+            InlineKeyboardMarkup: The constructed inline keyboard markup.
         """
-        # Create a new InlineKeyboardMarkup object
-        markup = types.InlineKeyboardMarkup()
-        # Add a button to the markup with the specified name and callback data
-        markup.add(types.InlineKeyboardButton(text=button_name, callback_data=callback_data))
-        # Return the built inline keyboard
-        return markup
+        return InlineKeyboardMarkup(
+            [[
+                InlineKeyboardButton(text=text, callback_data=f"{text.lower().replace(' ', '_')}")
+                for text in button_text
+            ]]
+        )

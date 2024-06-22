@@ -62,10 +62,10 @@ class SensorsHandler(HandlerConstructor):
                 # Define the template name and context
                 template_name: str = 'sensors.jinja2'
                 emojis: Dict[str, Any] = {
-                    'thought_balloon': self.get_emoji('thought_balloon'),
-                    'thermometer': self.get_emoji('thermometer'),
-                    'exclamation': self.get_emoji('red_exclamation_mark'),
-                    'melting_face': self.get_emoji('melting_face'),
+                    'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                    'thermometer': self.emojis.get_emoji('thermometer'),
+                    'exclamation': self.emojis.get_emoji('red_exclamation_mark'),
+                    'melting_face': self.emojis.get_emoji('melting_face'),
                 }
 
                 # Render the message using the template and context data

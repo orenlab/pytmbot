@@ -2,7 +2,7 @@
 
 ## 🔌 Installation
 
-There are four ways for today:
+There are three ways for today:
 
 1. Use a pre-build bot image from hub.docker.com (default way). Then, please follow
    the [instructions](https://hub.docker.com/r/orenlab/pytmbot) posted on the Docker Hub.

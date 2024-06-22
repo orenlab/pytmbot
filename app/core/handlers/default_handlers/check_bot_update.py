@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from functools import lru_cache
 from typing import Dict
 
 import requests
@@ -35,39 +36,38 @@ class BotUpdatesHandler(HandlerConstructor):
                   If the request fails, an empty dictionary is returned.
         """
         try:
-            # Initialize an empty dictionary to store the release information
-            release_info: dict = {}
+            with requests.Session() as session:
+                # Send a GET request to the GitHub API to retrieve the latest release information
+                resp = session.get(__github_api_url__, timeout=5)
 
-            # Send a GET request to the GitHub API to retrieve the latest release information
-            resp = requests.get(__github_api_url__, timeout=5)
+                # Log a debug message indicating that the request has been submitted
+                bot_logger.debug("Request has been submitted")
 
-            # Log a debug message indicating that the request has been submitted
-            bot_logger.debug("Request has been submitted")
+                # Check if the request was successful (status code 200)
+                if resp.status_code == 200:
+                    # Extract the relevant information from the response and update the release_info dictionary
+                    release_info = {
+                        'tag_name': resp.json()['tag_name'],
+                        'published_at': resp.json()['published_at'],
+                        'body': resp.json()['body'],
+                    }
 
-            # Check if the request was successful (status code 200)
-            if resp.status_code == 200:
-                # Extract the relevant information from the response and update the release_info dictionary
-                release_info.update({
-                    'tag_name': resp.json()['tag_name'],
-                    'published_at': resp.json()['published_at'],
-                    'body': resp.json()['body'],
-                })
+                    # Log a debug message indicating that the response code is 200
+                    bot_logger.debug("Response code - 200")
 
-                # Log a debug message indicating that the response code is 200
-                bot_logger.debug("Response code - 200")
-
-                # Return the release_info dictionary
-                return release_info
-            else:
-                # Log a debug message indicating the response code and return an empty dictionary
-                bot_logger.debug(f"Response code - {resp.status_code}. Return empty dict")
-                return {}
-        except ConnectionError as e:
+                    # Return the release_info dictionary
+                    return release_info
+                else:
+                    # Log a debug message indicating the response code and return an empty dictionary
+                    bot_logger.debug(f"Response code - {resp.status_code}. Return empty dict")
+                    return {}
+        except requests.exceptions.ConnectionError as e:
             # Log an error message indicating that the update check failed
             bot_logger.error(f"Cant get update info: {e}")
             return {}
 
     @staticmethod
+    @lru_cache
     def _is_bot_development(app_version: str) -> bool:
         """
         Check if the bot is in development mode.
@@ -82,47 +82,42 @@ class BotUpdatesHandler(HandlerConstructor):
 
     def _compile_message(self) -> tuple[str, bool]:
         """
-        Compile the message to be sent to the bot.
-
-        This function checks if the bot is in development mode or not.
-        If it is in development mode, it returns a message indicating that the bot is using the development version.
-        If it is not in development mode, it checks for updates and returns a message accordingly.
-
-        Args:
-            self: The BotUpdatesHandler instance.
+        Compiles a message to be sent to the bot based on the bot's version and
+        whether it's in development mode or not.
 
         Returns:
-            tuple[str, bool]: A tuple containing the bot answer and a flag indicating if inline messages are needed.
+            A tuple containing the bot's answer and a flag indicating if inline
+            messages are needed.
         """
 
         # Check if the bot is in development mode
         is_development_mode = self._is_bot_development(__version__)
 
+        # If in development mode, return a message indicating the bot is in dev
         if is_development_mode:
-            # Return a message indicating that the bot is using the development version
-            message = self._render_development_message()
-            return message, False
-        else:
-            # Check for updates
-            update_context = self.__check_bot_update()
+            return self._render_development_message(), False
 
-            if not update_context:
-                # Return a message indicating that there were difficulties checking for updates
-                message = self._render_update_difficulties_message()
-                return message, False
-            else:
-                if update_context['tag_name'] > __version__:
-                    # Return a message indicating that there is a new update available
-                    message = self._render_new_update_message(update_context)
-                    return message, True
-                elif update_context['tag_name'] == __version__:
-                    # Return a message indicating that there is no update available
-                    message = self._render_no_update_message()
-                    return message, False
-                elif update_context['tag_name'] < __version__:
-                    # Return a message indicating that the bot is living in the future
-                    message = self._render_future_message(update_context)
-                    return message, False
+        # Check for updates and return the appropriate message
+        update_context = self.__check_bot_update()
+
+        # If no update context, return a message indicating update difficulties
+        if not update_context:
+            return self._render_update_difficulties_message(), False
+
+        # Get the tag name from the update context
+        tag_name = update_context['tag_name']
+
+        # If the tag name is greater than the bot's version, return a new update message
+        if tag_name > __version__:
+            return self._render_new_update_message(update_context), True
+
+        # If the tag name is equal to the bot's version, return a no update message
+        elif tag_name == __version__:
+            return self._render_no_update_message(), False
+
+        # If the tag name is less than the bot's version, return a future update message
+        else:
+            return self._render_future_message(update_context), False
 
     def _render_development_message(self) -> str:
         """
@@ -140,7 +135,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Create the message context with the current version
@@ -168,7 +163,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Define the message to be rendered
@@ -201,10 +196,10 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # Define the emojis to be used in the message
         emojis = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
-            'spouting_whale': self.get_emoji('spouting_whale'),
-            'calendar': self.get_emoji('calendar'),
-            'cooking': self.get_emoji('cooking'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            'spouting_whale': self.emojis.get_emoji('spouting_whale'),
+            'calendar': self.emojis.get_emoji('calendar'),
+            'cooking': self.emojis.get_emoji('cooking'),
         }
 
         # Render the message using Jinja templates
@@ -232,7 +227,7 @@ class BotUpdatesHandler(HandlerConstructor):
         template_name: str = 'none.jinja2'
 
         emojis: dict = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji
@@ -263,7 +258,7 @@ class BotUpdatesHandler(HandlerConstructor):
         template_name: str = 'none.jinja2'
 
         emojis: dict = {
-            'thought_balloon': self.get_emoji('thought_balloon'),
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji
@@ -279,7 +274,6 @@ class BotUpdatesHandler(HandlerConstructor):
 
         Raises:
             PyTeleMonBotHandlerError: If there is a ValueError while rendering the template.
-            PyTeleMonBotTemplateError: If there is a TemplateError while rendering the template.
         """
 
         @self.bot.message_handler(commands=['check_bot_updates'])
@@ -308,10 +302,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
                 # Send the bot's answer to the chat
                 if need_inline:
-                    inline_button = self.keyboard.build_inline_keyboard(
-                        "How update the bot's image?",
-                        "update_info"
-                    )
+                    inline_button = self.keyboard.build_inline_keyboard("How update?")
                     HandlerConstructor._send_bot_answer(
                         self,
                         message.chat.id,
@@ -331,7 +322,3 @@ class BotUpdatesHandler(HandlerConstructor):
                 # Raise error if there is a ValueError while rendering the template
                 error_msg = self.bot_msg_tpl.VALUE_ERR_TEMPLATE
                 raise self.exceptions.PyTeleMonBotHandlerError(error_msg)
-            except self.TemplateError:
-                # Raise error if there is a TemplateError while rendering the template
-                error_msg = self.bot_msg_tpl.TPL_ERR_TEMPLATE
-                raise self.exceptions.PyTeleMonBotTemplateError(error_msg)

@@ -73,8 +73,8 @@ class ProcessHandler(HandlerConstructor):
 
             # Prepare the context for the template rendering
             emojis = {
-                'thought_balloon': self.get_emoji('thought_balloon'),
-                'horizontal_traffic_light': self.get_emoji('horizontal_traffic_light'),
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                'horizontal_traffic_light': self.emojis.get_emoji('horizontal_traffic_light'),
 
             }
 

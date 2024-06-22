@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from typing import Any, Optional, List, Type
 
 from telebot.handler_backends import (
     BaseMiddleware,
@@ -31,50 +32,47 @@ class AllowedUser(BaseMiddleware):
         This method initializes the middleware by setting the bot message template
         and the update types.
 
+        Args:
+            self (AllowedUser): The instance of the AllowedUser class.
+
         Returns:
             None
         """
         # Call the parent class's __init__ method
         super().__init__()
 
-        # Create an instance of the MessageTpl class and assign it to self.bot_msg_tpl
-        self.bot_msg_tpl = MessageTpl()
-
         # Set the update types to ['message', 'inline_query']
-        self.update_types = ['message', 'inline_query']
+        self.bot_msg_tpl: 'Type[MessageTpl]' = MessageTpl
+        self.update_types: List[str] = ['message', 'inline_query']
 
-    def pre_process(self, message: Message, data) -> CancelUpdate:
+    def pre_process(self, message: Message, data: Any) -> CancelUpdate:
         """
         Check if the user is allowed to access the bot.
 
         Args:
-            message (Message): Object from Telebot containing user information.
-            data (): Additional data from Telebot.
+            message (telebot.types.Message): Object from Telebot containing user information.
+            data (Any): Additional data from Telebot.
 
         Returns:
-            CancelUpdate: An instance of the CancelUpdate class.
+            telebot.types.CancelUpdate: An instance of the CancelUpdate class.
         """
 
         # Extract user information from the message
-        user_id = message.from_user.id
-        user_name = message.from_user.username
-        chat_id = message.chat.id
-        language_code = message.from_user.language_code
-        is_bot = message.from_user.is_bot
+        user_id = message.from_user.id  # get user id
+        user_name = message.from_user.username  # get username
+        chat_id = message.chat.id  # get chat id
+        language_code = message.from_user.language_code  # get user language code
+        is_bot = message.from_user.is_bot  # get if user is a bot
 
-        # Check if the user is allowed
-        if user_id in config.allowed_user_ids:
-            # Log the successful access
-            bot_logger.info(
-                self.bot_msg_tpl.ACCESS_SUCCESS.format(user_name, user_id)
-            )
-        else:
+        # Check if the user is in the list of allowed user IDs
+        if user_id not in config.allowed_user_ids:
             # Send a typing action to indicate that the bot is processing
             bot.send_chat_action(chat_id, 'typing')
 
             # Log the failed access
-            error_message = self.bot_msg_tpl.ERROR_ACCESS_LOG_TEMPLATE.format(
-                user_name, user_id, language_code, is_bot
+            error_message = (
+                f"Failed access for user {user_name} (ID: {user_id}, "
+                f"Language: {language_code}, IsBot: {is_bot})"
             )
             bot_logger.error(error_message)
 
@@ -85,15 +83,22 @@ class AllowedUser(BaseMiddleware):
             # Cancel any further processing of the message
             return CancelUpdate()
 
-    def post_process(self, message: Message, data, exception) -> None:
+        # Log the successful access
+        bot_logger.info(
+            f"Successful access for user {user_name} (ID: {user_id})"
+        )
+
+    def post_process(self, message: Message, data: Any, exception: Optional[Exception]) -> None:
         """
-        This method is a part of the middleware process and is not needed in this case.
-        However, it is required for the correct functioning of the middleware.
+        Post-process function that handles the message after it has been processed.
+
+        This function takes in the message received from Telebot, additional data, and any exceptions that occurred
+        during processing. It handles the message after it has been processed.
 
         Args:
-            message (Message): Object from Telebot containing user information.
-            data (): Additional data from Telebot.
-            exception: Exception that occurred during the middleware process.
+            message (telebot.types.Message): The message object received from Telebot.
+            data (Any): Additional data from Telebot.
+            exception (Optional[Exception]): The exception that occurred during processing, if any.
 
         Returns:
             None

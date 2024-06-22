@@ -40,8 +40,17 @@ def get_env_file_path() -> str:
 
 
 class BotSettings(BaseSettings):
-    """Bot Settings.
     """
+    BotSettings class to load configuration from .pytmbotenv file
+
+    Attributes:
+        bot_token: SecretStr  # Bot toke from .pytmbotenv
+        dev_bot_token: Optional[SecretStr]  # Dev bot toke from .pytmbotenv
+        allowed_user_ids: list[int]  # Allowed user id from .pytmbotenv
+        docker_host: str  # Docker socket URI from .pytmbotenv
+        podman_host: Optional[str]  # Podman socker URI from .pytmbotenv
+    """
+
     bot_token: SecretStr  # Bot toke from .pytmbotenv
     dev_bot_token: Optional[SecretStr]  # Dev bot toke from .pytmbotenv
     allowed_user_ids: list[int]  # Allowed user id from .pytmbotenv

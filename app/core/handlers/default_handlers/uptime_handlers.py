@@ -48,8 +48,8 @@ class UptimeHandler(HandlerConstructor):
 
             # Prepare the context variables for the Jinja template
             emojis: dict = {
-                'thought_balloon': self.get_emoji('thought_balloon'),  # Emoji for 'thought balloon'
-                'hourglass_not_done': self.get_emoji('hourglass_not_done'),  # Emoji for 'hourglass not done'
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),  # Emoji for 'thought balloon'
+                'hourglass_not_done': self.emojis.get_emoji('hourglass_not_done'),  # Emoji for 'hourglass not done'
             }
 
             # Render the Jinja template with the context variables

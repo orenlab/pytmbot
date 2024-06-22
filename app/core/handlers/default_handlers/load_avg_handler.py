@@ -48,8 +48,8 @@ class LoadAvgHandler(HandlerConstructor):
 
             # Setting up the template variables for emojis
             emojis: dict[str, dict | str] = {
-                'thought_balloon': self.get_emoji('thought_balloon'),
-                'desktop_computer': self.get_emoji('desktop_computer'),
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                'desktop_computer': self.emojis.get_emoji('desktop_computer'),
             }
 
             # Rendering the template to get the bot's answer

@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
-from functools import lru_cache
+from typing import List, Dict, Union
 
 import docker
 from humanize import naturalsize, naturaltime
@@ -15,66 +15,58 @@ from app.core.logs import bot_logger
 
 
 class DockerAdapter:
-    """Class to adapt docker-py to pyTMbot.
-
-    This class initializes the DockerAdapter with the necessary attributes.
-    """
+    """Class to adapt docker-py to pyTMbot."""
 
     def __init__(self) -> None:
-        """Initialize the DockerAdapter.
-
-        Initializes the DockerAdapter with the necessary attributes.
         """
-        # Set the Docker URL from the config
+        Initialize the DockerCustomClient.
+
+        This method sets the Docker URL from the config and initializes the Docker client.
+
+        Returns:
+            None
+        """
+        # The Docker URL is obtained from the config module
         self.docker_url: str = config.docker_host
 
-        # Initialize the Docker client
+        # The Docker client is initialized as None
         self.client = None
 
-        # Initialize the registry digest
-        self.registry_digest: None = None
-
-        # Initialize the local image digest
-        self.local_image_digest: None = None
-
-        # Initialize the list of containers
-        self.containers: None = None
-
-        # Initialize the container
-        self.container: None = None
-
-    @lru_cache(maxsize=None)
-    def _create_docker_client(self) -> docker.DockerClient:
+    def __create_docker_client(self) -> docker.DockerClient:
         """
-        Creates a Docker client instance.
+        Create and return a Docker client instance.
 
-        This method creates a Docker client instance using the Docker URL specified in the config.
-        The client is cached using the `lru_cache` decorator, so subsequent calls to this method
-        with the same arguments will return the cached client instance.
+        This function initializes the Docker client if it hasn't been initialized yet.
+        It logs debug messages at the start and end of the client creation process.
 
         Returns:
             docker.DockerClient: The Docker client instance.
 
         Raises:
-            ConnectionAbortedError: If the connection to the Docker daemon is aborted.
+            ConnectionAbortedError: If an error occurs during client creation.
             FileNotFoundError: If the Docker executable is not found.
-
         """
         try:
-            # Create the Docker client instance using the Docker URL specified in the config
-            self.client = docker.DockerClient(self.docker_url)
+            # Check if the Docker client instance is not already initialized
+            if self.client is None:
+                # Log a debug message indicating the start of client creation
+                bot_logger.debug("Initializing Docker client instance...")
 
-            # Log a debug message indicating that the Docker client was created successfully
-            bot_logger.debug("Created docker client success")
+                # Create the Docker client instance
+                self.client = docker.DockerClient(self.docker_url)
 
-            # Return the Docker client instance
+                # Log a debug message indicating the success of client creation
+                bot_logger.debug("Returning the Docker client instance.")
+
+            # Return the client instance
             return self.client
 
+        # If an error occurs during client creation, log an error message
         except (ConnectionAbortedError, FileNotFoundError) as e:
-            # Log an error message indicating that an error occurred while creating the Docker client
+            # Log an error message with the exception details
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _is_docker_available(self) -> bool:
+    def __is_docker_available(self) -> bool:
         """
         Check if the Docker socket is available.
 
@@ -85,31 +77,47 @@ class DockerAdapter:
             bool: True if the Docker socket is available, False otherwise.
         """
         try:
-            # Create a Docker client instance
-            client = self._create_docker_client()
-
-            # Ping the Docker daemon
-            ping = client.ping()
-
-            # Log a debug message indicating the Docker availability
-            bot_logger.debug(f"Docker alive: {ping}")
-
-            # Return the Docker availability
-            return ping
+            # Ping the Docker daemon and return the result
+            return self.__create_docker_client().ping()
 
         except (ConnectionAbortedError, FileNotFoundError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _containers_list(self):
+    @staticmethod
+    def _naturalsize(size: int) -> str:
+        """
+        Convert a size in bytes to a human-readable format.
+
+        Args:
+            size (int): The size in bytes.
+
+        Returns:
+            str: The size in a human-readable format.
+        """
+        return naturalsize(size, binary=True)
+
+    @staticmethod
+    def _naturaltime(timestamp: datetime) -> str:
+        """
+        Convert a timestamp to a human-readable format.
+
+        Args:
+            timestamp (datetime): The timestamp to convert.
+
+        Returns:
+            str: The timestamp in a human-readable format.
+        """
+        return naturaltime(timestamp)
+
+    def __list_containers(self) -> List[str]:
         """
         List all docker containers.
 
-        This function creates a Docker client instance and retrieves a list of all running containers.
-        It then extracts the image tags from the container list and returns them as a list.
+        This function retrieves a list of all running containers and returns their image tags.
 
         Returns:
-            list: A list of image tags of all running containers.
+            List[str]: A list of image tags of all running containers.
 
         Raises:
             FileNotFoundError: If the Docker executable is not found.
@@ -117,33 +125,23 @@ class DockerAdapter:
         """
         try:
             # Create a Docker client instance
-            client = self._create_docker_client()
+            client = self.__create_docker_client()
 
-            # Retrieve a list of all running containers
-            containers_raw = repr(client.containers.list())
+            # Retrieve a list of all running containers and extract the image tags
+            containers_raw = client.containers.list(all=True)
+            image_tags = [container.short_id for container in containers_raw]
 
-            # If no containers are found, log a debug message
-            if not containers_raw:
-                bot_logger.debug('No containers found. Docker is run.')
-
-            # Extract the image tags from the container list
-            image_tag = []
-            for container in containers_raw.split(', '):
-                image_tag.append(
-                    container.split(': ')[1].strip().split('>')[0].strip()
-                )
-
-                # Log the created container list
-            bot_logger.debug(f"Container list created: {image_tag}")
+            # Log the created container list
+            bot_logger.debug(f"Container list created: {image_tags}")
 
             # Return the list of image tags
-            return image_tag
+            return image_tags
 
         except (FileNotFoundError, ConnectionError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def _container_details(self, container_id: str):
+    def __get_container_details(self, container_id: str):
         """
         Get the details of a Docker container.
 
@@ -159,13 +157,13 @@ class DockerAdapter:
         """
         try:
             # Create a Docker client
-            client = self._create_docker_client()
+            client = self.__create_docker_client()
 
             # Get the container object
             container = client.containers.get(container_id)
 
             # Log the retrieved container details
-            bot_logger.debug(f"Container details retrieved: {container}")
+            bot_logger.debug(f"Retrieved container object for container: {container_id}")
 
             # Return the container object
             return container
@@ -174,84 +172,81 @@ class DockerAdapter:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    @staticmethod
-    def _container_stats(container_details) -> dict:
+    def __aggregate_container_details(self, container_id: str) -> dict:
         """
-        Get docker container stats.
+        Retrieve details of a Docker container.
 
         Args:
-            container_details (docker.models.containers.Container): The container object.
+            container_id (str): The ID of the container.
 
         Returns:
-            dict: The usage statistics of the container.
+            dict: A dictionary containing container details. The dictionary contains the following keys:
+                - 'name' (str): The name of the container.
+                - 'image' (str): The image used by the container.
+                - 'created' (str): The date and time the container was created.
+                - 'mem_usage' (str): The memory usage of the container.
+                - 'run_at' (str): The date and time the container was started.
+                - 'status' (str): The status of the container.
 
         Raises:
-            docker.errors.APIError: If there is an error retrieving the container stats.
+            ValueError: If container details retrieval fails.
+
         """
-        # Retrieve the usage statistics of the container
-        usage_stats = container_details.stats(decode=None, stream=False)
+        # Get the container details
+        container_details = self.__get_container_details(container_id)
+        attrs = container_details.attrs
+        stats = container_details.stats(decode=None, stream=False)
 
-        # Log the generated container stats
-        bot_logger.debug(f"Container stats generated: {usage_stats}")
+        # Extract the creation date and time
+        created_at = datetime.fromisoformat(attrs['Created'])
+        created_day = created_at.date()
+        created_time = created_at.time().strftime("%H:%M:%S")
 
-        # Return the usage statistics of the container
-        return usage_stats
+        # Return the container details as a dictionary
+        return {
+            'name': attrs['Name'].strip("/").title(),  # Remove leading slash and capitalize the name
+            'image': attrs['Config']['Image'],  # Get the image used by the container
+            'created': f"{created_day}, {created_time}",  # Format the creation date and time
+            'mem_usage': self._naturalsize(stats.get('memory_stats', {}).get('usage', 0)),  # Get the memory usage
+            'run_at': self._naturaltime(datetime.fromisoformat(attrs.get('State', {}).get('StartedAt', ''))),
+            # Format the start date and time
+            'status': attrs.get('State', {}).get('Status', ''),  # Get the status of the container
+        }
 
-    def check_image_details(self):
+    def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
         """
-        Check the details of Docker images.
-
-        This function checks the details of Docker images by retrieving the list of containers,
-        their details, and their usage statistics. If the Docker socket is available, it returns
-        a list of dictionaries containing the name, image, creation date and time, memory usage,
-        run time, and status of each container. If no containers are found, it returns an empty
-        dictionary. If the Docker socket is not available, it returns an empty dictionary and logs
-        an error message.
+        Retrieve and return details of Docker images.
 
         Returns:
-            list: A list of dictionaries containing the details of each Docker image.
+            Union[List[Dict[str, str]], Dict[None, None]]: A list of image details or an empty dictionary.
+
+        Raises:
+            ValueError: If an exception occurs during the retrieval process.
         """
         try:
-            if not self._is_docker_available():
-                # Log an error message if the Docker socket is not available
-                bot_logger.error('Docker socket not found. Check docker URL')
-                # Return an empty dictionary
+            if not self.__is_docker_available():
+                # Log a message if Docker is not available
+                bot_logger.debug("Docker is not available. Returning empty dictionary.")
                 return {}
 
-            containers = self._containers_list()
+            # Retrieve the list of containers
+            bot_logger.debug("Retrieving list of containers...")
+            containers = self.__list_containers()
+
             if not containers:
-                # Log a message if no containers are not found
-                bot_logger.debug('Docker image not found: see "docker ps" command')
-                # Return an empty dictionary
+                # Log a message if no containers are found
+                bot_logger.debug("No containers found. Returning empty dictionary.")
                 return {}
 
-            details = []
-            for container in containers:
-                container_details = self._container_details(container)
-                usage_stats = self._container_stats(container_details)
-                created_at = datetime.fromisoformat(container_details.attrs['Created'])
-                created_day = created_at.date()
-                created_time = created_at.time().strftime("%H:%M:%S")
-                details.append({
-                    'name': container_details.attrs['Name'].title().replace('/', ''),
-                    'image': container_details.attrs['Config']['Image'],
-                    'created': f'{created_day}, {created_time}',
-                    'mem_usage': naturalsize(usage_stats['memory_stats']['usage']),
-                    'run_at': naturaltime(
-                        datetime.fromisoformat(
-                            container_details.attrs['State']['StartedAt']
-                        )),
-                    'status': container_details.attrs['State']['Status']
-                })
+            # Retrieve details for each container
+            bot_logger.debug("Retrieving details for each container...")
+            details = [self.__aggregate_container_details(container) for container in containers]
 
-            # Log the generated container details
-            bot_logger.debug(f"Container image details append: {details}")
-
-            # Return the generated container details
+            # Log a message indicating successful retrieval of details
+            bot_logger.debug(f"Details retrieved successfully: {details}")
             return details
 
         except ValueError as e:
-            # Log an error message if an exception occurs
-            bot_logger.error(f"Failed at @{__name__}: {e}")
-            # Return an empty dictionary
+            # Log an error if an exception occurs
+            bot_logger.error(f"Failed at {__name__}: {e}")
             return {}

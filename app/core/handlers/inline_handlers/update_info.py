@@ -24,7 +24,7 @@ class InlineUpdateInfoHandler(HandlerConstructor):
             PyTeleMonBotTemplateError: If there is a TemplateError while rendering the template.
         """
 
-        @self.bot.callback_query_handler(func=lambda call: call.data == 'update_info')
+        @self.bot.callback_query_handler(func=lambda call: call.data == 'how_update?')
         @logged_inline_handler_session
         def swap(call: CallbackQuery):
             """
@@ -46,7 +46,7 @@ class InlineUpdateInfoHandler(HandlerConstructor):
                 template_name: str = 'how_update.jinja2'
 
                 # Define the emojis to use in the template
-                emojis: dict = {'thought_balloon': self.get_emoji('thought_balloon')}
+                emojis: dict = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
 
                 # Render the template with the defined emojis
                 bot_answer: str = self.jinja.render_templates(template_name, **emojis)

@@ -49,11 +49,11 @@ class NetIOHandler(HandlerConstructor):
             template_name: str = 'net_io.jinja2'
 
             emojis: dict = {
-                'thought_balloon': self.get_emoji('thought_balloon'),
-                'up_left_arrow': self.get_emoji('up-left_arrow'),
-                'up_right_arrow': self.get_emoji('up-right_arrow'),
-                'globe_showing_europe_africa': self.get_emoji('globe_showing_Europe-Africa'),
-                'hugging_face': self.get_emoji('smiling_face_with_open_hands'),
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                'up_left_arrow': self.emojis.get_emoji('up-left_arrow'),
+                'up_right_arrow': self.emojis.get_emoji('up-right_arrow'),
+                'globe_showing_europe_africa': self.emojis.get_emoji('globe_showing_Europe-Africa'),
+                'hugging_face': self.emojis.get_emoji('smiling_face_with_open_hands'),
             }
 
             # Render the 'net_io.jinja2' template with the context variables for network IO statistics
