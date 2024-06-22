@@ -11,6 +11,7 @@ import docker
 from humanize import naturalsize, naturaltime
 
 from app import config
+from app.core.adapters.containers_base_data import ContainerData
 from app.core.logs import bot_logger
 
 
@@ -112,9 +113,7 @@ class DockerAdapter:
 
     def __list_containers(self) -> List[str]:
         """
-        List all docker containers.
-
-        This function retrieves a list of all running containers and returns their image tags.
+        List all docker containers and retrieve their image tags.
 
         Returns:
             List[str]: A list of image tags of all running containers.
@@ -127,9 +126,14 @@ class DockerAdapter:
             # Create a Docker client instance
             client = self.__create_docker_client()
 
-            # Retrieve a list of all running containers and extract the image tags
+            # Retrieve a list of all running containers
             containers_raw = client.containers.list(all=True)
+
+            # Extract the image tags
             image_tags = [container.short_id for container in containers_raw]
+
+            # Store the image tags in the ContainerData class
+            ContainerData.container_id = image_tags
 
             # Log the created container list
             bot_logger.debug(f"Container list created: {image_tags}")
