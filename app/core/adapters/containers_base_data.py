@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -9,4 +10,4 @@ class ContainerData:
     Attributes:
         container_id (str): The ID of the container.
     """
-    container_id: list = None
+    container_id: Optional[list] = None
