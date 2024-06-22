@@ -58,9 +58,6 @@ class PytmbotInstance:
     Attributes:
         bot (telebot.TeleBot): The PyTMBot instance.
 
-    Methods:
-        build_bot_instance()
-
     Raises:
         ValueError: If the provided mode is invalid.
     """
