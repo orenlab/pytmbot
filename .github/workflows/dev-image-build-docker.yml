@@ -3,7 +3,7 @@ name: Push Alpine Dev Image
 on:
   push:
     branches:
-      - 'development'
+      - 'master'
 
 jobs:
   docker:
