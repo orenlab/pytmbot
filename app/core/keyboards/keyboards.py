@@ -51,7 +51,7 @@ class Keyboard(KeyboardSettings):
         # Initialize the emojis attribute with an instance of EmojiConverter
         self.emojis: EmojiConverter = EmojiConverter()
 
-    def construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
+    def __construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
         """
         Constructs a keyboard from a dictionary of emoji-title pairs.
 
@@ -79,7 +79,7 @@ class Keyboard(KeyboardSettings):
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 
         # Construct the keyboard using the main keyboard settings
-        keyboard_buttons = self.construct_keyboard(self._get_main_keyboard())
+        keyboard_buttons = self.__construct_keyboard(self._get_main_keyboard())
 
         # Add the constructed keyboard to the reply keyboard
         reply_keyboard.add(*keyboard_buttons)
