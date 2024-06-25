@@ -9,7 +9,7 @@ Jinja2==3.1.4
 MarkupSafe==2.1.5
 psutil==5.9.8
 pydantic==2.7.4
-pydantic-settings==2.3.3
+pydantic-settings==2.3.4
 pydantic_core==2.18.4
 pyTelegramBotAPI==4.20.0
 python-dotenv==1.0.1
