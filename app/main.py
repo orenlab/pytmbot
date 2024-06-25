@@ -5,8 +5,10 @@ pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from time import sleep
+from typing import Union, Optional
 
-import requests.exceptions
+from requests.exceptions import ReadTimeout, ConnectionError
+from urllib3.exceptions import ReadTimeoutError
 
 from app import (
     __version__,
@@ -45,8 +47,8 @@ class PyTMBot:
         """
         Poll the bot for updates indefinitely.
 
-        This method sets the timeout and long polling timeout for the bot's polling. It also sets whether to skip pending updates.
-        The logger level is set to the current logger level.
+        This method sets the timeout and long polling timeout for the bot's polling. It also sets whether to skip
+        pending updates. The logger level is set to the current logger level.
 
         Returns:
             None
@@ -71,30 +73,43 @@ class PyTMBot:
             logger_level=logger_level
         )
 
-    def __stop_polling(self, error):
+    def __stop_polling(self, error: Union[Exception, str], sleep_duration: Optional[int] = 0) -> None:
         """
-        Stop bot polling on error.
-
-        This method stops the bot polling process when an error occurs. It logs the error message
-        and retries after the sleep duration.
+        Stop bot polling and log the error.
 
         Args:
-            error (Exception): The error that caused the polling to stop.
+            error (Union[Exception, str]): The error that occurred.
+            sleep_duration (int, optional): The duration to sleep before retrying. Defaults to 0.
+
+        Returns:
+            None
         """
+        # Stop the bot from polling for updates
         self.bot.stop_polling()
-        bot_logger.error(f'Failed with error: {error}. Retrying after {self.sleep_duration} seconds')
-        sleep(self.sleep_duration)
 
-    def __start_polling(self):
+        # Log the error with the duration before retrying
+        if bot_logger.level == 10:
+            # Log a debug message
+            bot_logger.debug(f'Failed with error: {error}. Retrying after {sleep_duration} seconds')
+        else:
+            # Log an error message
+            bot_logger.error(f'Failed with error: Connection error. Retrying after {sleep_duration} seconds')
+
+        # Sleep for the specified duration
+        sleep(sleep_duration)
+
+    def __start_polling(self) -> None:
         """
-        Start bot polling.
+        Start polling for updates from the bot.
 
-        This method continuously polls for updates from the bot until it is stopped.
-        It increases the sleep duration by 5 seconds after each attempt.
-        If a connection error or a Telegram API exception occurs, it stops polling and retries after the sleep duration.
-        If any other unexpected error occurs, it stops polling and logs the error.
+        This function runs in a loop, polling for updates from the bot. It increases the sleep duration by 5 seconds
+        after each iteration. If an error occurs during polling, it logs the error and retries after the sleep duration.
+        If an unexpected error occurs, it logs the error and stops polling.
 
+        Returns:
+            None
         """
+
         while True:
             # Increase sleep duration by 5 seconds
             self.sleep_duration += 5
@@ -105,9 +120,15 @@ class PyTMBot:
             try:
                 # Poll for updates
                 self.__poll_bot_for_updates()
-            except (requests.exceptions.ConnectionError, telebot.apihelper.ApiTelegramException) as error:
+            except (
+                    ReadTimeoutError,
+                    ConnectionError,
+                    ReadTimeout,
+                    telebot.apihelper.ApiTelegramException
+            ) as error:
                 # Stop polling and retry after the sleep duration
-                self.__stop_polling(error)
+                self.__stop_polling(error, self.sleep_duration)
+                continue
             except Exception as unexpected_error:
                 # Stop polling and log the unexpected error
                 self.__stop_polling(unexpected_error)
@@ -138,7 +159,8 @@ class PyTMBot:
         Returns:
             None
 
-        This function sets up the provided middleware for the bot. It logs the setup process and handles any exceptions that may occur.
+        This function sets up the provided middleware for the bot. It logs the setup process and handles any exceptions
+        that may occur.
 
         """
         # Log the start of the setup process
