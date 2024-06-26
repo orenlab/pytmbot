@@ -32,8 +32,8 @@ class HandlersAggregator:
 
         # Initialize all handler instances
         self.handlers = [handler(self.bot) for handler in [
-            *__all_defaults_handlers__,
-            *__all_inline_handlers__
+            *__all_inline_handlers__,
+            *__all_defaults_handlers__
         ]]
 
     def run_handlers(self):
@@ -64,6 +64,8 @@ class HandlersAggregator:
                     error_callback=self._log_error
                 )
 
+                bot_logger.debug(f"Initialized handler: {handler.__class__.__name__}.")
+
                 # Increment the handlers counter
                 handlers_count += 1
 
@@ -90,4 +92,4 @@ class HandlersAggregator:
         name and the string representation of the exception.
         """
         # Log the error message
-        bot_logger.error(f"Failed at @{__name__} with error: {str(e)}")
+        bot_logger.error(f"Failed at @{__class__.__name__} with error: {str(e)}.")

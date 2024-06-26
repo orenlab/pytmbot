@@ -21,7 +21,6 @@ __all_defaults_handlers__ = [
     AboutBotHandler,
     BotUpdatesHandler,
     ContainersHandler,
-    EchoHandler,
     FileSystemHandler,
     LoadAvgHandler,
     MemoryHandler,
@@ -29,5 +28,6 @@ __all_defaults_handlers__ = [
     ProcessHandler,
     SensorsHandler,
     StartHandler,
-    UptimeHandler
+    UptimeHandler,
+    EchoHandler
 ]
