@@ -50,13 +50,13 @@ class HandlersAggregator:
         # Log the start of the handlers run
         bot_logger.debug("Starting handlers initialization...")
 
+        # Initialize the handlers counter
         handlers_count = 0
 
         # Create a multiprocessing pool
         with mp.Pool() as pool:
             # Apply async to each handler
             for handler in self.handlers:
-                bot_logger.debug(f"Init handler: {handler.__class__.__name__}")
                 # Apply the handler's handle method in a separate process
                 # and capture any exceptions
                 pool.apply_async(
@@ -64,6 +64,7 @@ class HandlersAggregator:
                     error_callback=self._log_error
                 )
 
+                # Increment the handlers counter
                 handlers_count += 1
 
         # Close the pool to prevent any more work
