@@ -21,7 +21,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.1.0-dev-20240622'
+__version__ = 'v0.1.0-dev-20240626'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
@@ -85,7 +85,7 @@ class PytmbotInstance:
         bot_mode = parse_cli_args()
 
         # Log the bot mode
-        bot_logger.debug(f"Bot mode: {bot_mode.mode}")
+        bot_logger.debug(f"Operational bot mode: {bot_mode.mode}")
 
         # Return the appropriate bot token based on the bot mode
         return (
@@ -124,7 +124,7 @@ class PytmbotInstance:
             self.bot.add_custom_filter(ContainersCallbackFilter())
 
             # Log that the bot has been configured successfully
-            bot_logger.debug("Bot instance configured successfully.")
+            bot_logger.debug("Basic configuration done. We are now continuing with...")
 
         return self.bot
 

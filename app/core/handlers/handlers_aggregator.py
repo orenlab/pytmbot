@@ -6,22 +6,8 @@ the status of your local servers
 """
 import multiprocessing as mp
 
-from app.core.handlers.default_handlers import (
-    StartHandler,
-    LoadAvgHandler,
-    MemoryHandler,
-    SensorsHandler,
-    ProcessHandler,
-    UptimeHandler,
-    FileSystemHandler,
-    ContainersHandler,
-    BotUpdatesHandler,
-    NetIOHandler,
-    AboutBotHandler,
-    EchoHandler
-)
-from app.core.handlers.inline_handlers.swap_handler import InlineSwapHandler
-from app.core.handlers.inline_handlers.update_info import InlineUpdateInfoHandler
+from app.core.handlers.default_handlers import __all_defaults_handlers__
+from app.core.handlers.inline_handlers import __all_inline_handlers__
 from app.core.logs import bot_logger
 
 
@@ -46,9 +32,8 @@ class HandlersAggregator:
 
         # Initialize all handler instances
         self.handlers = [handler(self.bot) for handler in [
-            StartHandler, LoadAvgHandler, MemoryHandler, SensorsHandler, ProcessHandler,
-            UptimeHandler, FileSystemHandler, ContainersHandler, BotUpdatesHandler,
-            InlineSwapHandler, InlineUpdateInfoHandler, NetIOHandler, AboutBotHandler, EchoHandler
+            *__all_defaults_handlers__,
+            *__all_inline_handlers__
         ]]
 
     def run_handlers(self):
@@ -63,18 +48,23 @@ class HandlersAggregator:
         """
 
         # Log the start of the handlers run
-        bot_logger.debug("Handlers init and run started...")
+        bot_logger.debug("Starting handlers initialization...")
+
+        handlers_count = 0
 
         # Create a multiprocessing pool
         with mp.Pool() as pool:
             # Apply async to each handler
             for handler in self.handlers:
+                bot_logger.debug(f"Init handler: {handler.__class__.__name__}")
                 # Apply the handler's handle method in a separate process
                 # and capture any exceptions
                 pool.apply_async(
                     handler.handle(),
                     error_callback=self._log_error
                 )
+
+                handlers_count += 1
 
         # Close the pool to prevent any more work
         pool.close()
@@ -83,7 +73,8 @@ class HandlersAggregator:
         pool.join()
 
         # Log the successful completion of the handlers run
-        bot_logger.debug("Handlers init and run successful.")
+        bot_logger.debug("Handlers instance initialization successful.")
+        bot_logger.debug(f"Setup bot instances successful with {handlers_count} handlers.")
 
     @staticmethod
     def _log_error(e):

@@ -16,3 +16,18 @@ from .process_handler import ProcessHandler
 from .sensors_handler import SensorsHandler
 from .start_handler import StartHandler
 from .uptime_handlers import UptimeHandler
+
+__all_defaults_handlers__ = [
+    AboutBotHandler,
+    BotUpdatesHandler,
+    ContainersHandler,
+    EchoHandler,
+    FileSystemHandler,
+    LoadAvgHandler,
+    MemoryHandler,
+    NetIOHandler,
+    ProcessHandler,
+    SensorsHandler,
+    StartHandler,
+    UptimeHandler
+]

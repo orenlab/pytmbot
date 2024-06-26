@@ -115,7 +115,7 @@ class PyTMBot:
             self.sleep_duration += 5
 
             # Log the start of a polling session
-            bot_logger.info('Start polling session')
+            bot_logger.info('Start polling session............')
 
             try:
                 # Poll for updates
@@ -167,7 +167,7 @@ class PyTMBot:
         bot_logger.debug("Setting up middleware...")
 
         # Log the middleware that is being set up
-        bot_logger.debug(f"Middleware: {middleware}")
+        bot_logger.debug(f"Middleware: {middleware.__class__.__name__}")
 
         try:
             # Add the middleware to the bot
