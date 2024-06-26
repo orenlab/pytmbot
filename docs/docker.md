@@ -125,6 +125,8 @@ And we run it in the same way as we would if we had just installed the bot (see 
 sudo docker logs pytmbot
 ```
 
+- Advanced logs and debugging: [debug.md](debug.md)
+
 _Alternatively, if the container is running on your workstation, you can use Docker Desktop._
 
 ## 👾 Support, source code, questions and discussions

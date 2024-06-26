@@ -81,4 +81,6 @@ Now everything is ready for you to use the bot. All you need to do is run the `/
 sudo docker logs pytmbot
 ```
 
+- Advanced logs and debugging: [debug.md](debug.md)
+
 _Alternatively, if the container is running on your workstation, you can use Docker Desktop._
