@@ -4,11 +4,12 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from typing import Union, Dict
+from typing import Union, Dict, List
 
 from docker.errors import DockerException
 from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
+from app.core.adapters.containers_base_data import ContainersFactory
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import bot_logger
@@ -136,12 +137,12 @@ class ContainersHandler(HandlerConstructor):
             """
             self.bot.send_chat_action(message.chat.id, 'typing')
 
-        def __build_inline_keyboard(container_names: list) -> InlineKeyboardMarkup:
+        def __build_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
             """
             Constructs an InlineKeyboardMarkup with buttons for each container name.
 
             Args:
-                container_names (list): List of container names.
+                container_names (List[str]): List of container names.
 
             Returns:
                 InlineKeyboardMarkup: Inline keyboard with buttons.
@@ -150,9 +151,15 @@ class ContainersHandler(HandlerConstructor):
             with buttons for each container name. The buttons are created using the InlineKeyboardButton
             class and the callback_data is set to a specific format.
             """
+            # Get the containers factory
+            containers_factory = ContainersFactory().containers_factory
+
             # Create a list of InlineKeyboardButton objects for each container name
             buttons = [
-                InlineKeyboardButton(text=container_name, callback_data=f"{container_name}")
+                InlineKeyboardButton(
+                    text=container_name,
+                    callback_data=containers_factory.new(container_id=container_name)
+                )
                 for container_name in container_names
             ]
 
