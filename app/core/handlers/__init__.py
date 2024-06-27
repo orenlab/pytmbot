@@ -22,14 +22,7 @@ from .inline_handlers.containers_full_info import InlineContainerFullInfoHandler
 from .inline_handlers.swap_handler import InlineSwapHandler
 from .inline_handlers.update_info import InlineUpdateInfoHandler
 
-"""
-Globals imports for all handlers in the bot
-
-Handlers are imported in the following order:
-    1. default_handlers
-    2. inline_handlers
-"""
-
+# Globals imports for all handlers in the bot
 __all_handlers__ = [
     AboutBotHandler,
     BotUpdatesHandler,
