@@ -23,47 +23,39 @@ class BotUpdatesHandler(HandlerConstructor):
     """Class for handling bot updates"""
 
     @staticmethod
-    def __check_bot_update() -> dict:
+    def __check_bot_update() -> Dict[str, str]:
         """
-        Check for updates of pyTMbot.
+        Check for bot updates and return release information.
 
         This function sends a GET request to the GitHub API to retrieve the latest release information
-        of pyTMbot. If the request is successful, it extracts the relevant information from the response
-        and returns it as a dictionary. If the request fails, it logs an error message and returns an empty dictionary.
+        of the bot. It uses the `__github_api_url__` constant to construct the URL.
 
         Returns:
-            dict: A dictionary containing the tag name, published date, and body of the latest release.
-                  If the request fails, an empty dictionary is returned.
+            Dict[str, str]: A dictionary containing the tag name, published date, and release body.
+                            If an error occurs during the update check, an empty dictionary is returned.
         """
         try:
-            with requests.Session() as session:
-                # Send a GET request to the GitHub API to retrieve the latest release information
-                resp = session.get(__github_api_url__, timeout=5)
+            # Send a GET request to the GitHub API
+            with requests.get(__github_api_url__, timeout=5) as resp:
+                # Log the response status and update info for debugging purposes
+                bot_logger.debug(f"Response status: {resp.status_code}")
+                bot_logger.debug(f"Update info: {resp.json()}")
 
-                # Log a debug message indicating that the request has been submitted
-                bot_logger.debug("Request has been submitted")
+                # Raise an exception if the request was not successful
+                resp.raise_for_status()
 
-                # Check if the request was successful (status code 200)
-                if resp.status_code == 200:
-                    # Extract the relevant information from the response and update the release_info dictionary
-                    release_info = {
-                        'tag_name': resp.json()['tag_name'],
-                        'published_at': resp.json()['published_at'],
-                        'body': resp.json()['body'],
-                    }
+                # Extract the relevant information from the response
+                release_info = {
+                    'tag_name': resp.json().get('tag_name'),
+                    'published_at': resp.json().get('published_at'),
+                    'body': resp.json().get('body'),
+                }
 
-                    # Log a debug message indicating that the response code is 200
-                    bot_logger.debug("Response code - 200")
-
-                    # Return the release_info dictionary
-                    return release_info
-                else:
-                    # Log a debug message indicating the response code and return an empty dictionary
-                    bot_logger.debug(f"Response code - {resp.status_code}. Return empty dict")
-                    return {}
-        except requests.exceptions.ConnectionError as e:
-            # Log an error message indicating that the update check failed
-            bot_logger.error(f"Cant get update info: {e}")
+            # Return the release information
+            return release_info
+        except requests.exceptions.RequestException as e:
+            # Log the error and return an empty dictionary
+            bot_logger.error(f"Can't get update info: {e}")
             return {}
 
     @staticmethod
@@ -95,6 +87,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # If in development mode, return a message indicating the bot is in dev
         if is_development_mode:
+            # Render a message indicating that the bot is using the development version
             return self._render_development_message(), False
 
         # Check for updates and return the appropriate message
@@ -102,21 +95,21 @@ class BotUpdatesHandler(HandlerConstructor):
 
         # If no update context, return a message indicating update difficulties
         if not update_context:
+            # Render a message indicating that there were difficulties checking for updates
             return self._render_update_difficulties_message(), False
 
         # Get the tag name from the update context
         tag_name = update_context['tag_name']
 
-        # If the tag name is greater than the bot's version, return a new update message
+        # Check the version of the update
         if tag_name > __version__:
+            # If the tag name is greater than the bot's version, return a new update message
             return self._render_new_update_message(update_context), True
-
-        # If the tag name is equal to the bot's version, return a no update message
         elif tag_name == __version__:
+            # If the tag name is equal to the bot's version, return a no update message
             return self._render_no_update_message(), False
-
-        # If the tag name is less than the bot's version, return a future update message
         else:
+            # If the tag name is less than the bot's version, return a future update message
             return self._render_future_message(update_context), False
 
     def _render_development_message(self) -> str:

@@ -60,4 +60,4 @@ class AboutBotHandler(HandlerConstructor):
             except ValueError:
                 # Raise an exception if there is a ValueError while rendering the template
                 error_message = self.bot_msg_tpl.VALUE_ERROR_TEMPLATE
-                raise self.exceptions.BotHandlerError(error_message)
+                raise self.exceptions.PyTeleMonBotHandlerError(error_message)
