@@ -4,7 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-
 from functools import lru_cache
 
 import telebot
@@ -50,84 +49,76 @@ class ContainersCallbackFilter(AdvancedCustomFilter):
         return containers.check(call)
 
 
-class PytmbotInstance:
+class PyTMBotInstance:
     """
-    A class to manage the PyTMBot instance. This class provides a method to build a PyTMBot instance based on the
-    provided mode.
+    A class to manage the creation of the pyTMbot instance based on Telebot library
 
-    Attributes:
-        bot (telebot.TeleBot): The PyTMBot instance.
+    This class is used to create a singleton instance of the PyTMBot
 
-    Raises:
-        ValueError: If the provided mode is invalid.
+    Attributes.
+    _instance (PyTMBot): The singleton instance of the PyTMBot.
+
+    Methods:
+        get_bot_instance()
+        __get_bot_token()
     """
 
-    def __init__(self):
-        """
-        Initializes the object by setting the `bot` attribute to None.
-
-        This attribute is used to store an instance of the bot object.
-        """
-        self.bot = None
-
+    @staticmethod
     @lru_cache(maxsize=1)
-    def __get_bot_token(self) -> str:
+    def __get_bot_token():
         """
-        Get the bot token based on the bot mode.
-
-        This method retrieves the bot token from the configuration based on the bot mode.
-        The bot mode is determined from the command line arguments.
+        Get the bot token based on the bot mode from the command line arguments.
 
         Returns:
             str: The bot token.
         """
-        # Get the bot mode from the command line arguments
+        # Parse command line arguments to get the bot mode
         bot_mode = parse_cli_args()
 
-        # Log the bot mode
+        # Log the bot mode for debugging purposes
         bot_logger.debug(f"Operational bot mode: {bot_mode.mode}")
 
         # Return the appropriate bot token based on the bot mode
         return (
-            config.dev_bot_token.get_secret_value()
+            config.dev_bot_token.get_secret_value()  # If bot mode is "dev", return the dev bot token
             if bot_mode.mode == "dev"
-            else config.bot_token.get_secret_value()
+            else config.bot_token.get_secret_value()  # Otherwise, return the regular bot token
         )
 
-    @lru_cache(maxsize=1)
-    def build_bot_instance(self) -> telebot.TeleBot:
+    @staticmethod
+    def get_bot_instance() -> telebot.TeleBot:
         """
-        Constructs a PyTMBot instance with the provided mode.
+        Returns the instance of the TeleBot.
 
         Returns:
-            telebot.TeleBot: The configured PyTMBot instance.
-
-        Raises:
-            ValueError: If the mode provided is invalid.
+            telebot.TeleBot: The instance of the TeleBot.
         """
-        # Check if bot instance already exists
-        if self.bot is None:
-            # Get the bot token based on the bot mode
-            bot_token = self.__get_bot_token()
+        # Check if the instance of the TeleBot is already created
+        if PyTMBotInstance._instance is None:
+            # Create a new instance of the PyTMBotInstance
+            PyTMBotInstance._instance = PyTMBotInstance()
+
+            # Get the bot token
+            bot_token = PyTMBotInstance._instance.__get_bot_token()
 
             # Log the bot token
             bot_logger.debug("Bot token setup successful")
 
-            # Create a new TeleBot instance with the bot token and custom middleware
-            self.bot = telebot.TeleBot(
+            # Create a new instance of the TeleBot
+            PyTMBotInstance._instance.bot = telebot.TeleBot(
                 token=bot_token,
                 use_class_middlewares=True,
                 exception_handler=exceptions.TelebotCustomExceptionHandler(),
             )
 
-            # Add a custom filter for callback queries to the bot
-            self.bot.add_custom_filter(ContainersCallbackFilter())
+            # Add the ContainersCallbackFilter to the TeleBot
+            PyTMBotInstance._instance.bot.add_custom_filter(ContainersCallbackFilter())
 
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")
 
-        return self.bot
+        # Return the instance of the TeleBot
+        return PyTMBotInstance._instance.bot
 
 
-# Bot one common instance
-bot = PytmbotInstance().build_bot_instance()
+PyTMBotInstance._instance = None

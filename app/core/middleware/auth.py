@@ -14,13 +14,13 @@ from telebot.types import Message
 
 from app import (
     config,
-    bot,
+    PyTMBotInstance
 )
 from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 
 
-class AllowedUser(BaseMiddleware):
+class AllowedUser(BaseMiddleware, PyTMBotInstance):
     """
     Custom middleware class that checks if the user is allowed to access the bot.
     """
@@ -29,8 +29,8 @@ class AllowedUser(BaseMiddleware):
         """
         Initialize the middleware.
 
-        This method initializes the middleware by setting the bot message template
-        and the update types.
+        This method initializes the middleware by calling the parent class's __init__ method,
+        setting the bot message template, and defining the update types.
 
         Args:
             self (AllowedUser): The instance of the AllowedUser class.
@@ -41,8 +41,13 @@ class AllowedUser(BaseMiddleware):
         # Call the parent class's __init__ method
         super().__init__()
 
-        # Set the update types to ['message', 'inline_query']
+        # Initialize the bot instance
+        self.bot = self.get_bot_instance()
+
+        # Set the bot message template
         self.bot_msg_tpl: 'Type[MessageTpl]' = MessageTpl
+
+        # Define the update types as ['message', 'inline_query']
         self.update_types: List[str] = ['message', 'inline_query']
 
     def pre_process(self, message: Message, data: Any) -> CancelUpdate:
@@ -67,7 +72,7 @@ class AllowedUser(BaseMiddleware):
         # Check if the user is in the list of allowed user IDs
         if user_id not in config.allowed_user_ids:
             # Send a typing action to indicate that the bot is processing
-            bot.send_chat_action(chat_id, 'typing')
+            self.bot.send_chat_action(chat_id, 'typing')
 
             # Log the failed access
             error_message = (
@@ -78,7 +83,7 @@ class AllowedUser(BaseMiddleware):
 
             # Send a message to the user indicating that they are blocked
             blocked_message = self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
-            bot.send_message(chat_id, blocked_message)
+            self.bot.send_message(chat_id, blocked_message)
 
             # Cancel any further processing of the message
             return CancelUpdate()

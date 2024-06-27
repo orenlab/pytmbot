@@ -10,10 +10,10 @@ from typing import Union, Optional
 from requests.exceptions import ReadTimeout, ConnectionError
 from urllib3.exceptions import ReadTimeoutError
 
+from app import PyTMBotInstance
 from app import (
     __version__,
     __repository__,
-    bot,
     bot_logger,
     telebot,
 )
@@ -21,21 +21,26 @@ from app.core.handlers.handlers_aggregator import HandlersAggregator
 from app.core.middleware.auth import AllowedUser
 
 
-class PyTMBot:
-    """Main PyTMBot class"""
+class PyTMBot(PyTMBotInstance):
+    """
+    Main PyTMBot class.
+
+    This class initializes the bot instance and the HandlersAggregator with the bot instance.
+    It also seI've tweaked the bot-making process.
+ts the initial sleep duration to 0.
+    """
 
     def __init__(self):
         """
         Initialize the PyTMBot instance.
 
-        This method initializes the PyTMBot instance with the necessary attributes and dependencies.
-        It sets the bot instance, handler instance, and sleep time.
-
-        Returns:
-            None
+        This method initializes the bot instance and the HandlersAggregator with the bot instance.
+        It also sets the initial sleep duration to 0.
         """
+        super().__init__()
+
         # Set the bot instance
-        self.bot = bot
+        self.bot = self.get_bot_instance()
 
         # Initialize the HandlersAggregator with the bot instance
         self.handler = HandlersAggregator(self.bot)
