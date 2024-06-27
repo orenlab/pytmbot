@@ -6,8 +6,7 @@ the status of your local servers
 """
 import concurrent.futures
 
-from app.core.handlers.default_handlers import __all_defaults_handlers__
-from app.core.handlers.inline_handlers import __all_inline_handlers__
+from app.core.handlers import __all_handlers__
 from app.core.logs import bot_logger
 
 
@@ -25,21 +24,19 @@ class HandlersAggregator:
         Initialize the HandlersAggregator instance.
 
         Args:
-            bot_instance: The bot instance.
+            bot_instance (telegram.Bot): The bot instance.
 
-        This method assigns the bot instance to the bot attribute and initializes all handler instances.
-
-        Parameters:
-        bot_instance: The bot instance to assign.
+        This method initializes the HandlersAggregator instance with the provided bot instance.
+        It assigns the bot instance to the bot attribute and initializes all handler instances.
 
         Returns:
-        None
+            None
         """
         # Assign the bot instance to the bot attribute
         self.bot = bot_instance
 
         # Initialize all handler instances
-        self.handlers = [*map(lambda handler: handler(self.bot), __all_inline_handlers__ + __all_defaults_handlers__)]
+        self.handlers = [*map(lambda handler: handler(self.bot), __all_handlers__)]
 
     def run_handlers(self):
         """
