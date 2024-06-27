@@ -14,10 +14,9 @@ class InlineUpdateInfoHandler(HandlerConstructor):
 
     def handle(self):
         """
-        This method handles the callback query for updating information.
-        It sets up a callback query handler for the 'update_info' data.
-        When the callback query is received, it renders a template with the 'how_update.jinja2' template and edits
-        the message text with the rendered template.
+        This method sets up a callback query handler for the 'update_info' data.
+        When the callback query is received, it renders a template with the 'how_update.jinja2' template
+        and edits the message text with the rendered template.
 
         Raises:
             PyTeleMonBotHandlerError: If there is a ValueError while retrieving swap memory.
@@ -43,13 +42,13 @@ class InlineUpdateInfoHandler(HandlerConstructor):
             """
             try:
                 # Define the name of the template to render
-                template_name: str = 'how_update.jinja2'
+                template_name = 'how_update.jinja2'
 
                 # Define the emojis to use in the template
-                emojis: dict = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
+                emojis = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
 
                 # Render the template with the defined emojis
-                bot_answer: str = self.jinja.render_templates(template_name, **emojis)
+                bot_answer = self.jinja.render_templates(template_name, **emojis)
 
                 # Edit the message text with the rendered template
                 self.bot.edit_message_text(
@@ -58,9 +57,9 @@ class InlineUpdateInfoHandler(HandlerConstructor):
                     text=bot_answer,
                     parse_mode="Markdown"
                 )
-            except ValueError:
-                # Raise an exception if there is a ValueError while retrieving swap memory
-                raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
-            except self.template_error:
-                # Raise an exception if there is a TemplateError while rendering the template
-                raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)
+            except (ValueError, self.template_error) as e:
+                # Raise an exception if there is a ValueError or TemplateError
+                if isinstance(e, ValueError):
+                    raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
+                else:
+                    raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)
