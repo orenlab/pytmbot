@@ -73,7 +73,7 @@ class PyTMBot:
             logger_level=logger_level
         )
 
-    def __stop_polling(self, error: Union[Exception, str], sleep_duration: Optional[int] = 0) -> None:
+    def __stop_polling(self, error: Union[Exception, str], sleep_duration: Optional[int] = 0) -> bool:
         """
         Stop bot polling and log the error.
 
@@ -82,21 +82,26 @@ class PyTMBot:
             sleep_duration (int, optional): The duration to sleep before retrying. Defaults to 0.
 
         Returns:
-            None
+            bool: True if the bot polling has been stopped.
         """
         # Stop the bot from polling for updates
         self.bot.stop_polling()
 
-        # Log the error with the duration before retrying
-        if bot_logger.level == 10:
-            # Log a debug message
-            bot_logger.debug(f'Failed with error: {error}. Retrying after {sleep_duration} seconds')
+        # Determine the log level and message based on the error type
+        if isinstance(error, Exception):
+            log_level = 'error'
+            log_message = f'Failed with error: {error}. Retrying after {sleep_duration} seconds'
         else:
-            # Log an error message
-            bot_logger.error(f'Failed with error: Connection error. Retrying after {sleep_duration} seconds')
+            log_level = 'debug' if bot_logger.level == 10 else 'error'
+            log_message = f'Failed with error: Connection error. Retrying after {sleep_duration} seconds'
+
+        # Log the error with the duration before retrying
+        getattr(bot_logger, log_level)(log_message)
 
         # Sleep for the specified duration
         sleep(sleep_duration)
+
+        return True
 
     def __start_polling(self) -> None:
         """
