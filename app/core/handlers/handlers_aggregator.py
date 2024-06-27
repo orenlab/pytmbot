@@ -4,7 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-import multiprocessing as mp
+import concurrent.futures
 
 from app.core.handlers.default_handlers import __all_defaults_handlers__
 from app.core.handlers.inline_handlers import __all_inline_handlers__
@@ -43,9 +43,9 @@ class HandlersAggregator:
 
     def run_handlers(self):
         """
-        Run all handlers using multiprocessing.
+        Run all handlers using threading.
 
-        This method spawns a process for each handler to run concurrently.
+        This method spawns a thread for each handler to run concurrently.
         It captures any exceptions that occur during the handling process.
 
         Raises:
@@ -58,14 +58,13 @@ class HandlersAggregator:
         # Initialize the handlers counter
         handlers_count = len(self.handlers)
 
-        # Create a multiprocessing pool with the number of handlers
-        with mp.Pool(processes=handlers_count) as pool:
-            # Apply the handle method of each handler in a separate process
-            pool.map_async(
-                lambda handler: handler.handle(),
-                self.handlers,
-                error_callback=self._log_error
-            )
+        # Create a thread pool executor with the number of handlers
+        with concurrent.futures.ThreadPoolExecutor(max_workers=handlers_count) as executor:
+            # Submit the handle method of each handler to the executor
+            futures = [executor.submit(handler.handle) for handler in self.handlers]
+
+            # Wait for all the futures to complete
+            concurrent.futures.wait(futures)
 
         # Log the successful completion of the handlers run
         bot_logger.debug("Handlers instance initialization successful.")
