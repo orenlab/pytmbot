@@ -66,19 +66,3 @@ class HandlersAggregator:
         # Log the successful completion of the handlers run
         bot_logger.debug("Handlers instance initialization successful.")
         bot_logger.debug(f"Setup bot instances successful with {handlers_count} handlers.")
-
-    @staticmethod
-    def _log_error(e):
-        """
-        Log an exception that occurred during the handling process.
-
-        Args:
-            e (Exception): The exception that occurred.
-
-        This function logs the error message using the bot_logger.
-        """
-        # Format the error message
-        error_msg = f"Failed at @{__class__.__name__} with error: {e}"
-
-        # Log the error message
-        bot_logger.error(error_msg)
