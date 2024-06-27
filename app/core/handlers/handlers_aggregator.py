@@ -43,9 +43,9 @@ class HandlersAggregator:
 
     def run_handlers(self):
         """
-        Run all handlers using threading.
+        Run all handlers concurrently using threading.
 
-        This method spawns a thread for each handler to run concurrently.
+        This method creates a thread for each handler to run concurrently.
         It captures any exceptions that occur during the handling process.
 
         Raises:
