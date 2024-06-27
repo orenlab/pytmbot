@@ -26,8 +26,7 @@ class PyTMBot(PyTMBotInstance):
     Main PyTMBot class.
 
     This class initializes the bot instance and the HandlersAggregator with the bot instance.
-    It also seI've tweaked the bot-making process.
-ts the initial sleep duration to 0.
+    It also sets the initial sleep duration to 0.
     """
 
     def __init__(self):
