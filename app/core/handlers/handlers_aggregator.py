@@ -25,16 +25,21 @@ class HandlersAggregator:
         Initialize the HandlersAggregator instance.
 
         Args:
-            bot_instance (telegram.Bot): The bot instance.
+            bot_instance: The bot instance.
+
+        This method assigns the bot instance to the bot attribute and initializes all handler instances.
+
+        Parameters:
+        bot_instance: The bot instance to assign.
+
+        Returns:
+        None
         """
         # Assign the bot instance to the bot attribute
         self.bot = bot_instance
 
         # Initialize all handler instances
-        self.handlers = [handler(self.bot) for handler in [
-            *__all_inline_handlers__,
-            *__all_defaults_handlers__
-        ]]
+        self.handlers = [*map(lambda handler: handler(self.bot), __all_inline_handlers__ + __all_defaults_handlers__)]
 
     def run_handlers(self):
         """
@@ -51,29 +56,16 @@ class HandlersAggregator:
         bot_logger.debug("Starting handlers initialization...")
 
         # Initialize the handlers counter
-        handlers_count = 0
+        handlers_count = len(self.handlers)
 
-        # Create a multiprocessing pool
-        with mp.Pool() as pool:
-            # Apply async to each handler
-            for handler in self.handlers:
-                # Apply the handler's handle method in a separate process
-                # and capture any exceptions
-                pool.apply_async(
-                    handler.handle(),
-                    error_callback=self._log_error
-                )
-
-                bot_logger.debug(f"Initialized handler: {handler.__class__.__name__}.")
-
-                # Increment the handlers counter
-                handlers_count += 1
-
-        # Close the pool to prevent any more work
-        pool.close()
-
-        # Block until all tasks are done
-        pool.join()
+        # Create a multiprocessing pool with the number of handlers
+        with mp.Pool(processes=handlers_count) as pool:
+            # Apply the handle method of each handler in a separate process
+            pool.map_async(
+                lambda handler: handler.handle(),
+                self.handlers,
+                error_callback=self._log_error
+            )
 
         # Log the successful completion of the handlers run
         bot_logger.debug("Handlers instance initialization successful.")
@@ -87,9 +79,10 @@ class HandlersAggregator:
         Args:
             e (Exception): The exception that occurred.
 
-        This function logs the exception that occurred during the handling process.
-        It uses the bot_logger to log the error message, which includes the module
-        name and the string representation of the exception.
+        This function logs the error message using the bot_logger.
         """
+        # Format the error message
+        error_msg = f"Failed at @{__class__.__name__} with error: {e}"
+
         # Log the error message
-        bot_logger.error(f"Failed at @{__class__.__name__} with error: {str(e)}.")
+        bot_logger.error(error_msg)
