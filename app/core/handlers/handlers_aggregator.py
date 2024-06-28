@@ -55,13 +55,17 @@ class HandlersAggregator:
         # Initialize the handlers counter
         handlers_count = len(self.handlers)
 
-        # Create a thread pool executor with the number of handlers
-        with concurrent.futures.ThreadPoolExecutor(max_workers=handlers_count) as executor:
-            # Submit the handle method of each handler to the executor
-            futures = [executor.submit(handler.handle) for handler in self.handlers]
+        try:
+            # Create a thread pool executor with the number of handlers
+            with concurrent.futures.ThreadPoolExecutor(max_workers=handlers_count) as executor:
+                # Submit the handle method of each handler to the executor
+                futures = [executor.submit(handler.handle) for handler in self.handlers]
 
-            # Wait for all the futures to complete
-            concurrent.futures.wait(futures)
+                # Wait for all the futures to complete
+                concurrent.futures.wait(futures)
+        except Exception as e:
+            # Log any exceptions that occur during the handlers run
+            bot_logger.error(f"Failed at @{self.__class__.__name__} whit error: {e}")
 
         # Log the successful completion of the handlers run
         bot_logger.debug("Handlers instance initialization successful.")
