@@ -15,7 +15,7 @@ class HandlersAggregator:
     Class for aggregating and initializing all the handlers for the bot.
 
     Attributes:
-        bot (telegram.Bot): The bot instance.
+        bot (telebot.Telebot): The bot instance.
     """
 
     def __init__(self, bot_instance):
