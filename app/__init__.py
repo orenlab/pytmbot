@@ -92,14 +92,19 @@ class PyTMBotInstance:
 
         Returns:
             telebot.TeleBot: The instance of the TeleBot.
+
+        Raises:
+            exceptions.PyTeleMonBotError: If the bot token is not valid.
         """
         # Check if the instance of the TeleBot is already created
-        if PyTMBotInstance._instance is None:
+        if not PyTMBotInstance._instance:
             # Create a new instance of the PyTMBotInstance
             PyTMBotInstance._instance = PyTMBotInstance()
-
-            # Get the bot token
-            bot_token = PyTMBotInstance._instance.__get_bot_token()
+            try:
+                # Get the bot token
+                bot_token = PyTMBotInstance._instance.__get_bot_token()
+            except (FileNotFoundError, ValueError) as error:
+                raise exceptions.PyTeleMonBotError from error
 
             # Log the bot token
             bot_logger.debug("Bot token setup successful")
@@ -110,6 +115,20 @@ class PyTMBotInstance:
                 use_class_middlewares=True,
                 exception_handler=exceptions.TelebotCustomExceptionHandler(),
             )
+
+            # Log the bot token
+            bot_logger.debug("Now we need to test the bot token...")
+            try:
+                test_bot = PyTMBotInstance._instance.bot.get_me()
+            except telebot.apihelper.ApiTelegramException as error:
+                raise exceptions.PyTeleMonBotError(
+                    "Bot token is not valid. Please check the token and try again.") from error
+            except ConnectionError as error:
+                raise exceptions.PyTeleMonBotError("Connection to the Telegram API failed.") from error
+
+            # Log that the bot token is valid
+            bot_logger.debug(f"Bot token is valid.")
+            bot_logger.debug(f"Bot info: {test_bot}.")
 
             # Add the ContainersCallbackFilter to the TeleBot
             PyTMBotInstance._instance.bot.add_custom_filter(ContainersCallbackFilter())
