@@ -114,7 +114,7 @@ class PyTMBotInstance:
                 bot_token = PyTMBotInstance._instance.__get_bot_token()
             except (FileNotFoundError, ValueError) as error:
                 # Raise a PyTeleMonBotError if the bot token is not valid
-                raise exceptions.PyTeleMonBotError from error
+                raise exceptions.PyTeleMonBotError(".pytmbotenv file is not valid or not found") from error
 
             # Log the bot token
             bot_logger.debug("Bot token setup successful")
