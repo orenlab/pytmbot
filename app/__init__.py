@@ -141,7 +141,7 @@ class PyTMBotInstance:
                 raise exceptions.PyTeleMonBotError("Connection to the Telegram API failed.") from error
 
             # Log that the bot token is valid
-            bot_logger.debug(f"Bot token is valid.")
+            bot_logger.debug("Bot token is valid.")
             bot_logger.debug(f"Bot info: {test_bot}.")
 
             # Add the ContainersCallbackFilter to the TeleBot
