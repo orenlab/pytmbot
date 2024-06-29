@@ -16,7 +16,6 @@ class HandlersAggregator:
 
     Attributes:
         bot (telegram.Bot): The bot instance.
-        handlers (list): The list of handler instances.
     """
 
     def __init__(self, bot_instance):
@@ -24,7 +23,7 @@ class HandlersAggregator:
         Initialize the HandlersAggregator instance.
 
         Args:
-            bot_instance (telegram.Bot): The bot instance.
+            bot_instance (telebot.Telebot): The bot instance.
 
         This method initializes the HandlersAggregator instance with the provided bot instance.
         It assigns the bot instance to the bot attribute and initializes all handler instances.
