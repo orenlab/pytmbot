@@ -90,20 +90,30 @@ class PyTMBotInstance:
         """
         Returns the instance of the TeleBot.
 
+        This method checks if the instance of the TeleBot is already created.
+        If not, it creates a new instance of the PyTMBotInstance and sets up the bot token.
+        It also logs the bot token and performs a test to check if the bot token is valid.
+        If the bot token is not valid, it raises a PyTeleMonBotError.
+        If the connection to the Telegram API fails, it raises a PyTeleMonBotError.
+        After the basic configuration is done, it adds the ContainersCallbackFilter to the TeleBot.
+
         Returns:
             telebot.TeleBot: The instance of the TeleBot.
 
         Raises:
             exceptions.PyTeleMonBotError: If the bot token is not valid.
         """
+
         # Check if the instance of the TeleBot is already created
         if not PyTMBotInstance._instance:
             # Create a new instance of the PyTMBotInstance
             PyTMBotInstance._instance = PyTMBotInstance()
+
             try:
                 # Get the bot token
                 bot_token = PyTMBotInstance._instance.__get_bot_token()
             except (FileNotFoundError, ValueError) as error:
+                # Raise a PyTeleMonBotError if the bot token is not valid
                 raise exceptions.PyTeleMonBotError from error
 
             # Log the bot token
@@ -118,12 +128,16 @@ class PyTMBotInstance:
 
             # Log the bot token
             bot_logger.debug("Now we need to test the bot token...")
+
             try:
+                # Test the bot token
                 test_bot = PyTMBotInstance._instance.bot.get_me()
             except telebot.apihelper.ApiTelegramException as error:
+                # Raise a PyTeleMonBotError if the bot token is not valid
                 raise exceptions.PyTeleMonBotError(
                     "Bot token is not valid. Please check the token and try again.") from error
             except ConnectionError as error:
+                # Raise a PyTeleMonBotError if the connection to the Telegram API fails
                 raise exceptions.PyTeleMonBotError("Connection to the Telegram API failed.") from error
 
             # Log that the bot token is valid
