@@ -18,7 +18,7 @@ class HandlersAggregator:
         bot (telebot.Telebot): The bot instance.
     """
 
-    def __init__(self, bot_instance):
+    def __init__(self, bot_instance) -> None:
         """
         Initialize the HandlersAggregator instance.
 
@@ -37,7 +37,7 @@ class HandlersAggregator:
         # Initialize all handler instances
         self.handlers = [*map(lambda handler: handler(self.bot), __all_handlers__)]
 
-    def run_handlers(self):
+    def run_handlers(self) -> None:
         """
         Run all handlers concurrently using threading.
 
@@ -62,10 +62,10 @@ class HandlersAggregator:
 
                 # Wait for all the futures to complete
                 concurrent.futures.wait(futures)
+
+                # Log the successful completion of the handlers run
+                bot_logger.debug("Handlers instance initialization successful.")
+                bot_logger.debug(f"Setup bot instances successful with {handlers_count} handlers.")
         except Exception as e:
             # Log any exceptions that occur during the handlers run
             bot_logger.error(f"Failed at @{self.__class__.__name__} whit error: {e}")
-
-        # Log the successful completion of the handlers run
-        bot_logger.debug("Handlers instance initialization successful.")
-        bot_logger.debug(f"Setup bot instances successful with {handlers_count} handlers.")

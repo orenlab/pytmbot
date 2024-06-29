@@ -229,5 +229,6 @@ class PyTMBot(PyTMBotInstance):
 
 
 if __name__ == "__main__":
-    # Run bot!
+    # Run the bot
     PyTMBot().run_bot()
+
