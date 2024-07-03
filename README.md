@@ -69,25 +69,28 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 ├── README.md                               - Main README
 ├── SECURITY.md                             - Security policy
 ├── app
-│   ├── __init__.py                         
+│   ├── __init__.py                         - Bot core
 │   ├── core
-│   │   ├── __init__.py                     - Bot core
+│   │   ├── __init__.py                     
 │   │   ├── adapters
 │   │   │   ├── __init__.py
+│   │   │   ├── containers_base_data.py     - Dataclass to store containers info
 │   │   │   ├── docker_adapter.py           - Docker adapter
 │   │   │   ├── podman_adapter.py           - Podman adapter (in development)
 │   │   │   └── psutil_adapter.py           - Psutil adapter
 │   │   ├── exceptions.py                   - Custom exceptions
 │   │   ├── handlers
-│   │   │   ├── __init__.py
+│   │   │   ├── __init__.py                 - Import all handlers in one list
 │   │   │   ├── default_handlers
-│   │   │   │   ├── __init__.py             - Import all defaults handlers
+│   │   │   │   ├── __init__.py             
 │   │   │   │   ├── about_bot.py            - About bot handler
 │   │   │   │   ├── check_bot_update.py     - Check pyTMbot updates
 │   │   │   │   ├── containers_handler.py   - Container handler
+│   │   │   │   ├── echo.py                 - Handle uncknown command
 │   │   │   │   ├── fs_handler.py           - Filesystem handler
 │   │   │   │   ├── load_avg_handler.py     - Load average handler
 │   │   │   │   ├── memory_handler.py       - Memory handler
+│   │   │   │   ├── net_io_stat.py          - Network handler
 │   │   │   │   ├── process_handler.py      - Process handler
 │   │   │   │   ├── sensors_handler.py      - Sensors handler
 │   │   │   │   ├── start_handler.py        - Main, start handler
@@ -96,6 +99,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── handlers_aggregator.py      - Main handlers aggregator
 │   │   │   └── inline_handlers
 │   │   │       ├── __init__.py
+│   │   │       ├── containers_full_info.py - Full containers info handler
 │   │   │       └── swap_handler.py         - Swap inline handler
 │   │   │       └── update_info.py          - Updates info inline handler
 │   │   ├── jinja2
