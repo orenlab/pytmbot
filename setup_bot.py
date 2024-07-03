@@ -162,23 +162,24 @@ def build_config() -> None:
     Builds the default .pytmbotenv file.
 
     If the file already exists, it prompts the user to remove it before proceeding.
-
     After the file is created, it prints a success message.
     """
+
     # Print a message indicating the start of the build process
     click.secho("*** Starting build default .pytmbotenv ***", fg="green", bold=True)
 
     # Check if the .pytmbotenv file already exists
     if filesystem.has_file(APP_ENV_FILE):
-        # If the file exists, prompt the user to remove it
-        click.secho("Looks like you already have .pytmbotenv, if you need reconfigure bot, remove it.", blink=True,
-                    fg="yellow", bold=True)
+        # If the file exists, prompt the user to remove it before proceeding
+        click.secho("Looks like you already have .pytmbotenv, if you need to reconfigure the bot, remove it.",
+                    blink=True, fg="yellow", bold=True)
     else:
-        # If the file doesn't exist, create it
+        # If the file does not exist, create it
         create_dot_env()
 
     # Print a success message
-    click.secho("All done. Now you can build Docker image and run bot.", blink=True, bg='blue', fg='white', bold=True)
+    click.secho("All done. Now you can build Docker image and run the bot.", blink=True, bg='blue', fg='white',
+                bold=True)
 
 
 if __name__ == '__main__':
