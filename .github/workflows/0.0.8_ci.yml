@@ -24,4 +24,4 @@ jobs:
           build-args: --target prod
           file: hub.Dockerfile
           push: true
-          tags: orenlab/pytmbot:alpine-dev
+          tags: orenlab/pytmbot:0.0.8
