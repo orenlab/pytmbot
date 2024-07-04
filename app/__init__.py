@@ -20,7 +20,7 @@ from app.utilities.utilities import parse_cli_args
 config = BotSettings()
 
 # Set global name
-__version__ = 'v0.1.0-dev-20240630'
+__version__ = 'v0.1.0-dev-20240704'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
