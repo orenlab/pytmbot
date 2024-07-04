@@ -2,7 +2,7 @@ name: CI latest tag
 
 on:
   schedule:
-    - cron: '20 8 * * 4'
+    - cron: '25 8 * * 4'
 
 jobs:
   docker:
