@@ -2,7 +2,7 @@ name: CI latest tag
 
 on:
   schedule:
-    - cron: '25 8 * * 4'
+    - cron: '0 9 * * *'
 
 jobs:
   docker:
@@ -20,7 +20,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: https://github.com/orenlab/pytmbot.git#latest
+          context: https://github.com/orenlab/pytmbot.git#v0.0.9
           build-args: --target prod
           file: hub.Dockerfile
           push: true
