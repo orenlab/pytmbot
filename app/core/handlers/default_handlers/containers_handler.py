@@ -9,7 +9,6 @@ from typing import Union, Dict, List
 from docker.errors import DockerException
 from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from app.core.adapters.containers_base_data import ContainersFactory
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import bot_logger
@@ -151,14 +150,11 @@ class ContainersHandler(HandlerConstructor):
             with buttons for each container name. The buttons are created using the InlineKeyboardButton
             class and the callback_data is set to a specific format.
             """
-            # Get the containers factory
-            containers_factory = ContainersFactory().containers_factory
-
             # Create a list of InlineKeyboardButton objects for each container name
             buttons = [
                 InlineKeyboardButton(
                     text=container_name,
-                    callback_data=containers_factory.new(container_id=container_name)
+                    callback_data='__get_full__' + container_name
                 )
                 for container_name in container_names
             ]

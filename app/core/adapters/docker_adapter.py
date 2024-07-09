@@ -11,7 +11,6 @@ import docker
 from humanize import naturalsize, naturaltime
 
 from app import config
-from app.core.adapters.containers_base_data import ContainerData
 from app.core.logs import bot_logger
 
 
@@ -113,13 +112,13 @@ class DockerAdapter:
 
     def __list_containers(self) -> List[str]:
         """
-        List all docker containers and retrieve their image tags.
+        Retrieves a list of all running containers and returns their short IDs.
 
         Returns:
-            List[str]: A list of image tags of all running containers.
+            List[str]: A list of short IDs of the running containers.
 
         Raises:
-            FileNotFoundError: If the Docker executable is not found.
+            FileNotFoundError: If the Docker client cannot be created.
             ConnectionError: If there is an error connecting to the Docker daemon.
         """
         try:
@@ -127,19 +126,16 @@ class DockerAdapter:
             client = self.__create_docker_client()
 
             # Retrieve a list of all running containers
-            containers_raw = client.containers.list(all=True)
+            containers_id_raw = client.containers.list(all=True)
 
-            # Extract the image tags
-            image_tags = [container.short_id for container in containers_raw]
-
-            # Store the image tags in the ContainerData class
-            ContainerData.container_id = image_tags
+            # Extract the container short IDs
+            containers_id = [container.short_id for container in containers_id_raw]
 
             # Log the created container list
-            bot_logger.debug(f"Container list created: {image_tags}")
+            bot_logger.debug(f"Container list created: {containers_id}")
 
-            # Return the list of image tags
-            return image_tags
+            # Return the list of short IDs
+            return containers_id
 
         except (FileNotFoundError, ConnectionError) as e:
             # Log an error message if an exception occurs
@@ -235,16 +231,16 @@ class DockerAdapter:
 
             # Retrieve the list of containers
             bot_logger.debug("Retrieving list of containers...")
-            containers = self.__list_containers()
+            containers_id = self.__list_containers()
 
-            if not containers:
+            if not containers_id:
                 # Log a message if no containers are found
                 bot_logger.debug("No containers found. Returning empty dictionary.")
                 return {}
 
             # Retrieve details for each container
             bot_logger.debug("Retrieving details for each container...")
-            details = [self.__aggregate_container_details(container) for container in containers]
+            details = [self.__aggregate_container_details(container_id) for container_id in containers_id]
 
             # Log a message indicating successful retrieval of details
             bot_logger.debug(f"Details retrieved successfully: {details}")
@@ -254,3 +250,15 @@ class DockerAdapter:
             # Log an error if an exception occurs
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
+
+    def get_full_container_details(self, container_id: str) -> dict:
+        """
+        Retrieve and return the attributes of a Docker container as a dictionary.
+
+        Args:
+            container_id (str): The ID of the container.
+
+        Returns:
+            dict: A dictionary containing the attributes of the Docker container.
+        """
+        return self.__get_container_details(container_id).attrs
