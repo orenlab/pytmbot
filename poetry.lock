@@ -187,13 +187,13 @@ dev = ["coverage", "pytest (>=7.4.4)"]
 
 [[package]]
 name = "humanize"
-version = "4.9.0"
+version = "4.10.0"
 description = "Python humanize utilities"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "humanize-4.9.0-py3-none-any.whl", hash = "sha256:ce284a76d5b1377fd8836733b983bfb0b76f1aa1c090de2566fcf008d7f6ab16"},
-    {file = "humanize-4.9.0.tar.gz", hash = "sha256:582a265c931c683a7e9b8ed9559089dea7edcf6cc95be39a3cbc2c5d5ac2bcfa"},
+    {file = "humanize-4.10.0-py3-none-any.whl", hash = "sha256:39e7ccb96923e732b5c2e27aeaa3b10a8dfeeba3eb965ba7b74a3eb0e30040a6"},
+    {file = "humanize-4.10.0.tar.gz", hash = "sha256:06b6eb0293e4b85e8d385397c5868926820db32b9b654b932f57fa41c23c9978"},
 ]
 
 [package.extras]
@@ -487,13 +487,13 @@ yaml = ["pyyaml (>=6.0.1)"]
 
 [[package]]
 name = "pytelegrambotapi"
-version = "4.20.0"
+version = "4.21.0"
 description = "Python Telegram bot api."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pytelegrambotapi-4.20.0-py3-none-any.whl", hash = "sha256:f0161a1f54c2066aead22ef47241d7ae153f827fc22e7bab43c6e7911d129f56"},
-    {file = "pytelegrambotapi-4.20.0.tar.gz", hash = "sha256:97acd88723e6568ee5dbfa793eab64f0510c9a3b0a6dd571e26556e8c66b0a07"},
+    {file = "pytelegrambotapi-4.21.0-py3-none-any.whl", hash = "sha256:686813e4d4f9e917530cd9cd411d62265293f12783294ebef87f8a1fe195b262"},
+    {file = "pytelegrambotapi-4.21.0.tar.gz", hash = "sha256:b32cde09f295f80330253cc185104f02c4d70041782d3524c4cc424abbaba636"},
 ]
 
 [package.dependencies]
