@@ -42,6 +42,6 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             self.bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                text=f"Some details about: {container_name}\n\n{container_details}",
+                text=f"Test, test, test ;)",
                 reply_markup=None
             )
