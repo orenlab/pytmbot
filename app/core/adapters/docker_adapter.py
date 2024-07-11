@@ -243,5 +243,5 @@ class DockerAdapter:
         """
         try:
             return self.__get_container_details(container_id).attrs
-        except docker.errors.NotFound:
+        except NotFound:
             return {}
