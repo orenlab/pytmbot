@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import List, Dict, Union
 
 import docker
+from docker.errors import NotFound
 
 from app import config
 from app.core.logs import bot_logger
@@ -62,7 +63,7 @@ class DockerAdapter:
             return self.client
 
         # If an error occurs during client creation, log an error message
-        except (ConnectionAbortedError, FileNotFoundError) as e:
+        except Exception as e:
             # Log an error message with the exception details
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
@@ -80,7 +81,7 @@ class DockerAdapter:
             # Ping the Docker daemon and return the result
             return self.__create_docker_client().ping()
 
-        except (ConnectionAbortedError, FileNotFoundError) as e:
+        except Exception as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
@@ -111,7 +112,7 @@ class DockerAdapter:
             # Return the list of short IDs
             return containers_id
 
-        except (FileNotFoundError, ConnectionError) as e:
+        except Exception as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
@@ -134,15 +135,15 @@ class DockerAdapter:
             client = self.__create_docker_client()
 
             # Get the container object
-            container = client.containers.get(container_id)
+            container_full_info = client.containers.get(container_id)
 
             # Log the retrieved container details
             bot_logger.debug(f"Retrieved container object for container: {container_id}")
 
             # Return the container object
-            return container
+            return container_full_info
 
-        except (ValueError, FileNotFoundError, ConnectionError) as e:
+        except Exception as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
@@ -167,7 +168,12 @@ class DockerAdapter:
 
         """
         # Get the container details
-        container_details = self.__get_container_details(container_id)
+        try:
+            container_details = self.__get_container_details(container_id)
+        except Exception as e:
+            # Log an error message if an exception occurs
+            bot_logger.error(f"Failed at @{__name__}: {e}")
+            return {}
         attrs = container_details.attrs
         stats = container_details.stats(decode=None, stream=False)
 
@@ -220,7 +226,7 @@ class DockerAdapter:
             bot_logger.debug(f"Details retrieved successfully: {details}")
             return details
 
-        except ValueError as e:
+        except Exception as e:
             # Log an error if an exception occurs
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
@@ -235,4 +241,7 @@ class DockerAdapter:
         Returns:
             dict: A dictionary containing the attributes of the Docker container.
         """
-        return self.__get_container_details(container_id)
+        try:
+            return self.__get_container_details(container_id).attrs
+        except docker.errors.NotFound:
+            return {}
