@@ -65,7 +65,9 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
                 return container_details
 
-            if not container_details:
+            if container_details is None:
+                # Log a message if container details are not found
+                bot_logger.debug(f"Details for container {container_name} not found.")
                 return handle_container_not_found(call)
 
             # Extract container stats and attributes
