@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyTMBot"
-version = "0.1.0-dev"
+version = "0.1.0-pre"
 description = "A simple Telegram bot designed to gather basic information about the status of your local computers and/or servers from Glances"
 authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
 readme = "README.md"
@@ -17,7 +17,6 @@ docker = "^7.0.0"
 click = "^8.1.7"
 psutil = "^5.9.8"
 humanize = "^4.9.0"
-podman = "^5.0.0"
 
 
 [build-system]

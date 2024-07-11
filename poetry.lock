@@ -297,25 +297,6 @@ files = [
 ]
 
 [[package]]
-name = "podman"
-version = "5.0.0"
-description = "Bindings for Podman RESTful API"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "podman-5.0.0-py3-none-any.whl", hash = "sha256:29e52a5bb10646ddf0cec34787c495dbb38851eb37cb151a62877fba34a17e8a"},
-    {file = "podman-5.0.0.tar.gz", hash = "sha256:23b5e60d8451e907b7e0aa5aca6aa52720792ec8ff0b0a74c5cc50064daa5d19"},
-]
-
-[package.dependencies]
-pyxdg = ">=0.26"
-requests = ">=2.24"
-urllib3 = "*"
-
-[package.extras]
-progress-bar = ["rich (>=12.5.1)"]
-
-[[package]]
 name = "psutil"
 version = "5.9.8"
 description = "Cross-platform lib for process and system monitoring in Python."
@@ -549,17 +530,6 @@ files = [
 ]
 
 [[package]]
-name = "pyxdg"
-version = "0.28"
-description = "PyXDG contains implementations of freedesktop.org standards in python."
-optional = false
-python-versions = "*"
-files = [
-    {file = "pyxdg-0.28-py2.py3-none-any.whl", hash = "sha256:bdaf595999a0178ecea4052b7f4195569c1ff4d344567bccdc12dfdf02d545ab"},
-    {file = "pyxdg-0.28.tar.gz", hash = "sha256:3267bb3074e934df202af2ee0868575484108581e6f3cb006af1da35395e88b4"},
-]
-
-[[package]]
 name = "requests"
 version = "2.32.3"
 description = "Python HTTP for Humans."
@@ -626,4 +596,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "e38d731bfe00f257e78e3d4ffd2f6603e27e7edc722dac73265da5191f476b87"
+content-hash = "318d43c3a2a331302a5f1cecf7a8cb8bf3cac272bb124a155f80d50dea3bc061"
