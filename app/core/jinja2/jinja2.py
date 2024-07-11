@@ -57,7 +57,8 @@ class Jinja2Renderer:
             'swap.jinja2',
             'how_update.jinja2',
             'net_io.jinja2',
-            'about_bot.jinja2'
+            'about_bot.jinja2',
+            'containers_full_info.jinja2'
         ]
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:

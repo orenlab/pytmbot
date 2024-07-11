@@ -86,6 +86,48 @@ class ContainersHandler(HandlerConstructor):
             # Raise an error if there is an issue parsing the data
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
+    @staticmethod
+    def build_custom_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
+        """
+        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
+
+        Args:
+            container_names (List[str]): List of container names.
+
+        Returns:
+            InlineKeyboardMarkup: Inline keyboard with buttons.
+
+        This function takes a list of container names and constructs an InlineKeyboardMarkup
+        with buttons for each container name. The buttons are created using the InlineKeyboardButton
+        class and the callback_data is set to a specific format.
+        """
+        # Create a list of InlineKeyboardButton objects for each container name
+        buttons = [
+            InlineKeyboardButton(
+                text=container_name,
+                callback_data='__get_full__' + container_name
+            )
+            for container_name in container_names
+        ]
+
+        # Create an InlineKeyboardMarkup with the list of buttons
+        inline_keyboard = InlineKeyboardMarkup([buttons])
+
+        return inline_keyboard
+
+    def get_list_of_containers_again(self) -> tuple[str, List[str] | None]:
+        """
+        Get the list of containers again.
+
+        Args:
+            self: The ContainersHandler instance.
+
+        Returns:
+            tuple[str, List[str] | None]: The compiled message to be sent to the bot and a list of container names
+                if available, or None if no container data is available.
+        """
+        return self.__compile_message()
+
     def handle(self):
         """
         This function sets up a message handler for the 'Containers' regex pattern.
@@ -114,7 +156,7 @@ class ContainersHandler(HandlerConstructor):
                 containers_info = self.__compile_message()
 
                 # Build an inline keyboard for the message
-                inline_keyboard = __build_inline_keyboard(containers_info[1])
+                inline_keyboard = self.build_custom_inline_keyboard(containers_info[1])
 
                 # Send the message to the user
                 __send_message(message, containers_info[0], inline_keyboard)
@@ -135,34 +177,6 @@ class ContainersHandler(HandlerConstructor):
                 None
             """
             self.bot.send_chat_action(message.chat.id, 'typing')
-
-        def __build_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
-            """
-            Constructs an InlineKeyboardMarkup with buttons for each container name.
-
-            Args:
-                container_names (List[str]): List of container names.
-
-            Returns:
-                InlineKeyboardMarkup: Inline keyboard with buttons.
-
-            This function takes a list of container names and constructs an InlineKeyboardMarkup
-            with buttons for each container name. The buttons are created using the InlineKeyboardButton
-            class and the callback_data is set to a specific format.
-            """
-            # Create a list of InlineKeyboardButton objects for each container name
-            buttons = [
-                InlineKeyboardButton(
-                    text=container_name,
-                    callback_data='__get_full__' + container_name
-                )
-                for container_name in container_names
-            ]
-
-            # Create an InlineKeyboardMarkup with the list of buttons
-            inline_keyboard = InlineKeyboardMarkup([buttons])
-
-            return inline_keyboard
 
         def __send_message(message, text, reply_markup=None):
             """

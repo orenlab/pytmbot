@@ -27,7 +27,7 @@ gather information.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (so far, only Docker and only on Linux) base information
+- Containers (so far, only Docker and only on Linux) information 
 - Basic information about the network connection
 
 ### 🔖 Additionally:
