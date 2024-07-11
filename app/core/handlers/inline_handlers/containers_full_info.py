@@ -113,7 +113,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 'mem_usage': set_naturalsize(container_stats['memory_stats']['usage']),  # Memory usage
                 'mem_limit': set_naturalsize(container_stats['memory_stats']['limit']),  # Memory limit
                 'mem_percent': round(
-                    container_stats['memory_stats']['usage'] / container_stats['memory_stats']['limit'], 2),
+                    container_stats['memory_stats']['usage'] / container_stats['memory_stats']['limit'] * 100, 2),
                 # Memory percentage
             }
 
