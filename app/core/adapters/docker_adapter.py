@@ -242,6 +242,6 @@ class DockerAdapter:
             dict: A dictionary containing the attributes of the Docker container.
         """
         try:
-            return self.__get_container_details(container_id).attrs
+            return self.__get_container_details(container_id)
         except NotFound:
             return {}
