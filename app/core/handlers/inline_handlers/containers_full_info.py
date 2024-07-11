@@ -11,7 +11,7 @@ from telebot.types import CallbackQuery
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
-from app.core.logs import logged_inline_handler_session
+from app.core.logs import logged_inline_handler_session, bot_logger
 from app.utilities.utilities import set_naturalsize
 
 
@@ -52,11 +52,18 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
             # Extract the container name from the callback data
             container_name = extract_container_name(call.data)
+            container_details = None
 
             # Retrieve full container details
-            container_details = DockerAdapter().get_full_container_details(
-                container_name.lower()
-            )
+            try:
+                container_details = DockerAdapter().get_full_container_details(
+                    container_name.lower()
+                )
+            except Exception as e:
+                # Log an error message if an exception occurs
+                bot_logger.exception(f"Failed at @{__name__} - exception: {e}")
+
+                return container_details
 
             if not container_details:
                 return handle_container_not_found(call)

@@ -142,7 +142,7 @@ class DockerAdapter:
             # Return the container object
             return container
 
-        except (ValueError, FileNotFoundError) as e:
+        except (ValueError, FileNotFoundError, ConnectionError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
