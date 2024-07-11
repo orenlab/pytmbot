@@ -1,6 +1,5 @@
-import concurrent
 import unittest
-from concurrent.futures import Future
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 from app.core.handlers.handlers_aggregator import HandlersAggregator
@@ -15,7 +14,7 @@ class TestHandlersAggregator(unittest.TestCase):
 
     def test_run_handlers_success(self):
         # Test that the method runs all handlers concurrently without raising an exception
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             futures = [executor.submit(handler.handle) for handler in self.handlers]
             self.handlers_aggregator.run_handlers()
             for future in futures:
