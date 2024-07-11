@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from functools import lru_cache
 from typing import Union, Dict, List
 
 from docker.errors import DockerException
@@ -87,6 +88,7 @@ class ContainersHandler(HandlerConstructor):
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     @staticmethod
+    @lru_cache(maxsize=1)
     def build_custom_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
         """
         Constructs a custom InlineKeyboardMarkup with buttons for each container name.
@@ -115,6 +117,7 @@ class ContainersHandler(HandlerConstructor):
 
         return inline_keyboard
 
+    @lru_cache
     def get_list_of_containers_again(self) -> tuple[str, List[str] | None]:
         """
         Get the list of containers again.
