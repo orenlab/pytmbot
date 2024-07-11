@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from functools import lru_cache
 
 from telebot.types import CallbackQuery
 
@@ -15,6 +16,10 @@ from app.utilities.utilities import set_naturalsize
 
 
 class InlineContainerFullInfoHandler(HandlerConstructor):
+    """
+    The InlineContainerFullInfoHandler class is a subclass of the HandlerConstructor class.
+    It is used to handle the 'containers_full_info' data in an inline query.
+    """
 
     def handle(self):
         """
@@ -46,48 +51,32 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             """
 
             # Extract the container name from the callback data
-            container_name = call.data.split("__get_full__")[1].lower()
+            container_name = extract_container_name(call.data)
 
             # Retrieve full container details
             container_details = DockerAdapter().get_full_container_details(
                 container_name.lower()
             )
 
+            if not container_details:
+                return handle_container_not_found(call)
+
             # Extract container stats and attributes
             container_stats = container_details.stats(decode=None, stream=False)
             container_attrs = container_details.attrs
 
-            # Parse container stats
-            container_memory_stats = parse_container_memory_stats(container_stats)
-            container_cpu_stats = parse_container_cpu_stats(container_stats)
-            container_network_stats = parse_container_network_stats(container_stats)
-            container_attrs = parse_container_attrs(container_attrs)
-
             # Define emojis for rendering
-            emojis = {
-                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
-                'luggage': self.emojis.get_emoji('pushpin'),
-                'minus': self.emojis.get_emoji('minus'),
-                'backhand_index_pointing_down': self.emojis.get_emoji('backhand_index_pointing_down'),
-                'banjo': self.emojis.get_emoji('banjo'),
-                'basket': self.emojis.get_emoji('basket'),
-            }
+            emojis = get_emojis()
 
             # Render the template with container information
             context = self.jinja.render_templates(
                 'containers_full_info.jinja2',
                 **emojis,
                 container_name=container_name,
-                container_memory_stats=container_memory_stats,
-                container_cpu_stats=container_cpu_stats,
-                container_network_stats=container_network_stats,
-                container_attrs=container_attrs
-            )
-
-            # Build the back button for navigation
-            back_keyboard = self.keyboard.build_inline_keyboard(
-                'Back to all containers...',
-                callback_data='back_to_containers'
+                container_memory_stats=parse_container_memory_stats(container_stats),
+                container_cpu_stats=parse_container_cpu_stats(container_stats),
+                container_network_stats=parse_container_network_stats(container_stats),
+                container_attrs=parse_container_attrs(container_attrs)
             )
 
             # Edit the message text with container information and back button
@@ -95,8 +84,69 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text=context,
-                reply_markup=back_keyboard,
+                reply_markup=build_back_button(),
                 parse_mode="Markdown"
+            )
+
+        @lru_cache(maxsize=128)
+        def get_emojis():
+            """
+            Return a dictionary of emojis with keys representing emoji names and values as emoji characters.
+            """
+            return {
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                'luggage': self.emojis.get_emoji('pushpin'),
+                'minus': self.emojis.get_emoji('minus'),
+                'backhand_index_pointing_down': self.emojis.get_emoji('backhand_index_pointing_down'),
+                'banjo': self.emojis.get_emoji('banjo'),
+                'basket': self.emojis.get_emoji('basket'),
+                'flag_in_hole': self.emojis.get_emoji('flag_in_hole'),
+                'railway_car': self.emojis.get_emoji('railway_car'),
+                'radio': self.emojis.get_emoji('radio'),
+                'puzzle_piece': self.emojis.get_emoji('puzzle_piece'),
+                'radioactive': self.emojis.get_emoji('radioactive'),
+                'safety_pin': self.emojis.get_emoji('safety_pin'),
+                'sandwich': self.emojis.get_emoji('sandwich'),
+            }
+
+        def build_back_button():
+            """
+            Builds the back button for the inline keyboard.
+
+            Returns:
+                InlineKeyboardMarkup: The inline keyboard with the back button.
+            """
+            return self.keyboard.build_inline_keyboard(
+                'Back to all containers...',
+                callback_data='back_to_containers'
+            )
+
+        def extract_container_name(data):
+            """
+            Extracts and returns the container name from the input data.
+
+            Args:
+                data (str): The input data containing the container name.
+
+            Returns:
+                str: The extracted container name in lowercase.
+            """
+            return data.split("__get_full__")[1].lower()
+
+        def handle_container_not_found(call):
+            """
+            Handles the case when a container is not found.
+
+            Args:
+                call (telegram.CallbackQuery): The callback query object.
+
+            Returns:
+                None
+            """
+            return self.bot.answer_callback_query(
+                callback_query_id=call.id,
+                text="Container not found :( Something went wrong...",
+                show_alert=True
             )
 
         def parse_container_memory_stats(container_stats):
