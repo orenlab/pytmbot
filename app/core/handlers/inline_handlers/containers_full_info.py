@@ -167,11 +167,10 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
             """
             return {
-                'mem_usage': set_naturalsize(container_stats['memory_stats']['usage']),  # Memory usage
-                'mem_limit': set_naturalsize(container_stats['memory_stats']['limit']),  # Memory limit
+                'mem_usage': set_naturalsize(container_stats['memory_stats']['usage']),
+                'mem_limit': set_naturalsize(container_stats['memory_stats']['limit']),
                 'mem_percent': round(
                     container_stats['memory_stats']['usage'] / container_stats['memory_stats']['limit'] * 100, 2),
-                # Memory percentage
             }
 
         def parse_container_cpu_stats(container_stats):
