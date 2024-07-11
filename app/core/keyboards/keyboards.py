@@ -89,7 +89,7 @@ class Keyboard(KeyboardSettings):
     @lru_cache
     def build_inline_keyboard(self, *button_texts: str, callback_data: str = None) -> InlineKeyboardMarkup:
         """
-        Builds an inline keyboard using the provided button texts and callback data.
+        Constructs an inline keyboard using the provided button texts and callback data.
 
         Args:
             *button_texts (str): Variable length argument list of button texts.
@@ -100,8 +100,8 @@ class Keyboard(KeyboardSettings):
         """
         buttons = [
             InlineKeyboardButton(
-                text=text,
-                callback_data=callback_data or text.lower().replace(' ', '_')
+                text=str(text),
+                callback_data=callback_data or str(text).lower().replace(' ', '_')
             )
             for text in button_texts
         ]
