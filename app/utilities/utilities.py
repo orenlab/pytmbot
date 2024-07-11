@@ -5,8 +5,11 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local computers and/or servers from Glances
 """
 import argparse
+from datetime import datetime
 from functools import cached_property
 from typing import Any
+
+from humanize import naturalsize, naturaltime
 
 
 # Utility functions
@@ -105,6 +108,32 @@ def find_in_kwargs(kwargs, target_type):
     found_value = next((value for value in kwargs.values() if isinstance(value, target_type)), None)
 
     return found_value
+
+
+def set_naturalsize(size: int) -> str:
+    """
+    A function that converts a size in bytes to a human-readable format.
+
+    Args:
+        size (int): The size in bytes.
+
+    Returns:
+        str: The size in a human-readable format.
+    """
+    return naturalsize(size, binary=True)
+
+
+def set_naturaltime(timestamp: datetime) -> str:
+    """
+    Convert a timestamp to a human-readable format.
+
+    Args:
+        timestamp (datetime): The timestamp to convert.
+
+    Returns:
+        str: The timestamp in a human-readable format.
+    """
+    return naturaltime(timestamp)
 
 
 class EmojiConverter:
