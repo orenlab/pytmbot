@@ -88,7 +88,6 @@ class ContainersHandler(HandlerConstructor):
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     @staticmethod
-    @lru_cache(maxsize=1)
     def build_custom_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
         """
         Constructs a custom InlineKeyboardMarkup with buttons for each container name.
