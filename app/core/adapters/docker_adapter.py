@@ -8,10 +8,10 @@ from datetime import datetime
 from typing import List, Dict, Union
 
 import docker
-from humanize import naturalsize, naturaltime
 
 from app import config
 from app.core.logs import bot_logger
+from app.utilities.utilities import set_naturalsize, set_naturaltime
 
 
 class DockerAdapter:
@@ -83,32 +83,6 @@ class DockerAdapter:
         except (ConnectionAbortedError, FileNotFoundError) as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
-
-    @staticmethod
-    def _naturalsize(size: int) -> str:
-        """
-        Convert a size in bytes to a human-readable format.
-
-        Args:
-            size (int): The size in bytes.
-
-        Returns:
-            str: The size in a human-readable format.
-        """
-        return naturalsize(size, binary=True)
-
-    @staticmethod
-    def _naturaltime(timestamp: datetime) -> str:
-        """
-        Convert a timestamp to a human-readable format.
-
-        Args:
-            timestamp (datetime): The timestamp to convert.
-
-        Returns:
-            str: The timestamp in a human-readable format.
-        """
-        return naturaltime(timestamp)
 
     def __list_containers(self) -> List[str]:
         """
@@ -207,8 +181,8 @@ class DockerAdapter:
             'name': attrs['Name'].strip("/").title(),  # Remove leading slash and capitalize the name
             'image': attrs['Config']['Image'],  # Get the image used by the container
             'created': f"{created_day}, {created_time}",  # Format the creation date and time
-            'mem_usage': self._naturalsize(stats.get('memory_stats', {}).get('usage', 0)),  # Get the memory usage
-            'run_at': self._naturaltime(datetime.fromisoformat(attrs.get('State', {}).get('StartedAt', ''))),
+            'mem_usage': set_naturalsize(stats.get('memory_stats', {}).get('usage', 0)),  # Get the memory usage
+            'run_at': set_naturaltime(datetime.fromisoformat(attrs.get('State', {}).get('StartedAt', ''))),
             # Format the start date and time
             'status': attrs.get('State', {}).get('Status', ''),  # Get the status of the container
         }
@@ -251,7 +225,7 @@ class DockerAdapter:
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
 
-    def get_full_container_details(self, container_id: str) -> dict:
+    def get_full_container_details(self, container_id: str):
         """
         Retrieve and return the attributes of a Docker container as a dictionary.
 
@@ -261,4 +235,4 @@ class DockerAdapter:
         Returns:
             dict: A dictionary containing the attributes of the Docker container.
         """
-        return self.__get_container_details(container_id).attrs
+        return self.__get_container_details(container_id)
