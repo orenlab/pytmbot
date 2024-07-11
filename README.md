@@ -27,7 +27,7 @@ gather information.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (so far, only Docker and only on Linux) information 
+- Containers (so far, only Docker) information
 - Basic information about the network connection
 
 ### 🔖 Additionally:
@@ -74,7 +74,6 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   ├── __init__.py                     
 │   │   ├── adapters
 │   │   │   ├── __init__.py
-│   │   │   ├── containers_base_data.py     - Dataclass to store containers info
 │   │   │   ├── docker_adapter.py           - Docker adapter
 │   │   │   ├── podman_adapter.py           - Podman adapter (in development)
 │   │   │   └── psutil_adapter.py           - Psutil adapter
@@ -121,7 +120,8 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   ├── templates
 │   │   ├── about_bot.jinja2                - Bot update jinja2 template
 │   │   ├── bot_update.jinja2               - Bot update jinja2 template
-│   │   ├── containers.jinja2               - Containers jinja2 template 
+│   │   ├── containers.jinja2               - Containers jinja2 template
+│   │   ├── containers_full_info.jinja2     - Containers full info jinja2 template                    
 │   │   ├── fs.jinja2                       - Filesystem jinja2 template
 │   │   ├── how_update.jinja2               - Update instruction jinja2 template
 │   │   ├── index.jinja2                    - Start jinja2 template
