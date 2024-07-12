@@ -220,7 +220,7 @@ class DockerAdapter:
 
             # Retrieve details for each container
             bot_logger.debug("Retrieving details for each container...")
-            details = [self.__aggregate_container_details(container_id) for container_id in containers_id]
+            details = list(map(self.__aggregate_container_details, containers_id))
 
             # Log a message indicating successful retrieval of details
             bot_logger.debug(f"Details retrieved successfully: {details}")
