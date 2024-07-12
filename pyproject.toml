@@ -7,16 +7,15 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-pytelegrambotapi = "^4.14.1"
-telebot = "^0.0.5"
 emoji = "^2.9.0"
 jinja2 = "^3.1.3"
 pydantic = "^2.5.3"
 pydantic-settings = "^2.1.0"
 docker = "^7.0.0"
 click = "^8.1.7"
-psutil = "^5.9.8"
 humanize = "^4.9.0"
+psutil = "^6.0.0"
+pytelegrambotapi = "^4.21.0"
 
 
 [build-system]
