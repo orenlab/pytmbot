@@ -88,8 +88,7 @@ class LoadAvgHandler(HandlerConstructor):
                 bot_answer: str = self._compile_message()
 
                 # Send the compiled message to the bot
-                HandlerConstructor._send_bot_answer(
-                    self,
+                self._send_bot_answer(
                     message.chat.id,
                     text=bot_answer
                 )

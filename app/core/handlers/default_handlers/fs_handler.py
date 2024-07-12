@@ -97,8 +97,7 @@ class FileSystemHandler(HandlerConstructor):
                 bot_answer: str = self._compile_message()
 
                 # Send the bot answer
-                HandlerConstructor._send_bot_answer(
-                    self,
+                self._send_bot_answer(
                     message.chat.id,
                     text=bot_answer
                 )

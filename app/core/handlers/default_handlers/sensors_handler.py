@@ -102,8 +102,7 @@ class SensorsHandler(HandlerConstructor):
                 sensors_bot_answer = self._compile_message()
 
                 # Send the sensors message to the user
-                HandlerConstructor._send_bot_answer(
-                    self,
+                self._send_bot_answer(
                     message.chat.id,
                     text=sensors_bot_answer,
                 )

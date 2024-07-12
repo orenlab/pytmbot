@@ -59,9 +59,8 @@ class MemoryHandler(HandlerConstructor):
         """
         Parse the answer to a template.
 
-        This function tries to compile the message to be sent to the bot using the _compile_message method.
-        If the compilation is successful, it renders the 'memory.jinja2' template with the compiled message.
-        If there is a TemplateError during rendering, it raises a PyTeleMonBotTemplateError.
+        This function now directly renders the 'memory.jinja2' template with the compiled message
+        and emojis. If there is a TemplateError during rendering, it raises a PyTeleMonBotTemplateError.
 
         Args:
             self (MemoryHandler): The instance of the MemoryHandler class.
@@ -84,11 +83,8 @@ class MemoryHandler(HandlerConstructor):
                 'abacus': self.emojis.get_emoji('abacus'),  # Get the abacus emoji
             }
 
-            # Render the 'memory.jinja2' template with the compiled message
-            bot_answer: str = self.jinja.render_templates(template_name, **emojis, context=context)
-
-            # Return the compiled message
-            return bot_answer
+            # Render the 'memory.jinja2' template with the compiled message and emojis
+            return self.jinja.render_templates(template_name, context=context, **emojis)
 
         except self.template_error:
             # Raise a PyTeleMonBotTemplateError if there is a TemplateError during rendering
@@ -134,8 +130,7 @@ class MemoryHandler(HandlerConstructor):
                 inline_button = self.keyboard.build_inline_keyboard("Swap info")
 
                 # Send the bot answer with the inline button
-                HandlerConstructor._send_bot_answer(
-                    self,
+                self._send_bot_answer(
                     message.chat.id,
                     text=bot_answer,
                     reply_markup=inline_button

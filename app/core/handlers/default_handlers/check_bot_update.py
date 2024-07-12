@@ -296,16 +296,14 @@ class BotUpdatesHandler(HandlerConstructor):
                 # Send the bot's answer to the chat
                 if need_inline:
                     inline_button = self.keyboard.build_inline_keyboard("How update?")
-                    HandlerConstructor._send_bot_answer(
-                        self,
+                    self._send_bot_answer(
                         message.chat.id,
                         text=bot_answer,
                         parse_mode='HTML',
                         reply_markup=inline_button
                     )
                 else:
-                    HandlerConstructor._send_bot_answer(
-                        self,
+                    self._send_bot_answer(
                         message.chat.id,
                         text=bot_answer,
                         parse_mode='HTML',

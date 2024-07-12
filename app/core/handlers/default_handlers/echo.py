@@ -47,7 +47,7 @@ class EchoHandler(HandlerConstructor):
                 # Send the response message to the user
                 response: str = 'In a robotic voice: I have checked my notes several times. ' \
                                 'Unfortunately, there is no mention of such a command :('
-                self.bot.send_message(message.chat.id, response)
+                self._send_bot_answer(message.chat.id, text=response)
             except ValueError:
                 # Raise an exception if there is a ValueError
                 raise self.exceptions.PyTeleMonBotHandlerError(

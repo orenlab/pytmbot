@@ -82,8 +82,7 @@ class UptimeHandler(HandlerConstructor):
                 uptime_bot_answer = self._compile_message()
 
                 # Send the compiled message to the bot using the '_send_bot_answer' method
-                HandlerConstructor._send_bot_answer(
-                    self,
+                self._send_bot_answer(
                     message.chat.id,
                     text=uptime_bot_answer,
                 )

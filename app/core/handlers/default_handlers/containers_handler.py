@@ -192,7 +192,7 @@ class ContainersHandler(HandlerConstructor):
             Returns:
                 None
             """
-            self.bot.send_message(
+            self._send_bot_answer(
                 message.chat.id,
                 text=text,
                 reply_markup=reply_markup
@@ -221,4 +221,4 @@ class ContainersHandler(HandlerConstructor):
                 None
             """
             error_message = "An error occurred. Please try again later."
-            self.bot.send_message(message.chat.id, error_message)
+            self._send_bot_answer(message.chat.id, text=error_message)
