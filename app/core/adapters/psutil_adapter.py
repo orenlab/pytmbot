@@ -118,6 +118,7 @@ class PsutilAdapter:
             bot_logger.debug(f"Partitions stats is received: {fs_stats}")
 
             # Generate a list of dictionaries containing the usage statistics for each partition
+            # See: https://github.com/orenlab/pytmbot/issues/54
             fs_current = []
             for fs in fs_stats:
                 disk_usage = self.psutil.disk_usage(fs.mountpoint)
