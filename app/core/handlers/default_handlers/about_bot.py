@@ -52,7 +52,7 @@ class AboutBotHandler(HandlerConstructor):
                 bot_answer = self.jinja.render_templates('about_bot.jinja2', context=template_variables)
 
                 # Send the rendered template as a bot answer
-                self._send_bot_answer(
+                self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
                     parse_mode='Markdown'

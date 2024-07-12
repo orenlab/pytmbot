@@ -130,7 +130,7 @@ class MemoryHandler(HandlerConstructor):
                 inline_button = self.keyboard.build_inline_keyboard("Swap info")
 
                 # Send the bot answer with the inline button
-                self._send_bot_answer(
+                self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
                     reply_markup=inline_button

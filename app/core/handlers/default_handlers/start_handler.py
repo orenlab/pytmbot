@@ -58,7 +58,7 @@ class StartHandler(HandlerConstructor):
                 )
 
                 # Send the bot answer to the user with the main keyboard
-                self._send_bot_answer(
+                self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
                     reply_markup=main_keyboard

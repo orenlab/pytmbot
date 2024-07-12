@@ -114,7 +114,7 @@ class ProcessHandler(HandlerConstructor):
 
                 # Get the answer and send it as a bot message
                 bot_answer = self._get_answer()
-                self._send_bot_answer(
+                self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
                 )

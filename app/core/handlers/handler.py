@@ -4,9 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from typing import Any
-
-from telebot.apihelper import ApiTelegramException
 
 from app import (
     config,
@@ -15,7 +12,6 @@ from app import (
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.core.keyboards.keyboards import Keyboard
-from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 from app.utilities.utilities import (
     EmojiConverter,
@@ -83,19 +79,3 @@ class HandlerConstructor:
 
         # Initialize the adapter object for interacting with the psutil library
         self.psutil_adapter = PsutilAdapter()
-
-    def _send_bot_answer(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Send the bot answer.
-
-        Args:
-            *args (Any): Positional arguments to be passed to bot.send_message().
-            **kwargs (Any): Keyword arguments to be passed to bot.send_message().
-
-        Returns:
-            None
-        """
-        try:
-            self.bot.send_message(*args, **kwargs)
-        except (ConnectionError, ApiTelegramException) as e:
-            bot_logger.error(f"Failed at @{self.__class__.__name__}: {e}")
