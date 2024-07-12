@@ -87,15 +87,14 @@ class Keyboard(KeyboardSettings):
         return reply_keyboard
 
     @lru_cache
-    def build_inline_keyboard(self, *button_texts: str,
-                              callback_data: Optional[str] = None) -> InlineKeyboardMarkup:
+    def build_inline_keyboard(self, *button_texts: str, callback_data: Optional[str] = None) -> InlineKeyboardMarkup:
         """
         Constructs an inline keyboard using the provided button texts and callback data.
 
         Args:
             button_texts (List[str]): List of button texts.
             callback_data (Optional[str], optional): The callback data to be associated with the buttons.
-            Defaults to None.
+                Defaults to None.
 
         Returns:
             InlineKeyboardMarkup: The constructed inline keyboard markup.
