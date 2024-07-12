@@ -149,7 +149,8 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_stats (Dict): The dictionary containing network statistics of a container.
 
         Returns:
-            Dict: A dictionary with keys for 'rx_bytes', 'tx_bytes', 'rx_dropped', 'tx_dropped', 'rx_errors', and 'tx_errors'.
+            Dict: A dictionary with keys for 'rx_bytes', 'tx_bytes', 'rx_dropped', 'tx_dropped', 'rx_errors', and
+            'tx_errors'.
         """
         network_data = container_stats.get('networks', {}).get('eth0', {})
 
@@ -261,25 +262,25 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
         @self.bot.callback_query_handler(func=lambda call: call.data == 'back_to_containers')
         @logged_inline_handler_session
-        def back_to_containers(call: CallbackQuery):
+        def handle_back_to_containers(call: CallbackQuery):
             """
-            This function handles the callback query for the 'back_to_containers' data.
-            It removes the reply markup and sends a message with a list of all containers.
+            Handles the callback query for the 'back_to_containers' data.
+            It retrieves the list of containers again and sends a message with the updated list.
 
             Args:
                 call (CallbackQuery): The callback query object.
             """
 
-            # Get the list of containers again
-            containers_data = ContainersHandler(self.bot)
-            context = containers_data.get_list_of_containers_again()[0]
+            # Instantiate ContainersHandler object
+            containers_handler = ContainersHandler(self.bot)
 
-            # Build the custom inline keyboard
-            inline_keyboard = containers_data.build_custom_inline_keyboard(
-                containers_data.get_list_of_containers_again()[1]
-            )
+            # Get the updated list of containers and buttons
+            context, buttons = containers_handler.get_list_of_containers_again()
 
-            # Edit the message with the new list of containers
+            # Build a custom inline keyboard
+            inline_keyboard = containers_handler.build_custom_inline_keyboard(buttons)
+
+            # Edit the message text with the updated container list and keyboard
             self.bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
