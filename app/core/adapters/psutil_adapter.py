@@ -117,25 +117,26 @@ class PsutilAdapter:
             fs_stats = psutil.disk_partitions(all=False)
             bot_logger.debug(f"Partitions stats is received: {fs_stats}")
 
-            # Generate a dictionary of disk usage statistics
-            disk_usage_stats = {fs.mountpoint: self.psutil.disk_usage(fs.mountpoint) for fs in fs_stats}
-
             # Generate a list of dictionaries containing the usage statistics for each partition
-            fs_current = [
-                {
-                    'device_name': fs.device,  # Device name
-                    'fs_type': fs.fstype,  # File system type
-                    'mnt_point': re.sub(r'\u00A0', ' ', fs.mountpoint),  # Mount point
-                    'size': naturalsize(disk_usage_stats[fs.mountpoint].total, binary=True),  # Total size
-                    'used': naturalsize(disk_usage_stats[fs.mountpoint].used, binary=True),  # Used space
-                    'free': naturalsize(disk_usage_stats[fs.mountpoint].free, binary=True),  # Free space
-                    'percent': disk_usage_stats[fs.mountpoint].percent  # Usage percentage
-                }
-                for fs in fs_stats
-            ]
+            fs_current = []
+            for fs in fs_stats:
+                disk_usage = self.psutil.disk_usage(fs.mountpoint)
+                fs_current.append({
+                    'device_name': fs.device,
+                    'fs_type': fs.fstype,
+                    'mnt_point': fs.mountpoint.replace('\u00A0', ' '),  # Replacing special characters
+                    'size': naturalsize(disk_usage.total, binary=True),
+                    'used': naturalsize(disk_usage.used, binary=True),
+                    'free': naturalsize(disk_usage.free, binary=True),
+                    'percent': disk_usage.percent
+                })
 
             bot_logger.debug(f"File system stats is received: {fs_current}")
             return fs_current
+
+        except (PermissionError, KeyError) as e:
+            # Log an error message if there is an exception
+            bot_logger.error(f"Failed at @{__name__}: {e}")
 
         except (PermissionError, KeyError) as e:
             # Log an error message if there is an exception
