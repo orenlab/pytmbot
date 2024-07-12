@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from functools import lru_cache
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Optional
 
 from docker.errors import DockerException
 from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -88,7 +88,7 @@ class ContainersHandler(HandlerConstructor):
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     @staticmethod
-    def build_custom_inline_keyboard(container_names: List[str]) -> InlineKeyboardMarkup:
+    def build_custom_inline_keyboard(container_names: List[str]) -> Optional[InlineKeyboardMarkup]:
         """
         Constructs a custom InlineKeyboardMarkup with buttons for each container name.
 
@@ -96,25 +96,22 @@ class ContainersHandler(HandlerConstructor):
             container_names (List[str]): List of container names.
 
         Returns:
-            InlineKeyboardMarkup: Inline keyboard with buttons.
-
-        This function takes a list of container names and constructs an InlineKeyboardMarkup
-        with buttons for each container name. The buttons are created using the InlineKeyboardButton
-        class and the callback_data is set to a specific format.
+            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
         """
-        # Create a list of InlineKeyboardButton objects for each container name
+        # Check if container_names list is empty
+        if not container_names:
+            return None
+
+        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
         buttons = [
             InlineKeyboardButton(
                 text=container_name,
                 callback_data='__get_full__' + container_name
-            )
-            for container_name in container_names
+            ) for container_name in container_names
         ]
 
-        # Create an InlineKeyboardMarkup with the list of buttons
-        inline_keyboard = InlineKeyboardMarkup([buttons])
-
-        return inline_keyboard
+        # Create and return an InlineKeyboardMarkup with the list of buttons
+        return InlineKeyboardMarkup([buttons])
 
     @lru_cache
     def get_list_of_containers_again(self) -> tuple[str, List[str] | None]:

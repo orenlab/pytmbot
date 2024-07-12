@@ -100,17 +100,12 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         Returns:
             Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
         """
-        if 'memory_stats' not in container_stats:
-            return {
-                'mem_usage': 0,
-                'mem_limit': 0,
-                'mem_percent': 0,
-            }
+        memory_stats = container_stats.get('memory_stats', {})
         return {
-            'mem_usage': set_naturalsize(container_stats['memory_stats']['usage']),
-            'mem_limit': set_naturalsize(container_stats['memory_stats']['limit']),
-            'mem_percent': round(
-                container_stats['memory_stats']['usage'] / container_stats['memory_stats']['limit'] * 100, 2),
+            'mem_usage': set_naturalsize(memory_stats.get('usage', 0)),
+            'mem_limit': set_naturalsize(memory_stats.get('limit', 0)),
+            'mem_percent': round(memory_stats.get('usage', 0) / memory_stats.get('limit', 1) * 100, 2)
+            if 'limit' in memory_stats else 0,
         }
 
     @staticmethod
@@ -127,17 +122,10 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         precpu_stats = container_stats.get('precpu_stats', {})
         throttling_data = precpu_stats.get('throttling_data', {})
 
-        if 'throttling_data' not in precpu_stats:
-            return {
-                'periods': None,
-                'throttled_periods': None,
-                'throttling_data': None,
-            }
-
         return {
-            'periods': throttling_data.get('periods'),
-            'throttled_periods': throttling_data.get('throttled_periods'),
-            'throttling_data': throttling_data.get('throttled_time'),
+            'periods': throttling_data.get('periods', 0),
+            'throttled_periods': throttling_data.get('throttled_periods', 0),
+            'throttling_data': throttling_data.get('throttled_time', 0),
         }
 
     @staticmethod
@@ -155,12 +143,12 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         network_data = container_stats.get('networks', {}).get('eth0', {})
 
         return {
-            'rx_bytes': set_naturalsize(network_data.get('rx_bytes', 0)),  # Received bytes
-            'tx_bytes': set_naturalsize(network_data.get('tx_bytes', 0)),  # Transmitted bytes
-            'rx_dropped': network_data.get('rx_dropped', 0),  # Received dropped packets
-            'tx_dropped': network_data.get('tx_dropped', 0),  # Transmitted dropped packets
-            'rx_errors': network_data.get('rx_errors', 0),  # Received errors
-            'tx_errors': network_data.get('tx_errors', 0),  # Transmitted errors
+            'rx_bytes': set_naturalsize(network_data.get('rx_bytes', 0)),
+            'tx_bytes': set_naturalsize(network_data.get('tx_bytes', 0)),
+            'rx_dropped': network_data.get('rx_dropped', 0),
+            'tx_dropped': network_data.get('tx_dropped', 0),
+            'rx_errors': network_data.get('rx_errors', 0),
+            'tx_errors': network_data.get('tx_errors', 0),
         }
 
     @staticmethod
@@ -206,26 +194,16 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             Handle the callback query for detailed container information.
 
             Args:
-                call (CallbackQuery): The callback query object.
-
-            Returns:
-                None
-
-            This function is responsible for handling the callback query when a user
-            requests detailed information about a container. It retrieves the container
-            details, extracts the container name from the callback data, and then
-            retrieves the full container details. It then extracts the container stats
-            and attributes, and parses the container stats. The parsed stats and
-            attributes are then rendered into a template using the Jinja2 library.
-            Finally, the rendered template is sent back to the user as an edited message
-            with a back button for navigation.
+                call (telebot.types.CallbackQuery): The callback query object.
             """
 
             # Extract the container name from the callback data
             container_name = self.extract_container_name(call.data)
 
+            # Retrieve the full container details
             container_details = self.get_container_full_details(container_name)
 
+            # If the container details are not found or empty, handle the case
             if not container_details or container_details == {}:
                 return handle_container_not_found(call)
 
@@ -237,6 +215,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             emojis = self.get_emojis()
 
             try:
+                # Render the container information into a template
                 context = self.jinja.render_templates(
                     'containers_full_info.jinja2',
                     **emojis,
@@ -260,6 +239,9 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 parse_mode="Markdown"
             )
 
+        # Instantiate ContainersHandler object
+        containers_handler = ContainersHandler(self.bot)
+
         @self.bot.callback_query_handler(func=lambda call: call.data == 'back_to_containers')
         @logged_inline_handler_session
         def handle_back_to_containers(call: CallbackQuery):
@@ -270,9 +252,6 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             Args:
                 call (CallbackQuery): The callback query object.
             """
-
-            # Instantiate ContainersHandler object
-            containers_handler = ContainersHandler(self.bot)
 
             # Get the updated list of containers and buttons
             context, buttons = containers_handler.get_list_of_containers_again()
@@ -293,7 +272,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             Handles the case when a container is not found.
 
             Args:
-                call (telegram.CallbackQuery): The callback query object.
+                call (telebot.types.CallbackQuery): The callback query object.
 
             Returns:
                 None

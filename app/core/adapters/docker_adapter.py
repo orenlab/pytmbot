@@ -100,11 +100,8 @@ class DockerAdapter:
             # Create a Docker client instance
             client = self.__create_docker_client()
 
-            # Retrieve a list of all running containers
-            containers_id_raw = client.containers.list(all=True)
-
-            # Extract the container short IDs
-            containers_id = [container.short_id for container in containers_id_raw]
+            # Retrieve a list of all running containers and extract their short IDs in one line
+            containers_id = [container.short_id for container in client.containers.list(all=True)]
 
             # Log the created container list
             bot_logger.debug(f"Container list created: {containers_id}")
@@ -130,9 +127,13 @@ class DockerAdapter:
             ValueError: If the container ID is invalid.
             FileNotFoundError: If the Docker executable is not found.
         """
+        # Create a Docker client
+        client = self.__create_docker_client()
+
         try:
-            # Create a Docker client
-            client = self.__create_docker_client()
+            # Check if the container ID is valid
+            if not container_id:
+                raise ValueError("Invalid container ID")
 
             # Get the container object
             container_full_info = client.containers.get(container_id)
@@ -143,7 +144,7 @@ class DockerAdapter:
             # Return the container object
             return container_full_info
 
-        except Exception as e:
+        except docker.api_errors.NotFound as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
@@ -167,30 +168,25 @@ class DockerAdapter:
             ValueError: If container details retrieval fails.
 
         """
-        # Get the container details
         try:
             container_details = self.__get_container_details(container_id)
         except Exception as e:
-            # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
             return {}
+
         attrs = container_details.attrs
         stats = container_details.stats(decode=None, stream=False)
 
-        # Extract the creation date and time
         created_at = datetime.fromisoformat(attrs['Created'])
-        created_day = created_at.date()
-        created_time = created_at.time().strftime("%H:%M:%S")
+        created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
 
-        # Return the container details as a dictionary
         return {
-            'name': attrs['Name'].strip("/").title(),  # Remove leading slash and capitalize the name
-            'image': attrs['Config']['Image'],  # Get the image used by the container
-            'created': f"{created_day}, {created_time}",  # Format the creation date and time
-            'mem_usage': set_naturalsize(stats.get('memory_stats', {}).get('usage', 0)),  # Get the memory usage
-            'run_at': set_naturaltime(datetime.fromisoformat(attrs.get('State', {}).get('StartedAt', ''))),
-            # Format the start date and time
-            'status': attrs.get('State', {}).get('Status', ''),  # Get the status of the container
+            'name': attrs['Name'].strip("/").title(),
+            'image': attrs['Config']['Image'],
+            'created': f"{created_day}, {created_time}",
+            'mem_usage': set_naturalsize(stats['memory_stats']['usage']),
+            'run_at': set_naturaltime(datetime.fromisoformat(attrs['State'].get('StartedAt', ''))),
+            'status': attrs['State'].get('Status', ''),
         }
 
     def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
@@ -204,6 +200,7 @@ class DockerAdapter:
             ValueError: If an exception occurs during the retrieval process.
         """
         try:
+            # Check if Docker is available
             if not self.__is_docker_available():
                 # Log a message if Docker is not available
                 bot_logger.debug("Docker is not available. Returning empty dictionary.")
@@ -213,6 +210,7 @@ class DockerAdapter:
             bot_logger.debug("Retrieving list of containers...")
             containers_id = self.__list_containers()
 
+            # Check if any containers are found
             if not containers_id:
                 # Log a message if no containers are found
                 bot_logger.debug("No containers found. Returning empty dictionary.")
