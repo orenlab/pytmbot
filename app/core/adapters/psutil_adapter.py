@@ -138,10 +138,6 @@ class PsutilAdapter:
             # Log an error message if there is an exception
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-        except (PermissionError, KeyError) as e:
-            # Log an error message if there is an exception
-            bot_logger.error(f"Failed at @{__name__}: {e}")
-
     def get_swap_memory(self) -> Dict[str, Union[str, int]]:
         """
         Get swap memory usage.
