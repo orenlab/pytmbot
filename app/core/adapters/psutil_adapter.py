@@ -82,6 +82,7 @@ class PsutilAdapter:
             memory_stats = self.psutil.virtual_memory()
 
             # Generate the memory usage dictionary using a dictionary comprehension
+            # See: https://github.com/orenlab/pytmbot/issues/53
             memory_current = {
                 key: naturalsize(getattr(memory_stats, key), binary=True) if key != 'percent' else memory_stats.percent
                 for key in ['total', 'available', 'percent', 'used', 'free', 'active', 'inactive', 'cached', 'shared']
