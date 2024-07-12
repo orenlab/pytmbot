@@ -6,7 +6,7 @@ the status of your local servers
 """
 
 from functools import lru_cache
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
@@ -87,21 +87,23 @@ class Keyboard(KeyboardSettings):
         return reply_keyboard
 
     @lru_cache
-    def build_inline_keyboard(self, *button_texts: str, callback_data: str = None) -> InlineKeyboardMarkup:
+    def build_inline_keyboard(self, *button_texts: str,
+                              callback_data: Optional[str] = None) -> InlineKeyboardMarkup:
         """
         Constructs an inline keyboard using the provided button texts and callback data.
 
         Args:
-            *button_texts (str): Variable length argument list of button texts.
-            callback_data (str, optional): The callback data to be associated with the buttons. Defaults to None.
+            button_texts (List[str]): List of button texts.
+            callback_data (Optional[str], optional): The callback data to be associated with the buttons.
+            Defaults to None.
 
         Returns:
             InlineKeyboardMarkup: The constructed inline keyboard markup.
         """
         buttons = [
             InlineKeyboardButton(
-                text=str(text),
-                callback_data=callback_data or str(text).lower().replace(' ', '_')
+                text=text,
+                callback_data=callback_data or text.lower().replace(' ', '_')
             )
             for text in button_texts
         ]
