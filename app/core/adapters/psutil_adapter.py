@@ -57,7 +57,7 @@ class PsutilAdapter:
 
         return load_average
 
-    def get_memory(self) -> Dict[str, str]:
+    def get_memory(self) -> Dict[str, Union[str, int]]:
         """
         Retrieve current memory usage statistics.
 
@@ -78,20 +78,15 @@ class PsutilAdapter:
             ValueError: If there is an error retrieving memory statistics.
         """
         try:
-            # Print a debug message before retrieving memory stats
-            bot_logger.debug("Retrieving memory statistics...")
-
             # Retrieve memory statistics using the psutil library
             memory_stats = self.psutil.virtual_memory()
 
-            # Generate the memory usage dictionary
+            # Generate the memory usage dictionary using a dictionary comprehension
             memory_current = {
-                stat: naturalsize(getattr(memory_stats, stat), binary=True)
-                for stat in ['total', 'available', 'percent', 'used', 'free', 'active', 'inactive', 'cached', 'shared']
+                key: naturalsize(getattr(memory_stats, key), binary=True) if key != 'percent' else memory_stats.percent
+                for key in ['total', 'available', 'percent', 'used', 'free', 'active', 'inactive', 'cached', 'shared']
             }
 
-            # Print a debug message after retrieving memory stats
-            bot_logger.debug(f"Memory statistics retrieved successfully: {memory_current}")
             return memory_current
         except (PermissionError, ValueError) as e:
             # Log an error message if there is an exception
