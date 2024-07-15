@@ -54,7 +54,7 @@ RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
 
 # Install dependencies to the venv path
 RUN python${PYTHON_VERSION} -m venv --without-pip venv
-RUN pip install --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
+RUN pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
     -r requirements.txt --upgrade
 
 RUN python${PYTHON_VERSION} -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
