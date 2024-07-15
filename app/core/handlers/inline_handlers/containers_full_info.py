@@ -12,7 +12,7 @@ from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session, bot_logger
-from app.utilities.utilities import set_naturalsize
+from app.utilities.utilities import set_naturalsize, extract_container_name
 
 
 class InlineContainerFullInfoHandler(HandlerConstructor):
@@ -73,20 +73,6 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             str: The logs of the container.
         """
         return DockerAdapter().fetch_container_logs(container_name)
-
-    @staticmethod
-    def extract_container_name(data: str, prefix: str) -> str:
-        """
-        Extracts the container name from data based on the provided prefix.
-
-        Args:
-            data (str): The data containing the container name.
-            prefix (str): The prefix to identify the container name.
-
-        Returns:
-            str: The extracted container name in lowercase.
-        """
-        return data.split(prefix)[1].lower()
 
     @staticmethod
     def parse_container_memory_stats(container_stats):
@@ -197,7 +183,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             """
 
             # Extract the container name from the callback data
-            container_name = self.extract_container_name(call.data, prefix='__get_full__')
+            container_name = extract_container_name(call.data, prefix='__get_full__')
 
             # Retrieve the full container details
             container_details = self.get_container_full_details(container_name)
@@ -286,7 +272,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 None
             """
             # Extract container name from the callback data
-            container_name = self.extract_container_name(call.data, prefix='__get_logs__')
+            container_name = extract_container_name(call.data, prefix='__get_logs__')
 
             # Get logs for the specified container
             logs = self.__get_logs(container_name)

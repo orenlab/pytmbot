@@ -171,3 +171,26 @@ class EmojiConverter:
 
         # Use the emoji library to convert the emoji string to the corresponding emoji character
         return self.emoji_library.emojize(emoji_str)
+
+
+def extract_container_name(data: str, prefix: str) -> str:
+    """
+    Extracts the container name from data based on the provided prefix.
+
+    Args:
+        data (str): The data containing the container name.
+        prefix (str): The prefix to identify the container name.
+
+    Returns:
+        str: The extracted container name in lowercase.
+
+    This function splits the data string at the prefix and extracts the container name.
+    The extracted name is then converted to lowercase and returned.
+    """
+    # Split the data at the prefix and extract the second element
+    container_name = data.split(prefix)[1]
+
+    # Convert the extracted name to lowercase
+    container_name = container_name.lower()
+
+    return container_name
