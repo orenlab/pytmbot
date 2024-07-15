@@ -169,25 +169,32 @@ class DockerAdapter:
 
         """
         try:
+            # Retrieve container details
             container_details = self.__get_container_details(container_id)
+            attrs = container_details.attrs
+            stats = container_details.stats(decode=None, stream=False)
+
+            # Extract creation date and time
+            created_at = datetime.fromisoformat(attrs['Created'])
+            created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
+
+            # Create container details dictionary
+            # See: https://github.com/orenlab/pytmbot/issues/55
+            container_details = {
+                'name': attrs['Name'].strip("/").title(),
+                'image': attrs.get('Config', {}).get('Image', 'N/A'),
+                'created': f"{created_day}, {created_time}",
+                'mem_usage': set_naturalsize(stats.get('memory_stats', {}).get('usage', 0)),
+                'run_at': set_naturaltime(datetime.fromisoformat(attrs['State'].get('StartedAt', ''))),
+                'status': attrs.get('State', {}).get('Status', 'N/A'),
+            }
+
+            return container_details
+
         except Exception as e:
+            # Log error if details retrieval fails
             bot_logger.error(f"Failed at @{__name__}: {e}")
             return {}
-
-        attrs = container_details.attrs
-        stats = container_details.stats(decode=None, stream=False)
-
-        created_at = datetime.fromisoformat(attrs['Created'])
-        created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
-
-        return {
-            'name': attrs['Name'].strip("/").title(),
-            'image': attrs['Config']['Image'],
-            'created': f"{created_day}, {created_time}",
-            'mem_usage': set_naturalsize(stats['memory_stats']['usage']),
-            'run_at': set_naturaltime(datetime.fromisoformat(attrs['State'].get('StartedAt', ''))),
-            'status': attrs['State'].get('Status', ''),
-        }
 
     def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
         """
@@ -240,6 +247,7 @@ class DockerAdapter:
             dict: A dictionary containing the attributes of the Docker container.
         """
         try:
+            bot_logger.debug(f"Retrieving full details for container: {container_id}")
             return self.__get_container_details(container_id)
         except NotFound:
             return {}
