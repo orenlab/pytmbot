@@ -76,6 +76,8 @@ jobs:
         with:
           context: .
           build-args: --target prod
+          sbom: True
+          provenance: True
           file: hub.Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

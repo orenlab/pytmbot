@@ -22,6 +22,8 @@ jobs:
         with:
           context: https://github.com/orenlab/pytmbot.git#v0.0.9
           build-args: --target prod
+          sbom: True
+          provenance: True
           file: hub.Dockerfile
           push: true
           tags: orenlab/pytmbot:0.0.9
