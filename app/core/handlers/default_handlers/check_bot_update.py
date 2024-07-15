@@ -4,6 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+from datetime import datetime
 from functools import lru_cache
 from typing import Dict
 
@@ -36,26 +37,29 @@ class BotUpdatesHandler(HandlerConstructor):
         """
         try:
             # Send a GET request to the GitHub API
-            with requests.get(__github_api_url__, timeout=5) as resp:
-                # Log the response status and update info for debugging purposes
-                bot_logger.debug(f"Response status: {resp.status_code}")
-                bot_logger.debug(f"Update info: {resp.json()}")
+            with requests.get(__github_api_url__, timeout=5) as response:
+                # Raise an exception if the request was unsuccessful
+                response.raise_for_status()
 
-                # Raise an exception if the request was not successful
-                resp.raise_for_status()
+                # Parse the response as JSON
+                data = response.json()
 
-                # Extract the relevant information from the response
+                # Convert the published_at timestamp to a datetime object
+                published_date = datetime.fromisoformat(data.get('published_at'))
+
+                # Create a dictionary with the release information
                 release_info = {
-                    'tag_name': resp.json().get('tag_name'),
-                    'published_at': resp.json().get('published_at'),
-                    'body': resp.json().get('body'),
+                    'tag_name': data.get('tag_name'),
+                    'published_at': published_date.strftime('%Y-%m-%d, %H:%M:%S'),
+                    'body': data.get('body'),
                 }
 
-            # Return the release information
-            return release_info
-        except requests.exceptions.RequestException as e:
-            # Log the error and return an empty dictionary
-            bot_logger.error(f"Can't get update info: {e}")
+                # Return the release information
+                return release_info
+
+        # If an exception occurs during the update check, log the error and return an empty dictionary
+        except requests.RequestException as e:
+            bot_logger.error(f"An error occurred: {e}")
             return {}
 
     @staticmethod
