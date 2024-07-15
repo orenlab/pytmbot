@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Dict, Union
 
 import docker
-from docker.errors import NotFound
+from docker.errors import NotFound, APIError
 
 from app import config
 from app.core.logs import bot_logger
@@ -249,4 +249,21 @@ class DockerAdapter:
         try:
             return self.__get_container_details(container_id)
         except NotFound:
+            return {}
+
+    def fetch_container_logs(self, container_id: str) -> Union[str, dict]:
+        """
+        Fetches and returns the logs of a Docker container.
+
+        Args:
+            container_id (str): The ID of the container.
+
+        Returns:
+            Union[str, dict]: The logs of the Docker container, or an empty dictionary if logs are not found.
+        """
+        try:
+            container_details = self.__get_container_details(container_id)
+            logs = container_details.logs(tail=150).decode("utf-8")[:3500]
+            return logs if logs else {}
+        except (NotFound, APIError):
             return {}

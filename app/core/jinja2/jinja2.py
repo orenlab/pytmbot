@@ -58,7 +58,8 @@ class Jinja2Renderer:
             'how_update.jinja2',
             'net_io.jinja2',
             'about_bot.jinja2',
-            'containers_full_info.jinja2'
+            'containers_full_info.jinja2',
+            'logs.jinja2'
         ]
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:
@@ -116,7 +117,7 @@ class Jinja2Renderer:
         """
         # Check if the template name is known
         if template_name not in self.known_templates:
-            raise exceptions.PyTeleMonBotTemplateError("Unknown template name")
+            raise exceptions.PyTeleMonBotTemplateError(f"Unknown template name: {template_name}")
 
         try:
             # Initialize Jinja2 environment

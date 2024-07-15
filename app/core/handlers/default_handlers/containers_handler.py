@@ -5,10 +5,10 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from functools import lru_cache
-from typing import Union, Dict, List, Optional
+from typing import Union, Dict, List
 
 from docker.errors import DockerException
-from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import Message
 
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
@@ -87,32 +87,6 @@ class ContainersHandler(HandlerConstructor):
             # Raise an error if there is an issue parsing the data
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
-    @staticmethod
-    def build_custom_inline_keyboard(container_names: List[str]) -> Optional[InlineKeyboardMarkup]:
-        """
-        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
-
-        Args:
-            container_names (List[str]): List of container names.
-
-        Returns:
-            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
-        """
-        # Check if container_names list is empty
-        if not container_names:
-            return None
-
-        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
-        buttons = [
-            InlineKeyboardButton(
-                text=container_name,
-                callback_data='__get_full__' + container_name
-            ) for container_name in container_names
-        ]
-
-        # Create and return an InlineKeyboardMarkup with the list of buttons
-        return InlineKeyboardMarkup([buttons])
-
     @lru_cache
     def get_list_of_containers_again(self) -> tuple[str, List[str] | None]:
         """
@@ -155,7 +129,7 @@ class ContainersHandler(HandlerConstructor):
                 containers_info = self.__compile_message()
 
                 # Build an inline keyboard for the message
-                inline_keyboard = self.build_custom_inline_keyboard(containers_info[1])
+                inline_keyboard = self.keyboard.build_container_inline_keyboard(containers_info[1])
 
                 # Send the message to the user
                 __send_message(message, containers_info[0], inline_keyboard)

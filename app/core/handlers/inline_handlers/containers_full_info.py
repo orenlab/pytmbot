@@ -64,30 +64,29 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             'sandwich': self.emojis.get_emoji('sandwich'),
         }
 
-    def build_back_button(self):
+    @staticmethod
+    def __get_logs(container_name):
         """
-        Builds the back button for the inline keyboard.
+        Retrieve the logs of a container.
 
         Returns:
-            InlineKeyboardMarkup: The inline keyboard with the back button.
+            str: The logs of the container.
         """
-        return self.keyboard.build_inline_keyboard(
-            'Back to all containers...',
-            callback_data='back_to_containers'
-        )
+        return DockerAdapter().fetch_container_logs(container_name)
 
     @staticmethod
-    def extract_container_name(data):
+    def extract_container_name(data: str, prefix: str) -> str:
         """
-        Extracts and returns the container name from the input data.
+        Extracts the container name from data based on the provided prefix.
 
         Args:
-            data (str): The input data containing the container name.
+            data (str): The data containing the container name.
+            prefix (str): The prefix to identify the container name.
 
         Returns:
             str: The extracted container name in lowercase.
         """
-        return data.split("__get_full__")[1].lower()
+        return data.split(prefix)[1].lower()
 
     @staticmethod
     def parse_container_memory_stats(container_stats):
@@ -198,24 +197,20 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             """
 
             # Extract the container name from the callback data
-            container_name = self.extract_container_name(call.data)
+            container_name = self.extract_container_name(call.data, prefix='__get_full__')
 
             # Retrieve the full container details
             container_details = self.get_container_full_details(container_name)
 
-            # If the container details are not found or empty, handle the case
-            if not container_details or container_details == {}:
-                return handle_container_not_found(call)
+            if not container_details:
+                return handle_container_not_found(call, text=f"{container_name}: Container not found")
 
-            # Extract container stats and attributes
             container_stats = container_details.stats(decode=None, stream=False)
             container_attrs = container_details.attrs
 
-            # Define emojis for rendering
             emojis = self.get_emojis()
 
             try:
-                # Render the container information into a template
                 context = self.jinja.render_templates(
                     'containers_full_info.jinja2',
                     **emojis,
@@ -226,16 +221,16 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                     container_attrs=self.parse_container_attrs(container_attrs)
                 )
             except Exception as e:
-                # Log an error if parsing fails
                 bot_logger.exception(f"Failed at @{self.__class__.__name__} - exception: {e}")
-                return handle_container_not_found(call)
+                return handle_container_not_found(call, text=f"{container_name}: Error getting container details")
 
-            # Edit the message text with container information and back button
+            _inline_keyboard = self.keyboard.build_logs_inline_keyboard(container_name)
+
             self.bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text=context,
-                reply_markup=self.build_back_button(),
+                reply_markup=_inline_keyboard,
                 parse_mode="Markdown"
             )
 
@@ -259,7 +254,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             bot_logger.debug(f"Updated list of containers: {buttons}")
 
             # Build a custom inline keyboard
-            inline_keyboard = containers_handler.build_custom_inline_keyboard(buttons)
+            inline_keyboard = self.keyboard.build_container_inline_keyboard(buttons)
 
             # Edit the message text with the updated container list and keyboard
             self.bot.edit_message_text(
@@ -270,18 +265,56 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 parse_mode="Markdown"
             )
 
-        def handle_container_not_found(call):
+        def handle_container_not_found(call, text: str):
+
+            return self.bot.answer_callback_query(
+                callback_query_id=call.id,
+                text=text,
+                show_alert=True
+            )
+
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__get_logs__'))
+        @logged_inline_handler_session
+        def handle_get_logs(call: CallbackQuery):
             """
-            Handles the case when a container is not found.
+            Handles the callback for getting logs of a container.
 
             Args:
-                call (telebot.types.CallbackQuery): The callback query object.
+                call (CallbackQuery): The callback query object.
 
             Returns:
                 None
             """
-            return self.bot.answer_callback_query(
-                callback_query_id=call.id,
-                text="Container not found or exiting. Please try again later.",
-                show_alert=True
+            # Extract container name from the callback data
+            container_name = self.extract_container_name(call.data, prefix='__get_logs__')
+
+            # Get logs for the specified container
+            logs = self.__get_logs(container_name)
+
+            if not logs:
+                return handle_container_not_found(call, text=f"{container_name}: Error getting logs")
+
+            # Define emojis for rendering
+            emojis: dict = {
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            }
+
+            # Render the logs template
+            context = self.jinja.render_templates(
+                'logs.jinja2',
+                emojis=emojis,
+                logs=logs
+            )
+
+            # Build a custom inline keyboard for navigation
+            inline_keyboard = self.keyboard.build_inline_keyboard('Back to all containers...',
+                                                                  callback_data='back_to_containers')
+
+            # Edit the message with the rendered logs and inline keyboard
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=context,
+                reply_markup=inline_keyboard,
+                parse_mode="Markdown"
             )

@@ -13,7 +13,7 @@ synchronously. It does not use webhooks.
 - Summary process information
 - Uptime information
 - File system base information
-- Containers (so far, only Docker) information
+- Information regarding Docker containers, including log data.
 - Basic information about the network connection
 
 ### 🔖 Additionally:

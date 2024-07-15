@@ -108,3 +108,55 @@ class Keyboard(KeyboardSettings):
         ]
 
         return InlineKeyboardMarkup([buttons])
+
+    @staticmethod
+    def build_container_inline_keyboard(container_names: List[str]) -> Optional[InlineKeyboardMarkup]:
+        """
+        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
+
+        Args:
+            container_names (List[str]): List of container names.
+
+        Returns:
+            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
+        """
+        # Check if container_names list is empty
+        if not container_names:
+            return None
+
+        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
+        buttons = [
+            InlineKeyboardButton(
+                text=container_name,
+                callback_data='__get_full__' + container_name
+            ) for container_name in container_names
+        ]
+
+        # Create and return an InlineKeyboardMarkup with the list of buttons
+        return InlineKeyboardMarkup([buttons])
+
+    @staticmethod
+    def build_logs_inline_keyboard(*container_names: str) -> Optional[InlineKeyboardMarkup]:
+        """
+        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
+
+        Args:
+            container_names (str): List of container names.
+
+        Returns:
+            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
+        """
+        # Check if container_names list is empty
+        if not container_names:
+            return None
+
+        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
+        buttons = [
+            InlineKeyboardButton(
+                text='Get logs... (last 100 lines)',
+                callback_data='__get_logs__' + container_name
+            ) for container_name in container_names
+        ]
+
+        # Create and return an InlineKeyboardMarkup with the list of buttons
+        return InlineKeyboardMarkup([buttons])
