@@ -247,7 +247,6 @@ class DockerAdapter:
             dict: A dictionary containing the attributes of the Docker container.
         """
         try:
-            bot_logger.debug(f"Retrieving full details for container: {container_id}")
             return self.__get_container_details(container_id)
         except NotFound:
             return {}

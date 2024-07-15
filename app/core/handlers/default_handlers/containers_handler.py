@@ -192,7 +192,8 @@ class ContainersHandler(HandlerConstructor):
             self.bot.send_message(
                 message.chat.id,
                 text=text,
-                reply_markup=reply_markup
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
             )
 
         def __log_error(error):

@@ -256,6 +256,8 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             # Get the updated list of containers and buttons
             context, buttons = containers_handler.get_list_of_containers_again()
 
+            bot_logger.debug(f"Updated list of containers: {buttons}")
+
             # Build a custom inline keyboard
             inline_keyboard = containers_handler.build_custom_inline_keyboard(buttons)
 
@@ -264,7 +266,8 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text=context,
-                reply_markup=inline_keyboard
+                reply_markup=inline_keyboard,
+                parse_mode="Markdown"
             )
 
         def handle_container_not_found(call):
