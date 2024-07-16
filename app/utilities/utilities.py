@@ -197,25 +197,29 @@ def extract_container_name(data: str, prefix: str) -> str:
     return container_name
 
 
-def sanitize_logs(logs: str, call: CallbackQuery, token: str) -> str:
+def sanitize_logs(container_logs: str, callback_query: CallbackQuery, token: str) -> str:
     """
-    Sanitizes the logs of a Docker container.
+    Sanitizes the logs of a Docker container by replacing sensitive user information with asterisks.
 
     Args:
-        logs (str): The logs of the container.
-        call (CallbackQuery): The message object.
-        token (str): The token of bot
+        container_logs (str): The logs of the container.
+        callback_query (CallbackQuery): The message object.
+        token (str): The token of the bot.
+
     Returns:
         str: The sanitized logs.
     """
-    user_info = {
-        'username': str(call.from_user.username),
-        'first_name': str(call.from_user.first_name),
-        'last_name': str(call.from_user.last_name),
-        'id': str(call.message.from_user.id),
-        'token': token
-    }
-    for key, value in user_info.items():
-        logs = logs.replace(value, '*' * len(value))
+    # Extract user information from the callback query and the token
+    user_info = [
+        str(callback_query.from_user.username),
+        str(callback_query.from_user.first_name),
+        str(callback_query.from_user.last_name),
+        str(callback_query.message.from_user.id),
+        token
+    ]
 
-    return logs
+    # Replace each user information with asterisks
+    for value in user_info:
+        container_logs = container_logs.replace(value, '*' * len(value))
+
+    return container_logs
