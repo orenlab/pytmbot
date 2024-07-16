@@ -257,7 +257,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 message_id=call.message.message_id,
                 text=context,
                 reply_markup=inline_keyboard,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
 
         def handle_container_not_found(call, text: str):
