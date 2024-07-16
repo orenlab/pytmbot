@@ -252,7 +252,16 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             )
 
         def handle_container_not_found(call, text: str):
+            """
+            Handles the case when a container is not found.
 
+            Args:
+                call (CallbackQuery): The callback query object.
+                text (str): The text to display in the alert.
+
+            Returns:
+                None
+            """
             return self.bot.answer_callback_query(
                 callback_query_id=call.id,
                 text=text,
