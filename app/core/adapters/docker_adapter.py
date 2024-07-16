@@ -12,7 +12,10 @@ from docker.errors import NotFound, APIError
 
 from app import config
 from app.core.logs import bot_logger
-from app.utilities.utilities import set_naturalsize, set_naturaltime
+from app.utilities.utilities import (
+    set_naturalsize,
+    set_naturaltime
+)
 
 
 class DockerAdapter:
@@ -253,17 +256,31 @@ class DockerAdapter:
 
     def fetch_container_logs(self, container_id: str) -> Union[str, dict]:
         """
-        Fetches and returns the logs of a Docker container.
+        Fetches the logs of a Docker container.
 
         Args:
             container_id (str): The ID of the container.
 
         Returns:
-            Union[str, dict]: The logs of the Docker container, or an empty dictionary if logs are not found.
+            Union[str, dict]: The logs of the container as a string, or an empty string if
+            the container or logs are not found.
+
+        Raises:
+            NotFound: If the container is not found.
+            APIError: If there is an error with the Docker API.
         """
         try:
+            # Retrieve the details of the container
             container_details = self.__get_container_details(container_id)
-            logs = container_details.logs(tail=50).decode("utf-8")[-2000:]
-            return logs if logs else {}
+
+            # Fetch the logs of the container
+            logs = container_details.logs(tail=50, stdout=True, stderr=True)
+
+            # Sanitize the logs by decoding them and taking the last 3000 characters
+            cut_logs = logs.decode("utf-8", errors="ignore")[-3000:]
+
+            # Return the sanitized logs if they exist, otherwise return an empty string
+            return cut_logs if cut_logs else ""
         except (NotFound, APIError):
-            return {}
+            # Return an empty string if the container or logs are not found
+            return ""

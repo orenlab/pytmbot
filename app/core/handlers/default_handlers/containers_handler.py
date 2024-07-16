@@ -167,7 +167,7 @@ class ContainersHandler(HandlerConstructor):
                 message.chat.id,
                 text=text,
                 reply_markup=reply_markup,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
 
         def __log_error(error):

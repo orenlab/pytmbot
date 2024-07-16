@@ -10,6 +10,7 @@ from functools import cached_property
 from typing import Any
 
 from humanize import naturalsize, naturaltime
+from telebot.types import CallbackQuery
 
 
 # Utility functions
@@ -194,3 +195,27 @@ def extract_container_name(data: str, prefix: str) -> str:
     container_name = container_name.lower()
 
     return container_name
+
+
+def sanitize_logs(logs: str, call: CallbackQuery, token: str) -> str:
+    """
+    Sanitizes the logs of a Docker container.
+
+    Args:
+        logs (str): The logs of the container.
+        call (CallbackQuery): The message object.
+        token (str): The token of bot
+    Returns:
+        str: The sanitized logs.
+    """
+    user_info = {
+        'username': str(call.from_user.username),
+        'first_name': str(call.from_user.first_name),
+        'last_name': str(call.from_user.last_name),
+        'id': str(call.message.from_user.id),
+        'token': token
+    }
+    for key, value in user_info.items():
+        logs = logs.replace(value, '*' * len(value))
+
+    return logs

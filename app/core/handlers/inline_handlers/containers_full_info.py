@@ -12,7 +12,7 @@ from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session, bot_logger
-from app.utilities.utilities import set_naturalsize, extract_container_name
+from app.utilities.utilities import set_naturalsize, extract_container_name, sanitize_logs
 
 
 class InlineContainerFullInfoHandler(HandlerConstructor):
@@ -65,14 +65,23 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def __get_logs(container_name):
+    def __get_logs(container_name: str, call: CallbackQuery, token: str) -> str:
         """
-        Retrieve the logs of a container.
+        Get sanitized logs for a specific container.
+
+        Args:
+            container_name (str): The name of the container.
+            call (CallbackQuery): The message object.
+            token (str): The token of the bot.
 
         Returns:
-            str: The logs of the container.
+            str: Sanitized logs for the container.
         """
-        return DockerAdapter().fetch_container_logs(container_name)
+        # Fetch raw logs for the container
+        dirty_logs = DockerAdapter().fetch_container_logs(container_name)
+
+        # Sanitize the logs for privacy
+        return sanitize_logs(dirty_logs, call, token)
 
     @staticmethod
     def __parse_container_memory_stats(container_stats):
@@ -284,7 +293,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_name = extract_container_name(call.data, prefix='__get_logs__')
 
             # Get logs for the specified container
-            logs = self.__get_logs(container_name)
+            logs = self.__get_logs(container_name, call, self.bot.token)
 
             if not logs:
                 return handle_container_not_found(call, text=f"{container_name}: Error getting logs")
@@ -298,7 +307,8 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             context = self.jinja.render_templates(
                 'logs.jinja2',
                 emojis=emojis,
-                logs=logs
+                logs=logs,
+                container_name=container_name
             )
 
             # Build a custom inline keyboard for navigation
@@ -311,5 +321,5 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 message_id=call.message.message_id,
                 text=context,
                 reply_markup=inline_keyboard,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
