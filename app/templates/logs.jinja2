@@ -1,6 +1,7 @@
 {# templates/memory.jinja2 #}
 {{ emojis['thought_balloon'] }}Here is:
 
-```bash
+<pre><code class="language-bash">
 {{ logs }}
-```
+</code></pre>
+<blockquote>I tried to hide sensitive information, so you can only view the full logs in the console of your server by using the <code>sudo docker logs {{ container_name }}</code> command.</blockquote>

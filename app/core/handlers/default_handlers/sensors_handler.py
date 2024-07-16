@@ -105,6 +105,7 @@ class SensorsHandler(HandlerConstructor):
                 self.bot.send_message(
                     message.chat.id,
                     text=sensors_bot_answer,
+                    parse_mode="HTML"
                 )
             except ConnectionError:
                 # Log an error if there is a connection error

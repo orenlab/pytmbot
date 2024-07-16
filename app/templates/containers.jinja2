@@ -2,12 +2,12 @@
 
 {{ thought_balloon }}Here is:
 
-{% for value in context %}{{ luggage }} *{{ value['name'] }}*:
+{% for value in context %}{{ luggage }} <b>{{ value['name'] }}</b>:
     {{ minus }} Image: {{ value["image"] }}
     {{ minus }} Created: {{ value["created"] }}
     {{ minus }} Memory usage: {{ value["mem_usage"] }}
     {{ minus }} Run at: {{ value["run_at"] }}
-    {{ minus }} Status: *{{ value["status"] }}*
+    {{ minus }} Status: <b>{{ value["status"] }}</b>
 
 {% endfor %}
-More details:
+<b>More details</b>:
