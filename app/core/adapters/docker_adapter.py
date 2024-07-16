@@ -263,7 +263,7 @@ class DockerAdapter:
         """
         try:
             container_details = self.__get_container_details(container_id)
-            logs = container_details.logs(tail=150).decode("utf-8")[-4300:]
+            logs = container_details.logs(tail=50).decode("utf-8")[-2000:]
             return logs if logs else {}
         except (NotFound, APIError):
             return {}
