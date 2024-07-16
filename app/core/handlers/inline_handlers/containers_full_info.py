@@ -22,7 +22,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
     """
 
     @staticmethod
-    def get_container_full_details(container_name):
+    def __get_container_full_details(container_name):
         """
         Retrieve the full details of a container.
 
@@ -44,7 +44,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             return None
 
     @lru_cache(maxsize=128)
-    def get_emojis(self):
+    def __get_emojis(self):
         """
         Return a dictionary of emojis with keys representing emoji names and values as emoji characters.
         """
@@ -75,7 +75,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         return DockerAdapter().fetch_container_logs(container_name)
 
     @staticmethod
-    def parse_container_memory_stats(container_stats):
+    def __parse_container_memory_stats(container_stats):
         """
         Parse the memory statistics of a container.
 
@@ -94,7 +94,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def parse_container_cpu_stats(container_stats):
+    def __parse_container_cpu_stats(container_stats):
         """
         Parse the CPU statistics of a container.
 
@@ -114,7 +114,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def parse_container_network_stats(container_stats):
+    def __parse_container_network_stats(container_stats):
         """
         Parse the network statistics of a container.
 
@@ -137,7 +137,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def parse_container_attrs(container_attrs):
+    def __parse_container_attrs(container_attrs):
         """
         This function parses container attributes and returns a dictionary with specific keys.
 
@@ -186,7 +186,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_name = extract_container_name(call.data, prefix='__get_full__')
 
             # Retrieve the full container details
-            container_details = self.get_container_full_details(container_name)
+            container_details = self.__get_container_full_details(container_name)
 
             if not container_details:
                 return handle_container_not_found(call, text=f"{container_name}: Container not found")
@@ -194,17 +194,17 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_stats = container_details.stats(decode=None, stream=False)
             container_attrs = container_details.attrs
 
-            emojis = self.get_emojis()
+            emojis = self.__get_emojis()
 
             try:
                 context = self.jinja.render_templates(
                     'containers_full_info.jinja2',
                     **emojis,
                     container_name=container_name,
-                    container_memory_stats=self.parse_container_memory_stats(container_stats),
-                    container_cpu_stats=self.parse_container_cpu_stats(container_stats),
-                    container_network_stats=self.parse_container_network_stats(container_stats),
-                    container_attrs=self.parse_container_attrs(container_attrs)
+                    container_memory_stats=self.__parse_container_memory_stats(container_stats),
+                    container_cpu_stats=self.__parse_container_cpu_stats(container_stats),
+                    container_network_stats=self.__parse_container_network_stats(container_stats),
+                    container_attrs=self.__parse_container_attrs(container_attrs)
                 )
             except Exception as e:
                 bot_logger.exception(f"Failed at @{self.__class__.__name__} - exception: {e}")
