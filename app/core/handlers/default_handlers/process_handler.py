@@ -117,6 +117,7 @@ class ProcessHandler(HandlerConstructor):
                 self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
+                    parse_mode="HTML"
                 )
             except ConnectionError:
                 # Raise an exception if there's a connection error
