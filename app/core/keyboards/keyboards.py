@@ -153,7 +153,7 @@ class Keyboard(KeyboardSettings):
         # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
         buttons = [
             InlineKeyboardButton(
-                text='Get logs... (last 100 lines)',
+                text=f'Get logs for {container_name}',
                 callback_data='__get_logs__' + container_name
             ) for container_name in container_names
         ]
