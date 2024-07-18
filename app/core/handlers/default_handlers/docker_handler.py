@@ -36,7 +36,8 @@ class DockerHandler(HandlerConstructor):
             self: The DockerHandler object.
 
         Returns:
-            dict[str, str] | str | Any: The compiled bot answer based on docker counters or N/A if no counters are found.
+            dict[str, str] | str | Any: The compiled bot answer based on docker counters or N/A if no counters
+            are found.
         """
         docker_counters = self.__fetch_counters()
         if docker_counters is None:
@@ -53,6 +54,7 @@ class DockerHandler(HandlerConstructor):
             return bot_answer
         except Exception as error:
             bot_logger.error(f"Failed at @{__name__}: {error}")
+            return {"images_count": "N/A", "containers_count": "N/A"}
 
     def handle(self) -> None:
         """

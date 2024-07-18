@@ -302,44 +302,90 @@ class DockerAdapter:
             bot_logger.error(f"Failed to fetch registry data for image: {image_name}: {e}")
             return None
 
-    def fetch_docker_images(self):
-        """
-        Fetches a list of Docker images.
-
-        Args:
-            self: The DockerAdapter instance.
-
-        Returns:
-            Union[List[DockerImage], None]: A list of Docker images if found, None if no images are found or an error occurs.
-        """
-        docker_client = self.__create_docker_client()
-        try:
-            return docker_client.images.list()
-        except (NotFound, APIError):
-            bot_logger.error("No Docker images found.")
-
     def fetch_docker_counters(self) -> Union[Dict[str, int], None]:
         """
         Fetches a dictionary of Docker counters containing the number of images and containers.
-
-        Args:
-            self: The DockerAdapter instance.
 
         Returns:
             Union[Dict[str, int], None]: A dictionary with keys 'images_count' and 'containers_count' containing
             the respective counts, or None if no counters are found or an error occurs.
         """
-        docker_client = self.__create_docker_client()
         try:
-            images_count = len(docker_client.images.list())
-            containers_count = len(docker_client.containers.list())
+            # Fetch the number of Docker images
+            images_count = len(self.__fetch_list_docker_images())
+
+            # Fetch the number of Docker containers
+            containers_count = len(self.__fetch_list_docker_images())
+
+            # Return a dictionary with the counts
             return {"images_count": images_count, "containers_count": containers_count}
+
         except (NotFound, APIError) as e:
-            bot_logger.error(f"Cant fetch docker counters: {e}")
+            # Log an error message if an exception occurs
+            bot_logger.error(f"Failed to fetch Docker counters: {e}")
+
+            # Return None if an exception occurs
             return None
 
+    def __fetch_list_docker_images(self):
+        """
+        Fetches the list of Docker images.
 
-if __name__ == '__main__':
-    adapter = DockerAdapter()
-    print(adapter.fetch_docker_images())
-    print(adapter.fetch_registry_data('pytmbot'))
+        Returns:
+            list: List of Docker images.
+
+        Raises:
+            NotFound: If no Docker images are found.
+            APIError: If there is an error with the Docker API.
+        """
+        # Create a Docker client
+        docker_client = self.__create_docker_client()
+
+        try:
+            # Retrieve the list of Docker images
+            return docker_client.images.list()
+
+        except (NotFound, APIError):
+            # Log an error message if no Docker images are found
+            bot_logger.error("No Docker images found.")
+
+    def fetch_image_details(self) -> Dict[str, Dict[str, object]]:
+        """
+        Fetches details of Docker images.
+
+        Returns:
+            Dict[str, Dict[str, object]]: A dictionary containing image details.
+        """
+        # Retrieve the list of Docker images in a single call
+        images = self.__fetch_list_docker_images()
+
+        # Create a dictionary with image details using dictionary comprehension
+        image_details = {
+            image.short_id: {
+                'name': image.attrs.get('RepoTags', []),
+                'tags': image.tags or [],
+                'architecture': image.attrs.get('Architecture', {}),
+                'os': image.attrs.get('Os', {}),
+                'size': set_naturalsize(image.attrs.get('Size', 0)),
+                'created': self.__format_created_date(image.attrs.get('Created')),
+            }
+            for image in images
+        }
+
+        return image_details
+
+    @staticmethod
+    def __format_created_date(created_date: str) -> str:
+        """
+        Format the created date string into a readable format.
+
+        Args:
+            created_date (str): The created date string in ISO format.
+
+        Returns:
+            str: The formatted date and time string.
+        """
+        if created_date:
+            created_datetime = datetime.fromisoformat(created_date)
+            return f"{created_datetime.date()}, {created_datetime.time().strftime('%H:%M:%S')}"
+        return 'N/A'
