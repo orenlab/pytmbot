@@ -24,10 +24,7 @@ class KeyboardSettings:
 
     def __init__(self) -> None:
         """
-        Initializes the KeyboardSettings class.
-
-        This method initializes the KeyboardSettings class and sets the `main_keyboard` attribute
-        to an empty dictionary.
+        Initializes the KeyboardSettings class with empty main and Docker keyboards.
 
         Args:
             self: The instance of the KeyboardSettings class.
@@ -36,32 +33,43 @@ class KeyboardSettings:
             None
         """
         self.main_keyboard = {}
+        self.docker_keyboard = {}
 
     @lru_cache
     def _get_main_keyboard(self) -> Dict[str, str]:
         """
-        Get the main keyboard.
-
-        This function retrieves the main keyboard settings.
-
-        Args:
-            self: The instance of the KeyboardSettings class.
+        Retrieves the main keyboard settings.
 
         Returns:
             Dict[str, str]: The main keyboard settings.
         """
-        # Define the main keyboard settings
-        self.main_keyboard = {
+        main_keyboard_settings = {
             'low_battery': 'Load average',
             'pager': 'Memory load',
             'stopwatch': 'Sensors',
             'rocket': 'Process',
             'flying_saucer': 'Uptime',
             'floppy_disk': 'File system',
-            'luggage': 'Containers',
+            'spouting_whale': 'Docker',
             'satellite': 'Network',
             'turtle': 'About me'
         }
 
-        # Return the main keyboard settings
-        return self.main_keyboard
+        return main_keyboard_settings
+
+    @lru_cache
+    def _get_docker_keyboard(self) -> Dict[str, str]:
+        """Retrieves the Docker keyboard settings.
+
+        Returns:
+            Dict[str, str]: The Docker keyboard settings.
+        """
+        # Define the Docker keyboard settings
+        docker_keyboard = {
+            'framed_picture': 'Images',
+            'toolbox': 'Containers',
+            'BACK_arrow': 'Back to main menu'
+        }
+
+        # Return the Docker keyboard settings
+        return docker_keyboard

@@ -37,7 +37,8 @@ class BotLogger:
     @classmethod
     def get_logger(cls) -> logging.Logger:
         """
-        Retrieves the logger object for the bot. If the logger object is not set, it initializes it with the 'pyTMbot' logger name.
+        Retrieves the logger object for the bot. If the logger object is not set, it initializes it with the 'pyTMbot'
+        logger name.
 
         Returns:
             logging.Logger: The logger object.

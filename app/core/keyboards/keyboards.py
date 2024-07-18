@@ -65,12 +65,13 @@ class Keyboard(KeyboardSettings):
         return constructed_keyboard
 
     @lru_cache
-    def build_reply_keyboard(self) -> ReplyKeyboardMarkup:
+    def build_reply_keyboard(self, keyboard_type: Optional[str] = None) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
 
         Args:
             self: The instance of the Keyboard class.
+            keyboard_type (Optional[str], optional): The type of keyboard to be constructed. Defaults to None.
 
         Returns:
             types.ReplyKeyboardMarkup: The constructed reply keyboard markup.
@@ -78,10 +79,15 @@ class Keyboard(KeyboardSettings):
         # Create a new ReplyKeyboardMarkup object with resize_keyboard set to True
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 
-        # Construct the keyboard using the main keyboard settings
-        keyboard_buttons = self.__construct_keyboard(self._get_main_keyboard())
+        # Check the keyboard type to determine which keyboard to construct
+        if keyboard_type == 'docker_keyboard':
+            # Construct the keyboard based on the docker settings
+            keyboard_buttons = self.__construct_keyboard(self._get_docker_keyboard())
+        else:
+            # Construct the keyboard based on the main settings
+            keyboard_buttons = self.__construct_keyboard(self._get_main_keyboard())
 
-        # Add the constructed keyboard to the reply keyboard
+        # Add the constructed keyboard buttons to the reply keyboard
         reply_keyboard.add(*keyboard_buttons)
 
         return reply_keyboard
@@ -153,7 +159,7 @@ class Keyboard(KeyboardSettings):
         # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
         buttons = [
             InlineKeyboardButton(
-                text='Get logs... (last 100 lines)',
+                text='Get logs...',
                 callback_data='__get_logs__' + container_name
             ) for container_name in container_names
         ]

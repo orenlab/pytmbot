@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from datetime import datetime
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, Any
 
 import docker
 from docker.errors import NotFound, APIError
@@ -284,3 +284,62 @@ class DockerAdapter:
         except (NotFound, APIError):
             # Return an empty string if the container or logs are not found
             return ""
+
+    def fetch_registry_data(self, image_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetches the registry data for a given image.
+
+        Args:
+            image_name (str): The name of the image to fetch registry data for.
+
+        Returns:
+            Optional[Dict[str, Any]]: The registry data as a dictionary, or None if the data is not found.
+        """
+        docker_client = self.__create_docker_client()
+        try:
+            return docker_client.images.get_registry_data(image_name)
+        except (NotFound, APIError) as e:
+            bot_logger.error(f"Failed to fetch registry data for image: {image_name}: {e}")
+            return None
+
+    def fetch_docker_images(self):
+        """
+        Fetches a list of Docker images.
+
+        Args:
+            self: The DockerAdapter instance.
+
+        Returns:
+            Union[List[DockerImage], None]: A list of Docker images if found, None if no images are found or an error occurs.
+        """
+        docker_client = self.__create_docker_client()
+        try:
+            return docker_client.images.list()
+        except (NotFound, APIError):
+            bot_logger.error("No Docker images found.")
+
+    def fetch_docker_counters(self) -> Union[Dict[str, int], None]:
+        """
+        Fetches a dictionary of Docker counters containing the number of images and containers.
+
+        Args:
+            self: The DockerAdapter instance.
+
+        Returns:
+            Union[Dict[str, int], None]: A dictionary with keys 'images_count' and 'containers_count' containing
+            the respective counts, or None if no counters are found or an error occurs.
+        """
+        docker_client = self.__create_docker_client()
+        try:
+            images_count = len(docker_client.images.list())
+            containers_count = len(docker_client.containers.list())
+            return {"images_count": images_count, "containers_count": containers_count}
+        except (NotFound, APIError) as e:
+            bot_logger.error(f"Cant fetch docker counters: {e}")
+            return None
+
+
+if __name__ == '__main__':
+    adapter = DockerAdapter()
+    print(adapter.fetch_docker_images())
+    print(adapter.fetch_registry_data('pytmbot'))

@@ -59,7 +59,9 @@ class Jinja2Renderer:
             'net_io.jinja2',
             'about_bot.jinja2',
             'containers_full_info.jinja2',
-            'logs.jinja2'
+            'logs.jinja2',
+            'docker.jinja2',
+            'back.jinja2'
         ]
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:
@@ -133,7 +135,7 @@ class Jinja2Renderer:
                 self.template_cache[template_name] = template
 
             # Render the template with provided context and emojis
-            bot_logger.debug("Rendering template")
+            bot_logger.debug(f"Rendering template: {template_name}")
             rendered_template = template.render(emojis=emojis, **context)
 
             return rendered_template
