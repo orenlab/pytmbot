@@ -311,11 +311,12 @@ class DockerAdapter:
             the respective counts, or None if no counters are found or an error occurs.
         """
         try:
+            client = self.__create_docker_client()
             # Fetch the number of Docker images
-            images_count = len(self.__fetch_list_docker_images())
+            images_count = len(client.images.list())
 
             # Fetch the number of Docker containers
-            containers_count = len(self.__fetch_list_docker_images())
+            containers_count = len(client.containers.list())
 
             # Return a dictionary with the counts
             return {"images_count": images_count, "containers_count": containers_count}
@@ -327,28 +328,6 @@ class DockerAdapter:
             # Return None if an exception occurs
             return None
 
-    def __fetch_list_docker_images(self):
-        """
-        Fetches the list of Docker images.
-
-        Returns:
-            list: List of Docker images.
-
-        Raises:
-            NotFound: If no Docker images are found.
-            APIError: If there is an error with the Docker API.
-        """
-        # Create a Docker client
-        docker_client = self.__create_docker_client()
-
-        try:
-            # Retrieve the list of Docker images
-            return docker_client.images.list()
-
-        except (NotFound, APIError):
-            # Log an error message if no Docker images are found
-            bot_logger.error("No Docker images found.")
-
     def fetch_image_details(self) -> Dict[str, Dict[str, object]]:
         """
         Fetches details of Docker images.
@@ -357,7 +336,7 @@ class DockerAdapter:
             Dict[str, Dict[str, object]]: A dictionary containing image details.
         """
         # Retrieve the list of Docker images in a single call
-        images = self.__fetch_list_docker_images()
+        images = self.__create_docker_client().images.list(all=True)
 
         # Create a dictionary with image details using dictionary comprehension
         image_details = {
