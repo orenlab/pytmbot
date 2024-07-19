@@ -52,6 +52,7 @@ version 0.9.0 onward, it is possible to install the bot locally outside the cont
 still be able to function and receive information about Docker containers.
 
 Full list of Python dependencies see in `requirements.txt`
+List of Python dependencies for self setup bot see in `setup_req.txt`
 
 ## 🔌 Installation, setup and run bot
 
@@ -88,10 +89,13 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   │   │   ├── default_handlers
 │   │   │   │   ├── __init__.py             
 │   │   │   │   ├── about_bot.py            - About bot handler
+│   │   │   │   ├── back_handler.py         - back to main menu handler
 │   │   │   │   ├── check_bot_update.py     - Check pyTMbot updates
 │   │   │   │   ├── containers_handler.py   - Container handler
+│   │   │   │   ├── docker_handler.py       - Docker handler
 │   │   │   │   ├── echo.py                 - Handle uncknown command
 │   │   │   │   ├── fs_handler.py           - Filesystem handler
+│   │   │   │   ├── images_handler.py       - Docker images handler
 │   │   │   │   ├── load_avg_handler.py     - Load average handler
 │   │   │   │   ├── memory_handler.py       - Memory handler
 │   │   │   │   ├── net_io_stat.py          - Network handler
@@ -149,7 +153,7 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 │   ├── installation.md                     - Installation guide
 │   ├── roadmap.md                          - Roadmap guide
 │   └── screenshots.md                      - Bots screenshot
-├── hub.Dockerfile                          - Dockerfile for Docker CI/CD based on Alpine
+├── hub.Dockerfile                          - Dockerfile CI/CD based on Alpine
 ├── poetry.lock                             - Poetry file
 ├── pyproject.toml                          - Poetry file
 ├── requirements.txt                        - Requirements for build Docker image
