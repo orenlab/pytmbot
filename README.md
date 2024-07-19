@@ -27,8 +27,14 @@ gather information.
 - Summary process information
 - Uptime information
 - File system base information
-- Information regarding Docker containers, including log data.
+- Information about Docker containers and images, including log data from the containers.
 - Basic information about the network connection
+
+### 🐳 A large section on Docker
+
+- Information about containers (even those that have finished work)
+- The ability to view container logs
+- Information about images
 
 ### 🔖 Additionally:
 
