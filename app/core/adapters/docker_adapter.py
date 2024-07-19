@@ -4,6 +4,9 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
+import concurrent
+import time
+from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from typing import List, Dict, Union, Optional, Any
 
@@ -101,24 +104,20 @@ class DockerAdapter:
         """
         try:
             # Create a Docker client instance
-            client = self.__create_docker_client()
+            docker_client = self.__create_docker_client()
 
-            # Retrieve a list of all running containers and extract their short IDs in one line
-            containers_id = [container.short_id for container in client.containers.list(all=True)]
+            # Retrieve a list of running containers' short IDs
+            list_containers = [container.short_id for container in docker_client.containers.list(all=True)]
 
-            # Log the created container list
-            bot_logger.debug(f"Container list created: {containers_id}")
-
-            # Return the list of short IDs
-            return containers_id
+            return list_containers
 
         except Exception as e:
-            # Log an error message if an exception occurs
-            bot_logger.error(f"Failed at @{__name__}: {e}")
+            # Log an error message if listing containers fails
+            bot_logger.error(f"Failed to list containers: {e}")
 
     def __get_container_details(self, container_id: str):
         """
-        Get the details of a Docker container.
+        Retrieve the details of a Docker container.
 
         Args:
             container_id (str): The ID of the container.
@@ -131,25 +130,25 @@ class DockerAdapter:
             FileNotFoundError: If the Docker executable is not found.
         """
         # Create a Docker client
-        client = self.__create_docker_client()
+        docker_client = self.__create_docker_client()
 
         try:
             # Check if the container ID is valid
             if not container_id:
                 raise ValueError("Invalid container ID")
 
-            # Get the container object
-            container_full_info = client.containers.get(container_id)
+            # Retrieve the container details
+            container = docker_client.containers.get(container_id)
 
-            # Log the retrieved container details
-            bot_logger.debug(f"Retrieved container object for container: {container_id}")
+            # Log the successful retrieval of container details
+            bot_logger.debug(f"Retrieved container details for ID: {container_id}.")
 
             # Return the container object
-            return container_full_info
+            return container
 
-        except docker.api_errors.NotFound as e:
-            # Log an error message if an exception occurs
-            bot_logger.error(f"Failed at @{__name__}: {e}")
+        except NotFound as e:
+            # Log the failure to retrieve container details
+            bot_logger.error(f"Failed to retrieve container details for ID: {container_id}. Error: {e}")
 
     def __aggregate_container_details(self, container_id: str) -> dict:
         """
@@ -203,6 +202,11 @@ class DockerAdapter:
         """
         Retrieve and return details of Docker images.
 
+        This function first checks if Docker is available. If not, it logs a debug message and returns an empty
+        dictionary.
+        It then lists the containers and retrieves details for each container using ThreadPool for parallel processing.
+        The details of each container are aggregated using the __aggregate_container_details method.
+
         Returns:
             Union[List[Dict[str, str]], Dict[None, None]]: A list of image details or an empty dictionary.
 
@@ -210,32 +214,35 @@ class DockerAdapter:
             ValueError: If an exception occurs during the retrieval process.
         """
         try:
+            start_time = time.time()  # Start timer for performance measurement
+
             # Check if Docker is available
             if not self.__is_docker_available():
-                # Log a message if Docker is not available
                 bot_logger.debug("Docker is not available. Returning empty dictionary.")
                 return {}
 
-            # Retrieve the list of containers
-            bot_logger.debug("Retrieving list of containers...")
+            # List containers
             containers_id = self.__list_containers()
 
-            # Check if any containers are found
+            # If no containers found, return empty dictionary
             if not containers_id:
-                # Log a message if no containers are found
                 bot_logger.debug("No containers found. Returning empty dictionary.")
                 return {}
 
-            # Retrieve details for each container
-            bot_logger.debug("Retrieving details for each container...")
-            details = list(map(self.__aggregate_container_details, containers_id))
+            # Retrieve container details for each container using ThreadPool for parallel processing
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(containers_id)) as executor:
+                details = list(executor.map(self.__aggregate_container_details, containers_id))
 
-            # Log a message indicating successful retrieval of details
-            bot_logger.debug(f"Details retrieved successfully: {details}")
+            bot_logger.debug(f"Returning image details: {details}.")  # Log the details
+
+            finish_time = time.time()  # End timer for performance measurement
+
+            bot_logger.debug(f"Done retrieving image details in {finish_time - start_time} seconds.")
+
             return details
 
         except Exception as e:
-            # Log an error if an exception occurs
+            # Log error if details retrieval fails
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
 
