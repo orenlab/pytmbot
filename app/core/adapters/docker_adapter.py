@@ -4,7 +4,6 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-import concurrent
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
@@ -230,7 +229,7 @@ class DockerAdapter:
                 return {}
 
             # Retrieve container details for each container using ThreadPool for parallel processing
-            with concurrent.futures.ThreadPoolExecutor(max_workers=len(containers_id)) as executor:
+            with ThreadPoolExecutor(max_workers=len(containers_id)) as executor:
                 details = list(executor.map(self.__aggregate_container_details, containers_id))
 
             bot_logger.debug(f"Returning image details: {details}.")  # Log the details
@@ -259,6 +258,7 @@ class DockerAdapter:
         try:
             return self.__get_container_details(container_id)
         except NotFound:
+            bot_logger.debug(f"Container {container_id} not found.")
             return {}
 
     def fetch_container_logs(self, container_id: str) -> Union[str, dict]:
@@ -289,6 +289,7 @@ class DockerAdapter:
             # Return the sanitized logs if they exist, otherwise return an empty string
             return cut_logs if cut_logs else ""
         except (NotFound, APIError):
+            bot_logger.error(f"Failed to fetch logs for container: {container_id}")
             # Return an empty string if the container or logs are not found
             return ""
 
@@ -342,23 +343,28 @@ class DockerAdapter:
         Returns:
             Dict[str, Dict[str, object]]: A dictionary containing image details.
         """
-        # Retrieve the list of Docker images in a single call
-        images = self.__create_docker_client().images.list(all=True)
+        try:
+            # Retrieve the list of Docker images in a single call
+            images = self.__create_docker_client().images.list(all=True)
 
-        # Create a dictionary with image details using dictionary comprehension
-        image_details = {
-            image.short_id: {
-                'name': image.attrs.get('RepoTags', []),
-                'tags': image.tags or [],
-                'architecture': image.attrs.get('Architecture', {}),
-                'os': image.attrs.get('Os', {}),
-                'size': set_naturalsize(image.attrs.get('Size', 0)),
-                'created': self.__format_created_date(image.attrs.get('Created')),
+            # Create a dictionary with image details using dictionary comprehension
+            image_details = {
+                image.short_id: {
+                    'name': image.attrs.get('RepoTags', []),
+                    'tags': image.tags or [],
+                    'architecture': image.attrs.get('Architecture', {}),
+                    'os': image.attrs.get('Os', {}),
+                    'size': set_naturalsize(image.attrs.get('Size', 0)),
+                    'created': self.__format_created_date(image.attrs.get('Created')),
+                }
+                for image in images
             }
-            for image in images
-        }
 
-        return image_details
+            return image_details
+        except Exception as e:
+            # Log an error message if an exception occurs
+            bot_logger.error(f"Failed to fetch image details: {e}")
+            return {}
 
     @staticmethod
     def __format_created_date(created_date: str) -> str:
