@@ -34,7 +34,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         """
         # Retrieve full container details
         try:
-            container_details = DockerAdapter().get_full_container_details(
+            container_details = DockerAdapter().fetch_full_container_details(
                 container_name.lower()
             )
             return container_details

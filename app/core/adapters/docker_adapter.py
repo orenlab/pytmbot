@@ -90,7 +90,7 @@ class DockerAdapter:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed at @{__name__}: {e}")
 
-    def __list_containers(self) -> List[str]:
+    def __fetch_containers_list(self) -> List[str]:
         """
         Retrieves a list of all running containers and returns their short IDs.
 
@@ -114,7 +114,7 @@ class DockerAdapter:
             # Log an error message if listing containers fails
             bot_logger.error(f"Failed to list containers: {e}")
 
-    def __get_container_details(self, container_id: str):
+    def __get_container_attributes(self, container_id: str):
         """
         Retrieve the details of a Docker container.
 
@@ -161,7 +161,6 @@ class DockerAdapter:
                 - 'name' (str): The name of the container.
                 - 'image' (str): The image used by the container.
                 - 'created' (str): The date and time the container was created.
-                - 'mem_usage' (str): The memory usage of the container.
                 - 'run_at' (str): The date and time the container was started.
                 - 'status' (str): The status of the container.
 
@@ -170,34 +169,30 @@ class DockerAdapter:
 
         """
         try:
-            # Retrieve container details
-            container_details = self.__get_container_details(container_id)
+            start_time = time.time()
+            container_details = self.__get_container_attributes(container_id)
             attrs = container_details.attrs
-            stats = container_details.stats(decode=None, stream=False)
 
-            # Extract creation date and time
             created_at = datetime.fromisoformat(attrs['Created'])
             created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
 
-            # Create container details dictionary
-            # See: https://github.com/orenlab/pytmbot/issues/55
-            container_details = {
+            container_context = {
                 'name': attrs['Name'].strip("/").title(),
                 'image': attrs.get('Config', {}).get('Image', 'N/A'),
                 'created': f"{created_day}, {created_time}",
-                'mem_usage': set_naturalsize(stats.get('memory_stats', {}).get('usage', 0)),
                 'run_at': set_naturaltime(datetime.fromisoformat(attrs['State'].get('StartedAt', ''))),
                 'status': attrs.get('State', {}).get('Status', 'N/A'),
             }
 
-            return container_details
+            bot_logger.debug(f"Time taken to build container details: {time.time() - start_time:.5f} seconds.")
+
+            return container_context
 
         except Exception as e:
-            # Log error if details retrieval fails
             bot_logger.error(f"Failed at @{__name__}: {e}")
             return {}
 
-    def retrieve_image_details(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
+    def retrieve_containers_stats(self) -> Union[List[Dict[str, str]], Dict[None, None]]:
         """
         Retrieve and return details of Docker images.
 
@@ -221,7 +216,7 @@ class DockerAdapter:
                 return {}
 
             # List containers
-            containers_id = self.__list_containers()
+            containers_id = self.__fetch_containers_list()
 
             # If no containers found, return empty dictionary
             if not containers_id:
@@ -229,14 +224,14 @@ class DockerAdapter:
                 return {}
 
             # Retrieve container details for each container using ThreadPool for parallel processing
-            with ThreadPoolExecutor(max_workers=len(containers_id)) as executor:
+            with ThreadPoolExecutor() as executor:
                 details = list(executor.map(self.__aggregate_container_details, containers_id))
 
             bot_logger.debug(f"Returning image details: {details}.")  # Log the details
 
             finish_time = time.time()  # End timer for performance measurement
 
-            bot_logger.debug(f"Done retrieving image details in {finish_time - start_time} seconds.")
+            bot_logger.debug(f"Done retrieving image details in {finish_time - start_time:.5f} seconds.")
 
             return details
 
@@ -245,7 +240,7 @@ class DockerAdapter:
             bot_logger.error(f"Failed at {__name__}: {e}")
             return {}
 
-    def get_full_container_details(self, container_id: str):
+    def fetch_full_container_details(self, container_id: str):
         """
         Retrieve and return the attributes of a Docker container as a dictionary.
 
@@ -256,7 +251,7 @@ class DockerAdapter:
             dict: A dictionary containing the attributes of the Docker container.
         """
         try:
-            return self.__get_container_details(container_id)
+            return self.__get_container_attributes(container_id)
         except NotFound:
             bot_logger.debug(f"Container {container_id} not found.")
             return {}
@@ -278,7 +273,7 @@ class DockerAdapter:
         """
         try:
             # Retrieve the details of the container
-            container_details = self.__get_container_details(container_id)
+            container_details = self.__get_container_attributes(container_id)
 
             # Fetch the logs of the container
             logs = container_details.logs(tail=50, stdout=True, stderr=True)
@@ -320,14 +315,12 @@ class DockerAdapter:
         """
         try:
             client = self.__create_docker_client()
-            # Fetch the number of Docker images
-            images_count = len(client.images.list())
-
-            # Fetch the number of Docker containers
-            containers_count = len(client.containers.list())
+            # Fetch the number of Docker images and containers in one call
+            images = client.images.list()
+            containers = client.containers.list()
 
             # Return a dictionary with the counts
-            return {"images_count": images_count, "containers_count": containers_count}
+            return {"images_count": len(images), "containers_count": len(containers)}
 
         except (NotFound, APIError) as e:
             # Log an error message if an exception occurs
@@ -337,17 +330,12 @@ class DockerAdapter:
             return None
 
     def fetch_image_details(self):
-        """
-        Fetches details of Docker images.
-        """
         try:
-            # Retrieve the list of Docker images in a single call
-            images = self.__create_docker_client().images.list(all=True)
+            docker_client = self.__create_docker_client()
+            images = docker_client.images.list(all=True)
 
-            image_details = []
-            for image in images:
-                # Create a dictionary with image details
-                image_details.append({
+            image_details = [
+                {
                     'id': image.short_id,
                     'name': image.attrs.get('RepoTags', "N/A"),
                     'tags': image.tags or "N/A",
@@ -355,11 +343,12 @@ class DockerAdapter:
                     'os': image.attrs.get('Os', "N/A"),
                     'size': set_naturalsize(image.attrs.get('Size', 0)),
                     'created': set_naturaltime(datetime.fromisoformat(image.attrs.get('Created'))) or "N/A",
-                })
+                }
+                for image in images
+            ]
 
             return image_details
 
         except Exception as e:
-            # Log an error message if an exception occurs
             bot_logger.error(f"Failed to fetch image details: {e}")
             return None

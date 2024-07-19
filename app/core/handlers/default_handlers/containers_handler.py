@@ -31,7 +31,7 @@ class ContainersHandler(HandlerConstructor):
         """
         try:
             # Create an instance of DockerAdapter and retrieve image details in one line
-            return DockerAdapter().retrieve_image_details()
+            return DockerAdapter().retrieve_containers_stats()
         except DockerException as e:
             # Log an error message if a DockerException occurs
             error_msg = f'Failed at {__name__}: {e}'
