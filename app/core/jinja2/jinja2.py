@@ -61,7 +61,8 @@ class Jinja2Renderer:
             'containers_full_info.jinja2',
             'logs.jinja2',
             'docker.jinja2',
-            'back.jinja2'
+            'back.jinja2',
+            'images.jinja2',
         ]
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:

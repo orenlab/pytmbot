@@ -1,0 +1,13 @@
+{# templates/images.jinja2 #}
+
+{{ thought_balloon }}Here is:
+
+{% for value in context %}{{ spouting_whale }} Image ID: <b>{{ value['id'] }}</b>:
+    {{ minus }} Name: {{ value["name"] }}
+    {{ minus }} Tags: {{ value["tags"] }}
+    {{ minus }} OS architecture: {{ value["architecture"] }}
+    {{ minus }} Target OS: {{ value["os"] }}
+    {{ minus }} Image size: {{ value["size"] }}
+    {{ minus }} Crated: {{ value["created"] }}
+
+{% endfor %}

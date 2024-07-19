@@ -336,48 +336,30 @@ class DockerAdapter:
             # Return None if an exception occurs
             return None
 
-    def fetch_image_details(self) -> Dict[str, Dict[str, object]]:
+    def fetch_image_details(self):
         """
         Fetches details of Docker images.
-
-        Returns:
-            Dict[str, Dict[str, object]]: A dictionary containing image details.
         """
         try:
             # Retrieve the list of Docker images in a single call
             images = self.__create_docker_client().images.list(all=True)
 
-            # Create a dictionary with image details using dictionary comprehension
-            image_details = {
-                image.short_id: {
-                    'name': image.attrs.get('RepoTags', []),
-                    'tags': image.tags or [],
-                    'architecture': image.attrs.get('Architecture', {}),
-                    'os': image.attrs.get('Os', {}),
+            image_details = []
+            for image in images:
+                # Create a dictionary with image details
+                image_details.append({
+                    'id': image.short_id,
+                    'name': image.attrs.get('RepoTags', "N/A"),
+                    'tags': image.tags or "N/A",
+                    'architecture': image.attrs.get('Architecture', "N/A"),
+                    'os': image.attrs.get('Os', "N/A"),
                     'size': set_naturalsize(image.attrs.get('Size', 0)),
-                    'created': self.__format_created_date(image.attrs.get('Created')),
-                }
-                for image in images
-            }
+                    'created': set_naturaltime(datetime.fromisoformat(image.attrs.get('Created'))) or "N/A",
+                })
 
             return image_details
+
         except Exception as e:
             # Log an error message if an exception occurs
             bot_logger.error(f"Failed to fetch image details: {e}")
-            return {}
-
-    @staticmethod
-    def __format_created_date(created_date: str) -> str:
-        """
-        Format the created date string into a readable format.
-
-        Args:
-            created_date (str): The created date string in ISO format.
-
-        Returns:
-            str: The formatted date and time string.
-        """
-        if created_date:
-            created_datetime = datetime.fromisoformat(created_date)
-            return f"{created_datetime.date()}, {created_datetime.time().strftime('%H:%M:%S')}"
-        return 'N/A'
+            return None
