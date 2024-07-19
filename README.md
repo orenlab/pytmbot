@@ -51,8 +51,8 @@ Initially, I designed the bot to run only inside a Docker container. However, th
 version 0.9.0 onward, it is possible to install the bot locally outside the container. At the same time, the bot will
 still be able to function and receive information about Docker containers.
 
-Full list of Python dependencies see in `requirements.txt`
-List of Python dependencies for self setup bot see in `setup_req.txt`
+Full list of Python dependencies see in `requirements.txt`. List of Python dependencies for self setup bot see
+in `setup_req.txt`
 
 ## 🔌 Installation, setup and run bot
 
