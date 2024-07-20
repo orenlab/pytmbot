@@ -132,13 +132,13 @@ class PyTMBotInstance:
             try:
                 # Test the bot token
                 test_bot = PyTMBotInstance._instance.bot.get_me()
-            except telebot.apihelper.ApiTelegramException as error:
-                # Raise a PyTeleMonBotError if the bot token is not valid
-                raise exceptions.PyTeleMonBotError(
-                    "Bot token is not valid. Please check the token and try again.") from error
-            except ConnectionError as error:
-                # Raise a PyTeleMonBotError if the connection to the Telegram API fails
-                raise exceptions.PyTeleMonBotError("Connection to the Telegram API failed.") from error
+            except (telebot.apihelper.ApiTelegramException, ConnectionError) as error:
+                # Raise a PyTeleMonBotError based on the specific exception
+                if isinstance(error, telebot.apihelper.ApiTelegramException):
+                    error_message = "Bot token is not valid. Please check the token and try again."
+                else:
+                    error_message = "Connection to the Telegram API failed."
+                raise exceptions.PyTeleMonBotError(error_message) from error
 
             # Log that the bot token is valid
             bot_logger.debug("Bot token is valid.")
@@ -147,7 +147,8 @@ class PyTMBotInstance:
             # Add the ContainersCallbackFilter to the TeleBot
             PyTMBotInstance._instance.bot.add_custom_filter(ContainersCallbackFilter())
 
-            PyTMBotInstance._instance.bot.set_my_commands([
+            # Define the list of bot commands
+            commands = [
                 telebot.types.BotCommand("/start", "Start bot!"),
                 telebot.types.BotCommand("/help", "Get help"),
                 telebot.types.BotCommand("/docker", "Launch the section about Docker"),
@@ -155,7 +156,10 @@ class PyTMBotInstance:
                 telebot.types.BotCommand("/images", "Get Images info"),
                 telebot.types.BotCommand("/back", "Back to main menu"),
                 telebot.types.BotCommand("/check_bot_updates", "Check for software updates"),
-            ])
+            ]
+
+            # Set the bot commands
+            PyTMBotInstance._instance.bot.set_my_commands(commands)
 
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")
