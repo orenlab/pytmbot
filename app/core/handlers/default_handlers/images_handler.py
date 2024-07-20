@@ -69,7 +69,7 @@ class ImagesHandler(HandlerConstructor):
 
     def handle(self):
         """
-        Handles the 'Back to main menu' message.
+        Handles the Docker images data.
         """
 
         @self.bot.message_handler(regexp="Images")
