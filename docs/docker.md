@@ -132,6 +132,8 @@ _Alternatively, if the container is running on your workstation, you can use Doc
 
 ## 💢 Supported commands
 
+In addition to button navigation, the bot also supports commands. Below is a list of commands and their details:
+
 | # | Command              | Keyboard button      | Note                                   | 
 |---|----------------------|----------------------|----------------------------------------|
 | 1 | `/start`             | None                 | -                                      | 

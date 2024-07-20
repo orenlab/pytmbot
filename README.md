@@ -69,6 +69,8 @@ All failed attempts to authorize are logged with an `ERROR` flag.
 
 ## 💢 Supported commands
 
+In addition to button navigation, the bot also supports commands. Below is a list of commands and their details:
+
 | # | Command              | Keyboard button      | Note                                   | 
 |---|----------------------|----------------------|----------------------------------------|
 | 1 | `/start`             | None                 | -                                      | 
