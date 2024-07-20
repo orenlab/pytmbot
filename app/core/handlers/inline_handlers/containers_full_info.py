@@ -5,6 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 from functools import lru_cache
+from typing import Dict, Any, Union
 
 from telebot.types import CallbackQuery
 
@@ -22,7 +23,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
     """
 
     @staticmethod
-    def __get_container_full_details(container_name):
+    def __get_container_full_details(container_name: str) -> dict:
         """
         Retrieve the full details of a container.
 
@@ -32,59 +33,52 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         Returns:
             dict: The full details of the container.
         """
-        # Retrieve full container details
-        try:
-            container_details = DockerAdapter().fetch_full_container_details(
-                container_name.lower()
-            )
-            return container_details
-        except Exception as e:
-            # Log an error message if an exception occurs
-            bot_logger.exception(f"Failed at @{__name__} - exception: {e}")
-            return None
+        # Create a single instance of DockerAdapter and reuse it for all calls
+        docker_adapter = DockerAdapter()
+
+        # Use a local variable to store the lowercased container name
+        lower_container_name = container_name.lower()
+
+        # Retrieve full container details using the single instance of DockerAdapter
+        container_details = docker_adapter.fetch_full_container_details(lower_container_name)
+
+        return container_details
 
     @lru_cache(maxsize=128)
     def __get_emojis(self):
         """
         Return a dictionary of emojis with keys representing emoji names and values as emoji characters.
         """
-        return {
-            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
-            'luggage': self.emojis.get_emoji('pushpin'),
-            'minus': self.emojis.get_emoji('minus'),
-            'backhand_index_pointing_down': self.emojis.get_emoji('backhand_index_pointing_down'),
-            'banjo': self.emojis.get_emoji('banjo'),
-            'basket': self.emojis.get_emoji('basket'),
-            'flag_in_hole': self.emojis.get_emoji('flag_in_hole'),
-            'railway_car': self.emojis.get_emoji('railway_car'),
-            'radio': self.emojis.get_emoji('radio'),
-            'puzzle_piece': self.emojis.get_emoji('puzzle_piece'),
-            'radioactive': self.emojis.get_emoji('radioactive'),
-            'safety_pin': self.emojis.get_emoji('safety_pin'),
-            'sandwich': self.emojis.get_emoji('sandwich'),
-        }
+        emoji_names = [
+            'thought_balloon', 'luggage', 'minus', 'backhand_index_pointing_down',
+            'banjo', 'basket', 'flag_in_hole', 'railway_car',
+            'radio', 'puzzle_piece', 'radioactive', 'safety_pin', 'sandwich'
+        ]
+        return {emoji_name: self.emojis.get_emoji(emoji_name) for emoji_name in emoji_names}
 
     @staticmethod
-    def __get_logs(container_name: str, call: CallbackQuery, token: str) -> str:
+    def __get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> str:
         """
-        Get sanitized logs for a specific container.
+        Retrieve sanitized logs for a specific container.
 
         Args:
             container_name (str): The name of the container.
-            call (CallbackQuery): The message object.
-            token (str): The token of the bot.
+            call (CallbackQuery): The callback query object.
+            token (str): The bot token.
 
         Returns:
             str: Sanitized logs for the container.
         """
         # Fetch raw logs for the container
-        dirty_logs = DockerAdapter().fetch_container_logs(container_name)
+        raw_logs = DockerAdapter().fetch_container_logs(container_name)
 
         # Sanitize the logs for privacy
-        return sanitize_logs(dirty_logs, call, token)
+        sanitized_logs = sanitize_logs(raw_logs, call, token)
+
+        return sanitized_logs
 
     @staticmethod
-    def __parse_container_memory_stats(container_stats):
+    def __parse_container_memory_stats(container_stats: Dict[str, Any]) -> Dict[str, Union[str, float]]:
         """
         Parse the memory statistics of a container.
 
@@ -93,25 +87,40 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
         Returns:
             Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
+                  'mem_usage' is the memory usage of the container in a human-readable format.
+                  'mem_limit' is the memory limit of the container in a human-readable format.
+                  'mem_percent' is the percentage of memory used by the container.
         """
+        # Retrieve the memory statistics from the container_stats dictionary
         memory_stats = container_stats.get('memory_stats', {})
+
+        # Calculate the memory usage and limit in a human-readable format
+        mem_usage = set_naturalsize(memory_stats.get('usage', 0))
+        mem_limit = set_naturalsize(memory_stats.get('limit', 0))
+
+        # Calculate the percentage of memory used by the container
+        mem_percent = round(memory_stats.get('usage', 0) / memory_stats.get('limit', 1) * 100,
+                            2) if 'limit' in memory_stats else 0
+
+        # Return a dictionary with the memory usage, limit, and percentage
         return {
-            'mem_usage': set_naturalsize(memory_stats.get('usage', 0)),
-            'mem_limit': set_naturalsize(memory_stats.get('limit', 0)),
-            'mem_percent': round(memory_stats.get('usage', 0) / memory_stats.get('limit', 1) * 100, 2)
-            if 'limit' in memory_stats else 0,
+            'mem_usage': mem_usage,
+            'mem_limit': mem_limit,
+            'mem_percent': mem_percent
         }
 
     @staticmethod
-    def __parse_container_cpu_stats(container_stats):
+    def __parse_container_cpu_stats(container_stats) -> Dict[str, Union[int, float]]:
         """
         Parse the CPU statistics of a container.
 
         Args:
-            container_stats (Dict): The dictionary containing CPU statistics of a container.
+            container_stats (Dict[str, Dict[str, Union[Dict[str, Union[int, float]], int]]]): The dictionary containing
+            CPU statistics of a container.
 
         Returns:
-            Dict: A dictionary with keys for 'periods', 'throttled_periods', and 'throttling_data'.
+            Dict[str, Union[int, float]]: A dictionary with keys for 'periods', 'throttled_periods', and
+            'throttling_data'.
         """
         precpu_stats = container_stats.get('precpu_stats', {})
         throttling_data = precpu_stats.get('throttling_data', {})
@@ -123,7 +132,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def __parse_container_network_stats(container_stats):
+    def __parse_container_network_stats(container_stats: Dict) -> Dict:
         """
         Parse the network statistics of a container.
 
@@ -146,9 +155,9 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         }
 
     @staticmethod
-    def __parse_container_attrs(container_attrs):
+    def __parse_container_attrs(container_attrs: Dict) -> Dict:
         """
-        This function parses container attributes and returns a dictionary with specific keys.
+        Parse the container attributes and return a dictionary with specific keys.
 
         Args:
             container_attrs (Dict): The dictionary containing container attributes.
@@ -157,11 +166,9 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             Dict: A dictionary with keys for 'running', 'paused', 'restarting', 'restarting_count', 'dead',
                   'exit_code', 'env', 'command', and 'args'.
         """
-        # Extract running state and configuration attributes
-        running_state = container_attrs['State']
-        config_attrs = container_attrs['Config']
+        running_state = container_attrs.get('State', {})
+        config_attrs = container_attrs.get('Config', {})
 
-        # Create and return a dictionary with specific keys
         return {
             'running': running_state.get('Running', False),
             'paused': running_state.get('Paused', False),
@@ -293,7 +300,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_name = extract_container_name(call.data, prefix='__get_logs__')
 
             # Get logs for the specified container
-            logs = self.__get_logs(container_name, call, self.bot.token)
+            logs = self.__get_sanitized_logs(container_name, call, self.bot.token)
 
             if not logs:
                 return handle_container_not_found(call, text=f"{container_name}: Error getting logs")

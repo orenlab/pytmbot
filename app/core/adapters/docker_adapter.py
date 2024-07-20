@@ -279,7 +279,7 @@ class DockerAdapter:
             logs = container_details.logs(tail=50, stdout=True, stderr=True)
 
             # Sanitize the logs by decoding them and taking the last 3000 characters
-            cut_logs = logs.decode("utf-8", errors="ignore")[-3000:]
+            cut_logs = logs.decode("utf-8", errors="ignore")[-3800:]
 
             # Return the sanitized logs if they exist, otherwise return an empty string
             return cut_logs if cut_logs else ""

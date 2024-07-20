@@ -109,6 +109,7 @@ class ContainersHandler(HandlerConstructor):
         """
 
         @self.bot.message_handler(regexp="Containers")
+        @self.bot.message_handler(commands=["containers"])
         @logged_handler_session
         def handle_containers(message: Message) -> None:
             """

@@ -4,8 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-
-from telebot.types import Message
+from typing import Dict
 
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
@@ -16,23 +15,16 @@ class ImagesHandler(HandlerConstructor):
     """
     A class for handling images-related commands.
     """
+
     @staticmethod
-    def __fetch_data():
+    def __fetch_data() -> Dict[str, Dict[str, object]]:
         """
         Fetches the data from the Docker Adapter.
-
-        This method creates an instance of the DockerAdapter class and calls its
-        fetch_image_details() method to retrieve the image details.
 
         Returns:
             Dict[str, Dict[str, object]]: A dictionary containing image details.
         """
-        # Create an instance of the DockerAdapter class
-        adapter = DockerAdapter()
-
-        # Call the fetch_image_details() method of the DockerAdapter instance
-        # to retrieve the image details
-        return adapter.fetch_image_details()
+        return DockerAdapter().fetch_image_details()
 
     def __compile_message(self):
         """
@@ -46,19 +38,21 @@ class ImagesHandler(HandlerConstructor):
         # Fetch data from the Docker Adapter
         docker_images = self.__fetch_data()
 
+        # Set the default emojis
+        emojis = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
+
+        # Determine the template name based on whether docker_images is None
+        template_name = 'none.jinja2' if docker_images is None else 'images.jinja2'
+
+        # If docker_images is None, set the default message
         if docker_images is None:
-            # If no docker images are found, set default values
-            template_name = 'none.jinja2'
             docker_images = "There are no images or incorrect settings are specified."
-            emojis = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
         else:
-            # If docker images are found, set the proper template and emojis
-            template_name = 'images.jinja2'
-            emojis = {
-                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            # If docker_images is not None, update the emojis with additional emojis
+            emojis.update({
                 'spouting_whale': self.emojis.get_emoji('spouting_whale'),
                 'minus': self.emojis.get_emoji('minus'),
-            }
+            })
 
         try:
             # Render the message template with the data and emojis
@@ -73,14 +67,11 @@ class ImagesHandler(HandlerConstructor):
         """
 
         @self.bot.message_handler(regexp="Images")
+        @self.bot.message_handler(commands=['images'])
         @logged_handler_session
-        def docker_images(message: Message) -> None:
+        def docker_images(message) -> None:
             """
             Handler for the 'Images' message.
-
-            This function is triggered when the user sends a message that matches the regexp "Images".
-            It sends a typing action to the user, builds a main keyboard, gets the user's first name, renders a
-            template,and sends the rendered template to the user with the main keyboard.
 
             Args:
                 message (telebot.types.Message): The message object received from the user.
@@ -96,7 +87,8 @@ class ImagesHandler(HandlerConstructor):
                 self.bot.send_chat_action(message.chat.id, 'typing')
 
                 # Build the main keyboard
-                reply_keyboard = self.keyboard.build_reply_keyboard(keyboard_type='docker_keyboard')
+                reply_keyboard = self.keyboard.build_reply_keyboard(
+                    keyboard_type='docker_keyboard')
 
                 # Send the bot answer to the user with the main keyboard
                 self.bot.send_message(
