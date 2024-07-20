@@ -28,7 +28,7 @@ synchronously. It does not use webhooks.
 - The bot logs are accessible in the Docker log aggregator.
 - And of course we use emoji 😅
 
-Screenshots are available here: [screenshots.md](docs/screenshots.md).
+Screenshots are available here: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
 Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 Screenshots are available here on
@@ -130,9 +130,21 @@ And we run it in the same way as we would if we had just installed the bot (see 
 sudo docker logs pytmbot
 ```
 
-- Advanced logs and debugging: [debug.md](debug.md)
+- Advanced logs and debugging: [debug.md](https://github.com/orenlab/pytmbot/blob/master/docs/debug.md)
 
 _Alternatively, if the container is running on your workstation, you can use Docker Desktop._
+
+## 💢 Supported commands
+
+| # | Command              | Keyboard button      | Note                                   | 
+|---|----------------------|----------------------|----------------------------------------|
+| 1 | `/start`             | None                 | -                                      | 
+| 2 | `/help`              | None                 | -                                      | 
+| 3 | `/docker`            | 🐳 Docker            | -                                      |
+| 4 | `/containers`        | 🧰 Containers        | Button available in the Docker section |
+| 5 | `/images`            | 🖼️ Images           | Button available in the Docker section |
+| 6 | `/back`              | 🔙 Back to main menu | Button available in the Docker section |
+| 7 | `/check_bot_updates` | None                 | -                                      |
 
 ## 👾 Support, source code, questions and discussions
 

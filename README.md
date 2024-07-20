@@ -67,6 +67,18 @@ By comparing this value with the `user.id` values specified in the bot's setting
 
 All failed attempts to authorize are logged with an `ERROR` flag.
 
+## 💢 Supported commands
+
+| # | Command              | Keyboard button      | Note                                   | 
+|---|----------------------|----------------------|----------------------------------------|
+| 1 | `/start`             | None                 | -                                      | 
+| 2 | `/help`              | None                 | -                                      | 
+| 3 | `/docker`            | 🐳 Docker            | -                                      |
+| 4 | `/containers`        | 🧰 Containers        | Button available in the Docker section |
+| 5 | `/images`            | 🖼️ Images           | Button available in the Docker section |
+| 6 | `/back`              | 🔙 Back to main menu | Button available in the Docker section |
+| 7 | `/check_bot_updates` | None                 | -                                      |
+
 ## 🌲 Bot tree
 
 ```

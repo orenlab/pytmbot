@@ -147,6 +147,16 @@ class PyTMBotInstance:
             # Add the ContainersCallbackFilter to the TeleBot
             PyTMBotInstance._instance.bot.add_custom_filter(ContainersCallbackFilter())
 
+            PyTMBotInstance._instance.bot.set_my_commands([
+                telebot.types.BotCommand("/start", "Start bot!"),
+                telebot.types.BotCommand("/help", "Get help"),
+                telebot.types.BotCommand("/docker", "Launch the section about Docker"),
+                telebot.types.BotCommand("/containers", "Get Containers info"),
+                telebot.types.BotCommand("/images", "Get Images info"),
+                telebot.types.BotCommand("/back", "Back to main menu"),
+                telebot.types.BotCommand("/check_bot_updates", "Check for software updates"),
+            ])
+
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")
 
