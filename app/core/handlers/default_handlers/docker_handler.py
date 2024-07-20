@@ -58,7 +58,7 @@ class DockerHandler(HandlerConstructor):
 
     def handle(self) -> None:
         """
-        Methods to handle Load average data
+        Methods to handle containers data
         """
 
         @self.bot.message_handler(regexp="Docker")
