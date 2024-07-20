@@ -120,7 +120,7 @@ And we run it in the same way as we would if we had just installed the bot (see 
 
 ## Bot logs
 
--To access the bot logs, please run the following command in the terminal:
+- To access the bot logs, please run the following command in the terminal:
 
 ```bash
 sudo docker logs pytmbot
