@@ -3,9 +3,13 @@
 __Important: Some of the features visible in the images are
 still in development and may not yet be available for use.__
 
+## Commands:
+
+![Containers Handler](./.screenshots/command_list.png)
+
 ## Start handler:
 
-![Start Handler](./.screenshots/start_handler.png)
+![Start Handler](./.screenshots/start.png)
 
 ## Load average handler:
 
@@ -31,6 +35,22 @@ still in development and may not yet be available for use.__
 
 ![FS Handler](./.screenshots/file_system.png)
 
-## Containers handler:
+## Docker handler:
+
+![Containers Handler](./.screenshots/docker.png)
+
+## Images handler:
+
+![Containers Handler](./.screenshots/images.png)
+
+## Container handler:
 
 ![Containers Handler](./.screenshots/containers.png)
+
+## Network handler:
+
+![Containers Handler](./.screenshots/network.png)
+
+## About handler:
+
+![Containers Handler](./.screenshots/about.png)
