@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Bot commands model
-command_model = {
+commands_model = {
     "/start": "Start bot!",
     "/help": "Get help",
     "/docker": "Launch the section about Docker",
@@ -68,4 +68,4 @@ class BotSettings(BaseSettings):
     docker_host: str  # Docker socket URI from .pytmbotenv
     podman_host: Optional[str]  # Podman socker URI from .pytmbotenv
     model_config = SettingsConfigDict(env_file=get_env_file_path(), env_file_encoding='utf-8')
-    bot_commands: dict = command_model
+    bot_commands: dict = commands_model
