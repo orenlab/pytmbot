@@ -1,4 +1,4 @@
-name: CI 0.0.9 tag
+name: CI 0.1.1 tag
 
 on:
   schedule:
@@ -20,10 +20,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: https://github.com/orenlab/pytmbot.git#v0.1.0
+          context: https://github.com/orenlab/pytmbot.git#v0.1.1
           build-args: --target prod
           sbom: True
           provenance: True
           file: hub.Dockerfile
           push: true
-          tags: orenlab/pytmbot:0.1.0
+          tags: orenlab/pytmbot:0.1.1
