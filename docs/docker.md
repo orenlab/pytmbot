@@ -35,7 +35,7 @@ Screenshots are available here: [screenshots.md](https://github.com/orenlab/pytm
 | Tag        | Content                                                                                                                                                                 |
 |------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | latest     | The latest stable release image, based on Alpine Linux                                                                                                                  |
-| 0.0.X      | Stable release, based on Alpine Linux                                                                                                                                   |
+| 0.X.X      | Stable release, based on Alpine Linux                                                                                                                                   |
 | alpine-dev | The latest version, which is compiled each time it is successfully added to the development branch, is not guaranteed to be stable. The image is based on Alpine Linux. |
 
 ## 🧪 Configure bot
