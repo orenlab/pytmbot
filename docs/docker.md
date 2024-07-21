@@ -29,7 +29,6 @@ synchronously. It does not use webhooks.
 - And of course we use emoji 😅
 
 Screenshots are available here: [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
-Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🐋 pyTMBot tag info
 

@@ -43,7 +43,6 @@ gather information.
 - And of course we use emoji 😅
 
 Screenshots are available here: [screenshots.md](docs/screenshots.md).
-Video demo see in YouTube Shorts [here](https://youtube.com/shorts/81RE_PNjxLQ?feature=shared)
 
 ## 🕸 Requirements
 
