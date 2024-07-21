@@ -122,10 +122,16 @@ class PyTMBotInstance:
             # Define the list of bot commands
             commands = [telebot.types.BotCommand(command, desc) for command, desc in config.bot_commands.items()]
 
-            # Set the bot commands
-            PyTMBotInstance._instance.bot.set_my_commands(commands)
-
-            bot_logger.debug(f"Bot commands setup successful with {len(commands)} commands.")
+            try:
+                # Set the bot commands
+                PyTMBotInstance._instance.bot.set_my_commands(commands)
+                bot_logger.debug(f"Bot commands setup successful with {len(commands)} commands.")
+                # Set the bot description
+                PyTMBotInstance._instance.bot.set_my_description(config.description)
+                bot_logger.debug("Bot description setup successful.")
+            except telebot.apihelper.ApiTelegramException as error:
+                # Log any errors that occur during the setup process
+                bot_logger.debug(f"Error setting up bot commands: {error}")
 
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")

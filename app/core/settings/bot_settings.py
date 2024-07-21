@@ -21,6 +21,9 @@ commands_model = {
     "/check_bot_updates": "Check for software updates",
 }
 
+description = (
+    "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers")
+
 
 def get_env_file_path() -> str:
     """
@@ -69,3 +72,4 @@ class BotSettings(BaseSettings):
     podman_host: Optional[str]  # Podman socker URI from .pytmbotenv
     model_config = SettingsConfigDict(env_file=get_env_file_path(), env_file_encoding='utf-8')
     bot_commands: dict = commands_model
+    description: str = description
