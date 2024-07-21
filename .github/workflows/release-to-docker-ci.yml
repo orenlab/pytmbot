@@ -13,10 +13,6 @@ jobs:
       contents: read
       attestations: write
     steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Check out the repo
         uses: actions/checkout@v4
 
@@ -38,8 +34,6 @@ jobs:
         with:
           context: .
           build-args: --target prod
-          sbom: True
-          provenance: True
           file: hub.Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
