@@ -61,7 +61,8 @@ class StartHandler(HandlerConstructor):
                 self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
-                    reply_markup=main_keyboard
+                    reply_markup=main_keyboard,
+                    parse_mode="Markdown"
                 )
             except ValueError:
                 # Raise an exception if there is a ValueError while rendering the templates
