@@ -7,9 +7,6 @@ the status of your local servers
 from functools import lru_cache
 
 import telebot
-from telebot import AdvancedCustomFilter
-from telebot.callback_data import CallbackDataFilter
-from telebot.types import CallbackQuery
 
 from app.core import exceptions
 from app.core.logs import bot_logger
@@ -25,28 +22,6 @@ __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
 __github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/latest'
-
-
-class ContainersCallbackFilter(AdvancedCustomFilter):
-    """
-    A custom filter to check if the given CallbackQuery matches the given CallbackDataFilter.
-    """
-    key = 'containers'
-
-    def check(self, call: CallbackQuery, containers: CallbackDataFilter) -> bool:
-        """
-        Check if the given CallbackQuery matches the given CallbackDataFilter.
-
-        Args:
-            call (CallbackQuery): The CallbackQuery to check.
-            containers (CallbackDataFilter): The CallbackDataFilter to match against.
-
-        Returns:
-            bool: True if the CallbackQuery matches the CallbackDataFilter, False otherwise.
-        """
-        # Call the check method of the containers object to determine if the CallbackQuery matches the
-        # CallbackDataFilter
-        return containers.check(call)
 
 
 class PyTMBotInstance:
@@ -143,9 +118,6 @@ class PyTMBotInstance:
             # Log that the bot token is valid
             bot_logger.debug("Bot token is valid.")
             bot_logger.debug(f"Bot info: {test_bot}.")
-
-            # Add the ContainersCallbackFilter to the TeleBot
-            PyTMBotInstance._instance.bot.add_custom_filter(ContainersCallbackFilter())
 
             # Define the list of bot commands
             commands = [
