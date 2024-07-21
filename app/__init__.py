@@ -120,18 +120,12 @@ class PyTMBotInstance:
             bot_logger.debug(f"Bot info: {test_bot}.")
 
             # Define the list of bot commands
-            commands = [
-                telebot.types.BotCommand("/start", "Start bot!"),
-                telebot.types.BotCommand("/help", "Get help"),
-                telebot.types.BotCommand("/docker", "Launch the section about Docker"),
-                telebot.types.BotCommand("/containers", "Get Containers info"),
-                telebot.types.BotCommand("/images", "Get Images info"),
-                telebot.types.BotCommand("/back", "Back to main menu"),
-                telebot.types.BotCommand("/check_bot_updates", "Check for software updates"),
-            ]
+            commands = [telebot.types.BotCommand(command, desc) for command, desc in config.bot_commands.items()]
 
             # Set the bot commands
             PyTMBotInstance._instance.bot.set_my_commands(commands)
+
+            bot_logger.debug(f"Bot commands setup successful with {len(commands)} commands.")
 
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")
