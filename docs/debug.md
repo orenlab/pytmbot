@@ -6,7 +6,7 @@
 sudo docker stop pytmbot
 ```
 
-- Deleting image:
+- Deleting the stopped container:
 
 ```bash
 sudo docker rm pytmbot
