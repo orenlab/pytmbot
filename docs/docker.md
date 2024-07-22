@@ -118,7 +118,7 @@ sudo docker rmi pytmbot
 * Uploading an updated image:
 
 ```bash
-sudo docker pull ghcr.io/orenlab/pytmbot:latest
+sudo docker pull orenlab/pytmbot:latest
 ```
 
 And we run it in the same way as we would if we had just installed the bot (see the instructions above).
