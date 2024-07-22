@@ -128,14 +128,15 @@ class DockerAdapter:
             ValueError: If the container ID is invalid.
             FileNotFoundError: If the Docker executable is not found.
         """
+
+        # Check if the container ID is valid
+        if not container_id:
+            raise ValueError("Invalid container ID")
+
         # Create a Docker client
         docker_client = self.__create_docker_client()
 
         try:
-            # Check if the container ID is valid
-            if not container_id:
-                raise ValueError("Invalid container ID")
-
             # Retrieve the container details
             container = docker_client.containers.get(container_id)
 
