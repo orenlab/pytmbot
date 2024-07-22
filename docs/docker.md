@@ -97,22 +97,28 @@ _Please don't forget to specify Tag version!_
 
 In order to update the image to the latest version, please follow these steps:
 
-- Stopping the container:
+* Stopping the running pyTMbot container:
 
 ```bash
 sudo docker stop pytmbot
 ```
 
-- Deleting an outdated image:
+* Deleting an outdated container:
 
 ```bash
-sudo docker rm pytmbot
+sudo docker rm /pytmbot
 ```
 
-- Uploading an updated image:
+* Deleting an outdated image:
 
 ```bash
-sudo docker pull orenlab/pytmbot:latest
+sudo docker rmi pytmbot
+```
+
+* Uploading an updated image:
+
+```bash
+sudo docker pull ghcr.io/orenlab/pytmbot:latest
 ```
 
 And we run it in the same way as we would if we had just installed the bot (see the instructions above).

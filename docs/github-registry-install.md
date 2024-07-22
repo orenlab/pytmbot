@@ -68,16 +68,22 @@ Now everything is ready for you to use the bot. All you need to do is run the `/
 
 In order to update the image to the latest version, please follow these steps:
 
-* Stopping the container:
+* Stopping the running pyTMbot container:
 
 ```bash
 sudo docker stop pytmbot
 ```
 
+* Deleting an outdated container:
+
+```bash
+sudo docker rm /pytmbot
+```
+
 * Deleting an outdated image:
 
 ```bash
-sudo docker rm pytmbot
+sudo docker rmi pytmbot
 ```
 
 * Uploading an updated image:
