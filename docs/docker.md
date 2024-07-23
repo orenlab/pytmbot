@@ -63,7 +63,8 @@ And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
 # Add your telegram IDs:
 ALLOWED_USER_IDS=[00000000000, 00000000000]
-# Setting up administrative (full) access
+# Setting up administrative (full) access. This field is only required for the alpine-dev environment!
+# For version 0.1.1 and earlier, this field may be omitted.
 ALLOWED_ADMINS_IDS=[00000000000, 00000000000]
 # Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
 DOCKER_HOST='unix:///var/run/docker.sock'
