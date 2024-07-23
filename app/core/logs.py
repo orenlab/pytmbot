@@ -10,12 +10,10 @@ import sys
 from functools import partial
 from typing import List, Callable, Any, Tuple
 
-from telebot.types import Message, CallbackQuery
-
 from app.utilities.utilities import (
     parse_cli_args,
-    find_in_args,
-    find_in_kwargs
+    get_message_full_info,
+    get_inline_message_full_info
 )
 
 
@@ -100,58 +98,6 @@ def build_bot_logger() -> logging.Logger:
     logger.debug(f"Log level: {logger.level}")
 
     return logger
-
-
-def get_message_full_info(*args, **kwargs):
-    """
-    Get full info for inline handlers logs.
-
-    Args:
-        *args (): Any
-        **kwargs (): Any
-
-    Returns:
-        Tuple[Union[str, None], Union[int, None], Union[str, None], Union[bool, None], Union[str, None]]:
-            Objects to write to the logs. Returns a tuple containing the username, user ID, language code,
-            is_bot flag, and text of the message. If the message is not found in args or kwargs, returns
-            "None" for all values.
-    """
-
-    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
-    if message is not None:
-        user = message.from_user
-        return (
-            user.username,
-            user.id,
-            user.language_code,
-            user.is_bot,
-            message.text
-        )
-
-    return "None", "None", "None", "None", "None"
-
-
-def get_inline_message_full_info(*args, **kwargs):
-    """
-    Get full info for inline handlers logs.
-
-    Args:
-        *args (Any): Variable length argument list.
-        **kwargs (Any): Arbitrary keyword arguments.
-
-    Returns:
-        Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
-            A tuple containing the username, user ID, and is_bot flag of the message sender.
-            If the message is not found in args or kwargs, returns "None" for all values.
-    """
-    # Find message in args or kwargs
-    message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
-
-    if message is not None:
-        user = message.message.from_user
-        return user.username, user.id, user.is_bot
-
-    return "None", "None", "None"
 
 
 def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:

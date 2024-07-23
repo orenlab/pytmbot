@@ -4,8 +4,8 @@ DEV_BOT_TOKEN=$dev_token
 BOT_TOKEN=$prod_token
 # Add your telegram IDs!
 ALLOWED_USER_IDS=[$user_id]
+# Setting up administrative (full) access
+ALLOWED_ADMINS_IDS=[$admin_id]
 # Set Docker Socket o TCP param
 DOCKER_HOST='$docker_host'
-# Set Podman Socket o TCP param
-PODMAN_HOST='$podman_host'
 """

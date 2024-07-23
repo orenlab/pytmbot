@@ -63,6 +63,7 @@ class DockerHandler(HandlerConstructor):
 
         @self.bot.message_handler(regexp="Docker")
         @self.bot.message_handler(commands=["docker"])
+        # @two_factor_auth_required # in next release
         @logged_handler_session
         def docker_handler(message: Message) -> None:
             try:

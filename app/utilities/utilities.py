@@ -10,7 +10,7 @@ from functools import cached_property
 from typing import Any
 
 from humanize import naturalsize, naturaltime
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, Message
 
 
 # Utility functions
@@ -223,3 +223,55 @@ def sanitize_logs(container_logs: str, callback_query: CallbackQuery, token: str
         container_logs = container_logs.replace(value, '*' * len(value))
 
     return container_logs
+
+
+def get_message_full_info(*args, **kwargs):
+    """
+    Get full info for inline handlers logs.
+
+    Args:
+        *args (): Any
+        **kwargs (): Any
+
+    Returns:
+        Tuple[Union[str, None], Union[int, None], Union[str, None], Union[bool, None], Union[str, None]]:
+            Objects to write to the logs. Returns a tuple containing the username, user ID, language code,
+            is_bot flag, and text of the message. If the message is not found in args or kwargs, returns
+            "None" for all values.
+    """
+
+    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
+    if message is not None:
+        user = message.from_user
+        return (
+            user.username,
+            user.id,
+            user.language_code,
+            user.is_bot,
+            message.text
+        )
+
+    return "None", "None", "None", "None", "None"
+
+
+def get_inline_message_full_info(*args, **kwargs):
+    """
+    Get full info for inline handlers logs.
+
+    Args:
+        *args (Any): Variable length argument list.
+        **kwargs (Any): Arbitrary keyword arguments.
+
+    Returns:
+        Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
+            A tuple containing the username, user ID, and is_bot flag of the message sender.
+            If the message is not found in args or kwargs, returns "None" for all values.
+    """
+    # Find message in args or kwargs
+    message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
+
+    if message is not None:
+        user = message.message.from_user
+        return user.username, user.id, user.is_bot
+
+    return "None", "None", "None"

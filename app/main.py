@@ -18,7 +18,7 @@ from app import (
     telebot,
 )
 from app.core.handlers.handlers_aggregator import HandlersAggregator
-from app.core.middleware.auth import AllowedUser
+from app.core.middleware.auth import AccessControl
 
 
 class PyTMBot(PyTMBotInstance):
@@ -210,7 +210,7 @@ class PyTMBot(PyTMBotInstance):
         """
         try:
             # Initialize the AllowedUser middleware
-            allowed_user = AllowedUser()
+            allowed_user = AccessControl()
 
             # Set up the middleware
             self.__setup_middleware(allowed_user)
@@ -231,4 +231,3 @@ class PyTMBot(PyTMBotInstance):
 if __name__ == "__main__":
     # Run the bot
     PyTMBot().run_bot()
-

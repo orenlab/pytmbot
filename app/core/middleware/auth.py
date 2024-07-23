@@ -20,7 +20,7 @@ from app.core.logs import bot_logger
 from app.core.settings.loggers import MessageTpl
 
 
-class AllowedUser(BaseMiddleware, PyTMBotInstance):
+class AccessControl(BaseMiddleware, PyTMBotInstance):
     """
     Custom middleware class that checks if the user is allowed to access the bot.
     """

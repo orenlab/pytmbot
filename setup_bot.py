@@ -54,25 +54,6 @@ def ask_for_docker_host() -> str:
     return click.prompt("Docker host", default="unix:///var/run/docker.sock")
 
 
-def ask_for_podman_host() -> str:
-    """
-    Prompts the user to enter the Podman host and returns the input.
-
-    Returns:
-        str: The Podman host entered by the user.
-    """
-    # Display a message to the user indicating the purpose of the input
-    click.secho("[-] Let's add the Podman host:", bg='blue', fg='white', bold=False)
-
-    # Provide the format for the input
-    click.echo("""
-        Format: unix:///run/user/1000/podman/podman.sock\n
-        """)
-
-    # Prompt the user to enter the Podman host and provide a default value
-    return click.prompt("Podman host", default="unix:///run/user/1000/podman/podman.sock")
-
-
 def ask_for_dev_token() -> str:
     """
     Prompts the user to enter the development bot token.
@@ -111,6 +92,24 @@ def ask_for_prod_token() -> str:
     return click.prompt("Production bot token")
 
 
+def ask_for_admin_user_id() -> str:
+    """
+    Prompts the user to enter one or more user IDs and returns them as a string.
+
+    Returns:
+        str: A comma-separated string of user IDs.
+    """
+    # Display a message to the user indicating the format of the user IDs
+    click.secho("[-] Let's added admin user ID`s:", bg='blue', fg='white', bold=False)
+    click.echo("""
+        Format (one user ID): 000000000000\n
+        Format (more than one user ID): 000000000000, 000000000000, 000000000000\n
+        """)
+
+    # Prompt the user to enter one or more user IDs
+    return click.prompt("User IDS")
+
+
 def create_dot_env() -> None:
     """
     Creates a .env file with bot tokens, user ids, and host information.
@@ -131,19 +130,19 @@ def create_dot_env() -> None:
     # Prompt the user for the user id
     user_id = ask_for_user_id()
 
+    # Prompt the user for the Podman host
+    admin_id = ask_for_admin_user_id()
+
     # Prompt the user for the Docker host
     docker_host = ask_for_docker_host()
-
-    # Prompt the user for the Podman host
-    podman_host = ask_for_podman_host()
 
     # Create a dictionary with the variables
     variables: dict = {
         "dev_token": dev_token,
         "prod_token": prod_token,
         "user_id": user_id,
+        "admin_id": admin_id,
         "docker_host": docker_host,
-        "podman_host": podman_host,
     }
 
     # Create the .env file with the variables
