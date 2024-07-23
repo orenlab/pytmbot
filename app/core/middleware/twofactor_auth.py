@@ -1,8 +1,8 @@
 #!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot designed to gather basic information about
-the status of your local computers and/or servers from Glances
+PyTMBot - A simple Telegram bot designed to gather basic information about
+the status of your local servers
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
