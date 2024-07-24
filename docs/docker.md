@@ -70,7 +70,7 @@ DOCKER_HOST='unix:///var/run/docker.sock'
 PODMAN_HOST=''
 ```
 
-For `alpine-dev` tag:
+- For `alpine-dev` tag:
 
 ```bash
 # The bot token that you received from the BotFather:
