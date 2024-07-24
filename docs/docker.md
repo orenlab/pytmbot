@@ -58,6 +58,20 @@ nano .pytmbotenv
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 
+- For stable tag: `0.0.9`, `0.1.1`, `latest`:
+
+```bash
+# The bot token that you received from the BotFather:
+BOT_TOKEN=<PUT YOUR VALUE HERE>
+# Add your telegram IDs:
+ALLOWED_USER_IDS=[00000000000, 00000000000]
+# Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
+DOCKER_HOST='unix:///var/run/docker.sock'
+PODMAN_HOST=''
+```
+
+For `alpine-dev` tag:
+
 ```bash
 # The bot token that you received from the BotFather:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
