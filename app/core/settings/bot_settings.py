@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 import os
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -55,7 +55,7 @@ def get_env_file_path() -> str:
 
 class BotSettings(BaseSettings):
     """
-    BotSettings class to load configuration from .pytmbotenv file
+    BotSettings class to load configuration from .pytmbotenv file and settings variables
     """
 
     bot_token: SecretStr  # Bot toke from .pytmbotenv
@@ -66,3 +66,25 @@ class BotSettings(BaseSettings):
     bot_commands: dict = commands_model  # Bot commands
     description: str = description  # Bot description
     allowed_admins_ids: Optional[list[int]]  # Allowed admin ids from .pytmbotenv
+    known_templates: List[str] = [
+        'containers.jinja2',
+        'fs.jinja2',
+        'index.jinja2',
+        'load_average.jinja2',
+        'memory.jinja2',
+        'none.jinja2',
+        'process.jinja2',
+        'sensors.jinja2',
+        'uptime.jinja2',
+        'bot_update.jinja2',
+        'swap.jinja2',
+        'how_update.jinja2',
+        'net_io.jinja2',
+        'about_bot.jinja2',
+        'containers_full_info.jinja2',
+        'logs.jinja2',
+        'docker.jinja2',
+        'back.jinja2',
+        'images.jinja2',
+        'auth_required.jinja2'
+    ]

@@ -14,11 +14,22 @@ from jinja2 import (
 from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
+from app import config
 from app.core import exceptions
 from app.core.logs import bot_logger
 
 
 class Jinja2Renderer:
+    """
+    Class for rendering templates using Jinja2.
+
+    Attributes:
+        loader (Optional[jinja2.BaseLoader]): The loader for Jinja2 templates.
+        template_cache (Dict[str, jinja2.Template]): Cache for compiled Jinja2 templates.
+        template_folder (str): The path to the folder containing Jinja2 templates.
+        known_templates (List[str]): List of known templates.
+    """
+
     def __init__(self) -> None:
         """
         Initialize the Jinja2 variables.
@@ -43,27 +54,7 @@ class Jinja2Renderer:
         self.template_folder: str = "app/templates/"
 
         # Define the list of known templates
-        self.known_templates: List[str] = [
-            'containers.jinja2',
-            'fs.jinja2',
-            'index.jinja2',
-            'load_average.jinja2',
-            'memory.jinja2',
-            'none.jinja2',
-            'process.jinja2',
-            'sensors.jinja2',
-            'uptime.jinja2',
-            'bot_update.jinja2',
-            'swap.jinja2',
-            'how_update.jinja2',
-            'net_io.jinja2',
-            'about_bot.jinja2',
-            'containers_full_info.jinja2',
-            'logs.jinja2',
-            'docker.jinja2',
-            'back.jinja2',
-            'images.jinja2',
-        ]
+        self.known_templates: List[str] = config.known_templates
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:
         """
