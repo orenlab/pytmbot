@@ -11,7 +11,7 @@ from typing import Union, Callable, Any
 from telebot.types import Message, CallbackQuery
 
 from app import config, PyTMBotInstance, bot_logger
-from app.utilities.totp import TOTPGenerator
+from app.core.handlers.auth_handlers.auth_required import AuthRequiredHandler
 
 authorized_users = []
 
@@ -29,6 +29,7 @@ class AuthorizedUser:
     user_id: int
     login_time: datetime = field(default_factory=datetime.now)
     expiration_time: datetime = field(init=False)
+    app_installed: bool = False
 
     def __post_init__(self):
         self.expiration_time = self.login_time + timedelta(minutes=5)
@@ -81,48 +82,41 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
         bot_logger.error(f"Administrative access for users ID {user_id} has been denied")
 
         # Return the result of the error_auth_required function
-        return error_auth_required(query)
+        return handle_unauthorized_query(query)
 
     return wrapper
 
 
-def error_auth_required(query: Union[Message, CallbackQuery]) -> bool:
+def handle_unauthorized_query(query: Union[Message, CallbackQuery]) -> bool:
     """
-    Sends a message or answers a callback query with a specific text if the query is not authorized.
+    Handle unauthorized queries.
 
     Args:
-        query (Union[Message, CallbackQuery]): The query to handle.
+        query (Union[Message, CallbackQuery]): The query object.
+
+    Returns:
+        bool: True if the query was handled successfully, False otherwise.
 
     Raises:
         NotImplementedError: If the query type is not supported.
-
-    Returns:
-        None
     """
     # Get the bot instance
-    bot = PyTMBotInstance.get_bot_instance()
+    bot_instance = PyTMBotInstance.get_bot_instance()
 
+    # Create an instance of the AuthRequiredHandler
+    auth_handler = AuthRequiredHandler(bot_instance)
+
+    # Check the type of the query
     if isinstance(query, Message):
-        # If the query is a Message, send a message with the specified text.
-        # Generate a TOTP generator with the user's ID and username
-        generator = TOTPGenerator(str(query.from_user.id), query.from_user.username)
-
-        # Generate a QR code for the TOTP generator
-        qr_code = generator.generate_totp_qr_code()
-
-        # Send the QR code as a photo to the user
-        bot.send_photo(chat_id=query.chat.id, photo=qr_code)
-
-        # Send a message indicating that the user is not authorized
-        bot.send_message(chat_id=query.chat.id, text="You are not authorized!")
-        return True
+        # Handle the unauthorized message
+        return auth_handler.handle_unauthorized_message(query)
     elif isinstance(query, CallbackQuery):
-        # If the query is a CallbackQuery, answer the callback query with the specified text.
-        return bot.answer_callback_query(
+        # Answer the callback query with a message indicating that the user is not authorized
+        return bot_instance.answer_callback_query(
             callback_query_id=query.id,
             text="You are not authorized!",
             show_alert=True
         )
     else:
-        # If the query type is not supported, raise a NotImplementedError.
+        # Raise an error for unsupported query types
         raise NotImplementedError("Unsupported query type")
