@@ -131,7 +131,7 @@ class PyTMBotInstance:
                 bot_logger.debug("Bot description setup successful.")
             except telebot.apihelper.ApiTelegramException as error:
                 # Log any errors that occur during the setup process
-                bot_logger.debug(f"Error setting up bot commands: {error}")
+                bot_logger.error(f"Error setting up bot commands and description: {error}")
 
             # Log that the bot has been configured successfully
             bot_logger.debug("Basic configuration done. We are now continuing with...")
