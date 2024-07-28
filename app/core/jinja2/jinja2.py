@@ -44,17 +44,21 @@ class Jinja2Renderer:
         Returns:
             None
         """
+
         # Initialize loader as None
         self.loader: Optional[jinja2.BaseLoader] = None
 
+        # Define the list of known templates
+        self.known_templates: List[str] = config.known_templates
+
         # Initialize template_cache as an empty dictionary
-        self.template_cache: Dict[str, jinja2.Template] = {}
+        self.jinja_env = None
 
         # Set the template folder path
         self.template_folder: str = "app/templates/"
 
-        # Define the list of known templates
-        self.known_templates: List[str] = config.known_templates
+        # Initialize template_cache as an empty dictionary
+        self.template_cache: Dict[str, jinja2.Template] = {}
 
     def __initialize_jinja_environment(self) -> jinja2.Environment:
         """
@@ -70,6 +74,7 @@ class Jinja2Renderer:
             TemplateError: If there is an error loading the template.
         """
         try:
+            bot_logger.debug("Initializing Jinja2 environment...")
             # Create a FileSystemLoader for the template folder
             loader: FileSystemLoader = FileSystemLoader(self.template_folder)
 
@@ -85,12 +90,14 @@ class Jinja2Renderer:
                 autoescape=autoescape_config
             )
 
+            bot_logger.debug("Jinja2 environment initialized successfully!")
+
             # Return the initialized Jinja2 environment
             return environment
 
         # If there is an error loading the template, raise a TemplateError with a descriptive message
         except TemplateError as error:
-            raise TemplateError("Error loading template") from error
+            raise TemplateError("Error loading template from template folder:") from error
 
     def render_templates(self, template_name: str, *, emojis: Optional[Dict[str, str]] = None,
                          **context: Dict[str, Any]) -> str:
@@ -114,16 +121,14 @@ class Jinja2Renderer:
             raise exceptions.PyTeleMonBotTemplateError(f"Unknown template name: {template_name}")
 
         try:
-            # Initialize Jinja2 environment
-            bot_logger.debug("Initializing Jinja2 environment")
-            jinja_env = self.__initialize_jinja_environment()
-
+            # Initialize the Jinja2 environment
+            self.jinja_env: jinja2.Environment = self.__initialize_jinja_environment()
             # Load the template either from cache or the file system
             bot_logger.debug(f"Loading template: {template_name}")
             template = self.template_cache.get(template_name)
             if template is None:
-                bot_logger.debug("Template not in cache, loading from file system")
-                template = jinja_env.get_template(template_name)
+                bot_logger.debug(f"Template {template_name} not in cache, loading from file system")
+                template = self.jinja_env.get_template(template_name)
                 self.template_cache[template_name] = template
 
             # Render the template with provided context and emojis
