@@ -16,11 +16,16 @@ from app.utilities.utilities import parse_cli_args
 # Main config
 config = BotSettings()
 
-# Set global name
+# Set global variables
+# Set global version
 __version__ = 'v0.1.2-dev'
+# Set global author
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
+# Set global license
 __license__ = 'MIT'
+# Set global repository
 __repository__ = 'https://github.com/orenlab/pytmbot'
+# Set global github api url
 __github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/latest'
 
 
@@ -39,7 +44,6 @@ class PyTMBotInstance:
     """
 
     @staticmethod
-    @lru_cache(maxsize=1)
     def __get_bot_token():
         """
         Get the bot token based on the bot mode from the command line arguments.
@@ -61,6 +65,7 @@ class PyTMBotInstance:
         )
 
     @staticmethod
+    @lru_cache(maxsize=1)
     def get_bot_instance() -> telebot.TeleBot:
         """
         Returns the instance of the TeleBot.
@@ -97,6 +102,7 @@ class PyTMBotInstance:
             # Create a new instance of the TeleBot
             PyTMBotInstance._instance.bot = telebot.TeleBot(
                 token=bot_token,
+                threaded=True,
                 use_class_middlewares=True,
                 exception_handler=exceptions.TelebotCustomExceptionHandler(),
             )
