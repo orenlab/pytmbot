@@ -77,6 +77,6 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         """
         # Handle exceptions raised by Telebot.
         log_func = bot_logger.debug if bot_logger.level == 10 else bot_logger.error
-        log_func(f"Failed at {self.__class__.__name__}: {exception}")
+        log_func(f"Failed at {self.__name__}: {exception}")
 
         return True
