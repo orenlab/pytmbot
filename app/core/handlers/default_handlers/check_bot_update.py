@@ -290,28 +290,20 @@ class BotUpdatesHandler(HandlerConstructor):
                 PyTeleMonBotHandlerError: If there is a ValueError while rendering the template.
                 PyTeleMonBotTemplateError: If there is a TemplateError while rendering the template.
             """
-            try:
-                # Send typing action to chat
-                self.bot.send_chat_action(message.chat.id, 'typing')
+            self.bot.send_chat_action(message.chat.id, 'typing')
 
+            try:
                 # Compile the bot's answer
                 bot_answer, need_inline = self._compile_message()
 
-                # Send the bot's answer to the chat
-                if need_inline:
-                    inline_button = self.keyboard.build_inline_keyboard("How update?")
-                    self.bot.send_message(
-                        message.chat.id,
-                        text=bot_answer,
-                        parse_mode='HTML',
-                        reply_markup=inline_button
-                    )
-                else:
-                    self.bot.send_message(
-                        message.chat.id,
-                        text=bot_answer,
-                        parse_mode='HTML',
-                    )
+                inline_button = self.keyboard.build_inline_keyboard("How update?") if need_inline else None
+
+                self.bot.send_message(
+                    message.chat.id,
+                    text=bot_answer,
+                    parse_mode='HTML',
+                    reply_markup=inline_button
+                )
 
             except ValueError:
                 # Raise error if there is a ValueError while rendering the template
