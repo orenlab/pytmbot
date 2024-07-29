@@ -29,4 +29,18 @@ sudo docker rmi pytmbot
 sudo docker pull orenlab/pytmbot:latest
 ```
 
-And we run it in the same way as we would if we had just installed the bot (see the instructions above).
+And we run it in the same way as we would if we had just installed the bot:
+
+```bash
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest
+```
+
+*Note: Please don't forget to adjust the time zone!*
