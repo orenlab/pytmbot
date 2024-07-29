@@ -21,7 +21,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          build-args: --target production
+          args: --target production
           sbom: True
           provenance: True
           file: Dockerfile
