@@ -5,7 +5,7 @@ PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-from telebot.types import Message
+from telebot.types import Message, LinkPreviewOptions
 
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
@@ -63,7 +63,7 @@ class StartHandler(HandlerConstructor):
                     text=bot_answer,
                     reply_markup=main_keyboard,
                     parse_mode="Markdown",
-                    disable_web_page_preview=True
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
             except ValueError:
                 # Raise an exception if there is a ValueError while rendering the templates
