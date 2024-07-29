@@ -61,15 +61,26 @@ sudo docker run -d -m 100M \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-orenlab/pytmbot:latest
+orenlab/pytmbot:latest \
+--log-level=INFO --mode=prod
 ```
 
-##### **Note**
+#### Supported logging levels:
+
+| # | Logging levels | Note                                                                                                                                                                  | 
+|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            |
+| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | 
+| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. |
+
+#### Note #1:
 
 _Please don't forget to specify your time zone! You can find a list of available time zones, for
 example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
 
-Docker image size ~69 Mb.
+#### Note #2:
+
+_Please don't forget to specify Tag version!_
 
 Now everything is ready for you to use the bot. All you need to do is run the `/start` command in your Telegram app.
 

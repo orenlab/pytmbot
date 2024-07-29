@@ -21,9 +21,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          build-args: --target prod
+          build-args: --target production
           sbom: True
           provenance: True
-          file: hub.Dockerfile
+          file: Dockerfile
           push: true
           tags: orenlab/pytmbot:alpine-dev

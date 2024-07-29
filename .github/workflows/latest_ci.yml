@@ -21,9 +21,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: https://github.com/orenlab/pytmbot.git#v0.1.1
-          build-args: --target prod
+          build-args: --target production
           sbom: True
           provenance: True
-          file: hub.Dockerfile
+          file: Dockerfile
           push: true
           tags: orenlab/pytmbot:latest

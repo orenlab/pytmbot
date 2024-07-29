@@ -81,25 +81,15 @@ RUN source /venv/bin/activate && \
     ln -sf /dev/stdout /dev/stdout && \
     ln -sf /dev/stderr /dev/stderr
 
+# Target for CI/CD image
+FROM reliase_base AS production
+
 ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
 
-# Target for CI/CD image, --mode = prod
-FROM reliase_base AS prod
-
-CMD [ "--log-level=INFO", "--mode=prod" ]
-
 # Target for self biuld image, --mode = prod
-FROM reliase_base AS selfbuild_prod
+FROM reliase_base AS selfbuild
 
 # Copy .pytmbotenv file with token (prod, dev)
 COPY .pytmbotenv /opt/pytmbot/
 
-CMD [ "--log-level=INFO", "--mode=prod" ]
-
-# Target for self biuld image, --mode = dev
-FROM reliase_base AS selfbuild_dev
-
-# Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
-
-CMD [ "--log-level=DEBUG", "--mode=dev" ]
+ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
