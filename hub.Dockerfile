@@ -82,4 +82,5 @@ RUN source /venv/bin/activate && \
 # Target for CI/CD image, --mode = prod
 FROM reliase_base AS prod
 
-CMD [ "/venv/bin/python3", "app/main.py", "--log-level=INFO", "--mode=prod" ]
+ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+CMD ["--log-level=INFO", "--mode=prod"]
