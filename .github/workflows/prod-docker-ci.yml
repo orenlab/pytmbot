@@ -75,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          build-args: --target production
+          target: production
           sbom: True
           provenance: True
           file: Dockerfile

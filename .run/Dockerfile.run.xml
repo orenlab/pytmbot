@@ -25,6 +25,7 @@
         <option name="buildCliOptions" value="--target selfbuild" />
         <option name="command" value="--log-level=DEBUG --mode=dev" />
         <option name="containerName" value="pytmbot" />
+        <option name="showCommandPreview" value="true" />
         <option name="sourceFilePath" value="Dockerfile" />
         <option name="volumeBindings">
           <list>

@@ -45,10 +45,7 @@ To build a Docker image:
 cd ~/pytmbot
 
 # To launch with a production token. Default way:
-docker --target selfbuild_prod build -t orenlab/pytmbot:latest .
-
-# To launch with a development token. Only for development:
-docker --target selfbuild_dev build -t orenlab/pytmbot:latest .
+docker --target production build -t orenlab/pytmbot:latest .
 ```
 
 To launch a Docker container:

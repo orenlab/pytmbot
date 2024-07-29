@@ -1,12 +1,6 @@
 #############################################################
 ## pyTMbot Dockerfile
 # https://github.com/orenlab/pytmbot
-#
-# To launch with a production token. Default way:
-# docker --target prod build -t orenlab/pytmbot:latest .
-#
-# To launch with a development token. Only for development:
-# docker --target dev build -t orenlab/pytmbot:latest .
 #############################################################
 
 # Set base images tag
