@@ -99,42 +99,72 @@ class Jinja2Renderer:
         except TemplateError as error:
             raise TemplateError("Error loading template from template folder:") from error
 
-    def render_templates(self, template_name: str, *, emojis: Optional[Dict[str, str]] = None,
-                         **context: Dict[str, Any]) -> str:
+    def render_templates(self, template_name: str, emojis: Optional[Dict[str, str]] = None,
+                         **kwargs: Dict[str, Any]) -> str:
         """
-        Render a template using Jinja2.
+        Render a Jinja2 template with the given name and context.
 
         Args:
             template_name (str): The name of the template to render.
-            emojis (Optional[Dict[str, str]]): A dictionary of emojis to be used in the template.
-            **context (Dict[str, Any]): The context variables to pass to the template.
+            emojis (Optional[Dict[str, str]]): A dictionary of emojis to use in the template.
+            **kwargs: Additional context to pass to the template.
 
         Returns:
             str: The rendered template.
 
         Raises:
-            exceptions.PyTeleMonBotTemplateError: If the template name is unknown or if there is an error parsing
-            the template.
+            exceptions.PyTeleMonBotTemplateError: If the template name is unknown or if there is an error parsing the
+            template.
         """
         # Check if the template name is known
         if template_name not in self.known_templates:
-            raise exceptions.PyTeleMonBotTemplateError(f"Unknown template name: {template_name}")
+            raise exceptions.PyTeleMonBotTemplateError(f"Unknown template: {template_name}")
 
         try:
-            # Initialize the Jinja2 environment
-            self.jinja_env: jinja2.Environment = self.__initialize_jinja_environment()
-            # Load the template either from cache or the file system
+            # Get the template and render it with the given context
+            return self.__get_template(template_name).render(emojis=emojis, **kwargs)
+        except TemplateError as error:
+            # If there is an error parsing the template, raise an exception with a descriptive message
+            raise exceptions.PyTeleMonBotTemplateError(f"Error parsing template: {template_name}") from error
+
+    def __get_template(self, template_name: str) -> jinja2.Template:
+        """
+        Get a Jinja2 template by its name. If the template is not found in the cache,
+        it will be loaded from the folder and added to the cache.
+
+        Args:
+            template_name (str): The name of the template.
+
+        Returns:
+            jinja2.Template: The Jinja2 template object.
+
+        Raises:
+            TemplateError: If there is an error loading the template.
+
+        """
+        try:
+            # Log the template name being loaded
             bot_logger.debug(f"Loading template: {template_name}")
+
+            # Check if the template is already in the cache
             template = self.template_cache.get(template_name)
+
             if template is None:
-                bot_logger.debug(f"Template {template_name} not in cache, loading from file system")
+                # Log that the template is not in the cache
+                bot_logger.debug(f"Template {template_name} not found in cache, loading from folder...")
+
+                # Initialize the Jinja2 environment if it hasn't been initialized yet
+                self.jinja_env = self.jinja_env or self.__initialize_jinja_environment()
+
+                # Load the template from the folder and add it to the cache
                 template = self.jinja_env.get_template(template_name)
                 self.template_cache[template_name] = template
 
-            # Render the template with provided context and emojis
-            bot_logger.debug(f"Rendering template: {template_name}")
-            rendered_template = template.render(emojis=emojis, **context)
+                # Log that the template was loaded successfully
+                bot_logger.debug(f"Template {template_name} loaded from folder successfully!")
 
-            return rendered_template
-        except TemplateError as e:
-            raise exceptions.PyTeleMonBotTemplateError("Error parsing template") from e
+            return template
+
+        except TemplateError as error:
+            # Raise an exception with a descriptive message if there is an error loading the template
+            raise TemplateError(f"Error loading template: {template_name}") from error
