@@ -1,6 +1,8 @@
 #############################################################
 ## pyTMbot Dockerfile
+# Copyright (C) 2024 - Denis Rozhnovskiy
 # https://github.com/orenlab/pytmbot
+# License: MIT
 #############################################################
 
 # Set base images tag
