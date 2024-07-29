@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
+from app import bot_logger
 from app.core.settings.keyboards import KeyboardSettings
 from app.utilities.utilities import EmojiConverter
 
@@ -93,76 +94,52 @@ class Keyboard(KeyboardSettings):
         return reply_keyboard
 
     @lru_cache
-    def build_inline_keyboard(self, *button_texts: str, callback_data: Optional[str] = None) -> InlineKeyboardMarkup:
+    def build_inline_keyboard(self, *button_texts: List[str] | str,
+                              callback_data_prefix: Optional[str] = None,
+                              callback_data: Optional[str] = None,
+                              text_prefix: Optional[str] = None) -> InlineKeyboardMarkup:
         """
-        Constructs an inline keyboard using the provided button texts and callback data.
+        Constructs an inline keyboard.
 
         Args:
-            button_texts (List[str]): List of button texts.
-            callback_data (Optional[str], optional): The callback data to be associated with the buttons.
-                Defaults to None.
+            self: The instance of the Keyboard class.
+            *button_texts: The text for the buttons in the inline keyboard.
+            callback_data_prefix (Optional[str], optional): The prefix for the callback data. Defaults to None.
+            callback_data (Optional[str], optional): The callback data. Defaults to None.
+            text_prefix (Optional[str], optional): The prefix for the button text. Defaults to None.
 
         Returns:
-            InlineKeyboardMarkup: The constructed inline keyboard markup.
+            InlineKeyboardMarkup: The constructed inline keyboard.
+
+        Raises:
+            None
+
+        Examples:
+            >>> k = Keyboard()
+            >>> k.build_inline_keyboard('Button 1', 'Button 2', callback_data='data', callback_data_prefix='p_')
+            >>> # Returns an inline keyboard with two buttons and their respective callback data and text prefixes.
         """
+
+        # Set the callback data prefix and callback data
+        callback_data_prefix = callback_data_prefix or ''
+        callback_data = callback_data or ''
+        text_prefix = text_prefix or ''
+
+        # Create a list of InlineKeyboardButton objects
         buttons = [
             InlineKeyboardButton(
-                text=text,
-                callback_data=callback_data or text.lower().replace(' ', '_')
+                text=f"{text_prefix} {text}",
+                callback_data=f'{callback_data_prefix}{callback_data or text.replace(" ", "_").lower()}'
             )
             for text in button_texts
         ]
 
-        return InlineKeyboardMarkup([buttons])
+        # Log the construction of the inline keyboard
+        bot_logger.debug(f'Trying to build an inline keyboard')
+        bot_logger.debug(f'callback_data_prefix: "{callback_data_prefix}"')
+        bot_logger.debug(f'callback_data: "{callback_data}"')
+        bot_logger.debug(f'text_prefix: "{text_prefix}"')
+        bot_logger.debug(f'button_texts: "{button_texts}"')
 
-    @staticmethod
-    def build_container_inline_keyboard(container_names: List[str]) -> Optional[InlineKeyboardMarkup]:
-        """
-        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
-
-        Args:
-            container_names (List[str]): List of container names.
-
-        Returns:
-            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
-        """
-        # Check if container_names list is empty
-        if not container_names:
-            return None
-
-        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
-        buttons = [
-            InlineKeyboardButton(
-                text=container_name,
-                callback_data='__get_full__' + container_name
-            ) for container_name in container_names
-        ]
-
-        # Create and return an InlineKeyboardMarkup with the list of buttons
-        return InlineKeyboardMarkup([buttons])
-
-    @staticmethod
-    def build_logs_inline_keyboard(*container_names: str) -> Optional[InlineKeyboardMarkup]:
-        """
-        Constructs a custom InlineKeyboardMarkup with buttons for each container name.
-
-        Args:
-            container_names (str): List of container names.
-
-        Returns:
-            Optional[InlineKeyboardMarkup]: Inline keyboard with buttons or None if the container_names list is empty.
-        """
-        # Check if container_names list is empty
-        if not container_names:
-            return None
-
-        # Create a list of InlineKeyboardButton objects for each container name with a single list comprehension
-        buttons = [
-            InlineKeyboardButton(
-                text=f'Get logs for {container_name}',
-                callback_data='__get_logs__' + container_name
-            ) for container_name in container_names
-        ]
-
-        # Create and return an InlineKeyboardMarkup with the list of buttons
+        # Build the inline keyboard
         return InlineKeyboardMarkup([buttons])

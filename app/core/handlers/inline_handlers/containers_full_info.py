@@ -226,7 +226,11 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 bot_logger.exception(f"Failed at @{self.__class__.__name__} - exception: {e}")
                 return handle_container_not_found(call, text=f"{container_name}: Error getting container details")
 
-            _inline_keyboard = self.keyboard.build_logs_inline_keyboard(container_name)
+            _inline_keyboard = self.keyboard.build_inline_keyboard(
+                container_name,
+                callback_data_prefix='__get_logs__',
+                text_prefix="Get logs for "
+            )
 
             self.bot.edit_message_text(
                 chat_id=call.message.chat.id,
@@ -256,7 +260,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             bot_logger.debug(f"Updated list of containers: {buttons}")
 
             # Build a custom inline keyboard
-            inline_keyboard = self.keyboard.build_container_inline_keyboard(buttons)
+            inline_keyboard = self.keyboard.build_inline_keyboard(*buttons, callback_data_prefix='__get_full__')
 
             # Edit the message text with the updated container list and keyboard
             self.bot.edit_message_text(
