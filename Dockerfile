@@ -50,14 +50,14 @@ ARG PYTHON_VERSION=3.12
 COPY requirements.txt .
 
 # Install all deps (need to build psutil)
-RUN apk --no-cache add gcc python3-dev musl-dev linux-headers
-
-# Install dependencies to the venv path
-RUN python${PYTHON_VERSION} -m venv --without-pip venv
-RUN pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
-    -r requirements.txt --upgrade
-
-RUN python${PYTHON_VERSION} -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
+RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
+# Activate venv
+    python${PYTHON_VERSION} -m venv --without-pip venv && \
+# Install deps
+    pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
+    -r requirements.txt --upgrade &&  \
+# Uninstall build deps
+    python${PYTHON_VERSION} -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
 
 # Second Alpine stage - based on the base stage. Setup bot
 FROM alpine_base AS reliase_base
