@@ -55,7 +55,8 @@ class AboutBotHandler(HandlerConstructor):
                 self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
-                    parse_mode='Markdown'
+                    parse_mode='Markdown',
+                    disable_web_page_preview=True
                 )
             except ValueError:
                 # Raise an exception if there is a ValueError while rendering the template
