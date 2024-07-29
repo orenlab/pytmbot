@@ -135,11 +135,12 @@ class Keyboard(KeyboardSettings):
         ]
 
         # Log the construction of the inline keyboard
-        bot_logger.debug(f'Trying to build an inline keyboard')
+        bot_logger.debug(f'Trying to build an inline keyboard...')
         bot_logger.debug(f'callback_data_prefix: "{callback_data_prefix}"')
         bot_logger.debug(f'callback_data: "{callback_data}"')
         bot_logger.debug(f'text_prefix: "{text_prefix}"')
         bot_logger.debug(f'button_texts: "{button_texts}"')
+        bot_logger.debug(f'Building inline keyboard Done!')
 
         # Build the inline keyboard
         return InlineKeyboardMarkup([buttons])
