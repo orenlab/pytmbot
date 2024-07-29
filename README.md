@@ -16,7 +16,6 @@ The bot operates synchronously. It does not use webhooks.
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 
-
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
 Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
 gather information.
@@ -181,9 +180,13 @@ In addition to button navigation, the bot also supports commands. Below is a lis
 
 - See [roadmap.md](docs/roadmap.md)
 
-## 👾 Known issues
+## 🐋 pyTMbot on Docker Hub
 
-- You tell me :)
+- Official pyTMbot repo on Docker Hub: https://hub.docker.com/r/orenlab/pytmbot
+
+[![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
+[![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
+![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
 ## 🧬 Authors
 

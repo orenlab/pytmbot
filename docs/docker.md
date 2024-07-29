@@ -4,6 +4,7 @@ A simple Telegram bot designed to gather basic information about the status of y
 synchronously. It does not use webhooks.
 
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
+![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 
 ## 💡 Features
@@ -42,7 +43,8 @@ Screenshots are available here: [screenshots.md](https://github.com/orenlab/pytm
 ## 🧪 Configure bot
 
 1. Secret Settings:
-   -Let's create the necessary files:
+
+- Let's create the necessary files:
 
 ```bash
 sudo -i
