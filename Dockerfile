@@ -83,7 +83,7 @@ FROM reliase_base AS production
 ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
 
 # Target for self biuld image, --mode = prod
-FROM reliase_base AS selfbuild
+FROM reliase_base AS self_build
 
 # Copy .pytmbotenv file with token (prod, dev)
 COPY .pytmbotenv /opt/pytmbot/

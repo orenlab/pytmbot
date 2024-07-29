@@ -1,11 +1,18 @@
-version: "3.9"
 services:
   pytmbot:
     container_name: "pytmbot"
     build:
-      target: prod
+      context: .
       dockerfile: Dockerfile
+      target: self_build
     restart: always
     pid: 'host'
+    image: orenlab/pytmbot:latest
+    mem_limit: 100M
+    security_opt:
+      - no-new-privileges
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    command:
+      - "--log-level=DEBUG"
+      - "--mode=dev"
