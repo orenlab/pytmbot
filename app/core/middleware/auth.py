@@ -61,12 +61,15 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             or None otherwise.
         """
         # Extract user information from the message object
-        user = message.from_user
-        user_id = user.id
-        user_name = user.username
-        chat_id = message.chat.id
-        language_code = user.language_code
-        is_bot = user.is_bot
+        user = message.from_user or None
+        user_id = user.id or None
+        user_name = user.username or None
+        chat_id = message.chat.id or None
+        language_code = user.language_code or None
+        is_bot = user.is_bot or None
+
+        if user_id is None:
+            return CancelUpdate()
 
         # Check if the user ID is in the list of allowed user IDs
         if user_id not in self.allowed_user_ids:
@@ -77,8 +80,8 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             if self.attempt_count[user_id] >= 3:
                 # Log an error message and terminate the session
                 error_message = (
-                    f"The number of attempts to access from {user_name} (ID: {user_id}) in the system has exceeded "
-                    f"the allowed limit. Therefore, I am terminating the current session."
+                    f"The number of attempts to access the bot has been exceeded. "
+                    f"Session for user {user_name} (ID: {user_id}) will be ignored."
                 )
                 bot_logger.error(error_message)
                 return CancelUpdate()
@@ -100,7 +103,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         bot_logger.info(f"Access granted for user {user_name} (ID: {user_id})")
         return None
 
-    def post_process(self, message: Message, data: Any, exception: Optional[Exception]):
+    def post_process(self, message: Message, data: Any, exception: Optional[Exception]) -> None:
         """
         Post-process function that handles the message after it has been processed.
 
@@ -112,6 +115,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             data (Any): Additional data from Telebot.
             exception (Optional[Exception]): The exception that occurred during processing, if any.
         """
+        pass
 
     @staticmethod
     def __get_message_text(count: int) -> str:
