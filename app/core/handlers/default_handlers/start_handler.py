@@ -65,8 +65,6 @@ class StartHandler(HandlerConstructor):
                     parse_mode="Markdown",
                     link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
-            except ValueError:
+            except (AttributeError, ValueError) as err:
                 # Raise an exception if there is a ValueError while rendering the templates
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

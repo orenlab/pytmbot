@@ -310,8 +310,6 @@ class BotUpdatesHandler(HandlerConstructor):
                     parse_mode='HTML',
                     reply_markup=inline_button
                 )
-
-            except ValueError:
-                # Raise error if there is a ValueError while rendering the template
-                error_msg = self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                raise self.exceptions.PyTeleMonBotHandlerError(error_msg)
+            except (AttributeError, ValueError) as err:
+                # Raise an exception if there is a ValueError while rendering the templates
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

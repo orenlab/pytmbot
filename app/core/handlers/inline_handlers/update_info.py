@@ -57,9 +57,6 @@ class InlineUpdateInfoHandler(HandlerConstructor):
                     text=bot_answer,
                     parse_mode="Markdown"
                 )
-            except (ValueError, self.template_error) as e:
-                # Raise an exception if there is a ValueError or TemplateError
-                if isinstance(e, ValueError):
-                    raise self.exceptions.PyTeleMonBotHandlerError(self.bot_msg_tpl.VALUE_ERR_TEMPLATE)
-                else:
-                    raise self.exceptions.PyTeleMonBotTemplateError(self.bot_msg_tpl.TPL_ERR_TEMPLATE)
+            except (AttributeError, ValueError) as err:
+                # Raise an exception if there is a ValueError while rendering the templates
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

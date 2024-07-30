@@ -12,7 +12,6 @@ from app import (
 from app.core.adapters.psutil_adapter import PsutilAdapter
 from app.core.jinja2.jinja2 import Jinja2Renderer, TemplateError
 from app.core.keyboards.keyboards import Keyboard
-from app.core.settings.loggers import MessageTpl
 from app.utilities.utilities import (
     EmojiConverter,
     round_up_tuple,
@@ -28,7 +27,6 @@ class HandlerConstructor:
     Attributes:
         bot (telebot.TeleBot): The Telegram bot instance.
         keyboard (Keyboard): The keyboard object for building reply and inline keyboards.
-        bot_msg_tpl (MessageTpl): The message template object for formatting bot messages.
         config (Config): The configuration object containing bot settings.
         jinja (Jinja2Renderer): The Jinja2 renderer object for templating bot messages.
         template_error (TemplateError): The exception class for template errors.
@@ -55,9 +53,6 @@ class HandlerConstructor:
 
         # Initialize the keyboard object for building reply and inline keyboards
         self.keyboard = Keyboard()
-
-        # Initialize the message template object for formatting bot messages
-        self.bot_msg_tpl = MessageTpl()
 
         # Set the configuration object containing bot settings
         self.config = config

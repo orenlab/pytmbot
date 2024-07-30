@@ -86,8 +86,6 @@ class UptimeHandler(HandlerConstructor):
                     message.chat.id,
                     text=uptime_bot_answer,
                 )
-            except ConnectionError:
-                # Raise an exception if there is a connection error while sending the message
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+            except (AttributeError, ValueError) as err:
+                # Raise an exception if there is a ValueError while rendering the templates
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

@@ -44,11 +44,9 @@ class ProcessHandler(HandlerConstructor):
             # Use psutil to gather memory data
             context = self._get_data()
             return context
-        except ValueError:
-            # Raise an exception if there is an error parsing the data
-            raise self.exceptions.PyTeleMonBotHandlerError(
-                self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-            )
+        except (AttributeError, ValueError) as err:
+            # Raise an exception if there is a ValueError while rendering the templates
+            raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")
 
     def _get_answer(self) -> str:
         """
@@ -83,11 +81,9 @@ class ProcessHandler(HandlerConstructor):
 
             # Return the compiled message
             return bot_answer
-        except self.template_error:
+        except self.template_error as err:
             # Raise a PyTeleMonBotTemplateError if there is a TemplateError during rendering
-            raise self.exceptions.PyTeleMonBotTemplateError(
-                self.bot_msg_tpl.TPL_ERR_TEMPLATE
-            )
+            raise self.exceptions.PyTeleMonBotTemplateError(f"Error parsing template: {err}")
 
     def handle(self):
         """
@@ -119,8 +115,6 @@ class ProcessHandler(HandlerConstructor):
                     text=bot_answer,
                     parse_mode="HTML"
                 )
-            except ConnectionError:
-                # Raise an exception if there's a connection error
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+            except (AttributeError, ValueError) as err:
+                # Raise an exception if there is a ValueError while rendering the templates
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

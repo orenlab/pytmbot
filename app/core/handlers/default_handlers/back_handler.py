@@ -26,8 +26,8 @@ class BackHandler(HandlerConstructor):
             Handler for the 'Back to main menu' message.
 
             This function is triggered when the user sends a message that matches the regexp "Back to main menu".
-            It sends a typing action to the user, builds a main keyboard, gets the user's first name, renders a template,
-            and sends the rendered template to the user with the main keyboard.
+            It sends a typing action to the user, builds a main keyboard, gets the user's first name,
+            renders a template, and sends the rendered template to the user with the main keyboard.
 
             Args:
                 message (telebot.types.Message): The message object received from the user.
@@ -68,8 +68,6 @@ class BackHandler(HandlerConstructor):
                     text=bot_answer,
                     reply_markup=main_keyboard
                 )
-            except ValueError:
+            except (AttributeError, ValueError) as err:
                 # Raise an exception if there is a ValueError while rendering the templates
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

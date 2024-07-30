@@ -48,8 +48,7 @@ class EchoHandler(HandlerConstructor):
                 response: str = 'In a robotic voice: I have checked my notes several times. ' \
                                 'Unfortunately, there is no mention of such a command :('
                 self.bot.send_message(message.chat.id, text=response)
-            except ValueError:
-                # Raise an exception if there is a ValueError
-                raise self.exceptions.PyTeleMonBotHandlerError(
-                    self.bot_msg_tpl.VALUE_ERR_TEMPLATE
-                )
+
+            except (AttributeError, ValueError) as err:
+                # Raise an exception if there is a ValueError while rendering the templates
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")

@@ -22,7 +22,6 @@ Steps to reproduce the behavior:
 
 _Running the bot in debug mode is explained in detail here: [debug.md](docs/debug.md)_
 
-
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
