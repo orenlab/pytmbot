@@ -112,7 +112,6 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             data (Any): Additional data from Telebot.
             exception (Optional[Exception]): The exception that occurred during processing, if any.
         """
-        pass
 
     @staticmethod
     def __get_message_text(count: int) -> str:
