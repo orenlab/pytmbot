@@ -4,7 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from telebot.types import Message
 
@@ -19,12 +19,13 @@ class DockerHandler(HandlerConstructor):
     """
 
     @staticmethod
-    def __fetch_counters():
+    def __fetch_counters() -> Optional[Dict[str, int]]:
         """
-        Fetch docker data.
+        Fetch Docker counters.
 
         Returns:
-            Optional[list]: A list of Docker images if found, None if no images are found or an error occurs.
+            Optional[Dict[str, int]]: A dictionary containing Docker counters, or None if the counters cannot be
+            fetched.
         """
         return DockerAdapter().fetch_docker_counters()
 
