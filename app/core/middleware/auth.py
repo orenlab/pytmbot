@@ -4,7 +4,7 @@
 PyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
-from typing import Any, Optional, List, Type
+from typing import Any, Optional, List
 
 from telebot.handler_backends import (
     BaseMiddleware,
@@ -17,7 +17,6 @@ from app import (
     PyTMBotInstance
 )
 from app.core.logs import bot_logger
-from app.core.settings.loggers import MessageTpl
 
 
 class AccessControl(BaseMiddleware, PyTMBotInstance):
@@ -38,17 +37,11 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         Returns:
             None
         """
-        # Call the parent class's __init__ method
         super().__init__()
-
-        # Initialize the bot instance
         self.bot = self.get_bot_instance()
-
-        # Set the bot message template
-        self.bot_msg_tpl: 'Type[MessageTpl]' = MessageTpl
-
-        # Define the update types as ['message', 'inline_query']
-        self.update_types: List[str] = ['message', 'inline_query']
+        self.update_types: List[str] = ['message', 'edited_message', 'callback_query']
+        self.allowed_user_ids = set(config.allowed_user_ids)
+        self.attempt_count = {}
 
     def pre_process(self, message: Message, data: Any) -> CancelUpdate:
         """
@@ -61,39 +54,39 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         Returns:
             telebot.types.CancelUpdate: An instance of the CancelUpdate class.
         """
+        user = message.from_user
+        user_id = user.id
+        user_name = user.username
+        chat_id = message.chat.id
+        language_code = user.language_code
+        is_bot = user.is_bot
 
-        # Extract user information from the message
-        user_id = message.from_user.id  # get user id
-        user_name = message.from_user.username  # get username
-        chat_id = message.chat.id  # get chat id
-        language_code = message.from_user.language_code  # get user language code
-        is_bot = message.from_user.is_bot  # get if user is a bot
+        if user_id not in self.allowed_user_ids:
+            self.attempt_count[user_id] = self.attempt_count.get(user_id, 0) + 1
 
-        # Check if the user is in the list of allowed user IDs
-        if user_id not in config.allowed_user_ids:
-            # Send a typing action to indicate that the bot is processing
-            self.bot.send_chat_action(chat_id, 'typing')
+            if self.attempt_count[user_id] >= 3:
+                error_message = (
+                    f"The number of attempts to access from {user_name} (ID: {user_id}) in the system has exceeded "
+                    f"the allowed limit. Therefore, I am terminating the current session."
+                )
+                bot_logger.error(error_message)
+                return CancelUpdate()
 
-            # Log the failed access
             error_message = (
-                f"Failed access for user {user_name} (ID: {user_id}, "
-                f"Language: {language_code}, IsBot: {is_bot})"
+                f"Access denied for user {user_name} (ID: {user_id}, "
+                f"Language: {language_code}, IsBot: {is_bot}). Reason: User is not allowed to access the bot."
             )
             bot_logger.error(error_message)
 
-            # Send a message to the user indicating that they are blocked
-            blocked_message = self.bot_msg_tpl.ERROR_USER_BLOCKED_TEMPLATE
+            blocked_message = self.__get_message_text(self.attempt_count[user_id])
+
             self.bot.send_message(chat_id, blocked_message)
 
-            # Cancel any further processing of the message
             return CancelUpdate()
 
-        # Log the successful access
-        bot_logger.info(
-            f"Successful access for user {user_name} (ID: {user_id})"
-        )
+        bot_logger.info(f"Access granted for user {user_name} (ID: {user_id})")
 
-    def post_process(self, message: Message, data: Any, exception: Optional[Exception]) -> None:
+    def post_process(self, message: Message, data: Any, exception: Optional[Exception]):
         """
         Post-process function that handles the message after it has been processed.
 
@@ -104,7 +97,27 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             message (telebot.types.Message): The message object received from Telebot.
             data (Any): Additional data from Telebot.
             exception (Optional[Exception]): The exception that occurred during processing, if any.
+        """
+
+    @staticmethod
+    def __get_message_text(count: int) -> str:
+        """
+        Get the appropriate message based on the count.
+
+        Args:
+            count (int): The count of attempts.
 
         Returns:
-            None
+            str: The appropriate message.
+
         """
+        # Define the messages to be returned based on the count
+        messages = [
+            "⛔🚫🚧 You do not have permission to access this service. I apologize!",
+            "🙅‍ Sorry to repeat myself, but you still don't have access to this service. "
+            "I apologize for any inconvenience, but I cannot change the access settings. "
+            "This is a security issue 🔥🔥🔥. Goodbye! 👋👋👋"
+        ]
+
+        # Return the message at the index specified by the count
+        return messages[count - 1]
