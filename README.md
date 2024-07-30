@@ -14,10 +14,6 @@ The bot operates synchronously. It does not use webhooks.
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
-![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
-[![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
-[![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
-![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
 The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
 Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
@@ -105,7 +101,12 @@ In addition to button navigation, the bot also supports commands. Below is a lis
 
 ## 🐋 pyTMbot on Docker Hub
 
-- Official pyTMbot repo on Docker Hub: https://hub.docker.com/r/orenlab/pytmbot
+![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
+[![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
+[![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
+![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
+
+- pyTMbot repo on Docker Hub: https://hub.docker.com/r/orenlab/pytmbot
 
 ## 🧬 Authors
 
