@@ -61,15 +61,12 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             or None otherwise.
         """
         # Extract user information from the message object
-        user = message.from_user or None
-        user_id = user.id or None
-        user_name = user.username or None
-        chat_id = message.chat.id or None
-        language_code = user.language_code or None
-        is_bot = user.is_bot or None
-
-        if user_id is None:
-            return CancelUpdate()
+        user = message.from_user
+        user_id = user.id
+        user_name = user.username
+        chat_id = message.chat.id
+        language_code = user.language_code
+        is_bot = user.is_bot
 
         # Check if the user ID is in the list of allowed user IDs
         if user_id not in self.allowed_user_ids:
