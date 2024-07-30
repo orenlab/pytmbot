@@ -7,7 +7,6 @@ the status of your local servers
 
 import logging
 import sys
-from functools import partial
 from typing import List, Callable, Any, Tuple
 
 from app.utilities.utilities import (
@@ -89,10 +88,6 @@ def build_bot_logger() -> logging.Logger:
 
     # Disable propagation of logs to parent loggers
     logger.propagate = False
-
-    # Override the error method to include exception information if log level is DEBUG
-    if log_level == 'DEBUG':
-        logger.error = partial(logger.error, exc_info=True)
 
     logger.debug("Logger initialized")
     logger.debug(f"Log level: {logger.level}")
