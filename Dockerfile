@@ -89,3 +89,8 @@ FROM reliase_base AS self_build
 COPY .pytmbotenv /opt/pytmbot/
 
 ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+
+# Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
+FROM reliase_base AS prod
+
+ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]

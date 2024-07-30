@@ -22,7 +22,7 @@
     <deployment type="dockerfile">
       <settings>
         <option name="imageTag" value="dev-latest-loc" />
-        <option name="buildCliOptions" value="--target selfbuild" />
+        <option name="buildCliOptions" value="--target self_build" />
         <option name="command" value="--log-level=DEBUG --mode=dev" />
         <option name="containerName" value="pytmbot" />
         <option name="showCommandPreview" value="true" />
