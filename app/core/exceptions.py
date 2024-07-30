@@ -61,22 +61,16 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         None
     """
 
-    def handle(self, exception: Exception) -> bool:
+    def handle(self, ex: Exception) -> bool:
         """
-        Handle exceptions raised by Telebot.
+        Log and handle exceptions raised by Telebot.
 
         Args:
-            exception (Exception): The exception to be handled.
+            ex (Exception): The exception to handle.
 
         Returns:
             bool: True if the exception was handled successfully.
-
-        Logs:
-            If the log level is set to DEBUG, logs the exception with the DEBUG level.
-            Otherwise, logs the exception with the ERROR level.
         """
-        # Handle exceptions raised by Telebot.
-        log_func = bot_logger.debug if bot_logger.level == 10 else bot_logger.error
-        log_func(f"Failed at Telebot package: {exception}")
+        bot_logger.log(bot_logger.level, f"Failed at Telebot package: {ex}", exc_info=bot_logger.level)
 
         return True

@@ -39,7 +39,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         """
         super().__init__()
         self.bot = self.get_bot_instance()
-        self.update_types: List[str] = ['message', 'edited_message', 'callback_query']
+        self.update_types: List[str] = ['message']
         self.allowed_user_ids = set(config.allowed_user_ids)
         self.attempt_count = {}
 
