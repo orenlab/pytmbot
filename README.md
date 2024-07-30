@@ -63,10 +63,21 @@ in `setup_req.txt`
 
 ## 🛡 Secure
 
-The bot has an authorization mechanism. That is based on a unique value we can get from the message's
-variable `from_user.id`, which is the Telegram user ID.
-By comparing this value with the `user.id` values specified in the bot's settings
-(which is done at the initial stage of configuring the bot), we can determine the behavior of the bot.
+An authorization mechanism has been built into the pyTMbot management system.
+To describe the principle of its operation in the most concise way, we can say the following:
+
+- At the initial stage of configuration, we set the unique identifiers of users who are allowed to access the
+  bot (`ALLOWED_USER_IDS`), regardless of which official method is used.
+- With each new request for the bot, the middleware `AccessControl` is activated first. It checks whether the
+  variable `from_user.id` matches the values specified in the settings. If a match is found, the request is sent to the
+  appropriate handler.
+- In all other cases, a mechanism is triggered that informs the user that they do not have access to the bot and stops
+  processing.
+
+In the `alpine-dev` build (and the next release `0.1.2`), this mechanism has been expanded:
+
+- The bot now reacts to incoming requests by reporting the lack of access twice, then completely stops processing
+  messages.
 
 All failed attempts to authorize are logged with an `ERROR` flag.
 
