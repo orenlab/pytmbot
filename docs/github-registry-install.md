@@ -26,6 +26,20 @@ nano .pytmbotenv
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 
+- For stable tag: `0.0.9`, `0.1.1`, `latest`:
+
+```bash
+# The bot token that you received from the BotFather:
+BOT_TOKEN=<PUT YOUR VALUE HERE>
+# Add your telegram IDs:
+ALLOWED_USER_IDS=[00000000000, 00000000000]
+# Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
+DOCKER_HOST='unix:///var/run/docker.sock'
+PODMAN_HOST=''
+```
+
+- For `alpine-dev` tag:
+
 ```bash
 # The bot token that you received from the BotFather:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
@@ -59,11 +73,11 @@ ghcr.io/orenlab/pytmbot:latest \
 
 #### Supported logging levels:
 
-| # | Logging levels | Note                                                                                                                                                                  | 
-|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            |
-| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | 
-| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. |
+| # | Logging levels | Note                                                                                                                                                                  | Args                | 
+|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            | `--log-level=INFO`  |
+| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | `--log-level=ERROR` | 
+| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. | `--log-level=DEBUG` |
 
 #### Note #1:
 

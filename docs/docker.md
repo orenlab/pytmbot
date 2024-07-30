@@ -107,11 +107,11 @@ orenlab/pytmbot:latest \
 
 #### Supported logging levels:
 
-| # | Logging levels | Note                                                                                                                                                                  | 
-|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            |
-| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | 
-| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. |
+| # | Logging levels | Note                                                                                                                                                                  | Args                | 
+|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            | `--log-level=INFO`  |
+| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | `--log-level=ERROR` | 
+| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. | `--log-level=DEBUG` |
 
 #### Note #1:
 
