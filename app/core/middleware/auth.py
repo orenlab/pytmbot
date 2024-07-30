@@ -47,13 +47,20 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         """
         Check if the user is allowed to access the bot.
 
+        This function checks if the user ID is in the list of allowed user IDs. If not, it increments the attempt count
+        for the user ID. If the attempt count exceeds the allowed limit, it logs an error message and terminates
+        the session. If the user ID is not in the list of allowed user IDs, it logs an error message and sends a blocked
+        message to the user. If the user ID is in the list of allowed user IDs, it logs an info message.
+
         Args:
             message (Message): Object from Telebot containing user information.
             data (Any): Additional data from Telebot.
 
         Returns:
-            Optional[CancelUpdate]: An instance of the CancelUpdate class if the user is not allowed to access the bot, None otherwise.
+            Optional[CancelUpdate]: An instance of the CancelUpdate class if the user is not allowed to access the bot,
+            or None otherwise.
         """
+        # Extract user information from the message object
         user = message.from_user
         user_id = user.id
         user_name = user.username
@@ -61,10 +68,14 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         language_code = user.language_code
         is_bot = user.is_bot
 
+        # Check if the user ID is in the list of allowed user IDs
         if user_id not in self.allowed_user_ids:
+            # Increment the attempt count for the user ID
             self.attempt_count[user_id] = self.attempt_count.get(user_id, 0) + 1
 
+            # Check if the attempt count exceeds the allowed limit
             if self.attempt_count[user_id] >= 3:
+                # Log an error message and terminate the session
                 error_message = (
                     f"The number of attempts to access from {user_name} (ID: {user_id}) in the system has exceeded "
                     f"the allowed limit. Therefore, I am terminating the current session."
@@ -72,6 +83,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
                 bot_logger.error(error_message)
                 return CancelUpdate()
 
+            # Log an error message and send a blocked message to the user
             error_message = (
                 f"Access denied for user {user_name} (ID: {user_id}, "
                 f"Language: {language_code}, IsBot: {is_bot}). Reason: User is not allowed to access the bot."
@@ -84,6 +96,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
 
             return CancelUpdate()
 
+        # Log an info message if the user ID is in the list of allowed user IDs
         bot_logger.info(f"Access granted for user {user_name} (ID: {user_id})")
         return None
 
