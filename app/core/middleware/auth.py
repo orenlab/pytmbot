@@ -43,16 +43,16 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         self.allowed_user_ids = set(config.allowed_user_ids)
         self.attempt_count = {}
 
-    def pre_process(self, message: Message, data: Any) -> CancelUpdate:
+    def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
         """
         Check if the user is allowed to access the bot.
 
         Args:
-            message (telebot.types.Message): Object from Telebot containing user information.
+            message (Message): Object from Telebot containing user information.
             data (Any): Additional data from Telebot.
 
         Returns:
-            telebot.types.CancelUpdate: An instance of the CancelUpdate class.
+            Optional[CancelUpdate]: An instance of the CancelUpdate class if the user is not allowed to access the bot, None otherwise.
         """
         user = message.from_user
         user_id = user.id
@@ -85,6 +85,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             return CancelUpdate()
 
         bot_logger.info(f"Access granted for user {user_name} (ID: {user_id})")
+        return None
 
     def post_process(self, message: Message, data: Any, exception: Optional[Exception]):
         """
