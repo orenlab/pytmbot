@@ -46,19 +46,6 @@ class DockerAdapterException(PyTeleMonBotError):
 class TelebotCustomExceptionHandler(ExceptionHandler):
     """
     Custom exception handler for Telebot.
-
-    This class overrides the `handle` method of the `ExceptionHandler` class
-    and handles exceptions raised by the `Telebot` class.
-
-    Returns:
-        bool: True if the exception was handled successfully.
-
-    Logs:
-        If the log level is set to DEBUG, logs the exception with the DEBUG level.
-        Otherwise, logs the exception with the ERROR level.
-
-    Raises:
-        None
     """
 
     def handle(self, ex: Exception) -> bool:
@@ -71,6 +58,8 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         Returns:
             bool: True if the exception was handled successfully.
         """
-        bot_logger.log(bot_logger.level, f"Failed at Telebot package: {ex}", exc_info=bot_logger.level)
+        # Log the exception
+        bot_logger.error(f"Failed at @Telebot package: {str(ex)}")
 
+        # Return True to indicate successful handling of the exception
         return True

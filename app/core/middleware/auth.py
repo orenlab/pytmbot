@@ -38,19 +38,18 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             None
         """
         super().__init__()
+        # Set the bot instance
         self.bot = self.get_bot_instance()
+        # Set update types
         self.update_types: List[str] = ['message']
+        # Set allowed user IDs
         self.allowed_user_ids = set(config.allowed_user_ids)
+        # Initialize the attempt count dictionary
         self.attempt_count = {}
 
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
         """
         Check if the user is allowed to access the bot.
-
-        This function checks if the user ID is in the list of allowed user IDs. If not, it increments the attempt count
-        for the user ID. If the attempt count exceeds the allowed limit, it logs an error message and terminates
-        the session. If the user ID is not in the list of allowed user IDs, it logs an error message and sends a blocked
-        message to the user. If the user ID is in the list of allowed user IDs, it logs an info message.
 
         Args:
             message (Message): Object from Telebot containing user information.
