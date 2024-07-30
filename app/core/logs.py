@@ -7,7 +7,7 @@ the status of your local servers
 
 import logging
 import sys
-from typing import List, Callable, Any, Tuple
+from typing import Callable, Any, Tuple
 
 from app.utilities.utilities import (
     parse_cli_args,
@@ -50,17 +50,9 @@ def build_bot_logger() -> logging.Logger:
 
     Returns:
         logging.Logger: The logger object.
-
-    This function creates a logger object for the bot and configures it based on the log level
-    provided in the command line arguments. The logger object is configured to output logs to
-    the standard output (stdout) and has a date format of '%Y-%m-%d %H:%M:%S'. If the log level
-    is set to 'DEBUG', the log format includes the file name and line number. The logger object
-    is configured to disable propagation of logs to parent loggers and override the error method
-    to include exception information if the log level is 'DEBUG'.
     """
-
     # Get the log level from command line arguments
-    known_log_levels: List[str] = ['ERROR', 'INFO', 'DEBUG']
+    known_log_levels = ['ERROR', 'INFO', 'DEBUG']
     log_level = parse_cli_args().log_level
 
     # Create a logger object for the bot
@@ -89,8 +81,15 @@ def build_bot_logger() -> logging.Logger:
     # Disable propagation of logs to parent loggers
     logger.propagate = False
 
+    # Log initialization messages
     logger.debug("Logger initialized")
     logger.debug(f"Log level: {logger.level}")
+    logger.debug("=============== Platform information ===============")
+    logger.debug(f"Python executable path: {sys.executable}")
+    logger.debug(f"Python version: {sys.version}")
+    logger.debug(f"Python module path: {sys.path}")
+    logger.debug(f"Python command args: {sys.argv}")
+    logger.debug("===============/ Platform information ==============")
 
     return logger
 
