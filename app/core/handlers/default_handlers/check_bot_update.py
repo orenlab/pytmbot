@@ -36,10 +36,13 @@ class BotUpdatesHandler(HandlerConstructor):
                             If an error occurs during the update check, an empty dictionary is returned.
         """
         try:
+            bot_logger.debug("Checking for bot updates...")
             # Send a GET request to the GitHub API
             with requests.get(__github_api_url__, timeout=5) as response:
                 # Raise an exception if the request was unsuccessful
                 response.raise_for_status()
+
+                bot_logger.debug(f"GitHub API response code: {response.status_code}")
 
                 # Parse the response as JSON
                 data = response.json()
@@ -53,6 +56,8 @@ class BotUpdatesHandler(HandlerConstructor):
                     'published_at': published_date.strftime('%Y-%m-%d, %H:%M:%S'),
                     'body': data.get('body'),
                 }
+
+                bot_logger.debug(f"GitHub API response: {release_info}")
 
                 # Return the release information
                 return release_info
@@ -74,6 +79,7 @@ class BotUpdatesHandler(HandlerConstructor):
         Returns:
             bool: True if the bot is in development mode, False otherwise.
         """
+        bot_logger.debug(f"Current app version: {app_version}")
         return len(app_version) > 6
 
     def _compile_message(self) -> tuple[str, bool]:
