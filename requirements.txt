@@ -9,7 +9,7 @@ Jinja2==3.1.4
 MarkupSafe==2.1.5
 psutil==6.0.0
 pydantic==2.8.2
-pydantic-settings==2.3.4
+pydantic-settings==2.4.0
 pydantic_core==2.20.1
 pyotp==2.9.0
 pypng==0.20220715.0
