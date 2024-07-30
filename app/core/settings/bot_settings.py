@@ -10,20 +10,6 @@ from typing import Optional, List
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Bot commands model
-commands_model = {
-    "/start": "Start bot!",
-    "/help": "Get help",
-    "/docker": "Launch the section about Docker",
-    "/containers": "Get Containers info",
-    "/images": "Get Images info",
-    "/back": "Back to main menu",
-    "/check_bot_updates": "Check for software updates",
-}
-
-description = (
-    "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers")
-
 
 def get_env_file_path() -> str:
     """
@@ -61,11 +47,22 @@ class BotSettings(BaseSettings):
     bot_token: SecretStr  # Bot toke from .pytmbotenv
     dev_bot_token: Optional[SecretStr]  # Dev bot toke from .pytmbotenv
     allowed_user_ids: list[int]  # Allowed user id from .pytmbotenv
+    allowed_admins_ids: Optional[list[int]]  # Allowed admin ids from .pytmbotenv
     docker_host: str  # Docker socket URI from .pytmbotenv
     model_config = SettingsConfigDict(env_file=get_env_file_path(), env_file_encoding='utf-8')
-    bot_commands: dict = commands_model  # Bot commands
-    description: str = description  # Bot description
-    allowed_admins_ids: Optional[list[int]]  # Allowed admin ids from .pytmbotenv
+    # Set local configuration
+    bot_commands: dict[str, str] = {
+        "/start": "Start bot!",
+        "/help": "Get help",
+        "/docker": "Launch the section about Docker",
+        "/containers": "Get Containers info",
+        "/images": "Get Images info",
+        "/back": "Back to main menu",
+        "/check_bot_updates": "Check for software updates",
+    }
+    description: str = (
+        "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
+    )
     known_templates: List[str] = [
         'containers.jinja2',
         'fs.jinja2',
@@ -88,3 +85,19 @@ class BotSettings(BaseSettings):
         'images.jinja2',
         'auth_required.jinja2'
     ]
+    main_keyboard: dict[str, str] = {
+        'low_battery': 'Load average',
+        'pager': 'Memory load',
+        'stopwatch': 'Sensors',
+        'rocket': 'Process',
+        'flying_saucer': 'Uptime',
+        'floppy_disk': 'File system',
+        'spouting_whale': 'Docker',
+        'satellite': 'Network',
+        'turtle': 'About me'
+    }
+    docker_keyboard: dict[str, str] = {
+        'framed_picture': 'Images',
+        'toolbox': 'Containers',
+        'BACK_arrow': 'Back to main menu'
+    }

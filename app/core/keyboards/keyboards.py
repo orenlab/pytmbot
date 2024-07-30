@@ -10,45 +10,19 @@ from typing import Dict, List, Optional
 
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
-from app import bot_logger
-from app.core.settings.keyboards import KeyboardSettings
+from app import bot_logger, config
 from app.utilities.utilities import EmojiConverter
 
 
-class Keyboard(KeyboardSettings):
+class Keyboard:
     """
     A class for managing keyboard settings.
-
-    Attributes:
-        main_keyboard (Dict[str, str]): A dictionary of emoji-title pairs representing the main keyboard.
-
-    Methods:
-        build_reply_keyboard(self)
-        build_inline_keyboard(self, button_text: str, callback_data: str)
-
-    Example:
-        keyboard = Keyboard()
-        reply_keyboard = keyboard.build_reply_keyboard()
-
-    Returns:
-        types.ReplyKeyboardMarkup: The constructed reply keyboard.
     """
 
     def __init__(self) -> None:
         """
         Initializes the Keyboard class.
-
-        This method initializes the Keyboard class and sets up the EmojiConverter attribute.
-
-        Args:
-            self (Keyboard): The instance of the Keyboard class.
-
-        Returns:
-            None
         """
-        # Call the superclass initialization method
-        super().__init__()
-
         # Initialize the emojis attribute with an instance of EmojiConverter
         self.emojis: EmojiConverter = EmojiConverter()
 
@@ -83,10 +57,10 @@ class Keyboard(KeyboardSettings):
         # Check the keyboard type to determine which keyboard to construct
         if keyboard_type == 'docker_keyboard':
             # Construct the keyboard based on the docker settings
-            keyboard_buttons = self.__construct_keyboard(self._get_docker_keyboard())
+            keyboard_buttons = self.__construct_keyboard(config.docker_keyboard)
         else:
             # Construct the keyboard based on the main settings
-            keyboard_buttons = self.__construct_keyboard(self._get_main_keyboard())
+            keyboard_buttons = self.__construct_keyboard(config.main_keyboard)
 
         # Add the constructed keyboard buttons to the reply keyboard
         reply_keyboard.add(*keyboard_buttons)

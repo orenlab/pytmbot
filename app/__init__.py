@@ -16,16 +16,11 @@ from app.utilities.utilities import parse_cli_args
 # Main config
 config = BotSettings()
 
-# Set global variables
-# Set global version
+# Set global namespace
 __version__ = 'v0.1.2-dev'
-# Set global author
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
-# Set global license
 __license__ = 'MIT'
-# Set global repository
 __repository__ = 'https://github.com/orenlab/pytmbot'
-# Set global github api url
 __github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/latest'
 
 
