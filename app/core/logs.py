@@ -18,12 +18,12 @@ from app.utilities.utilities import (
 )
 
 
-def build_bot_logger() -> loguru.Logger:
+def build_bot_logger() -> loguru.logger:
     """
     Builds a custom logger for the bot.
 
     Returns:
-        loguru.Logger: The logger object.
+        loguru.logger: The logger object.
     """
     # Get the log level from command line arguments
     valid_log_levels = ['ERROR', 'INFO', 'DEBUG']
