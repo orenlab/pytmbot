@@ -67,8 +67,6 @@ class PyTMBot(PyTMBotInstance):
         # Set whether to skip pending updates
         skip_pending_updates = True
 
-        print(repr(bot_logger.level))
-
         # Poll the bot for updates indefinitely
         self.bot.infinity_polling(
             timeout=timeout_seconds,
