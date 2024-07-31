@@ -5,9 +5,11 @@ pyTMBot - A simple Telegram bot designed to gather basic information about
 the status of your local servers
 """
 
-import logging
 import sys
 from typing import Callable, Any, Tuple
+
+import loguru
+from loguru import logger
 
 from app.utilities.utilities import (
     parse_cli_args,
@@ -16,80 +18,27 @@ from app.utilities.utilities import (
 )
 
 
-class BotLogger:
-    """
-    Custom logger for the bot. Uses the 'pyTMbot' logger name.
-
-    Attributes:
-        _logger (logging.Logger): The logger object.
-
-    Methods:
-        get_logger()
-
-    Returns:
-        logging.Logger: The logger object.
-    """
-    _logger = None
-
-    @classmethod
-    def get_logger(cls) -> logging.Logger:
-        """
-        Retrieves the logger object for the bot. If the logger object is not set, it initializes it with the 'pyTMbot'
-        logger name.
-
-        Returns:
-            logging.Logger: The logger object.
-        """
-        cls._logger = cls._logger or logging.getLogger('pyTMbot')
-        return cls._logger
-
-
-def build_bot_logger() -> logging.Logger:
+def build_bot_logger() -> loguru.Logger:
     """
     Builds a custom logger for the bot.
 
     Returns:
-        logging.Logger: The logger object.
+        loguru.Logger: The logger object.
     """
     # Get the log level from command line arguments
-    known_log_levels = ['ERROR', 'INFO', 'DEBUG']
-    log_level = parse_cli_args().log_level
+    valid_log_levels = ['ERROR', 'INFO', 'DEBUG']
+    log_level = parse_cli_args().log_level.lower()
 
-    # Create a logger object for the bot
-    logger = BotLogger.get_logger()
-
-    # Set the log level based on the command line argument
-    logger.setLevel(log_level.upper() if log_level in known_log_levels else 'INFO')
-
-    # Set the date format for the log messages
-    date_format = '%Y-%m-%d %H:%M:%S'
-
-    # Create a stream handler to output logs to stdout
-    handler = logging.StreamHandler(sys.stdout)
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-
-    # Add file name and line number to log format if log level is DEBUG
-    if log_level == 'DEBUG':
-        log_format += ' [%(filename)s | %(funcName)s:%(lineno)d]'
-
-    # Set the log format for the handler
-    handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
-
-    # Add the handler to the logger
-    logger.addHandler(handler)
-
-    # Disable propagation of logs to parent loggers
-    logger.propagate = False
+    # Set the log level
+    logger.level(log_level if log_level in valid_log_levels else 'INFO')
 
     # Log initialization messages
     logger.debug("Logger initialized")
     logger.debug(f"Log level: {logger.level}")
-    logger.debug("=============== Platform information ===============")
     logger.debug(f"Python executable path: {sys.executable}")
     logger.debug(f"Python version: {sys.version}")
     logger.debug(f"Python module path: {sys.path}")
     logger.debug(f"Python command args: {sys.argv}")
-    logger.debug("===============/ Platform information ==============")
 
     return logger
 

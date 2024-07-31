@@ -47,6 +47,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
         # Initialize the attempt count dictionary
         self.attempt_count = {}
 
+    @bot_logger.catch()
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
         """
         Check if the user is allowed to access the bot.

@@ -18,6 +18,7 @@ psutil = "^6.0.0"
 pytelegrambotapi = "^4.21.0"
 pyotp = "^2.9.0"
 qrcode = "^7.4.2"
+loguru = "^0.7.2"
 
 
 [build-system]

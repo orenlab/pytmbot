@@ -47,6 +47,7 @@ class PyTMBot(PyTMBotInstance):
         # Set the initial sleep duration to 0
         self.sleep_duration = 0
 
+    @bot_logger.catch()
     def __poll_bot_for_updates(self):
         """
         Poll the bot for updates indefinitely.
@@ -66,15 +67,14 @@ class PyTMBot(PyTMBotInstance):
         # Set whether to skip pending updates
         skip_pending_updates = True
 
-        # Set the logger level to the current logger level
-        logger_level = bot_logger.level
+        print(repr(bot_logger.level))
 
         # Poll the bot for updates indefinitely
         self.bot.infinity_polling(
             timeout=timeout_seconds,
             long_polling_timeout=long_polling_timeout_seconds,
             skip_pending=skip_pending_updates,
-            logger_level=logger_level
+            logger_level=10 if bot_logger.level == 10 else 20
         )
 
     def __stop_polling(self, error: Union[Exception, str],
@@ -113,6 +113,7 @@ class PyTMBot(PyTMBotInstance):
 
         return True
 
+    @bot_logger.catch()
     def __start_polling(self) -> None:
         """
         Start polling for updates from the bot.
