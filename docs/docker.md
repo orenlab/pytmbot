@@ -1,7 +1,7 @@
 ### pyTMbot
 
-A simple Telegram bot to handle Docker containers and images, also providing basic information about the status of *
-*local** servers. The bot operates
+A simple Telegram bot to handle Docker containers and images, also providing basic information about the status of
+**local** servers. The bot operates
 synchronously. It does not use webhooks.
 
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
