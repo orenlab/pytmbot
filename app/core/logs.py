@@ -11,11 +11,12 @@ from typing import Callable, Any, Tuple
 import loguru
 from loguru import logger
 
+from app.core.settings.bot_settings import LogsSettings
 from app.utilities.utilities import (
-    parse_cli_args,
     get_message_full_info,
     get_inline_message_full_info
 )
+from app.utilities.utilities import parse_cli_args
 
 
 def build_bot_logger() -> loguru.logger:
@@ -25,20 +26,42 @@ def build_bot_logger() -> loguru.logger:
     Returns:
         loguru.logger: The logger object.
     """
+    tabs = "\t" * 9
+
+    # Remove the default logger
+    logger.remove()
+
+    # Create a new logger
+    log_settings = LogsSettings()
+
+    # Map log level from command line arguments to loguru level
+    log_level_map = {level.lower(): level for level in log_settings.valid_log_levels}
+
     # Get the log level from command line arguments
-    valid_log_levels = ['ERROR', 'INFO', 'DEBUG']
     log_level = parse_cli_args().log_level.lower()
 
     # Set the log level
-    logger.level(log_level if log_level in valid_log_levels else 'INFO')
+    logger.level(log_level_map.get(log_level, 'INFO'))
+
+    # Set the log format and output destination
+    logger.add(
+        sys.stdout,
+        format=log_settings.bot_logger_format,
+        diagnose=log_level == 'debug',
+        backtrace=log_level == 'debug',
+        colorize=True
+    )
 
     # Log initialization messages
-    logger.debug("Logger initialized")
-    logger.debug(f"Log level: {logger.level}")
-    logger.debug(f"Python executable path: {sys.executable}")
-    logger.debug(f"Python version: {sys.version}")
-    logger.debug(f"Python module path: {sys.path}")
-    logger.debug(f"Python command args: {sys.argv}")
+    messages = [
+        "Logger initialized",
+        f"{tabs} Log level: {logger.level}",
+        f"{tabs} Python executable path: {sys.executable}",
+        f"{tabs} Python version: {sys.version}",
+        f"{tabs} Python module path: {sys.path}",
+        f"{tabs} Python command args: {sys.argv}"
+    ]
+    logger.debug('\n'.join(messages))
 
     return logger
 

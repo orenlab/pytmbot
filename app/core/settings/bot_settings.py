@@ -101,3 +101,13 @@ class BotSettings(BaseSettings):
         'toolbox': 'Containers',
         'BACK_arrow': 'Back to main menu'
     }
+
+
+class LogsSettings(BaseSettings):
+    """
+    Class to set logger settings
+    """
+    valid_log_levels: frozenset[str] = frozenset(['ERROR', 'INFO', 'DEBUG'])
+    bot_logger_format: str = ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                              "<level>{level: <8}</level> | <level>{message}</level> | "
+                              "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>")
