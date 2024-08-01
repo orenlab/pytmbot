@@ -15,9 +15,9 @@ from loguru import logger
 from app.core.settings.bot_settings import LogsSettings
 from app.utilities.utilities import (
     get_message_full_info,
-    get_inline_message_full_info
+    get_inline_message_full_info,
+    parse_cli_args
 )
-from app.utilities.utilities import parse_cli_args
 
 
 def build_bot_logger() -> loguru.logger:
