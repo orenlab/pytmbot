@@ -80,7 +80,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
                     f"The number of attempts to access the bot has been exceeded. "
                     f"Session for user {user_name} (ID: {user_id}) will be ignored."
                 )
-                bot_logger.error(error_message)
+                bot_logger.log("BLOCKED", error_message)
                 return CancelUpdate()
 
             # Log an error message and send a blocked message to the user
@@ -88,7 +88,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
                 f"Access denied for user {user_name} (ID: {user_id}, "
                 f"Language: {language_code}, IsBot: {is_bot}). Reason: User is not allowed to access the bot."
             )
-            bot_logger.error(error_message)
+            bot_logger.log("DENIED", error_message)
 
             blocked_message = self.__get_message_text(self.attempt_count[user_id])
 
@@ -97,7 +97,7 @@ class AccessControl(BaseMiddleware, PyTMBotInstance):
             return CancelUpdate()
 
         # Log an info message if the user ID is in the list of allowed user IDs
-        bot_logger.info(f"Access granted for user {user_name} (ID: {user_id})")
+        bot_logger.success(f"Access granted for user {user_name} (ID: {user_id})")
         return None
 
     def post_process(self, message: Message, data: Any, exception: Optional[Exception]) -> None:

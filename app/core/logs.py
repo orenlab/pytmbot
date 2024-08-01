@@ -24,10 +24,13 @@ def build_bot_logger() -> loguru.logger:
     """
     Builds a custom logger for the bot.
 
+    This function removes the default logger, creates a new logger, sets the log format and output destination,
+    and adds custom log levels for "BLOCKED" and "DENIED".
+
     Returns:
         loguru.logger: The logger object.
     """
-    tabs = "\t" * 2
+    tabs = "\t" * 2  # Indentation for log messages
 
     # Remove the default logger
     logger.remove()
@@ -38,6 +41,12 @@ def build_bot_logger() -> loguru.logger:
     # Cache the log level map
     @lru_cache(maxsize=None)
     def get_log_level_map():
+        """
+        Returns a set of uppercase log levels from LogsSettings.valid_log_levels.
+
+        Returns:
+            set: A set of uppercase log levels.
+        """
         return {level.upper() for level in log_settings.valid_log_levels}
 
     # Get the log level from command line arguments
@@ -47,10 +56,10 @@ def build_bot_logger() -> loguru.logger:
     logger.add(
         sys.stdout,
         format=log_settings.bot_logger_format,
-        diagnose=log_level == 'debug',
+        diagnose=log_level == 'debug',  # Enable backtrace and debug info if log level is debug
         backtrace=log_level == 'debug',
         colorize=True,
-        level=log_level if log_level in get_log_level_map() else 'INFO'
+        level=log_level if log_level in get_log_level_map() else 'INFO'  # Set log level to INFO if invalid
     )
 
     if log_level == 'DEBUG':
@@ -64,6 +73,9 @@ def build_bot_logger() -> loguru.logger:
             f"{tabs} Python command args: {sys.argv}"
         ]
         logger.debug('\n'.join(messages))
+
+    logger.level("DENIED", no=39, color="<red>", icon="⛔")  # Add custom log level for "DENIED"
+    logger.level("BLOCKED", no=38, color="<yellow>", icon="🚷")  # Add custom log level for "BLOCKED"
 
     # Return the logger
     return logger
@@ -112,7 +124,7 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
         )
         try:
             func(*args, **kwargs)
-            bot_logger.info(
+            bot_logger.success(
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
@@ -166,7 +178,7 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
         )
         try:
             func(*args, **kwargs)
-            bot_logger.info(
+            bot_logger.success(
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:

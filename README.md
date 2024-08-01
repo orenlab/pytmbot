@@ -74,8 +74,9 @@ In the `alpine-dev` build (and the next release `0.1.2`), this mechanism has bee
 
 - The bot now reacts to incoming requests by reporting the lack of access twice, then completely stops processing
   messages.
+- All failed attempts to authorize are logged with an `DENIED` and `BLOCKED`flag.
 
-All failed attempts to authorize are logged with an `ERROR` flag.
+For stable version, failed attempts to authorize are logged with an `ERROR`flag.
 
 ## 💢 Supported commands
 
