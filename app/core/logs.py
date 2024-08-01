@@ -38,7 +38,7 @@ def build_bot_logger() -> loguru.logger:
     log_level_map = {level.lower(): level for level in log_settings.valid_log_levels}
 
     # Get the log level from command line arguments
-    log_level = parse_cli_args().log_level.upper()
+    log_level = parse_cli_args().log_level.lower()
 
     # Set the log format and output destination
     logger.add(
@@ -50,17 +50,19 @@ def build_bot_logger() -> loguru.logger:
         level=log_level_map.get(log_level, 'INFO')
     )
 
-    # Log initialization messages
-    messages = [
-        "Logger initialized",
-        f"{tabs} Log level: {logger.level}",
-        f"{tabs} Python executable path: {sys.executable}",
-        f"{tabs} Python version: {sys.version}",
-        f"{tabs} Python module path: {sys.path}",
-        f"{tabs} Python command args: {sys.argv}"
-    ]
-    logger.debug('\n'.join(messages))
+    if log_level == 'debug':
+        # Log initialization messages
+        messages = [
+            "Logger initialized",
+            f"{tabs} Log level: {logger.level}",
+            f"{tabs} Python executable path: {sys.executable}",
+            f"{tabs} Python version: {sys.version}",
+            f"{tabs} Python module path: {sys.path}",
+            f"{tabs} Python command args: {sys.argv}"
+        ]
+        logger.debug('\n'.join(messages))
 
+    # Return the logger
     return logger
 
 
