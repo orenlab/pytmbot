@@ -26,7 +26,7 @@ def build_bot_logger() -> loguru.logger:
     Returns:
         loguru.logger: The logger object.
     """
-    tabs = "\t" * 9
+    tabs = "\t" * 2
 
     # Remove the default logger
     logger.remove()
@@ -38,10 +38,7 @@ def build_bot_logger() -> loguru.logger:
     log_level_map = {level.lower(): level for level in log_settings.valid_log_levels}
 
     # Get the log level from command line arguments
-    log_level = parse_cli_args().log_level.lower()
-
-    # Set the log level
-    logger.level(log_level_map.get(log_level, 'INFO'))
+    log_level = parse_cli_args().log_level.upper()
 
     # Set the log format and output destination
     logger.add(
@@ -49,7 +46,8 @@ def build_bot_logger() -> loguru.logger:
         format=log_settings.bot_logger_format,
         diagnose=log_level == 'debug',
         backtrace=log_level == 'debug',
-        colorize=True
+        colorize=True,
+        level=log_level_map.get(log_level, 'INFO')
     )
 
     # Log initialization messages
