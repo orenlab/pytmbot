@@ -74,8 +74,8 @@ def build_bot_logger() -> loguru.logger:
         ]
         logger.debug('\n'.join(messages))
 
-    logger.level("DENIED", no=39, color="<red>", icon="⛔ ")  # Add custom log level for "DENIED"
-    logger.level("BLOCKED", no=38, color="<yellow>", icon="🚷 ")  # Add custom log level for "BLOCKED"
+    logger.level("DENIED", no=39, color="<red>")  # Add custom log level for "DENIED"
+    logger.level("BLOCKED", no=38, color="<yellow>")  # Add custom log level for "BLOCKED"
 
     # Return the logger
     return logger
