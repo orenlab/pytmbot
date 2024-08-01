@@ -1,13 +1,20 @@
 ### pyTMbot
 
-A simple Telegram bot designed to gather basic information about the status of your **local** servers. The bot operates
+A simple Telegram bot to handle Docker containers and images, also providing basic information about the status of *
+*local** servers. The bot operates
 synchronously. It does not use webhooks.
 
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 
-## 💡 Features
+## 🐳 A large section on Docker
+
+- Information about containers (even those that have finished work)
+- The ability to view container logs
+- Information about images
+
+### 💡 Features
 
 - Load average information
 - Summary memory usage information (with swap)
@@ -16,12 +23,6 @@ synchronously. It does not use webhooks.
 - Uptime information
 - File system base information
 - Basic information about the network connection
-
-### 🐳 A large section on Docker
-
-- Information about containers (even those that have finished work)
-- The ability to view container logs
-- Information about images
 
 ### 🔖 Additionally:
 

@@ -1,6 +1,7 @@
 #############################################################
-## pyTMbot Dockerfile
-# Copyright (C) 2024 - Denis Rozhnovskiy
+# (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+# pyTMBot - A simple Telegram bot to handle Docker containers and images,
+# also providing basic information about the status of local servers.
 # https://github.com/orenlab/pytmbot
 # License: MIT
 #############################################################

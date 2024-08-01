@@ -1,8 +1,8 @@
-#!/usr/bin/python3
+#!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTeleMonBot - A simple Telegram bot designed to gather basic information about
-the status of your local servers
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
 """
 # Imports default handlers
 from .default_handlers.about_bot import AboutBotHandler
