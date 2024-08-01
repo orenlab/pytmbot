@@ -59,7 +59,7 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
             bool: True if the exception was handled successfully.
         """
         # Log the exception
-        bot_logger.error(f"Failed at @Telebot package: {str(ex)}")
+        bot_logger.critical(f"Failed at @Telebot package: {str(ex)}")
 
         # Return True to indicate successful handling of the exception
         return True

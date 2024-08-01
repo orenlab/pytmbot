@@ -6,6 +6,7 @@ the status of your local servers
 """
 
 import sys
+from functools import lru_cache
 from typing import Callable, Any, Tuple
 
 import loguru
@@ -34,11 +35,13 @@ def build_bot_logger() -> loguru.logger:
     # Create a new logger
     log_settings = LogsSettings()
 
-    # Map log level from command line arguments to loguru level
-    log_level_map = {level.lower(): level for level in log_settings.valid_log_levels}
+    # Cache the log level map
+    @lru_cache(maxsize=None)
+    def get_log_level_map():
+        return {level.upper() for level in log_settings.valid_log_levels}
 
     # Get the log level from command line arguments
-    log_level = parse_cli_args().log_level.lower()
+    log_level = parse_cli_args().log_level.upper()
 
     # Set the log format and output destination
     logger.add(
@@ -47,10 +50,10 @@ def build_bot_logger() -> loguru.logger:
         diagnose=log_level == 'debug',
         backtrace=log_level == 'debug',
         colorize=True,
-        level=log_level_map.get(log_level, 'INFO')
+        level=log_level if log_level in get_log_level_map() else 'INFO'
     )
 
-    if log_level == 'debug':
+    if log_level == 'DEBUG':
         # Log initialization messages
         messages = [
             "Logger initialized",
