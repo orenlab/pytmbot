@@ -5,7 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 from functools import lru_cache
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, NamedTuple
 
 from telebot.types import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup
 
@@ -103,9 +103,6 @@ class Keyboard:
             f"{self.emojis.get_emoji(emoji)} {title}"
             for emoji, title in keyboard_data.items()
         ]
-
-    from typing import NamedTuple, List
-    from telebot.types import InlineKeyboardMarkup
 
     class ButtonData(NamedTuple):
         """
