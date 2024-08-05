@@ -129,9 +129,15 @@ class ContainersHandler(HandlerConstructor):
                 # Compile the message to be sent to the user
                 containers_info = self.__compile_message()
 
+                # Build a keyboard for the message
+                keyboard_keys = [
+                    self.keyboard.ButtonData(text=name,
+                                             callback_data=f'__get_full__:{name.lower()}:{message.from_user.id}')
+                    for name in containers_info[1]
+                ]
+
                 # Build an inline keyboard for the message
-                inline_keyboard = self.keyboard.build_inline_keyboard(*containers_info[1],
-                                                                      callback_data_prefix='__get_full__')
+                inline_keyboard = self.keyboard.build_inline_keyboard(keyboard_keys)
 
                 # Send the message to the user
                 __send_message(message, containers_info[0], inline_keyboard)

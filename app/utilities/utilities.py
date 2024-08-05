@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 import argparse
 from datetime import datetime
 from functools import cached_property
-from typing import Any
+from typing import Any, Optional
 
 from humanize import naturalsize, naturaltime
 from telebot.types import CallbackQuery, Message
@@ -174,27 +174,30 @@ class EmojiConverter:
         return self.emoji_library.emojize(emoji_str)
 
 
-def extract_container_name(data: str, prefix: str) -> str:
+def split_string_into_octets(input_string: str, delimiter: Optional[str] = ":", octet_index: Optional[int] = 1) -> str:
     """
-    Extracts the container name from data based on the provided prefix.
+    Extracts a specific octet from a string based on a delimiter.
 
     Args:
-        data (str): The data containing the container name.
-        prefix (str): The prefix to identify the container name.
+        input_string (str): The string to extract the octet from.
+        delimiter (str): The delimiter used to split the string. Defaults to ":".
+        octet_index (int): The index of the octet to extract. Defaults to 1.
 
     Returns:
-        str: The extracted container name in lowercase.
+        str: The extracted octet, converted to lowercase.
 
-    This function splits the data string at the prefix and extracts the container name.
-    The extracted name is then converted to lowercase and returned.
+    Raises:
+        IndexError: If the octet index is out of range.
     """
-    # Split the data at the prefix and extract the second element
-    container_name = data.split(prefix)[1]
+    # Split the string into octets based on the delimiter
+    octets = input_string.split(delimiter)
 
-    # Convert the extracted name to lowercase
-    container_name = container_name.lower()
+    # Check if the octet index is within the valid range
+    if octet_index < 0 or octet_index >= len(octets):
+        raise IndexError("Octet index out of range")
 
-    return container_name
+    # Return the specified octet, converted to lowercase
+    return octets[octet_index].lower()
 
 
 def sanitize_logs(container_logs: str, callback_query: CallbackQuery, token: str) -> str:

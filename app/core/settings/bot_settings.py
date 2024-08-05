@@ -57,6 +57,7 @@ class BotSettings(BaseSettings):
         "/docker": "Launch the section about Docker",
         "/containers": "Get Containers info",
         "/images": "Get Images info",
+        "/qrcode": "Get TOTP QR code for 2FA app",
         "/back": "Back to main menu",
         "/check_bot_updates": "Check for software updates",
     }
@@ -83,7 +84,8 @@ class BotSettings(BaseSettings):
         'docker.jinja2',
         'back.jinja2',
         'images.jinja2',
-        'auth_required.jinja2'
+        'auth_required.jinja2',
+        'managing_containers.jinja2',
     ]
     main_keyboard: dict[str, str] = {
         'low_battery': 'Load average',
@@ -99,6 +101,15 @@ class BotSettings(BaseSettings):
     docker_keyboard: dict[str, str] = {
         'framed_picture': 'Images',
         'toolbox': 'Containers',
+        'BACK_arrow': 'Back to main menu'
+    }
+    auth_keyboard: dict[str, str] = {
+        'first_quarter_moon': 'Get QR-code for 2FA app',
+        'fountain_pen': 'Enter 2FA code',
+        'BACK_arrow': 'Back to main menu'
+    }
+    auth_processing_keyboard: dict[str, str] = {
+        'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
 

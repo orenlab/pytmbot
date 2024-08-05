@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 # Imports default handlers
+from .auth_handlers.get_qrcode import GetQrcodeHandler
 from .default_handlers.about_bot import AboutBotHandler
 from .default_handlers.back_handler import BackHandler
 from .default_handlers.check_bot_update import BotUpdatesHandler
@@ -27,6 +28,7 @@ from .inline_handlers.update_info import InlineUpdateInfoHandler
 
 # Globals imports for all handlers in the bot
 __all_handlers__ = [
+    GetQrcodeHandler,
     AboutBotHandler,
     BotUpdatesHandler,
     ContainersHandler,

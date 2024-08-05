@@ -32,7 +32,7 @@ class AuthorizedUser:
     app_installed: bool = False
 
     def __post_init__(self):
-        self.expiration_time = self.login_time + timedelta(minutes=5)
+        self.expiration_time = self.login_time + timedelta(minutes=10)
 
 
 def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:

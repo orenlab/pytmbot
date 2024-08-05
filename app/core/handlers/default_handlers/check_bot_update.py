@@ -302,7 +302,14 @@ class BotUpdatesHandler(HandlerConstructor):
                 # Compile the bot's answer
                 bot_answer, need_inline = self._compile_message()
 
-                inline_button = self.keyboard.build_inline_keyboard("How update?") if need_inline else None
+                keyboard_button = [
+                    self.keyboard.ButtonData(
+                        text='How update?',
+                        callback_data='__how_update__'
+                    )
+                ]
+
+                inline_button = self.keyboard.build_inline_keyboard(keyboard_button) if need_inline else None
 
                 self.bot.send_message(
                     message.chat.id,

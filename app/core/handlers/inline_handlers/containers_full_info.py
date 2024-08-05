@@ -10,10 +10,11 @@ from typing import Dict, Any, Union
 from telebot.types import CallbackQuery
 
 from app.core.adapters.docker_adapter import DockerAdapter
+from app.core.auth_processing.auth_wrapper import two_factor_auth_required, AuthorizedUser
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session, bot_logger
-from app.utilities.utilities import set_naturalsize, extract_container_name, sanitize_logs
+from app.utilities.utilities import set_naturalsize, split_string_into_octets, sanitize_logs
 
 
 class InlineContainerFullInfoHandler(HandlerConstructor):
@@ -190,6 +191,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__get_full__'))
         @logged_inline_handler_session
+        @bot_logger.catch()
         def handle_containers_full_info(call: CallbackQuery):
             """
             Handle the callback query for detailed container information.
@@ -198,14 +200,12 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 call (telebot.types.CallbackQuery): The callback query object.
             """
 
-            # Extract the container name from the callback data
-            container_name = extract_container_name(call.data, prefix='__get_full__')
-
-            # Retrieve the full container details
+            container_name = split_string_into_octets(call.data)
+            called_user_id = split_string_into_octets(call.data, octet_index=2)
             container_details = self.__get_container_full_details(container_name)
 
             if not container_details:
-                return handle_container_not_found(call, text=f"{container_name}: Container not found")
+                return containers_handling_error(call, text=f"{container_name}: Container not found")
 
             container_stats = container_details.stats(decode=None, stream=False)
             container_attrs = container_details.attrs
@@ -224,19 +224,28 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 )
             except Exception as e:
                 bot_logger.exception(f"Failed at @{self.__class__.__name__} - exception: {e}")
-                return handle_container_not_found(call, text=f"{container_name}: Error getting container details")
+                return containers_handling_error(call, text=f"{container_name}: Error getting container details")
 
-            _inline_keyboard = self.keyboard.build_inline_keyboard(
-                container_name,
-                callback_data_prefix='__get_logs__',
-                text_prefix="Get logs for "
-            )
+            keyboard_buttons = [
+                self.keyboard.ButtonData(text="Get logs",
+                                         callback_data=f"__get_logs__:{container_name}:{call.from_user.id}"),
+                self.keyboard.ButtonData(text="Back to all containers", callback_data="back_to_containers"),
+            ]
+
+            if call.from_user.id in self.config.allowed_admins_ids and int(call.from_user.id) == int(called_user_id):
+                bot_logger.debug(f"User {call.from_user.id} is an admin. Added '__manage__' button")
+                keyboard_buttons.insert(
+                    1,
+                    self.keyboard.ButtonData(text="Manage",
+                                             callback_data=f"__manage__:{container_name}:{call.from_user.id}"))
+
+            inline_keyboard = self.keyboard.build_inline_keyboard(keyboard_buttons)
 
             self.bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text=context,
-                reply_markup=_inline_keyboard,
+                reply_markup=inline_keyboard,
                 parse_mode="Markdown"
             )
 
@@ -259,8 +268,14 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
             bot_logger.debug(f"Updated list of containers: {buttons}")
 
+            keyboard_buttons = [
+                self.keyboard.ButtonData(text=button.upper(),
+                                         callback_data=f"__get_full__:{button}:{call.from_user.id}")
+                for button in buttons
+            ]
+
             # Build a custom inline keyboard
-            inline_keyboard = self.keyboard.build_inline_keyboard(*buttons, callback_data_prefix='__get_full__')
+            inline_keyboard = self.keyboard.build_inline_keyboard(keyboard_buttons)
 
             # Edit the message text with the updated container list and keyboard
             self.bot.edit_message_text(
@@ -271,7 +286,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 parse_mode="HTML"
             )
 
-        def handle_container_not_found(call, text: str):
+        def containers_handling_error(call, text: str):
             """
             Handles the case when a container is not found.
 
@@ -301,13 +316,13 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 None
             """
             # Extract container name from the callback data
-            container_name = extract_container_name(call.data, prefix='__get_logs__')
+            container_name = split_string_into_octets(call.data)
 
             # Get logs for the specified container
             logs = self.__get_sanitized_logs(container_name, call, self.bot.token)
 
             if not logs:
-                return handle_container_not_found(call, text=f"{container_name}: Error getting logs")
+                return containers_handling_error(call, text=f"{container_name}: Error getting logs")
 
             # Define emojis for rendering
             emojis: dict = {
@@ -322,9 +337,11 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 container_name=container_name
             )
 
+            keyboard_buttons = self.keyboard.ButtonData(text='Back to all containers',
+                                                        callback_data='back_to_containers')
+
             # Build a custom inline keyboard for navigation
-            inline_keyboard = self.keyboard.build_inline_keyboard('Back to all containers...',
-                                                                  callback_data='back_to_containers')
+            inline_keyboard = self.keyboard.build_inline_keyboard(keyboard_buttons)
 
             # Edit the message with the rendered logs and inline keyboard
             self.bot.edit_message_text(
@@ -333,4 +350,74 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 text=context,
                 reply_markup=inline_keyboard,
                 parse_mode="HTML"
+            )
+
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__manage__'))
+        @two_factor_auth_required
+        @logged_inline_handler_session
+        def manage_container(call: CallbackQuery):
+            """
+            Handles the callback for managing a container.
+
+            Args:
+                call (CallbackQuery): The callback query object.
+
+            Returns:
+                None
+            """
+            # Extract container name and called user ID from the callback data
+            container_name = split_string_into_octets(call.data)
+            called_user_id = split_string_into_octets(call.data, octet_index=2)
+
+            # Check if the user is an admin
+            if int(call.from_user.id) != int(called_user_id):
+                bot_logger.log("DENIED", f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function")
+                return containers_handling_error(call=call, text=f"Managing {container_name}: Access denied")
+
+            # Check if the user is authenticated
+            is_user_authenticated = AuthorizedUser(call.from_user.id)
+            if not is_user_authenticated.user_id:
+                bot_logger.log("DENIED", f"User {call.from_user.id} NOT authenticated. Denied '__manage__' function")
+                return containers_handling_error(call=call, text=f"Managing {container_name}: Not authenticated user")
+
+            # Check if the authentication token is valid
+            auth_token = True
+            if not auth_token:
+                bot_logger.log("DENIED",
+                               f"Auth token for user {call.from_user.id} NOT created. Denied '__manage__' function")
+                return containers_handling_error(call=call, text=f"Managing {container_name}: Error getting auth token")
+
+            # Create the keyboard buttons
+            keyboard_buttons = [
+                self.keyboard.ButtonData(text="Start",
+                                         callback_data=f'__start__:{container_name}:{call.from_user.id}:{auth_token}'),
+                self.keyboard.ButtonData(text="Stop",
+                                         callback_data=f'__stop__:{container_name}:{call.from_user.id}:{auth_token}'),
+                self.keyboard.ButtonData(text="Restart",
+                                         callback_data=f'__restart__:{container_name}:{call.from_user.id}:{auth_token}'),
+                self.keyboard.ButtonData(text="Rename",
+                                         callback_data=f'__rename__:{container_name}:{call.from_user.id}:{auth_token}'),
+            ]
+
+            # Build the inline keyboard
+            inline_keyboard = self.keyboard.build_inline_keyboard(keyboard_buttons)
+
+            # Define the emojis dictionary
+            emojis: dict = {
+                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            }
+
+            # Render the template with the container name and emojis
+            context = self.jinja.render_templates(
+                'managing_containers.jinja2',
+                container_name=container_name,
+                emojis=emojis
+            )
+
+            # Edit the message with the new text and inline keyboard
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=context,
+                reply_markup=inline_keyboard
             )

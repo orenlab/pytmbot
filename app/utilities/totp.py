@@ -10,6 +10,8 @@ import io
 import pyotp
 import qrcode
 
+from app import bot_logger
+
 
 class TOTPGenerator:
     """
@@ -29,7 +31,7 @@ class TOTPGenerator:
         generate_totp_qr_code(self)
     """
 
-    def __init__(self, user_id: str, account_name: str):
+    def __init__(self, user_id: int, account_name: str):
         """
         Initialize the TOTPGenerator with the provided user_id and account_name.
 
@@ -39,7 +41,7 @@ class TOTPGenerator:
 
         This function also sets a predefined salt value for generating the secret key.
         """
-        self.user_id: str = user_id
+        self.user_id: str = str(user_id)
         self.account_name: str = account_name.replace(' ', '_')
         self.salt: str = "j7F&2sL9@5dP#1zR*8fT5vG3"
 
@@ -107,6 +109,7 @@ class TOTPGenerator:
         Returns:
             bytes: The QR code as bytes.
         """
+        bot_logger.debug(f'Start generating TOTP QR code for user {self.user_id}...')
         # Generate the TOTP authentication URI
         auth_uri = self.__generate_totp_auth_uri()
 
@@ -117,5 +120,6 @@ class TOTPGenerator:
         with io.BytesIO() as img_bytes:
             qr_code.save(img_bytes)
 
+            bot_logger.debug(f'TOTP QR code for user {self.user_id} generated.')
             # Return the bytes of the QR code
             return img_bytes.getvalue()

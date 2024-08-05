@@ -10,6 +10,7 @@ from typing import Union
 from telebot.types import Message, CallbackQuery
 
 from app.core.handlers.handler import HandlerConstructor
+from app.core.logs import logged_handler_session
 
 
 class AuthRequiredHandler(HandlerConstructor):
@@ -47,6 +48,7 @@ class AuthRequiredHandler(HandlerConstructor):
             # Handling error if there is an issue parsing the data
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
+    @logged_handler_session
     def handle_unauthorized_message(self, query: Union[Message, CallbackQuery]):
         """
         Handle unauthorized message from user.
@@ -66,13 +68,13 @@ class AuthRequiredHandler(HandlerConstructor):
             raise NotImplementedError("Unsupported query type")
 
         # Build inline keyboard with options for QR code or entering 2FA code
-        keyboard = self.keyboard.build_inline_keyboard('QR Code for 2FA app', 'Enter 2FA code')
+        keyboard = self.keyboard.build_reply_keyboard(keyboard_type='auth_keyboard')
+
+        if isinstance(query, CallbackQuery):
+            self.bot.delete_message(query.message.chat.id, query.message.message_id)
 
         # Compile message with user's first name
         bot_answer = self._compile_message(name=query.from_user.first_name)
 
         # Send message to user with appropriate reply markup
-        if isinstance(query, Message):
-            self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
-        else:
-            self.bot.send_message(query.message.chat.id, text=bot_answer)
+        self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)

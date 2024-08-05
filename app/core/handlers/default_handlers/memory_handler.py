@@ -9,7 +9,7 @@ from typing import Dict, Union
 from telebot.types import Message
 
 from app.core.handlers.handler import HandlerConstructor
-from app.core.logs import logged_handler_session
+from app.core.logs import logged_handler_session, bot_logger
 
 
 class MemoryHandler(HandlerConstructor):
@@ -100,6 +100,7 @@ class MemoryHandler(HandlerConstructor):
         """
 
         @self.bot.message_handler(regexp="Memory load")
+        @bot_logger.catch()
         @logged_handler_session
         def get_memory(message: Message) -> None:
             """
@@ -120,15 +121,17 @@ class MemoryHandler(HandlerConstructor):
                 # Get the bot's answer for memory info
                 bot_answer = self._get_answer()
 
-                # Build an inline button for swapping information
-                inline_button = self.keyboard.build_inline_keyboard("Swap info")
+                button_data = self.keyboard.ButtonData(text='Swap info', callback_data='swap_info')
+
+                keyboard = self.keyboard.build_inline_keyboard(button_data)
 
                 # Send the bot answer with the inline button
                 self.bot.send_message(
                     message.chat.id,
                     text=bot_answer,
-                    reply_markup=inline_button
+                    reply_markup=keyboard
                 )
+
             except (AttributeError, ValueError) as err:
                 # Raise an exception if there is a ValueError while rendering the templates
                 raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(err)}")
