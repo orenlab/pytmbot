@@ -52,13 +52,15 @@ def build_bot_logger() -> loguru.logger:
     # Get the log level from command line arguments
     log_level = parse_cli_args().log_level.upper()
 
+    colorize_logs = parse_cli_args().colorize_logs
+
     # Set the log format and output destination
     logger.add(
         sys.stdout,
         format=log_settings.bot_logger_format,
-        diagnose=log_level == 'debug',  # Enable backtrace and debug info if log level is debug
-        backtrace=log_level == 'debug',
-        colorize=True,
+        diagnose=log_level == 'DEBUG',  # Enable backtrace and debug info if log level is debug
+        backtrace=log_level == 'DEBUG',
+        colorize=bool(colorize_logs),
         level=log_level if log_level in get_log_level_map() else 'INFO'  # Set log level to INFO if invalid
     )
 

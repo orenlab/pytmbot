@@ -47,6 +47,14 @@ def parse_cli_args() -> argparse.Namespace:
         default="INFO"  # Default value for the argument
     )
 
+    parser.add_argument(
+        "--colorize_logs",
+        choices=["True", "False"],  # Only 'True' and 'False' are valid choices
+        type=str,  # The argument should be a string
+        help="Colorize logs",  # Help message for the argument
+        default="True"  # Default value for the argument
+    )
+
     # Parse the command line arguments
     return parser.parse_args()
 
