@@ -11,7 +11,6 @@ from telebot.types import Message
 from app.core.adapters.docker_adapter import DockerAdapter
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session, bot_logger
-from app.core.auth_processing.auth_wrapper import two_factor_auth_required
 
 
 class DockerHandler(HandlerConstructor):
@@ -65,7 +64,6 @@ class DockerHandler(HandlerConstructor):
 
         @self.bot.message_handler(regexp="Docker")
         @self.bot.message_handler(commands=["docker"])
-        @two_factor_auth_required  # in next release
         @logged_handler_session
         def docker_handler(message: Message) -> None:
             try:
