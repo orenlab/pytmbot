@@ -134,7 +134,7 @@ class BotUpdatesHandler(HandlerConstructor):
             str: The rendered message indicating the bot is using the development version.
         """
         # Define the template name for rendering
-        template_name: str = 'none.jinja2'
+        template_name: str = 'b_none.jinja2'
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
@@ -162,7 +162,7 @@ class BotUpdatesHandler(HandlerConstructor):
 
         """
         # Define the template name for rendering
-        template_name: str = 'none.jinja2'
+        template_name: str = 'b_none.jinja2'
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
@@ -190,7 +190,7 @@ class BotUpdatesHandler(HandlerConstructor):
             str: The rendered message.
         """
         # Define the template name for rendering
-        template_name = 'bot_update.jinja2'
+        template_name = 'b_bot_update.jinja2'
 
         # Extract the current version from the update context
         current_version = update_context['tag_name']
@@ -227,7 +227,7 @@ class BotUpdatesHandler(HandlerConstructor):
         context: str = f"Current version: {__version__}. No update available."
 
         # Define the template name for rendering
-        template_name: str = 'none.jinja2'
+        template_name: str = 'b_none.jinja2'
 
         emojis: dict = {
             'thought_balloon': self.emojis.get_emoji('thought_balloon'),
@@ -258,7 +258,7 @@ class BotUpdatesHandler(HandlerConstructor):
         )
 
         # Define the template name for rendering
-        template_name: str = 'none.jinja2'
+        template_name: str = 'b_none.jinja2'
 
         emojis: dict = {
             'thought_balloon': self.emojis.get_emoji('thought_balloon'),

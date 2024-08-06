@@ -40,7 +40,7 @@ class InlineSwapHandler(HandlerConstructor):
                 context = self.psutil_adapter.get_swap_memory()
 
                 # Render the 'swap.jinja2' template
-                template_name: str = 'swap.jinja2'
+                template_name: str = 'b_swap.jinja2'
 
                 # Define the template context
                 emojis: Dict[str, str] = {

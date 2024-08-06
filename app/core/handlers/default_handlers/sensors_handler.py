@@ -60,7 +60,7 @@ class SensorsHandler(HandlerConstructor):
                 bot_answer: str = "Sorry, I couldn't find any sensors. Something went wrong :("
             else:
                 # Define the template name and context
-                template_name: str = 'sensors.jinja2'
+                template_name: str = 'b_sensors.jinja2'
                 emojis: Dict[str, Any] = {
                     'thought_balloon': self.emojis.get_emoji('thought_balloon'),
                     'thermometer': self.emojis.get_emoji('thermometer'),

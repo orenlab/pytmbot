@@ -42,7 +42,7 @@ class ImagesHandler(HandlerConstructor):
         emojis = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}
 
         # Determine the template name based on whether docker_images is None
-        template_name = 'none.jinja2' if docker_images is None else 'images.jinja2'
+        template_name = 'b_none.jinja2' if docker_images is None else 'd_images.jinja2'
 
         # If docker_images is None, set the default message
         if docker_images is None:

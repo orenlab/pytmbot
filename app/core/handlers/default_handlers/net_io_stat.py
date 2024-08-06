@@ -46,7 +46,7 @@ class NetIOHandler(HandlerConstructor):
             context: dict = self._get_data()
 
             # Define the template name and context variables for network IO statistics
-            template_name: str = 'net_io.jinja2'
+            template_name: str = 'b_net_io.jinja2'
 
             emojis: dict = {
                 'thought_balloon': self.emojis.get_emoji('thought_balloon'),

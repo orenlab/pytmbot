@@ -53,7 +53,7 @@ class LoadAvgHandler(HandlerConstructor):
             }
 
             # Rendering the template to get the bot's answer
-            bot_answer = self.jinja.render_templates('load_average.jinja2', context=load_average_data, **emojis)
+            bot_answer = self.jinja.render_templates('b_load_average.jinja2', context=load_average_data, **emojis)
 
             # Returning the bot's answer
             return bot_answer

@@ -48,7 +48,7 @@ class BackHandler(HandlerConstructor):
                 # Get the first name of the user
                 first_name: str = message.from_user.first_name
 
-                template_name: str = 'back.jinja2'
+                template_name: str = 'b_back.jinja2'
 
                 # Define the emojis to be used in the template
                 emojis = {

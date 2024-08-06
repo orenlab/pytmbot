@@ -214,7 +214,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
             try:
                 context = self.jinja.render_templates(
-                    'containers_full_info.jinja2',
+                    'd_containers_full_info.jinja2',
                     **emojis,
                     container_name=container_name,
                     container_memory_stats=self.__parse_container_memory_stats(container_stats),
@@ -304,6 +304,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             )
 
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__get_logs__'))
+        @two_factor_auth_required
         @logged_inline_handler_session
         def handle_get_logs(call: CallbackQuery):
             """
@@ -331,7 +332,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
             # Render the logs template
             context = self.jinja.render_templates(
-                'logs.jinja2',
+                'd_logs.jinja2',
                 emojis=emojis,
                 logs=logs,
                 container_name=container_name
@@ -409,7 +410,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
 
             # Render the template with the container name and emojis
             context = self.jinja.render_templates(
-                'managing_containers.jinja2',
+                'd_managing_containers.jinja2',
                 container_name=container_name,
                 emojis=emojis
             )

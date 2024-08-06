@@ -10,7 +10,7 @@ from typing import Union
 from telebot.types import Message, CallbackQuery
 
 from app.core.handlers.handler import HandlerConstructor
-from app.core.logs import logged_handler_session
+from app.core.logs import logged_handler_session, bot_logger
 
 
 class AuthRequiredHandler(HandlerConstructor):
@@ -40,7 +40,7 @@ class AuthRequiredHandler(HandlerConstructor):
             }
 
             # Rendering the template to get the bot's answer
-            bot_answer = self.jinja.render_templates('auth_required.jinja2', name=name, **emojis)
+            bot_answer = self.jinja.render_templates('a_auth_required.jinja2', name=name, **emojis)
 
             # Returning the bot's answer
             return bot_answer
@@ -49,6 +49,7 @@ class AuthRequiredHandler(HandlerConstructor):
             raise self.exceptions.PyTeleMonBotHandlerError("Error parsing data")
 
     @logged_handler_session
+    @bot_logger.catch()
     def handle_unauthorized_message(self, query: Union[Message, CallbackQuery]):
         """
         Handle unauthorized message from user.
@@ -70,11 +71,49 @@ class AuthRequiredHandler(HandlerConstructor):
         # Build inline keyboard with options for QR code or entering 2FA code
         keyboard = self.keyboard.build_reply_keyboard(keyboard_type='auth_keyboard')
 
+        # Compile message with user's first name
+        bot_answer = self._compile_message(name=query.from_user.first_name)
+
         if isinstance(query, CallbackQuery):
             self.bot.delete_message(query.message.chat.id, query.message.message_id)
+            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+
+        # Send message to user with appropriate reply markup
+        self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+
+
+class AccessDeniedHandler(HandlerConstructor):
+    """Class to handle access denied messages."""
+
+    @logged_handler_session
+    @bot_logger.catch()
+    def handle_access_denied_message(self, query: Union[Message, CallbackQuery]):
+        """
+        Handle access denied message from user.
+
+        Args:
+            query (Union[Message, CallbackQuery]): The query object.
+
+        Raises:
+            PyTeleMonBotHandlerError: If query is not an instance of Message or CallbackQuery.
+
+        Returns:
+            None
+        """
+        # Check if query is a valid type
+        if not isinstance(query, (Message, CallbackQuery)):
+            # Raise an error for unsupported query types
+            raise NotImplementedError("Unsupported query type")
+
+        # Build inline keyboard with options for QR code or entering 2FA code
+        keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
 
         # Compile message with user's first name
         bot_answer = self._compile_message(name=query.from_user.first_name)
 
+        if isinstance(query, CallbackQuery):
+            self.bot.delete_message(query.message.chat.id, query.message.message_id)
+            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+
         # Send message to user with appropriate reply markup
-        self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
+        self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)

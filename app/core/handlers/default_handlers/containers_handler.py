@@ -55,7 +55,7 @@ class ContainersHandler(HandlerConstructor):
 
             if not container_data:
                 # Use 'none.jinja2' template if no container data
-                template_name: str = 'none.jinja2'
+                template_name: str = 'b_none.jinja2'
 
                 # Define context and emojis
                 context: str = "There are no containers or incorrect settings are specified."
@@ -66,7 +66,7 @@ class ContainersHandler(HandlerConstructor):
                 containers_name = None
             else:
                 # Use 'containers.jinja2' template if there is container data
-                template_name: str = 'containers.jinja2'
+                template_name: str = 'd_containers.jinja2'
 
                 # Use container_data as the context
                 context: dict = container_data

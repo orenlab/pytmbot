@@ -43,11 +43,14 @@ class EchoHandler(HandlerConstructor):
             try:
                 # Send typing action to the user
                 self.bot.send_chat_action(message.chat.id, 'typing')
-
+                # Define emojis for rendering
+                emojis: dict = {
+                    'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                }
                 # Send the response message to the user
-                response: str = 'In a robotic voice: I have checked my notes several times. ' \
-                                'Unfortunately, there is no mention of such a command :('
-                self.bot.send_message(message.chat.id, text=response)
+                bot_answer = self.jinja.render_templates('b_echo.jinja2', first_name=message.from_user.first_name,
+                                                         **emojis)
+                self.bot.send_message(message.chat.id, text=bot_answer)
 
             except (AttributeError, ValueError) as err:
                 # Raise an exception if there is a ValueError while rendering the templates

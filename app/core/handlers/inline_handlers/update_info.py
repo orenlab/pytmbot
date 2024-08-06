@@ -42,7 +42,7 @@ class InlineUpdateInfoHandler(HandlerConstructor):
             """
             try:
                 # Define the name of the template to render
-                template_name = 'how_update.jinja2'
+                template_name = 'b_how_update.jinja2'
 
                 # Define the emojis to use in the template
                 emojis = {'thought_balloon': self.emojis.get_emoji('thought_balloon')}

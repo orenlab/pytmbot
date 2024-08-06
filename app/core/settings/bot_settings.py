@@ -5,9 +5,9 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 import os
-from typing import Optional, List
+from typing import Optional, List, FrozenSet
 
-from pydantic import SecretStr
+from pydantic import SecretStr, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,6 +58,7 @@ class BotSettings(BaseSettings):
         "/containers": "Get Containers info",
         "/images": "Get Images info",
         "/qrcode": "Get TOTP QR code for 2FA app",
+        "/enter_totp": "Enter TOTP 2FA code",
         "/back": "Back to main menu",
         "/check_bot_updates": "Check for software updates",
     }
@@ -65,27 +66,31 @@ class BotSettings(BaseSettings):
         "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
     )
     known_templates: List[str] = [
-        'containers.jinja2',
-        'fs.jinja2',
-        'index.jinja2',
-        'load_average.jinja2',
-        'memory.jinja2',
-        'none.jinja2',
-        'process.jinja2',
-        'sensors.jinja2',
-        'uptime.jinja2',
-        'bot_update.jinja2',
-        'swap.jinja2',
-        'how_update.jinja2',
-        'net_io.jinja2',
-        'about_bot.jinja2',
-        'containers_full_info.jinja2',
-        'logs.jinja2',
-        'docker.jinja2',
-        'back.jinja2',
-        'images.jinja2',
-        'auth_required.jinja2',
-        'managing_containers.jinja2',
+        'd_containers.jinja2',
+        'b_fs.jinja2',
+        'b_index.jinja2',
+        'b_load_average.jinja2',
+        'b_memory.jinja2',
+        'b_none.jinja2',
+        'b_process.jinja2',
+        'b_sensors.jinja2',
+        'b_uptime.jinja2',
+        'b_bot_update.jinja2',
+        'b_swap.jinja2',
+        'b_how_update.jinja2',
+        'b_net_io.jinja2',
+        'b_about_bot.jinja2',
+        'd_containers_full_info.jinja2',
+        'd_logs.jinja2',
+        'd_docker.jinja2',
+        'b_back.jinja2',
+        'd_images.jinja2',
+        'a_auth_required.jinja2',
+        'd_managing_containers.jinja2',
+        'a_send_totp_code.jinja2',
+        'b_echo.jinja2',
+        'a_totp_code_verified.jinja2',
+        'a_totp_code_not_verified.jinja2'
     ]
     main_keyboard: dict[str, str] = {
         'low_battery': 'Load average',
@@ -112,13 +117,15 @@ class BotSettings(BaseSettings):
         'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
+    back_keyboard: dict[str, str] = {
+        'BACK_arrow': 'Back to main menu'
+    }
 
 
-class LogsSettings(BaseSettings):
-    """
-    Class to set logger settings
-    """
-    valid_log_levels: frozenset[str] = frozenset(['ERROR', 'INFO', 'DEBUG'])
-    bot_logger_format: str = ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-                              "<level>{level: <8}</level> | <level>{message}</level> | "
-                              "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>")
+class LogsSettings(BaseModel):
+    valid_log_levels: FrozenSet[str] = frozenset(['ERROR', 'INFO', 'DEBUG'])
+    bot_logger_format: str = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | <level>{message}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>"
+    )

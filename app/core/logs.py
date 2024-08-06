@@ -61,7 +61,8 @@ def build_bot_logger() -> loguru.logger:
         diagnose=log_level == 'DEBUG',  # Enable backtrace and debug info if log level is debug
         backtrace=log_level == 'DEBUG',
         colorize=bool(colorize_logs),
-        level=log_level if log_level in get_log_level_map() else 'INFO'  # Set log level to INFO if invalid
+        level=log_level if log_level in get_log_level_map() else 'INFO',  # Set log level to INFO if invalid
+        catch=True
     )
 
     if log_level == 'DEBUG':

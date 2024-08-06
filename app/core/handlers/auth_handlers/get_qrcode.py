@@ -45,7 +45,7 @@ class GetQrcodeHandler(HandlerConstructor):
                     'thought_balloon': self.emojis.get_emoji('thought_balloon'),
                     'anxious_face_with_sweat': self.emojis.get_emoji('anxious_face_with_sweat'),
                 }
-                error_answer = self.jinja.render_templates('none.jinja2',
+                error_answer = self.jinja.render_templates('b_none.jinja2',
                                                            context="Failed to generate QR code... I apologize!",
                                                            **emojis)
                 self.bot.send_message(message.chat.id, text="Failed to generate QR code", reply_markup=error_answer)

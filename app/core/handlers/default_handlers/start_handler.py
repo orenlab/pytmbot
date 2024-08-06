@@ -49,7 +49,7 @@ class StartHandler(HandlerConstructor):
                 # Get the first name of the user
                 first_name: str = message.from_user.first_name
 
-                template_name: str = 'index.jinja2'
+                template_name: str = 'b_index.jinja2'
 
                 # Render the templates and get the bot answer
                 bot_answer: str = self.jinja.render_templates(

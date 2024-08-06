@@ -44,7 +44,7 @@ class UptimeHandler(HandlerConstructor):
             context: dict = self._get_data()
 
             # Define the Jinja template to be used
-            template_name: str = 'uptime.jinja2'
+            template_name: str = 'b_uptime.jinja2'
 
             # Prepare the context variables for the Jinja template
             emojis: dict = {

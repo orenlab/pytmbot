@@ -46,7 +46,7 @@ class FileSystemHandler(HandlerConstructor):
             # Get the filesystem data
             context: dict = self._get_data()
 
-            template_name: str = 'fs.jinja2'
+            template_name: str = 'b_fs.jinja2'
 
             emojis: dict[str, str] = {
                 'thought_balloon': self.emojis.get_emoji('thought_balloon'),

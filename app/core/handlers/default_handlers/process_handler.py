@@ -67,7 +67,7 @@ class ProcessHandler(HandlerConstructor):
             context = self._compile_message()
 
             # Define the template name for rendering
-            template_name = 'process.jinja2'
+            template_name = 'b_process.jinja2'
 
             # Prepare the context for the template rendering
             emojis = {

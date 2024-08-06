@@ -49,7 +49,7 @@ class AboutBotHandler(HandlerConstructor):
                     'first_name': user_first_name,
                     'current_app_version': __version__
                 }
-                bot_answer = self.jinja.render_templates('about_bot.jinja2', context=template_variables)
+                bot_answer = self.jinja.render_templates('b_about_bot.jinja2', context=template_variables)
 
                 # Send the rendered template as a bot answer
                 self.bot.send_message(

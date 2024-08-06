@@ -72,7 +72,7 @@ class MemoryHandler(HandlerConstructor):
             context: tuple = self._compile_message()
 
             # Define the template name for rendering
-            template_name: str = 'memory.jinja2'
+            template_name: str = 'b_memory.jinja2'
 
             emojis: Dict[str, Union[str, str]] = {
                 'thought_balloon': self.emojis.get_emoji('thought_balloon'),  # Get the thought balloon emoji

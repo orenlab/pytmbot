@@ -51,7 +51,7 @@ class DockerHandler(HandlerConstructor):
         }
 
         try:
-            bot_answer = self.jinja.render_templates('docker.jinja2', context=docker_counters, **emojis)
+            bot_answer = self.jinja.render_templates('d_docker.jinja2', context=docker_counters, **emojis)
             return bot_answer
         except Exception as error:
             bot_logger.error(f"Failed at @{__name__}: {error}")
