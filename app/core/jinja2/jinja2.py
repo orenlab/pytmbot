@@ -132,7 +132,7 @@ class Jinja2Renderer:
         try:
             # Log the template name being loaded
             bot_logger.debug(
-                f"Loading template: {template_name} from subdirectory: {template_subdir}...")
+                f"Loading template: {template_subdir}/{template_name} from subdirectory: ...")
 
             # Check if the template is already in the cache
             template = self._template_cache.get(template_name)

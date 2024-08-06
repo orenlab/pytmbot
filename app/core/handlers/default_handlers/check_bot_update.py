@@ -23,6 +23,9 @@ from app.core.logs import logged_handler_session
 class BotUpdatesHandler(HandlerConstructor):
     """Class for handling bot updates"""
 
+    # Define the template name for rendering
+    none_template: str = 'b_none.jinja2'
+
     @staticmethod
     def __check_bot_update() -> Dict[str, str]:
         """
@@ -133,8 +136,6 @@ class BotUpdatesHandler(HandlerConstructor):
         Returns:
             str: The rendered message indicating the bot is using the development version.
         """
-        # Define the template name for rendering
-        template_name: str = 'b_none.jinja2'
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
@@ -148,7 +149,7 @@ class BotUpdatesHandler(HandlerConstructor):
         )
 
         # Render the message using the template and message context
-        return self.jinja.render_templates(template_name, **emojis, context=message_context)
+        return self.jinja.render_templates(self.none_template, **emojis, context=message_context)
 
     def _render_update_difficulties_message(self) -> str:
         """
@@ -161,8 +162,6 @@ class BotUpdatesHandler(HandlerConstructor):
             self (CheckBotUpdateHandler): The instance of the CheckBotUpdateHandler class.
 
         """
-        # Define the template name for rendering
-        template_name: str = 'b_none.jinja2'
 
         # Create a dictionary of emojis to be used in the template
         emojis: Dict[str, str] = {
@@ -173,7 +172,7 @@ class BotUpdatesHandler(HandlerConstructor):
         message: str = "There were some difficulties checking for updates. We should try again later."
 
         # Render the 'none.jinja2' template with the context message
-        return self.jinja.render_templates(template_name, **emojis, context=message)
+        return self.jinja.render_templates(self.none_template, **emojis, context=message)
 
     def _render_new_update_message(self, update_context: dict[str, str]) -> str:
         """
@@ -226,15 +225,12 @@ class BotUpdatesHandler(HandlerConstructor):
         # Create the context message with the current version
         context: str = f"Current version: {__version__}. No update available."
 
-        # Define the template name for rendering
-        template_name: str = 'b_none.jinja2'
-
         emojis: dict = {
             'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji
-        return self.jinja.render_templates(template_name, **emojis, context=context)
+        return self.jinja.render_templates(self.none_template, **emojis, context=context)
 
     def _render_future_message(self, update_context: dict[str, str]) -> str:
         """
@@ -257,15 +253,12 @@ class BotUpdatesHandler(HandlerConstructor):
             "You are living in the future, and I am glad to say that I will continue to grow and evolve!"
         )
 
-        # Define the template name for rendering
-        template_name: str = 'b_none.jinja2'
-
         emojis: dict = {
             'thought_balloon': self.emojis.get_emoji('thought_balloon'),
         }
 
         # Render the 'none.jinja2' template with the context message and emoji
-        return self.jinja.render_templates(template_name, **emojis, context=context)
+        return self.jinja.render_templates(self.none_template, **emojis, context=context)
 
     def handle(self):
         """
