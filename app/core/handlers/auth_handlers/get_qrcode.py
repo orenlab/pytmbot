@@ -9,7 +9,7 @@ from telebot.types import Message
 
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
-from app.utilities.totp import TOTPGenerator
+from app.utilities.totp import TwoFactorAuthenticator
 
 
 class GetQrcodeHandler(HandlerConstructor):
@@ -25,9 +25,8 @@ class GetQrcodeHandler(HandlerConstructor):
         def handle_qrcode_message(message: Message):
             # Build inline keyboard with options for QR code or entering 2FA code
             keyboard = self.keyboard.build_reply_keyboard(keyboard_type='auth_processing_keyboard')
-
-            with TOTPGenerator(message.from_user.id, message.from_user.first_name) as generator:
-                bot_answer = generator.generate_totp_qr_code()
+            authenticator = TwoFactorAuthenticator(message.from_user.id, message.from_user.username)
+            bot_answer = authenticator.generate_totp_qr_code()
 
             # Send message to user with appropriate reply markup
             if bot_answer:

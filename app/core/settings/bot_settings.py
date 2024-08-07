@@ -89,7 +89,8 @@ class BotSettings(BaseSettings):
         'a_send_totp_code.jinja2',
         'b_echo.jinja2',
         'a_totp_code_verified.jinja2',
-        'a_totp_code_not_verified.jinja2'
+        'a_totp_code_not_verified.jinja2',
+        'a_access_denied.jinja2'
     ]
     main_keyboard: dict[str, str] = {
         'low_battery': 'Load average',
@@ -109,9 +110,11 @@ class BotSettings(BaseSettings):
     }
     auth_keyboard: dict[str, str] = {
         'first_quarter_moon': 'Get QR-code for 2FA app',
+        'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
     auth_processing_keyboard: dict[str, str] = {
+        'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
     back_keyboard: dict[str, str] = {

@@ -44,7 +44,7 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     """
     Custom exception handler for Telebot.
     """
-
+    @bot_logger.catch()
     def handle(self, ex: Exception) -> bool:
         """
         Log and handle exceptions raised by Telebot.

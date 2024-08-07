@@ -4,112 +4,40 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-import base64
 import io
+import threading
 
 import pyotp
 import qrcode
 
 from app import bot_logger
 
+secrets = {}
+lock = threading.Lock()
 
-class TOTPGenerator:
-    """
-    Class for generating Time-based One-time Password (TOTP) authentication URIs and QR codes.
 
-    Attributes:
-        user_id (str): The user ID for which the TOTP is being generated.
-        account_name (str): The account name associated with the TOTP.
-        salt (str): A predefined salt value for generating the secret key.
-
-    Methods:
-        __init__(self, user_id: str, account_name: str)
-        __exit__(self, exc_type, exc_val, exc_tb)
-        __enter__(self)
-        __generate_totp_secret(self)
-        __generate_totp_auth_uri(self)
-        generate_totp_qr_code(self)
-    """
-
-    def __init__(self, user_id: int, account_name: str):
-        """
-        Initialize the TOTPGenerator with the provided user_id and account_name.
-
-        Args:
-            user_id (str): The user ID for which the TOTP is being generated.
-            account_name (str): The account name associated with the TOTP.
-
-        This function also sets a predefined salt value for generating the secret key.
-        """
-        self.user_id: str = str(user_id)
-        self.account_name: str = account_name.replace(' ', '_')
-        self.salt: str = "j7F&2sL9@5dP#1zR*8fT5vG3"
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """
-        Clean up the TOTPGenerator instance by setting secret, account_name, and salt to None.
-
-        Args:
-            exc_type: The type of the exception.
-            exc_val: The exception value.
-            exc_tb: The exception traceback.
-
-        Returns:
-            None
-        """
-        self.user_id = None
-        self.account_name = None
-        self.salt = None
-
-    def __enter__(self):
-        """
-        Enter the context.
-
-        Returns:
-            self: The current instance.
-        """
-        # Return the current instance
-        return self
-
-    def __generate_totp_secret(self) -> str:
-        """
-        Generate a Time-based One-time Password (TOTP) secret key.
-
-        Returns:
-            str: The TOTP secret key.
-        """
-        # Concatenate the user ID and salt, then encode to utf-8 and base64
-        encoded_bytes = base64.urlsafe_b64encode((self.user_id + self.salt).encode('utf-8'))
-
-        # Return the first 30 characters of the encoded string in lowercase
-        return encoded_bytes[:30].decode('utf-8').lower()
+class TwoFactorAuthenticator:
+    def __init__(self, user_id, username):
+        self.user_id = user_id
+        self.username = username
+        with lock:
+            self.secret = secrets.get(user_id)
+            if not self.secret:
+                self.secret = pyotp.random_base32()
+                secrets[user_id] = self.secret
 
     def __generate_totp_auth_uri(self) -> str:
-        """
-        Generate a Time-based One-time Password (TOTP) authentication URI.
-
-        This function generates a TOTP authentication URI based on the secret key and account name.
-
-        Returns:
-            str: The TOTP authentication URI.
-        """
         # Generate TOTP object using the secret key
-        totp = pyotp.TOTP(self.__generate_totp_secret())
+        totp = pyotp.TOTP(self.secret)
 
         # Generate the URI using the TOTP object and account name
-        uri = totp.provisioning_uri(name=self.account_name, issuer_name="pyTMbot TOTP")
+        uri = totp.provisioning_uri(name=self.username, issuer_name="pyTMbot TOTP")
 
         # Return the generated TOTP authentication URI
         return uri
 
-    def generate_totp_qr_code(self) -> bytes:
-        """
-        Generate a QR code for the TOTP authentication URI and return it as bytes.
-
-        Returns:
-            bytes: The QR code as bytes.
-        """
-        bot_logger.debug(f'Start generating TOTP QR code for user {self.user_id}...')
+    def generate_totp_qr_code(self, ) -> bytes:
+        bot_logger.debug(f'Start generating TOTP QR code for user {self.username}...')
         # Generate the TOTP authentication URI
         auth_uri = self.__generate_totp_auth_uri()
 
@@ -120,22 +48,19 @@ class TOTPGenerator:
         with io.BytesIO() as img_bytes:
             qr_code.save(img_bytes)
 
-            bot_logger.debug(f'TOTP QR code for user {self.user_id} generated.')
+            bot_logger.debug(f'TOTP QR code for user {self.username} generated.')
             # Return the bytes of the QR code
             return img_bytes.getvalue()
 
     def verify_totp_code(self, code: str) -> bool:
-        """
-        Verify the TOTP code.
-
-        Args:
-            code (str): The TOTP code to verify.
-
-        Returns:
-            bool: True if the TOTP code is valid, False otherwise.
-        """
         # Generate TOTP object using the secret key
-        totp = pyotp.TOTP(self.__generate_totp_secret())
-
+        totp = pyotp.TOTP(self.secret)
+        print(code)
+        bot_logger.debug(f'Verifying TOTP code for user {self.username}...')
         # Verify the TOTP code
-        return totp.verify(code)
+        print(totp.verify(code))
+        if totp.verify(code):
+            bot_logger.debug(f'TOTP code for user {self.username} verified.')
+            return True
+
+        return False

@@ -11,7 +11,6 @@ from telebot.types import Message, CallbackQuery
 
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session, bot_logger
-from app.core.handlers.auth_handlers.send_totp_code import TOTPCodeHandler
 
 
 class AuthRequiredHandler(HandlerConstructor):
@@ -77,13 +76,49 @@ class AuthRequiredHandler(HandlerConstructor):
 
         if isinstance(query, CallbackQuery):
             self.bot.delete_message(query.message.chat.id, query.message.message_id)
-            msg = self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
         else:
-            msg = self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
+            self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
 
-        next_step = TOTPCodeHandler(self.bot).handle(query)
-        self.bot.register_next_step_handler(msg, next_step)
 
-        self.bot.enable_save_next_step_handlers(delay=2)
+class AccessDeniedHandler(HandlerConstructor):
+    """Class to handle access denied messages."""
 
-        self.bot.load_next_step_handlers()
+    @logged_handler_session
+    @bot_logger.catch()
+    def access_denied_handle(self, query: Union[Message, CallbackQuery]):
+        """
+        Handle unauthorized message from the user.
+
+        Args:
+            query (Union[Message, CallbackQuery]): The query object.
+
+        Raises:
+            PyTeleMonBotHandlerError: If query is not an instance of Message or CallbackQuery.
+
+        Returns:
+            None
+        """
+        # Check if the query is a valid type
+        if not isinstance(query, (Message, CallbackQuery)):
+            # Raise an error for unsupported query types
+            raise NotImplementedError("Unsupported query type")
+
+        # Define emojis
+        emojis = {
+            'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+            'crying_face': self.emojis.get_emoji('crying_face'),
+        }
+        # Get the user's first name
+        name = query.from_user.first_name
+
+        # Build keyboard and message based on query type
+        if isinstance(query, CallbackQuery):
+            keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
+            bot_answer = self.jinja.render_templates('a_access_denied.jinja2', name=name, **emojis)
+            self.bot.delete_message(query.message.chat.id, query.message.message_id)
+            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+        else:
+            keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
+            bot_answer = self.jinja.render_templates('a_access_denied.jinja2', name=name, **emojis)
+            self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
