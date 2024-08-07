@@ -12,6 +12,10 @@ jobs:
       # Build the Docker image first
       - uses: docker/build-push-action@v5
         with:
+          target: production
+          sbom: True
+          provenance: True
+          file: Dockerfile
           push: false
           tags: pytmbot:alpine-slim-dev
 
