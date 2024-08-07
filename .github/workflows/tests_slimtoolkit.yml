@@ -31,5 +31,5 @@ jobs:
 
       # Push to the registry
       - run: |
-          docker tag pytmbot:slim-{{github.run_number}} ${{ secrets.DOCKER_USERNAME }}/IMAGE_NAME:slim-{{github.run_number}}
+          docker tag pytmbot:slim-{{github.run_number}} ${{ secrets.DOCKER_USERNAME }}/pytmbot:slim-{{github.run_number}}
           docker push ${{ secrets.DOCKER_USERNAME }}/pytmbot:slim-{{github.run_number}}
