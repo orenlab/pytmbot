@@ -13,15 +13,15 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           push: false
-          tags: pytmbot:{{github.run_number}}
+          tags: pytmbot:alpine-slim-dev
 
       # Slim the Image
       - uses: kitabisa/docker-slim-action@v1
         env:
           DSLIM_HTTP_PROBE: false
         with:
-          target: pytmbot:{{github.run_number}}
-          tag: "slim-{{github.run_number}}"
+          target: pytmbot
+          tag: "alpine-slim-dev"
 
       # Docker Hub Login
       - uses: docker/login-action@v2
@@ -31,5 +31,5 @@ jobs:
 
       # Push to the registry
       - run: |
-          docker tag pytmbot:slim-{{github.run_number}} ${{ secrets.DOCKER_USERNAME }}/pytmbot:slim-{{github.run_number}}
-          docker push ${{ secrets.DOCKER_USERNAME }}/pytmbot:slim-{{github.run_number}}
+          docker tag pytmbot:alpine-slim-dev ${{ secrets.DOCKER_USERNAME }}/pytmbot:alpine-slim-dev
+          docker push ${{ secrets.DOCKER_USERNAME }}/pytmbot:alpine-slim-dev
