@@ -11,6 +11,7 @@ from telebot.types import Message, CallbackQuery
 
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session, bot_logger
+from app.core.handlers.auth_handlers.send_totp_code import TOTPCodeHandler
 
 
 class AuthRequiredHandler(HandlerConstructor):
@@ -76,44 +77,13 @@ class AuthRequiredHandler(HandlerConstructor):
 
         if isinstance(query, CallbackQuery):
             self.bot.delete_message(query.message.chat.id, query.message.message_id)
-            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+            msg = self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+        else:
+            msg = self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
 
-        # Send message to user with appropriate reply markup
-        self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+        next_step = TOTPCodeHandler(self.bot).handle(query)
+        self.bot.register_next_step_handler(msg, next_step)
 
+        self.bot.enable_save_next_step_handlers(delay=2)
 
-class AccessDeniedHandler(HandlerConstructor):
-    """Class to handle access denied messages."""
-
-    @logged_handler_session
-    @bot_logger.catch()
-    def handle_access_denied_message(self, query: Union[Message, CallbackQuery]):
-        """
-        Handle access denied message from user.
-
-        Args:
-            query (Union[Message, CallbackQuery]): The query object.
-
-        Raises:
-            PyTeleMonBotHandlerError: If query is not an instance of Message or CallbackQuery.
-
-        Returns:
-            None
-        """
-        # Check if query is a valid type
-        if not isinstance(query, (Message, CallbackQuery)):
-            # Raise an error for unsupported query types
-            raise NotImplementedError("Unsupported query type")
-
-        # Build inline keyboard with options for QR code or entering 2FA code
-        keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
-
-        # Compile message with user's first name
-        bot_answer = self._compile_message(name=query.from_user.first_name)
-
-        if isinstance(query, CallbackQuery):
-            self.bot.delete_message(query.message.chat.id, query.message.message_id)
-            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
-
-        # Send message to user with appropriate reply markup
-        self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+        self.bot.load_next_step_handlers()

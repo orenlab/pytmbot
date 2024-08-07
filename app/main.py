@@ -64,14 +64,10 @@ class PyTMBot(PyTMBotInstance):
         # Set the long polling timeout for the bot's polling
         long_polling_timeout_seconds = 60
 
-        # Set whether to skip pending updates
-        skip_pending_updates = True
-
         # Poll the bot for updates indefinitely
         self.bot.infinity_polling(
             timeout=timeout_seconds,
             long_polling_timeout=long_polling_timeout_seconds,
-            skip_pending=skip_pending_updates,
             logger_level=10 if bot_logger.level == 10 else 20
         )
 

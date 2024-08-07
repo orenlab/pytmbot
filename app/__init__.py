@@ -100,6 +100,7 @@ class PyTMBotInstance:
                 threaded=True,
                 use_class_middlewares=True,
                 exception_handler=exceptions.TelebotCustomExceptionHandler(),
+                skip_pending=True,
             )
 
             # Log the bot token

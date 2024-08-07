@@ -58,7 +58,6 @@ class BotSettings(BaseSettings):
         "/containers": "Get Containers info",
         "/images": "Get Images info",
         "/qrcode": "Get TOTP QR code for 2FA app",
-        "/enter_totp": "Enter TOTP 2FA code",
         "/back": "Back to main menu",
         "/check_bot_updates": "Check for software updates",
     }
@@ -110,11 +109,9 @@ class BotSettings(BaseSettings):
     }
     auth_keyboard: dict[str, str] = {
         'first_quarter_moon': 'Get QR-code for 2FA app',
-        'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
     auth_processing_keyboard: dict[str, str] = {
-        'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
     back_keyboard: dict[str, str] = {

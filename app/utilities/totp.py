@@ -123,3 +123,19 @@ class TOTPGenerator:
             bot_logger.debug(f'TOTP QR code for user {self.user_id} generated.')
             # Return the bytes of the QR code
             return img_bytes.getvalue()
+
+    def verify_totp_code(self, code: str) -> bool:
+        """
+        Verify the TOTP code.
+
+        Args:
+            code (str): The TOTP code to verify.
+
+        Returns:
+            bool: True if the TOTP code is valid, False otherwise.
+        """
+        # Generate TOTP object using the secret key
+        totp = pyotp.TOTP(self.__generate_totp_secret())
+
+        # Verify the TOTP code
+        return totp.verify(code)

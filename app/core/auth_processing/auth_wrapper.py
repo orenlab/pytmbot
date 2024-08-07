@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 import functools
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Union, Callable, Any
 
@@ -18,23 +17,16 @@ from app.core.handlers.auth_handlers.send_totp_code import TOTPCodeHandler
 authorized_users = []
 
 
-@dataclass
-class AuthorizedUser:
-    """
-    Class representing an authorized user. It contains information about the user ID and their login time.
+class AuthorizedUserModel:
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+        self.session_expiry = datetime.now() + timedelta(minutes=5)
 
-    Attributes:
-        user_id (int): The ID of the user.
-        login_time (datetime): The time when the user logged in.
-        expiration_time (datetime): The time when the user's two-factor authentication expires.
-    """
-    user_id: int
-    login_time: datetime = field(default_factory=datetime.now)
-    expiration_time: datetime = field(init=False)
-    app_installed: bool = False
+    def is_session_valid(self) -> bool:
+        return datetime.now() < self.session_expiry
 
     def __post_init__(self):
-        self.expiration_time = self.login_time + timedelta(minutes=10)
+        self.expiration_time = self.session_expiry + timedelta(minutes=10)
 
 
 def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -65,12 +57,12 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
             bot_logger.error(f"Administrative access for users ID {user_id} has been denied")
             return handle_unauthorized_query(query)
 
-        if any(user.user_id == user_id for user in authorized_users):
+        if any(user.user_id == user_id for user in authorized_users if user.is_session_valid()):
             bot_logger.debug(f"Administrative access is granted to the user ID {user_id}")
             return func(query)
 
         if process_auth(query):
-            new_authorized_user = AuthorizedUser(user_id=user_id)
+            new_authorized_user = AuthorizedUserModel(user_id=user_id)
             authorized_users.append(new_authorized_user)
 
             bot_logger.debug(f"Administrative access is granted to the user ID {user_id}")

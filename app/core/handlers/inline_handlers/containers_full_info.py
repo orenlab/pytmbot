@@ -10,7 +10,7 @@ from typing import Dict, Any, Union
 from telebot.types import CallbackQuery
 
 from app.core.adapters.docker_adapter import DockerAdapter
-from app.core.auth_processing.auth_wrapper import two_factor_auth_required, AuthorizedUser
+from app.core.auth_processing.auth_wrapper import two_factor_auth_required, AuthorizedUserModel
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session, bot_logger
@@ -376,8 +376,8 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Access denied")
 
             # Check if the user is authenticated
-            is_user_authenticated = AuthorizedUser(call.from_user.id)
-            if not is_user_authenticated.user_id:
+            is_user_authenticated = AuthorizedUserModel(call.from_user.id).is_session_valid()
+            if not is_user_authenticated:
                 bot_logger.log("DENIED", f"User {call.from_user.id} NOT authenticated. Denied '__manage__' function")
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Not authenticated user")
 
