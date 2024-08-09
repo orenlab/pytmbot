@@ -15,6 +15,50 @@ from app.core.handlers.auth_handlers.auth_required import AuthRequiredHandler, A
 authorized_users = []
 
 
+def handle_unauthorized_query(query: Union[Message, CallbackQuery]) -> bool:
+    """
+    Handle unauthorized queries.
+
+    Args:
+        query (Union[Message, CallbackQuery]): The query object.
+
+    Returns:
+        bool: True if the query was handled successfully, False otherwise.
+
+    Raises:
+        NotImplementedError: If the query type is not supported.
+    """
+    # Get the bot instance
+    bot_instance = PyTMBotInstance.get_bot_instance()
+
+    # Create an instance of the AuthRequiredHandler
+    auth_handler = AuthRequiredHandler(bot_instance)
+
+    return auth_handler.handle_unauthorized_message(query)
+
+
+def handle_access_denied(query: Union[Message, CallbackQuery]) -> bool:
+    """
+    Handle access denied queries.
+
+    Args:
+        query (Union[Message, CallbackQuery]): The query object.
+
+    Returns:
+        bool: True if the query was handled successfully, False otherwise.
+
+    Raises:
+        NotImplementedError: If the query type is not supported.
+    """
+    # Get the bot instance
+    bot_instance = PyTMBotInstance.get_bot_instance()
+
+    # Create an instance of the AccessDeniedHandler
+    access_denied_handler = AccessDeniedHandler(bot_instance)
+
+    return access_denied_handler.access_denied_handle(query)
+
+
 class AuthorizedUserModel:
     def __init__(self, user_id: int):
         self.user_id = user_id
@@ -60,47 +104,3 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
             return handle_access_denied(query)
 
     return wrapper
-
-
-def handle_unauthorized_query(query: Union[Message, CallbackQuery]) -> bool:
-    """
-    Handle unauthorized queries.
-
-    Args:
-        query (Union[Message, CallbackQuery]): The query object.
-
-    Returns:
-        bool: True if the query was handled successfully, False otherwise.
-
-    Raises:
-        NotImplementedError: If the query type is not supported.
-    """
-    # Get the bot instance
-    bot_instance = PyTMBotInstance.get_bot_instance()
-
-    # Create an instance of the AuthRequiredHandler
-    auth_handler = AuthRequiredHandler(bot_instance)
-
-    return auth_handler.handle_unauthorized_message(query)
-
-
-def handle_access_denied(query: Union[Message, CallbackQuery]) -> bool:
-    """
-    Handle access denied queries.
-
-    Args:
-        query (Union[Message, CallbackQuery]): The query object.
-
-    Returns:
-        bool: True if the query was handled successfully, False otherwise.
-
-    Raises:
-        NotImplementedError: If the query type is not supported.
-    """
-    # Get the bot instance
-    bot_instance = PyTMBotInstance.get_bot_instance()
-
-    # Create an instance of the AccessDeniedHandler
-    access_denied_handler = AccessDeniedHandler(bot_instance)
-
-    return access_denied_handler.access_denied_handle(query)

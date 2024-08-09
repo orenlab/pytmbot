@@ -17,7 +17,7 @@ from app.utilities.totp import TwoFactorAuthenticator
 
 
 @dataclass
-class UserAttempt(HandlerConstructor):
+class Users:
     user_data: dict = field(default_factory=dict)
 
 
@@ -26,20 +26,20 @@ class TwoFAStartHandler(HandlerConstructor):
 
     @staticmethod
     def get_attempt_count(user_id):
-        return UserAttempt.user_data.get(user_id, {}).get('attempt_count', 0)
+        return Users.user_data.get(user_id, {}).get('attempt_count', 0)
 
     @staticmethod
     def set_attempt_count(user_id, count):
-        user_data = UserAttempt.user_data.setdefault(user_id, {})
+        user_data = Users.user_data.setdefault(user_id, {})
         user_data['attempt_count'] = count
 
     @staticmethod
     def get_attempt_reset_time(user_id):
-        return UserAttempt.user_data.get(user_id, {}).get('attempt_reset_time', 0)
+        return Users.user_data.get(user_id, {}).get('attempt_reset_time', 0)
 
     @staticmethod
     def set_attempt_reset_time(user_id, _time):
-        user_data = UserAttempt.user_data.setdefault(user_id, {})
+        user_data = Users.user_data.setdefault(user_id, {})
         user_data['attempt_reset_time'] = _time
 
     def handle(self) -> None:
