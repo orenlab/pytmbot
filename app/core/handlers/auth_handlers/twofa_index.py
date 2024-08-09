@@ -5,15 +5,42 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import time
+from dataclasses import dataclass, field
+
 from telebot.types import Message
 
+from app import bot_logger
 from app.core.handlers.handler import HandlerConstructor
-from app.core.logs import logged_handler_session, bot_logger
+from app.core.logs import logged_handler_session
 from app.utilities.totp import TwoFactorAuthenticator
 
 
-class TwoFAHandler(HandlerConstructor):
+@dataclass
+class UserAttempt(HandlerConstructor):
+    user_data: dict = field(default_factory=dict)
+
+
+class TwoFAStartHandler(HandlerConstructor):
     """Class to handle auth required messages."""
+
+    @staticmethod
+    def get_attempt_count(user_id):
+        return UserAttempt.user_data.get(user_id, {}).get('attempt_count', 0)
+
+    @staticmethod
+    def set_attempt_count(user_id, count):
+        user_data = UserAttempt.user_data.setdefault(user_id, {})
+        user_data['attempt_count'] = count
+
+    @staticmethod
+    def get_attempt_reset_time(user_id):
+        return UserAttempt.user_data.get(user_id, {}).get('attempt_reset_time', 0)
+
+    @staticmethod
+    def set_attempt_reset_time(user_id, _time):
+        user_data = UserAttempt.user_data.setdefault(user_id, {})
+        user_data['attempt_reset_time'] = _time
 
     def handle(self) -> None:
         """
@@ -28,6 +55,7 @@ class TwoFAHandler(HandlerConstructor):
 
         @self.bot.message_handler(regexp='Enter 2FA code',
                                   func=lambda message: message.from_user.id in allowed_admins_ids)
+        @bot_logger.catch()
         @logged_handler_session
         def handle_twofa_message(message: Message):
             """
@@ -50,43 +78,44 @@ class TwoFAHandler(HandlerConstructor):
                 name=message.from_user.first_name or "Anonymous user",
                 **emojis
             )
-            msg = self.bot.send_message(message.chat.id, text=bot_answer, reply_markup=keyboard)
+            self.bot.send_message(message.chat.id, text=bot_answer, reply_markup=keyboard, parse_mode="Markdown")
 
-            self.bot.register_next_step_handler(msg, handle_code_verification)
-
-            self.bot.enable_save_next_step_handlers(delay=2)
-
-            self.bot.load_next_step_handlers()
-
+        @self.bot.message_handler(regexp="^d{6}$")
+        @logged_handler_session
         def handle_code_verification(message: Message):
-            msg = self.bot.send_message(message.chat.id, text="Enter 2FA code:")
-            self.bot.register_next_step_handler(msg, processing_code)
+            try:
+                print(message.text)
+                bot_logger.info(f"Start processing TOTP code for user {message.from_user.username}...")
+                auth_code = message.text.split(':', 1)[-1].strip()
+                if not auth_code.isdigit():
+                    bot_logger.debug(f"TOTP code for user {message.from_user.username} is invalid.")
+                    self.bot.reply_to(message, 'Code should be a valid number. Please try again... Format: code:222222')
+                    return
 
-        def processing_code(message: Message):
-            bot_logger.debug("Processing TOTP code in progress...")
-            user_id = message.from_user.id
-            user_name = message.from_user.username
-            auth_code = message.text.replace('/', '')
-            print(auth_code)
-            if not auth_code:
-                msg = self.bot.reply_to(message, 'Code should be a valid number. Please try again...')
-                self.bot.register_next_step_handler(msg, processing_code)
-                return
-            authenticator = TwoFactorAuthenticator(message.from_user.id, message.from_user.username)
-            code_is_verified = authenticator.verify_totp_code(auth_code)
+                authenticator = TwoFactorAuthenticator(message.from_user.id, message.from_user.username)
 
-            if code_is_verified:
-                msg = self.bot.reply_to(message, 'Done processing TOTP code. Thank you!')
-                self.bot.register_next_step_handler(msg, totp_code_verified)
-            else:
-                msg = self.bot.reply_to(message, 'Wrong TOTP code. Please try again...')
-                self.bot.register_next_step_handler(msg, processing_code)
+                code_is_verified = authenticator.verify_totp_code(auth_code)
 
-        def totp_code_verified(message: Message):
-            bot_answer = self.jinja.render_templates('a_totp_code_verified.jinja2',
-                                                     name=message.from_user.first_name)
-            return self.bot.reply_to(message, text=bot_answer)
+                if code_is_verified:
+                    bot_logger.success(f"Done processing TOTP code for user {message.from_user.username}.")
+                    self.bot.reply_to(message, 'Done processing TOTP code. Thank you!')
+                else:
+                    user_id = message.from_user.id
+                    last_reset_time = self.get_attempt_reset_time(user_id)
+                    if last_reset_time is None or time.time() >= last_reset_time + 300:
+                        self.set_attempt_reset_time(user_id, time.time() + 300)
+                        self.set_attempt_count(user_id, 1)
+                    else:
+                        self.set_attempt_count(user_id, self.get_attempt_count(user_id) + 1)
 
-        self.bot.enable_save_next_step_handlers(delay=2)
-
-        self.bot.load_next_step_handlers()
+                    if self.get_attempt_count(user_id) > 3:
+                        bot_logger.warning(
+                            f"Exceeded the maximum number of attempts for user {message.from_user.username}.")
+                        self.bot.reply_to(message, 'Too many attempts. Please try again later after 5 minutes.')
+                    else:
+                        bot_logger.error(
+                            f"Failed to verify TOTP code for user {message.from_user.username}. "
+                            f"Attempt {self.get_attempt_count(user_id)} of 3.")
+                        self.bot.reply_to(message, 'Incorrect code. Please try again...')
+            except Exception as e:
+                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(e)}")

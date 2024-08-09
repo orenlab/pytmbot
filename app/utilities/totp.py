@@ -4,31 +4,30 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+import base64
+import hashlib
 import io
-import threading
 
 import pyotp
 import qrcode
 
 from app import bot_logger
 
-secrets = {}
-lock = threading.Lock()
-
 
 class TwoFactorAuthenticator:
     def __init__(self, user_id, username):
         self.user_id = user_id
         self.username = username
-        with lock:
-            self.secret = secrets.get(user_id)
-            if not self.secret:
-                self.secret = pyotp.random_base32()
-                secrets[user_id] = self.secret
+        self.salt = b"12345678901234567890"
+
+    def __generate_secret(self) -> str:
+        message = self.user_id.encode() + self.username.encode()
+        h = hashlib.sha256(message)
+        return base64.b32encode(h.digest()).decode()
 
     def __generate_totp_auth_uri(self) -> str:
         # Generate TOTP object using the secret key
-        totp = pyotp.TOTP(self.secret)
+        totp = pyotp.TOTP(self.__generate_secret())
 
         # Generate the URI using the TOTP object and account name
         uri = totp.provisioning_uri(name=self.username, issuer_name="pyTMbot TOTP")
@@ -54,7 +53,7 @@ class TwoFactorAuthenticator:
 
     def verify_totp_code(self, code: str) -> bool:
         # Generate TOTP object using the secret key
-        totp = pyotp.TOTP(self.secret)
+        totp = pyotp.TOTP(self.__generate_secret())
         print(code)
         bot_logger.debug(f'Verifying TOTP code for user {self.username}...')
         # Verify the TOTP code
