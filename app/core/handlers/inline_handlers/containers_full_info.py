@@ -304,7 +304,6 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             )
 
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__get_logs__'))
-        @two_factor_auth_required
         @logged_inline_handler_session
         def handle_get_logs(call: CallbackQuery):
             """
