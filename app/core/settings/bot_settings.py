@@ -121,6 +121,7 @@ class BotSettings(BaseSettings):
     back_keyboard: dict[str, str] = {
         'BACK_arrow': 'Back to main menu'
     }
+    totp_max_attempts: int = 3
 
 
 class LogsSettings(BaseModel):

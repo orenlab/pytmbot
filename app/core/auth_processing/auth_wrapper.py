@@ -10,9 +10,7 @@ from typing import Union, Callable, Any
 from telebot.types import Message, CallbackQuery
 
 from app import config, PyTMBotInstance, bot_logger
-from app.core.handlers.auth_handlers.auth_required import AuthRequiredHandler, AccessDeniedHandler
-
-authorized_users = []
+from app.core.handlers.auth_handlers.auth_processing import AuthRequiredHandler, AccessDeniedHandler
 
 
 def handle_unauthorized_query(query: Union[Message, CallbackQuery]) -> bool:
@@ -28,13 +26,7 @@ def handle_unauthorized_query(query: Union[Message, CallbackQuery]) -> bool:
     Raises:
         NotImplementedError: If the query type is not supported.
     """
-    # Get the bot instance
-    bot_instance = PyTMBotInstance.get_bot_instance()
-
-    # Create an instance of the AuthRequiredHandler
-    auth_handler = AuthRequiredHandler(bot_instance)
-
-    return auth_handler.handle_unauthorized_message(query)
+    return AuthRequiredHandler(PyTMBotInstance.get_bot_instance()).handle_unauthorized_message(query)
 
 
 def handle_access_denied(query: Union[Message, CallbackQuery]) -> bool:
@@ -50,25 +42,28 @@ def handle_access_denied(query: Union[Message, CallbackQuery]) -> bool:
     Raises:
         NotImplementedError: If the query type is not supported.
     """
-    # Get the bot instance
-    bot_instance = PyTMBotInstance.get_bot_instance()
+    return AccessDeniedHandler(PyTMBotInstance.get_bot_instance()).access_denied_handle(query)
 
-    # Create an instance of the AccessDeniedHandler
-    access_denied_handler = AccessDeniedHandler(bot_instance)
 
-    return access_denied_handler.access_denied_handle(query)
+_authorized_users = []
 
 
 class AuthorizedUserModel:
     def __init__(self, user_id: int):
         self.user_id = user_id
-        self.session_expiry = datetime.now() + timedelta(minutes=5)
+        self.__session_expiry = datetime.now() + timedelta(minutes=5)
 
     def is_session_valid(self) -> bool:
-        return datetime.now() < self.session_expiry
+        return datetime.now() < self.__session_expiry
+
+    def update_session(self) -> None:
+        self.__session_expiry = datetime.now() + timedelta(minutes=5)
+
+    def set_auth_session(self) -> None:
+        _authorized_users.append(self)
 
     def __post_init__(self):
-        self.expiration_time = self.session_expiry + timedelta(minutes=10)
+        self.__expiration_time = self.__session_expiry + timedelta(minutes=5)
 
 
 def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -83,14 +78,16 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
     """
 
     def wrapper(query: Union[Message, CallbackQuery]) -> Any:
-        global authorized_users
 
         user_id = query.from_user.id
 
         # Check if the user is an allowed admin
         if user_id in config.allowed_admins_ids:
             # Check if the user is not already authorized
-            if user_id not in [user.user_id for user in authorized_users]:
+            if user_id not in [user.user_id for user in _authorized_users]:
+                # Create a new authorized user
+                return handle_unauthorized_query(query)
+            elif not _authorized_users[user_id].is_session_valid():
                 # Create a new authorized user
                 return handle_unauthorized_query(query)
             else:

@@ -10,14 +10,14 @@ import io
 
 import pyotp
 import qrcode
-from app import config
 
 from app import bot_logger
+from app import config
 
 
 class TwoFactorAuthenticator:
     def __init__(self, user_id, username):
-        self.user_id = user_id
+        self.user_id: int = user_id
         self.username = username
         self.salt: bytes = config.auth_salt
 
@@ -31,7 +31,7 @@ class TwoFactorAuthenticator:
             str: The base32 encoded secret key.
         """
         # Concatenate the user ID and username
-        message = self.user_id.encode() + self.username.encode()
+        message = str(self.user_id).encode() + self.username.encode()
 
         # Hash the concatenated message using SHA256
         h = hashlib.sha256(message)
@@ -39,6 +39,7 @@ class TwoFactorAuthenticator:
         # Encode the hash digest as base32 and decode it to a string
         return base64.b32encode(h.digest()).decode()
 
+    @bot_logger.catch()
     def __generate_totp_auth_uri(self) -> str:
         """
         Generates a TOTP authentication URI using the secret key and account information.
@@ -97,8 +98,8 @@ class TwoFactorAuthenticator:
 
         # Verify the TOTP code
         if totp.verify(code):
-            bot_logger.debug(f'TOTP code for user {self.username} verified.')
+            bot_logger.log("SUCCESS", f'TOTP code for user {self.username} verified.')
             return True
 
-        bot_logger.debug(f'Failed to verify TOTP code for user {self.username}.')
+        bot_logger.error(f'Failed to verify TOTP code for user {self.username}.')
         return False
