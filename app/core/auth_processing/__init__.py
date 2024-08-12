@@ -55,7 +55,7 @@ class SessionManager:
         Raises:
             ValueError: If the state is not a valid authentication state.
         """
-        if state not in StateFabric.__dict__.values():
+        if state not in self.state_fabric.__dict__.values():
             raise ValueError(f"Invalid state: {state}")
         self.user_data.setdefault(user_id, {})['auth_state'] = state
 
