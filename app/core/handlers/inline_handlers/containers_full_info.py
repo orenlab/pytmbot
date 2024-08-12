@@ -376,10 +376,12 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Access denied")
 
             is_authenticated = session_manager.is_authenticated(call.from_user.id)
-            bot_logger.debug(f"User {call.from_user.id} is authenticated: {is_authenticated}")
+            bot_logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
 
             if not is_authenticated:
-                bot_logger.log("DENIED", f"User {call.from_user.id} NOT authenticated. Denied '__manage__' function")
+                bot_logger.log("DENIED",
+                               f"User {call.from_user.id} NOT authenticated. "
+                               f"Denied '__manage__' function for container {container_name}")
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Not authenticated user")
 
             # Create the keyboard buttons

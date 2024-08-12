@@ -3,8 +3,16 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 
+class StateFabric:
+    """ Class for managing user states. """
+    authenticated = 'authenticated'
+    processing = 'processing'
+    blocked = 'blocked'
+    unauthenticated = 'unauthenticated'
+
+
 @dataclass
-class SessionManager:
+class SessionManager():
     """
     A class for managing user sessions.
     """
@@ -15,7 +23,8 @@ class SessionManager:
         """
         Creates a new instance of the SessionManager class if it doesn't exist.
 
-        This method is used to implement the Singleton design pattern, ensuring that only one instance of the SessionManager class is created.
+        This method is used to implement the Singleton design pattern, ensuring that only one instance of the
+        SessionManager class is created.
 
         Returns:
             SessionManager: The instance of the SessionManager class.
@@ -26,10 +35,6 @@ class SessionManager:
             cls._instance = super(SessionManager, cls).__new__(cls)
         # Return the instance of the SessionManager class
         return cls._instance
-
-    # Rest of your class methods here...
-
-    state_fabric = {'authenticated', 'processing', 'blocked', 'unauthenticated'}
 
     @property
     def user_data(self) -> dict:
@@ -49,7 +54,7 @@ class SessionManager:
         Raises:
             ValueError: If the state is not a valid authentication state.
         """
-        if state not in self.state_fabric:
+        if state not in StateFabric.__dict__.values():
             raise ValueError(f"Invalid state: {state}")
         self.user_data.setdefault(user_id, {})['auth_state'] = state
 

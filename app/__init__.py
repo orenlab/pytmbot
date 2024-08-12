@@ -9,10 +9,10 @@ from functools import lru_cache
 import telebot
 
 from app.core import exceptions
+from app.core.auth_processing import SessionManager, StateFabric
 from app.core.logs import bot_logger
 from app.core.settings.bot_settings import BotSettings
 from app.utilities.utilities import parse_cli_args
-from app.core.auth_processing import SessionManager
 
 # Main config
 config = BotSettings()
@@ -145,3 +145,4 @@ class PyTMBotInstance:
 
 PyTMBotInstance._instance = None
 session_manager = SessionManager()
+state_fabric = StateFabric()
