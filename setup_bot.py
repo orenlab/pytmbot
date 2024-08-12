@@ -9,12 +9,29 @@ try:
     import click
 except ImportError:
     raise ImportError("Error loading 'click' package. Install it!")
+import base64
+import secrets
 from string import Template
 
 import bot_cli.cfg_templates.env as default_env_tpl
 from bot_cli import fs as filesystem
 
 APP_ENV_FILE = '.pytmbotenv'
+
+
+def generate_random_auth_salt(length=32):
+    """
+    Generates a random authentication salt for the bot.
+
+    Args:
+        length (int, optional): The length of the salt in bytes. Defaults to 32.
+
+    Returns:
+        str: The generated authentication salt.
+    """
+    random_bytes = secrets.token_bytes(length)
+    salt = base64.b32encode(random_bytes).decode('utf-8')
+    return salt
 
 
 def ask_for_user_id() -> str:
@@ -110,6 +127,25 @@ def ask_for_admin_user_id() -> str:
     return click.prompt("User IDS")
 
 
+def ask_for_auth_salt() -> str:
+    """
+    Prompts the user to enter the auth salt.
+
+    Returns:
+        str: The auth salt entered by the user.
+    """
+    # Display a message to the user indicating the purpose of the input
+    click.secho("[-] Let's added auth salt:", bg='blue', fg='white', bold=False)
+
+    # Provide the format for the input
+    click.echo("""
+        Leave the field blank to automatically generate a random salt.\n
+        """)
+
+    # Prompt the user to enter the auth salt and provide a default value
+    return click.prompt("Auth salt", default=generate_random_auth_salt())
+
+
 def create_dot_env() -> None:
     """
     Creates a .env file with bot tokens, user ids, and host information.
@@ -136,6 +172,9 @@ def create_dot_env() -> None:
     # Prompt the user for the Docker host
     docker_host = ask_for_docker_host()
 
+    # Prompt the user for the auth salt
+    auth_salt = ask_for_auth_salt()
+
     # Create a dictionary with the variables
     variables: dict = {
         "dev_token": dev_token,
@@ -143,6 +182,7 @@ def create_dot_env() -> None:
         "user_id": user_id,
         "admin_id": admin_id,
         "docker_host": docker_host,
+        "auth_salt": auth_salt
     }
 
     # Create the .env file with the variables

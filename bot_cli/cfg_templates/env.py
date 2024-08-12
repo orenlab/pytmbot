@@ -8,4 +8,5 @@ ALLOWED_USER_IDS=[$user_id]
 ALLOWED_ADMINS_IDS=[$admin_id]
 # Set Docker Socket o TCP param
 DOCKER_HOST='$docker_host'
+AUTH_SALT='$auth_salt'
 """
