@@ -145,4 +145,3 @@ class PyTMBotInstance:
 
 PyTMBotInstance._instance = None
 session_manager = SessionManager()
-state_fabric = StateFabric()

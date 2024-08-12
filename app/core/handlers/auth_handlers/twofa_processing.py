@@ -9,7 +9,7 @@ from datetime import datetime
 
 from telebot.types import Message
 
-from app import config, bot_logger, session_manager, state_fabric
+from app import config, bot_logger, session_manager
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 from app.utilities.totp import TwoFactorAuthenticator
@@ -38,7 +38,7 @@ class TwoFAStartHandler(HandlerConstructor):
                 if session_manager.is_blocked(user_id):
                     self._handle_blocked_user(message)
                     return
-                session_manager.set_auth_state(user_id, state_fabric.processing)
+                session_manager.set_auth_state(user_id, session_manager.state_fabric.processing)
                 self._send_totp_code_message(message)
             except Exception as err:
                 bot_logger.error(err, exc_info=True)
@@ -46,7 +46,7 @@ class TwoFAStartHandler(HandlerConstructor):
         @self.bot.message_handler(regexp=r"[0-9]{6}$",
                                   func=lambda message:
                                   message.from_user.id in config.allowed_admins_ids and session_manager.get_auth_state(
-                                      message.from_user.id) == state_fabric.processing)
+                                      message.from_user.id) == session_manager.state_fabric.processing)
         @logged_handler_session
         def handle_totp_code_verification(message: Message) -> None:
             """
@@ -76,7 +76,7 @@ class TwoFAStartHandler(HandlerConstructor):
 
             authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
             if authenticator.verify_totp_code(totp_code):
-                session_manager.set_auth_state(user_id, state_fabric.authenticated)
+                session_manager.set_auth_state(user_id, session_manager.state_fabric.authenticated)
                 session_manager.set_login_time(user_id)
                 bot_logger.log("SUCCESS", f'TOTP code for user {user_id} verified.')
                 self.bot.reply_to(message, 'TOTP code verified. Authentication successful.')
@@ -178,7 +178,7 @@ class TwoFAStartHandler(HandlerConstructor):
             None
         """
         # Set the user's authentication state to 'blocked'
-        session_manager.set_auth_state(user_id, state_fabric.blocked)
+        session_manager.set_auth_state(user_id, session_manager.state_fabric.blocked)
         # Reset the user's TOTP attempts
         session_manager.reset_totp_attempts(user_id)
         # Set a blocked time for the user
