@@ -18,6 +18,7 @@ class SessionManager:
     """
     _instance = None
     __user_data: dict = field(default_factory=dict)
+    state_fabric = StateFabric()
 
     def __new__(cls):
         """
@@ -170,7 +171,8 @@ class SessionManager:
         Returns:
             bool: True if the user is authenticated, False otherwise.
         """
-        return self.get_auth_state(user_id) == 'authenticated'
+        return self.get_auth_state(user_id) == self.state_fabric.authenticated and not self.is_blocked(
+            user_id) and not self.is_session_expired(user_id)
 
     def set_login_time(self, user_id: int) -> None:
         """
