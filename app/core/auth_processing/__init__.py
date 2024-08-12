@@ -12,7 +12,7 @@ class StateFabric:
 
 
 @dataclass
-class SessionManager():
+class SessionManager:
     """
     A class for managing user sessions.
     """
