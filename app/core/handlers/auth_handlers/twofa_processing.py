@@ -6,12 +6,10 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import datetime
-from typing import Union, Callable, Any
 
-from telebot.types import Message, CallbackQuery
+from telebot.types import Message
 
-from app import config, PyTMBotInstance, bot_logger, session_manager
-from app.core.handlers.auth_handlers.auth_processing import AuthRequiredHandler, AccessDeniedHandler
+from app import config, bot_logger, session_manager
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 from app.utilities.totp import TwoFactorAuthenticator
@@ -121,4 +119,3 @@ class TwoFAStartHandler(HandlerConstructor):
                 session_manager.set_totp_attempts(user_id=user_id)
                 bot_logger.error(f"Invalid TOTP code: {totp_code}")
                 self.bot.reply_to(message, 'Invalid TOTP code. Please try again.')
-
