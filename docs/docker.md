@@ -85,6 +85,8 @@ ALLOWED_USER_IDS=[00000000000, 00000000000]
 ALLOWED_ADMINS_IDS=[00000000000, 00000000000]
 # Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
 DOCKER_HOST='unix:///var/run/docker.sock'
+# Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+AUTH_SALT="PLS, INSERT HERE ONLY BASE32 string"
 ```
 
 Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` editor.
