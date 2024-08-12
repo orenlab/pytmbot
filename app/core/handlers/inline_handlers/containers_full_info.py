@@ -9,8 +9,9 @@ from typing import Dict, Any, Union
 
 from telebot.types import CallbackQuery
 
+from app import session_manager
 from app.core.adapters.docker_adapter import DockerAdapter
-from app.core.auth_processing.auth_wrapper import two_factor_auth_required, AuthorizedUserModel
+from app.core.auth_processing.auth_wrapper import two_factor_auth_required
 from app.core.handlers.default_handlers.containers_handler import ContainersHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_inline_handler_session, bot_logger
@@ -374,29 +375,23 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 bot_logger.log("DENIED", f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function")
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Access denied")
 
-            # Check if the user is authenticated
-            is_user_authenticated = AuthorizedUserModel(call.from_user.id).is_session_valid()
-            if not is_user_authenticated:
+            is_authenticated = session_manager.is_authenticated(call.from_user.id)
+            bot_logger.debug(f"User {call.from_user.id} is authenticated: {is_authenticated}")
+
+            if not is_authenticated:
                 bot_logger.log("DENIED", f"User {call.from_user.id} NOT authenticated. Denied '__manage__' function")
                 return containers_handling_error(call=call, text=f"Managing {container_name}: Not authenticated user")
-
-            # Check if the authentication token is valid
-            auth_token = True
-            if not auth_token:
-                bot_logger.log("DENIED",
-                               f"Auth token for user {call.from_user.id} NOT created. Denied '__manage__' function")
-                return containers_handling_error(call=call, text=f"Managing {container_name}: Error getting auth token")
 
             # Create the keyboard buttons
             keyboard_buttons = [
                 self.keyboard.ButtonData(text="Start",
-                                         callback_data=f'__start__:{container_name}:{call.from_user.id}:{auth_token}'),
+                                         callback_data=f'__start__:{container_name}:{call.from_user.id}'),
                 self.keyboard.ButtonData(text="Stop",
-                                         callback_data=f'__stop__:{container_name}:{call.from_user.id}:{auth_token}'),
+                                         callback_data=f'__stop__:{container_name}:{call.from_user.id}'),
                 self.keyboard.ButtonData(text="Restart",
-                                         callback_data=f'__restart__:{container_name}:{call.from_user.id}:{auth_token}'),
+                                         callback_data=f'__restart__:{container_name}:{call.from_user.id}'),
                 self.keyboard.ButtonData(text="Rename",
-                                         callback_data=f'__rename__:{container_name}:{call.from_user.id}:{auth_token}'),
+                                         callback_data=f'__rename__:{container_name}:{call.from_user.id}'),
             ]
 
             # Build the inline keyboard

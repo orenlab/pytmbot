@@ -1,15 +1,8 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
-from datetime import datetime, timedelta
 from typing import Union, Callable, Any
 
 from telebot.types import Message, CallbackQuery
 
-from app import config, PyTMBotInstance, bot_logger
+from app import PyTMBotInstance, config, session_manager, bot_logger
 from app.core.handlers.auth_handlers.auth_processing import AuthRequiredHandler, AccessDeniedHandler
 
 
@@ -45,27 +38,6 @@ def handle_access_denied(query: Union[Message, CallbackQuery]) -> bool:
     return AccessDeniedHandler(PyTMBotInstance.get_bot_instance()).access_denied_handle(query)
 
 
-_authorized_users = []
-
-
-class AuthorizedUserModel:
-    def __init__(self, user_id: int):
-        self.user_id = user_id
-        self.__session_expiry = datetime.now() + timedelta(minutes=5)
-
-    def is_session_valid(self) -> bool:
-        return datetime.now() < self.__session_expiry
-
-    def update_session(self) -> None:
-        self.__session_expiry = datetime.now() + timedelta(minutes=5)
-
-    def set_auth_session(self) -> None:
-        _authorized_users.append(self)
-
-    def __post_init__(self):
-        self.__expiration_time = self.__session_expiry + timedelta(minutes=5)
-
-
 def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator that enforces two-factor authentication for the provided function.
@@ -84,11 +56,14 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
         # Check if the user is an allowed admin
         if user_id in config.allowed_admins_ids:
             # Check if the user is not already authorized
-            if user_id not in [user.user_id for user in _authorized_users]:
+            _s = session_manager.is_authenticated(user_id)
+            bot_logger.debug(f"User {user_id} is authenticated: {_s}")
+            if not _s:
                 # Create a new authorized user
                 return handle_unauthorized_query(query)
-            elif not _authorized_users[user_id].is_session_valid():
-                # Create a new authorized user
+            elif session_manager.is_session_expired(user_id):
+                session_manager.set_auth_state(user_id, 'unauthenticated')
+                bot_logger.error(f"Session expired for user {user_id}")
                 return handle_unauthorized_query(query)
             else:
                 # Log the successful authorization

@@ -4,13 +4,14 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-import datetime
-from typing import Type
 
-from telebot.types import Message
+from datetime import datetime
+from typing import Union, Callable, Any
 
-from app import bot_logger, config
-from app.core.auth_processing import SessionManager
+from telebot.types import Message, CallbackQuery
+
+from app import config, PyTMBotInstance, bot_logger, session_manager
+from app.core.handlers.auth_handlers.auth_processing import AuthRequiredHandler, AccessDeniedHandler
 from app.core.handlers.handler import HandlerConstructor
 from app.core.logs import logged_handler_session
 from app.utilities.totp import TwoFactorAuthenticator
@@ -29,9 +30,7 @@ class TwoFAStartHandler(HandlerConstructor):
 
         """
         allowed_admins_ids = set(self.config.allowed_admins_ids)
-        session_manager = SessionManager(int, str, datetime, Type[int])
 
-        @bot_logger.catch()
         @self.bot.message_handler(regexp='Enter 2FA code',
                                   func=lambda message: message.from_user.id in allowed_admins_ids)
         @logged_handler_session
@@ -46,25 +45,36 @@ class TwoFAStartHandler(HandlerConstructor):
             - message: A Message object containing information about the message.
 
             """
-            auth_data = session_manager._make([message.from_user.id, 'processing', None, None])
-            print(auth_data)
-            # Build inline keyboard with options for QR code or entering 2FA code
-            emojis = {
-                'thought_balloon': self.emojis.get_emoji('thought_balloon'),
-            }
-            keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
-            bot_answer = self.jinja.render_templates(
-                'a_send_totp_code.jinja2',
-                name=message.from_user.first_name or "Anonymous user",
-                **emojis
-            )
-            self.bot.send_message(message.chat.id, text=bot_answer, reply_markup=keyboard, parse_mode="Markdown")
+            try:
+                user_id = message.from_user.id
+                if session_manager.is_blocked(user_id):
+                    bot_logger.error(f"User {message.from_user.id} blocked, an can't enter 2FA code")
+                    self.bot.send_message(message.chat.id,
+                                          text="⛔⛔⛔The two-factor authentication code has been entered "
+                                               "incorrectly several times. It may be necessary to pause for a few "
+                                               "minutes, typically no more than five, and then try again.🤦‍")
+                    return
+                session_manager.set_auth_state(user_id, 'processing')
+                print(session_manager.user_data)
+                # Build inline keyboard with options for QR code or entering 2FA code
+                emojis = {
+                    'thought_balloon': self.emojis.get_emoji('thought_balloon'),
+                }
+                keyboard = self.keyboard.build_reply_keyboard(keyboard_type='back_keyboard')
+                bot_answer = self.jinja.render_templates(
+                    'a_send_totp_code.jinja2',
+                    name=message.from_user.first_name or "Anonymous user",
+                    **emojis
+                )
+                self.bot.send_message(message.chat.id, text=bot_answer, reply_markup=keyboard, parse_mode="Markdown")
+            except Exception as err:
+                bot_logger.error(err, exc_info=True)
 
         @self.bot.message_handler(regexp=r"[0-9]{6}$",
                                   func=lambda message:
-                                  message.from_user.id in config.allowed_admins_ids)
+                                  message.from_user.id in config.allowed_admins_ids and session_manager.get_auth_state(
+                                      message.from_user.id) == 'processing')
         @logged_handler_session
-        @bot_logger.catch()
         def handle_totp_code_verification(message: Message):
             """
             Handle TOTP code verification.
@@ -78,26 +88,37 @@ class TwoFAStartHandler(HandlerConstructor):
             Raises:
             - PyTeleMonBotHandlerError: If an exception occurs during the verification process.
             """
-            try:
-                user_id = message.from_user.id
+            user_id = message.from_user.id
+            totp_code = message.text.replace('/', '')
 
-                #    if auth_data.is_blocked() or auth_data.get_totp_attempts() >= config.totp_max_attempts:
-                #        self.bot.reply_to(message,
-                #                          'You have reached the maximum number of attempts. Please try again later.')
-                #        return
+            if not (len(totp_code) == 6 and totp_code.isdigit()):
+                bot_logger.error(f"Invalid TOTP code: {totp_code}")
+                self.bot.reply_to(message, 'Invalid TOTP code. Please enter a 6-digit code. For example, /123456.')
+                session_manager.set_totp_attempts(user_id=user_id)
+                return
 
-                totp_code = message.text.replace('/', '')
-                authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
+            if session_manager.get_blocked_time(user_id) and datetime.now() < session_manager.get_blocked_time(user_id):
+                bot_logger.error(f"User {user_id} is blocked")
+                self.bot.reply_to(message, 'You are blocked. Please try again later.')
+                return
 
-                if authenticator.verify_totp_code(totp_code):
-                    auth_data = session_manager._make([user_id, 'authorized', datetime.datetime.now(), None])
-                    print(auth_data)
-                    self.bot.reply_to(message, 'TOTP code verified successfully.')
-                else:
-                    attempts = repr(session_manager.totp_attempts)
-                    auth_data = session_manager._make([user_id, 'processing', None, int(attempts) + 1 if attempts else 1])
-                    print(auth_data)
-                    self.bot.reply_to(message, 'Invalid TOTP code. Please try again.')
+            attempts = session_manager.get_totp_attempts(user_id)
+            if attempts > config.totp_max_attempts:
+                session_manager.set_auth_state(user_id, 'blocked')
+                session_manager.reset_totp_attempts(user_id)
+                session_manager.set_blocked_time(user_id)
+                bot_logger.error(f"Reached max TOTP attempts for user {user_id}")
+                self.bot.reply_to(message, 'You have reached the maximum number of attempts. Please try again later.')
+                return
 
-            except Exception as e:
-                raise self.exceptions.PyTeleMonBotHandlerError(f"Failed at @{__name__}: {str(e)}")
+            authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
+            if authenticator.verify_totp_code(totp_code):
+                session_manager.set_auth_state(user_id, 'authenticated')
+                session_manager.set_login_time(user_id)
+                bot_logger.log("SUCCESS", f'TOTP code for user {user_id} verified.')
+                self.bot.reply_to(message, 'TOTP code verified. Authentication successful.')
+            else:
+                session_manager.set_totp_attempts(user_id=user_id)
+                bot_logger.error(f"Invalid TOTP code: {totp_code}")
+                self.bot.reply_to(message, 'Invalid TOTP code. Please try again.')
+
