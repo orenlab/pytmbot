@@ -17,23 +17,21 @@ class GetQrcodeHandler(HandlerConstructor):
     """Class to handle auth required messages."""
 
     def handle(self) -> None:
-        allowed_admins_ids = set(self.config.allowed_admins_ids)
+        allowed_admin_ids = set(self.config.allowed_admins_ids)
 
         @self.bot.message_handler(regexp='Get QR-code for 2FA app',
-                                  func=lambda message: message.from_user.id in allowed_admins_ids)
-        @self.bot.message_handler(commands=['qrcode'], func=lambda message: message.from_user.id in allowed_admins_ids)
+                                  func=lambda message: message.from_user.id in allowed_admin_ids)
+        @self.bot.message_handler(commands=['qrcode'], func=lambda message: message.from_user.id in allowed_admin_ids)
         @logged_handler_session
         def handle_qrcode_message(message: Message):
-            # Build inline keyboard with options for QR code or entering 2FA code
             keyboard = self.keyboard.build_reply_keyboard(keyboard_type='auth_processing_keyboard')
             authenticator = TwoFactorAuthenticator(message.from_user.id, message.from_user.username)
-            bot_answer = authenticator.generate_totp_qr_code()
+            qr_code = authenticator.generate_totp_qr_code()
 
-            # Send message to user with appropriate reply markup
-            if bot_answer:
+            if qr_code:
                 msg = self.bot.send_photo(
                     message.chat.id,
-                    photo=bot_answer,
+                    photo=qr_code,
                     reply_markup=keyboard,
                     caption="The QR code is ready. Click on the image and scan it in your 2FA app. "
                             "After 60 seconds it will be deleted for security reasons.",
@@ -42,14 +40,15 @@ class GetQrcodeHandler(HandlerConstructor):
                     show_caption_above_media=True
                 )
 
-                def delete_qrcode():
+                def delete_qr_code():
                     self.bot.delete_message(message.chat.id, msg.message_id)
 
                 try:
-                    threading.Timer(60, delete_qrcode).start()
-                    bot_logger.debug(f"QR code for user {message.from_user.username} deleted.")
+                    threading.Timer(60, delete_qr_code).start()
                 except Exception as err:
-                    bot_logger.error(f"Error deleting QR code: {err}")
+                    bot_logger.error(f"Error deleting QR code: {err}. Deleting manually for security reasons.")
+                    self.bot.send_message(message.chat.id,
+                                          text="Failed to delete QR code. Deleting manually for security reasons.")
                     return
 
             else:
