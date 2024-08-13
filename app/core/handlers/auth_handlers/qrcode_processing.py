@@ -4,11 +4,12 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+import threading
 
 from telebot.types import Message
 
 from app.core.handlers.handler import HandlerConstructor
-from app.core.logs import logged_handler_session
+from app.core.logs import logged_handler_session, bot_logger
 from app.utilities.totp import TwoFactorAuthenticator
 
 
@@ -30,7 +31,7 @@ class GetQrcodeHandler(HandlerConstructor):
 
             # Send message to user with appropriate reply markup
             if bot_answer:
-                self.bot.send_photo(
+                msg = self.bot.send_photo(
                     message.chat.id,
                     photo=bot_answer,
                     reply_markup=keyboard,
@@ -39,6 +40,16 @@ class GetQrcodeHandler(HandlerConstructor):
                     has_spoiler=True,
                     show_caption_above_media=True
                 )
+
+                def delete_qrcode():
+                    self.bot.delete_message(message.chat.id, msg.message_id)
+
+                try:
+                    threading.Timer(60, delete_qrcode).start()
+                except Exception as err:
+                    bot_logger.error(f"Error deleting QR code: {err}")
+                    return
+
             else:
                 emojis = {
                     'thought_balloon': self.emojis.get_emoji('thought_balloon'),
