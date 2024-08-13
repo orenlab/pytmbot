@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
+from app.core.logs import bot_logger
+
 
 class StateFabric:
     """ Class for managing user states. """
@@ -55,8 +57,7 @@ class SessionManager:
         Raises:
             ValueError: If the state is not a valid authentication state.
         """
-        if state not in self.state_fabric.__dict__.values():
-            raise ValueError(f"Invalid state: {state}")
+        bot_logger.debug(f"Setting authentication state for user {user_id} to {state}")
         self.user_data.setdefault(user_id, {})['auth_state'] = state
 
     def get_auth_state(self, user_id: int) -> Optional[str]:
@@ -69,7 +70,10 @@ class SessionManager:
         Returns:
             Optional[str]: The authentication state if found, otherwise None.
         """
-        return self.user_data.get(user_id, {}).get('auth_state')
+        try:
+            return self.user_data.get(user_id, {}).get('auth_state')
+        except KeyError:
+            return None
 
     def set_totp_attempts(self, user_id: int) -> None:
         """
@@ -85,6 +89,7 @@ class SessionManager:
             self.user_data[user_id]['totp_attempts'] = self.user_data[user_id].get('totp_attempts', 0) + 1
         else:
             self.user_data[user_id] = {'totp_attempts': 1}
+        bot_logger.debug(f"Setting TOTP attempts for user {user_id} to {self.user_data[user_id]['totp_attempts']}")
 
     def get_totp_attempts(self, user_id: int) -> int:
         """
@@ -109,6 +114,7 @@ class SessionManager:
             None
         """
         self.user_data[user_id] = {'totp_attempts': None}
+        bot_logger.debug(f"Resetting TOTP attempts for user {user_id}")
 
     def set_blocked_time(self, user_id: int) -> None:
         """
@@ -121,6 +127,7 @@ class SessionManager:
             None: This function does not return anything.
         """
         self.user_data[user_id].update({'blocked_time': datetime.now() + timedelta(minutes=5)})
+        bot_logger.debug(f"Setting blocked time for user {user_id} to {self.user_data[user_id]['blocked_time']}")
 
     def del_blocked_time(self, user_id: int) -> None:
         """
@@ -133,6 +140,7 @@ class SessionManager:
             None: This function does not return anything.
         """
         self.user_data[user_id].pop('blocked_time', None)
+        bot_logger.debug(f"Deleting blocked time for user {user_id}")
 
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
         """
@@ -159,7 +167,11 @@ class SessionManager:
         Returns:
             bool: True if the user is blocked, False otherwise.
         """
-        return self.get_blocked_time(user_id) is not None
+        try:
+            bot_logger.debug(f"Checking if user {user_id} is blocked")
+            return self.get_blocked_time(user_id) is not None
+        except KeyError:
+            return False
 
     def is_authenticated(self, user_id: int) -> bool:
         """
@@ -171,8 +183,12 @@ class SessionManager:
         Returns:
             bool: True if the user is authenticated, False otherwise.
         """
-        return self.get_auth_state(user_id) == self.state_fabric.authenticated and not self.is_blocked(
-            user_id) and not self.is_session_expired(user_id)
+        try:
+            bot_logger.debug(f"Checking if user {user_id} is authenticated")
+            return self.get_auth_state(user_id) == self.state_fabric.authenticated and not self.is_blocked(
+                user_id) and not self.is_session_expired(user_id)
+        except KeyError:
+            return False
 
     def set_login_time(self, user_id: int) -> None:
         """
@@ -196,6 +212,7 @@ class SessionManager:
         Returns:
             Optional[datetime]: The login time for the user, or None if not found.
         """
+        bot_logger.debug(f"Getting login time for user {user_id}")
         return self.user_data[user_id].get('login_time', None)
 
     def is_session_expired(self, user_id: int) -> bool:
@@ -208,4 +225,5 @@ class SessionManager:
         Returns:
             bool: True if the user's session is expired, False otherwise.
         """
+        bot_logger.debug(f"Checking if user {user_id} session is expired")
         return datetime.now() > self.get_login_time(user_id) + timedelta(minutes=5)
