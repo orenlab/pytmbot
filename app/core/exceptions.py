@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
-from app import config
+from app.core.settings.bot_settings import BotSettings
 from app.core.logs import bot_logger
 
 
@@ -45,6 +45,8 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     """
     Custom exception handler for Telebot.
     """
+
+    config = BotSettings()
 
     def handle(self, exception: Exception) -> bool:
         """
