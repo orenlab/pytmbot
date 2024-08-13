@@ -19,7 +19,7 @@ class TwoFactorAuthenticator:
     def __init__(self, user_id, username):
         self.user_id: int = user_id
         self.username = username
-        self.salt: bytes = config.auth_salt
+        self.salt: str = config.auth_salt.get_secret_value()
 
     def __generate_secret(self) -> str:
         """
@@ -31,7 +31,7 @@ class TwoFactorAuthenticator:
             str: The base32 encoded secret key.
         """
         # Concatenate the user ID and username
-        message = str(self.user_id).encode() + self.username.encode()
+        message = str(self.user_id).encode() + self.salt.encode() + self.username.encode()
 
         # Hash the concatenated message using SHA256
         h = hashlib.sha256(message)

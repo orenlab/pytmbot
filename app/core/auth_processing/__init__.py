@@ -129,19 +129,6 @@ class SessionManager:
         self.user_data[user_id].update({'blocked_time': datetime.now() + timedelta(minutes=5)})
         bot_logger.debug(f"Setting blocked time for user {user_id} to {self.user_data[user_id]['blocked_time']}")
 
-    def del_blocked_time(self, user_id: int) -> None:
-        """
-        Delete the blocked time for a given user ID.
-
-        Args:
-            user_id (int): The ID of the user.
-
-        Returns:
-            None: This function does not return anything.
-        """
-        self.user_data[user_id].pop('blocked_time', None)
-        bot_logger.debug(f"Deleting blocked time for user {user_id}")
-
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
         """
         Returns the blocked time for a given user ID.

@@ -49,7 +49,7 @@ class BotSettings(BaseSettings):
     allowed_user_ids: list[int]  # Allowed user id from .pytmbotenv
     allowed_admins_ids: Optional[list[int]]  # Allowed admin ids from .pytmbotenv
     docker_host: str  # Docker socket URI from .pytmbotenv
-    auth_salt: SecretStr  # Auth salt
+    auth_salt: Optional[SecretStr] = SecretStr  # Auth salt
     model_config = SettingsConfigDict(env_file=get_env_file_path(), env_file_encoding='utf-8')
     # Set local configuration
     bot_commands: dict[str, str] = {
