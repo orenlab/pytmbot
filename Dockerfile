@@ -32,9 +32,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/pytmbot
 ENV PATH=/venv/bin:$PATH
 
-# Copy lisence
-COPY LICENSE /opt/pytmbot/
-
 # Copy bot files
 COPY ./app ./app/
 
@@ -54,7 +51,8 @@ RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
     pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
     -r requirements.txt --upgrade &&  \
 # Uninstall build deps
-    python${PYTHON_VERSION} -m pip uninstall pip setuptools python3-wheel python3-dev musl-dev -y
+    python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
+    apk del gcc musl-dev linux-headers
 
 # Second Alpine stage - based on the base stage. Setup bot
 FROM alpine_base AS reliase_base
