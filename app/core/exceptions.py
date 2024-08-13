@@ -7,8 +7,8 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
-from app.core.settings.bot_settings import BotSettings
 from app.core.logs import bot_logger
+from app.core.settings.bot_settings import BotSettings
 
 
 class PyTeleMonBotError(Exception):
@@ -46,8 +46,6 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     Custom exception handler for Telebot.
     """
 
-    config = BotSettings()
-
     def handle(self, exception: Exception) -> bool:
         """
         Log and handle exceptions raised by Telebot.
@@ -64,6 +62,7 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
 
     @staticmethod
     def _sanitize_exception(exception: Exception) -> str:
+        config = BotSettings()
         exception_str = str(exception)
         secret_map = {
             config.bot_token.get_secret_value(): "bot_token*********",
