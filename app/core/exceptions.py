@@ -46,21 +46,27 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     Custom exception handler for Telebot.
     """
 
-    def handle(self, ex: Exception) -> bool:
+    def handle(self, exception: Exception) -> bool:
         """
         Log and handle exceptions raised by Telebot.
 
         Args:
-            ex (Exception): The exception to handle.
+            exception (Exception): The exception to handle.
 
         Returns:
             bool: True if the exception was handled successfully.
         """
-        sanitized_ex = str(ex).replace(config.bot_token.get_secret_value(), "bot_token*********").replace(
-            config.dev_bot_token.get_secret_value(), "dev_bot_token*********")
-
-        # Log the exception
-        bot_logger.error(f"Failed at @Telebot package: {str(sanitized_ex)}")
-
-        # Return True to indicate successful handling of the exception
+        sanitized_exception = self._sanitize_exception(exception)
+        bot_logger.error(f"Failed at @Telebot package: {sanitized_exception}")
         return True
+
+    @staticmethod
+    def _sanitize_exception(exception: Exception) -> str:
+        exception_str = str(exception)
+        secret_map = {
+            config.bot_token.get_secret_value(): "bot_token*********",
+            config.dev_bot_token.get_secret_value(): "dev_bot_token*********"
+        }
+        for secret, placeholder in secret_map.items():
+            exception_str = exception_str.replace(secret, placeholder)
+        return exception_str
