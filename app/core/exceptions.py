@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
+from app import config
 from app.core.logs import bot_logger
 
 
@@ -55,8 +56,11 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         Returns:
             bool: True if the exception was handled successfully.
         """
+        sanitized_ex = str(ex).replace(config.bot_token.get_secret_value(), "bot_token*********").replace(
+            config.dev_bot_token.get_secret_value(), "dev_bot_token*********")
+
         # Log the exception
-        bot_logger.error(f"Failed at @Telebot package: {str(ex)}")
+        bot_logger.error(f"Failed at @Telebot package: {str(sanitized_ex)}")
 
         # Return True to indicate successful handling of the exception
         return True
