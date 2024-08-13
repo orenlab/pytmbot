@@ -56,6 +56,13 @@ AUTH_SALT="PLS, INSERT HERE ONLY BASE32 string"
 
 Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` editor.
 
+**Note about 'AUTH_SALT' parameter**: If you are having trouble generating a "salt" for pyTMbot configuration file, I've
+written a simple Python script to
+help you with this task. Simply download the file from
+the [link](https://raw.githubusercontent.com/orenlab/pytmbot/master/bot_cli/generate_salt.py) and run it using the
+following
+command: `python generate_salt.py`
+
 ## 🔌 Run bot
 
 To launch a Docker container:
