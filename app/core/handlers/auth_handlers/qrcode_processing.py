@@ -84,4 +84,4 @@ class GetQrcodeHandler(HandlerConstructor):
                                                            context="Failed to generate QR code... I apologize!",
                                                            **emojis)
 
-                self.bot.send_message(message.chat.id, text="Failed to generate QR code", reply_markup=error_answer)
+                self.bot.send_message(message.chat.id, text=error_answer)
