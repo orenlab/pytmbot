@@ -35,7 +35,8 @@ class GetQrcodeHandler(HandlerConstructor):
                     message.chat.id,
                     photo=bot_answer,
                     reply_markup=keyboard,
-                    caption="The QR code is ready. Click on the image and scan it in your 2FA app",
+                    caption="The QR code is ready. Click on the image and scan it in your 2FA app. "
+                            "After 60 seconds it will be deleted for security reasons.",
                     protect_content=True,
                     has_spoiler=True,
                     show_caption_above_media=True
@@ -46,6 +47,7 @@ class GetQrcodeHandler(HandlerConstructor):
 
                 try:
                     threading.Timer(60, delete_qrcode).start()
+                    bot_logger.debug(f"QR code for user {message.from_user.username} deleted.")
                 except Exception as err:
                     bot_logger.error(f"Error deleting QR code: {err}")
                     return
