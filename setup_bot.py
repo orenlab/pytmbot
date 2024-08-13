@@ -9,29 +9,13 @@ try:
     import click
 except ImportError:
     raise ImportError("Error loading 'click' package. Install it!")
-import base64
-import secrets
 from string import Template
 
 import bot_cli.cfg_templates.env as default_env_tpl
 from bot_cli import fs as filesystem
+from bot_cli.generate_salt import generate_random_auth_salt
 
 APP_ENV_FILE = '.pytmbotenv'
-
-
-def generate_random_auth_salt(length=32):
-    """
-    Generates a random authentication salt for the bot.
-
-    Args:
-        length (int, optional): The length of the salt in bytes. Defaults to 32.
-
-    Returns:
-        str: The generated authentication salt.
-    """
-    random_bytes = secrets.token_bytes(length)
-    salt = base64.b32encode(random_bytes).decode('utf-8')
-    return salt
 
 
 def ask_for_user_id() -> str:
