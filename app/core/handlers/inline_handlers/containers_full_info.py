@@ -24,8 +24,9 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
     It is used to handle the 'containers_full_info' data in an inline query.
     """
 
-    @staticmethod
-    def __get_container_full_details(container_name: str) -> dict:
+    docker_adapter = DockerAdapter()
+
+    def __get_container_full_details(self, container_name: str) -> dict:
         """
         Retrieve the full details of a container.
 
@@ -35,14 +36,11 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         Returns:
             dict: The full details of the container.
         """
-        # Create a single instance of DockerAdapter and reuse it for all calls
-        docker_adapter = DockerAdapter()
 
         # Use a local variable to store the lowercased container name
         lower_container_name = container_name.lower()
 
-        # Retrieve full container details using the single instance of DockerAdapter
-        container_details = docker_adapter.fetch_full_container_details(lower_container_name)
+        container_details = self.docker_adapter.fetch_full_container_details(lower_container_name)
 
         return container_details
 
@@ -58,8 +56,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         ]
         return {emoji_name: self.emojis.get_emoji(emoji_name) for emoji_name in emoji_names}
 
-    @staticmethod
-    def __get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> str:
+    def __get_sanitized_logs(self, container_name: str, call: CallbackQuery, token: str) -> str:
         """
         Retrieve sanitized logs for a specific container.
 
@@ -72,7 +69,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             str: Sanitized logs for the container.
         """
         # Fetch raw logs for the container
-        raw_logs = DockerAdapter().fetch_container_logs(container_name)
+        raw_logs = self.docker_adapter.fetch_container_logs(container_name)
 
         # Sanitize the logs for privacy
         sanitized_logs = sanitize_logs(raw_logs, call, token)
@@ -206,7 +203,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             container_details = self.__get_container_full_details(container_name)
 
             if not container_details:
-                return containers_handling_error(call, text=f"{container_name}: Container not found")
+                return show_handler_info(call, text=f"{container_name}: Container not found")
 
             container_stats = container_details.stats(decode=None, stream=False)
             container_attrs = container_details.attrs
@@ -225,7 +222,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 )
             except Exception as e:
                 bot_logger.exception(f"Failed at @{self.__class__.__name__} - exception: {e}")
-                return containers_handling_error(call, text=f"{container_name}: Error getting container details")
+                return show_handler_info(call, text=f"{container_name}: Error getting container details")
 
             keyboard_buttons = [
                 self.keyboard.ButtonData(text="Get logs",
@@ -287,7 +284,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 parse_mode="HTML"
             )
 
-        def containers_handling_error(call, text: str):
+        def show_handler_info(call, text: str):
             """
             Handles the case when a container is not found.
 
@@ -323,7 +320,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             logs = self.__get_sanitized_logs(container_name, call, self.bot.token)
 
             if not logs:
-                return containers_handling_error(call, text=f"{container_name}: Error getting logs")
+                return show_handler_info(call, text=f"{container_name}: Error getting logs")
 
             # Define emojis for rendering
             emojis: dict = {
@@ -356,7 +353,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith('__manage__'))
         @two_factor_auth_required
         @logged_inline_handler_session
-        def manage_container(call: CallbackQuery):
+        def manage_container_index(call: CallbackQuery):
             """
             Handles the callback for managing a container.
 
@@ -373,7 +370,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             # Check if the user is an admin
             if int(call.from_user.id) != int(called_user_id):
                 bot_logger.log("DENIED", f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function")
-                return containers_handling_error(call=call, text=f"Managing {container_name}: Access denied")
+                return show_handler_info(call=call, text=f"Managing {container_name}: Access denied")
 
             is_authenticated = session_manager.is_authenticated(call.from_user.id)
             bot_logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
@@ -382,7 +379,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 bot_logger.log("DENIED",
                                f"User {call.from_user.id} NOT authenticated. "
                                f"Denied '__manage__' function for container {container_name}")
-                return containers_handling_error(call=call, text=f"Managing {container_name}: Not authenticated user")
+                return show_handler_info(call=call, text=f"Managing {container_name}: Not authenticated user")
 
             # Create the keyboard buttons
             keyboard_buttons = [
@@ -418,3 +415,143 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
                 text=context,
                 reply_markup=inline_keyboard
             )
+
+        def __managing_action_fabric(call: CallbackQuery):
+            """
+            Checks if a callback query data starts with a specific action.
+
+            Args:
+                call (CallbackQuery): The callback query object.
+
+            Returns:
+                bool: True if the callback query data starts with '__start__', '__stop__', or '__restart__',
+                False otherwise.
+            """
+            action = [
+                '__start__',
+                '__stop__',
+                '__restart__',
+            ]
+            return any(call.data.startswith(callback_data) for callback_data in action)
+
+        @self.bot.callback_query_handler(func=lambda call: __managing_action_fabric(call))
+        @two_factor_auth_required
+        @logged_inline_handler_session
+        def manage_container_action(call: CallbackQuery):
+            container_name, called_user_id = split_string_into_octets(call.data), split_string_into_octets(call.data,
+                                                                                                           octet_index=2)
+            """
+            Handles the callback query for managing a container.
+
+            Args:
+                call (CallbackQuery): The callback query object.
+
+            Returns:
+                None
+            """
+            if int(call.from_user.id) != int(called_user_id):
+                bot_logger.log("DENIED", f"User {call.from_user.id}: Denied '__manage__' function")
+                return show_handler_info(call=call, text=f"Starting {container_name}: Access denied")
+
+            if not session_manager.is_authenticated(call.from_user.id):
+                bot_logger.log("DENIED", f"User {call.from_user.id}: Not authenticated. Denied '__start__' function")
+                return show_handler_info(call=call, text=f"Managing {container_name}: Not authenticated user")
+
+            managing_actions = {
+                '__start__': __start_container,
+                '__stop__': __stop_container,
+                '__restart__': __restart_container,
+            }
+            managing_action = split_string_into_octets(call.data, octet_index=0)
+
+            if managing_action in managing_actions:
+                managing_actions[managing_action](call=call, container_name=container_name)
+            else:
+                bot_logger.log("ERROR",
+                               f"Error occurred while managing {container_name}: Unknown action {managing_action}")
+
+        def __start_container(call: CallbackQuery, container_name: str):
+            """
+            Starts a Docker container based on the provided container name and user ID.
+
+            Args:
+                call (CallbackQuery): The callback query object containing user information.
+                container_name (str): The name of the Docker container to start.
+
+            Returns:
+                None
+            """
+            try:
+                if self.docker_adapter.managing_container(call.from_user.id, container_name, action="start") is None:
+                    return show_handler_info(call=call, text=f"Starting {container_name}: Success")
+                else:
+                    return show_handler_info(call=call, text=f"Starting {container_name}: Error occurred. See logs")
+            except Exception as e:
+                bot_logger.log("ERROR", f"Error occurred while starting {container_name}: {e}")
+                return
+
+        def __stop_container(call: CallbackQuery, container_name: str):
+            """
+            Stops a Docker container based on the provided container name and user ID.
+
+            Args:
+                call (CallbackQuery): The callback query object containing user information.
+                container_name (str): The name of the Docker container to stop.
+
+            Returns:
+                None
+            """
+            try:
+
+                if self.docker_adapter.managing_container(call.from_user.id, container_name, action="stop") is None:
+                    return show_handler_info(call=call, text=f"Stopping {container_name}: Success")
+                else:
+                    return show_handler_info(call=call, text=f"Stopping {container_name}: Error occurred. See logs")
+            except Exception as e:
+                bot_logger.log("ERROR", f"Error occurred while stopping {container_name}: {e}")
+                return
+
+        def __restart_container(call: CallbackQuery, container_name: str):
+            """
+            Restarts a Docker container based on the provided container name and user ID.
+
+            Args:
+                call (CallbackQuery): The callback query object containing user information.
+                container_name (str): The name of the Docker container to restart.
+
+            Returns:
+                None
+            """
+            try:
+                if self.docker_adapter.managing_container(call.from_user.id, container_name, action="restart") is None:
+                    return show_handler_info(call=call, text=f"Restarting {container_name}: Success")
+                else:
+                    return show_handler_info(call=call, text=f"Restarting {container_name}: Error occurred. See logs")
+            except Exception as e:
+                bot_logger.log("ERROR", f"Error occurred while restarting {container_name}: {e}")
+                return
+
+        def __rename_container(call: CallbackQuery, container_name: str, new_container_name: str):
+            """
+            Renames a Docker container based on the provided parameters.
+
+            Args:
+                call (CallbackQuery): The callback query object containing user information.
+                container_name (str): The name of the Docker container to rename.
+                new_container_name (str): The new name for the container.
+
+            Returns:
+                None
+            """
+            if self.docker_adapter.is_new_name_valid(new_container_name):
+                try:
+                    if self.docker_adapter.managing_container(call.from_user.id, container_name, action="rename",
+                                                          new_container_name=new_container_name):
+                        return show_handler_info(call=call, text=f"Renaming {container_name}: Success")
+                    else:
+                        return show_handler_info(call=call, text=f"Renaming {container_name}: Error occurred. See logs")
+                except Exception as e:
+                    bot_logger.log("ERROR", f"Error occurred while renaming {container_name}: {e}")
+                    return
+            else:
+                return show_handler_info(call=call, text=f"Renaming {container_name}: Invalid new name")
