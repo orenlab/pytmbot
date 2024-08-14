@@ -56,9 +56,9 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
         # Check if the user is an allowed admin
         if user_id in config.allowed_admins_ids:
             # Check if the user is not already authorized
-            _s = session_manager.is_authenticated(user_id)
-            bot_logger.debug(f"User {user_id} is authenticated: {_s}")
-            if not _s:
+            is_user_authenticated = session_manager.is_authenticated(user_id)
+            bot_logger.debug(f"User {user_id} is authenticated: {is_user_authenticated}")
+            if not is_user_authenticated:
                 # Create a new authorized user
                 return handle_unauthorized_query(query)
             elif session_manager.is_session_expired(user_id):

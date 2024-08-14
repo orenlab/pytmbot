@@ -546,7 +546,7 @@ class InlineContainerFullInfoHandler(HandlerConstructor):
             if self.docker_adapter.is_new_name_valid(new_container_name):
                 try:
                     if self.docker_adapter.managing_container(call.from_user.id, container_name, action="rename",
-                                                          new_container_name=new_container_name):
+                                                              new_container_name=new_container_name):
                         return show_handler_info(call=call, text=f"Renaming {container_name}: Success")
                     else:
                         return show_handler_info(call=call, text=f"Renaming {container_name}: Error occurred. See logs")

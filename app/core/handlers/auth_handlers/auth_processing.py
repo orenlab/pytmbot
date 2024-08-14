@@ -76,9 +76,9 @@ class AuthRequiredHandler(HandlerConstructor):
 
         if isinstance(query, CallbackQuery):
             self.bot.delete_message(query.message.chat.id, query.message.message_id)
-            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard)
+            self.bot.send_message(query.message.chat.id, text=bot_answer, reply_markup=keyboard, parse_mode='HTML')
         else:
-            self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard)
+            self.bot.send_message(query.chat.id, text=bot_answer, reply_markup=keyboard, parse_mode='HTML')
 
 
 class AccessDeniedHandler(HandlerConstructor):

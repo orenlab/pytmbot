@@ -89,8 +89,6 @@ class BotSettings(BaseSettings):
         'd_managing_containers.jinja2',
         'a_send_totp_code.jinja2',
         'b_echo.jinja2',
-        'a_totp_code_verified.jinja2',
-        'a_totp_code_not_verified.jinja2',
         'a_access_denied.jinja2'
     ]
     main_keyboard: dict[str, str] = {
