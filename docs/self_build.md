@@ -39,19 +39,28 @@ You can leave the steps with the default settings by simply pressing "Enter".
 
 ## 💰 Run bot
 
-To build a Docker image:
-
-```bash
-cd ~/pytmbot
-
-docker --target self_build build -t orenlab/pytmbot:latest .
-```
-
 To launch a Docker container:
+
+- For stable tag: `0.0.9`, `0.1.1`, `latest`:
 
 ```bash
 sudo docker run -d -m 100M \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest
+```
+
+- For `alpine-dev` tag:
+
+```bash
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
 --env TZ="Asia/Yekaterinburg" \
 --restart=always \
 --name=pytmbot \

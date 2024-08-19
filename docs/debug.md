@@ -14,6 +14,8 @@ sudo docker rm pytmbot
 
 - Run pyTMbot in DEBUG mode:
 
+For stable tag: `0.0.9`, `0.1.1`, `latest`:
+
 ```bash
 sudo docker run -d -m 100M \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
@@ -24,7 +26,22 @@ sudo docker run -d -m 100M \
 --pid=host \
 --security-opt=no-new-privileges \
 orenlab/pytmbot:latest \
- --log-level=DEBUG --mode=prod
+/venv/bin/python3 app/main.py --log-level=DEBUG --mode=prod
+```
+
+For `alpine-dev` tag:
+
+```bash
+sudo docker run -d -m 100M \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest \
+--log-level=DEBUG --mode=prod
 ```
 
 - You can access the bot's logs using the following command:
