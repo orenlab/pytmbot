@@ -79,7 +79,8 @@ sudo docker run -d -m 100M \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-orenlab/pytmbot:latest
+orenlab/pytmbot:latest \
+/venv/bin/python3 app/main.py --log-level=DEBUG --mode=prod
 ```
 
 - For `alpine-dev` tag:
