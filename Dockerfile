@@ -24,16 +24,17 @@ RUN apk --no-cache update && \
     apk --no-cache add tzdata
 
 # App workdir
-WORKDIR /opt/pytmbot/
+WORKDIR /opt/app/
 
 # Setup env var
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/opt/pytmbot
+ENV PYTHONPATH=/opt/app
 ENV PATH=/venv/bin:$PATH
 
 # Copy bot files
-COPY ./app ./app/
+COPY ./pytmbot ./pytmbot/
+COPY ./main.py ./main.py
 
 # First Alpine stage - build Python deps
 FROM python:${PYTHON_IMAGE} AS builder
@@ -79,17 +80,17 @@ RUN source /venv/bin/activate && \
 # Target for CI/CD image
 FROM reliase_base AS production
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
 
 # Target for self biuld image, --mode = prod
 FROM reliase_base AS self_build
 
 # Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
+COPY .pytmbotenv /opt/app/
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
 
 # Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
 FROM reliase_base AS prod
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT [ "/venv/bin/python3", "main.py" ]

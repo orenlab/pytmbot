@@ -11,9 +11,9 @@ except ImportError:
     raise ImportError("Error loading 'click' package. Install it!")
 from string import Template
 
-import bot_cli.cfg_templates.env as default_env_tpl
-from bot_cli import fs as filesystem
-from bot_cli.generate_salt import generate_random_auth_salt
+import cli.cfg_templates.env as default_env_tpl
+from cli import fs as filesystem
+from cli.generate_salt import generate_random_auth_salt
 
 APP_ENV_FILE = '.pytmbotenv'
 

@@ -69,7 +69,7 @@ Dockerfile
 #######################################
 ### pyTMbot
 # app dir
-bot_cli
+cli
 docs
 tests
 # Poetry
