@@ -1,4 +1,4 @@
-name: Push Alpine Dev Image
+name: Push Alpine Dev Image for 2.0.0
 
 on:
   push:
