@@ -1,10 +1,4 @@
-# pyTMBot installation from GitHub registry
-
-## 🔌 Installation
-
-```bash
-sudo docker pull ghcr.io/orenlab/pytmbot:latest
-```
+# pyTMBot v.2 installation from GitHub registry
 
 ## 🧪 Configure bot
 
@@ -26,21 +20,6 @@ nano .pytmbotenv
 
 And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
 
-- For stable tag: `0.0.9`, `0.1.1`, `latest`:
-
-```bash
-# The bot token that you received from the BotFather:
-BOT_TOKEN=<PUT YOUR VALUE HERE>
-DEV_BOT_TOKEN=''
-# Add your telegram IDs:
-ALLOWED_USER_IDS=[00000000000, 00000000000]
-# Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
-DOCKER_HOST='unix:///var/run/docker.sock'
-PODMAN_HOST=''
-```
-
-- For `alpine-dev` tag:
-
 ```bash
 # The bot token that you received from the BotFather:
 BOT_TOKEN=<PUT YOUR VALUE HERE>
@@ -61,40 +40,22 @@ Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` e
 written a simple Python script to
 help you with this task. Simply download the file from
 the [link](https://raw.githubusercontent.com/orenlab/pytmbot/master/bot_cli/generate_salt.py) and run it using the
-following
-command: `python generate_salt.py`
+following command: `python generate_salt.py`
 
 ## 🔌 Run bot
 
 To launch a Docker container:
 
-- For stable tag: `0.0.9`, `0.1.1`, `latest`:
-
 ```bash
 sudo docker run -d -m 100M \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+-v /root/.pytmbotenv:/opt/app/.pytmbotenv:ro \
 --env TZ="Asia/Yekaterinburg" \
 --restart=always \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-orenlab/pytmbot:latest \
-/venv/bin/python3 app/main.py --log-level=DEBUG --mode=prod
-```
-
-- For `alpine-dev` tag:
-
-```bash
-sudo docker run -d -m 100M \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
---env TZ="Asia/Yekaterinburg" \
---restart=always \
---name=pytmbot \
---pid=host \
---security-opt=no-new-privileges \
-orenlab/pytmbot:latest \
+ghcr.io/orenlab/pytmbot:master \
 --log-level=INFO --mode=prod
 ```
 

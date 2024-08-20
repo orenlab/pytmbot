@@ -1,4 +1,4 @@
-# pyTMBot self build guide
+# pyTMBot v.2 self build guide
 
 ## 🔌 Installation
 
@@ -41,27 +41,10 @@ You can leave the steps with the default settings by simply pressing "Enter".
 
 To launch a Docker container:
 
-- For stable tag: `0.0.9`, `0.1.1`, `latest`:
-
 ```bash
 sudo docker run -d -m 100M \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
---env TZ="Asia/Yekaterinburg" \
---restart=always \
---name=pytmbot \
---pid=host \
---security-opt=no-new-privileges \
-orenlab/pytmbot:latest \
-/venv/bin/python3 app/main.py --log-level=DEBUG --mode=prod
-```
-
-- For `alpine-dev` tag:
-
-```bash
-sudo docker run -d -m 100M \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/pytmbot/.pytmbotenv:ro \
+-v /root/.pytmbotenv:/opt/app/.pytmbotenv:ro \
 --env TZ="Asia/Yekaterinburg" \
 --restart=always \
 --name=pytmbot \
@@ -83,10 +66,6 @@ orenlab/pytmbot:latest \
 
 _Please don't forget to specify your time zone! You can find a list of available time zones, for
 example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
-
-#### Note #2:
-
-_Please don't forget to specify Tag version!_
 
 Now everything is ready for you to use the bot. All you need to do is run the `/start` command in your Telegram app.
 
