@@ -2,7 +2,6 @@ try:
     import docker
 except ImportError:
     raise ImportError("Error loading 'docker' package. Install it!")
-import docker
 
 from pytmbot.globals import config
 from pytmbot.logs import bot_logger
