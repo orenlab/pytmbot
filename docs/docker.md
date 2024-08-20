@@ -1,8 +1,7 @@
 ### pyTMbot v.2
 
 A simple Telegram bot to handle Docker containers and images, also providing basic information about the status of
-**local** servers. The bot operates
-synchronously. It does not use webhooks.
+**local** servers. The bot operates synchronously. It does not use webhooks.
 
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)

@@ -7,7 +7,7 @@ from pytmbot.utils.utilities import EmojiConverter
 # pyTMbot globals initialization
 
 # Set global namespace
-__version__ = 'v0.1.2-dev'
+__version__ = 'v2.0.0-dev-alpha.1'
 __author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
 __license__ = 'MIT'
 __repository__ = 'https://github.com/orenlab/pytmbot'
