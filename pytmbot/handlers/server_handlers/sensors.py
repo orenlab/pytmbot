@@ -28,7 +28,8 @@ def handle_sensors(message: Message, bot: TeleBot):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
 
-        sensors_data = psutil_adapter.get_sensors()
+        sensors_data = psutil_adapter.get_sensors_temperatures()
+
         if sensors_data is None:
             return bot.send_message(
                 message.chat.id,

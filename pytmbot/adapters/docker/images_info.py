@@ -31,7 +31,7 @@ def fetch_image_details():
     """
     try:
         with DockerAdapter() as adapter:
-            images = adapter.docker_client.images.list(all=True)
+            images = adapter.images.list(all=True)
 
             image_details = [
                 {
