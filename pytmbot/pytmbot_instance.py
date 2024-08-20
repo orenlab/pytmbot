@@ -10,7 +10,7 @@ import telebot
 
 from pytmbot import exceptions
 from pytmbot.globals import config, __version__, __repository__
-from pytmbot.handlers.handler_manager import handler_factory
+from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.utils.utilities import parse_cli_args
@@ -39,7 +39,10 @@ def __get_bot_token():
 
 def __create_bot_instance():
     """
-    Create the bot instance based on the bot token.
+    Create the bot instance.
+
+    Returns:
+        telebot.TeleBot: The created bot instance.
     """
     try:
         bot_token = __get_bot_token()
@@ -103,6 +106,16 @@ def __create_bot_instance():
     except Exception as err:
         raise exceptions.PyTMBotError(f"Failed to register handlers: {err}")
     bot_logger.debug(f"Registered {len(handler_factory())} message handlers.")
+
+    bot_logger.debug("Registering inline message handlers...")
+    # Register the inline message handlers
+    try:
+        for handlers in inline_handler_factory().values():
+            for handler in handlers:
+                bot.register_callback_query_handler(handler.callback, **handler.kwargs, pass_bot=True)
+    except Exception as err:
+        raise exceptions.PyTMBotError(f"Failed to register inline handlers: {err}")
+    bot_logger.debug(f"Registered {len(inline_handler_factory())} inline message handlers.")
 
     bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
 

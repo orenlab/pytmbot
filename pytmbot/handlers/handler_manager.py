@@ -8,10 +8,10 @@ also providing basic information about the status of local servers.
 
 # Authorization handlers
 from pytmbot.handlers.auth_processing.twofa_processing import handle_twofa_message
+# Staff handlers
 from pytmbot.handlers.bot_handlers.about import handle_about_command
 from pytmbot.handlers.bot_handlers.echo import handle_echo  # allways last
 from pytmbot.handlers.bot_handlers.navigation import handle_navigation
-# Staff handlers
 from pytmbot.handlers.bot_handlers.start import handle_start
 from pytmbot.handlers.bot_handlers.updates import handle_bot_updates
 # Docker handlers
@@ -20,6 +20,8 @@ from pytmbot.handlers.docker_handlers.docker import handle_docker
 from pytmbot.handlers.docker_handlers.images import handle_images
 # Server handlers
 from pytmbot.handlers.server_handlers.filesystem import handle_file_system
+# Inline handlers
+from pytmbot.handlers.server_handlers.inline.swap import handle_swap_info
 from pytmbot.handlers.server_handlers.load_average import handle_load_average
 from pytmbot.handlers.server_handlers.memory import handle_memory
 from pytmbot.handlers.server_handlers.network import handle_network
@@ -100,5 +102,23 @@ def handler_factory():
         # Echo handler. Always past in the end!
         'echo': [
             HandlerManager(callback=handle_echo, func=lambda message: True)
+        ]
+    }
+
+
+def inline_handler_factory():
+    """
+    Returns a dictionary of HandlerManager objects.
+
+    The dictionary keys represent command categories, and the values are lists
+    of HandlerManager objects. Each HandlerManager object is initialized with
+    a callback function and optional keyword arguments.
+
+    Returns:
+        dict: A dictionary of HandlerManager objects.
+    """
+    return {
+        'swap': [
+            HandlerManager(callback=handle_swap_info, func=lambda call: call.data == 'swap_info')
         ]
     }
