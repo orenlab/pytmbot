@@ -13,29 +13,6 @@ ARG ALPINE_IMAGE=3.20
 ########################################################################################################################
 ######################### BUILD ALPINE BASED IMAGE #####################################################################
 ########################################################################################################################
-
-# Zero Alpine stage - setup base image
-FROM alpine:${ALPINE_IMAGE} AS alpine_base
-
-# Update base os components
-RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
-# Add Timezone support in Alpine image
-    apk --no-cache add tzdata
-
-# App workdir
-WORKDIR /opt/app/
-
-# Setup env var
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/opt/app
-ENV PATH=/venv/bin:$PATH
-
-# Copy bot files
-COPY ./pytmbot ./pytmbot/
-COPY ./main.py ./main.py
-
 # First Alpine stage - build Python deps
 FROM python:${PYTHON_IMAGE} AS builder
 
@@ -56,10 +33,29 @@ RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
     apk del gcc musl-dev linux-headers
 
 # Second Alpine stage - based on the base stage. Setup bot
-FROM alpine_base AS reliase_base
+FROM alpine:${ALPINE_IMAGE}  AS reliase_base
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
+
+# Update base os components
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
+# Add Timezone support in Alpine image
+    apk --no-cache add tzdata
+
+# App workdir
+WORKDIR /opt/app/
+
+# Setup env var
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/opt/app
+ENV PATH=/venv/bin:$PATH
+
+# Copy bot files
+COPY ./ ./
+
 
 # Сopy only the necessary python files and directories from first stage
 COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3

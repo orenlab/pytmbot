@@ -71,6 +71,9 @@ Dockerfile
 # app dir
 cli
 docs
+README.md
+SECURITY.md
+setup_bot.py
 tests
 # Poetry
 poetry.lock
