@@ -122,7 +122,7 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
 
     keyboard = keyboards.build_reply_keyboard(keyboard_type='back_keyboard')
 
-    with Compiler(template_name=config.known_templates['a_send_totp_code.jinja2'], name=name, **emojis) as compiler:
+    with Compiler(template_name='a_send_totp_code.jinja2', name=name, **emojis) as compiler:
         response = compiler.compile()
 
     bot.send_message(message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown")
