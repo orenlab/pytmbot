@@ -63,6 +63,7 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
             bot_logger.debug(f"User {user_id} is authenticated: {is_user_authenticated}")
             if not is_user_authenticated:
                 # Create a new authorized user
+                bot_logger.error(f"User {user_id} is not authenticated. Redirecting to the authorization page")
                 return handle_unauthorized_query(query, bot)
             elif session_manager.is_session_expired(user_id):
                 session_manager.set_auth_state(user_id, 'unauthenticated')

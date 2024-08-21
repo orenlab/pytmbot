@@ -29,19 +29,10 @@ from pytmbot.handlers.server_handlers.network import handle_network
 from pytmbot.handlers.server_handlers.process import handle_process
 from pytmbot.handlers.server_handlers.sensors import handle_sensors
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
+from pytmbot.models.handlers_model import HandlerManager
 
 
 # Commands handlers:
-
-
-class HandlerManager:
-    """Class for storing callback functions and keyword arguments."""
-
-    def __init__(self, callback, **kwargs):
-        self.callback = callback
-        self.kwargs = kwargs
-
-
 def handler_factory():
     """
     Returns a dictionary of HandlerManager objects.

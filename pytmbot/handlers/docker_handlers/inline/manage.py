@@ -8,12 +8,16 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.adapters.docker.containers_info import get_container_state
 from pytmbot.globals import keyboards, em, session_manager
 from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import logged_inline_handler_session, bot_logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
+from pytmbot.models.containers_model import ContainersState
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
+
+container_state = ContainersState()
 
 
 # func=lambda call: call.data.startswith('__manage__')
@@ -51,15 +55,29 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
 
     # Create the keyboard buttons
     keyboard_buttons = [
-        keyboards.ButtonData(text="Start",
-                             callback_data=f'__start__:{container_name}:{call.from_user.id}'),
-        keyboards.ButtonData(text="Stop",
-                             callback_data=f'__stop__:{container_name}:{call.from_user.id}'),
         keyboards.ButtonData(text="Restart",
                              callback_data=f'__restart__:{container_name}:{call.from_user.id}'),
-        keyboards.ButtonData(text="Rename",
-                             callback_data=f'__rename__:{container_name}:{call.from_user.id}'),
     ]
+
+    state = get_container_state(container_name)
+
+    bot_logger.debug(f"Container {container_name} state: {state}")
+
+    if state == container_state.running:
+        bot_logger.debug(f"Added '__stop__' button for {container_name}")
+        keyboard_buttons.insert(
+            1,
+            keyboards.ButtonData(text="Stop",
+                                 callback_data=f'__stop__:{container_name}:{call.from_user.id}'),
+        )
+
+    elif state == container_state.stopped:
+        bot_logger.debug(f"Added '__start__' button for {container_name}")
+        keyboard_buttons.insert(
+            1,
+            keyboards.ButtonData(text="Start",
+                                 callback_data=f'__start__:{container_name}:{call.from_user.id}'),
+        )
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
@@ -78,5 +96,6 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=context,
-        reply_markup=inline_keyboard
+        reply_markup=inline_keyboard,
+        parse_mode="HTML"
     )

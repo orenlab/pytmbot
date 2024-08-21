@@ -1,8 +1,15 @@
 {# templates/memory.jinja2 #}
 {{ emojis['thought_balloon'] }} Attention! DANGER zone!
 
-
 This section allows you to manage the container {{ container_name }}.
+
+<b>All your actions are final</b>. The following options are available, depending on the current state of the container:
+<blockquote expandable>
+Start: Start the container using the last set of arguments.
+Stop: Stop the container completely.
+Restart: Restart the container using the last startup parameters.
+Remove:  Remove the container.
+</blockquote>
 
 Available options:
 

@@ -225,3 +225,13 @@ def fetch_docker_counters():
 
         # Return None if an exception occurs
         return None
+
+
+def get_container_state(container_id: str):
+    try:
+        with DockerAdapter() as adapter:
+            container = adapter.containers.get(container_id)
+            return container.status
+    except Exception as e:
+        bot_logger.error(f"Failed to get container state: {e}")
+        return None

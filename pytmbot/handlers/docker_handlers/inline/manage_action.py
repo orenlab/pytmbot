@@ -9,13 +9,16 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
-from pytmbot.globals import session_manager
+from pytmbot.adapters.docker.utils import check_container_state
+from pytmbot.globals import session_manager, keyboards
 from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import logged_inline_handler_session, bot_logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
+from pytmbot.models.containers_model import ContainersState
 from pytmbot.utils.utilities import split_string_into_octets, is_new_name_valid
 
 container_manager = ContainerManager()
+containers_state = ContainersState()
 
 
 def managing_action_fabric(call: CallbackQuery):
@@ -132,10 +135,27 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
         None
     """
     try:
-        if container_manager.managing_container(call.from_user.id, container_name, action="restart") is None:
-            return show_handler_info(call=call, text=f"Restarting {container_name}: Success", bot=bot)
+        container_manager.managing_container(call.from_user.id, container_name, action="restart")
+        container_state = check_container_state(container_name)
+
+        if container_state == containers_state.running:
+
+            bot_logger.info(
+                f"Restarting {container_name} for user {call.from_user.id}: Success. State: {container_state}")
+            keyboards_key = keyboards.ButtonData(text=f"Back to {container_name}",
+                                                 callback_data=f"__manage__:{container_name}:{call.from_user.id}")
+            keyboard = keyboards.build_inline_keyboard(keyboards_key)
+
+            return bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=f"Restarting {container_name}: Success. State: {container_state}",
+                reply_markup=keyboard)
         else:
+            bot_logger.error(f"Error occurred while restarting {container_name}: State: {container_state}")
+
             return show_handler_info(call=call, text=f"Restarting {container_name}: Error occurred. See logs", bot=bot)
+
     except Exception as e:
         bot_logger.log("ERROR", f"Error occurred while restarting {container_name}: {e}")
         return
