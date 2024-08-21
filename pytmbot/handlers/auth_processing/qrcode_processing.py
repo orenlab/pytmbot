@@ -11,7 +11,7 @@ from typing import Optional
 from telebot import TeleBot
 from telebot.types import Message
 
-from pytmbot.globals import keyboards, em, config
+from pytmbot.globals import keyboards, em
 from pytmbot.logs import bot_logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.totp import TwoFactorAuthenticator
@@ -62,7 +62,7 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
         }
 
         with Compiler(
-                template_name=config.known_templates['b_none.jinja2'],
+                template_name='b_none.jinja2',
                 context="Failed to generate QR code... I apologize!",
                 **emojis
         ) as compiler:

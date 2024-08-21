@@ -31,7 +31,7 @@ def handle_memory(message: Message, bot: TeleBot):
             bot_logger.error(f"Failed at {__name__}: Error occurred while getting memory info")
             return bot.send_message(message.chat.id, text="Some error occurred. Please try again later(")
 
-        button_data = keyboards.ButtonData(text='Swap info', callback_data='swap_info')
+        button_data = keyboards.ButtonData(text='Swap info', callback_data='__swap_info__')
         keyboard = keyboards.build_inline_keyboard(button_data)
 
         with Compiler(

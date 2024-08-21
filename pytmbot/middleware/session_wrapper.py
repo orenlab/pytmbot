@@ -73,7 +73,7 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
                 bot_logger.debug(f"Administrative access is granted to the user ID {user_id}")
 
                 # Execute the provided function
-                return func(query)
+                return func(query, bot)
         else:
             bot_logger.error(f"Administrative access for users ID {user_id} has been denied")
             return access_denied_handler(query, bot)

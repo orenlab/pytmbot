@@ -70,7 +70,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         _handle_blocked_user(message, bot)
         return
 
-    attempts: int = session_manager.get_totp_attempts(user_id)
+    attempts = session_manager.get_totp_attempts(user_id)
     if attempts > config.totp_max_attempts:
         _handle_max_attempts_reached(message, bot)
         return

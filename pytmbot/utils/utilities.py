@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 import argparse
 from datetime import datetime
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from humanize import naturalsize, naturaltime
 from telebot.types import CallbackQuery, Message
@@ -208,12 +208,12 @@ def split_string_into_octets(input_string: str, delimiter: Optional[str] = ":", 
     return octets[octet_index].lower()
 
 
-def sanitize_logs(container_logs: str, callback_query: CallbackQuery, token: str) -> str:
+def sanitize_logs(container_logs: Union[str, Any], callback_query: CallbackQuery, token: str) -> str:
     """
     Sanitizes the logs of a Docker container by replacing sensitive user information with asterisks.
 
     Args:
-        container_logs (str): The logs of the container.
+        container_logs (_SpecialForm): The logs of the container.
         callback_query (CallbackQuery): The message object.
         token (str): The token of the bot.
 

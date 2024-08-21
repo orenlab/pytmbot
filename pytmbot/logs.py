@@ -135,7 +135,7 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
                     f"Failed at @{func.__name__} - exception: {e}"
                 )
             else:
-                bot_logger.error(
+                bot_logger.exception(
                     f"Failed at @{func.__name__} - exception: {e}"
                 )
 
@@ -189,7 +189,7 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
                     f"Failed at @{func.__name__} - exception: {e}"
                 )
             else:
-                bot_logger.error(
+                bot_logger.exception(
                     f"Failed at @{func.__name__} - exception: {e}"
                 )
 

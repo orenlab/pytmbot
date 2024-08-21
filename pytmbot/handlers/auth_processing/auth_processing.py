@@ -9,7 +9,7 @@ from typing import Union
 from telebot import TeleBot
 from telebot.types import Message, CallbackQuery
 
-from pytmbot.globals import keyboards, em, config
+from pytmbot.globals import keyboards, em
 from pytmbot.logs import bot_logger, logged_handler_session
 from pytmbot.parsers.compiler import Compiler
 
@@ -42,7 +42,7 @@ def handle_unauthorized_message(query: Union[Message, CallbackQuery], bot: TeleB
 
     name = query.from_user.first_name if query.from_user.first_name else query.from_user.username
 
-    with Compiler(template_name=config.known_templates['a_auth_required.jinja2'], name=name, **emojis) as compiler:
+    with Compiler(template_name='a_auth_required.jinja2', name=name, **emojis) as compiler:
         response = compiler.compile()
 
     if isinstance(query, CallbackQuery):
@@ -78,7 +78,7 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
         'crying_face': em.get_emoji('crying_face'),
     }
 
-    with Compiler(template_name=config.known_templates['a_access_denied.jinja2'], name=user_name, **emojis) as compiler:
+    with Compiler(template_name='a_access_denied.jinja2', name=user_name, **emojis) as compiler:
         response = compiler.compile()
 
     if isinstance(query, CallbackQuery):

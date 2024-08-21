@@ -101,7 +101,7 @@ class SessionManager:
         Returns:
             int: The TOTP attempts for the user.
         """
-        return self.user_data[user_id].get('totp_attempts', 0)
+        return self.user_data[user_id].get('totp_attempts', 0) if user_id in self.user_data else 0
 
     def reset_totp_attempts(self, user_id: int) -> None:
         """
