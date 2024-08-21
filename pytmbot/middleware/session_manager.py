@@ -5,8 +5,7 @@ from typing import Optional
 from pytmbot.logs import bot_logger
 
 
-
-class StateFabric:
+class _StateFabric:
     """ Class for managing user states. """
     authenticated = 'authenticated'
     processing = 'processing'
@@ -21,7 +20,7 @@ class SessionManager:
     """
     _instance = None
     __user_data: dict = field(default_factory=dict)
-    state_fabric = StateFabric()
+    state_fabric = _StateFabric()
 
     def __new__(cls):
         """
