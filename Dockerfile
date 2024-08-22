@@ -54,7 +54,8 @@ ENV PYTHONPATH=/opt/app
 ENV PATH=/venv/bin:$PATH
 
 # Copy bot files
-COPY ./ ./
+COPY ./pytmbot ./pytmbot
+COPY ./main.py ./main.py
 
 
 # Сopy only the necessary python files and directories from first stage
