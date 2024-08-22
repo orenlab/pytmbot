@@ -16,7 +16,7 @@ from pytmbot.parsers.compiler import Compiler
 
 @logged_handler_session
 @bot_logger.catch()
-def handle_unauthorized_message(query: Union[Message, CallbackQuery], bot: TeleBot):
+def handle_unauthorized_message(query: Union[Message, CallbackQuery], bot: TeleBot) -> None:
     """
     Handles unauthorized messages received by the bot.
 
@@ -38,6 +38,9 @@ def handle_unauthorized_message(query: Union[Message, CallbackQuery], bot: TeleB
     emojis = {
         'thought_balloon': em.get_emoji('thought_balloon'),
         'desktop_computer': em.get_emoji('desktop_computer'),
+        'fountain_pen': em.get_emoji('fountain_pen'),
+        'first_quarter_moon': em.get_emoji('first_quarter_moon'),
+        'double_exclamation_mark': em.get_emoji('double_exclamation_mark'),
     }
 
     name = query.from_user.first_name if query.from_user.first_name else query.from_user.username
@@ -76,6 +79,7 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
     emojis = {
         'thought_balloon': em.get_emoji('thought_balloon'),
         'crying_face': em.get_emoji('crying_face'),
+        'double_exclamation_mark': em.get_emoji('double_exclamation_mark'),
     }
 
     with Compiler(template_name='a_access_denied.jinja2', name=user_name, **emojis) as compiler:

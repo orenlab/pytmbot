@@ -11,7 +11,7 @@ from telebot.types import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeybo
 
 from pytmbot.logs import bot_logger
 from pytmbot.settings import BotSettings
-from pytmbot.utils.utilities import EmojiConverter
+from pytmbot.utils.utilities import EmojiConverter, split_string_into_octets
 
 config = BotSettings()
 
@@ -27,6 +27,45 @@ class Keyboards:
         """
         # Initialize the emojis attribute with an instance of EmojiConverter
         self.emojis: EmojiConverter = EmojiConverter()
+
+    @staticmethod
+    def build_referer_main_keyboard(main_keyboard_data: str) -> ReplyKeyboardMarkup:
+        """
+        Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
+
+        Args:
+            main_keyboard_data (str): The keyboard data for the main keyboard.
+
+        Returns:
+            ReplyKeyboardMarkup: The constructed reply keyboard markup.
+        """
+        bot_logger.debug(f'Constructing referer main keyboard with data: {main_keyboard_data}...')
+        main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        main_keyboard.add(main_keyboard_data)
+
+        return main_keyboard
+
+    @staticmethod
+    def build_referer_inline_keyboard(data: str) -> InlineKeyboardMarkup:
+        """
+        Constructs an InlineKeyboardMarkup object with the inline keyboard settings.
+
+        Args:
+            data (str): The keyboard data for the inline keyboard.
+
+        Returns:
+            InlineKeyboardMarkup: The constructed inline keyboard markup.
+        """
+        button_text = split_string_into_octets(data)
+
+        bot_logger.debug(f'Constructing inline keyboard with data: {data}...')
+        button = InlineKeyboardButton(text=f"🦈 Return to {button_text}",
+                                      callback_data=data)
+
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(button)
+
+        return keyboard
 
     @lru_cache(maxsize=None)
     def build_reply_keyboard(self, keyboard_type: Optional[str] = None) -> ReplyKeyboardMarkup:

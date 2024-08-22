@@ -5,9 +5,10 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 from datetime import datetime
+from typing import Union
 
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import Message, ReplyKeyboardMarkup, InlineKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.globals import config, session_manager, em, keyboards
@@ -77,10 +78,22 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
 
     authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
     if authenticator.verify_totp_code(totp_code):
+        bot.send_chat_action(message.chat.id, 'typing')
         session_manager.set_auth_state(user_id, session_manager.state_fabric.authenticated)
         session_manager.set_login_time(user_id)
-        bot_logger.log("SUCCESS", f'TOTP code for user {user_id} verified.')
-        bot.reply_to(message, 'TOTP code verified. Authentication successful.')
+
+        keyboard = __create_referer_keyboard(user_id)
+
+        emojis = {
+            'bullseye': em.get_emoji('bullseye'),
+            'down-right_arrow': em.get_emoji('down-right_arrow'),
+            'saluting_face': em.get_emoji('saluting_face'),
+        }
+
+        with Compiler(template_name='a_success.jinja2', emojis=emojis) as compiler:
+            response = compiler.compile()
+
+        bot.reply_to(message, text=response, reply_markup=keyboard)
     else:
         session_manager.set_totp_attempts(user_id=user_id)
         bot_logger.error(f"Invalid TOTP code: {totp_code}")
@@ -116,6 +129,8 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     """
     emojis = {
         'thought_balloon': em.get_emoji('thought_balloon'),
+        'double_exclamation_mark': em.get_emoji('double_exclamation_mark'),
+        'down_arrow': em.get_emoji('down_arrow'),
     }
 
     name = message.from_user.first_name if message.from_user.first_name else message.from_user.username
@@ -179,3 +194,32 @@ def _block_user(user_id: int) -> None:
     session_manager.set_blocked_time(user_id)
 
     bot_logger.error(f"Processing blocked user {user_id}.")
+
+
+def __create_referer_keyboard(user_id: int) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
+    """
+    Creates a referer keyboard based on the user's handler type and referer URI.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns:
+        Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]: The created referer keyboard.
+    """
+    handler_type = session_manager.get_handler_type_for_user(user_id)
+    referer_uri = session_manager.get_referer_uri_for_user(user_id)
+
+    try:
+        if handler_type == 'message':
+            keyboard = keyboards.build_referer_main_keyboard(referer_uri)
+        elif handler_type == 'callback_query':
+            keyboard = keyboards.build_referer_inline_keyboard(referer_uri)
+        else:
+            raise NotImplementedError(f"Unsupported handler type: {handler_type}")
+
+        return keyboard
+
+    except Exception as error:
+        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+    finally:
+        session_manager.reset_referer_uri_and_handler_type_for_user(user_id)

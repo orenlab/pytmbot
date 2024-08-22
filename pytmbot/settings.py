@@ -78,7 +78,8 @@ class BotSettings(BaseSettings):
         'd_managing_containers.jinja2',
         'a_send_totp_code.jinja2',
         'b_echo.jinja2',
-        'a_access_denied.jinja2'
+        'a_access_denied.jinja2',
+        'a_success.jinja2'
     ]
     main_keyboard: dict[str, str] = {
         'low_battery': 'Load average',

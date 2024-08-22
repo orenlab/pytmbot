@@ -214,3 +214,29 @@ class SessionManager:
         """
         bot_logger.debug(f"Checking if user {user_id} session is expired")
         return datetime.now() > self.get_login_time(user_id) + timedelta(minutes=5)
+
+    def set_referer_uri_and_handler_type_for_user(
+            self, user_id: int, handler_type: str, referer_uri: str) -> None:
+        """
+        Set the referer URI and handler type for a given user ID.
+
+        Args:
+            user_id (int): The ID of the user.
+            handler_type (str): The type of the handler.
+            referer_uri (str): The URI of the referer.
+
+        Returns:
+            None: This function does not return anything.
+        """
+        self.user_data.setdefault(user_id, {})['referer_uri'] = referer_uri
+        self.user_data.setdefault(user_id, {})['handler_type'] = handler_type
+
+    def get_referer_uri_for_user(self, user_id: int) -> Optional[str]:
+        return self.user_data[user_id].get('referer_uri', None)
+
+    def get_handler_type_for_user(self, user_id: int) -> Optional[str]:
+        return self.user_data[user_id].get('handler_type', None)
+
+    def reset_referer_uri_and_handler_type_for_user(self, user_id: int) -> None:
+        self.user_data[user_id]['referer_uri'] = None
+        self.user_data[user_id]['handler_type'] = None
