@@ -12,3 +12,6 @@ class ContainersState:
     paused = "paused"
     restarting = "restarting"
     stopped = "stopped"
+    exited = "exited"
+    dead = "dead"
+    unknown = "unknown"

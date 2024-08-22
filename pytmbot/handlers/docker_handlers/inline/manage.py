@@ -57,27 +57,32 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     keyboard_buttons = [
         keyboards.ButtonData(text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
                              callback_data=f'__get_full__:{container_name}:{call.from_user.id}'),
-        keyboards.ButtonData(text=f"{em.get_emoji('recycling_symbol')} {container_name} Restart",
-                             callback_data=f'__restart__:{container_name}:{call.from_user.id}'),
     ]
 
     state = get_container_state(container_name)
 
-    bot_logger.debug(f"Container {container_name} state: {state}")
+    bot_logger.info(f"Container {container_name} state: {state}")
 
     if state == container_state.running:
         bot_logger.debug(f"Added '__stop__' button for {container_name}")
         keyboard_buttons.insert(
-            1,
-            keyboards.ButtonData(text=f"{em.get_emoji('no_entry')} {container_name} Stop",
+            0,
+            keyboards.ButtonData(text=f"{em.get_emoji('no_entry')} Stop",
                                  callback_data=f'__stop__:{container_name}:{call.from_user.id}'),
         )
 
-    elif state == container_state.stopped:
-        bot_logger.debug(f"Added '__start__' button for {container_name}")
+        bot_logger.debug(f"Added '__restart__' button for {container_name}")
         keyboard_buttons.insert(
             1,
-            keyboards.ButtonData(text=f"{em.get_emoji('glowing_star')} {container_name} Start",
+            keyboards.ButtonData(text=f"{em.get_emoji('recycling_symbol')} Restart",
+                                 callback_data=f'__restart__:{container_name}:{call.from_user.id}'),
+        )
+
+    elif state in [container_state.exited, container_state.stopped]:
+        bot_logger.debug(f"Added '__start__' button for {container_name}")
+        keyboard_buttons.insert(
+            0,
+            keyboards.ButtonData(text=f"{em.get_emoji('glowing_star')} Start",
                                  callback_data=f'__start__:{container_name}:{call.from_user.id}'),
         )
 
