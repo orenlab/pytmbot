@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 
 class ContainersState:
+    """Class for container states."""
     running = "running"
     paused = "paused"
     restarting = "restarting"

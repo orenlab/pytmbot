@@ -232,11 +232,39 @@ class SessionManager:
         self.user_data.setdefault(user_id, {})['handler_type'] = handler_type
 
     def get_referer_uri_for_user(self, user_id: int) -> Optional[str]:
+        """
+        Returns the referer URI for a given user ID.
+
+        Args:
+            user_id (int): The ID of the user.
+
+        Returns:
+            Optional[str]: The referer URI for the user, or None if not found.
+        """
         return self.user_data[user_id].get('referer_uri', None)
 
     def get_handler_type_for_user(self, user_id: int) -> Optional[str]:
+        """
+        Retrieves the handler type for a given user ID.
+
+        Args:
+            user_id (int): The ID of the user.
+
+        Returns:
+            Optional[str]: The handler type for the user, or None if not found.
+        """
         return self.user_data[user_id].get('handler_type', None)
 
     def reset_referer_uri_and_handler_type_for_user(self, user_id: int) -> None:
+
+        """
+        Resets the referer URI and handler type for a given user ID.
+
+        Args:
+            user_id (int): The ID of the user.
+
+        Returns:
+            None
+        """
         self.user_data[user_id]['referer_uri'] = None
         self.user_data[user_id]['handler_type'] = None
