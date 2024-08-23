@@ -56,6 +56,8 @@ ENV PATH=/venv/bin:$PATH
 # Copy bot files
 COPY ./pytmbot ./pytmbot
 COPY ./main.py ./main.py
+COPY ./entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 
 # Сopy only the necessary python files and directories from first stage
@@ -77,7 +79,7 @@ RUN source /venv/bin/activate && \
 # Target for CI/CD image
 FROM reliase_base AS production
 
-ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]
 
 # Target for self biuld image, --mode = prod
 FROM reliase_base AS self_build
@@ -85,9 +87,9 @@ FROM reliase_base AS self_build
 # Copy .pytmbotenv file with token (prod, dev)
 COPY pytmbot.yaml /opt/app/
 
-ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]
 
 # Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
 FROM reliase_base AS prod
 
-ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]
