@@ -1,4 +1,5 @@
 #!/bin/sh
+set -uef
 
 # (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 # pyTMBot - A simple Telegram bot to handle Docker containers and images,
@@ -27,8 +28,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Set default values if not provided
-LOG_LEVEL=${LOG_LEVEL:INFO}
-MODE=${MODE:prod}
+LOG_LEVEL=${LOG_LEVEL:-INFO}
+MODE=${MODE:-prod}
 SALT=${SALT:-false}
 
 # Check if --salt was provided
