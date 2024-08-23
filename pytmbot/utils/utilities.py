@@ -5,6 +5,8 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 import argparse
+import base64
+import secrets
 from datetime import datetime
 from functools import cached_property
 from typing import Any, Optional, Union
@@ -28,6 +30,14 @@ def parse_cli_args() -> argparse.Namespace:
     """
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(description="PyTMBot CLI")
+
+    parser.add_argument(
+        "--salt",
+        choices=["True", "False"],  # Only 'dev' and 'prod' are valid choices
+        type=str,  # The argument should be a string
+        help="Generate salt for pytmbot.yaml",  # Help message for the argument
+        default="False"  # Default value for the argument
+    )
 
     # Add the '--mode' argument
     parser.add_argument(
@@ -333,3 +343,18 @@ def is_bot_development(app_version: str) -> bool:
         bool: True if the bot is in development mode, False otherwise.
     """
     return len(app_version) > 6
+
+
+def generate_random_auth_salt(length=32):
+    """
+    Generates a random authentication salt for the bot.
+
+    Args:
+        length (int, optional): The length of the salt in bytes. Defaults to 32.
+
+    Returns:
+        str: The generated authentication salt.
+    """
+    random_bytes = secrets.token_bytes(length)
+    salt = base64.b32encode(random_bytes).decode('utf-8')
+    return salt

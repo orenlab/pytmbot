@@ -24,5 +24,5 @@ def generate_random_auth_salt(length=32):
 
 
 if __name__ == '__main__':
-    salt = generate_random_auth_salt()
-    print("Auth salt: " + salt)
+    user_salt = generate_random_auth_salt()
+    print("Auth salt: " + user_salt)
