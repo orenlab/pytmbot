@@ -12,7 +12,7 @@ if __name__ == "__main__":
     if cli_args.salt is True:
         print("Your salt: " + generate_random_auth_salt())
         exit(0)
+    else:
+        from pytmbot import pytmbot_instance
 
-    from pytmbot import pytmbot_instance
-
-    pytmbot_instance.start_bot_instance()
+        pytmbot_instance.start_bot_instance()
