@@ -18,4 +18,6 @@ def generate_random_auth_salt(length=32):
 
 
 if __name__ == "__main__":
+    print("========================================================")
+    print("Generating random authentication salt...")
     print(generate_random_auth_salt())
