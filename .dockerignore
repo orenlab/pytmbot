@@ -13,6 +13,7 @@ ENV/
 env.bak/
 venv.bak/
 outline.yaml
+pytmbot.yaml.sample
 #######################################
 # All md and DS_Store files
 *.md
