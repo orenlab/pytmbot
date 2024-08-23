@@ -6,7 +6,7 @@
 |----|-------------------------------------------------------------------------------|----------------|-----------------------|
 | 1  | Tests                                                                         | `in progress`  | 4Q2024                |
 | 2  | Background, regular statistics collection                                     | `planned`      | 4Q2024                |
-| 3  | Check Docker image updates                                                    | `pending`      | -                     |
+| 3  | Check Docker image updates                                                    | `in progress`  | 3Q2024                |
 | 4  | Image Management                                                              | `in progress`  | 3Q2024                |
 | 5  | Container Management                                                          | `in progress`  | 3Q2024                |
 | 6  | Support for Fluentd                                                           | `planned`      | 4Q2024                |

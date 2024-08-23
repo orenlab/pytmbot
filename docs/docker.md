@@ -7,13 +7,18 @@ A simple Telegram bot to handle Docker containers and images, also providing bas
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 
-## 🐳 A large section on Docker
+## 💡 Key Features
 
-- Information about containers (even those that have finished work)
-- The ability to view container logs
-- Information about images
+### 🐳 A large section on Docker
 
-### 💡 Features
+__Some of the features are protected by two-factor authentication, which is built into pyTMbot v.2__
+
+- Container management (start, stop, restart, etc.)
+- Key information about the current status of containers (even those that have finished work)
+- Ability to access container logs
+- Key information about images
+
+### 🖥️ A large section on local servers
 
 - Load average information
 - Summary memory usage information (with swap)
