@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
-from pytmbot.globals import config
+from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 
 
@@ -65,8 +65,8 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     def _sanitize_exception(exception: Exception) -> str:
         exception_str = str(exception)
         secret_map = {
-            config.bot_token.get_secret_value(): "********* BOT TOKEN *********",
-            config.dev_bot_token.get_secret_value(): "********* DEV BOT TOKEN *********",
+            settings.bot_token.prod_token.get_secret_value(): "********* BOT TOKEN *********",
+            settings.bot_token.dev_bot_token.get_secret_value(): "********* DEV BOT TOKEN *********",
         }
         for secret, placeholder in secret_map.items():
             exception_str = exception_str.replace(secret, placeholder)

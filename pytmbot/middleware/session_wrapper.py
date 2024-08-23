@@ -3,7 +3,7 @@ from typing import Union, Callable, Any
 import telebot
 from telebot.types import Message, CallbackQuery
 
-from pytmbot.globals import session_manager, config
+from pytmbot.globals import session_manager, settings
 from pytmbot.handlers.auth_processing.auth_processing import handle_unauthorized_message, handle_access_denied
 from pytmbot.logs import bot_logger
 
@@ -64,7 +64,7 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
             referer_handler = query.text
 
         # Check if the user is an allowed admin
-        if user_id in config.allowed_admins_ids:
+        if user_id in settings.access_control.allowed_admins_ids:
             # Check if the user is not already authorized
             is_user_authenticated = session_manager.is_authenticated(user_id)
             bot_logger.debug(f"User {user_id} is authenticated: {is_user_authenticated}")

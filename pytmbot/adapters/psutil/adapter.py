@@ -212,7 +212,7 @@ class PsutilAdapter:
 
             # Check if there was an error receiving data from temperature sensors
             if not sensors_stat:
-                bot_logger.debug("Error receiving data from temperature sensors")
+                bot_logger.error("Error receiving data from temperature sensors")
 
             # Iterate through the sensors statistics and create a dictionary for each sensor
             for sensor_name, temperature_stats in sensors_stat.items():

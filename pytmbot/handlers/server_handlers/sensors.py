@@ -30,10 +30,11 @@ def handle_sensors(message: Message, bot: TeleBot):
 
         sensors_data = psutil_adapter.get_sensors_temperatures()
 
-        if sensors_data is None:
+        if sensors_data is None or sensors_data == []:
             return bot.send_message(
                 message.chat.id,
-                text="Sorry, but i can't get sensors values. Please try again later."
+                text="I'm sorry to inform you that I was unable to retrieve the sensor values. "
+                     "There seems to be an issue with my system. Please try again later.",
             )
 
         with Compiler(

@@ -12,6 +12,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+outline.yaml
 #######################################
 # All md and DS_Store files
 *.md

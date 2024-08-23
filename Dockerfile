@@ -83,7 +83,7 @@ ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
 FROM reliase_base AS self_build
 
 # Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/app/
+COPY pytmbot.yaml /opt/app/
 
 ENTRYPOINT [ "/venv/bin/python3", "main.py" ]
 

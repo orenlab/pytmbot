@@ -3,7 +3,7 @@ try:
 except ImportError:
     raise ImportError("Error loading 'docker' package. Install it!")
 
-from pytmbot.globals import config
+from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 
 
@@ -20,7 +20,7 @@ class DockerAdapter:
             None
         """
         # The Docker URL is obtained from the config module
-        self.docker_url: str = config.docker_host
+        self.docker_url: str = settings.docker.host[0]
 
         # The Docker client is initialized as None
         self.client = None

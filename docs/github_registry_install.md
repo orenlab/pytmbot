@@ -1,5 +1,7 @@
 # pyTMBot v.2 installation from GitHub registry
 
+__The methods for setting up the bots v.1 and v.2 are different and cannot be used together!__
+
 ## 🧪 Configure bot
 
 1. Secret Settings:
@@ -9,29 +11,50 @@
 ```bash
 sudo -i
 cd /root/
-touch .pytmbotenv
+touch pytmbot.yaml
 ```
 
 Then,
 
 ```bash
-nano .pytmbotenv
+nano pytmbot.yaml
 ```
 
-And we insert the following content, first replacing `<PUT YOUR VALUE HERE>`:
+And we insert the following content, then fill in the required fields between single quotes:
 
-```bash
-# The bot token that you received from the BotFather:
-BOT_TOKEN=<PUT YOUR VALUE HERE>
-# Add your telegram IDs:
-ALLOWED_USER_IDS=[00000000000, 00000000000]
-# Setting up administrative (full) access. This field is only required for the alpine-dev environment!
-# For version 0.1.1 and earlier, this field may be omitted.
-ALLOWED_ADMINS_IDS=[00000000000, 00000000000]
-# Set Docker Socket o TCP param. Usually: unix:///var/run/docker.sock: 
-DOCKER_HOST='unix:///var/run/docker.sock'
-# Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
-AUTH_SALT="PLS, INSERT HERE ONLY BASE32 string"
+```yaml
+# Setup bot tokens
+bot_token:
+  # Prod bot token.
+  prod_token:
+    - ''
+  # Development bot token. Not necessary for production bot.
+  dev_bot_token:
+    - ''
+# Setup access control
+access_control:
+  # The ID of the users who have permission to access the bot.
+  # You can have one or more values - there are no restrictions.
+  allowed_user_ids:
+    - 0000000000
+    - 0000000000
+  # The ID of the admins who have permission to access the bot.
+  # You can have one or more values, there are no restrictions.
+  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
+  allowed_admins_ids:
+    - 0000000000
+    - 0000000000
+  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+  # A script for the fast generation of a truly unique "salt" is available in the bot's repository:
+  # https://github.com/orenlab/pytmbot/blob/feature/2.0.0/cli/generate_salt.py
+  auth_salt:
+    - ''
+# Docker settings
+docker:
+  # Docker socket. Usually: unix:///var/run/docker.sock.
+  host:
+    - 'unix:///var/run/docker.sock'
+
 ```
 
 Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` editor.
@@ -49,7 +72,7 @@ To launch a Docker container:
 ```bash
 sudo docker run -d -m 100M \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/app/.pytmbotenv:ro \
+-v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
 --env TZ="Asia/Yekaterinburg" \
 --restart=always \
 --name=pytmbot \

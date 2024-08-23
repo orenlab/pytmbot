@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 from typing import Union
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.globals import config, session_manager
+from pytmbot.globals import settings, session_manager
 from pytmbot.logs import bot_logger
 from pytmbot.utils.utilities import is_new_name_valid
 
@@ -128,7 +128,7 @@ class ContainerManager:
         Returns:
             bool: True if the user is allowed to manage containers, False otherwise.
         """
-        return user_id in config.allowed_admins_ids and session_manager.is_authenticated(user_id)
+        return user_id in settings.access_control.allowed_admins_ids and session_manager.is_authenticated(user_id)
 
     def managing_container(self, user_id: int, container_id: Union[str, int], **kwargs):
 

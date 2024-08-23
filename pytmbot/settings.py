@@ -1,20 +1,23 @@
-import os
-from typing import Optional, List, FrozenSet
+#!/venv/bin/python3
+"""
+(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
 
-from pydantic import SecretStr, BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from typing import List, FrozenSet
+
+import yaml
+from pydantic import BaseModel
+
+from pytmbot.models.settings_model import SettingsModel
 
 
 def get_env_file_path() -> str:
-    """
-    Get the path of the .pytmbotenv file.
-
-    This function navigates through the directory structure to find the root directory
-    and then constructs the path to the .pytmbotenv file.
-
-    Returns:
-        str: The path of the .pytmbotenv file.
-    """
     # Get the current directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,23 +25,22 @@ def get_env_file_path() -> str:
     root_dir = os.path.dirname(current_dir)
 
     # Construct the path to the .pytmbotenv file
-    env_file_path = os.path.join(root_dir, '.pytmbotenv')
+    env_file_path = os.path.join(root_dir, 'pytmbot.yaml')
 
     return env_file_path
 
 
-class BotSettings(BaseSettings):
-    """
-    BotSettings class to load configuration from .pytmbotenv file and settings variables
-    """
+@lru_cache(maxsize=None)
+def load_settings_from_yaml() -> SettingsModel:
+    try:
+        with open(get_env_file_path(), 'r') as f:
+            settings_data = yaml.safe_load(f)
+        return SettingsModel(**settings_data)
+    except FileNotFoundError:
+        raise FileNotFoundError("pytmbot.yaml not found")
 
-    bot_token: SecretStr  # Bot toke from .pytmbotenv
-    dev_bot_token: Optional[SecretStr]  # Dev bot toke from .pytmbotenv
-    allowed_user_ids: list[int]  # Allowed user id from .pytmbotenv
-    allowed_admins_ids: Optional[list[int]]  # Allowed admin ids from .pytmbotenv
-    docker_host: str  # Docker socket URI from .pytmbotenv
-    auth_salt: Optional[SecretStr]  # Auth salt
-    model_config = SettingsConfigDict(env_file=get_env_file_path(), env_file_encoding='utf-8')
+
+class VarConfig(BaseModel):
     # Set local configuration
     bot_commands: dict[str, str] = {
         "/start": "Start bot!",
@@ -121,3 +123,8 @@ class LogsSettings(BaseModel):
         "<level>{level: <8}</level> | <level>{message}</level> | "
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>"
     )
+
+
+settings = load_settings_from_yaml()
+var_config = VarConfig()
+log_settings = LogsSettings()

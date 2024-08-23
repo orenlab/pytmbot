@@ -11,13 +11,13 @@ from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup, InlineKeyboardMarkup
 
 from pytmbot import exceptions
-from pytmbot.globals import config, session_manager, em, keyboards
+from pytmbot.globals import session_manager, em, keyboards, settings, var_config
 from pytmbot.logs import bot_logger, logged_handler_session
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.totp import TwoFactorAuthenticator
 from pytmbot.utils.utilities import is_valid_totp_code
 
-allowed_admins_ids = set(config.allowed_admins_ids)
+allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
 
 
 # regexp='Enter 2FA code'
@@ -72,7 +72,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         return
 
     attempts = session_manager.get_totp_attempts(user_id)
-    if attempts > config.totp_max_attempts:
+    if attempts > var_config.totp_max_attempts:
         _handle_max_attempts_reached(message, bot)
         return
 

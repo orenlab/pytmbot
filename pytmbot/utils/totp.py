@@ -11,7 +11,7 @@ import io
 import pyotp
 import qrcode
 
-from pytmbot.globals import config
+from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 
 
@@ -19,7 +19,7 @@ class TwoFactorAuthenticator:
     def __init__(self, user_id, username):
         self.user_id: int = user_id
         self.username = username
-        self.salt: str = config.auth_salt.get_secret_value()
+        self.salt: str = settings.access_control.auth_salt[0].get_secret_value()
 
     def __generate_secret(self) -> str:
         """
@@ -64,7 +64,7 @@ class TwoFactorAuthenticator:
             bytes: The generated QR code as bytes.
         """
         # Start logging the generation process
-        bot_logger.debug(f'Start generating TOTP QR code for user {self.username}...')
+        bot_logger.info(f'Start generating TOTP QR code for user {self.username}...')
 
         # Generate the TOTP authentication URI
         auth_uri = self.__generate_totp_auth_uri()
@@ -76,7 +76,7 @@ class TwoFactorAuthenticator:
         with io.BytesIO() as img_bytes:
             qr_code.save(img_bytes)
 
-            bot_logger.debug(f'TOTP QR code for user {self.username} generated.')
+            bot_logger.info(f'TOTP QR code for user {self.username} generated.')
             # Return the bytes of the QR code
             return img_bytes.getvalue()
 
@@ -94,7 +94,7 @@ class TwoFactorAuthenticator:
         totp = pyotp.TOTP(self.__generate_secret())
 
         # Log the verification process
-        bot_logger.debug(f'Verifying TOTP code for user {self.username}...')
+        bot_logger.info(f'Verifying TOTP code for user {self.username}...')
 
         # Verify the TOTP code
         if totp.verify(code):

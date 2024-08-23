@@ -9,7 +9,7 @@ import time
 import telebot
 
 from pytmbot import exceptions
-from pytmbot.globals import config, __version__, __repository__
+from pytmbot.globals import settings, var_config, __version__, __repository__
 from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
@@ -31,9 +31,9 @@ def __get_bot_token():
 
     # Return the appropriate bot token based on the bot mode
     return (
-        config.dev_bot_token.get_secret_value()  # If bot mode is "dev", return the dev bot token
+        settings.bot_token.dev_bot_token[0].get_secret_value()  # If bot mode is "dev", return the dev bot token
         if bot_mode.mode == "dev"
-        else config.bot_token.get_secret_value()  # Otherwise, return the regular bot token
+        else settings.bot_token.prod_token[0].get_secret_value()  # Otherwise, return the regular bot token
     )
 
 
@@ -77,13 +77,13 @@ def __create_bot_instance():
     bot_logger.debug("Bot token is valid.")
     bot_logger.debug(f"Bot info: {test_bot}.")
 
-    commands = [telebot.types.BotCommand(command, desc) for command, desc in config.bot_commands.items()]
+    commands = [telebot.types.BotCommand(command, desc) for command, desc in var_config.bot_commands.items()]
     # Set up the bot commands
     try:
         bot.set_my_commands(commands)
         bot_logger.debug(f"Bot commands setup successful with {len(commands)} commands.")
 
-        bot.set_my_description(config.description)
+        bot.set_my_description(var_config.description)
         bot_logger.debug("Bot description setup successful.")
     except telebot.apihelper.ApiTelegramException as error:
         bot_logger.error(f"Error setting up bot commands and description: {error}")
@@ -135,8 +135,8 @@ def start_bot_instance():
     try:
         bot_instance.infinity_polling(
             skip_pending=True,
-            timeout=config.bot_polling_timeout,
-            long_polling_timeout=config.bot_long_polling_timeout
+            timeout=var_config.bot_polling_timeout,
+            long_polling_timeout=var_config.bot_long_polling_timeout
         )
     except telebot.apihelper.ApiTelegramException as error:
         bot_logger.error(f"Failed at @{__name__}: {error}")

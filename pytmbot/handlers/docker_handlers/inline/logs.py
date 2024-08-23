@@ -11,12 +11,14 @@ from telebot.types import CallbackQuery
 from pytmbot.globals import keyboards, em
 from pytmbot.handlers.handlers_util.docker import show_handler_info, get_sanitized_logs
 from pytmbot.logs import logged_inline_handler_session
+from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
 
 
 # func=lambda call: call.data.startswith('__get_logs__')
 @logged_inline_handler_session
+@two_factor_auth_required
 def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     """
     Handles the callback for getting logs of a container.

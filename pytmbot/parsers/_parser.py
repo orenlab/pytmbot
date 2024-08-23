@@ -15,7 +15,7 @@ from jinja2.exceptions import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from pytmbot import exceptions
-from pytmbot.globals import config
+from pytmbot.globals import var_config
 from pytmbot.logs import bot_logger
 
 
@@ -80,7 +80,7 @@ class Jinja2Renderer:
         # when rendering templates.
         return SandboxedEnvironment(
             # Use a FileSystemLoader to load templates from the 'app/templates/' directory.
-            loader=jinja2.FileSystemLoader(config.template_path),
+            loader=jinja2.FileSystemLoader(var_config.template_path),
             # Enable autoescape for HTML, TXT, and Jinja2 templates to prevent XSS attacks.
             autoescape=select_autoescape(['html', 'txt', 'jinja2'], default_for_string=True)
         )
@@ -104,7 +104,7 @@ class Jinja2Renderer:
         """
         try:
             # Check if the template name is known
-            if template_name not in config.known_templates:
+            if template_name not in var_config.known_templates:
                 raise exceptions.PyTMBotErrorTemplateError(f"Unknown template: {template_name}")
 
             # Get the template and render it with the given context

@@ -17,6 +17,7 @@ pyotp==2.9.0
 pypng==0.20220715.0
 pyTelegramBotAPI==4.22.1
 python-dotenv==1.0.1
+PyYAML==6.0.2
 qrcode==7.4.2
 requests==2.32.3
 typing_extensions==4.12.2

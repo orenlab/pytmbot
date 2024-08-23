@@ -11,11 +11,11 @@ except ImportError:
     raise ImportError("Error loading 'click' package. Install it!")
 from string import Template
 
-import cli.cfg_templates.env as default_env_tpl
+import cli.cfg_templates.config_template as default_env_tpl
 from cli import fs as filesystem
 from cli.generate_salt import generate_random_auth_salt
 
-APP_ENV_FILE = '.pytmbotenv'
+APP_ENV_FILE = 'pytmbot.yaml'
 
 
 def ask_for_user_id() -> str:

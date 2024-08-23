@@ -13,7 +13,7 @@ from telebot.handler_backends import (
 )
 from telebot.types import Message
 
-from pytmbot.globals import config
+from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 
 
@@ -40,7 +40,7 @@ class AccessControl(BaseMiddleware):
         # Set update types
         self.update_types: List[str] = ['message']
         # Set allowed user IDs
-        self.allowed_user_ids = set(config.allowed_user_ids)
+        self.allowed_user_ids = set(settings.access_control.allowed_user_ids)
         # Initialize the attempt count dictionary
         self.attempt_count = {}
 
@@ -52,7 +52,6 @@ class AccessControl(BaseMiddleware):
         Args:
             message (Message): Object from Telebot containing user information.
             data (Any): Additional data from Telebot.
-            bot (TeleBot): Telebot object.
 
         Returns:
             Optional[CancelUpdate]: An instance of the CancelUpdate class if the user is not allowed to access the bot,

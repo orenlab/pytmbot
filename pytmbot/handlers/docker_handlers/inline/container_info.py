@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import config, keyboards, em
+from pytmbot.globals import keyboards, em, settings
 from pytmbot.handlers.handlers_util.docker import get_container_full_details, show_handler_info, get_emojis, \
     parse_container_memory_stats, parse_container_cpu_stats, parse_container_network_stats, parse_container_attrs
 from pytmbot.logs import logged_inline_handler_session, bot_logger
@@ -50,7 +50,8 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                              callback_data="back_to_containers"),
     ]
 
-    if call.from_user.id in config.allowed_admins_ids and int(call.from_user.id) == int(called_user_id):
+    if call.from_user.id in settings.access_control.allowed_admins_ids and int(call.from_user.id) == int(
+            called_user_id):
         bot_logger.debug(f"User {call.from_user.id} is an admin. Added '__manage__' button")
         keyboard_buttons.insert(
             1,

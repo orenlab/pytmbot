@@ -4,7 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from pytmbot.globals import config
+from pytmbot.globals import settings
 from pytmbot.handlers.auth_processing.qrcode_processing import handle_qr_code_message
 from pytmbot.handlers.auth_processing.twofa_processing import handle_twofa_message, handle_totp_code_verification
 from pytmbot.handlers.bot_handlers.about import handle_about_command
@@ -99,9 +99,9 @@ def handler_factory():
         ],
         'qrcode': [
             HandlerManager(callback=handle_qr_code_message, regexp='Get QR-code for 2FA app',
-                           func=lambda message: message.from_user.id in config.allowed_admins_ids),
+                           func=lambda message: message.from_user.id in settings.access_control.allowed_admins_ids),
             HandlerManager(callback=handle_qr_code_message, commands=['qrcode'],
-                           func=lambda message: message.from_user.id in config.allowed_admins_ids)
+                           func=lambda message: message.from_user.id in settings.access_control.allowed_admins_ids)
         ],
         # Echo handler. Always past in the end!
         'echo': [

@@ -10,10 +10,8 @@ from typing import Dict, List, Optional, Union, NamedTuple
 from telebot.types import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup
 
 from pytmbot.logs import bot_logger
-from pytmbot.settings import BotSettings
+from pytmbot.settings import var_config
 from pytmbot.utils.utilities import EmojiConverter, split_string_into_octets
-
-config = BotSettings()
 
 
 class Keyboards:
@@ -117,17 +115,17 @@ class Keyboards:
         """
         # If no keyboard type is specified, return the main keyboard
         if keyboard_type is None:
-            return config.main_keyboard
+            return var_config.main_keyboard
 
         # Get a list of valid keyboard attributes from the config module
-        valid_keyboards = {attr for attr in dir(config) if attr.endswith('_keyboard')}
+        valid_keyboards = {attr for attr in dir(var_config) if attr.endswith('_keyboard')}
 
         # Check if the specified keyboard type is valid
         if keyboard_type not in valid_keyboards:
             raise AttributeError(f"Invalid keyboard type: {keyboard_type}")
 
         # Get the keyboard data from the config module using the specified keyboard type
-        return getattr(config, keyboard_type)
+        return getattr(var_config, keyboard_type)
 
     def _construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
         """
