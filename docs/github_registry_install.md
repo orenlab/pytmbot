@@ -59,11 +59,17 @@ docker:
 
 Then press `Ctrl + X` followed by `Y` to save your changes and exit the `nano` editor.
 
-**Note about 'AUTH_SALT' parameter**: If you are having trouble generating a "salt" for pyTMbot configuration file, I've
-written a simple Python script to
-help you with this task. Simply download the file from
-the [link](https://raw.githubusercontent.com/orenlab/pytmbot/master/bot_cli/generate_salt.py) and run it using the
-following command: `python generate_salt.py`
+#### Note about `auth_salt` parameter:
+
+The bot supports random salt generation. To use this feature, it is recommended to run the following command in a
+separate terminal window:
+
+```bash
+sudo docker run --rm orenlab/pytmbot:2.0.0-alpine-dev --salt true
+```
+
+This command will generate a unique "salt" value for you and display it on the screen. The container will then be
+automatically deleted.
 
 ## 🔌 Run bot
 
@@ -78,8 +84,7 @@ sudo docker run -d -m 100M \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-ghcr.io/orenlab/pytmbot:master \
---log-level=INFO --mode=prod
+ghcr.io/orenlab/pytmbot:master
 ```
 
 #### Supported logging levels:

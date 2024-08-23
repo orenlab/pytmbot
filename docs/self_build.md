@@ -50,8 +50,7 @@ sudo docker run -d -m 100M \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-orenlab/pytmbot:self-build \
---log-level=INFO --mode=prod
+orenlab/pytmbot:self-build
 ```
 
 #### Supported logging levels:
