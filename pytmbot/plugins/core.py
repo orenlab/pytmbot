@@ -32,12 +32,16 @@ class PluginCore:
         Returns:
             str: The absolute path to the config file.
         """
+        try:
+            current_dir = os.path.dirname(__file__)
+            parent_dir = os.path.dirname(current_dir)
+            grandparent_dir = os.path.dirname(parent_dir)
+            config_path = os.path.join(grandparent_dir, config_name)
 
-        current_dir = os.path.dirname(__file__)
-        parent_dir = os.path.dirname(current_dir)
-        grandparent_dir = os.path.dirname(parent_dir)
-        config_path = os.path.join(grandparent_dir, config_name)
-        return config_path
+            return config_path
+        except FileNotFoundError as err:
+            bot_logger.error(f"Failed getting config path for {config_name}: {err}")
+            raise
 
     def load_plugin_config(self, config_name: str, config_model: type[PluginCoreModel]):
         """
@@ -51,7 +55,13 @@ class PluginCore:
             PluginCoreModel: An instance of the config_model class with the configuration data.
         """
         config_path = self.__get_config_path(config_name)
-        with open(config_path, 'r') as f:
-            config_data = yaml.safe_load(f)
+        try:
+            with open(config_path, 'r') as f:
+                config_data = yaml.safe_load(f)
 
-        return config_model(**config_data)
+            bot_logger.debug(f"Loaded plugin config: {config_name}")
+
+            return config_model(**config_data)
+        except FileNotFoundError as err:
+            bot_logger.error(f"Failed loading plugin config: {err}")
+            raise

@@ -34,7 +34,7 @@ class PluginMethods(PluginCore):
         self.cert = cert_secret.get_secret_value()
         self.client = OutlineVPN(self.api_url, self.cert)
 
-    def fetch_server_information(self):
+    def fetch_server_information(self) -> OutlineServer:
         """
         Fetches server information from the Outline API.
 
@@ -43,7 +43,7 @@ class PluginMethods(PluginCore):
         """
         return OutlineServer(**self.client.get_server_information())
 
-    def fetch_traffic_information(self):
+    def fetch_traffic_information(self) -> BytesTransferredByUserId:
         """
         Fetches traffic information from the Outline API.
 
@@ -52,7 +52,7 @@ class PluginMethods(PluginCore):
         """
         return BytesTransferredByUserId(**self.client.get_transferred_data())
 
-    def fetch_key_information(self):
+    def fetch_key_information(self) -> List[OutlineKey]:
         """
         Fetches key information from the Outline API.
 
@@ -62,3 +62,9 @@ class PluginMethods(PluginCore):
         keys: List[OutlineKey] = self.client.get_keys()
         return keys
 
+
+if __name__ == '__main__':
+    plugin = PluginMethods()
+    print(plugin.fetch_server_information())
+    print(plugin.fetch_traffic_information())
+    print(plugin.fetch_key_information())
