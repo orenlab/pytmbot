@@ -4,38 +4,61 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+from typing import List
 
 from outline_vpn.outline_vpn import OutlineVPN
 
 from pytmbot.plugins.core import PluginCore
+from pytmbot.plugins.outline.models import (
+    OutlineConfig,
+    OutlineServer,
+    BytesTransferredByUserId,
+    OutlineKey
+)
 
-plugin_core = PluginCore
+plugin_name = 'outline'
+plugin_version = '0.0.1'
+plugin_config_name = 'outline.yaml'
+plugin_description = 'Outline VPN plugin for pyTMBot'
+plugin_commands = ['outline']
 
 
-def build_client():
-    try:
-        client = OutlineVPN(api_url="https://85.208.109.168:1199/15B4qBw9w_EyPNbY92qcNg",
-                            cert_sha256="D0762670AA182692C2CCC8D1C7FCF1692E365D99257DABD6D0F54AA0FC97C633")
-        return client
-    except Exception as err:
-        raise
+class PluginMethods(PluginCore):
 
-
-class OutlinePlugin(PluginCore):
     def __init__(self):
-        super().__init__(self)
-        self.client = OutlineVPN(api_url="https://85.208.109.168:1199/15B4qBw9w_EyPNbY92qcNg",
-                                 cert_sha256="D0762670AA182692C2CCC8D1C7FCF1692E365D99257DABD6D0F54AA0FC97C633")
+        super().__init__()
+        self.plugin_config = self.load_plugin_config(plugin_config_name, OutlineConfig)
+        api_url_secret = self.plugin_config.outline.api_url[0]
+        cert_secret = self.plugin_config.outline.cert[0]
+        self.api_url = api_url_secret.get_secret_value()
+        self.cert = cert_secret.get_secret_value()
+        self.client = OutlineVPN(self.api_url, self.cert)
 
     def fetch_server_information(self):
-        return self.client.get_server_information()
+        """
+        Fetches server information from the Outline API.
+
+        Returns:
+            OutlineServer: An object containing information about the Outline server.
+        """
+        return OutlineServer(**self.client.get_server_information())
 
     def fetch_traffic_information(self):
-        return self.client.get_transferred_data()
+        """
+        Fetches traffic information from the Outline API.
+
+        Returns:
+            BytesTransferredByUserId: An object containing information about the transferred data by user id.
+        """
+        return BytesTransferredByUserId(**self.client.get_transferred_data())
 
     def fetch_key_information(self):
-        return self.client.get_keys()
+        """
+        Fetches key information from the Outline API.
 
+        Returns:
+            List[OutlineKey]: A list of OutlineKey objects, each containing information about a key.
+        """
+        keys: List[OutlineKey] = self.client.get_keys()
+        return keys
 
-if __name__ == "__main__":
-    print(OutlinePlugin().fetch_key_information())
