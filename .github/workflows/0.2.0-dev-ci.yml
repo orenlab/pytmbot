@@ -3,7 +3,7 @@ name: Push Alpine Dev Image for 0.2.0
 on:
   push:
     branches:
-      - 'feature/2.0.0'
+      - 'feature/0.2.0'
 
 jobs:
   docker:
