@@ -58,15 +58,16 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         """
 
         sanitized_exception = self._sanitize_exception(exception)
-        bot_logger.error(f"Failed at @Telebot package: {sanitized_exception}", exc_info=True)
+        bot_logger.exception(f"Failed at @Telebot package: {sanitized_exception}", exc_info=True)
+
         return True
 
     @staticmethod
     def _sanitize_exception(exception: Exception) -> str:
         exception_str = str(exception)
         secret_map = {
-            settings.bot_token.prod_token.get_secret_value(): "********* BOT TOKEN *********",
-            settings.bot_token.dev_bot_token.get_secret_value(): "********* DEV BOT TOKEN *********",
+            settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
+            settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
         }
         for secret, placeholder in secret_map.items():
             exception_str = exception_str.replace(secret, placeholder)
