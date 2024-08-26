@@ -3,8 +3,8 @@
 {{ thought_balloon }}Here is:
 
 {% for value in context %}{{ spouting_whale }} Image ID: <b>{{ value['id'] }}</b>:
-    {{ minus }} Name: {{ value["name"] }}
-    {{ minus }} Tags: {{ value["tags"] }}
+    {{ minus }} Name: {{ value["name"][0] }}
+    {{ minus }} Tags: {{ value["tags"][0] }}
     {{ minus }} OS architecture: {{ value["architecture"] }}
     {{ minus }} Target OS: {{ value["os"] }}
     {{ minus }} Image size: {{ value["size"] }}

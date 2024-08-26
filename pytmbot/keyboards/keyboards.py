@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Union, NamedTuple
 from telebot.types import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup
 
 from pytmbot.logs import bot_logger
-from pytmbot.settings import var_config
+from pytmbot.settings import keyboard_settings
 from pytmbot.utils.utilities import EmojiConverter, split_string_into_octets
 
 
@@ -66,13 +66,15 @@ class Keyboards:
         return keyboard
 
     @lru_cache(maxsize=None)
-    def build_reply_keyboard(self, keyboard_type: Optional[str] = None) -> ReplyKeyboardMarkup:
+    def build_reply_keyboard(self, keyboard_type: Optional[str] = None,
+                             plugin_keyboard_data: Optional[dict[str, str]] = None) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
 
         Args:
             self: The instance of the Keyboard class.
             keyboard_type (Optional[str], optional): The type of keyboard to be constructed. Defaults to None.
+            plugin_keyboard_data (Optional[dict[str, str]], optional): The keyboard data to be used. Defaults to None.
 
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
@@ -80,7 +82,7 @@ class Keyboards:
         bot_logger.debug(f'Constructing reply keyboard whit type: {keyboard_type if keyboard_type else "main"}...')
 
         # Get the keyboard data based on the specified keyboard type
-        keyboard_data = self._get_keyboard_data(keyboard_type)
+        keyboard_data = plugin_keyboard_data if plugin_keyboard_data else self._get_keyboard_data(keyboard_type)
 
         bot_logger.debug(f'Keyboard data: {keyboard_data}')
 
@@ -115,17 +117,17 @@ class Keyboards:
         """
         # If no keyboard type is specified, return the main keyboard
         if keyboard_type is None:
-            return var_config.main_keyboard
+            return keyboard_settings.main_keyboard
 
         # Get a list of valid keyboard attributes from the config module
-        valid_keyboards = {attr for attr in dir(var_config) if attr.endswith('_keyboard')}
+        valid_keyboards = {attr for attr in dir(keyboard_settings) if attr.endswith('_keyboard')}
 
         # Check if the specified keyboard type is valid
         if keyboard_type not in valid_keyboards:
             raise AttributeError(f"Invalid keyboard type: {keyboard_type}")
 
         # Get the keyboard data from the config module using the specified keyboard type
-        return getattr(var_config, keyboard_type)
+        return getattr(keyboard_settings, keyboard_type)
 
     def _construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
         """

@@ -1,26 +1,25 @@
 #!/venv/bin/python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+
+Outline VPN plugin for pyTMBot
+
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from typing import List
+from typing import List, Literal
 
 from outline_vpn.outline_vpn import OutlineVPN
 
+from pytmbot.logs import bot_logger
 from pytmbot.plugins.core import PluginCore
+from pytmbot.plugins.outline.config import plugin_config_name
 from pytmbot.plugins.outline.models import (
     OutlineConfig,
     OutlineServer,
     BytesTransferredByUserId,
     OutlineKey
 )
-
-plugin_name = 'outline'
-plugin_version = '0.0.1'
-plugin_config_name = 'outline.yaml'
-plugin_description = 'Outline VPN plugin for pyTMBot'
-plugin_commands = ['outline']
 
 
 class PluginMethods(PluginCore):
@@ -34,7 +33,7 @@ class PluginMethods(PluginCore):
         self.cert = cert_secret.get_secret_value()
         self.client = OutlineVPN(self.api_url, self.cert)
 
-    def fetch_server_information(self) -> OutlineServer:
+    def __fetch_server_information(self) -> OutlineServer:
         """
         Fetches server information from the Outline API.
 
@@ -43,7 +42,7 @@ class PluginMethods(PluginCore):
         """
         return OutlineServer(**self.client.get_server_information())
 
-    def fetch_traffic_information(self) -> BytesTransferredByUserId:
+    def __fetch_traffic_information(self) -> BytesTransferredByUserId:
         """
         Fetches traffic information from the Outline API.
 
@@ -52,7 +51,7 @@ class PluginMethods(PluginCore):
         """
         return BytesTransferredByUserId(**self.client.get_transferred_data())
 
-    def fetch_key_information(self) -> List[OutlineKey]:
+    def __fetch_key_information(self) -> List[OutlineKey]:
         """
         Fetches key information from the Outline API.
 
@@ -62,9 +61,18 @@ class PluginMethods(PluginCore):
         keys: List[OutlineKey] = self.client.get_keys()
         return keys
 
+    def outline_action_manager(self,
+                               action: str = Literal[
+                                   'server_information', 'traffic_information', 'key_information']):
+        action_map = {
+            "server_information": self.__fetch_server_information,
+            "traffic_information": self.__fetch_traffic_information,
+            "key_information": self.__fetch_key_information
+        }
 
-if __name__ == '__main__':
-    plugin = PluginMethods()
-    print(plugin.fetch_server_information())
-    print(plugin.fetch_traffic_information())
-    print(plugin.fetch_key_information())
+        try:
+            return action_map[action]()
+        except KeyError:
+            raise ValueError(f"Invalid action: {action}")
+        except Exception as error:
+            bot_logger.exception(f"Failed at @Outline plugin: {error}")

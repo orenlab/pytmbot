@@ -24,7 +24,7 @@ sudo docker run -d -m 100M \
 --pid=host \
 --security-opt=no-new-privileges \
 orenlab/pytmbot:latest \
---log-level DEBUG --mode prod
+-l DEBUG -m prod
 ```
 
 - You can access the bot's logs using the following command:

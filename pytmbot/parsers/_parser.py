@@ -27,7 +27,7 @@ class Jinja2Renderer:
     _template_cache: Dict[str, jinja2.Template] = {}
 
     @classmethod
-    def instance(cls) -> 'Jinja2Renderer':
+    def instance(cls, plugin_name: Optional[str] = None) -> 'Jinja2Renderer':
         """
         Returns the singleton instance of the Jinja2Renderer class.
 
@@ -40,12 +40,12 @@ class Jinja2Renderer:
         # Check if the instance already exists
         if not cls._instance:
             # If not, initialize it
-            cls._instance = cls._initialize_instance()
+            cls._instance = cls._initialize_instance(plugin_name)
         # Return the instance
         return cls._instance
 
     @classmethod
-    def _initialize_instance(cls) -> 'Jinja2Renderer':
+    def _initialize_instance(cls, plugin_name: Optional[str] = None) -> 'Jinja2Renderer':
         """
         Initializes the Jinja2Renderer instance.
 
@@ -56,7 +56,7 @@ class Jinja2Renderer:
             Jinja2Renderer: The initialized Jinja2Renderer instance.
         """
         # Set up the Jinja2 environment
-        cls._jinja_env = cls.__initialize_jinja_environment()
+        cls._jinja_env = cls.__initialize_jinja_environment(plugin_name)
 
         # Create an empty template cache
         cls._template_cache = {}
@@ -65,12 +65,12 @@ class Jinja2Renderer:
         return cls()
 
     @staticmethod
-    def __initialize_jinja_environment() -> jinja2.Environment:
+    def __initialize_jinja_environment(plugin_name: Optional[str] = None) -> jinja2.Environment:
         """
         Initializes the Jinja2 environment.
 
         This method creates a SandboxedEnvironment instance with a FileSystemLoader
-        that loads templates from the 'app/templates/' directory. The environment
+        that loads templates from the 'pytmbot/templates/' directory. The environment
         also uses autoescape for HTML, TXT, and Jinja2 templates.
 
         Returns:
@@ -78,12 +78,24 @@ class Jinja2Renderer:
         """
         # Create a SandboxedEnvironment instance to ensure security and isolation
         # when rendering templates.
-        return SandboxedEnvironment(
-            # Use a FileSystemLoader to load templates from the 'app/templates/' directory.
-            loader=jinja2.FileSystemLoader(var_config.template_path),
-            # Enable autoescape for HTML, TXT, and Jinja2 templates to prevent XSS attacks.
-            autoescape=select_autoescape(['html', 'txt', 'jinja2'], default_for_string=True)
-        )
+        if plugin_name:
+            bot_logger.info(f'Loading templates for plugin: {plugin_name}')
+            plugin_template_path = os.path.join(var_config.plugin_template_path, plugin_name, 'templates')
+            if not os.path.exists(plugin_template_path):
+                raise exceptions.PyTMBotErrorTemplateError(f'Plugin template path not found: {plugin_template_path}')
+            return SandboxedEnvironment(
+                # Use a FileSystemLoader to load templates from the 'pytmbot/templates/' directory.
+                loader=jinja2.FileSystemLoader(plugin_template_path),
+                # Enable autoescape for HTML, TXT, and Jinja2 templates to prevent XSS attacks.
+                autoescape=select_autoescape(['html', 'txt', 'jinja2'], default_for_string=True)
+            )
+        else:
+            return SandboxedEnvironment(
+                # Use a FileSystemLoader to load templates from the 'pytmbot/templates/' directory.
+                loader=jinja2.FileSystemLoader(var_config.template_path),
+                # Enable autoescape for HTML, TXT, and Jinja2 templates to prevent XSS attacks.
+                autoescape=select_autoescape(['html', 'txt', 'jinja2'], default_for_string=True)
+            )
 
     def render_templates(self, template_name: str, emojis: Optional[Dict[str, str]] = None,
                          **kwargs: Dict[str, Any]) -> str:
@@ -103,10 +115,6 @@ class Jinja2Renderer:
             template.
         """
         try:
-            # Check if the template name is known
-            if template_name not in var_config.known_templates:
-                raise exceptions.PyTMBotErrorTemplateError(f"Unknown template: {template_name}")
-
             # Get the template and render it with the given context
             template_subdir = self.__get_subdirectory(template_name)
             return self.__get_template(template_name, template_subdir).render(emojis=emojis, **kwargs)

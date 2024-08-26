@@ -10,3 +10,10 @@ from pydantic import BaseModel
 
 class PluginCoreModel(BaseModel):
     """Core plugin configuration model"""
+
+class PluginHandlerManager:
+    """Class for storing callback functions and keyword arguments."""
+
+    def __init__(self, callback, **kwargs):
+        self.callback = callback
+        self.kwargs = kwargs

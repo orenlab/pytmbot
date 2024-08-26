@@ -9,7 +9,14 @@ import time
 import telebot
 
 from pytmbot import exceptions
-from pytmbot.globals import settings, var_config, __version__, __repository__
+from pytmbot.globals import (
+    settings,
+    __version__,
+    __repository__,
+    bot_command_settings,
+    bot_description_settings,
+    var_config
+)
 from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
@@ -77,13 +84,13 @@ def __create_bot_instance():
     bot_logger.debug("Bot token is valid.")
     bot_logger.debug(f"Bot info: {test_bot}.")
 
-    commands = [telebot.types.BotCommand(command, desc) for command, desc in var_config.bot_commands.items()]
-    # Set up the bot commands
+    commands = [telebot.types.BotCommand(command, desc) for command, desc in bot_command_settings.bot_commands.items()]
+    # Set up the bot commands and description
     try:
         bot.set_my_commands(commands)
         bot_logger.debug(f"Bot commands setup successful with {len(commands)} commands.")
 
-        bot.set_my_description(var_config.description)
+        bot.set_my_description(bot_description_settings.bot_description)
         bot_logger.debug("Bot description setup successful.")
     except telebot.apihelper.ApiTelegramException as error:
         bot_logger.error(f"Error setting up bot commands and description: {error}")

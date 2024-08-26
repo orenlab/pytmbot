@@ -10,6 +10,7 @@ import os
 
 import yaml
 
+from pytmbot.globals import keyboards
 from pytmbot.globals import settings, var_config
 from pytmbot.logs import bot_logger
 from pytmbot.plugins.models import PluginCoreModel
@@ -65,3 +66,7 @@ class PluginCore:
         except FileNotFoundError as err:
             bot_logger.error(f"Failed loading plugin config: {err}")
             raise
+
+    @staticmethod
+    def build_plugin_keyboard(plugin_keyboard_data: dict[str, str]):
+        return keyboards.build_reply_keyboard(plugin_keyboard_data=plugin_keyboard_data)

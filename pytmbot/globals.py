@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.keyboards.keyboards import Keyboards
 from pytmbot.middleware.session_manager import SessionManager
-from pytmbot.settings import settings, log_settings, var_config
+from pytmbot.settings import settings, log_settings, var_config, bot_command_settings, bot_description_settings
 from pytmbot.utils.utilities import EmojiConverter
 
 # pyTMbot globals initialization
@@ -26,6 +26,10 @@ settings = settings
 var_config = var_config
 # Session manager
 session_manager = SessionManager()
+# Bot commands
+bot_commands_settings = bot_command_settings
+# Bot description
+bot_description_settings = bot_description_settings
 # Logs settings
 log_settings = log_settings
 # Keyboard

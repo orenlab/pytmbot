@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import List, FrozenSet
+from typing import FrozenSet
 
 import yaml
 from pydantic import BaseModel
@@ -40,50 +40,8 @@ def load_settings_from_yaml() -> SettingsModel:
         raise FileNotFoundError("pytmbot.yaml not found")
 
 
-class VarConfig(BaseModel):
-    # Set local configuration
-    bot_commands: dict[str, str] = {
-        "/start": "Start bot!",
-        "/help": "Get help",
-        "/docker": "Launch the section about Docker",
-        "/containers": "Get Containers info",
-        "/images": "Get Images info",
-        "/qrcode": "Get TOTP QR code for 2FA app",
-        "/back": "Back to main menu",
-        "/check_bot_updates": "Check for software updates",
-    }
-    description: str = (
-        "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
-    )
-    template_path: str = os.path.join(os.path.dirname(__file__), 'templates')
-    known_templates: List[str] = [
-        'd_containers.jinja2',
-        'b_fs.jinja2',
-        'b_index.jinja2',
-        'b_load_average.jinja2',
-        'b_memory.jinja2',
-        'b_none.jinja2',
-        'b_process.jinja2',
-        'b_sensors.jinja2',
-        'b_uptime.jinja2',
-        'b_bot_update.jinja2',
-        'b_swap.jinja2',
-        'b_how_update.jinja2',
-        'b_net_io.jinja2',
-        'b_about_bot.jinja2',
-        'd_containers_full_info.jinja2',
-        'd_logs.jinja2',
-        'd_docker.jinja2',
-        'b_back.jinja2',
-        'd_images.jinja2',
-        'a_auth_required.jinja2',
-        'd_managing_containers.jinja2',
-        'a_send_totp_code.jinja2',
-        'b_echo.jinja2',
-        'a_access_denied.jinja2',
-        'a_success.jinja2'
-    ]
-    main_keyboard: dict[str, str] = {
+class KeyboardSettings(BaseModel):
+    main_keyboard: FrozenSet[dict[str, str]] = {
         'low_battery': 'Load average',
         'pager': 'Memory load',
         'stopwatch': 'Sensors',
@@ -94,26 +52,50 @@ class VarConfig(BaseModel):
         'satellite': 'Network',
         'turtle': 'About me'
     }
-    docker_keyboard: dict[str, str] = {
+    docker_keyboard: FrozenSet[dict[str, str]] = {
         'framed_picture': 'Images',
         'toolbox': 'Containers',
         'BACK_arrow': 'Back to main menu'
     }
-    auth_keyboard: dict[str, str] = {
+    auth_keyboard: FrozenSet[dict[str, str]] = {
         'first_quarter_moon': 'Get QR-code for 2FA app',
         'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
-    auth_processing_keyboard: dict[str, str] = {
+    auth_processing_keyboard: FrozenSet[dict[str, str]] = {
         'fountain_pen': 'Enter 2FA code',
         'BACK_arrow': 'Back to main menu'
     }
-    back_keyboard: dict[str, str] = {
+    back_keyboard: FrozenSet[dict[str, str]] = {
         'BACK_arrow': 'Back to main menu'
     }
+
+
+class BotCommandSettings(BaseModel):
+    bot_commands: FrozenSet[dict[str, str]] = {
+        "/start": "Start bot!",
+        "/help": "Get help",
+        "/docker": "Launch the section about Docker",
+        "/containers": "Get Containers info",
+        "/images": "Get Images info",
+        "/qrcode": "Get TOTP QR code for 2FA app",
+        "/back": "Back to main menu",
+        "/check_bot_updates": "Check for software updates",
+    }
+
+
+class BotDescriptionSettings(BaseModel):
+    bot_description: FrozenSet[str] = (
+        "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
+    )
+
+
+class VarConfig(BaseModel):
+    template_path: str = os.path.join(os.path.dirname(__file__), 'templates')
     totp_max_attempts: int = 3
     bot_polling_timeout: int = 30
     bot_long_polling_timeout: int = 60
+    plugin_template_path: str = os.path.join(os.path.dirname(__file__), 'plugins')
 
 
 class LogsSettings(BaseModel):
@@ -128,3 +110,6 @@ class LogsSettings(BaseModel):
 settings = load_settings_from_yaml()
 var_config = VarConfig()
 log_settings = LogsSettings()
+keyboard_settings = KeyboardSettings()
+bot_command_settings = BotCommandSettings()
+bot_description_settings = BotDescriptionSettings()
