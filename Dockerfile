@@ -27,10 +27,11 @@ RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
     python${PYTHON_VERSION} -m venv --without-pip venv && \
 # Install deps
     pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
-    -r requirements.txt --upgrade &&  \
+    -r requirements.txt &&  \
 # Uninstall build deps
     python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
-    apk del gcc musl-dev linux-headers
+    apk del gcc musl-dev linux-headers && \
+    apk cache clean
 
 # Second Alpine stage - based on the base stage. Setup bot
 FROM alpine:${ALPINE_IMAGE}  AS reliase_base
@@ -61,11 +62,8 @@ RUN chmod +x ./entrypoint.sh
 
 
 # Сopy only the necessary python files and directories from first stage
-COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
-COPY --from=builder /usr/local/bin/python${PYTHON_VERSION} /usr/local/bin/python${PYTHON_VERSION}
-COPY --from=builder /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
-COPY --from=builder /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0 /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0
-COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
 
 # Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
