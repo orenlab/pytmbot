@@ -56,14 +56,21 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         Returns:
             bool: True if the exception was handled successfully.
         """
-
         sanitized_exception = self._sanitize_exception(exception)
-        bot_logger.exception(f"Failed at @Telebot package: {sanitized_exception}", exc_info=True)
-
+        bot_logger.exception(f"Exception in @Telebot: {sanitized_exception}", exc_info=True)
         return True
 
     @staticmethod
     def _sanitize_exception(exception: Exception) -> str:
+        """
+        Replace sensitive information in exception messages with placeholders.
+
+        Args:
+            exception (Exception): The exception to sanitize.
+
+        Returns:
+            str: The sanitized exception message.
+        """
         exception_str = str(exception)
         secret_map = {
             settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",

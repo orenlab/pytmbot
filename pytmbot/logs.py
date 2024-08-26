@@ -130,14 +130,9 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
-            if bot_logger.level == 10:
-                bot_logger.exception(
-                    f"Failed at @{func.__name__} - exception: {e}"
-                )
-            else:
-                bot_logger.exception(
-                    f"Failed at @{func.__name__} - exception: {e}"
-                )
+            bot_logger.exception(
+                f"Failed at @{func.__name__} - exception: {e}"
+            )
 
     return handler_session_wrapper
 
@@ -184,14 +179,9 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
                 f"Finished at @{func.__name__} for user: {username}"
             )
         except Exception as e:
-            if bot_logger.level == 10:
-                bot_logger.exception(
-                    f"Failed at @{func.__name__} - exception: {e}"
-                )
-            else:
-                bot_logger.exception(
-                    f"Failed at @{func.__name__} - exception: {e}"
-                )
+            bot_logger.exception(
+                f"Failed at @{func.__name__} - exception: {e}"
+            )
 
     return inline_handler_session_wrapper
 

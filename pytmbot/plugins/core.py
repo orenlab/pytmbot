@@ -1,12 +1,7 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import yaml
 
@@ -33,18 +28,18 @@ class PluginCore:
         Returns:
             str: The absolute path to the config file.
         """
-        try:
-            current_dir = os.path.dirname(__file__)
-            parent_dir = os.path.dirname(current_dir)
-            grandparent_dir = os.path.dirname(parent_dir)
-            config_path = os.path.join(grandparent_dir, config_name)
+        current_dir = os.path.dirname(__file__)
+        parent_dir = os.path.dirname(current_dir)
+        grandparent_dir = os.path.dirname(parent_dir)
+        config_path = os.path.join(grandparent_dir, config_name)
 
-            return config_path
-        except FileNotFoundError as err:
-            bot_logger.error(f"Failed getting config path for {config_name}: {err}")
-            raise
+        if not os.path.isfile(config_path):
+            bot_logger.error(f"Config file not found: {config_name}")
+            raise FileNotFoundError(f"Config file not found: {config_name}")
 
-    def load_plugin_config(self, config_name: str, config_model: type[PluginCoreModel]):
+        return config_path
+
+    def load_plugin_config(self, config_name: str, config_model: type[PluginCoreModel]) -> PluginCoreModel:
         """
         Loads plugin configuration from a YAML file and creates a PluginCoreModel object.
 
@@ -63,10 +58,22 @@ class PluginCore:
             bot_logger.debug(f"Loaded plugin config: {config_name}")
 
             return config_model(**config_data)
-        except FileNotFoundError as err:
-            bot_logger.error(f"Failed loading plugin config: {err}")
+        except yaml.YAMLError as err:
+            bot_logger.error(f"Error parsing YAML file {config_name}: {err}")
+            raise
+        except Exception as err:
+            bot_logger.error(f"Error loading plugin config: {err}")
             raise
 
     @staticmethod
-    def build_plugin_keyboard(plugin_keyboard_data: dict[str, str]):
+    def build_plugin_keyboard(plugin_keyboard_data: dict[str, str]) -> Any:
+        """
+        Builds a reply keyboard for the plugin.
+
+        Args:
+            plugin_keyboard_data (dict[str, str]): Data to build the keyboard.
+
+        Returns:
+            Any: The constructed reply keyboard.
+        """
         return keyboards.build_reply_keyboard(plugin_keyboard_data=plugin_keyboard_data)

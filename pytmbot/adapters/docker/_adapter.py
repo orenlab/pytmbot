@@ -1,3 +1,5 @@
+import traceback
+
 try:
     import docker
 except ImportError:
@@ -12,39 +14,41 @@ class DockerAdapter:
 
     def __init__(self) -> None:
         """
-        Initialize the DockerCustomClient.
+        Initialize the DockerAdapter.
 
-        This method sets the Docker URL from the config and initializes the Docker client.
+        Sets the Docker URL from the config and initializes the Docker client as None.
 
         Returns:
             None
         """
-        # The Docker URL is obtained from the config module
         self.docker_url: str = settings.docker.host[0]
-
-        # The Docker client is initialized as None
         self.client = None
 
-    def __enter__(self):
+    def __enter__(self) -> docker.DockerClient:
         """
         Enter the runtime context for the Docker client.
 
+        Initializes and returns the Docker client.
+
         Returns:
             Docker client instance
+
+        Raises:
+            Exception: If the Docker client fails to initialize.
         """
         try:
-            # Initialize the Docker client
             self.client = docker.DockerClient(base_url=self.docker_url)
             bot_logger.debug("Docker client initialized.")
             return self.client
         except Exception as err:
-            # Log the error
             bot_logger.error(f"Failed creating Docker client: {err}")
             raise
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: traceback) -> None:
         """
         Exit the runtime context for the Docker client.
+
+        Closes the Docker client if it was initialized.
 
         Args:
             exc_type: The type of exception that occurred.
@@ -54,7 +58,7 @@ class DockerAdapter:
         Returns:
             None
         """
-        if self.client is not None:
+        if self.client:
             try:
                 self.client.close()
                 bot_logger.debug("Docker client closed.")

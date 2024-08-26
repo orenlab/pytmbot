@@ -90,13 +90,12 @@ class TwoFactorAuthenticator:
         Returns:
             bool: True if the TOTP code is verified, False otherwise.
         """
-        # Generate TOTP object using the secret key
+        if not isinstance(code, str) or len(code) != 6:
+            bot_logger.error(f'Invalid TOTP code format for user {self.username}.')
+            return False
+
         totp = pyotp.TOTP(self.__generate_secret())
-
-        # Log the verification process
         bot_logger.info(f'Verifying TOTP code for user {self.username}...')
-
-        # Verify the TOTP code
         if totp.verify(code):
             bot_logger.log("SUCCESS", f'TOTP code for user {self.username} verified.')
             return True
