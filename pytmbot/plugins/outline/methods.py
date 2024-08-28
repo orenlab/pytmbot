@@ -9,7 +9,8 @@ also providing basic information about the status of local servers.
 """
 from typing import List, Literal
 
-from outline_vpn.outline_vpn import OutlineVPN
+from pyoutlineapi.client import PyOutlineWrapper
+from pyoutlineapi.models import Server, Metrics, AccessKeyList
 
 from pytmbot.logs import bot_logger
 from pytmbot.plugins.core import PluginCore
@@ -31,35 +32,34 @@ class PluginMethods(PluginCore):
         cert_secret = self.plugin_config.outline.cert[0]
         self.api_url = api_url_secret.get_secret_value()
         self.cert = cert_secret.get_secret_value()
-        self.client = OutlineVPN(self.api_url, self.cert)
+        self.client = PyOutlineWrapper(self.api_url, self.cert, verify_tls=False)
 
-    def __fetch_server_information(self) -> OutlineServer:
+    def __fetch_server_information(self) -> Server:
         """
         Fetches server information from the Outline API.
 
         Returns:
             OutlineServer: An object containing information about the Outline server.
         """
-        return OutlineServer(**self.client.get_server_information())
+        return self.client.get_server_info()
 
-    def __fetch_traffic_information(self) -> BytesTransferredByUserId:
+    def __fetch_traffic_information(self) -> Metrics:
         """
         Fetches traffic information from the Outline API.
 
         Returns:
             BytesTransferredByUserId: An object containing information about the transferred data by user id.
         """
-        return BytesTransferredByUserId(**self.client.get_transferred_data())
+        return self.client.get_metrics()
 
-    def __fetch_key_information(self) -> List[OutlineKey]:
+    def __fetch_key_information(self) -> AccessKeyList:
         """
         Fetches key information from the Outline API.
 
         Returns:
             List[OutlineKey]: A list of OutlineKey objects, each containing information about a key.
         """
-        keys: List[OutlineKey] = self.client.get_keys()
-        return keys
+        return self.client.get_access_keys()
 
     def outline_action_manager(self,
                                action: str = Literal[
@@ -76,3 +76,8 @@ class PluginMethods(PluginCore):
             raise ValueError(f"Invalid action: {action}")
         except Exception as error:
             bot_logger.exception(f"Failed at @Outline plugin: {error}")
+
+if __name__ == "__main__":
+    print(PluginMethods().outline_action_manager(action="server_information"))
+    print(PluginMethods().outline_action_manager(action="traffic_information"))
+    print(PluginMethods().outline_action_manager(action="key_information"))

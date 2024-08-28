@@ -315,20 +315,6 @@ files = [
 ]
 
 [[package]]
-name = "outline-vpn-api"
-version = "6.3.0"
-description = "Python API wrapper for Outline VPN"
-optional = false
-python-versions = "*"
-files = [
-    {file = "outline-vpn-api-6.3.0.tar.gz", hash = "sha256:72e1c2f3ef8ed8d885e708bf4b55abd8a3c353aaa85ccc64ef19811d57ac8421"},
-    {file = "outline_vpn_api-6.3.0-py3-none-any.whl", hash = "sha256:158776099b2ede1aa479d49ec3cefd3698de06a29d9c7d96b399425dc2bdab49"},
-]
-
-[package.dependencies]
-requests = "*"
-
-[[package]]
 name = "psutil"
 version = "6.0.0"
 description = "Cross-platform lib for process and system monitoring in Python."
@@ -515,6 +501,22 @@ files = [
 test = ["coverage", "mypy", "ruff", "wheel"]
 
 [[package]]
+name = "pyoutlineapi"
+version = "0.1.1"
+description = "A Python package to interact with the Outline VPN Server API"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "pyoutlineapi-0.1.1-py3-none-any.whl", hash = "sha256:6a81a260b9423f8e010180432e44fb4f84a78a242535744d172027510e765908"},
+    {file = "pyoutlineapi-0.1.1.tar.gz", hash = "sha256:5071e47497bff32b87744a045099a0474d8242c6a99428637f7018fc79531e20"},
+]
+
+[package.dependencies]
+pydantic = ">=2.0.0,<3.0.0"
+requests = ">=2.32.3,<3.0.0"
+requests-toolbelt = ">=1.0.0,<2.0.0"
+
+[[package]]
 name = "pypng"
 version = "0.20220715.0"
 description = "Pure Python library for saving and loading PNG images"
@@ -693,6 +695,20 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
+name = "requests-toolbelt"
+version = "1.0.0"
+description = "A utility belt for advanced users of python-requests"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+files = [
+    {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
+    {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
+]
+
+[package.dependencies]
+requests = ">=2.0.1,<3.0.0"
+
+[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -737,4 +753,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "9ec6d6fe5b5733c5ad70c92237a1b7f5ce883fcafcbc36d696c166f7ccf91ab0"
+content-hash = "7ce519e909e38f3ea4bc2cd4f36676f1f407f8cc9dbcc2dd8b9b30935d463e7b"
