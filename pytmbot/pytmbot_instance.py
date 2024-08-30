@@ -35,7 +35,7 @@ class PyTMBot:
         self.args = parse_cli_args()
         self.bot = None
 
-    def __get_bot_token(self) -> str:
+    def _get_bot_token(self) -> str:
         """
         Get the bot token based on the bot mode from the command line arguments.
         Returns:
@@ -52,7 +52,7 @@ class PyTMBot:
         except (FileNotFoundError, ValueError) as error:
             raise exceptions.PyTMBotError(".pytmbotenv file is not valid or not found") from error
 
-    def __register_plugins(self, plugin_names: List[str]):
+    def _register_plugins(self, plugin_names: List[str]):
         valid_plugin_name_pattern = re.compile(r'^[a-zA-Z0-9_]+$')
 
         for plugin_name in plugin_names:
@@ -88,13 +88,13 @@ class PyTMBot:
             except Exception as error:
                 bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
 
-    def __create_bot_instance(self) -> TeleBot:
+    def _create_bot_instance(self) -> TeleBot:
         """
         Create the bot instance.
         Returns:
             telebot.TeleBot: The created bot instance.
         """
-        bot_token = self.__get_bot_token()
+        bot_token = self._get_bot_token()
         bot_logger.debug("Bot token setup successful")
 
         self.bot = telebot.TeleBot(
@@ -151,7 +151,7 @@ class PyTMBot:
         # Register plugins
         if self.args.plugins != ['']:
             try:
-                self.__register_plugins(self.args.plugins)
+                self._register_plugins(self.args.plugins)
             except Exception as err:
                 bot_logger.error(f"Failed to register plugins: {err}")
 
@@ -162,7 +162,7 @@ class PyTMBot:
         """
         Start the bot instance.
         """
-        bot_instance = self.__create_bot_instance()
+        bot_instance = self._create_bot_instance()
         bot_logger.info("Starting polling............")
 
         while True:
@@ -178,3 +178,6 @@ class PyTMBot:
             except Exception as error:
                 bot_logger.error(f"Unexpected error: {error}")
                 time.sleep(10)
+
+
+__all__ = ['PyTMBot']
