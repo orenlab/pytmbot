@@ -19,8 +19,8 @@ handle_error() {
     exit 1
 }
 
-# Set trap for exit status not equal to zero
-trap 'handle_error' EXIT
+# Set trap for errors during execution
+trap 'handle_error' ERR
 
 # Parse arguments using a while loop
 while [ $# -gt 0 ]; do
@@ -42,12 +42,8 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --salt)
-            if [ "$2" != "true" ] && [ "$2" != "false" ]; then
-                echo "Invalid salt option: $2" >&2
-                exit 1
-            fi
-            SALT="$2"
-            shift 2
+            SALT="true"
+            shift
             ;;
         --plugins)
             PLUGINS="$2"
@@ -77,5 +73,5 @@ else
 fi
 
 # Reset the trap before normal exit
-trap - EXIT
+trap - ERR
 exit 0
