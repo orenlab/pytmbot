@@ -74,8 +74,6 @@ RUN source /venv/bin/activate && \
     ln -sf /dev/stdout /dev/stdout && \
     ln -sf /dev/stderr /dev/stderr
 
-COPY o.yaml ./o.yaml
-
 # Target for CI/CD image
 FROM reliase_base AS production
 
