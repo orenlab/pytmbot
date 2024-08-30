@@ -1,16 +1,16 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from pytmbot.logs import bot_logger
 
 
 class _StateFabric:
     """ Class for managing user states. """
-    authenticated = 'authenticated'
-    processing = 'processing'
-    blocked = 'blocked'
-    unauthenticated = 'unauthenticated'
+    authenticated: str = 'authenticated'
+    processing: str = 'processing'
+    blocked: str = 'blocked'
+    unauthenticated: str = 'unauthenticated'
 
 
 @dataclass
@@ -18,11 +18,11 @@ class SessionManager:
     """
     A class for managing user sessions.
     """
-    _instance = None
-    __user_data: dict = field(default_factory=dict)
-    state_fabric = _StateFabric()
+    _instance: Optional['SessionManager'] = None
+    __user_data: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+    state_fabric: _StateFabric = _StateFabric()
 
-    def __new__(cls):
+    def __new__(cls) -> 'SessionManager':
         """
         Creates a new instance of the SessionManager class if it doesn't exist.
 
@@ -32,15 +32,18 @@ class SessionManager:
         Returns:
             SessionManager: The instance of the SessionManager class.
         """
-        # Check if the instance of the SessionManager class already exists
         if cls._instance is None:
-            # If not, create a new instance using the superclass's __new__ method
             cls._instance = super(SessionManager, cls).__new__(cls)
-        # Return the instance of the SessionManager class
         return cls._instance
 
+    def _get_user_data(self, user_id: int) -> Dict[str, Any]:
+        """ Helper method to get user data or initialize it. """
+        if user_id not in self.__user_data:
+            self.__user_data[user_id] = {}
+        return self.__user_data[user_id]
+
     @property
-    def user_data(self) -> dict:
+    def user_data(self) -> Dict[int, Dict[str, Any]]:
         return self.__user_data
 
     def set_auth_state(self, user_id: int, state: str) -> None:
@@ -57,8 +60,10 @@ class SessionManager:
         Raises:
             ValueError: If the state is not a valid authentication state.
         """
+        if state not in vars(self.state_fabric).values():
+            raise ValueError(f"Invalid state: {state}")
         bot_logger.debug(f"Setting authentication state for user {user_id} to {state}")
-        self.user_data.setdefault(user_id, {})['auth_state'] = state
+        self._get_user_data(user_id)['auth_state'] = state
 
     def get_auth_state(self, user_id: int) -> Optional[str]:
         """
@@ -70,10 +75,7 @@ class SessionManager:
         Returns:
             Optional[str]: The authentication state if found, otherwise None.
         """
-        try:
-            return self.user_data.get(user_id, {}).get('auth_state')
-        except KeyError:
-            return None
+        return self._get_user_data(user_id).get('auth_state', None)
 
     def set_totp_attempts(self, user_id: int) -> None:
         """
@@ -85,11 +87,9 @@ class SessionManager:
         Returns:
             None
         """
-        if user_id in self.user_data:
-            self.user_data[user_id]['totp_attempts'] = self.user_data[user_id].get('totp_attempts', 0) + 1
-        else:
-            self.user_data[user_id] = {'totp_attempts': 1}
-        bot_logger.debug(f"Setting TOTP attempts for user {user_id} to {self.user_data[user_id]['totp_attempts']}")
+        user_data = self._get_user_data(user_id)
+        user_data['totp_attempts'] = user_data.get('totp_attempts', 0) + 1
+        bot_logger.debug(f"Setting TOTP attempts for user {user_id} to {user_data['totp_attempts']}")
 
     def get_totp_attempts(self, user_id: int) -> int:
         """
@@ -101,7 +101,7 @@ class SessionManager:
         Returns:
             int: The TOTP attempts for the user.
         """
-        return self.user_data[user_id].get('totp_attempts', 0) if user_id in self.user_data else 0
+        return self._get_user_data(user_id).get('totp_attempts', 0)
 
     def reset_totp_attempts(self, user_id: int) -> None:
         """
@@ -113,7 +113,8 @@ class SessionManager:
         Returns:
             None
         """
-        self.user_data[user_id] = {'totp_attempts': None}
+        user_data = self._get_user_data(user_id)
+        user_data['totp_attempts'] = 0
         bot_logger.debug(f"Resetting TOTP attempts for user {user_id}")
 
     def set_blocked_time(self, user_id: int) -> None:
@@ -124,10 +125,10 @@ class SessionManager:
             user_id (int): The ID of the user.
 
         Returns:
-            None: This function does not return anything.
+            None
         """
-        self.user_data[user_id].update({'blocked_time': datetime.now() + timedelta(minutes=5)})
-        bot_logger.debug(f"Setting blocked time for user {user_id} to {self.user_data[user_id]['blocked_time']}")
+        self._get_user_data(user_id)['blocked_time'] = datetime.now() + timedelta(minutes=5)
+        bot_logger.debug(f"Setting blocked time for user {user_id}")
 
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
         """
@@ -139,10 +140,7 @@ class SessionManager:
         Returns:
             Optional[datetime]: The blocked time for the user, or None if not found.
         """
-        try:
-            return self.user_data[user_id]['blocked_time']
-        except KeyError:
-            return None
+        return self._get_user_data(user_id).get('blocked_time', None)
 
     def is_blocked(self, user_id: int) -> bool:
         """
@@ -154,11 +152,17 @@ class SessionManager:
         Returns:
             bool: True if the user is blocked, False otherwise.
         """
-        try:
-            bot_logger.debug(f"Checking if user {user_id} is blocked")
-            return self.get_blocked_time(user_id) is not None
-        except KeyError:
-            return False
+        blocked_time = self.get_blocked_time(user_id)
+        if blocked_time:
+            if datetime.now() > blocked_time:
+                # Unblock user if blocked time has passed
+                self._get_user_data(user_id)['blocked_time'] = None
+                bot_logger.debug(f"User {user_id} is no longer blocked")
+                return False
+            bot_logger.debug(f"User {user_id} is currently blocked")
+            return True
+        bot_logger.debug(f"User {user_id} is not blocked")
+        return False
 
     def is_authenticated(self, user_id: int) -> bool:
         """
@@ -170,12 +174,9 @@ class SessionManager:
         Returns:
             bool: True if the user is authenticated, False otherwise.
         """
-        try:
-            bot_logger.debug(f"Checking if user {user_id} is authenticated")
-            return self.get_auth_state(user_id) == self.state_fabric.authenticated and not self.is_blocked(
-                user_id) and not self.is_session_expired(user_id)
-        except KeyError:
-            return False
+        return (self.get_auth_state(user_id) == self.state_fabric.authenticated and
+                not self.is_blocked(user_id) and
+                not self.is_session_expired(user_id))
 
     def set_login_time(self, user_id: int) -> None:
         """
@@ -185,9 +186,9 @@ class SessionManager:
             user_id (int): The ID of the user.
 
         Returns:
-            None: This function does not return anything.
+            None
         """
-        self.user_data[user_id].update({'login_time': datetime.now()})
+        self._get_user_data(user_id)['login_time'] = datetime.now()
 
     def get_login_time(self, user_id: int) -> Optional[datetime]:
         """
@@ -199,8 +200,7 @@ class SessionManager:
         Returns:
             Optional[datetime]: The login time for the user, or None if not found.
         """
-        bot_logger.debug(f"Getting login time for user {user_id}")
-        return self.user_data[user_id].get('login_time', None)
+        return self._get_user_data(user_id).get('login_time', None)
 
     def is_session_expired(self, user_id: int) -> bool:
         """
@@ -212,11 +212,15 @@ class SessionManager:
         Returns:
             bool: True if the user's session is expired, False otherwise.
         """
-        bot_logger.debug(f"Checking if user {user_id} session is expired")
-        return datetime.now() > self.get_login_time(user_id) + timedelta(minutes=5)
+        login_time = self.get_login_time(user_id)
+        if login_time:
+            expired = datetime.now() > login_time + timedelta(minutes=5)
+            bot_logger.debug(f"User {user_id} session expired: {expired}")
+            return False
+        bot_logger.debug(f"User {user_id} session login time not found")
+        return True
 
-    def set_referer_uri_and_handler_type_for_user(
-            self, user_id: int, handler_type: str, referer_uri: str) -> None:
+    def set_referer_uri_and_handler_type_for_user(self, user_id: int, handler_type: str, referer_uri: str) -> None:
         """
         Set the referer URI and handler type for a given user ID.
 
@@ -226,10 +230,11 @@ class SessionManager:
             referer_uri (str): The URI of the referer.
 
         Returns:
-            None: This function does not return anything.
+            None
         """
-        self.user_data.setdefault(user_id, {})['referer_uri'] = referer_uri
-        self.user_data.setdefault(user_id, {})['handler_type'] = handler_type
+        user_data = self._get_user_data(user_id)
+        user_data['referer_uri'] = referer_uri
+        user_data['handler_type'] = handler_type
 
     def get_referer_uri_for_user(self, user_id: int) -> Optional[str]:
         """
@@ -241,7 +246,7 @@ class SessionManager:
         Returns:
             Optional[str]: The referer URI for the user, or None if not found.
         """
-        return self.user_data[user_id].get('referer_uri', None)
+        return self._get_user_data(user_id).get('referer_uri', None)
 
     def get_handler_type_for_user(self, user_id: int) -> Optional[str]:
         """
@@ -253,10 +258,9 @@ class SessionManager:
         Returns:
             Optional[str]: The handler type for the user, or None if not found.
         """
-        return self.user_data[user_id].get('handler_type', None)
+        return self._get_user_data(user_id).get('handler_type', None)
 
     def reset_referer_uri_and_handler_type_for_user(self, user_id: int) -> None:
-
         """
         Resets the referer URI and handler type for a given user ID.
 
@@ -266,5 +270,6 @@ class SessionManager:
         Returns:
             None
         """
-        self.user_data[user_id]['referer_uri'] = None
-        self.user_data[user_id]['handler_type'] = None
+        user_data = self._get_user_data(user_id)
+        user_data['referer_uri'] = None
+        user_data['handler_type'] = None
