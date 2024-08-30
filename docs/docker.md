@@ -108,7 +108,7 @@ The bot supports random salt generation. To use this feature, it is recommended 
 separate terminal window:
 
 ```bash
-sudo docker run --rm orenlab/pytmbot:0.2.0-alpine-dev -s true
+sudo docker run --rm orenlab/pytmbot:0.2.0-alpine-dev --salt
 ```
 
 This command will generate a unique "salt" value for you and display it on the screen. The container will then be
