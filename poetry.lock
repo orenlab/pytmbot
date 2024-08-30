@@ -502,13 +502,13 @@ test = ["coverage", "mypy", "ruff", "wheel"]
 
 [[package]]
 name = "pyoutlineapi"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Python package to interact with the Outline VPN Server API"
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "pyoutlineapi-0.1.1-py3-none-any.whl", hash = "sha256:6a81a260b9423f8e010180432e44fb4f84a78a242535744d172027510e765908"},
-    {file = "pyoutlineapi-0.1.1.tar.gz", hash = "sha256:5071e47497bff32b87744a045099a0474d8242c6a99428637f7018fc79531e20"},
+    {file = "pyoutlineapi-0.1.2-py3-none-any.whl", hash = "sha256:209e464651e4943bb30567ba1f6648f50e9cb0bf11181f7d1547bf5588fe08cf"},
+    {file = "pyoutlineapi-0.1.2.tar.gz", hash = "sha256:78945fdfb3f89af113d11c6afda4b2f31d1492843dc2844da32bab0b89c40dd3"},
 ]
 
 [package.dependencies]

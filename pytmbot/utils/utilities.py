@@ -15,12 +15,13 @@ from telebot.types import CallbackQuery, Message
 
 # Utility functions
 
+
 def parse_cli_args() -> argparse.Namespace:
     """
     Parses command line arguments.
 
     This function uses the `argparse` module to define and parse command line arguments.
-    It has two optional arguments: `--mode` and `--log-level`.
+    It has several optional arguments including `--mode`, `--log-level`, `--colorize_logs`, and `--plugins`.
 
     Returns:
         argparse.Namespace: The parsed command line arguments.
@@ -32,27 +33,37 @@ def parse_cli_args() -> argparse.Namespace:
     # Add the '--mode' argument
     parser.add_argument(
         "--mode",
-        choices=["dev", "prod"],  # Only 'dev' and 'prod' are valid choices
-        type=str,  # The argument should be a string
-        help="PyTMBot mode (dev or prod)",  # Help message for the argument
-        default="prod"  # Default value for the argument
+        choices=["dev", "prod"],
+        type=str,
+        help="PyTMBot mode (dev or prod)",
+        default="prod"
     )
 
     # Add the '--log-level' argument
     parser.add_argument(
         "--log-level",
-        choices=["DEBUG", "INFO", "ERROR"],  # Only 'DEBUG', 'INFO', and 'ERROR' are valid choices
-        type=str,  # The argument should be a string
-        help="Log level",  # Help message for the argument
-        default="INFO"  # Default value for the argument
+        choices=["DEBUG", "INFO", "ERROR"],
+        type=str,
+        help="Log level",
+        default="INFO"
     )
 
+    # Add the '--colorize_logs' argument
     parser.add_argument(
         "--colorize_logs",
-        choices=["True", "False"],  # Only 'True' and 'False' are valid choices
-        type=str,  # The argument should be a string
-        help="Colorize logs",  # Help message for the argument
-        default="True"  # Default value for the argument
+        choices=["True", "False"],
+        type=str,
+        help="Colorize logs",
+        default="True"
+    )
+
+    # Add the '--plugins' argument
+    parser.add_argument(
+        "--plugins",
+        nargs='+',  # Allows for one or more values to be passed
+        type=str,
+        help="List of plugins to load",
+        default=[]  # Default to an empty list if not provided
     )
 
     # Parse the command line arguments

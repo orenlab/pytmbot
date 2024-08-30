@@ -74,6 +74,8 @@ RUN source /venv/bin/activate && \
     ln -sf /dev/stdout /dev/stdout && \
     ln -sf /dev/stderr /dev/stderr
 
+COPY o.yaml ./o.yaml
+
 # Target for CI/CD image
 FROM reliase_base AS production
 
@@ -82,8 +84,8 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Target for self biuld image, --mode = prod
 FROM reliase_base AS self_build
 
-# Copy .pytmbotenv file with token (prod, dev)
-COPY pytmbot.yaml /opt/app/
+# Copy configs file with token (prod, dev)
+COPY pytmbot.yaml ./
 
 ENTRYPOINT ["./entrypoint.sh"]
 

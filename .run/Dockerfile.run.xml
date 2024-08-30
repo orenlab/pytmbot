@@ -18,4 +18,26 @@
     </deployment>
     <method v="2" />
   </configuration>
+  <configuration default="false" name="Dockerfile" type="docker-deploy" factoryName="dockerfile" server-name="Docker">
+    <deployment type="dockerfile">
+      <settings>
+        <option name="imageTag" value="orenlab/pytmbot:latest" />
+        <option name="buildCliOptions" value="--target self_build" />
+        <option name="command" value="--log-level DEBUG --mode dev --plugins &quot;outline&quot;" />
+        <option name="containerName" value="pytmbot" />
+        <option name="showCommandPreview" value="true" />
+        <option name="sourceFilePath" value="Dockerfile" />
+        <option name="volumeBindings">
+          <list>
+            <DockerVolumeBindingImpl>
+              <option name="containerPath" value="/var/run/docker.sock" />
+              <option name="hostPath" value="/var/run/docker.sock" />
+              <option name="readOnly" value="true" />
+            </DockerVolumeBindingImpl>
+          </list>
+        </option>
+      </settings>
+    </deployment>
+    <method v="2" />
+  </configuration>
 </component>

@@ -14,11 +14,13 @@ pydantic==2.8.2
 pydantic-settings==2.4.0
 pydantic_core==2.20.1
 pyotp==2.9.0
+pyoutlineapi==0.1.2
 pypng==0.20220715.0
 pyTelegramBotAPI==4.22.1
 python-dotenv==1.0.1
 PyYAML==6.0.2
 qrcode==7.4.2
 requests==2.32.3
+requests-toolbelt==1.0.0
 typing_extensions==4.12.2
 urllib3==2.2.2

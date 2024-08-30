@@ -10,7 +10,7 @@ also providing basic information about the status of local servers.
 
 plugin_name = 'outline'
 plugin_version = '0.0.1'
-plugin_config_name = 'outline.yaml'
+plugin_config_name = 'o.yaml'
 plugin_description = 'Outline VPN plugin for pyTMBot'
 plugin_commands = ['outline']
 plugin_templates = ['outline.jinja2', 'server_info.jinja2', 'keys.jinja2', 'traffic.jinja2']

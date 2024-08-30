@@ -18,7 +18,7 @@ class Compiler:
         kwargs (Dict[str, Any]): The context for rendering the template.
     """
 
-    def __init__(self, template_name: str, **kwargs: Dict[str, Any]) -> None:
+    def __init__(self, template_name: str, **kwargs: Dict[str, Any] | str) -> None:
         """
         Initialize the Compiler with template name and context.
 
