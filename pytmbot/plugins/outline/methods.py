@@ -13,13 +13,13 @@ from pyoutlineapi.client import PyOutlineWrapper
 from pyoutlineapi.models import Metrics, Server, AccessKeyList
 
 from pytmbot.logs import bot_logger
-from pytmbot.plugins.core import PluginCore
-from pytmbot.plugins.outline.config import plugin_config_name
+from pytmbot.plugins.outline.config import PLUGIN_CONFIG_NAME
 from pytmbot.plugins.outline.models import (
     OutlineConfig,
     OutlineServer,
     OutlineKey
 )
+from pytmbot.plugins.plugins_core import PluginCore
 
 
 class PluginMethods(PluginCore):
@@ -29,7 +29,7 @@ class PluginMethods(PluginCore):
         Initializes the PluginMethods class and sets up the Outline API client.
         """
         super().__init__()
-        self.plugin_config = self.load_plugin_config(plugin_config_name, OutlineConfig)
+        self.plugin_config = self.load_plugin_config(PLUGIN_CONFIG_NAME, OutlineConfig)
         api_url_secret = self.plugin_config.outline.api_url[0]
         cert_secret = self.plugin_config.outline.cert[0]
         self.api_url = api_url_secret.get_secret_value()

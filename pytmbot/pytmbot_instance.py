@@ -6,6 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import importlib
+import importlib.util
 import inspect
 import re
 import time
@@ -52,41 +53,70 @@ class PyTMBot:
         except (FileNotFoundError, ValueError) as error:
             raise exceptions.PyTMBotError(".pytmbotenv file is not valid or not found") from error
 
+    @staticmethod
+    def _validate_plugin_name(plugin_name: str) -> bool:
+        """Check if the plugin name is valid based on predefined pattern."""
+        valid_plugin_name_pattern = re.compile(r'^[a-z_]+$')
+        return bool(valid_plugin_name_pattern.match(plugin_name))
+
+    @staticmethod
+    def _module_exists(plugin_name: str) -> bool:
+        """Check if the module for the given plugin name exists."""
+        module_spec = importlib.util.find_spec(f'pytmbot.plugins.{plugin_name}.plugin')
+        return module_spec is not None
+
+    @staticmethod
+    def _import_module(plugin_name: str):
+        """Import the module for the given plugin name."""
+        return importlib.import_module(f'pytmbot.plugins.{plugin_name}.plugin')
+
+    @staticmethod
+    def _find_plugin_classes(module) -> List[type]:
+        """Find and return all valid plugin classes in the module."""
+        return [
+            getattr(module, attribute_name)
+            for attribute_name in dir(module)
+            if inspect.isclass(getattr(module, attribute_name)) and
+               issubclass(getattr(module, attribute_name), PluginInterface) and
+               getattr(module, attribute_name) is not PluginInterface
+        ]
+
+    def _register_plugin(self, plugin_name: str):
+        """Register a single plugin."""
+        if not self._validate_plugin_name(plugin_name):
+            bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping...")
+            return
+
+        if not self._module_exists(plugin_name):
+            bot_logger.error(f"Module '{plugin_name}' not found. Skipping...")
+            return
+
+        try:
+            module = self._import_module(plugin_name)
+
+            if not hasattr(module, '__all__'):
+                bot_logger.error(f"Module '{plugin_name}' does not have '__all__' attribute. Skipping...")
+                return
+
+            plugin_classes = self._find_plugin_classes(module)
+
+            if not plugin_classes:
+                bot_logger.error(f"No valid plugin class found in module '{plugin_name}'. Skipping...")
+                return
+
+            plugin_instance = plugin_classes[0](self.bot)
+            plugin_instance.register()
+            bot_logger.info(f"Plugin '{plugin_name}' registered successfully.")
+
+        except ValueError as ve:
+            bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
+        except Exception as error:
+            bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
+
     def _register_plugins(self, plugin_names: List[str]):
-        valid_plugin_name_pattern = re.compile(r'^[a-zA-Z0-9_]+$')
-
+        """Register multiple plugins based on the provided list of plugin names."""
         for plugin_name in plugin_names:
-            if not valid_plugin_name_pattern.match(plugin_name):
-                bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping...")
-                continue
-
-            try:
-                module = importlib.import_module(f'pytmbot.plugins.{plugin_name}.plugin')
-
-                if not hasattr(module, '__all__'):
-                    bot_logger.error(f"Module '{plugin_name}' does not have '__all__' attribute. Skipping...")
-                    continue
-
-                plugin_classes = [
-                    getattr(module, attribute_name)
-                    for attribute_name in dir(module)
-                    if inspect.isclass(getattr(module, attribute_name)) and
-                       issubclass(getattr(module, attribute_name), PluginInterface) and
-                       getattr(module, attribute_name) is not PluginInterface
-                ]
-
-                if not plugin_classes:
-                    bot_logger.error(f"No valid plugin class found in module '{plugin_name}'. Skipping...")
-                    continue
-
-                plugin_instance = plugin_classes[0](self.bot)
-                plugin_instance.register()
-                bot_logger.info(f"Plugin '{plugin_name}' registered successfully.")
-
-            except (ImportError, ValueError) as ve:
-                bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
-            except Exception as error:
-                bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
+            self._register_plugin(plugin_name)
 
     def _create_bot_instance(self) -> TeleBot:
         """
@@ -102,18 +132,9 @@ class PyTMBot:
             threaded=True,
             use_class_middlewares=True,
             exception_handler=exceptions.TelebotCustomExceptionHandler(),
-            skip_pending=True,
+            skip_pending=True
         )
         bot_logger.debug("Bot instance created")
-
-        # Test the bot token
-        try:
-            test_bot = self.bot.get_me()
-            bot_logger.debug(f"Bot info: {test_bot}.")
-        except telebot.apihelper.ApiTelegramException:
-            raise exceptions.PyTMBotError("Bot token is not valid. Please check the token and try again.")
-        except ConnectionError:
-            raise exceptions.PyTMBotError("Connection to the Telegram API failed.")
 
         # Set up bot commands and description
         try:

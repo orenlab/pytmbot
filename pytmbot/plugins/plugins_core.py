@@ -5,20 +5,19 @@ from typing import Any
 
 import yaml
 
-from pytmbot.globals import keyboards
-from pytmbot.globals import settings, var_config
-from pytmbot.logs import bot_logger
+from pytmbot import globals, logs
+from pytmbot.keyboards import keyboards as kb
 from pytmbot.plugins.models import PluginCoreModel
 
 
 class PluginCore:
     def __init__(self):
-        self.settings = settings
-        self.var_config = var_config
-        self.bot_logger = bot_logger
+        self.settings = globals.settings
+        self.var_config = globals.var_config
+        self.bot_logger = logs.bot_logger
+        self.keyboard = kb.Keyboards()
 
-    @staticmethod
-    def __get_config_path(config_name: str) -> str:
+    def __get_config_path(self, config_name: str) -> str:
         """
         Returns the absolute path to the config file.
 
@@ -34,7 +33,7 @@ class PluginCore:
         config_path = os.path.join(grandparent_dir, config_name)
 
         if not os.path.isfile(config_path):
-            bot_logger.error(f"Config file not found: {config_name}")
+            self.bot_logger.error(f"Config file not found: {config_name}")
             raise FileNotFoundError(f"Config file not found: {config_name}")
 
         return config_path
@@ -55,18 +54,17 @@ class PluginCore:
             with open(config_path, 'r') as f:
                 config_data = yaml.safe_load(f)
 
-            bot_logger.debug(f"Loaded plugin config: {config_name}")
+            self.bot_logger.debug(f"Loaded plugin config: {config_name}")
 
             return config_model(**config_data)
         except yaml.YAMLError as err:
-            bot_logger.error(f"Error parsing YAML file {config_name}: {err}")
+            self.bot_logger.error(f"Error parsing YAML file {config_name}: {err}")
             raise
         except Exception as err:
-            bot_logger.error(f"Error loading plugin config: {err}")
+            self.bot_logger.error(f"Error loading plugin config: {err}")
             raise
 
-    @staticmethod
-    def build_plugin_keyboard(plugin_keyboard_data: dict[str, str]) -> Any:
+    def build_plugin_keyboard(self, plugin_keyboard_data: dict[str, str]) -> Any:
         """
         Builds a reply keyboard for the plugin.
 
@@ -76,4 +74,4 @@ class PluginCore:
         Returns:
             Any: The constructed reply keyboard.
         """
-        return keyboards.build_reply_keyboard(plugin_keyboard_data=plugin_keyboard_data)
+        return self.keyboard.build_reply_keyboard(plugin_keyboard_data=plugin_keyboard_data)

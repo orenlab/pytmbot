@@ -4,11 +4,14 @@ from telebot.types import Message
 from pytmbot.globals import keyboards
 from pytmbot.logs import logged_handler_session
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.plugins.outline.config import outline_keyboard
+from pytmbot.plugins.outline.config import OUTLINE_KEYBOARD
 from pytmbot.plugins.outline.methods import PluginMethods
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.plugins_core import PluginCore
 
 plugin_methods = PluginMethods()
+
+plugin = PluginCore()
 
 
 class OutlinePlugin(PluginInterface):
@@ -20,17 +23,7 @@ class OutlinePlugin(PluginInterface):
         :param bot: An instance of TeleBot to interact with Telegram API.
         """
         super().__init__(bot)
-
-    def register(self):
-        """
-        Registers message handlers for the plugin's commands and regex patterns.
-        """
-        self.bot.register_message_handler(self.outline_handler, commands=['outline'])
-        self.bot.register_message_handler(self.handle_server_info, regexp='Server info')
-        self.bot.register_message_handler(self.handle_keys, regexp='Keys')
-        self.bot.register_message_handler(self.handle_traffic, regexp='Traffic')
-
-        return self.bot
+        self.plugin_logger = plugin.bot_logger
 
     @logged_handler_session
     def outline_handler(self, message: Message):
@@ -42,7 +35,7 @@ class OutlinePlugin(PluginInterface):
         """
         with Compiler(template_name='outline.jinja2', first_name=message.from_user.first_name) as compiler:
             response = compiler.compile()
-        keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=outline_keyboard)
+        keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=OUTLINE_KEYBOARD)
         return self.bot.send_message(message.chat.id, response, reply_markup=keyboard)
 
     @logged_handler_session
@@ -92,6 +85,19 @@ class OutlinePlugin(PluginInterface):
             response = compiler.compile()
 
         return self.bot.send_message(message.chat.id, response)
+
+    def register(self):
+        """
+        Registers message handlers for the plugin's commands and regex patterns.
+        """
+        self.bot.register_message_handler(self.outline_handler, commands=['outline'], pass_bot=True)
+        self.bot.register_message_handler(self.handle_server_info, regexp='Server info', pass_bot=True)
+        self.bot.register_message_handler(self.handle_keys, regexp='Keys', pass_bot=True)
+        self.bot.register_message_handler(self.handle_traffic, regexp='Traffic', pass_bot=True)
+
+        self.plugin_logger.debug("Outline plugin handlers registered successfully")
+
+        return self.bot
 
 
 __all__ = ['OutlinePlugin']

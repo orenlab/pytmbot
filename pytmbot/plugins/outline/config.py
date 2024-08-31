@@ -6,15 +6,18 @@ Outline VPN plugin for pyTMBot
 
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
+
+This plugin provides commands and templates for interacting with Outline VPN.
 """
 
-plugin_name = 'outline'
-plugin_version = '0.0.1'
-plugin_config_name = 'o.yaml'
-plugin_description = 'Outline VPN plugin for pyTMBot'
-plugin_commands = ['outline']
-plugin_templates = ['outline.jinja2', 'server_info.jinja2', 'keys.jinja2', 'traffic.jinja2']
-outline_keyboard: dict[str, str] = {
+PLUGIN_NAME = 'outline'
+PLUGIN_VERSION = '0.0.1'
+PLUGIN_CONFIG_NAME = 'o.yaml'
+PLUGIN_DESCRIPTION = 'Outline VPN plugin for pyTMBot'
+PLUGIN_COMMANDS = {"/outline": "Outline plugin"}
+PLUGIN_TEMPLATES = ['outline.jinja2', 'server_info.jinja2', 'keys.jinja2', 'traffic.jinja2']
+
+OUTLINE_KEYBOARD: dict[str, str] = {
     'aerial_tramway': 'Server info',
     'books': 'Keys',
     'bullet_train': 'Traffic',
