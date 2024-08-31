@@ -1,16 +1,9 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
-
 import importlib
 import importlib.util
 import inspect
 import re
 import time
-from typing import List
+from typing import List, Dict, Callable, Type
 
 import telebot
 from telebot import TeleBot
@@ -24,9 +17,10 @@ from pytmbot.globals import (
     bot_description_settings,
     var_config
 )
-from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory
+from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory, echo_handler_factory
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
+from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.utils.utilities import parse_cli_args
 
@@ -34,7 +28,7 @@ from pytmbot.utils.utilities import parse_cli_args
 class PyTMBot:
     def __init__(self):
         self.args = parse_cli_args()
-        self.bot = None
+        self.bot: TeleBot | None = None
 
     def _get_bot_token(self) -> str:
         """
@@ -54,51 +48,55 @@ class PyTMBot:
             raise exceptions.PyTMBotError(".pytmbotenv file is not valid or not found") from error
 
     @staticmethod
-    def _validate_plugin_name(plugin_name: str) -> bool:
+    def __validate_plugin_name(plugin_name: str) -> bool:
         """Check if the plugin name is valid based on predefined pattern."""
         valid_plugin_name_pattern = re.compile(r'^[a-z_]+$')
         return bool(valid_plugin_name_pattern.match(plugin_name))
 
     @staticmethod
-    def _module_exists(plugin_name: str) -> bool:
+    def __module_exists(plugin_name: str) -> bool:
         """Check if the module for the given plugin name exists."""
-        module_spec = importlib.util.find_spec(f'pytmbot.plugins.{plugin_name}.plugin')
-        return module_spec is not None
+        module_path = f'pytmbot.plugins.{plugin_name}.plugin'
+        return importlib.util.find_spec(module_path) is not None
 
     @staticmethod
-    def _import_module(plugin_name: str):
+    def __import_module(plugin_name: str):
         """Import the module for the given plugin name."""
-        return importlib.import_module(f'pytmbot.plugins.{plugin_name}.plugin')
+        module_path = f'pytmbot.plugins.{plugin_name}.plugin'
+        try:
+            return importlib.import_module(module_path)
+        except ImportError as e:
+            bot_logger.error(f"ImportError: {e} - Module path: {module_path}")
+            raise
 
     @staticmethod
-    def _find_plugin_classes(module) -> List[type]:
+    def __find_plugin_classes(module) -> List[Type[PluginInterface]]:
         """Find and return all valid plugin classes in the module."""
-        return [
-            getattr(module, attribute_name)
-            for attribute_name in dir(module)
-            if inspect.isclass(getattr(module, attribute_name)) and
-               issubclass(getattr(module, attribute_name), PluginInterface) and
-               getattr(module, attribute_name) is not PluginInterface
-        ]
+        plugin_classes = []
+        for attribute_name in dir(module):
+            attr = getattr(module, attribute_name)
+            if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr is not PluginInterface:
+                plugin_classes.append(attr)
+        return plugin_classes
 
     def _register_plugin(self, plugin_name: str):
         """Register a single plugin."""
-        if not self._validate_plugin_name(plugin_name):
+        if not self.__validate_plugin_name(plugin_name):
             bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping...")
             return
 
-        if not self._module_exists(plugin_name):
+        if not self.__module_exists(plugin_name):
             bot_logger.error(f"Module '{plugin_name}' not found. Skipping...")
             return
 
         try:
-            module = self._import_module(plugin_name)
+            module = self.__import_module(plugin_name)
 
             if not hasattr(module, '__all__'):
                 bot_logger.error(f"Module '{plugin_name}' does not have '__all__' attribute. Skipping...")
                 return
 
-            plugin_classes = self._find_plugin_classes(module)
+            plugin_classes = self.__find_plugin_classes(module)
 
             if not plugin_classes:
                 bot_logger.error(f"No valid plugin class found in module '{plugin_name}'. Skipping...")
@@ -120,13 +118,31 @@ class PyTMBot:
 
     def _create_bot_instance(self) -> TeleBot:
         """
-        Create the bot instance.
+        Create and configure the bot instance.
+
         Returns:
             telebot.TeleBot: The created bot instance.
         """
         bot_token = self._get_bot_token()
         bot_logger.debug("Bot token setup successful")
 
+        self.bot = self._initialize_bot(bot_token)
+        self._setup_bot_commands_and_description()
+        self._setup_middleware()
+
+        # Register handlers
+        self._register_handlers(handler_factory, self.bot.register_message_handler)
+        self._register_handlers(inline_handler_factory, self.bot.register_callback_query_handler)
+
+        self._register_plugins_if_needed()
+
+        # Register echo handlers
+        self._register_handlers(echo_handler_factory, self.bot.register_message_handler)
+
+        bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
+        return self.bot
+
+    def _initialize_bot(self, bot_token: str) -> TeleBot:
         self.bot = telebot.TeleBot(
             token=bot_token,
             threaded=True,
@@ -135,49 +151,51 @@ class PyTMBot:
             skip_pending=True
         )
         bot_logger.debug("Bot instance created")
+        return self.bot
 
-        # Set up bot commands and description
+    def _setup_bot_commands_and_description(self):
         try:
-            commands = [telebot.types.BotCommand(command, desc) for command, desc in
-                        bot_command_settings.bot_commands.items()]
+            commands = [telebot.types.BotCommand(command, desc)
+                        for command, desc in bot_command_settings.bot_commands.items()]
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
             bot_logger.debug("Bot commands and description setup successful.")
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Error setting up bot commands and description: {error}")
 
-        # Set up middleware
+    def _setup_middleware(self):
         try:
             self.bot.setup_middleware(AccessControl(bot=self.bot))
             bot_logger.debug(f"Middleware setup successful: {AccessControl.__name__}.")
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set up middleware: {error}")
 
-        # Register message and inline handlers
-        try:
-            bot_logger.debug("Registering message handlers...")
-            for handlers in handler_factory().values():
-                for handler in handlers:
-                    self.bot.register_message_handler(handler.callback, **handler.kwargs, pass_bot=True)
-            bot_logger.debug(f"Registered {len(handler_factory())} message handlers.")
+    @staticmethod
+    def _register_handlers(handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+                           register_method: Callable):
+        """
+        Register handlers using the provided registration method.
 
-            bot_logger.debug("Registering inline message handlers...")
-            for handlers in inline_handler_factory().values():
+        Args:
+            handler_factory_func (Callable[[], Dict[str, List[Handler]]]): A function that returns a dictionary of handlers.
+            register_method (Callable): The method used to register the handlers.
+        """
+        try:
+            bot_logger.debug(f"Registering handlers using {register_method.__name__}...")
+            handlers_dict = handler_factory_func()
+            for handlers in handlers_dict.values():
                 for handler in handlers:
-                    self.bot.register_callback_query_handler(handler.callback, **handler.kwargs, pass_bot=True)
-            bot_logger.debug(f"Registered {len(inline_handler_factory())} inline message handlers.")
+                    register_method(handler.callback, **handler.kwargs, pass_bot=True)
+            bot_logger.debug(f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers.")
         except Exception as err:
             raise exceptions.PyTMBotError(f"Failed to register handlers: {err}")
 
-        # Register plugins
+    def _register_plugins_if_needed(self):
         if self.args.plugins != ['']:
             try:
                 self._register_plugins(self.args.plugins)
             except Exception as err:
                 bot_logger.error(f"Failed to register plugins: {err}")
-
-        bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
-        return self.bot
 
     def start_bot_instance(self):
         """

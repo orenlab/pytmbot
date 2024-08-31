@@ -103,10 +103,7 @@ def handler_factory():
             HandlerManager(callback=handle_qr_code_message, commands=['qrcode'],
                            func=lambda message: message.from_user.id in settings.access_control.allowed_admins_ids)
         ],
-        # Echo handler. Always past in the end!
-        'echo': [
-            HandlerManager(callback=handle_echo, func=lambda message: True)
-        ]
+
     }
 
 
@@ -142,5 +139,23 @@ def inline_handler_factory():
         ],
         'manage_action': [
             HandlerManager(callback=handle_manage_container_action, func=lambda call: managing_action_fabric(call))
+        ]
+    }
+
+
+def echo_handler_factory():
+    """
+    Returns a dictionary of HandlerManager objects.
+
+    The dictionary keys represent command categories, and the values are lists
+    of HandlerManager objects. Each HandlerManager object is initialized with
+    a callback function and optional keyword arguments.
+
+    Returns:
+        dict: A dictionary of HandlerManager objects.
+    """
+    return {
+        'echo': [
+            HandlerManager(callback=handle_echo, func=lambda message: True)
         ]
     }

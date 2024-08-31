@@ -5,17 +5,19 @@ from typing import Any
 
 import yaml
 
-from pytmbot import globals, logs
+from pytmbot import globals as g, logs
 from pytmbot.keyboards import keyboards as kb
+from pytmbot.models import handlers_model
 from pytmbot.plugins.models import PluginCoreModel
 
 
 class PluginCore:
     def __init__(self):
-        self.settings = globals.settings
-        self.var_config = globals.var_config
+        self.settings = g.settings
+        self.var_config = g.var_config
         self.bot_logger = logs.bot_logger
         self.keyboard = kb.Keyboards()
+        self.handler_models = handlers_model.HandlerManager
 
     def __get_config_path(self, config_name: str) -> str:
         """
