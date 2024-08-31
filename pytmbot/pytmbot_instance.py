@@ -26,6 +26,60 @@ from pytmbot.utils.utilities import parse_cli_args
 
 
 class PyTMBot:
+    """
+    Manages the creation, configuration, and operation of a Telegram bot using the TeleBot library.
+
+    Attributes:
+        args (Namespace):
+            Command line arguments parsed with `parse_cli_args`.
+        bot (TeleBot | None):
+            Instance of the TeleBot, or None if not initialized.
+
+    Methods:
+        _get_bot_token() -> str:
+            Retrieves the bot token based on the operational mode.
+
+        __validate_plugin_name(plugin_name: str) -> bool:
+            Validates the plugin name against a predefined pattern.
+
+        __module_exists(plugin_name: str) -> bool:
+            Checks if the module for the given plugin name exists.
+
+        __import_module(plugin_name: str):
+            Imports the module for the given plugin name.
+
+        __find_plugin_classes(module) -> List[Type[PluginInterface]]:
+            Finds and returns all valid plugin classes in the module.
+
+        _register_plugin(plugin_name: str):
+            Registers a single plugin by its name.
+
+        _register_plugins(plugin_names: List[str]):
+            Registers multiple plugins based on the provided list of plugin names.
+
+        _create_bot_instance() -> TeleBot:
+            Creates and configures the bot instance.
+
+        _initialize_bot(bot_token: str) -> TeleBot:
+            Initializes a TeleBot instance with the given token.
+
+        _setup_bot_commands_and_description():
+            Sets up the bot commands and description.
+
+        _setup_middleware():
+            Sets up the middleware for the bot.
+
+        _register_handlers(handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+                           register_method: Callable):
+            Registers handlers using the provided registration method.
+
+        _register_plugins_if_needed():
+            Registers plugins if specified in the command line arguments.
+
+        start_bot_instance():
+            Starts the bot instance and enters an infinite polling loop.
+    """
+
     def __init__(self):
         self.args = parse_cli_args()
         self.bot: TeleBot | None = None

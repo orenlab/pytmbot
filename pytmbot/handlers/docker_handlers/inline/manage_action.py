@@ -44,8 +44,7 @@ def managing_action_fabric(call: CallbackQuery):
 @two_factor_auth_required
 @logged_inline_handler_session
 def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
-    container_name, called_user_id = split_string_into_octets(call.data), split_string_into_octets(call.data,
-                                                                                                   octet_index=2)
+    container_name, called_user_id = split_string_into_octets(call.data), split_string_into_octets(call.data, octet_index=2)
     """
     Handles the callback query for managing a container.
 
