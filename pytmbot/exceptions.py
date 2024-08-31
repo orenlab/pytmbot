@@ -15,35 +15,30 @@ class PyTMBotError(Exception):
     """
     Base class for all exceptions related to PyTeleMonBot.
     """
-    pass
 
 
 class PyTMBotConnectionError(PyTMBotError):
     """
     Exception raised when there is an error connecting to the server.
     """
-    pass
 
 
 class PyTMBotErrorHandlerError(PyTMBotError):
     """
     Exception raised when there is an error handling a message.
     """
-    pass
 
 
 class PyTMBotErrorTemplateError(PyTMBotError):
     """
     Exception raised when there is an error using a template.
     """
-    pass
 
 
 class DockerAdapterException(PyTMBotError):
     """
     Exception raised when there is an error interacting with Docker.
     """
-    pass
 
 
 class TelebotCustomExceptionHandler(ExceptionHandler):
