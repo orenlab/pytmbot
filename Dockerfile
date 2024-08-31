@@ -84,6 +84,7 @@ FROM reliase_base AS self_build
 
 # Copy configs file with token (prod, dev)
 COPY pytmbot.yaml ./
+COPY o.yaml ./
 
 ENTRYPOINT ["./entrypoint.sh"]
 

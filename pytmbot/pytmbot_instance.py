@@ -13,7 +13,7 @@ from pytmbot.globals import (
     settings,
     __version__,
     __repository__,
-    bot_command_settings,
+    bot_commands_settings,
     bot_description_settings,
     var_config
 )
@@ -210,7 +210,7 @@ class PyTMBot:
     def _setup_bot_commands_and_description(self):
         try:
             commands = [telebot.types.BotCommand(command, desc)
-                        for command, desc in bot_command_settings.bot_commands.items()]
+                        for command, desc in bot_commands_settings.bot_commands.items()]
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
             bot_logger.debug("Bot commands and description setup successful.")

@@ -18,9 +18,6 @@ def handle_unauthorized_query(query: Union[Message, CallbackQuery], bot: telebot
 
     Returns:
         bool: True if the query was handled successfully, False otherwise.
-
-    Raises:
-        NotImplementedError: If the query type is not supported.
     """
     if not isinstance(query, (Message, CallbackQuery)):
         raise TypeError("Query must be an instance of Message or CallbackQuery")
@@ -37,9 +34,6 @@ def access_denied_handler(query: Union[Message, CallbackQuery], bot: telebot.Tel
 
     Returns:
         bool: True if the query was handled successfully, False otherwise.
-
-    Raises:
-        NotImplementedError: If the query type is not supported.
     """
     if not isinstance(query, (Message, CallbackQuery)):
         raise TypeError("Query must be an instance of Message or CallbackQuery")
@@ -51,10 +45,10 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that enforces two-factor authentication for the provided function.
 
     Args:
-        func: The function to be decorated.
+        func: The function to be decorated. It must accept `query` and `bot` as arguments.
 
     Returns:
-        The wrapper function that enforces two-factor authentication.
+        Callable[..., Any]: The wrapper function that enforces two-factor authentication.
     """
 
     def wrapper(query: Union[Message, CallbackQuery], bot: telebot.TeleBot) -> Any:

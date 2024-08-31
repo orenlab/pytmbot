@@ -13,42 +13,47 @@ from pytmbot.logs import bot_logger
 
 class PyTMBotError(Exception):
     """
-    Base class for all PyTeleMonBot exceptions.
+    Base class for all exceptions related to PyTeleMonBot.
     """
+    pass
 
 
 class PyTMBotConnectionError(PyTMBotError):
     """
-    Exception raised when an error occurs while connecting to the server.
+    Exception raised when there is an error connecting to the server.
     """
+    pass
 
 
 class PyTMBotErrorHandlerError(PyTMBotError):
     """
-    Exception raised when an error occurs while handling a message.
+    Exception raised when there is an error handling a message.
     """
+    pass
 
 
 class PyTMBotErrorTemplateError(PyTMBotError):
     """
-    Exception raised when an error occurs while using a template.
+    Exception raised when there is an error using a template.
     """
+    pass
 
 
 class DockerAdapterException(PyTMBotError):
     """
-    Exception raised when an error occurs while using Docker.
+    Exception raised when there is an error interacting with Docker.
     """
+    pass
 
 
 class TelebotCustomExceptionHandler(ExceptionHandler):
     """
-    Custom exception handler for Telebot.
+    Custom exception handler for handling exceptions raised by Telebot.
     """
 
     def handle(self, exception: Exception) -> bool:
         """
-        Log and handle exceptions raised by Telebot.
+        Logs and handles exceptions raised by Telebot.
 
         Args:
             exception (Exception): The exception to handle.
@@ -63,7 +68,7 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
     @staticmethod
     def _sanitize_exception(exception: Exception) -> str:
         """
-        Replace sensitive information in exception messages with placeholders.
+        Sanitizes exception messages by replacing sensitive information with placeholders.
 
         Args:
             exception (Exception): The exception to sanitize.

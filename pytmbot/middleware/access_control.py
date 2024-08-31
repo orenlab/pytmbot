@@ -1,4 +1,5 @@
 from typing import Any, Optional, List
+from collections import defaultdict
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -19,15 +20,12 @@ class AccessControl(BaseMiddleware):
 
         Args:
             bot (TeleBot): The bot object.
-
-        Returns:
-            None
         """
         super().__init__()
         self.bot = bot
         self.update_types: List[str] = ['message']
         self.allowed_user_ids = set(settings.access_control.allowed_user_ids)
-        self.attempt_count = {}
+        self.attempt_count = defaultdict(int)
 
     @bot_logger.catch()
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
@@ -52,7 +50,7 @@ class AccessControl(BaseMiddleware):
         chat_id = message.chat.id
 
         if user_id not in self.allowed_user_ids:
-            self.attempt_count[user_id] = self.attempt_count.get(user_id, 0) + 1
+            self.attempt_count[user_id] += 1
 
             if self.attempt_count[user_id] >= 3:
                 error_message = (
@@ -94,6 +92,4 @@ class AccessControl(BaseMiddleware):
             "I apologize for any inconvenience, but I cannot change the access settings. "
             "This is a security issue 🔥🔥🔥. Goodbye! 👋👋👋"
         ]
-        if 1 <= count <= len(messages):
-            return messages[count - 1]
-        return "Access denied. Please contact support."
+        return messages[count - 1] if 1 <= count <= len(messages) else "Access denied. Please contact support."

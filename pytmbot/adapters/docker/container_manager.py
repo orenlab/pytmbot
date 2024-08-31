@@ -4,7 +4,9 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from typing import Union
+from typing import Union, Literal
+
+from docker.errors import NotFound, APIError
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.globals import settings, session_manager
@@ -25,9 +27,11 @@ class ContainerManager:
 
         Raises:
             ValueError: If the user is not allowed to manage the container.
+            NotFound: If the container was not found.
+            APIError: If there was an error communicating with the Docker API.
 
         Returns:
-            True if the container was started successfully, False otherwise.
+            bool: True if the container was started successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
             raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
@@ -36,8 +40,15 @@ class ContainerManager:
             with DockerAdapter() as adapter:
                 bot_logger.info(f"Starting container {container_id}")
                 return adapter.containers.get(container_id).start()
+        except NotFound as e:
+            bot_logger.error(f"Container {container_id} not found: {e}")
+            raise
+        except APIError as e:
+            bot_logger.error(f"API error when starting container {container_id}: {e}")
+            raise
         except Exception as e:
-            bot_logger.error(f"Failed to start container: {e}")
+            bot_logger.error(f"Failed to start container {container_id}: {e}")
+            raise
 
     def __stop_container(self, user_id: int, container_id):
         """
@@ -49,9 +60,11 @@ class ContainerManager:
 
         Raises:
             ValueError: If the user is not allowed to manage the container.
+            NotFound: If the container was not found.
+            APIError: If there was an error communicating with the Docker API.
 
         Returns:
-            True if the container was stopped successfully, False otherwise.
+            bool: True if the container was stopped successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
             raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
@@ -60,8 +73,15 @@ class ContainerManager:
             with DockerAdapter() as adapter:
                 bot_logger.info(f"Stopping container {container_id}")
                 return adapter.containers.get(container_id).stop()
+        except NotFound as e:
+            bot_logger.error(f"Container {container_id} not found: {e}")
+            raise
+        except APIError as e:
+            bot_logger.error(f"API error when stopping container {container_id}: {e}")
+            raise
         except Exception as e:
-            bot_logger.error(f"Failed to stop container: {e}")
+            bot_logger.error(f"Failed to stop container {container_id}: {e}")
+            raise
 
     def __restart_container(self, user_id: int, container_id):
         """
@@ -73,12 +93,12 @@ class ContainerManager:
 
         Raises:
             ValueError: If the user is not allowed to manage the container.
+            NotFound: If the container was not found.
+            APIError: If there was an error communicating with the Docker API.
 
         Returns:
-            True if the container was restarted successfully, False otherwise.
-
+            bool: True if the container was restarted successfully, False otherwise.
         """
-
         if not self.__user_is_allowed_to_manage_container(user_id):
             raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
 
@@ -86,8 +106,15 @@ class ContainerManager:
             with DockerAdapter() as adapter:
                 bot_logger.info(f"Restarting container {container_id}")
                 return adapter.containers.get(container_id).restart()
+        except NotFound as e:
+            bot_logger.error(f"Container {container_id} not found: {e}")
+            raise
+        except APIError as e:
+            bot_logger.error(f"API error when restarting container {container_id}: {e}")
+            raise
         except Exception as e:
-            bot_logger.error(f"Failed to restart container: {e}")
+            bot_logger.error(f"Failed to restart container {container_id}: {e}")
+            raise
 
     def __rename_container(self, user_id: int, container_id, new_container_name: str):
         """
@@ -100,9 +127,11 @@ class ContainerManager:
 
         Raises:
             ValueError: If the user is not allowed to manage the container or if the new container name is invalid.
+            NotFound: If the container was not found.
+            APIError: If there was an error communicating with the Docker API.
 
         Returns:
-            True if the container was renamed successfully, False otherwise.
+            bool: True if the container was renamed successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
             raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
@@ -114,8 +143,15 @@ class ContainerManager:
             with DockerAdapter() as adapter:
                 bot_logger.info(f"Renaming container {container_id} to {new_container_name}")
                 return adapter.containers.get(container_id).rename(new_container_name)
+        except NotFound as e:
+            bot_logger.error(f"Container {container_id} not found: {e}")
+            raise
+        except APIError as e:
+            bot_logger.error(f"API error when renaming container {container_id}: {e}")
+            raise
         except Exception as e:
-            bot_logger.error(f"Failed to rename container: {e}")
+            bot_logger.error(f"Failed to rename container {container_id}: {e}")
+            raise
 
     @staticmethod
     def __user_is_allowed_to_manage_container(user_id: int) -> bool:
@@ -130,14 +166,15 @@ class ContainerManager:
         """
         return user_id in settings.access_control.allowed_admins_ids and session_manager.is_authenticated(user_id)
 
-    def managing_container(self, user_id: int, container_id: Union[str, int], **kwargs):
-
+    def managing_container(self, user_id: int, container_id: Union[str, int],
+                           action: Literal['start', 'stop', 'restart', 'rename'], **kwargs):
         """
         Manages a Docker container based on the given action.
 
         Args:
             user_id (int): The ID of the user managing the container.
             container_id (Union[str, int]): The ID of the container to manage.
+            action (Literal['start', 'stop', 'restart', 'rename']): The action to perform on the container.
             **kwargs: Additional keyword arguments depending on the action.
 
         Actions:
@@ -152,7 +189,6 @@ class ContainerManager:
         Raises:
             ValueError: If the action is invalid.
         """
-        action = kwargs.get("action")
         actions = {
             "start": self.__start_container,
             "stop": self.__stop_container,

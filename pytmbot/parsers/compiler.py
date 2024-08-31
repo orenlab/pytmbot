@@ -1,10 +1,4 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pytmbot.parsers._parser import Jinja2Renderer
 
@@ -16,9 +10,10 @@ class Compiler:
     Attributes:
         template_name (str): The name of the template to compile.
         kwargs (Dict[str, Any]): The context for rendering the template.
+        renderer (Optional[Jinja2Renderer]): The Jinja2Renderer instance for rendering.
     """
 
-    def __init__(self, template_name: str, **kwargs: Dict[str, Any] | str) -> None:
+    def __init__(self, template_name: str, **kwargs: Any) -> None:
         """
         Initialize the Compiler with template name and context.
 
@@ -28,7 +23,7 @@ class Compiler:
         """
         self.template_name = template_name
         self.kwargs = kwargs
-        self.renderer = None
+        self.renderer: Optional[Jinja2Renderer] = None
 
     def __enter__(self) -> 'Compiler':
         """
@@ -40,14 +35,14 @@ class Compiler:
         self.renderer = Jinja2Renderer.instance()
         return self
 
-    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[Any]) -> None:
         """
         Exit the runtime context related to this object.
 
         Args:
-            exc_type (type): The exception type.
-            exc_val (Exception): The exception value.
-            exc_tb (Any): The traceback object.
+            exc_type (Optional[type]): The exception type.
+            exc_val (Optional[Exception]): The exception value.
+            exc_tb (Optional[Any]): The traceback object.
         """
         # No specific cleanup needed for renderer
         self.renderer = None
@@ -61,12 +56,12 @@ class Compiler:
 
         Raises:
             ValueError: If the renderer is not initialized.
+            RuntimeError: If there is an error during template compilation.
         """
         if self.renderer:
             try:
                 return self.renderer.render_templates(self.template_name, **self.kwargs)
             except Exception as e:
-                # Handle specific exceptions if needed
                 raise RuntimeError("Error during template compilation") from e
         else:
             raise ValueError("Renderer is not initialized. Use 'with' statement to initialize it.")

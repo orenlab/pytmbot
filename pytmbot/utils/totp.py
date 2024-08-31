@@ -1,9 +1,3 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
 import base64
 import hashlib
 import io
@@ -16,9 +10,16 @@ from pytmbot.logs import bot_logger
 
 
 class TwoFactorAuthenticator:
-    def __init__(self, user_id, username):
+    def __init__(self, user_id: int, username: str) -> None:
+        """
+        Initializes the TwoFactorAuthenticator with user ID and username.
+
+        Args:
+            user_id (int): The unique identifier for the user.
+            username (str): The username of the user.
+        """
         self.user_id: int = user_id
-        self.username = username
+        self.username: str = username
         self.salt: str = settings.access_control.auth_salt[0].get_secret_value()
 
     def __generate_secret(self) -> str:
@@ -30,8 +31,8 @@ class TwoFactorAuthenticator:
         Returns:
             str: The base32 encoded secret key.
         """
-        # Concatenate the user ID and username
-        message = str(self.user_id).encode() + self.salt.encode() + self.username.encode()
+        # Concatenate the user ID, salt, and username
+        message = f"{str(self.user_id)}{self.salt}{self.username}".encode()
 
         # Hash the concatenated message using SHA256
         h = hashlib.sha256(message)
@@ -63,22 +64,24 @@ class TwoFactorAuthenticator:
         Returns:
             bytes: The generated QR code as bytes.
         """
-        # Start logging the generation process
-        bot_logger.info(f'Start generating TOTP QR code for user {self.username}...')
+        bot_logger.info(f'Starting QR code generation for user: {self.username}...')
 
-        # Generate the TOTP authentication URI
-        auth_uri = self.__generate_totp_auth_uri()
+        try:
+            # Generate the TOTP authentication URI
+            auth_uri = self.__generate_totp_auth_uri()
 
-        # Create a QR code from the authentication URI
-        qr_code = qrcode.make(auth_uri)
+            # Create a QR code from the authentication URI
+            qr_code = qrcode.make(auth_uri)
 
-        # Save the QR code as bytes in a BytesIO object
-        with io.BytesIO() as img_bytes:
-            qr_code.save(img_bytes)
+            # Save the QR code as bytes in a BytesIO object
+            with io.BytesIO() as img_bytes:
+                qr_code.save(img_bytes)
 
-            bot_logger.info(f'TOTP QR code for user {self.username} generated.')
-            # Return the bytes of the QR code
-            return img_bytes.getvalue()
+                bot_logger.info(f'QR code successfully generated for user: {self.username}.')
+                return img_bytes.getvalue()
+        except Exception as e:
+            bot_logger.error(f'Error generating QR code for user {self.username}: {e}')
+            raise
 
     def verify_totp_code(self, code: str) -> bool:
         """
@@ -91,13 +94,14 @@ class TwoFactorAuthenticator:
             bool: True if the TOTP code is verified, False otherwise.
         """
         if not isinstance(code, str) or len(code) != 6:
-            bot_logger.error(f'Invalid TOTP code format for user {self.username}.')
+            bot_logger.error(f'Invalid TOTP code format for user {self.username}. Code length must be 6.')
             return False
 
         totp = pyotp.TOTP(self.__generate_secret())
         bot_logger.info(f'Verifying TOTP code for user {self.username}...')
+
         if totp.verify(code):
-            bot_logger.log("SUCCESS", f'TOTP code for user {self.username} verified.')
+            bot_logger.info(f'TOTP code successfully verified for user {self.username}.')
             return True
 
         bot_logger.error(f'Failed to verify TOTP code for user {self.username}.')

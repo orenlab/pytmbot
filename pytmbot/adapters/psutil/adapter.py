@@ -25,9 +25,10 @@ class PsutilAdapter:
     @staticmethod
     def get_load_average() -> Tuple[float, float, float]:
         """
-        Get the load average.
+        Get the load average for the last 1 minute, 5 minutes, and 15 minutes.
+
         Returns:
-            A tuple containing the load average for the last 1 minute, 5 minutes, and 15 minutes.
+            Tuple[float, float, float]: The load average.
         """
         bot_logger.debug("Retrieving load average...")
         load_average = psutil.getloadavg()
@@ -36,13 +37,15 @@ class PsutilAdapter:
     def get_memory(self) -> Dict[str, Union[str, int]]:
         """
         Retrieve current memory usage statistics.
+
         Returns:
-            dict: Dictionary with memory usage statistics.
+            Dict[str, Union[str, int]]: Memory usage statistics.
         """
         try:
             memory_stats = self.psutil.virtual_memory()
             memory_current = {
-                key: set_naturalsize(getattr(memory_stats, key)) if key != 'percent' else memory_stats.percent
+                key: set_naturalsize(getattr(memory_stats, key))
+                if key != 'percent' else memory_stats.percent
                 for key in ['total', 'available', 'percent', 'used', 'free', 'active', 'inactive', 'cached', 'shared']
             }
             return memory_current
@@ -53,11 +56,12 @@ class PsutilAdapter:
     def get_disk_usage(self) -> List[Dict[str, Union[str, float]]]:
         """
         Get partition usage statistics.
+
         Returns:
-            A list of dictionaries containing the usage statistics for each partition.
+            List[Dict[str, Union[str, float]]]: Usage statistics for each partition.
         """
         try:
-            fs_stats = psutil.disk_partitions(all=False)
+            fs_stats = self.psutil.disk_partitions(all=False)
             fs_current = []
             for fs in fs_stats:
                 disk_usage = self.psutil.disk_usage(fs.mountpoint)
@@ -79,6 +83,7 @@ class PsutilAdapter:
     def get_swap_memory(self) -> Dict[str, Union[str, int]]:
         """
         Get swap memory usage.
+
         Returns:
             Dict[str, Union[str, int]]: Swap memory usage statistics.
         """
@@ -99,6 +104,7 @@ class PsutilAdapter:
     def get_sensors_temperatures(self) -> List[Dict[str, Union[str, float]]]:
         """
         Get sensors temperatures.
+
         Returns:
             List[Dict[str, Union[str, float]]]: Sensor temperatures.
         """
@@ -121,9 +127,10 @@ class PsutilAdapter:
     @staticmethod
     def get_uptime() -> str:
         """
-        Get the system uptime.
+        Get the system uptime in the format 'X days, Y hours, Z minutes, A seconds'.
+
         Returns:
-            str: The uptime in the format 'X days, Y hours, Z minutes, A seconds'.
+            str: The uptime.
         """
         uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
         uptime = str(uptime_raw).split('.')[0]
@@ -133,8 +140,9 @@ class PsutilAdapter:
     def get_process_counts(self) -> Dict[str, int]:
         """
         Get the counts of running, sleeping, and idle processes.
+
         Returns:
-            dict: A dictionary containing the counts of processes.
+            Dict[str, int]: Process counts.
         """
         try:
             process_counts = {
@@ -151,6 +159,7 @@ class PsutilAdapter:
     def get_net_io_counters(self) -> List[Dict[str, Union[str, int]]]:
         """
         Retrieves network I/O statistics.
+
         Returns:
             List[Dict[str, Union[str, int]]]: Network I/O statistics.
         """

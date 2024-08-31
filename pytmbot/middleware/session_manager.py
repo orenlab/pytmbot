@@ -12,6 +12,11 @@ class _StateFabric:
     blocked: str = 'blocked'
     unauthenticated: str = 'unauthenticated'
 
+    @classmethod
+    def valid_states(cls) -> set:
+        """ Return a set of valid states. """
+        return {cls.authenticated, cls.processing, cls.blocked, cls.unauthenticated}
+
 
 @dataclass
 class SessionManager:
@@ -36,11 +41,10 @@ class SessionManager:
             cls._instance = super(SessionManager, cls).__new__(cls)
         return cls._instance
 
-    def _get_user_data(self, user_id: int) -> Dict[str, Any]:
-        """ Helper method to get user data or initialize it. """
-        if user_id not in self.__user_data:
-            self.__user_data[user_id] = {}
-        return self.__user_data[user_id]
+    def _get_user_data(self, user_id: int) -> dict:
+        if user_id not in self.user_data:
+            self.user_data[user_id] = {'auth_state': self.state_fabric.unauthenticated}
+        return self.user_data[user_id]
 
     @property
     def user_data(self) -> Dict[int, Dict[str, Any]]:
@@ -60,7 +64,7 @@ class SessionManager:
         Raises:
             ValueError: If the state is not a valid authentication state.
         """
-        if state not in vars(self.state_fabric).values():
+        if state not in self.state_fabric.valid_states():
             raise ValueError(f"Invalid state: {state}")
         bot_logger.debug(f"Setting authentication state for user {user_id} to {state}")
         self._get_user_data(user_id)['auth_state'] = state

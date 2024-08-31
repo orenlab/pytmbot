@@ -1,138 +1,100 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
 import argparse
 from datetime import datetime
 from functools import cached_property
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
-from humanize import naturalsize, naturaltime
+from humanize import naturalsize as humanize_naturalsize, naturaltime as humanize_naturaltime
 from telebot.types import CallbackQuery, Message
 
 
 # Utility functions
 
-
 def parse_cli_args() -> argparse.Namespace:
     """
-    Parses command line arguments.
-
-    This function uses the `argparse` module to define and parse command line arguments.
-    It has several optional arguments including `--mode`, `--log-level`, `--colorize_logs`, and `--plugins`.
+    Parses command line arguments using `argparse`.
 
     Returns:
         argparse.Namespace: The parsed command line arguments.
-
     """
-    # Create an ArgumentParser object
     parser = argparse.ArgumentParser(description="PyTMBot CLI")
 
-    # Add the '--mode' argument
     parser.add_argument(
         "--mode",
         choices=["dev", "prod"],
-        type=str,
-        help="PyTMBot mode (dev or prod)",
-        default="prod"
+        default="prod",
+        help="PyTMBot mode (dev or prod)"
     )
 
-    # Add the '--log-level' argument
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "ERROR"],
-        type=str,
-        help="Log level",
-        default="INFO"
+        default="INFO",
+        help="Log level"
     )
 
-    # Add the '--colorize_logs' argument
     parser.add_argument(
         "--colorize_logs",
         choices=["True", "False"],
-        type=str,
-        help="Colorize logs",
-        default="True"
+        default="True",
+        help="Colorize logs"
     )
 
-    # Add the '--plugins' argument
     parser.add_argument(
         "--plugins",
-        nargs='+',  # Allows for one or more values to be passed
-        type=str,
-        help="List of plugins to load",
-        default=[]  # Default to an empty list if not provided
+        nargs='+',
+        default=[],
+        help="List of plugins to load"
     )
 
-    # Parse the command line arguments
-    return parser.parse_args()
+    args = parser.parse_args()
+    return args
 
 
-def round_up_tuple(numbers: tuple) -> dict:
+def round_up_tuple(numbers: Tuple[float, ...]) -> Dict[int, float]:
     """
-    Round up numbers in a tuple.
+    Rounds up numbers in a tuple to two decimal places.
 
     Args:
-        numbers (tuple): The numbers to round up.
+        numbers (Tuple[float, ...]): The numbers to round up.
 
     Returns:
-        dict: A dictionary mapping the index of each number to its rounded value.
-
-    This function takes in a tuple of numbers and rounds each number to two decimal places. It then returns a dictionary
-    where the keys are the indices of the input numbers and the values are the rounded numbers.
-
-    Example:
-        >>> round_up_tuple((1.2345, 2.3456, 3.4567))
-        {0: 1.23, 1: 2.35, 2: 3.46}
+        Dict[int, float]: A dictionary mapping the index of each number to its rounded value.
     """
-    # Use a dictionary comprehension to round each number in the input tuple and map the index to the rounded number
-    return {i: round(num, 2) for i, num in enumerate(numbers)}
+    rounded = {i: round(num, 2) for i, num in enumerate(numbers)}
+    return rounded
 
 
-def find_in_args(args: tuple, target_type: type) -> Any:
+def find_in_args(args: Tuple[Any, ...], target_type: type) -> Optional[Any]:
     """
-    Find the first occurrence of an argument of the specified type in a tuple.
+    Finds the first occurrence of an argument of the specified type in a tuple.
 
     Args:
-        args (tuple): The tuple to search in.
+        args (Tuple[Any, ...]): The tuple to search in.
         target_type (type): The type of argument to search for.
 
     Returns:
-        Any: The first occurrence of an argument of the specified type, or None if not found.
-
+        Optional[Any]: The first occurrence of an argument of the specified type, or None if not found.
     """
-    # Filter the elements of the tuple based on type
-    found_args = [arg for arg in args if isinstance(arg, target_type)]
-
-    # Return the first element of the filtered list, or None if the list is empty
-    return found_args[0] if found_args else None
+    return next((arg for arg in args if isinstance(arg, target_type)), None)
 
 
-def find_in_kwargs(kwargs, target_type):
+def find_in_kwargs(kwargs: Dict[str, Any], target_type: type) -> Optional[Any]:
     """
-    Find the first occurrence of an argument of the specified type in the values of a dictionary.
+    Finds the first occurrence of an argument of the specified type in the values of a dictionary.
 
     Args:
-        kwargs (dict): The dictionary to search in.
+        kwargs (Dict[str, Any]): The dictionary to search in.
         target_type (type): The type of argument to search for.
 
     Returns:
-        Any: The first occurrence of an argument of the specified type, or None if not found.
+        Optional[Any]: The first occurrence of an argument of the specified type, or None if not found.
     """
-    # Use a generator expression to filter values of the dictionary
-    # based on whether they are an instance of the target type
-    # The `next` function is used to get the first value that matches the condition
-    # If no value is found, `None` is returned
-    found_value = next((value for value in kwargs.values() if isinstance(value, target_type)), None)
-
-    return found_value
+    return next((value for value in kwargs.values() if isinstance(value, target_type)), None)
 
 
 def set_naturalsize(size: int) -> str:
     """
-    A function that converts a size in bytes to a human-readable format.
+    Converts a size in bytes to a human-readable format.
 
     Args:
         size (int): The size in bytes.
@@ -140,12 +102,12 @@ def set_naturalsize(size: int) -> str:
     Returns:
         str: The size in a human-readable format.
     """
-    return naturalsize(size, binary=True)
+    return humanize_naturalsize(size, binary=True)
 
 
 def set_naturaltime(timestamp: datetime) -> str:
     """
-    Convert a timestamp to a human-readable format.
+    Converts a timestamp to a human-readable format.
 
     Args:
         timestamp (datetime): The timestamp to convert.
@@ -153,32 +115,27 @@ def set_naturaltime(timestamp: datetime) -> str:
     Returns:
         str: The timestamp in a human-readable format.
     """
-    return naturaltime(timestamp)
+    return humanize_naturaltime(timestamp)
 
 
 class EmojiConverter:
     """
-    A class to convert emoji names to emoji characters.
-
-    Methods:
-        get_emoji(self, emoji_name: str)
+    Converts emoji names to emoji characters.
     """
 
     @cached_property
-    def emoji_library(self):
+    def emoji_library(self) -> Any:
         """
         Returns the emoji library module.
 
-        The emoji library is imported using the `__import__` function.
-
         Returns:
-            module: The emoji library module.
+            Any: The emoji library module.
         """
         return __import__('emoji')
 
     def get_emoji(self, emoji_name: str) -> str:
         """
-        Get the emoji corresponding to the given emoji name.
+        Retrieves the emoji character corresponding to the given emoji name.
 
         Args:
             emoji_name (str): The name of the emoji to retrieve.
@@ -186,14 +143,11 @@ class EmojiConverter:
         Returns:
             str: The emoji character corresponding to the given emoji name.
         """
-        # Construct the emoji string using the emoji name
         emoji_str = f":{emoji_name}:"
-
-        # Use the emoji library to convert the emoji string to the corresponding emoji character
         return self.emoji_library.emojize(emoji_str)
 
 
-def split_string_into_octets(input_string: str, delimiter: Optional[str] = ":", octet_index: Optional[int] = 1) -> str:
+def split_string_into_octets(input_string: str, delimiter: str = ":", octet_index: int = 1) -> str:
     """
     Extracts a specific octet from a string based on a delimiter.
 
@@ -208,77 +162,64 @@ def split_string_into_octets(input_string: str, delimiter: Optional[str] = ":", 
     Raises:
         IndexError: If the octet index is out of range.
     """
-    # Split the string into octets based on the delimiter
     octets = input_string.split(delimiter)
-
-    # Check if the octet index is within the valid range
-    if octet_index < 0 or octet_index >= len(octets):
+    if not (0 <= octet_index < len(octets)):
         raise IndexError("Octet index out of range")
 
-    # Return the specified octet, converted to lowercase
     return octets[octet_index].lower()
 
 
 def sanitize_logs(container_logs: Union[str, Any], callback_query: CallbackQuery, token: str) -> str:
     """
-    Sanitizes the logs of a Docker container by replacing sensitive user information with asterisks.
+    Sanitizes Docker container logs by replacing sensitive user information with asterisks.
 
     Args:
-        container_logs (_SpecialForm): The logs of the container.
-        callback_query (CallbackQuery): The message object.
-        token (str): The token of the bot.
+        container_logs (Union[str, Any]): The container logs.
+        callback_query (CallbackQuery): The callback query object.
+        token (str): The bot token.
 
     Returns:
         str: The sanitized logs.
     """
-    # Extract user information from the callback query and the token
     user_info = [
-        str(callback_query.from_user.username),
-        str(callback_query.from_user.first_name),
-        str(callback_query.from_user.last_name),
+        callback_query.from_user.username or "",
+        callback_query.from_user.first_name or "",
+        callback_query.from_user.last_name or "",
         str(callback_query.message.from_user.id),
         token
     ]
 
-    # Replace each user information with asterisks
     for value in user_info:
         container_logs = container_logs.replace(value, '*' * len(value))
 
     return container_logs
 
 
-def get_message_full_info(*args, **kwargs):
+def get_message_full_info(*args: Any, **kwargs: Any) -> Tuple[
+    Union[str, None], Union[int, None], Union[str, None], Union[bool, None], Union[str, None]]:
     """
-    Get full info for inline handlers logs.
+    Retrieves full information for inline handlers logs.
 
     Args:
-        *args (): Any
-        **kwargs (): Any
+        *args (Any): Variable length argument list.
+        **kwargs (Any): Arbitrary keyword arguments.
 
     Returns:
         Tuple[Union[str, None], Union[int, None], Union[str, None], Union[bool, None], Union[str, None]]:
-            Objects to write to the logs. Returns a tuple containing the username, user ID, language code,
-            is_bot flag, and text of the message. If the message is not found in args or kwargs, returns
-            "None" for all values.
+            A tuple containing the username, user ID, language code, is_bot flag, and message text.
     """
-
     message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
-    if message is not None:
+    if message:
         user = message.from_user
-        return (
-            user.username,
-            user.id,
-            user.language_code,
-            user.is_bot,
-            message.text
-        )
+        return user.username, user.id, user.language_code, user.is_bot, message.text
 
-    return "None", "None", "None", "None", "None"
+    return None, None, None, None, None
 
 
-def get_inline_message_full_info(*args, **kwargs):
+def get_inline_message_full_info(*args: Any, **kwargs: Any) -> Tuple[
+    Union[str, None], Union[int, None], Union[bool, None]]:
     """
-    Get full info for inline handlers logs.
+    Retrieves full information for inline handlers logs.
 
     Args:
         *args (Any): Variable length argument list.
@@ -287,16 +228,14 @@ def get_inline_message_full_info(*args, **kwargs):
     Returns:
         Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
             A tuple containing the username, user ID, and is_bot flag of the message sender.
-            If the message is not found in args or kwargs, returns "None" for all values.
     """
-    # Find message in args or kwargs
     message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
 
-    if message is not None:
+    if message:
         user = message.message.from_user
         return user.username, user.id, user.is_bot
 
-    return "None", "None", "None"
+    return None, None, None
 
 
 def is_new_name_valid(new_name: str) -> bool:

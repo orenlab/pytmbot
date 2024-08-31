@@ -17,7 +17,7 @@ from pytmbot.models.containers_model import ContainersState
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
 
-container_state = ContainersState()
+container_state = ContainersState
 
 
 # func=lambda call: call.data.startswith('__manage__')
@@ -78,7 +78,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
                                  callback_data=f'__restart__:{container_name}:{call.from_user.id}'),
         )
 
-    elif state in [container_state.exited, container_state.stopped]:
+    elif state in [container_state.exited, container_state.stopped, container_state.dead]:
         bot_logger.debug(f"Added '__start__' button for {container_name}")
         keyboard_buttons.insert(
             0,

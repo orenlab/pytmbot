@@ -53,8 +53,6 @@ def __get_container_attributes(container_id: str):
         ValueError: If the container ID is invalid.
         FileNotFoundError: If the Docker executable is not found.
     """
-
-    # Check if the container ID is valid
     if not container_id:
         raise ValueError("Invalid container ID")
 
@@ -63,28 +61,22 @@ def __get_container_attributes(container_id: str):
             bot_logger.debug(f"Retrieving container details for ID: {container_id}.")
             return adapter.containers.get(container_id)
     except Exception as e:
-        # Log the failure to retrieve container details
         bot_logger.error(f"Failed to retrieve container details for ID: {container_id}. Error: {e}")
 
 
 def __aggregate_container_details(container_id: str) -> dict:
     """
-    Retrieve details of a Docker container.
+    Aggregates details of a Docker container into a dictionary.
 
     Args:
         container_id (str): The ID of the container.
 
     Returns:
-        dict: A dictionary containing container details. The dictionary contains the following keys:
-            - 'name' (str): The name of the container.
-            - 'image' (str): The image used by the container.
-            - 'created' (str): The date and time the container was created.
-            - 'run_at' (str): The date and time the container was started.
-            - 'status' (str): The status of the container.
+        dict: A dictionary containing the container's name, image, creation time,
+              start time, and status.
 
     Raises:
         ValueError: If container details retrieval fails.
-
     """
     try:
         start_time = time.time()
@@ -113,39 +105,31 @@ def __aggregate_container_details(container_id: str) -> dict:
 
 def retrieve_containers_stats() -> Union[List[Dict[str, str]], Dict[None, None]]:
     """
-    Retrieve and return details of Docker images.
+    Retrieves and returns details of Docker containers.
 
-    This function first checks if Docker is available. If not, it logs a debug message and returns an empty
-    dictionary.
-    It then lists the containers and retrieves details for each container using ThreadPool for parallel processing.
-    The details of each container are aggregated using the __aggregate_container_details method.
+    This function checks for Docker availability, lists the containers, and retrieves details
+    for each container using parallel processing with a ThreadPool.
 
     Returns:
-        Union[List[Dict[str, str]], Dict[None, None]]: A list of image details or an empty dictionary.
+        Union[List[Dict[str, str]], Dict[None, None]]: A list of container details or an empty dictionary if none found.
 
     Raises:
         ValueError: If an exception occurs during the retrieval process.
     """
     try:
-        start_time = time.time()  # Start timer for performance measurement
+        start_time = time.time()
 
-        # List containers
         containers_id = __fetch_containers_list()
 
-        # If no containers found, return empty dictionary
         if not containers_id:
             bot_logger.debug("No containers found. Returning empty dictionary.")
             return {}
 
-        # Retrieve container details for each container using ThreadPool for parallel processing
         with ThreadPoolExecutor() as executor:
             details = list(executor.map(__aggregate_container_details, containers_id))
 
-        bot_logger.debug(f"Returning image details: {details}.")  # Log the details
-
-        finish_time = time.time()  # End timer for performance measurement
-
-        bot_logger.debug(f"Done retrieving image details in {finish_time - start_time:.5f} seconds.")
+        bot_logger.debug(f"Returning container details: {details}.")
+        bot_logger.debug(f"Done retrieving container details in {time.time() - start_time:.5f} seconds.")
 
         return details
 
@@ -156,13 +140,13 @@ def retrieve_containers_stats() -> Union[List[Dict[str, str]], Dict[None, None]]
 
 def fetch_full_container_details(container_id: str):
     """
-    Retrieve and return the attributes of a Docker container as a dictionary.
+    Retrieves and returns the full attributes of a Docker container.
 
     Args:
         container_id (str): The ID of the container.
 
     Returns:
-        dict: A dictionary containing the attributes of the Docker container.
+        dict: A dictionary containing the full attributes of the Docker container.
     """
     try:
         return __get_container_attributes(container_id)
@@ -173,44 +157,34 @@ def fetch_full_container_details(container_id: str):
 
 def fetch_container_logs(container_id: str):
     """
-    Fetches the logs of a Docker container.
+    Fetches and returns the logs of a Docker container.
 
     Args:
         container_id (str): The ID of the container.
 
     Returns:
-        Union[str, dict]: The logs of the container as a string, or an empty string if
-        the container or logs are not found.
+        Union[str, dict]: The logs of the container as a string, or an empty string if none found.
 
     Raises:
         NotFound: If the container is not found.
         APIError: If there is an error with the Docker API.
     """
     try:
-        # Retrieve the details of the container
         container_details = __get_container_attributes(container_id)
-
-        # Fetch the logs of the container
         logs = container_details.logs(tail=50, stdout=True, stderr=True)
-
-        # Sanitize the logs by decoding them and taking the last 3000 characters
         cut_logs = logs.decode("utf-8", errors="ignore")[-3800:]
-
-        # Return the sanitized logs if they exist, otherwise return an empty string
         return cut_logs if cut_logs else ""
     except (NotFound, APIError):
         bot_logger.error(f"Failed to fetch logs for container: {container_id}")
-        # Return an empty string if the container or logs are not found
         return ""
 
 
 def fetch_docker_counters():
     """
-    Fetches a dictionary of Docker counters containing the number of images and containers.
+    Fetches and returns Docker counters containing the number of images and containers.
 
     Returns:
-        Union[Dict[str, int], None]: A dictionary with keys 'images_count' and 'containers_count' containing
-        the respective counts, or None if no counters are found or an error occurs.
+        Union[Dict[str, int], None]: A dictionary with 'images_count' and 'containers_count' or None if an error occurs.
     """
     try:
         with DockerAdapter() as adapter:
@@ -220,14 +194,20 @@ def fetch_docker_counters():
         return {"images_count": len(images), "containers_count": len(containers)}
 
     except (NotFound, APIError) as e:
-        # Log an error message if an exception occurs
         bot_logger.error(f"Failed to fetch Docker counters: {e}")
-
-        # Return None if an exception occurs
         return None
 
 
 def get_container_state(container_id: str):
+    """
+    Retrieves and returns the status of a Docker container.
+
+    Args:
+        container_id (str): The ID of the container.
+
+    Returns:
+        str: The status of the container, or None if an error occurs.
+    """
     try:
         with DockerAdapter() as adapter:
             container = adapter.containers.get(container_id)

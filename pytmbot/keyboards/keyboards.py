@@ -21,18 +21,17 @@ class Keyboards:
 
     def __init__(self) -> None:
         """
-        Initializes the Keyboard class.
+        Initializes the Keyboards class with an EmojiConverter instance.
         """
-        # Initialize the emojis attribute with an instance of EmojiConverter
         self.emojis: EmojiConverter = EmojiConverter()
 
     @staticmethod
     def build_referer_main_keyboard(main_keyboard_data: str) -> ReplyKeyboardMarkup:
         """
-        Constructs a ReplyKeyboardMarkup object with the main keyboard settings.
+        Constructs a ReplyKeyboardMarkup object for the main keyboard.
 
         Args:
-            main_keyboard_data (str): The keyboard data for the main keyboard.
+            main_keyboard_data (str): Data for the main keyboard.
 
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
@@ -40,16 +39,15 @@ class Keyboards:
         bot_logger.debug(f'Constructing referer main keyboard with data: {main_keyboard_data}...')
         main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         main_keyboard.add(main_keyboard_data)
-
         return main_keyboard
 
     @staticmethod
     def build_referer_inline_keyboard(data: str) -> InlineKeyboardMarkup:
         """
-        Constructs an InlineKeyboardMarkup object with the inline keyboard settings.
+        Constructs an InlineKeyboardMarkup object for the inline keyboard.
 
         Args:
-            data (str): The keyboard data for the inline keyboard.
+            data (str): Data for the inline keyboard.
 
         Returns:
             InlineKeyboardMarkup: The constructed inline keyboard markup.
@@ -57,8 +55,7 @@ class Keyboards:
         button_text = split_string_into_octets(data)
 
         bot_logger.debug(f'Constructing inline keyboard with data: {data}...')
-        button = InlineKeyboardButton(text=f"🦈 Return to {button_text}",
-                                      callback_data=data)
+        button = InlineKeyboardButton(text=f"🦈 Return to {button_text}", callback_data=data)
 
         keyboard = InlineKeyboardMarkup()
         keyboard.add(button)
@@ -72,18 +69,18 @@ class Keyboards:
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
 
         Args:
-            self: The instance of the Keyboard class.
-            keyboard_type (Optional[str], optional): The type of keyboard to be constructed. Defaults to None.
-            plugin_keyboard_data (Optional[dict[str, str]], optional): The keyboard data to be used. Defaults to None.
+            keyboard_type (Optional[str]): The type of keyboard to construct. Defaults to None.
+            plugin_keyboard_data (Optional[dict[str, str]]): Data for the keyboard. Defaults to None.
 
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
+
+        Raises:
+            ValueError: If the keyboard buttons are empty.
         """
-        bot_logger.debug(f'Constructing reply keyboard whit type: {keyboard_type if keyboard_type else "main"}...')
+        bot_logger.debug(f'Constructing reply keyboard with type: {keyboard_type if keyboard_type else "main"}...')
 
-        # Get the keyboard data based on the specified keyboard type
         keyboard_data = plugin_keyboard_data if plugin_keyboard_data else self._get_keyboard_data(keyboard_type)
-
         bot_logger.debug(f'Keyboard data: {keyboard_data}')
 
         keyboard_buttons = self._construct_keyboard(keyboard_data)
@@ -94,39 +91,33 @@ class Keyboards:
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         reply_keyboard.add(*keyboard_buttons)
 
-        bot_logger.debug(f'Reply keyboard building Done!. Added {len(keyboard_buttons)} buttons to the keyboard')
+        bot_logger.debug(f'Reply keyboard building Done! Added {len(keyboard_buttons)} buttons to the keyboard')
         bot_logger.debug(f'Added {keyboard_type if keyboard_type else "main"} keyboard into cache...')
-
-        # Return the constructed reply keyboard
         return reply_keyboard
 
     @staticmethod
     @lru_cache(maxsize=None)
     def _get_keyboard_data(keyboard_type: Optional[str]) -> Dict[str, str]:
         """
-        Get keyboard data based on the specified keyboard type.
+        Retrieves keyboard data based on the specified keyboard type.
 
         Args:
-            keyboard_type (Optional[str]): The type of keyboard to retrieve. If None, the main keyboard is returned.
+            keyboard_type (Optional[str]): The type of keyboard. If None, returns the main keyboard.
 
         Returns:
-            Dict[str, str]: The keyboard data as a dictionary.
+            Dict[str, str]: The keyboard data.
 
         Raises:
-            AttributeError: If an invalid keyboard type is specified.
+            AttributeError: If the keyboard type is invalid.
         """
-        # If no keyboard type is specified, return the main keyboard
         if keyboard_type is None:
             return keyboard_settings.main_keyboard
 
-        # Get a list of valid keyboard attributes from the config module
         valid_keyboards = {attr for attr in dir(keyboard_settings) if attr.endswith('_keyboard')}
 
-        # Check if the specified keyboard type is valid
         if keyboard_type not in valid_keyboards:
             raise AttributeError(f"Invalid keyboard type: {keyboard_type}")
 
-        # Get the keyboard data from the config module using the specified keyboard type
         return getattr(keyboard_settings, keyboard_type)
 
     def _construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
@@ -134,14 +125,12 @@ class Keyboards:
         Constructs a keyboard with emojis and titles.
 
         Args:
-            keyboard_data (Dict[str, str]): A dictionary containing emojis as keys and titles as values.
+            keyboard_data (Dict[str, str]): Data containing emojis and titles.
 
         Returns:
             List[str]: A list of strings representing the constructed keyboard.
         """
-        # Iterate over the items in the keyboard_data dictionary
         return [
-            # Format each item with the corresponding emoji and title
             f"{self.emojis.get_emoji(emoji)} {title}"
             for emoji, title in keyboard_data.items()
         ]
@@ -151,31 +140,28 @@ class Keyboards:
         NamedTuple for storing button data.
 
         Args:
-            text: str
-            callback_data: str
+            text (str): Button text.
+            callback_data (str): Data associated with the button callback.
         """
         text: str
         callback_data: str
 
     def build_inline_keyboard(self, buttons_data: Union[List[ButtonData], ButtonData]) -> InlineKeyboardMarkup:
         """
-        Build an inline keyboard with the given button data.
+        Constructs an inline keyboard with the given button data.
 
         Args:
-            buttons_data (Union[List[ButtonData], ButtonData]): The button data. Can be a single ButtonData or a list of
-             ButtonData.
+            buttons_data (Union[List[ButtonData], ButtonData]): Button data. Can be a single ButtonData or a list of ButtonData.
 
         Returns:
-            InlineKeyboardMarkup: The inline keyboard.
+            InlineKeyboardMarkup: The constructed inline keyboard.
 
         Raises:
-            ValueError: If the button data is not in the correct format.
+            ValueError: If button data is not in the correct format.
         """
-        # If the input is a single ButtonData, convert it to a list
         if isinstance(buttons_data, self.ButtonData):
             buttons_data = [buttons_data]
 
-        # Create a list of InlineKeyboardButton objects from the button data
         buttons = []
         for button_data in buttons_data:
             if not isinstance(button_data, self.ButtonData):
@@ -184,7 +170,6 @@ class Keyboards:
             button = InlineKeyboardButton(text=button_data.text, callback_data=button_data.callback_data)
             buttons.append(button)
 
-        # Create an InlineKeyboardMarkup object and add the buttons to it
         keyboard = InlineKeyboardMarkup(row_width=2)
         keyboard.add(*buttons)
 
