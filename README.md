@@ -1,11 +1,7 @@
-![pytmbot](https://socialify.git.ci/orenlab/pytmbot/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Light)
-
 # pyTMbot
 
-A simple Telegram bot to handle **Docker** `containers` and `images`, also providing basic information about the status
-of
-**local** servers.
-The bot operates synchronously. It does not use webhooks.
+**pyTMbot** is a simple Telegram bot designed to manage Docker `containers` and `images` while providing basic status
+information about **local** servers. The bot operates synchronously and does not use webhooks.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -17,97 +13,82 @@ The bot operates synchronously. It does not use webhooks.
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 
-The bot was written using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).
-Use [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries for
-gather information.
+Developed using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), and
+utilizing [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries.
 
 ## 💡 Key Features
 
-### 🐳 A large section on Docker
+### 🐳 Docker Management
 
-__Some of the features are protected by two-factor authentication, which is built into pyTMbot v.2__
+- Manage Docker containers (start, stop, restart, etc.)
+- View the status of containers, including those that have completed
+- Access container logs
+- Retrieve information about Docker images
 
-- Container management (start, stop, restart, etc.)
-- Key information about the current status of containers (even those that have finished work)
-- Ability to access container logs
-- Key information about images
+### 🖥️ Local Server Monitoring
 
-### 🖥️ A large section on local servers
-
-- Load average information
-- Summary memory usage information (with swap)
-- Sensors information
-- Summary process information
+- Load average details
+- Summary memory usage, including swap
+- Sensor data
+- Summary of processes
 - Uptime information
-- File system base information
-- Basic information about the network connection
+- Basic file system and network connection information
 
-### 🔖 Additionally:
+### 🔖 Additional Features
 
-- The "About Me" section, which allows users to check for updates regarding the bot: `/check_bot_updates`
-- The `Jinja2` templating engine is used to generate the responses.
-- The bot logs are accessible in the Docker log aggregator.
-- And of course we use emoji 😅
+- Check for bot updates using `/check_bot_updates`
+- Response templating with `Jinja2`
+- Accessible bot logs through Docker log aggregator
+- Emoji support 😅
 
-Screenshots are available here: [screenshots.md](docs/screenshots.md).
+Screenshots: [screenshots.md](docs/screenshots.md)
 
 ## 🕸 Requirements
 
-Initially, I designed the bot to run only inside a Docker container. However, this method has some limitations, so from
-version 0.9.0 onward, it is possible to install the bot locally outside the container. At the same time, the bot will
-still be able to function and receive information about Docker containers.
+Starting from version 0.9.0, the bot can be installed locally outside of Docker containers, though Docker-based
+deployment is still supported.
 
-Full list of Python dependencies see in `requirements.txt`. List of Python dependencies for self setup bot see
-in `setup_req.txt`
+Full list of Python dependencies can be found in `requirements.txt`. For local installation, refer to `setup_req.txt`.
 
-## 🔌 Installation, setup and run bot
+## 🔌 Installation, Setup, and Running the Bot
 
-- _See [installation.md](docs/installation.md)_
+- See [installation.md](docs/installation.md) for detailed instructions.
 
-## 🛡 Secure
+## 🛡 Security
 
-There has been a significant architectural change in pyTMbot v.2, and in addition to this, several new security measures
-have been implemented in the bot.
+pyTMbot v.2 introduces significant architectural changes and new security measures:
 
-One of the main changes is the addition of a "superuser" role, which gives Docker container management rights. This
-allows users to manage containers more securely and efficiently.
+- **Superuser Role:** Grants Docker container management rights securely.
+- **TOTP Two-Factor Authentication:** Enhances security with time-based unique codes and session controls.
 
-Another important new feature is native TOTP (Time-Based One-Time Password) two-factor authentication. This method uses
-a unique code generated by a time-based algorithm to verify a user's identity, making it much more difficult for
-unauthorized users to access critical functions of the bot. The lifetime of the session is also limited and controlled,
-ensuring that sessions do not last indefinitely.
+Learn more about these changes in our [blog post](#).
 
-Despite the introduction of these new measures, the basic protection mechanisms of the bot have not been abandoned. They
-have been optimized to continue protecting the bot from unauthorized access.
+## 💢 Supported Commands
 
-You can learn more about these changes and the benefits they provide in our blog [post](#).
+The bot supports various commands, as listed below:
 
-## 💢 Supported commands
-
-In addition to button navigation, the bot also supports commands. Below is a list of commands and their details:
-
-| # | Command              | Keyboard button      | Note                                   | 
-|---|----------------------|----------------------|----------------------------------------|
-| 1 | `/start`             | None                 | -                                      | 
-| 2 | `/help`              | None                 | -                                      | 
-| 3 | `/docker`            | 🐳 Docker            | -                                      |
-| 4 | `/containers`        | 🧰 Containers        | Button available in the Docker section |
-| 5 | `/images`            | 🖼️ Images           | Button available in the Docker section |
-| 6 | `/back`              | 🔙 Back to main menu | Button available in the Docker section |
-| 7 | `/check_bot_updates` | None                 | -                                      |
+| # | Command              | Button               | Note                            |
+|---|----------------------|----------------------|---------------------------------|
+| 1 | `/start`             | None                 | -                               |
+| 2 | `/help`              | None                 | -                               |
+| 3 | `/docker`            | 🐳 Docker            | -                               |
+| 4 | `/containers`        | 🧰 Containers        | Available in the Docker section |
+| 5 | `/images`            | 🖼️ Images           | Available in the Docker section |
+| 6 | `/back`              | 🔙 Back to main menu | Available in the Docker section |
+| 7 | `/check_bot_updates` | None                 | -                               |
 
 ## 📈 Roadmap
 
-- See [roadmap.md](docs/roadmap.md)
+For details on future updates, see [roadmap.md](docs/roadmap.md).
 
-## 🐋 pyTMbot on Docker Hub
+## 🐋 Docker Hub
 
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 [![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
 [![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
-- pyTMbot repo on Docker Hub: https://hub.docker.com/r/orenlab/pytmbot
+Visit [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) for more details.
 
 ## 🧬 Authors
 
@@ -115,7 +96,7 @@ In addition to button navigation, the bot also supports commands. Below is a lis
 
 ## 🚀 About Me
 
-I am a novice Python developer. This is my first publicly available project in this great programming language.
+I am a novice Python developer, and this is my first publicly available project in Python.
 
 ## 📜 License
 

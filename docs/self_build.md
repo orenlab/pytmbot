@@ -1,45 +1,47 @@
-# pyTMBot v.2 self build guide
+# pyTMBot v.2 Self-Build Guide
 
 ## 🔌 Installation
 
-So, to install this project:
+To build the pyTMBot project from source, follow these steps:
 
-```bash
-git clone https://github.com/orenlab/pytmbot.git
-cd ./pytmbot
-```
+1. Clone the repository:
 
-## 🧪 Configure bot
+    ```bash
+    git clone https://github.com/orenlab/pytmbot.git
+    cd ./pytmbot
+    ```
 
-1. Activate the virtual environment and install the dependencies for the bot configuration script using your preferred
-   package manager. The following instructions provide an example using pip.
-   (__mandatory stage__):
+2. Set up the virtual environment and install dependencies:
 
-```bash
-python -m venv .venv
-source ~/pytmbot/.venv/bin/activate
-pip install -r setup_req.txt
-```
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r setup_req.txt
+    ```
 
-2. Run the CLI Setup Wizard (__mandatory stage__):
+## 🧪 Configure the Bot
 
-```bash
-python3 ./setup_bot.py
-```
+1. **Activate the virtual environment** and **install dependencies** as described above.
 
-And follow the wizard's instructions.
+2. **Run the CLI Setup Wizard** to configure the bot:
 
-This wizard will generate the necessary configuration file for you:
+    ```bash
+    python3 ./setup_bot.py
+    ```
 
-| Files          | Assignment                                                                                         |
-|----------------|----------------------------------------------------------------------------------------------------|
-| `pytmbot.yaml` | To store bot settings, including tokens, allowed user ID and paths to the Docker and Podman socket |
+   Follow the prompts in the wizard to generate the necessary configuration file.
 
-You can leave the steps with the default settings by simply pressing "Enter".
+   This wizard will create a configuration file:
 
-## 💰 Run bot
+   | File           | Purpose                                                                                      |
+          |----------------|----------------------------------------------------------------------------------------------|
+   | `pytmbot.yaml` | Stores bot settings, including tokens, allowed user IDs, and paths to Docker and Podman sockets. |
 
-To launch a Docker container:
+   You can accept the default settings by pressing "Enter" when prompted.
+
+## 💰 Run the Bot
+
+To start the bot in a Docker container, use the following command:
 
 ```bash
 sudo docker run -d -m 100M \
@@ -53,29 +55,29 @@ sudo docker run -d -m 100M \
 orenlab/pytmbot:self-build
 ```
 
-#### Supported logging levels:
+### Supported Logging Levels
 
-| # | Logging levels | Note                                                                                                                                                                  | Args                | 
-|---|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
-| 1 | `INFO`         | Balanced logging mode: only the most important information + a short description of errors and exceptions.                                                            | `--log-level=INFO`  |
-| 2 | `ERROR`        | Only errors and exceptions are shown. This can be considered a "quiet" mode.                                                                                          | `--log-level=ERROR` | 
-| 3 | `DEBUG`        | The most detailed level of logs provides all the information displayed in the previous levels, plus additional details, such as traces and all debugging information. | `--log-level=DEBUG` |
+| # | Logging Level | Description                                                                                                             | Arguments           |
+|---|---------------|-------------------------------------------------------------------------------------------------------------------------|---------------------|
+| 1 | `INFO`        | Provides a balanced level of logging with essential information and a brief description of errors and exceptions.       | `--log-level=INFO`  |
+| 2 | `ERROR`       | Displays only errors and exceptions, suitable for a quieter mode.                                                       | `--log-level=ERROR` |
+| 3 | `DEBUG`       | Offers the most detailed logs, including all information from previous levels, along with additional debugging details. | `--log-level=DEBUG` |
 
-#### Note #1:
+#### Note:
 
-_Please don't forget to specify your time zone! You can find a list of available time zones, for
-example, [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html)_
+- **Time Zone**: Ensure you specify your time zone. A list of available time zones can be
+  found [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html).
 
-Now everything is ready for you to use the bot. All you need to do is run the `/start` command in your Telegram app.
+After starting the bot, you can initiate it by sending the `/start` command in your Telegram app.
 
-## 🚀 Bot logs
+## 🚀 Bot Logs
 
-- To access the bot logs, please run the following command in the terminal:
+To view the bot logs, use the following command:
 
 ```bash
 sudo docker logs pytmbot
 ```
 
-- Advanced logs and debugging: [debug.md](debug.md)
+For advanced logging and debugging details, refer to [debug.md](debug.md).
 
-_Alternatively, if the container is running on your workstation, you can use Docker Desktop._
+If you are running the container on your workstation, you can also use Docker Desktop to view the logs.

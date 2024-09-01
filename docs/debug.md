@@ -1,34 +1,49 @@
-# Run pyTMbot v.2 in DEBUG mode
+# Running pyTMBot v.2 in DEBUG Mode
 
-- To begin with, if the container containing the bot is running, it should be stopped:
+To run pyTMBot v.2 in DEBUG mode, follow these steps:
 
-```bash
-sudo docker stop pytmbot
-```
+1. **Stop the Running Container**
 
-- Deleting the stopped container:
+   If the pyTMBot container is currently running, you need to stop it first:
 
-```bash
-sudo docker rm pytmbot
-```
+   ```bash
+   sudo docker stop pytmbot
+   ```
 
-- Run pyTMbot in DEBUG mode:
+2. **Remove the Stopped Container**
 
-```bash
-sudo docker run -d -m 100M \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/.pytmbotenv:/opt/app/.pytmbotenv:ro \
---env TZ="Asia/Yekaterinburg" \
---restart=always \
---name=pytmbot \
---pid=host \
---security-opt=no-new-privileges \
-orenlab/pytmbot:latest \
--l DEBUG -m prod
-```
+   Once the container is stopped, remove it:
 
-- You can access the bot's logs using the following command:
+   ```bash
+   sudo docker rm pytmbot
+   ```
 
-```bash
-sudo docker logs pytmbot
-```
+3. **Run pyTMBot in DEBUG Mode**
+
+   Launch the pyTMBot container in DEBUG mode by executing the following command:
+
+   ```bash
+   sudo docker run -d -m 100M \
+   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+   -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+   --env TZ="Asia/Yekaterinburg" \
+   --restart=always \
+   --name=pytmbot \
+   --pid=host \
+   --security-opt=no-new-privileges \
+   orenlab/pytmbot:latest \
+   --log_level DEBUG --mode prod
+   ```
+
+    - `--log_level DEBUG`: Sets the logging level to DEBUG, providing detailed information for troubleshooting.
+    - `--mode prod`: Specifies the production mode for the bot.
+
+4. **Access the Bot’s Logs**
+
+   To view the logs for the pyTMBot container, use the following command:
+
+   ```bash
+   sudo docker logs pytmbot
+   ```
+
+   This will display the log output for the bot, including detailed DEBUG information.
