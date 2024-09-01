@@ -182,19 +182,19 @@ def create_dot_env() -> None:
 @click.command()
 def build_config() -> None:
     """
-    Builds the default .pytmbotenv file.
+    Builds the default pytmbot.yaml file.
 
     If the file already exists, it prompts the user to remove it before proceeding.
     After the file is created, it prints a success message.
     """
 
     # Print a message indicating the start of the build process
-    click.secho("*** Starting build default .pytmbotenv ***", fg="green", bold=True)
+    click.secho("*** Starting build default pytmbot.yaml ***", fg="green", bold=True)
 
-    # Check if the .pytmbotenv file already exists
+    # Check if the pytmbot.yaml file already exists
     if filesystem.has_file(APP_ENV_FILE):
         # If the file exists, prompt the user to remove it before proceeding
-        click.secho("Looks like you already have .pytmbotenv, if you need to reconfigure the bot, remove it.",
+        click.secho("Looks like you already have pytmbot.yaml, if you need to reconfigure the bot, remove it.",
                     blink=True, fg="yellow", bold=True)
     else:
         # If the file does not exist, create it

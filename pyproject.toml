@@ -4,6 +4,8 @@ version = "2.0.0-dev"
 description = "A simple Telegram bot to handle Docker containers and images, also providing basic information about the status of local servers."
 authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
 readme = "README.md"
+license = "MIT"
+repository = "https://github.com/orenlab/pytmbot"
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -12,7 +14,6 @@ jinja2 = "^3.1.3"
 pydantic = "^2.5.3"
 pydantic-settings = "^2.1.0"
 docker = "^7.0.0"
-click = "^8.1.7"
 humanize = "^4.9.0"
 psutil = "^6.0.0"
 pytelegrambotapi = "^4.21.0"
@@ -20,8 +21,10 @@ pyotp = "^2.9.0"
 qrcode = "^7.4.2"
 loguru = "^0.7.2"
 pyyaml = "^6.0.2"
-pyoutlineapi = "^0.1.1"
 
+[tool.poetry.extras]
+pyoutlineapi = ["pyoutlineapi"]
+click = ["click"]
 
 [build-system]
 requires = ["poetry-core"]

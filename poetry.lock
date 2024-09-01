@@ -13,13 +13,13 @@ files = [
 
 [[package]]
 name = "certifi"
-version = "2024.7.4"
+version = "2024.8.30"
 description = "Python package for providing Mozilla's CA Bundle."
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "certifi-2024.7.4-py3-none-any.whl", hash = "sha256:c198e21b1289c2ab85ee4e67bb4b4ef3ead0892059901a8d5b622f24a1101e90"},
-    {file = "certifi-2024.7.4.tar.gz", hash = "sha256:5a1e7645bc0ec61a09e26c36f6106dd4cf40c6db3a1fb6352b0244e7fb057c7b"},
+    {file = "certifi-2024.8.30-py3-none-any.whl", hash = "sha256:922820b53db7a7257ffbda3f597266d435245903d80737e34f8a45ff3e3230d8"},
+    {file = "certifi-2024.8.30.tar.gz", hash = "sha256:bec941d2aa8195e248a60b31ff9f0558284cf01a52591ceda73ea9afffd69fd9"},
 ]
 
 [[package]]
@@ -120,20 +120,6 @@ files = [
     {file = "charset_normalizer-3.3.2-cp39-cp39-win_amd64.whl", hash = "sha256:b01b88d45a6fcb69667cd6d2f7a9aeb4bf53760d7fc536bf679ec94fe9f3ff3d"},
     {file = "charset_normalizer-3.3.2-py3-none-any.whl", hash = "sha256:3e4d1f6587322d2788836a99c69062fbb091331ec940e02d12d179c1d53e25fc"},
 ]
-
-[[package]]
-name = "click"
-version = "8.1.7"
-description = "Composable command line interface toolkit"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "click-8.1.7-py3-none-any.whl", hash = "sha256:ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28"},
-    {file = "click-8.1.7.tar.gz", hash = "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de"},
-]
-
-[package.dependencies]
-colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "colorama"
@@ -501,22 +487,6 @@ files = [
 test = ["coverage", "mypy", "ruff", "wheel"]
 
 [[package]]
-name = "pyoutlineapi"
-version = "0.1.2"
-description = "A Python package to interact with the Outline VPN Server API"
-optional = false
-python-versions = ">=3.10"
-files = [
-    {file = "pyoutlineapi-0.1.2-py3-none-any.whl", hash = "sha256:209e464651e4943bb30567ba1f6648f50e9cb0bf11181f7d1547bf5588fe08cf"},
-    {file = "pyoutlineapi-0.1.2.tar.gz", hash = "sha256:78945fdfb3f89af113d11c6afda4b2f31d1492843dc2844da32bab0b89c40dd3"},
-]
-
-[package.dependencies]
-pydantic = ">=2.0.0,<3.0.0"
-requests = ">=2.32.3,<3.0.0"
-requests-toolbelt = ">=1.0.0,<2.0.0"
-
-[[package]]
 name = "pypng"
 version = "0.20220715.0"
 description = "Pure Python library for saving and loading PNG images"
@@ -695,20 +665,6 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
-name = "requests-toolbelt"
-version = "1.0.0"
-description = "A utility belt for advanced users of python-requests"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-files = [
-    {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
-    {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
-]
-
-[package.dependencies]
-requests = ">=2.0.1,<3.0.0"
-
-[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -750,7 +706,11 @@ files = [
 [package.extras]
 dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 
+[extras]
+click = []
+pyoutlineapi = []
+
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "7ce519e909e38f3ea4bc2cd4f36676f1f407f8cc9dbcc2dd8b9b30935d463e7b"
+content-hash = "e644a3f74ab5f04d357ce1842083cfee9d187b247136b6543b209b5049c316a0"

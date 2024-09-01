@@ -7,7 +7,7 @@
 #############################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=alpine3.20
+ARG PYTHON_IMAGE=3.12.3-alpine3.20
 ARG ALPINE_IMAGE=3.20
 
 ########################################################################################################################
@@ -21,34 +21,29 @@ ARG PYTHON_VERSION=3.12
 
 COPY requirements.txt .
 
-# Install all deps (need to build psutil)
+# Install all deps, activate venv, install and clean up
 RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
-# Activate venv
     python${PYTHON_VERSION} -m venv --without-pip venv && \
-# Install deps
-    pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
-    -r requirements.txt &&  \
-# Uninstall build deps
+    pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
     python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
     apk del gcc musl-dev linux-headers && \
     apk cache clean
 
 # Second Alpine stage - based on the base stage. Setup bot
-FROM alpine:${ALPINE_IMAGE}  AS reliase_base
+FROM alpine:${ALPINE_IMAGE} AS release_base
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
-# Update base os components
+# Update base os components and add timezone support
 RUN apk --no-cache update && \
     apk --no-cache upgrade && \
-# Add Timezone support in Alpine image
     apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/app/
 
-# Setup env var
+# Setup env vars
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/opt/app
@@ -60,35 +55,30 @@ COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-
-# Сopy only the necessary python files and directories from first stage
+# Copy necessary Python files and directories from first stage
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 COPY --from=builder /usr/local/lib/ /usr/local/lib/
-
-# Copy only the dependencies installation from the first stage image
 COPY --from=builder /venv /venv
 
-# activate venv
+# Activate venv and setup logging
 RUN source /venv/bin/activate && \
-# forward logs to Docker's log collector
     ln -sf /dev/stdout /dev/stdout && \
     ln -sf /dev/stderr /dev/stderr
 
 # Target for CI/CD image
-FROM reliase_base AS production
+FROM release_base AS production
 
 ENTRYPOINT ["./entrypoint.sh"]
 
-# Target for self biuld image, --mode = prod
-FROM reliase_base AS self_build
+# Target for self build image, --mode = prod
+FROM release_base AS self_build
 
-# Copy configs file with token (prod, dev)
+# Copy config file with token (prod, dev)
 COPY pytmbot.yaml ./
-COPY o.yaml ./
 
 ENTRYPOINT ["./entrypoint.sh"]
 
 # Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
-FROM reliase_base AS prod
+FROM release_base AS prod
 
 ENTRYPOINT ["./entrypoint.sh"]

@@ -99,7 +99,7 @@ class PyTMBot:
                 else settings.bot_token.prod_token[0].get_secret_value()
             )
         except (FileNotFoundError, ValueError) as error:
-            raise exceptions.PyTMBotError(".pytmbotenv file is not valid or not found") from error
+            raise exceptions.PyTMBotError("pytmbot.yaml file is not valid or not found") from error
 
     @staticmethod
     def __validate_plugin_name(plugin_name: str) -> bool:

@@ -100,7 +100,7 @@ class TestConfigBuilder(unittest.TestCase):
         with patch('click.secho') as mock_secho:
             sb.build_config()
             mock_create_dot_env.assert_called_once()
-            mock_secho.assert_any_call("*** Starting build default .pytmbotenv ***", fg="green", bold=True)
+            mock_secho.assert_any_call("*** Starting build default pytmbot.yaml ***", fg="green", bold=True)
             mock_secho.assert_any_call("All done. Now you can build Docker image and run the bot.", blink=True,
                                        bg='blue', fg='white', bold=True)
 
@@ -109,7 +109,7 @@ class TestConfigBuilder(unittest.TestCase):
         with patch('click.secho') as mock_secho:
             sb.build_config()
             mock_secho.assert_any_call(
-                "Looks like you already have .pytmbotenv, if you need to reconfigure the bot, remove it.", blink=True,
+                "Looks like you already have pytmbot.yaml, if you need to reconfigure the bot, remove it.", blink=True,
                 fg="yellow", bold=True)
             mock_secho.assert_any_call("All done. Now you can build Docker image and run the bot.", blink=True,
                                        bg='blue', fg='white', bold=True)
