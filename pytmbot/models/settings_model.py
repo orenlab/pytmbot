@@ -47,6 +47,16 @@ class DockerHostModel(BaseModel):
     host: List[str]
 
 
+class ChatIdModel(BaseModel):
+    """
+    Model for Telegram chat ID.
+
+    Attributes:
+        global_chat_id (List[int]): List of Telegram chat IDs.
+    """
+    global_chat_id: Optional[List[int]]
+
+
 class SettingsModel(BaseSettings):
     """
     Model for application settings.
@@ -59,3 +69,4 @@ class SettingsModel(BaseSettings):
     bot_token: BotTokenModel
     access_control: AccessControlModel
     docker: DockerHostModel
+    chat_id: Optional[ChatIdModel]

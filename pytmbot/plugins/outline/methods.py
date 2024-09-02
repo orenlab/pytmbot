@@ -29,7 +29,7 @@ class PluginMethods(PluginCore):
         Initializes the PluginMethods class and sets up the Outline API client.
         """
         super().__init__()
-        self.plugin_config = self.load_plugin_config(PLUGIN_CONFIG_NAME, OutlineConfig)
+        self.plugin_config = self.load_plugin_external_config(PLUGIN_CONFIG_NAME, OutlineConfig)
         api_url_secret = self.plugin_config.outline.api_url[0]
         cert_secret = self.plugin_config.outline.cert[0]
         self.api_url = api_url_secret.get_secret_value()

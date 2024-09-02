@@ -23,7 +23,7 @@
       <settings>
         <option name="imageTag" value="orenlab/pytmbot:latest" />
         <option name="buildCliOptions" value="--target self_build" />
-        <option name="command" value="--log-level DEBUG --mode dev" />
+        <option name="command" value="--log-level DEBUG --mode dev --plugins monitor" />
         <option name="containerName" value="pytmbot" />
         <option name="showCommandPreview" value="true" />
         <option name="sourceFilePath" value="Dockerfile" />
