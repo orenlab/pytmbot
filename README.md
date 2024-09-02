@@ -1,7 +1,7 @@
 # pyTMbot
 
-**pyTMbot** is a simple Telegram bot designed to manage Docker `containers` and `images` while providing basic status
-information about **local** servers. The bot operates synchronously and does not use webhooks.
+**pyTMbot** is a flexible Telegram bot designed to manage Docker containers, monitor server status, and extend its
+functionality through a plugin system. The bot operates synchronously without the need for webhooks.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -33,6 +33,14 @@ utilizing [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://
 - Summary of processes
 - Uptime information
 - Basic file system and network connection information
+
+### 🔌 Plugin System
+
+- Extend the bot's functionality with custom plugins.
+- Official plugins available:
+    - **Monitor Plugin:** Monitor CPU, memory, and disk usage with customizable thresholds.
+
+See [PLUGINS.md](docs/PLUGINS.md) for more information.
 
 ### 🔖 Additional Features
 
