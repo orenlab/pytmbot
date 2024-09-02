@@ -1,7 +1,7 @@
 # pyTMBot v.0.2.0
 
-A simple Telegram bot for managing Docker containers and images, and providing basic information about **local**
-servers. The bot operates synchronously and does not use webhooks.
+**pyTMbot** is a flexible Telegram bot designed to manage Docker containers, monitor server status, and extend its
+functionality through a plugin system. The bot operates synchronously without the need for webhooks.
 
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
@@ -13,43 +13,43 @@ servers. The bot operates synchronously and does not use webhooks.
 
 *Some features are protected by two-factor authentication in pyTMBot v.0.2*
 
-- Manage containers (start, stop, restart, etc.)
-- View the current status of containers (including finished ones)
-- Access container logs
-- Retrieve information about Docker images
+- **Container Management:** Start, stop, restart, and manage containers.
+- **Status Monitoring:** View current and finished container statuses.
+- **Log Access:** Retrieve container logs.
+- **Image Information:** Get details about Docker images.
 
 ### 🖥️ Local Server Monitoring
 
-- Load average information
-- Summary of memory usage (including swap)
-- Sensor data
-- Summary of process information
-- Uptime information
-- Basic file system details
-- Network connection information
+- **Load Average:** Monitor server load averages.
+- **Memory Usage:** View memory and swap usage summaries.
+- **Sensor Data:** Access sensor data.
+- **Process Information:** Summarize process details.
+- **Uptime:** Check system uptime.
+- **File System Details:** View basic file system information.
+- **Network Information:** Get network connection details.
 
 ### 🔖 Additional Features
 
-- Check for bot updates with the `/check_bot_updates` command
-- Utilizes `Jinja2` for templated responses
-- Logs are available in the Docker log aggregator
-- Emoji support 😅
+- **Bot Updates:** Check for updates with the `/check_bot_updates` command.
+- **Templated Responses:** Utilize `Jinja2` for responses.
+- **Logging:** Logs are available in the Docker log aggregator.
+- **Emoji Support:** Enjoy emoji support 😅
 
-For screenshots, see [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
+For screenshots, visit [screenshots.md](https://github.com/orenlab/pytmbot/blob/master/docs/screenshots.md).
 
 ## 🐋 pyTMBot Tags
 
 | Tag          | Description                                                                    |
 |--------------|--------------------------------------------------------------------------------|
-| `latest`     | The latest stable release image, based on Alpine Linux                         |
+| `latest`     | Latest stable release image, based on Alpine Linux                             |
 | `0.X.X`      | Stable release, based on Alpine Linux                                          |
 | `alpine-dev` | Latest development version, not guaranteed to be stable, based on Alpine Linux |
 
-## 🧪 Configure the Bot
+## 🧪 Configuration
 
-1. **Create and Configure the Settings File:**
+### 1. Create and Configure the Settings File
 
-   Create the configuration file:
+1. **Create the Configuration File:**
 
    ```bash
    sudo -i
@@ -57,7 +57,7 @@ For screenshots, see [screenshots.md](https://github.com/orenlab/pytmbot/blob/ma
    touch pytmbot.yaml
    ```
 
-   Edit the file:
+2. **Edit the File:**
 
    ```bash
    nano pytmbot.yaml
@@ -68,21 +68,30 @@ For screenshots, see [screenshots.md](https://github.com/orenlab/pytmbot/blob/ma
    ```yaml
    # Setup bot tokens
    bot_token:
-     # Production bot token.
+     # Prod bot token.
      prod_token:
        - ''
-     # Development bot token. Not necessary for production.
+     # Development bot token. Not necessary for production bot.
      dev_bot_token:
        - ''
+   # Setup chat ID
+   chat_id:
+     # Global chat ID. Used Monitor plugin.
+     global_chat_id:
+       - '-00000000000'
    # Setup access control
    access_control:
-     # IDs of users who can access the bot.
+     # The ID of the users who have permission to access the bot.
+     # You can have one or more values - there are no restrictions.
      allowed_user_ids:
-       - 0000000000
-     # IDs of admins who can manage Docker images and containers.
+       - 00000000000
+     # The ID of the admins who have permission to access the bot.
+     # You can have one or more values, there are no restrictions.
+     # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
      allowed_admins_ids:
-       - 0000000000
-     # Salt for generating TOTP (Time-Based One-Time Password) secrets.
+       - 00000000000
+     # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+     # A script for the fast generation of a truly unique "salt" is available in the bot's repository.
      auth_salt:
        - ''
    # Docker settings
@@ -94,7 +103,7 @@ For screenshots, see [screenshots.md](https://github.com/orenlab/pytmbot/blob/ma
 
    Save and exit the editor (Ctrl + X, Y).
 
-   **Note:** Generate a unique salt for `auth_salt`:
+3. **Generate a Unique Salt:**
 
    ```bash
    sudo docker run --rm orenlab/pytmbot:0.2.0-alpine-dev --salt
@@ -102,9 +111,40 @@ For screenshots, see [screenshots.md](https://github.com/orenlab/pytmbot/blob/ma
 
    The generated salt will be displayed on the screen.
 
-## 🔌 Run the Bot
+## 🔌 Running the Bot
 
-To launch the Docker container, use the following command:
+### Using Docker Compose
+
+1. **Create a `docker-compose.yml` File:**
+
+   ```yaml
+   version: '3.8'
+
+   services:
+     pytmbot:
+       image: orenlab/pytmbot:0.2.0-alpine-dev
+       container_name: pytmbot
+       restart: always
+       environment:
+         - TZ=Asia/Yekaterinburg
+       volumes:
+         - /var/run/docker.sock:/var/run/docker.sock:ro
+         - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+       security_opt:
+         - no-new-privileges
+       pid: host
+       command: --plugins monitor
+   ```
+
+2. **Start the Container:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+### Using Docker CLI (For Reference)
+
+To launch the Docker container directly:
 
 ```bash
 sudo docker run -d -m 100M \
@@ -115,58 +155,58 @@ sudo docker run -d -m 100M \
 --name=pytmbot \
 --pid=host \
 --security-opt=no-new-privileges \
-orenlab/pytmbot:0.2.0-alpine-dev
+orenlab/pytmbot:0.2.0-alpine-dev --plugins monitor
 ```
 
-### Supported Logging Levels
+## 🧩 Plugin Configuration
 
-| # | Level   | Description                                                                       | Argument            |
-|---|---------|-----------------------------------------------------------------------------------|---------------------|
-| 1 | `INFO`  | Balanced logging with essential information and brief descriptions of errors.     | `--log-level=INFO`  |
-| 2 | `ERROR` | Displays only errors and exceptions (quiet mode).                                 | `--log-level=ERROR` |
-| 3 | `DEBUG` | Detailed logs including all information from previous levels, plus debug details. | `--log-level=DEBUG` |
+To use plugins with `pyTMBot`, you need to configure them in the `docker-compose.yml` file or Docker CLI command.
 
-**Notes:**
+1. **Add Plugin Configuration:**
 
-1. Specify your time zone. A list of available time zones can be
-   found [here](https://manpages.ubuntu.com/manpages/trusty/man3/DateTime::TimeZone::Catalog.3pm.html).
-2. Ensure you specify the correct tag version.
+   For plugins requiring an external configuration file:
 
-Once the bot is running, use the `/start` command in Telegram to begin using it.
+   ```yaml
+   volumes:
+     - /root/o.yaml:/opt/app/o.yaml:ro  # Example for Outline Plugin
+   command: --plugins monitor,outline
+   ```
 
-## 🏗 Update the Image
+   Update the `docker-compose.yml` file accordingly.
+
+2. **Run with Multiple Plugins:**
+
+   ```yaml
+   command: --plugins monitor,outline
+   ```
+
+## 🏗 Updating the Image
 
 To update to the latest image version:
 
-1. Stop the current container:
+1. **Stop and Remove the Current Container:**
 
    ```bash
    sudo docker stop pytmbot
-   ```
-
-2. Remove the outdated container:
-
-   ```bash
    sudo docker rm pytmbot
    ```
 
-3. Remove the outdated image:
+2. **Remove the Outdated Image:**
 
    ```bash
    sudo docker rmi orenlab/pytmbot
    ```
 
-4. Pull the latest image:
+3. **Pull the Latest Image and Start the Container:**
 
    ```bash
    sudo docker pull orenlab/pytmbot:latest
+   docker-compose up -d
    ```
 
-5. Run the updated image using the instructions provided above.
+## 🗒 Logs
 
-## Bot Logs
-
-To access the bot logs:
+To view bot logs:
 
 ```bash
 sudo docker logs pytmbot
@@ -174,27 +214,23 @@ sudo docker logs pytmbot
 
 For advanced logging and debugging, see [debug.md](https://github.com/orenlab/pytmbot/blob/master/docs/debug.md).
 
-Alternatively, use Docker Desktop if running on your workstation.
-
 ## 💢 Supported Commands
 
-Here is a list of available commands and their descriptions:
+| Command              | Description                         |
+|----------------------|-------------------------------------|
+| `/start`             | Start the bot                       |
+| `/help`              | Display help information            |
+| `/docker`            | Manage Docker containers and images |
+| `/containers`        | View Docker containers              |
+| `/images`            | View Docker images                  |
+| `/back`              | Return to the main menu             |
+| `/check_bot_updates` | Check for bot updates               |
 
-| # | Command              | Button               | Description                         |
-|---|----------------------|----------------------|-------------------------------------|
-| 1 | `/start`             | None                 | Start the bot                       |
-| 2 | `/help`              | None                 | Display help information            |
-| 3 | `/docker`            | 🐳 Docker            | Manage Docker containers and images |
-| 4 | `/containers`        | 🧰 Containers        | View Docker containers              |
-| 5 | `/images`            | 🖼️ Images           | View Docker images                  |
-| 6 | `/back`              | 🔙 Back to main menu | Return to the main menu             |
-| 7 | `/check_bot_updates` | None                 | Check for bot updates               |
+## 👾 Support and Resources
 
-## 👾 Support, Source Code, Questions, and Discussions
-
-- Support: [GitHub Issues](https://github.com/orenlab/pytmbot/issues)
-- Source Code: [GitHub Repository](https://github.com/orenlab/pytmbot/)
-- Discussions: [GitHub Discussions](https://github.com/orenlab/pytmbot/discussions)
+- **Support:** [GitHub Issues](https://github.com/orenlab/pytmbot/issues)
+- **Source Code:** [GitHub Repository](https://github.com/orenlab/pytmbot/)
+- **Discussions:** [GitHub Discussions](https://github.com/orenlab/pytmbot/discussions)
 
 ## 🧬 Authors
 
