@@ -19,35 +19,37 @@ FROM python:${PYTHON_IMAGE} AS builder
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
+# Copy and install dependencies
 COPY requirements.txt .
 
-# Install all deps, activate venv, install and clean up
-RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
-    python${PYTHON_VERSION} -m venv --without-pip venv && \
-    pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
-    python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
-    apk del gcc musl-dev linux-headers && \
-    apk cache clean
+RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-headers binutils && \
+    python${PYTHON_VERSION} -m venv --without-pip /venv && \
+    . /venv/bin/activate && \
+    pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip {} + && \
+    apk del .build-deps && \
+    rm -rf /root/.cache
 
-# Second Alpine stage - based on the base stage. Setup bot
+########################################################################################################################
+######################### SETUP FINAL IMAGE ###########################################################################
+########################################################################################################################
+# Second Alpine stage - setup bot environment
 FROM alpine:${ALPINE_IMAGE} AS release_base
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
-# Update base os components and add timezone support
-RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
-    apk --no-cache add tzdata
+# Update and install only essential packages
+RUN apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/app/
 
-# Setup env vars
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/opt/app
-ENV PATH=/venv/bin:$PATH
+# Setup environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/opt/app \
+    PATH=/venv/bin:$PATH
 
 # Copy bot files
 COPY ./pytmbot ./pytmbot
