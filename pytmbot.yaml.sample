@@ -28,3 +28,40 @@ docker:
   # Docker socket. Usually: unix:///var/run/docker.sock.
   host:
     - 'unix:///var/run/docker.sock'
+# Plugins configuration
+plugins_config:
+  # Configuration for Monitor plugin
+  monitor:
+    # Tracehold settings
+    tracehold:
+      # CPU usage thresholds in percentage
+      cpu_usage_threshold:
+        - 80
+      # Memory usage thresholds in percentage
+      memory_usage_threshold:
+        - 80
+      # Disk usage thresholds in percentage
+      disk_usage_threshold:
+        - 80
+      # Number of notifications to send for each type of overload
+    max_notifications:
+      - 3
+    # Check interval in seconds
+    check_interval:
+      - 2
+    # Reset notification count after X minutes
+    reset_notification_count:
+      - 5
+    # Number of attempts to retry starting monitoring in case of failure
+    retry_attempts:
+      - 3
+    # Interval (in seconds) between retry attempts
+    retry_interval:
+      - 10
+  # Configuration for Outline plugin
+  outline:
+    # Outline API settings
+    api_url:
+      - ''
+    cert:
+      - ''
