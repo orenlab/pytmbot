@@ -132,7 +132,7 @@ class PyTMBot:
             if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr is not PluginInterface:
                 plugin_classes.append(attr)
         return plugin_classes
-
+    @bot_logger.catch()
     def _register_plugin(self, plugin_name: str):
         """Register a single plugin."""
         if not self.__validate_plugin_name(plugin_name):

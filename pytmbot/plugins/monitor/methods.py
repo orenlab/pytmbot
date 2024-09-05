@@ -1,3 +1,12 @@
+#!/venv/bin/python3
+"""
+(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+
+Monitor plugin for pyTMBot
+
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
 import importlib.util
 import threading
 import time
@@ -19,7 +28,7 @@ class SystemMonitorPlugin(PluginCore):
     Sends notifications to a Telegram bot if any of the monitored resources exceed specified thresholds.
 
     Attributes:
-        config (object): Configuration object containing thresholds and other settings.
+        config (MonitorConfig): Configuration object containing thresholds and other settings.
         bot (TeleBot): Instance of the Telegram bot.
         monitoring (bool): Flag to indicate whether monitoring is active.
         notification_count (int): Counter for the number of notifications sent.
@@ -34,18 +43,18 @@ class SystemMonitorPlugin(PluginCore):
         Initializes the SystemMonitorPlugin with the given configuration and bot instance.
 
         Args:
-            config: Configuration object containing thresholds and other settings.
+            config (MonitorConfig): Configuration object containing thresholds and other settings.
             bot (TeleBot): Instance of the Telegram bot.
         """
         super().__init__()
         self.bot = bot
-        self.config = config
         self.monitoring = False
+        self.config = config
         self.notification_count = 0
-        self.max_notifications = self.config.max_notifications
+        self.max_notifications = self.settings.plugins_config.monitor.max_notifications[0]
         self.monitoring_thread = None
-        self.retry_attempts = 3
-        self.retry_interval = 5
+        self.retry_attempts = self.settings.plugins_config.monitor.retry_attempts[0]
+        self.retry_interval = self.settings.plugins_config.monitor.retry_interval[0]
 
     def start_monitoring(self):
         """
@@ -94,7 +103,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._check_cpu_usage()
                 self._check_memory_usage()
                 self._check_disk_usage()
-                time.sleep(self.config.check_interval)
+                time.sleep(self.settings.plugins_config.monitor.check_interval[0])
         except Exception as e:
             self.bot_logger.error(f"Unexpected error during system monitoring: {e}")
             self.monitoring = False
@@ -105,7 +114,7 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             cpu_usage = psutil.cpu_percent(interval=1)
-            if cpu_usage > self.config.cpu_threshold:
+            if cpu_usage > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]:
                 self._send_notification(f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%")
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking CPU usage: {e}")
@@ -116,7 +125,7 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             memory = psutil.virtual_memory()
-            if memory.percent > self.config.memory_threshold:
+            if memory.percent > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[0]:
                 self._send_notification(f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%")
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking memory usage: {e}")
@@ -129,7 +138,7 @@ class SystemMonitorPlugin(PluginCore):
         try:
             for partition in psutil.disk_partitions():
                 usage = psutil.disk_usage(partition.mountpoint)
-                if usage.percent > self.config.disk_threshold:
+                if usage.percent > self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]:
                     self._send_notification(
                         f"{self.config.emoji_for_notification}Disk usage is high on {partition.device}: {usage.percent}%")
         except psutil.Error as e:
