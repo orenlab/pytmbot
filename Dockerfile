@@ -26,10 +26,18 @@ RUN apk --no-cache update && \
 COPY requirements.txt .
 
 RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-headers binutils && \
-    python${PYTHON_VERSION} -m venv --without-pip /venv && \
-    . /venv/bin/activate && \
-    pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip {} + && \
+    python${PYTHON_VERSION} -m venv /venv && \
+    /venv/bin/python -m ensurepip --upgrade && \
+    /venv/bin/pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
+    /venv/bin/pip uninstall -y pip setuptools wheel && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip --strip-unneeded {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name 'tests' -exec rm -rf {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name '__pycache__' -exec rm -rf {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.pyc' -exec rm -rf {} + && \
+    python3 -m pip uninstall -y pip setuptools wheel && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'pip*' -exec rm -rf {} + && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'setuptools*' -exec rm -rf {} + && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'wheel*' -exec rm -rf {} + && \
     apk del .build-deps && \
     rm -rf /root/.cache
 
