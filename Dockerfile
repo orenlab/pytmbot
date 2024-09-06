@@ -20,7 +20,7 @@ FROM python:${PYTHON_IMAGE} AS builder
 ARG PYTHON_VERSION=3.12
 
 RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
+    apk --no-cache upgrade
 
 # Copy and install dependencies
 COPY requirements.txt .
