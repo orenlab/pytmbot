@@ -30,7 +30,6 @@ RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-head
     . /venv/bin/activate && \
     pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
     find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip {} + && \
-    python${PYTHON_VERSION} -m pip uninstall pip -y && \
     apk del .build-deps && \
     rm -rf /root/.cache
 
