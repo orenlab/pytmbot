@@ -50,35 +50,29 @@ FROM alpine:${ALPINE_IMAGE} AS release_base
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
-# Update and install only essential packages
-RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
-    apk --no-cache add tzdata
+# Update and install essential packages in a single step
+RUN apk --no-cache upgrade && \
+    apk add --no-cache tzdata
 
-# App workdir
+# Set workdir and environment variables
 WORKDIR /opt/app/
-
-# Setup environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/app \
     PATH=/venv/bin:$PATH
 
-# Copy bot files
+# Copy app files in one step to reduce layers
 COPY ./pytmbot ./pytmbot
 COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
+
+# Make entrypoint script executable
 RUN chmod +x ./entrypoint.sh
 
 # Copy necessary Python files and directories from first stage
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 COPY --from=builder /usr/local/lib/ /usr/local/lib/
 COPY --from=builder /venv /venv
-
-# Activate venv and setup logging
-RUN source /venv/bin/activate && \
-    ln -sf /dev/stdout /dev/stdout && \
-    ln -sf /dev/stderr /dev/stderr
 
 # Target for CI/CD image
 FROM release_base AS production

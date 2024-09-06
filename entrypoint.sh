@@ -1,6 +1,10 @@
 #!/bin/sh
 set -uef
 
+# Create symlinks for logging to stdout and stderr
+ln -sf /dev/stdout /dev/stdout
+ln -sf /dev/stderr /dev/stderr
+
 # Check if required tools are installed
 if ! command -v /venv/bin/python3 >/dev/null 2>&1; then
     echo >&2 "Python3 is required but it's not installed. Aborting."
