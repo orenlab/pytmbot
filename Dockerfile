@@ -19,6 +19,9 @@ FROM python:${PYTHON_IMAGE} AS builder
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
+
 # Copy and install dependencies
 COPY requirements.txt .
 
@@ -28,6 +31,8 @@ RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-head
     pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
     find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip {} + && \
     apk del .build-deps && \
+    python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
+    apk del gcc musl-dev linux-headers binutils && \
     rm -rf /root/.cache
 
 ########################################################################################################################
@@ -40,7 +45,9 @@ FROM alpine:${ALPINE_IMAGE} AS release_base
 ARG PYTHON_VERSION=3.12
 
 # Update and install only essential packages
-RUN apk --no-cache add tzdata
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
+    apk --no-cache add tzdata
 
 # App workdir
 WORKDIR /opt/app/
