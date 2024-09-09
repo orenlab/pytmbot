@@ -168,8 +168,8 @@ To use plugins with `pyTMBot`, you need to configure them in the `docker-compose
 
    ```yaml
    volumes:
-     - /root/o.yaml:/opt/app/o.yaml:ro  # Example for Outline Plugin
-   command: --plugins monitor,outline
+     - /root/some_external_config.yaml:/opt/app/some_external_config.yaml:ro
+   command: --plugins some_plugin
    ```
 
    Update the `docker-compose.yml` file accordingly.

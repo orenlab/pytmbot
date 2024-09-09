@@ -64,7 +64,6 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
-      - /root/o.yaml:/opt/app/o.yaml:ro  # Add this line for Outline Plugin
     security_opt:
       - no-new-privileges
     pid: host
