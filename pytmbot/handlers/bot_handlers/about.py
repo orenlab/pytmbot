@@ -27,22 +27,25 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         None
     """
     try:
-        user_name = message.from_user.first_name if message.from_user.first_name else message.from_user.username
-        bot.send_chat_action(message.chat.id, 'typing')
+        user_name = (
+            message.from_user.first_name
+            if message.from_user.first_name
+            else message.from_user.username
+        )
+        bot.send_chat_action(message.chat.id, "typing")
 
-        template_data = {
-            'username': user_name,
-            'app_version': __version__
-        }
+        template_data = {"username": user_name, "app_version": __version__}
 
-        with Compiler(template_name='b_about_bot.jinja2', context=template_data) as compiler:
+        with Compiler(
+            template_name="b_about_bot.jinja2", context=template_data
+        ) as compiler:
             response = compiler.compile()
 
         bot.send_message(
             message.chat.id,
             text=response,
-            parse_mode='Markdown',
-            link_preview_options=LinkPreviewOptions(is_disabled=True)
+            parse_mode="Markdown",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     except Exception as error:

@@ -29,5 +29,5 @@ class TestRoundUpTuple(unittest.TestCase):
         self.assertEqual(result, {0: 1.23, 1: -2.35, 2: 0.0})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

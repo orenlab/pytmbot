@@ -17,21 +17,23 @@ from pytmbot.parsers.compiler import Compiler
 @logged_handler_session
 def handle_start(message: Message, bot: TeleBot) -> None:
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
 
         keyboard = keyboards.build_reply_keyboard()
 
         first_name = message.from_user.first_name
 
-        with Compiler(template_name='b_index.jinja2', first_name=first_name) as compiler:
+        with Compiler(
+            template_name="b_index.jinja2", first_name=first_name
+        ) as compiler:
             answer = compiler.compile()
 
         bot.send_message(
             message.chat.id,
             text=answer,
             reply_markup=keyboard,
-            parse_mode='Markdown',
-            link_preview_options=LinkPreviewOptions(is_disabled=True)
+            parse_mode="Markdown",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
     except Exception as error:
         raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")

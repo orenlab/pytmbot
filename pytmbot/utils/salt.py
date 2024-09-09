@@ -18,7 +18,7 @@ def generate_random_auth_salt(length=32) -> str:
 
     # Generate random bytes and encode them as base32
     random_bytes = secrets.token_bytes(length)
-    salt = base64.b32encode(random_bytes).decode('utf-8')
+    salt = base64.b32encode(random_bytes).decode("utf-8")
     return salt
 
 

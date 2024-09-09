@@ -6,15 +6,16 @@ from pytmbot.logs import bot_logger
 
 
 class _StateFabric:
-    """ Class for managing user states. """
-    authenticated: str = 'authenticated'
-    processing: str = 'processing'
-    blocked: str = 'blocked'
-    unauthenticated: str = 'unauthenticated'
+    """Class for managing user states."""
+
+    authenticated: str = "authenticated"
+    processing: str = "processing"
+    blocked: str = "blocked"
+    unauthenticated: str = "unauthenticated"
 
     @classmethod
     def valid_states(cls) -> set:
-        """ Return a set of valid states. """
+        """Return a set of valid states."""
         return {cls.authenticated, cls.processing, cls.blocked, cls.unauthenticated}
 
 
@@ -23,11 +24,12 @@ class SessionManager:
     """
     A class for managing user sessions.
     """
-    _instance: Optional['SessionManager'] = None
+
+    _instance: Optional["SessionManager"] = None
     __user_data: Dict[int, Dict[str, Any]] = field(default_factory=dict)
     state_fabric: _StateFabric = _StateFabric()
 
-    def __new__(cls) -> 'SessionManager':
+    def __new__(cls) -> "SessionManager":
         """
         Creates a new instance of the SessionManager class if it doesn't exist.
 
@@ -43,7 +45,7 @@ class SessionManager:
 
     def _get_user_data(self, user_id: int) -> dict:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {'auth_state': self.state_fabric.unauthenticated}
+            self.user_data[user_id] = {"auth_state": self.state_fabric.unauthenticated}
         return self.user_data[user_id]
 
     @property
@@ -67,7 +69,7 @@ class SessionManager:
         if state not in self.state_fabric.valid_states():
             raise ValueError(f"Invalid state: {state}")
         bot_logger.debug(f"Setting authentication state for user {user_id} to {state}")
-        self._get_user_data(user_id)['auth_state'] = state
+        self._get_user_data(user_id)["auth_state"] = state
 
     def get_auth_state(self, user_id: int) -> Optional[str]:
         """
@@ -79,7 +81,7 @@ class SessionManager:
         Returns:
             Optional[str]: The authentication state if found, otherwise None.
         """
-        return self._get_user_data(user_id).get('auth_state', None)
+        return self._get_user_data(user_id).get("auth_state", None)
 
     def set_totp_attempts(self, user_id: int) -> None:
         """
@@ -92,8 +94,10 @@ class SessionManager:
             None
         """
         user_data = self._get_user_data(user_id)
-        user_data['totp_attempts'] = user_data.get('totp_attempts', 0) + 1
-        bot_logger.debug(f"Setting TOTP attempts for user {user_id} to {user_data['totp_attempts']}")
+        user_data["totp_attempts"] = user_data.get("totp_attempts", 0) + 1
+        bot_logger.debug(
+            f"Setting TOTP attempts for user {user_id} to {user_data['totp_attempts']}"
+        )
 
     def get_totp_attempts(self, user_id: int) -> int:
         """
@@ -105,7 +109,7 @@ class SessionManager:
         Returns:
             int: The TOTP attempts for the user.
         """
-        return self._get_user_data(user_id).get('totp_attempts', 0)
+        return self._get_user_data(user_id).get("totp_attempts", 0)
 
     def reset_totp_attempts(self, user_id: int) -> None:
         """
@@ -118,7 +122,7 @@ class SessionManager:
             None
         """
         user_data = self._get_user_data(user_id)
-        user_data['totp_attempts'] = 0
+        user_data["totp_attempts"] = 0
         bot_logger.debug(f"Resetting TOTP attempts for user {user_id}")
 
     def set_blocked_time(self, user_id: int) -> None:
@@ -131,7 +135,9 @@ class SessionManager:
         Returns:
             None
         """
-        self._get_user_data(user_id)['blocked_time'] = datetime.now() + timedelta(minutes=5)
+        self._get_user_data(user_id)["blocked_time"] = datetime.now() + timedelta(
+            minutes=5
+        )
         bot_logger.debug(f"Setting blocked time for user {user_id}")
 
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
@@ -144,7 +150,7 @@ class SessionManager:
         Returns:
             Optional[datetime]: The blocked time for the user, or None if not found.
         """
-        return self._get_user_data(user_id).get('blocked_time', None)
+        return self._get_user_data(user_id).get("blocked_time", None)
 
     def is_blocked(self, user_id: int) -> bool:
         """
@@ -160,7 +166,7 @@ class SessionManager:
         if blocked_time:
             if datetime.now() > blocked_time:
                 # Unblock user if blocked time has passed
-                self._get_user_data(user_id)['blocked_time'] = None
+                self._get_user_data(user_id)["blocked_time"] = None
                 bot_logger.debug(f"User {user_id} is no longer blocked")
                 return False
             bot_logger.debug(f"User {user_id} is currently blocked")
@@ -178,9 +184,11 @@ class SessionManager:
         Returns:
             bool: True if the user is authenticated, False otherwise.
         """
-        return (self.get_auth_state(user_id) == self.state_fabric.authenticated and
-                not self.is_blocked(user_id) and
-                not self.is_session_expired(user_id))
+        return (
+            self.get_auth_state(user_id) == self.state_fabric.authenticated
+            and not self.is_blocked(user_id)
+            and not self.is_session_expired(user_id)
+        )
 
     def set_login_time(self, user_id: int) -> None:
         """
@@ -192,7 +200,7 @@ class SessionManager:
         Returns:
             None
         """
-        self._get_user_data(user_id)['login_time'] = datetime.now()
+        self._get_user_data(user_id)["login_time"] = datetime.now()
 
     def get_login_time(self, user_id: int) -> Optional[datetime]:
         """
@@ -204,7 +212,7 @@ class SessionManager:
         Returns:
             Optional[datetime]: The login time for the user, or None if not found.
         """
-        return self._get_user_data(user_id).get('login_time', None)
+        return self._get_user_data(user_id).get("login_time", None)
 
     def is_session_expired(self, user_id: int) -> bool:
         """
@@ -224,7 +232,9 @@ class SessionManager:
         bot_logger.debug(f"User {user_id} session login time not found")
         return True
 
-    def set_referer_uri_and_handler_type_for_user(self, user_id: int, handler_type: str, referer_uri: str) -> None:
+    def set_referer_uri_and_handler_type_for_user(
+        self, user_id: int, handler_type: str, referer_uri: str
+    ) -> None:
         """
         Set the referer URI and handler type for a given user ID.
 
@@ -237,8 +247,8 @@ class SessionManager:
             None
         """
         user_data = self._get_user_data(user_id)
-        user_data['referer_uri'] = referer_uri
-        user_data['handler_type'] = handler_type
+        user_data["referer_uri"] = referer_uri
+        user_data["handler_type"] = handler_type
 
     def get_referer_uri_for_user(self, user_id: int) -> Optional[str]:
         """
@@ -250,7 +260,7 @@ class SessionManager:
         Returns:
             Optional[str]: The referer URI for the user, or None if not found.
         """
-        return self._get_user_data(user_id).get('referer_uri', None)
+        return self._get_user_data(user_id).get("referer_uri", None)
 
     def get_handler_type_for_user(self, user_id: int) -> Optional[str]:
         """
@@ -262,7 +272,7 @@ class SessionManager:
         Returns:
             Optional[str]: The handler type for the user, or None if not found.
         """
-        return self._get_user_data(user_id).get('handler_type', None)
+        return self._get_user_data(user_id).get("handler_type", None)
 
     def reset_referer_uri_and_handler_type_for_user(self, user_id: int) -> None:
         """
@@ -275,5 +285,5 @@ class SessionManager:
             None
         """
         user_data = self._get_user_data(user_id)
-        user_data['referer_uri'] = None
-        user_data['handler_type'] = None
+        user_data["referer_uri"] = None
+        user_data["handler_type"] = None

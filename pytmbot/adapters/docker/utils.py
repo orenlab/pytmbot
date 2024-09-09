@@ -13,7 +13,9 @@ from pytmbot.logs import bot_logger
 from pytmbot.models.containers_model import ContainersState
 
 
-def check_container_state(container_name: str, target_state: str = "running") -> Optional[str]:
+def check_container_state(
+    container_name: str, target_state: str = "running"
+) -> Optional[str]:
     """
     Checks the state of a Docker container.
     target_state: str = "running", "exited", "stopped"
@@ -29,7 +31,9 @@ def check_container_state(container_name: str, target_state: str = "running") ->
     containers_state = ContainersState()
 
     if target_state not in containers_state.__dict__.values():
-        raise ValueError(f"Target state must be one of {containers_state.__dict__.values()}")
+        raise ValueError(
+            f"Target state must be one of {containers_state.__dict__.values()}"
+        )
 
     attempt = 0
     max_attempts = 3
@@ -38,7 +42,8 @@ def check_container_state(container_name: str, target_state: str = "running") ->
 
     while attempt < max_attempts and state != target_state:
         bot_logger.info(
-            f"Checking state of {container_name}: Current state: {state}. Target state: {target_state}. Attempt {attempt + 1}/{max_attempts}")
+            f"Checking state of {container_name}: Current state: {state}. Target state: {target_state}. Attempt {attempt + 1}/{max_attempts}"
+        )
         try:
             state = get_container_state(container_name)
         except Exception as e:
@@ -51,6 +56,7 @@ def check_container_state(container_name: str, target_state: str = "running") ->
 
     if state != target_state:
         bot_logger.warning(
-            f"Container {container_name} did not reach target state {target_state} after {max_attempts} attempts.")
+            f"Container {container_name} did not reach target state {target_state} after {max_attempts} attempts."
+        )
 
     return state

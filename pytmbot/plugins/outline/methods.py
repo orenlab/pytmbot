@@ -14,11 +14,7 @@ from pyoutlineapi.models import Metrics, Server, AccessKeyList
 
 from pytmbot.logs import bot_logger
 from pytmbot.plugins.outline.config import PLUGIN_CONFIG_NAME
-from pytmbot.plugins.outline.models import (
-    OutlineConfig,
-    OutlineServer,
-    OutlineKey
-)
+from pytmbot.plugins.outline.models import OutlineConfig, OutlineServer, OutlineKey
 from pytmbot.plugins.plugins_core import PluginCore
 
 
@@ -29,7 +25,9 @@ class PluginMethods(PluginCore):
         Initializes the PluginMethods class and sets up the Outline API client.
         """
         super().__init__()
-        self.plugin_config = self.load_plugin_external_config(PLUGIN_CONFIG_NAME, OutlineConfig)
+        self.plugin_config = self.load_plugin_external_config(
+            PLUGIN_CONFIG_NAME, OutlineConfig
+        )
         api_url_secret = self.plugin_config.outline.api_url[0]
         cert_secret = self.plugin_config.outline.cert[0]
         self.api_url = api_url_secret.get_secret_value()
@@ -63,9 +61,10 @@ class PluginMethods(PluginCore):
         """
         return self.client.get_access_keys()
 
-    def outline_action_manager(self, action: Literal[
-        'server_information', 'traffic_information', 'key_information']) -> Union[
-        OutlineServer, Metrics, List[OutlineKey]]:
+    def outline_action_manager(
+        self,
+        action: Literal["server_information", "traffic_information", "key_information"],
+    ) -> Union[OutlineServer, Metrics, List[OutlineKey]]:
         """
         Manages actions based on the provided action string and returns the appropriate data.
 
@@ -81,7 +80,7 @@ class PluginMethods(PluginCore):
         action_map = {
             "server_information": self._fetch_server_information,
             "traffic_information": self._fetch_traffic_information,
-            "key_information": self._fetch_key_information
+            "key_information": self._fetch_key_information,
         }
 
         if action not in action_map:

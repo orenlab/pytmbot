@@ -26,17 +26,17 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
     Returns:
         None
     """
-    emojis = {'thought_balloon': em.get_emoji('thought_balloon')}
+    emojis = {"thought_balloon": em.get_emoji("thought_balloon")}
 
     try:
-        with Compiler(template_name='b_how_update.jinja2', **emojis) as compiler:
+        with Compiler(template_name="b_how_update.jinja2", **emojis) as compiler:
             bot_answer = compiler.compile()
 
         return bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=bot_answer,
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
     except Exception as error:
         raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")

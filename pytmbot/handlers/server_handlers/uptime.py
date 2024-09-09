@@ -27,19 +27,25 @@ def handle_uptime(message: Message, bot: TeleBot):
         None: The function does not return any value. It sends a message to the user with the uptime information.
     """
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
-        'hourglass_not_done': em.get_emoji('hourglass_not_done')
+        "thought_balloon": em.get_emoji("thought_balloon"),
+        "hourglass_not_done": em.get_emoji("hourglass_not_done"),
     }
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
 
         uptime_data = psutil_adapter.get_uptime()
 
         if uptime_data is None:
-            bot_logger.error(f"Failed at @{__name__}: Error occurred while getting uptime")
-            return bot.send_message(message.chat.id, text="Some error occurred. Please try again later(")
+            bot_logger.error(
+                f"Failed at @{__name__}: Error occurred while getting uptime"
+            )
+            return bot.send_message(
+                message.chat.id, text="Some error occurred. Please try again later("
+            )
 
-        with Compiler(template_name='b_uptime.jinja2', context=uptime_data, **emojis) as compiler:
+        with Compiler(
+            template_name="b_uptime.jinja2", context=uptime_data, **emojis
+        ) as compiler:
             bot_answer = compiler.compile()
 
         return bot.send_message(

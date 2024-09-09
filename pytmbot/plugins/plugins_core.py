@@ -40,7 +40,9 @@ class PluginCore:
 
         return config_path
 
-    def load_plugin_external_config(self, config_name: str, config_model: type[PluginCoreModel]) -> PluginCoreModel:
+    def load_plugin_external_config(
+        self, config_name: str, config_model: type[PluginCoreModel]
+    ) -> PluginCoreModel:
         """
         Loads plugin external configuration from a YAML file and creates a PluginCoreModel object.
 
@@ -53,7 +55,7 @@ class PluginCore:
         """
         config_path = self.__get_config_path(config_name)
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 config_data = yaml.safe_load(f)
 
             self.bot_logger.debug(f"Loaded plugin config: {config_name}")
@@ -76,4 +78,6 @@ class PluginCore:
         Returns:
             Any: The constructed reply keyboard.
         """
-        return self.keyboard.build_reply_keyboard(plugin_keyboard_data=plugin_keyboard_data)
+        return self.keyboard.build_reply_keyboard(
+            plugin_keyboard_data=plugin_keyboard_data
+        )

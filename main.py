@@ -15,7 +15,9 @@ def main():
     """
     Main function to start the pyTMBot instance.
     """
-    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(
+        level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     try:
         manager = pytmbot_instance.PyTMBot()

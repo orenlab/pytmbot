@@ -16,17 +16,20 @@ from pytmbot.plugins.models import PluginCoreModel
 
 class OutlineVPN(PluginCoreModel):
     """Model for Outline VPN config"""
+
     api_url: list[SecretStr]
     cert: list[SecretStr]
 
 
 class OutlineConfig(PluginCoreModel):
     """Model for Outline plugin config"""
+
     outline: OutlineVPN
 
 
 class OutlineServer(PluginCoreModel):
     """Model for Outline server"""
+
     name: str
     serverId: str
     metricsEnabled: bool
@@ -38,11 +41,13 @@ class OutlineServer(PluginCoreModel):
 
 class BytesTransferredByUserId(PluginCoreModel):
     """Model for bytes transferred by user id"""
+
     bytesTransferredByUserId: Dict[str, int]
 
 
 class OutlineKey(PluginCoreModel):
     """Model for Outline key values"""
+
     key_id: str
     name: str
     password: str
@@ -55,4 +60,5 @@ class OutlineKey(PluginCoreModel):
 
 class OutlineKeys(PluginCoreModel):
     """Model for Outline keys"""
+
     keys: List[OutlineKey]

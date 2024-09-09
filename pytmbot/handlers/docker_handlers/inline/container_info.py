@@ -9,8 +9,15 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.globals import keyboards, em, settings
-from pytmbot.handlers.handlers_util.docker import get_container_full_details, show_handler_info, get_emojis, \
-    parse_container_memory_stats, parse_container_cpu_stats, parse_container_network_stats, parse_container_attrs
+from pytmbot.handlers.handlers_util.docker import (
+    get_container_full_details,
+    show_handler_info,
+    get_emojis,
+    parse_container_memory_stats,
+    parse_container_cpu_stats,
+    parse_container_network_stats,
+    parse_container_attrs,
+)
 from pytmbot.logs import logged_inline_handler_session, bot_logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
@@ -25,7 +32,9 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     container_details = get_container_full_details(container_name)
 
     if not container_details:
-        return show_handler_info(call, text=f"{container_name}: Container not found", bot=bot)
+        return show_handler_info(
+            call, text=f"{container_name}: Container not found", bot=bot
+        )
 
     container_stats = container_details.stats(decode=None, stream=False)
     container_attrs = container_details.attrs
@@ -33,30 +42,40 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     emojis = get_emojis()
 
     with Compiler(
-            template_name='d_containers_full_info.jinja2',
-            **emojis,
-            container_name=container_name,
-            container_memory_stats=parse_container_memory_stats(container_stats),
-            container_cpu_stats=parse_container_cpu_stats(container_stats),
-            container_network_stats=parse_container_network_stats(container_stats),
-            container_attrs=parse_container_attrs(container_attrs)
+        template_name="d_containers_full_info.jinja2",
+        **emojis,
+        container_name=container_name,
+        container_memory_stats=parse_container_memory_stats(container_stats),
+        container_cpu_stats=parse_container_cpu_stats(container_stats),
+        container_network_stats=parse_container_network_stats(container_stats),
+        container_attrs=parse_container_attrs(container_attrs),
     ) as compiler:
         context = compiler.compile()
 
     keyboard_buttons = [
-        keyboards.ButtonData(text=f"{em.get_emoji('spiral_calendar')} Get logs",
-                             callback_data=f"__get_logs__:{container_name}:{call.from_user.id}"),
-        keyboards.ButtonData(text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
-                             callback_data="back_to_containers"),
+        keyboards.ButtonData(
+            text=f"{em.get_emoji('spiral_calendar')} Get logs",
+            callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
+        ),
+        keyboards.ButtonData(
+            text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
+            callback_data="back_to_containers",
+        ),
     ]
 
-    if call.from_user.id in settings.access_control.allowed_admins_ids and int(call.from_user.id) == int(
-            called_user_id):
-        bot_logger.debug(f"User {call.from_user.id} is an admin. Added '__manage__' button")
+    if call.from_user.id in settings.access_control.allowed_admins_ids and int(
+        call.from_user.id
+    ) == int(called_user_id):
+        bot_logger.debug(
+            f"User {call.from_user.id} is an admin. Added '__manage__' button"
+        )
         keyboard_buttons.insert(
             1,
-            keyboards.ButtonData(text=f"{em.get_emoji('bullseye')} Manage",
-                                 callback_data=f"__manage__:{container_name}:{call.from_user.id}"))
+            keyboards.ButtonData(
+                text=f"{em.get_emoji('bullseye')} Manage",
+                callback_data=f"__manage__:{container_name}:{call.from_user.id}",
+            ),
+        )
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
@@ -65,5 +84,5 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )

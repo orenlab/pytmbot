@@ -37,23 +37,23 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     logs = get_sanitized_logs(container_name, call, bot.token)
 
     if not logs:
-        return show_handler_info(call, text=f"{container_name}: Error getting logs", bot=bot)
+        return show_handler_info(
+            call, text=f"{container_name}: Error getting logs", bot=bot
+        )
 
     # Define emojis for rendering
     emojis: dict = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
     with Compiler(
-            'd_logs.jinja2',
-            emojis=emojis,
-            logs=logs,
-            container_name=container_name
+        "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
     ) as compiler:
         context = compiler.compile()
 
-    keyboard_buttons = keyboards.ButtonData(text='Back to all containers',
-                                            callback_data='back_to_containers')
+    keyboard_buttons = keyboards.ButtonData(
+        text="Back to all containers", callback_data="back_to_containers"
+    )
 
     # Build a custom inline keyboard for navigation
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
@@ -64,5 +64,5 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
-        parse_mode="HTML"
+        parse_mode="HTML",
     )

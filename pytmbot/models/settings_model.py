@@ -19,6 +19,7 @@ class BotTokenModel(BaseModel):
         prod_token (List[SecretStr]): List of production bot tokens.
         dev_bot_token (Optional[List[SecretStr]]): Optional list of development bot tokens.
     """
+
     prod_token: conlist(SecretStr, min_length=1)
     dev_bot_token: Optional[conlist(SecretStr, min_length=1)] = None
 
@@ -32,6 +33,7 @@ class AccessControlModel(BaseModel):
         allowed_admins_ids (List[int]): List of admin IDs allowed to access the bot.
         auth_salt (List[SecretStr]): List of salts for authentication.
     """
+
     allowed_user_ids: conlist(int, min_length=1)
     allowed_admins_ids: conlist(int, min_length=1)
     auth_salt: conlist(SecretStr, min_length=1)
@@ -44,6 +46,7 @@ class DockerHostModel(BaseModel):
     Attributes:
         host (List[str]): List of Docker host addresses.
     """
+
     host: conlist(str, min_length=1)
 
 
@@ -54,6 +57,7 @@ class ChatIdModel(BaseModel):
     Attributes:
         global_chat_id (Optional[List[int]]): Optional list of Telegram chat IDs used for notifications.
     """
+
     global_chat_id: Optional[conlist(int, min_length=1)] = None
 
 
@@ -66,6 +70,7 @@ class TraceholdSettings(BaseModel):
         memory_usage_threshold (List[int]): List of memory usage thresholds in percentage.
         disk_usage_threshold (List[int]): List of disk usage thresholds in percentage.
     """
+
     cpu_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
     memory_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
     disk_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
@@ -83,6 +88,7 @@ class MonitorConfig(BaseModel):
         retry_attempts (List[int]): List of retry attempts.
         retry_interval (List[int]): List of retry intervals in seconds.
     """
+
     tracehold: TraceholdSettings
     max_notifications: conlist(int, min_length=1, max_length=1) = [3]
     check_interval: conlist(int, min_length=1, max_length=1) = [2]
@@ -99,6 +105,7 @@ class OutlineVPN(BaseModel):
         api_url (List[SecretStr]): List of Outline VPN API URLs.
         cert (List[SecretStr]): List of certificates for Outline VPN.
     """
+
     api_url: conlist(SecretStr, min_length=1)
     cert: conlist(SecretStr, min_length=1)
 
@@ -111,6 +118,7 @@ class PluginsConfig(BaseModel):
         monitor (MonitorConfig): Configuration for the Monitor plugin.
         outline (OutlineVPN): Configuration for the Outline VPN plugin.
     """
+
     monitor: MonitorConfig
     outline: OutlineVPN
 
@@ -126,6 +134,7 @@ class SettingsModel(BaseSettings):
         chat_id (Optional[ChatIdModel]): Optional configuration for Telegram chat IDs.
         plugins_config (Optional[PluginsConfig]): Optional configuration for plugins.
     """
+
     bot_token: BotTokenModel
     access_control: AccessControlModel
     docker: DockerHostModel

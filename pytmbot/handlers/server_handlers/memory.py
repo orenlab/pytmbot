@@ -25,20 +25,26 @@ def handle_memory(message: Message, bot: TeleBot):
     with an inline button to the chat.
     """
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
-            bot_logger.error(f"Failed at {__name__}: Error occurred while getting memory info")
-            return bot.send_message(message.chat.id, text="Some error occurred. Please try again later(")
+            bot_logger.error(
+                f"Failed at {__name__}: Error occurred while getting memory info"
+            )
+            return bot.send_message(
+                message.chat.id, text="Some error occurred. Please try again later("
+            )
 
-        button_data = keyboards.ButtonData(text='Swap info', callback_data='__swap_info__')
+        button_data = keyboards.ButtonData(
+            text="Swap info", callback_data="__swap_info__"
+        )
         keyboard = keyboards.build_inline_keyboard(button_data)
 
         with Compiler(
-                template_name='b_memory.jinja2',
-                context=memory_info,
-                thought_balloon=em.get_emoji('thought_balloon'),
-                abacus=em.get_emoji('abacus'),
+            template_name="b_memory.jinja2",
+            context=memory_info,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            abacus=em.get_emoji("abacus"),
         ) as compiler:
             bot_answer = compiler.compile()
 

@@ -17,29 +17,29 @@ from pytmbot.parsers.compiler import Compiler
 @logged_handler_session
 def handle_process(message: Message, bot: TeleBot):
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
-        'horizontal_traffic_light': em.get_emoji('horizontal_traffic_light'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
+        "horizontal_traffic_light": em.get_emoji("horizontal_traffic_light"),
     }
 
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
 
         process_count = psutil_adapter.get_process_counts()
 
         if process_count is None:
-            bot_logger.error(f"Failed at @{__name__}: Error occurred while getting process counts")
+            bot_logger.error(
+                f"Failed at @{__name__}: Error occurred while getting process counts"
+            )
             return bot.send_message(
                 message.chat.id, text="Some error occurred. Please try again later("
             )
 
         with Compiler(
-                template_name='b_process.jinja2',
-                context=process_count,
-                **emojis
+            template_name="b_process.jinja2", context=process_count, **emojis
         ) as compiler:
             message_text = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=message_text, parse_mode='HTML')
+        return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
 
     except Exception as error:
         raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")

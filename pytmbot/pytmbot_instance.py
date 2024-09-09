@@ -15,14 +15,18 @@ from pytmbot.globals import (
     __repository__,
     bot_commands_settings,
     bot_description_settings,
-    var_config
+    var_config,
 )
-from pytmbot.handlers.handler_manager import handler_factory, inline_handler_factory, echo_handler_factory
+from pytmbot.handlers.handler_manager import (
+    handler_factory,
+    inline_handler_factory,
+    echo_handler_factory,
+)
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_interface import PluginInterface
-from pytmbot.utils.utilities import parse_cli_args
+from pytmbot.utils.utilities import parse_cli_args, is_running_in_docker
 
 
 class PyTMBot:
@@ -83,6 +87,7 @@ class PyTMBot:
     def __init__(self):
         self.args = parse_cli_args()
         self.bot: TeleBot | None = None
+        self.run_in_docker = is_running_in_docker()
 
     def _get_bot_token(self) -> str:
         """
@@ -99,24 +104,26 @@ class PyTMBot:
                 else settings.bot_token.prod_token[0].get_secret_value()
             )
         except (FileNotFoundError, ValueError) as error:
-            raise exceptions.PyTMBotError("pytmbot.yaml file is not valid or not found") from error
+            raise exceptions.PyTMBotError(
+                "pytmbot.yaml file is not valid or not found"
+            ) from error
 
     @staticmethod
     def __validate_plugin_name(plugin_name: str) -> bool:
         """Check if the plugin name is valid based on predefined pattern."""
-        valid_plugin_name_pattern = re.compile(r'^[a-z_]+$')
+        valid_plugin_name_pattern = re.compile(r"^[a-z_]+$")
         return bool(valid_plugin_name_pattern.match(plugin_name))
 
     @staticmethod
     def __module_exists(plugin_name: str) -> bool:
         """Check if the module for the given plugin name exists."""
-        module_path = f'pytmbot.plugins.{plugin_name}.plugin'
+        module_path = f"pytmbot.plugins.{plugin_name}.plugin"
         return importlib.util.find_spec(module_path) is not None
 
     @staticmethod
     def __import_module(plugin_name: str):
         """Import the module for the given plugin name."""
-        module_path = f'pytmbot.plugins.{plugin_name}.plugin'
+        module_path = f"pytmbot.plugins.{plugin_name}.plugin"
         try:
             return importlib.import_module(module_path)
         except ImportError as e:
@@ -129,9 +136,14 @@ class PyTMBot:
         plugin_classes = []
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
-            if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr is not PluginInterface:
+            if (
+                inspect.isclass(attr)
+                and issubclass(attr, PluginInterface)
+                and attr is not PluginInterface
+            ):
                 plugin_classes.append(attr)
         return plugin_classes
+
     @bot_logger.catch()
     def _register_plugin(self, plugin_name: str):
         """Register a single plugin."""
@@ -146,14 +158,18 @@ class PyTMBot:
         try:
             module = self.__import_module(plugin_name)
 
-            if not hasattr(module, '__all__'):
-                bot_logger.error(f"Module '{plugin_name}' does not have '__all__' attribute. Skipping...")
+            if not hasattr(module, "__all__"):
+                bot_logger.error(
+                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping..."
+                )
                 return
 
             plugin_classes = self.__find_plugin_classes(module)
 
             if not plugin_classes:
-                bot_logger.error(f"No valid plugin class found in module '{plugin_name}'. Skipping...")
+                bot_logger.error(
+                    f"No valid plugin class found in module '{plugin_name}'. Skipping..."
+                )
                 return
 
             plugin_instance = plugin_classes[0](self.bot)
@@ -163,7 +179,9 @@ class PyTMBot:
         except ValueError as ve:
             bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
         except Exception as error:
-            bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
+            bot_logger.error(
+                f"Unexpected error loading plugin '{plugin_name}': {error}"
+            )
 
     def _register_plugins(self, plugin_names: List[str]):
         """Register multiple plugins based on the provided list of plugin names."""
@@ -186,14 +204,18 @@ class PyTMBot:
 
         # Register handlers
         self._register_handlers(handler_factory, self.bot.register_message_handler)
-        self._register_handlers(inline_handler_factory, self.bot.register_callback_query_handler)
+        self._register_handlers(
+            inline_handler_factory, self.bot.register_callback_query_handler
+        )
 
         self._register_plugins_if_needed()
 
         # Register echo handlers
         self._register_handlers(echo_handler_factory, self.bot.register_message_handler)
 
-        bot_logger.info(f"New instance started! PyTMBot {__version__} ({__repository__})")
+        bot_logger.info(
+            f"New instance started! PyTMBot {__version__} ({__repository__})"
+        )
         return self.bot
 
     def _initialize_bot(self, bot_token: str) -> TeleBot:
@@ -202,15 +224,17 @@ class PyTMBot:
             threaded=True,
             use_class_middlewares=True,
             exception_handler=exceptions.TelebotCustomExceptionHandler(),
-            skip_pending=True
+            skip_pending=True,
         )
         bot_logger.debug("Bot instance created")
         return self.bot
 
     def _setup_bot_commands_and_description(self):
         try:
-            commands = [telebot.types.BotCommand(command, desc)
-                        for command, desc in bot_commands_settings.bot_commands.items()]
+            commands = [
+                telebot.types.BotCommand(command, desc)
+                for command, desc in bot_commands_settings.bot_commands.items()
+            ]
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
             bot_logger.debug("Bot commands and description setup successful.")
@@ -225,8 +249,10 @@ class PyTMBot:
             bot_logger.error(f"Failed to set up middleware: {error}")
 
     @staticmethod
-    def _register_handlers(handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-                           register_method: Callable):
+    def _register_handlers(
+        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+        register_method: Callable,
+    ):
         """
         Register handlers using the provided registration method.
 
@@ -235,17 +261,21 @@ class PyTMBot:
             register_method (Callable): The method used to register the handlers.
         """
         try:
-            bot_logger.debug(f"Registering handlers using {register_method.__name__}...")
+            bot_logger.debug(
+                f"Registering handlers using {register_method.__name__}..."
+            )
             handlers_dict = handler_factory_func()
             for handlers in handlers_dict.values():
                 for handler in handlers:
                     register_method(handler.callback, **handler.kwargs, pass_bot=True)
-            bot_logger.debug(f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers.")
+            bot_logger.debug(
+                f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers."
+            )
         except Exception as err:
             raise exceptions.PyTMBotError(f"Failed to register handlers: {err}")
 
     def _register_plugins_if_needed(self):
-        if self.args.plugins != ['']:
+        if self.args.plugins != [""]:
             try:
                 self._register_plugins(self.args.plugins)
             except Exception as err:
@@ -263,7 +293,7 @@ class PyTMBot:
                 bot_instance.infinity_polling(
                     skip_pending=True,
                     timeout=var_config.bot_polling_timeout,
-                    long_polling_timeout=var_config.bot_long_polling_timeout
+                    long_polling_timeout=var_config.bot_long_polling_timeout,
                 )
             except telebot.apihelper.ApiTelegramException as error:
                 bot_logger.error(f"Polling failed: {error}")
@@ -273,4 +303,4 @@ class PyTMBot:
                 time.sleep(10)
 
 
-__all__ = ['PyTMBot']
+__all__ = ["PyTMBot"]

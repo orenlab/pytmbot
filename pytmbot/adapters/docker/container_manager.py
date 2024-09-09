@@ -34,7 +34,9 @@ class ContainerManager:
             bool: True if the container was started successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
-            raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
+            raise ValueError(
+                f"User {user_id} is not allowed to manage container {container_id}"
+            )
 
         try:
             with DockerAdapter() as adapter:
@@ -67,7 +69,9 @@ class ContainerManager:
             bool: True if the container was stopped successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
-            raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
+            raise ValueError(
+                f"User {user_id} is not allowed to manage container {container_id}"
+            )
 
         try:
             with DockerAdapter() as adapter:
@@ -100,7 +104,9 @@ class ContainerManager:
             bool: True if the container was restarted successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
-            raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
+            raise ValueError(
+                f"User {user_id} is not allowed to manage container {container_id}"
+            )
 
         try:
             with DockerAdapter() as adapter:
@@ -134,14 +140,18 @@ class ContainerManager:
             bool: True if the container was renamed successfully, False otherwise.
         """
         if not self.__user_is_allowed_to_manage_container(user_id):
-            raise ValueError(f"User {user_id} is not allowed to manage container {container_id}")
+            raise ValueError(
+                f"User {user_id} is not allowed to manage container {container_id}"
+            )
 
         if not is_new_name_valid(new_container_name):
             raise ValueError(f"Invalid new container name: {new_container_name}")
 
         try:
             with DockerAdapter() as adapter:
-                bot_logger.info(f"Renaming container {container_id} to {new_container_name}")
+                bot_logger.info(
+                    f"Renaming container {container_id} to {new_container_name}"
+                )
                 return adapter.containers.get(container_id).rename(new_container_name)
         except NotFound as e:
             bot_logger.error(f"Container {container_id} not found: {e}")
@@ -164,10 +174,18 @@ class ContainerManager:
         Returns:
             bool: True if the user is allowed to manage containers, False otherwise.
         """
-        return user_id in settings.access_control.allowed_admins_ids and session_manager.is_authenticated(user_id)
+        return (
+            user_id in settings.access_control.allowed_admins_ids
+            and session_manager.is_authenticated(user_id)
+        )
 
-    def managing_container(self, user_id: int, container_id: Union[str, int],
-                           action: Literal['start', 'stop', 'restart', 'rename'], **kwargs):
+    def managing_container(
+        self,
+        user_id: int,
+        container_id: Union[str, int],
+        action: Literal["start", "stop", "restart", "rename"],
+        **kwargs,
+    ):
         """
         Manages a Docker container based on the given action.
 
@@ -193,10 +211,14 @@ class ContainerManager:
             "start": self.__start_container,
             "stop": self.__stop_container,
             "restart": self.__restart_container,
-            "rename": lambda x, y, **z: self.__rename_container(x, y, new_container_name=z.get("new_container_name"))
+            "rename": lambda x, y, **z: self.__rename_container(
+                x, y, new_container_name=z.get("new_container_name")
+            ),
         }
         if action in actions:
-            bot_logger.info(f"User {user_id} is managing container {container_id} with action {action}")
+            bot_logger.info(
+                f"User {user_id} is managing container {container_id} with action {action}"
+            )
             if action == "rename":
                 actions[action](user_id, container_id, **kwargs)
             else:

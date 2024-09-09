@@ -22,8 +22,10 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
     bot_logger.debug(f"Updated list of containers: {buttons}")
 
     keyboard_buttons = [
-        keyboards.ButtonData(text=button.upper(),
-                             callback_data=f"__get_full__:{button}:{call.from_user.id}")
+        keyboards.ButtonData(
+            text=button.upper(),
+            callback_data=f"__get_full__:{button}:{call.from_user.id}",
+        )
         for button in buttons
     ]
 
@@ -36,5 +38,5 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
-        parse_mode="HTML"
+        parse_mode="HTML",
     )

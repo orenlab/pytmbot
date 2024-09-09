@@ -17,21 +17,26 @@ from pytmbot.parsers.compiler import Compiler
 @logged_handler_session
 def handle_file_system(message: Message, bot: TeleBot):
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
 
         disk_usage = psutil_adapter.get_disk_usage()
 
         if disk_usage is None:
-            bot_logger.error('Failed to handle disk usage')
-            return bot.send_message(message.chat.id, text='Failed to handle disk usage. Please try again later.')
+            bot_logger.error("Failed to handle disk usage")
+            return bot.send_message(
+                message.chat.id,
+                text="Failed to handle disk usage. Please try again later.",
+            )
 
         emojis = {
-            'thought_balloon': em.get_emoji('thought_balloon'),
-            'floppy_disk': em.get_emoji('floppy_disk'),
-            'minus': em.get_emoji('minus'),
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "floppy_disk": em.get_emoji("floppy_disk"),
+            "minus": em.get_emoji("minus"),
         }
 
-        with Compiler(template_name='b_fs.jinja2', context=disk_usage, **emojis) as compiler:
+        with Compiler(
+            template_name="b_fs.jinja2", context=disk_usage, **emojis
+        ) as compiler:
             bot_answer = compiler.compile()
 
         return bot.send_message(message.chat.id, text=bot_answer)

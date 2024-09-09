@@ -25,21 +25,19 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
-    bot.send_chat_action(message.chat.id, 'typing')
+    bot.send_chat_action(message.chat.id, "typing")
     main_keyboard = keyboards.build_reply_keyboard()
 
     first_name: str = message.from_user.first_name
 
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name='b_back.jinja2', first_name=first_name, **emojis) as compiler:
+    with Compiler(
+        template_name="b_back.jinja2", first_name=first_name, **emojis
+    ) as compiler:
         response = compiler.compile()
 
     # Send the bot answer to the user with the main keyboard
-    bot.send_message(
-        message.chat.id,
-        text=response,
-        reply_markup=main_keyboard
-    )
+    bot.send_message(message.chat.id, text=response, reply_markup=main_keyboard)

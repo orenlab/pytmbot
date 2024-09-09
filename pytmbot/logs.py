@@ -16,7 +16,7 @@ from pytmbot.settings import LogsSettings
 from pytmbot.utils.utilities import (
     parse_cli_args,
     get_inline_message_full_info,
-    get_message_full_info
+    get_message_full_info,
 )
 
 
@@ -64,17 +64,19 @@ def build_bot_logger() -> loguru.logger:
         catch=True,
     )
 
-    if log_level == 'DEBUG':
+    if log_level == "DEBUG":
         # Log initialization messages
         logger.debug(
-            "\n".join([
-                "Logger initialized",
-                f"{tabs} Log level: {logger.level}",
-                f"{tabs} Python executable path: {sys.executable}",
-                f"{tabs} Python version: {sys.version}",
-                f"{tabs} Python module path: {sys.path}",
-                f"{tabs} Python command args: {sys.argv}"
-            ])
+            "\n".join(
+                [
+                    "Logger initialized",
+                    f"{tabs} Log level: {logger.level}",
+                    f"{tabs} Python executable path: {sys.executable}",
+                    f"{tabs} Python version: {sys.version}",
+                    f"{tabs} Python module path: {sys.path}",
+                    f"{tabs} Python command args: {sys.argv}",
+                ]
+            )
         )
 
     logger.level("DENIED", no=39, color="<red>")  # Add custom log level for "DENIED"
@@ -106,7 +108,9 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
             Any: The result of the handler function.
         """
         # Get information about the message
-        username, user_id, language_code, is_bot, text = get_message_full_info(*args, **kwargs)
+        username, user_id, language_code, is_bot, text = get_message_full_info(
+            *args, **kwargs
+        )
 
         # Log the start of the handling session
         logger.info(
@@ -120,14 +124,10 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
         )
         try:
             result = func(*args, **kwargs)
-            logger.success(
-                f"Finished at @{func.__name__} for user: {username}"
-            )
+            logger.success(f"Finished at @{func.__name__} for user: {username}")
             return result
         except Exception as e:
-            logger.exception(
-                f"Failed at @{func.__name__} - exception: {e}"
-            )
+            logger.exception(f"Failed at @{func.__name__} - exception: {e}")
             raise
 
     return handler_session_wrapper
@@ -167,14 +167,10 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
         )
         try:
             result = func(*args, **kwargs)
-            logger.success(
-                f"Finished at @{func.__name__} for user: {username}"
-            )
+            logger.success(f"Finished at @{func.__name__} for user: {username}")
             return result
         except Exception as e:
-            logger.exception(
-                f"Failed at @{func.__name__} - exception: {e}"
-            )
+            logger.exception(f"Failed at @{func.__name__} - exception: {e}")
             raise
 
     return inline_handler_session_wrapper

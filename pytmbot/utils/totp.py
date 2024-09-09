@@ -64,7 +64,7 @@ class TwoFactorAuthenticator:
         Returns:
             bytes: The generated QR code as bytes.
         """
-        bot_logger.info(f'Starting QR code generation for user: {self.username}...')
+        bot_logger.info(f"Starting QR code generation for user: {self.username}...")
 
         try:
             # Generate the TOTP authentication URI
@@ -77,10 +77,12 @@ class TwoFactorAuthenticator:
             with io.BytesIO() as img_bytes:
                 qr_code.save(img_bytes)
 
-                bot_logger.info(f'QR code successfully generated for user: {self.username}.')
+                bot_logger.info(
+                    f"QR code successfully generated for user: {self.username}."
+                )
                 return img_bytes.getvalue()
         except Exception as e:
-            bot_logger.error(f'Error generating QR code for user {self.username}: {e}')
+            bot_logger.error(f"Error generating QR code for user {self.username}: {e}")
             raise
 
     def verify_totp_code(self, code: str) -> bool:
@@ -94,15 +96,19 @@ class TwoFactorAuthenticator:
             bool: True if the TOTP code is verified, False otherwise.
         """
         if not isinstance(code, str) or len(code) != 6:
-            bot_logger.error(f'Invalid TOTP code format for user {self.username}. Code length must be 6.')
+            bot_logger.error(
+                f"Invalid TOTP code format for user {self.username}. Code length must be 6."
+            )
             return False
 
         totp = pyotp.TOTP(self.__generate_secret())
-        bot_logger.info(f'Verifying TOTP code for user {self.username}...')
+        bot_logger.info(f"Verifying TOTP code for user {self.username}...")
 
         if totp.verify(code):
-            bot_logger.info(f'TOTP code successfully verified for user {self.username}.')
+            bot_logger.info(
+                f"TOTP code successfully verified for user {self.username}."
+            )
             return True
 
-        bot_logger.error(f'Failed to verify TOTP code for user {self.username}.')
+        bot_logger.error(f"Failed to verify TOTP code for user {self.username}.")
         return False

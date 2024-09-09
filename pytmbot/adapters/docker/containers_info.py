@@ -61,7 +61,9 @@ def __get_container_attributes(container_id: str):
             bot_logger.debug(f"Retrieving container details for ID: {container_id}.")
             return adapter.containers.get(container_id)
     except Exception as e:
-        bot_logger.error(f"Failed to retrieve container details for ID: {container_id}. Error: {e}")
+        bot_logger.error(
+            f"Failed to retrieve container details for ID: {container_id}. Error: {e}"
+        )
 
 
 def __aggregate_container_details(container_id: str) -> dict:
@@ -83,18 +85,24 @@ def __aggregate_container_details(container_id: str) -> dict:
         container_details = __get_container_attributes(container_id)
         attrs = container_details.attrs
 
-        created_at = datetime.fromisoformat(attrs['Created'])
-        created_day, created_time = created_at.date(), created_at.time().strftime("%H:%M:%S")
+        created_at = datetime.fromisoformat(attrs["Created"])
+        created_day, created_time = created_at.date(), created_at.time().strftime(
+            "%H:%M:%S"
+        )
 
         container_context = {
-            'name': attrs['Name'].strip("/").title(),
-            'image': attrs.get('Config', {}).get('Image', 'N/A'),
-            'created': f"{created_day}, {created_time}",
-            'run_at': set_naturaltime(datetime.fromisoformat(attrs['State'].get('StartedAt', ''))),
-            'status': attrs.get('State', {}).get('Status', 'N/A'),
+            "name": attrs["Name"].strip("/").title(),
+            "image": attrs.get("Config", {}).get("Image", "N/A"),
+            "created": f"{created_day}, {created_time}",
+            "run_at": set_naturaltime(
+                datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
+            ),
+            "status": attrs.get("State", {}).get("Status", "N/A"),
         }
 
-        bot_logger.debug(f"Time taken to build container details: {time.time() - start_time:.5f} seconds.")
+        bot_logger.debug(
+            f"Time taken to build container details: {time.time() - start_time:.5f} seconds."
+        )
 
         return container_context
 
@@ -129,7 +137,9 @@ def retrieve_containers_stats() -> Union[List[Dict[str, str]], Dict[None, None]]
             details = list(executor.map(__aggregate_container_details, containers_id))
 
         bot_logger.debug(f"Returning container details: {details}.")
-        bot_logger.debug(f"Done retrieving container details in {time.time() - start_time:.5f} seconds.")
+        bot_logger.debug(
+            f"Done retrieving container details in {time.time() - start_time:.5f} seconds."
+        )
 
         return details
 

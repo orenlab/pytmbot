@@ -8,18 +8,23 @@ also providing basic information about the status of local servers.
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.keyboards.keyboards import Keyboards
 from pytmbot.middleware.session_manager import SessionManager
-from pytmbot.settings import settings as app_settings, log_settings as app_log_settings, var_config as app_var_config, \
-    bot_command_settings as app_bot_command_settings, bot_description_settings as app_bot_description_settings
+from pytmbot.settings import (
+    settings as app_settings,
+    log_settings as app_log_settings,
+    var_config as app_var_config,
+    bot_command_settings as app_bot_command_settings,
+    bot_description_settings as app_bot_description_settings,
+)
 from pytmbot.utils.utilities import EmojiConverter
 
 # pyTMBot globals initialization
 
 # Global namespace information
-__version__ = 'v0.2.0-dev-alpha.20240906.4'
-__author__ = 'Denis Rozhnovskiy <pytelemonbot@mail.ru>'
-__license__ = 'MIT'
-__repository__ = 'https://github.com/orenlab/pytmbot'
-__github_api_url__ = 'https://api.github.com/repos/orenlab/pytmbot/releases/latest'
+__version__ = "v0.2.0-dev-alpha.20240906.4"
+__author__ = "Denis Rozhnovskiy <pytelemonbot@mail.ru>"
+__license__ = "MIT"
+__repository__ = "https://github.com/orenlab/pytmbot"
+__github_api_url__ = "https://api.github.com/repos/orenlab/pytmbot/releases/latest"
 
 # Settings from pytmbot.yaml
 settings = app_settings

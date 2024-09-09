@@ -57,7 +57,9 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
             bool: True if the exception was handled successfully.
         """
         sanitized_exception = self._sanitize_exception(exception)
-        bot_logger.exception(f"Exception in @Telebot: {sanitized_exception}", exc_info=True)
+        bot_logger.exception(
+            f"Exception in @Telebot: {sanitized_exception}", exc_info=True
+        )
         return True
 
     @staticmethod

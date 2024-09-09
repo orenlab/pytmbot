@@ -32,26 +32,25 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
-    bot.send_chat_action(message.chat.id, 'typing')
+    bot.send_chat_action(message.chat.id, "typing")
 
     try:
         # Compile the bot's answer
         bot_answer, need_inline = _process_message()
 
         keyboard_button = [
-            keyboards.ButtonData(
-                text='How update?',
-                callback_data='__how_update__'
-            )
+            keyboards.ButtonData(text="How update?", callback_data="__how_update__")
         ]
 
-        inline_button = keyboards.build_inline_keyboard(keyboard_button) if need_inline else None
+        inline_button = (
+            keyboards.build_inline_keyboard(keyboard_button) if need_inline else None
+        )
 
         bot.send_message(
             message.chat.id,
             text=bot_answer,
-            parse_mode='HTML',
-            reply_markup=inline_button
+            parse_mode="HTML",
+            reply_markup=inline_button,
         )
 
     except Exception as error:
@@ -81,7 +80,7 @@ def _process_message() -> tuple[str, bool]:
         return _render_update_difficulties_message(), False
 
     # Get the tag name from the update context
-    tag_name = update_context['tag_name']
+    tag_name = update_context["tag_name"]
 
     # Check the version of the update
     if tag_name > __version__:
@@ -103,7 +102,7 @@ def _render_development_message() -> str:
         str: The rendered message indicating the bot is using the development version.
     """
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
     message = (
@@ -111,7 +110,7 @@ def _render_development_message() -> str:
         "We recommend upgrading to a stable release for a better experience."
     )
 
-    with Compiler(template_name='b_none.jinja2', context=message, **emojis) as compiler:
+    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
         return compiler.compile()
 
 
@@ -123,12 +122,14 @@ def _render_update_difficulties_message() -> str:
         str: The rendered message.
     """
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    message = "There were some difficulties checking for updates. We should try again later."
+    message = (
+        "There were some difficulties checking for updates. We should try again later."
+    )
 
-    with Compiler(template_name='b_none.jinja2', context=message, **emojis) as compiler:
+    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
         return compiler.compile()
 
 
@@ -146,23 +147,24 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
     Returns:
         str: The rendered new update message.
     """
-    current_version = update_context['tag_name']
-    release_date = update_context['published_at']
-    release_notes = update_context['body']
+    current_version = update_context["tag_name"]
+    release_date = update_context["published_at"]
+    release_notes = update_context["body"]
 
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
-        'spouting_whale': em.get_emoji('spouting_whale'),
-        'calendar': em.get_emoji('calendar'),
-        'cooking': em.get_emoji('cooking'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
+        "spouting_whale": em.get_emoji("spouting_whale"),
+        "calendar": em.get_emoji("calendar"),
+        "cooking": em.get_emoji("cooking"),
     }
 
-    with Compiler(template_name='b_bot_update.jinja2',
-                  current_version=current_version,
-                  release_date=release_date,
-                  release_notes=release_notes,
-                  **emojis
-                  ) as compiler:
+    with Compiler(
+        template_name="b_bot_update.jinja2",
+        current_version=current_version,
+        release_date=release_date,
+        release_notes=release_notes,
+        **emojis,
+    ) as compiler:
         return compiler.compile()
 
 
@@ -176,10 +178,10 @@ def _render_no_update_message() -> str:
     context: str = f"Current version: {__version__}. No update available."
 
     emojis: dict = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name='b_none.jinja2', context=context, **emojis) as compiler:
+    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
         return compiler.compile()
 
 
@@ -195,7 +197,7 @@ def _render_future_message(update_context: dict[str, str]) -> str:
     Returns:
         str: The rendered message.
     """
-    current_version: str = update_context['tag_name']
+    current_version: str = update_context["tag_name"]
 
     context: str = (
         f"Current version: {current_version}. Your version: {__version__}. "
@@ -203,10 +205,10 @@ def _render_future_message(update_context: dict[str, str]) -> str:
     )
 
     emojis: dict = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name='b_none.jinja2', context=context, **emojis) as compiler:
+    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
         return compiler.compile()
 
 
@@ -234,13 +236,13 @@ def __check_bot_update() -> Dict[str, str]:
             data = response.json()
 
             # Convert the published_at timestamp to a datetime object
-            published_date = datetime.fromisoformat(data.get('published_at'))
+            published_date = datetime.fromisoformat(data.get("published_at"))
 
             # Create a dictionary with the release information
             release_info = {
-                'tag_name': data.get('tag_name'),
-                'published_at': published_date.strftime('%Y-%m-%d, %H:%M:%S'),
-                'body': data.get('body'),
+                "tag_name": data.get("tag_name"),
+                "published_at": published_date.strftime("%Y-%m-%d, %H:%M:%S"),
+                "body": data.get("body"),
             }
 
             bot_logger.debug(f"GitHub API response: {release_info}")

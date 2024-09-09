@@ -20,8 +20,8 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
     """Handles the swap_info command."""
 
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
-        'paperclip': em.get_emoji('paperclip'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
+        "paperclip": em.get_emoji("paperclip"),
     }
 
     try:
@@ -34,7 +34,9 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
                 text="Sorry, but i can't get swap memory values. Please try again later.",
             )
 
-        with Compiler(template_name='b_swap.jinja2', context=swap_data, **emojis) as compiler:
+        with Compiler(
+            template_name="b_swap.jinja2", context=swap_data, **emojis
+        ) as compiler:
             bot_answer = compiler.compile()
 
         return bot.edit_message_text(

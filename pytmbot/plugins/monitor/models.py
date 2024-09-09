@@ -13,4 +13,5 @@ class MonitorPluginConfig(BaseModel):
         emoji_for_notification (str): The emoji to use for notifications.
 
     """
+
     emoji_for_notification: str = Field(default="🚢🆘🛟🚨📢\n")

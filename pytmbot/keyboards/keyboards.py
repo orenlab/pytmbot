@@ -7,7 +7,11 @@ also providing basic information about the status of local servers.
 from functools import lru_cache
 from typing import Dict, List, Optional, Union, NamedTuple
 
-from telebot.types import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup
+from telebot.types import (
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    InlineKeyboardMarkup,
+)
 
 from pytmbot.logs import bot_logger
 from pytmbot.settings import keyboard_settings
@@ -36,8 +40,12 @@ class Keyboards:
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
         """
-        bot_logger.debug(f'Constructing referer main keyboard with data: {main_keyboard_data}...')
-        main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        bot_logger.debug(
+            f"Constructing referer main keyboard with data: {main_keyboard_data}..."
+        )
+        main_keyboard = ReplyKeyboardMarkup(
+            resize_keyboard=True, one_time_keyboard=True
+        )
         main_keyboard.add(main_keyboard_data)
         return main_keyboard
 
@@ -54,8 +62,10 @@ class Keyboards:
         """
         button_text = split_string_into_octets(data)
 
-        bot_logger.debug(f'Constructing inline keyboard with data: {data}...')
-        button = InlineKeyboardButton(text=f"🦈 Return to {button_text}", callback_data=data)
+        bot_logger.debug(f"Constructing inline keyboard with data: {data}...")
+        button = InlineKeyboardButton(
+            text=f"🦈 Return to {button_text}", callback_data=data
+        )
 
         keyboard = InlineKeyboardMarkup()
         keyboard.add(button)
@@ -63,8 +73,11 @@ class Keyboards:
         return keyboard
 
     @lru_cache(maxsize=None)
-    def build_reply_keyboard(self, keyboard_type: Optional[str] = None,
-                             plugin_keyboard_data: Optional[dict[str, str]] = None) -> ReplyKeyboardMarkup:
+    def build_reply_keyboard(
+        self,
+        keyboard_type: Optional[str] = None,
+        plugin_keyboard_data: Optional[dict[str, str]] = None,
+    ) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
 
@@ -78,10 +91,16 @@ class Keyboards:
         Raises:
             ValueError: If the keyboard buttons are empty.
         """
-        bot_logger.debug(f'Constructing reply keyboard with type: {keyboard_type if keyboard_type else "main"}...')
+        bot_logger.debug(
+            f'Constructing reply keyboard with type: {keyboard_type if keyboard_type else "main"}...'
+        )
 
-        keyboard_data = plugin_keyboard_data if plugin_keyboard_data else self._get_keyboard_data(keyboard_type)
-        bot_logger.debug(f'Keyboard data: {keyboard_data}')
+        keyboard_data = (
+            plugin_keyboard_data
+            if plugin_keyboard_data
+            else self._get_keyboard_data(keyboard_type)
+        )
+        bot_logger.debug(f"Keyboard data: {keyboard_data}")
 
         keyboard_buttons = self._construct_keyboard(keyboard_data)
 
@@ -91,8 +110,12 @@ class Keyboards:
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         reply_keyboard.add(*keyboard_buttons)
 
-        bot_logger.debug(f'Reply keyboard building Done! Added {len(keyboard_buttons)} buttons to the keyboard')
-        bot_logger.debug(f'Added {keyboard_type if keyboard_type else "main"} keyboard into cache...')
+        bot_logger.debug(
+            f"Reply keyboard building Done! Added {len(keyboard_buttons)} buttons to the keyboard"
+        )
+        bot_logger.debug(
+            f'Added {keyboard_type if keyboard_type else "main"} keyboard into cache...'
+        )
         return reply_keyboard
 
     @staticmethod
@@ -113,7 +136,9 @@ class Keyboards:
         if keyboard_type is None:
             return keyboard_settings.main_keyboard
 
-        valid_keyboards = {attr for attr in dir(keyboard_settings) if attr.endswith('_keyboard')}
+        valid_keyboards = {
+            attr for attr in dir(keyboard_settings) if attr.endswith("_keyboard")
+        }
 
         if keyboard_type not in valid_keyboards:
             raise AttributeError(f"Invalid keyboard type: {keyboard_type}")
@@ -143,10 +168,13 @@ class Keyboards:
             text (str): Button text.
             callback_data (str): Data associated with the button callback.
         """
+
         text: str
         callback_data: str
 
-    def build_inline_keyboard(self, buttons_data: Union[List[ButtonData], ButtonData]) -> InlineKeyboardMarkup:
+    def build_inline_keyboard(
+        self, buttons_data: Union[List[ButtonData], ButtonData]
+    ) -> InlineKeyboardMarkup:
         """
         Constructs an inline keyboard with the given button data.
 
@@ -167,7 +195,9 @@ class Keyboards:
             if not isinstance(button_data, self.ButtonData):
                 raise ValueError("Each button data must be an instance of ButtonData.")
 
-            button = InlineKeyboardButton(text=button_data.text, callback_data=button_data.callback_data)
+            button = InlineKeyboardButton(
+                text=button_data.text, callback_data=button_data.callback_data
+            )
             buttons.append(button)
 
         keyboard = InlineKeyboardMarkup(row_width=2)

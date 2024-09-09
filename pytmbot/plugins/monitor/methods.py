@@ -51,7 +51,9 @@ class SystemMonitorPlugin(PluginCore):
         self.monitoring = False
         self.config = config
         self.notification_count = 0
-        self.max_notifications = self.settings.plugins_config.monitor.max_notifications[0]
+        self.max_notifications = self.settings.plugins_config.monitor.max_notifications[
+            0
+        ]
         self.monitoring_thread = None
         self.retry_attempts = self.settings.plugins_config.monitor.retry_attempts[0]
         self.retry_interval = self.settings.plugins_config.monitor.retry_interval[0]
@@ -73,11 +75,15 @@ class SystemMonitorPlugin(PluginCore):
                     self.bot_logger.info("System monitoring started successfully.")
                     return
                 except Exception as e:
-                    self.bot_logger.error(f"Failed to start monitoring on attempt {attempt + 1}: {e}")
+                    self.bot_logger.error(
+                        f"Failed to start monitoring on attempt {attempt + 1}: {e}"
+                    )
                     self.monitoring = False
                     time.sleep(self.retry_interval)
 
-            self.bot_logger.error("Failed to start system monitoring after multiple attempts. Manual restart required.")
+            self.bot_logger.error(
+                "Failed to start system monitoring after multiple attempts. Manual restart required."
+            )
         else:
             self.bot_logger.warning("Monitoring is already running.")
 
@@ -114,8 +120,13 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             cpu_usage = psutil.cpu_percent(interval=1)
-            if cpu_usage > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]:
-                self._send_notification(f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%")
+            if (
+                cpu_usage
+                > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]
+            ):
+                self._send_notification(
+                    f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%"
+                )
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking CPU usage: {e}")
 
@@ -125,8 +136,15 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             memory = psutil.virtual_memory()
-            if memory.percent > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[0]:
-                self._send_notification(f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%")
+            if (
+                memory.percent
+                > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[
+                    0
+                ]
+            ):
+                self._send_notification(
+                    f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%"
+                )
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking memory usage: {e}")
 
@@ -138,9 +156,15 @@ class SystemMonitorPlugin(PluginCore):
         try:
             for partition in psutil.disk_partitions():
                 usage = psutil.disk_usage(partition.mountpoint)
-                if usage.percent > self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]:
+                if (
+                    usage.percent
+                    > self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[
+                        0
+                    ]
+                ):
                     self._send_notification(
-                        f"{self.config.emoji_for_notification}Disk usage is high on {partition.device}: {usage.percent}%")
+                        f"{self.config.emoji_for_notification}Disk usage is high on {partition.device}: {usage.percent}%"
+                    )
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking disk usage: {e}")
         except Exception as e:
@@ -157,7 +181,9 @@ class SystemMonitorPlugin(PluginCore):
         if self.notification_count < self.max_notifications:
             try:
                 self.notification_count += 1
-                sanitize_message = message.replace(self.config.emoji_for_notification, '')
+                sanitize_message = message.replace(
+                    self.config.emoji_for_notification, ""
+                )
                 self.bot_logger.info(f"Sending notification: {sanitize_message}")
                 self.bot.send_message(self.settings.chat_id.global_chat_id[0], message)
 
@@ -167,7 +193,9 @@ class SystemMonitorPlugin(PluginCore):
             except Exception as e:
                 self.bot_logger.error(f"Failed to send notification: {e}")
         else:
-            self.bot_logger.warning("Max notifications reached; no more notifications will be sent.")
+            self.bot_logger.warning(
+                "Max notifications reached; no more notifications will be sent."
+            )
 
     def _reset_notification_count(self):
         """

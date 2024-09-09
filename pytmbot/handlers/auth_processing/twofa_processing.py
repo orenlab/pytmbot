@@ -61,13 +61,15 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         None
     """
     user_id: int = message.from_user.id
-    totp_code: str = message.text.replace('/', '')
+    totp_code: str = message.text.replace("/", "")
 
     if not is_valid_totp_code(totp_code):
         _handle_invalid_totp_code(message, bot)
         return
 
-    if session_manager.get_blocked_time(user_id) and datetime.now() < session_manager.get_blocked_time(user_id):
+    if session_manager.get_blocked_time(
+        user_id
+    ) and datetime.now() < session_manager.get_blocked_time(user_id):
         _handle_blocked_user(message, bot)
         return
 
@@ -78,26 +80,28 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
 
     authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
     if authenticator.verify_totp_code(totp_code):
-        bot.send_chat_action(message.chat.id, 'typing')
-        session_manager.set_auth_state(user_id, session_manager.state_fabric.authenticated)
+        bot.send_chat_action(message.chat.id, "typing")
+        session_manager.set_auth_state(
+            user_id, session_manager.state_fabric.authenticated
+        )
         session_manager.set_login_time(user_id)
 
         keyboard = __create_referer_keyboard(user_id)
 
         emojis = {
-            'bullseye': em.get_emoji('bullseye'),
-            'down-right_arrow': em.get_emoji('down-right_arrow'),
-            'saluting_face': em.get_emoji('saluting_face'),
+            "bullseye": em.get_emoji("bullseye"),
+            "down-right_arrow": em.get_emoji("down-right_arrow"),
+            "saluting_face": em.get_emoji("saluting_face"),
         }
 
-        with Compiler(template_name='a_success.jinja2', emojis=emojis) as compiler:
+        with Compiler(template_name="a_success.jinja2", emojis=emojis) as compiler:
             response = compiler.compile()
 
         bot.reply_to(message, text=response, reply_markup=keyboard)
     else:
         session_manager.set_totp_attempts(user_id=user_id)
         bot_logger.error(f"Invalid TOTP code: {totp_code}")
-        bot.reply_to(message, 'Invalid TOTP code. Please try again.')
+        bot.reply_to(message, "Invalid TOTP code. Please try again.")
 
 
 def _handle_blocked_user(message: Message, bot: TeleBot) -> None:
@@ -113,7 +117,7 @@ def _handle_blocked_user(message: Message, bot: TeleBot) -> None:
     """
     user_id = message.from_user.id
     bot_logger.error(f"User {user_id} is blocked")
-    bot.reply_to(message, 'You are blocked. Please try again later.')
+    bot.reply_to(message, "You are blocked. Please try again later.")
 
 
 def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
@@ -128,19 +132,27 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         None
     """
     emojis = {
-        'thought_balloon': em.get_emoji('thought_balloon'),
-        'double_exclamation_mark': em.get_emoji('double_exclamation_mark'),
-        'down_arrow': em.get_emoji('down_arrow'),
+        "thought_balloon": em.get_emoji("thought_balloon"),
+        "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
+        "down_arrow": em.get_emoji("down_arrow"),
     }
 
-    name = message.from_user.first_name if message.from_user.first_name else message.from_user.username
+    name = (
+        message.from_user.first_name
+        if message.from_user.first_name
+        else message.from_user.username
+    )
 
-    keyboard = keyboards.build_reply_keyboard(keyboard_type='back_keyboard')
+    keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
 
-    with Compiler(template_name='a_send_totp_code.jinja2', name=name, **emojis) as compiler:
+    with Compiler(
+        template_name="a_send_totp_code.jinja2", name=name, **emojis
+    ) as compiler:
         response = compiler.compile()
 
-    bot.send_message(message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown")
+    bot.send_message(
+        message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown"
+    )
 
 
 def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
@@ -156,7 +168,9 @@ def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
     """
     user_id = message.from_user.id
     bot_logger.error(f"Invalid TOTP code: {message.text}")
-    bot.reply_to(message, 'Invalid TOTP code. Please enter a 6-digit code. For example, /123456.')
+    bot.reply_to(
+        message, "Invalid TOTP code. Please enter a 6-digit code. For example, /123456."
+    )
     session_manager.set_totp_attempts(user_id=user_id)
 
 
@@ -173,7 +187,10 @@ def _handle_max_attempts_reached(message: Message, bot: TeleBot) -> None:
     """
     user_id = message.from_user.id
     _block_user(user_id)
-    bot.reply_to(message, 'You have reached the maximum number of attempts. Please try again later.')
+    bot.reply_to(
+        message,
+        "You have reached the maximum number of attempts. Please try again later.",
+    )
 
 
 def _block_user(user_id: int) -> None:
@@ -196,7 +213,9 @@ def _block_user(user_id: int) -> None:
     bot_logger.error(f"Processing blocked user {user_id}.")
 
 
-def __create_referer_keyboard(user_id: int) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
+def __create_referer_keyboard(
+    user_id: int,
+) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
     """
     Creates a referer keyboard based on the user's handler type and referer URI.
 
@@ -210,9 +229,9 @@ def __create_referer_keyboard(user_id: int) -> Union[ReplyKeyboardMarkup, Inline
     referer_uri = session_manager.get_referer_uri_for_user(user_id)
 
     try:
-        if handler_type == 'message':
+        if handler_type == "message":
             keyboard = keyboards.build_referer_main_keyboard(referer_uri)
-        elif handler_type == 'callback_query':
+        elif handler_type == "callback_query":
             keyboard = keyboards.build_referer_inline_keyboard(referer_uri)
         else:
             raise NotImplementedError(f"Unsupported handler type: {handler_type}")

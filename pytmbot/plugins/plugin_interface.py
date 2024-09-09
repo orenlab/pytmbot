@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 from abc import ABC, abstractmethod
 from telebot import TeleBot
 
+
 class PluginInterface(ABC):
     """
     Abstract base class for all pyTMBot plugins.

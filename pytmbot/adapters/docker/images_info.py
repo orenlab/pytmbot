@@ -35,13 +35,16 @@ def fetch_image_details():
 
             image_details = [
                 {
-                    'id': image.short_id,
-                    'name': image.attrs.get('RepoTags', "N/A"),
-                    'tags': image.tags or "N/A",
-                    'architecture': image.attrs.get('Architecture', "N/A"),
-                    'os': image.attrs.get('Os', "N/A"),
-                    'size': set_naturalsize(image.attrs.get('Size', 0)),
-                    'created': set_naturaltime(datetime.fromisoformat(image.attrs.get('Created'))) or "N/A",
+                    "id": image.short_id,
+                    "name": image.attrs.get("RepoTags", "N/A"),
+                    "tags": image.tags or "N/A",
+                    "architecture": image.attrs.get("Architecture", "N/A"),
+                    "os": image.attrs.get("Os", "N/A"),
+                    "size": set_naturalsize(image.attrs.get("Size", 0)),
+                    "created": set_naturaltime(
+                        datetime.fromisoformat(image.attrs.get("Created"))
+                    )
+                    or "N/A",
                 }
                 for image in images
             ]

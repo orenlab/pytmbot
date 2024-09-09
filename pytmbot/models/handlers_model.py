@@ -54,4 +54,6 @@ class HandlerManager:
         Returns:
             str: The string representation of the instance.
         """
-        return f"HandlerManager(callback={self.callback.__name__}, kwargs={self.kwargs})"
+        return (
+            f"HandlerManager(callback={self.callback.__name__}, kwargs={self.kwargs})"
+        )

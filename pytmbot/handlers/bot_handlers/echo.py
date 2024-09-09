@@ -30,12 +30,16 @@ def handle_echo(message: Message, bot: TeleBot):
         PyTMBotErrorHandlerError: If there is a ValueError while rendering the templates.
     """
     try:
-        bot.send_chat_action(message.chat.id, 'typing')
+        bot.send_chat_action(message.chat.id, "typing")
         emojis: dict = {
-            'thought_balloon': em.get_emoji('thought_balloon'),
+            "thought_balloon": em.get_emoji("thought_balloon"),
         }
 
-        with Compiler(template_name='b_echo.jinja2', first_name=message.from_user.first_name, **emojis) as compiler:
+        with Compiler(
+            template_name="b_echo.jinja2",
+            first_name=message.from_user.first_name,
+            **emojis,
+        ) as compiler:
             bot_answer = compiler.compile()
 
         return bot.send_message(message.chat.id, text=bot_answer)

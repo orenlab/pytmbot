@@ -19,10 +19,10 @@ def generate_random_auth_salt(length=32):
         str: The generated authentication salt.
     """
     random_bytes = secrets.token_bytes(length)
-    salt = base64.b32encode(random_bytes).decode('utf-8')
+    salt = base64.b32encode(random_bytes).decode("utf-8")
     return salt
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     user_salt = generate_random_auth_salt()
     print("Auth salt: " + user_salt)

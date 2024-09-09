@@ -28,7 +28,7 @@ class Compiler:
         self.kwargs = kwargs
         self.renderer: Optional[Jinja2Renderer] = None
 
-    def __enter__(self) -> 'Compiler':
+    def __enter__(self) -> "Compiler":
         """
         Enter the runtime context related to this object.
 
@@ -40,7 +40,12 @@ class Compiler:
         self.renderer = Jinja2Renderer.instance()
         return self
 
-    def __exit__(self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[Any]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[Any],
+    ) -> None:
         """
         Exit the runtime context related to this object.
 
@@ -71,4 +76,6 @@ class Compiler:
             except Exception as e:
                 raise RuntimeError("Error during template compilation") from e
         else:
-            raise ValueError("Renderer is not initialized. Ensure the 'with' statement is used to initialize it.")
+            raise ValueError(
+                "Renderer is not initialized. Ensure the 'with' statement is used to initialize it."
+            )

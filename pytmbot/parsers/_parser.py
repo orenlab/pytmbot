@@ -15,14 +15,14 @@ from pytmbot.logs import bot_logger
 class Jinja2Renderer:
     """Class for rendering templates using Jinja2."""
 
-    _instance: Optional['Jinja2Renderer'] = None
+    _instance: Optional["Jinja2Renderer"] = None
     _jinja_env: Optional[jinja2.Environment] = None
 
     def __init__(self):
         self._template_cache = weakref.WeakValueDictionary()
 
     @classmethod
-    def instance(cls, plugin_name: Optional[str] = None) -> 'Jinja2Renderer':
+    def instance(cls, plugin_name: Optional[str] = None) -> "Jinja2Renderer":
         """
         Returns the singleton instance of the Jinja2Renderer class.
 
@@ -37,7 +37,9 @@ class Jinja2Renderer:
         return cls._instance
 
     @classmethod
-    def _initialize_instance(cls, plugin_name: Optional[str] = None) -> 'Jinja2Renderer':
+    def _initialize_instance(
+        cls, plugin_name: Optional[str] = None
+    ) -> "Jinja2Renderer":
         """
         Initializes the Jinja2Renderer instance.
 
@@ -51,7 +53,9 @@ class Jinja2Renderer:
         return cls()
 
     @staticmethod
-    def __initialize_jinja_environment(plugin_name: Optional[str] = None) -> jinja2.Environment:
+    def __initialize_jinja_environment(
+        plugin_name: Optional[str] = None,
+    ) -> jinja2.Environment:
         """
         Initializes the Jinja2 environment.
 
@@ -61,21 +65,31 @@ class Jinja2Renderer:
         Returns:
             jinja2.Environment: The initialized Jinja2 environment.
         """
-        template_path = var_config.plugin_template_path if plugin_name else var_config.template_path
+        template_path = (
+            var_config.plugin_template_path if plugin_name else var_config.template_path
+        )
         if plugin_name:
-            bot_logger.info(f'Loading templates for plugin: {plugin_name}')
-            plugin_template_path = os.path.join(template_path, plugin_name, 'templates')
+            bot_logger.info(f"Loading templates for plugin: {plugin_name}")
+            plugin_template_path = os.path.join(template_path, plugin_name, "templates")
             if not os.path.exists(plugin_template_path):
-                raise exceptions.PyTMBotErrorTemplateError(f'Plugin template path not found: {plugin_template_path}')
+                raise exceptions.PyTMBotErrorTemplateError(
+                    f"Plugin template path not found: {plugin_template_path}"
+                )
             template_path = plugin_template_path
 
         return SandboxedEnvironment(
             loader=jinja2.FileSystemLoader(template_path),
-            autoescape=select_autoescape(['html', 'txt', 'jinja2'], default_for_string=True)
+            autoescape=select_autoescape(
+                ["html", "txt", "jinja2"], default_for_string=True
+            ),
         )
 
-    def render_templates(self, template_name: str, emojis: Optional[Dict[str, str]] = None,
-                         **kwargs: Dict[str, Any]) -> str:
+    def render_templates(
+        self,
+        template_name: str,
+        emojis: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
+    ) -> str:
         """
         Render a Jinja2 template with the given name and context.
 
@@ -92,11 +106,17 @@ class Jinja2Renderer:
         """
         try:
             template_subdir = self.__get_subdirectory(template_name)
-            return self.__get_template(template_name, template_subdir).render(emojis=emojis, **kwargs)
+            return self.__get_template(template_name, template_subdir).render(
+                emojis=emojis, **kwargs
+            )
         except TemplateError as error:
-            raise exceptions.PyTMBotErrorTemplateError(f"Error parsing template: {template_name}") from error
+            raise exceptions.PyTMBotErrorTemplateError(
+                f"Error parsing template: {template_name}"
+            ) from error
 
-    def __get_template(self, template_name: str, template_subdir: str) -> jinja2.Template:
+    def __get_template(
+        self, template_name: str, template_subdir: str
+    ) -> jinja2.Template:
         """
         Get a Jinja2 template by its name.
 
@@ -114,7 +134,9 @@ class Jinja2Renderer:
         template = self._template_cache.get(cache_key)
 
         if template is None:
-            bot_logger.debug(f"Template {template_name} not found in cache, loading from folder...")
+            bot_logger.debug(
+                f"Template {template_name} not found in cache, loading from folder..."
+            )
             self.jinja_env = self._jinja_env or self.__initialize_jinja_environment()
 
             template_path = os.path.join(template_subdir, template_name)
@@ -125,7 +147,9 @@ class Jinja2Renderer:
                 self._template_cache[cache_key] = template
                 bot_logger.debug(f"Template {template_name} loaded successfully!")
             except TemplateError as error:
-                raise exceptions.PyTMBotErrorTemplateError(f"Error loading template: {template_name}") from error
+                raise exceptions.PyTMBotErrorTemplateError(
+                    f"Error loading template: {template_name}"
+                ) from error
 
         return template
 
@@ -144,13 +168,15 @@ class Jinja2Renderer:
             exceptions.PyTMBotErrorTemplateError: If the template name is unknown.
         """
         subdirectories = {
-            'a': 'auth_templates',
-            'b': 'base_templates',
-            'd': 'docker_templates'
+            "a": "auth_templates",
+            "b": "base_templates",
+            "d": "docker_templates",
         }
 
         subdirectory = subdirectories.get(template_name[0])
         if subdirectory is None:
-            raise exceptions.PyTMBotErrorTemplateError(f"Unknown template: {template_name}, can't find subdirectory")
+            raise exceptions.PyTMBotErrorTemplateError(
+                f"Unknown template: {template_name}, can't find subdirectory"
+            )
 
         return subdirectory

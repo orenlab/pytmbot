@@ -21,5 +21,5 @@ class TestHandlersAggregator(unittest.TestCase):
                 self.assertTrue(future.done())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
