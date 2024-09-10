@@ -10,7 +10,7 @@ from typing import Optional
 
 from pytmbot.adapters.docker.containers_info import get_container_state
 from pytmbot.logs import bot_logger
-from pytmbot.models.containers_model import ContainersState
+from pytmbot.models.docker_models import ContainersState
 
 
 def check_container_state(
