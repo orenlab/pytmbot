@@ -14,7 +14,7 @@ from pytmbot.globals import session_manager, keyboards
 from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import logged_inline_handler_session, bot_logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
-from pytmbot.models.containers_model import ContainersState
+from pytmbot.models.docker_models import ContainersState
 from pytmbot.utils.utilities import split_string_into_octets, is_new_name_valid
 
 container_manager = ContainerManager()

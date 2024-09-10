@@ -21,11 +21,13 @@ class DockerImageUpdater:
         """Initializes DockerImageUpdater with a Docker client instance."""
         self.local_images = self._get_local_images()
 
-    def __enter__(self) -> 'DockerImageUpdater':
+    def __enter__(self) -> "DockerImageUpdater":
         """Support for context management protocol."""
         return self
 
-    def __exit__(self, exc_type: type, exc_val: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(
+        self, exc_type: type, exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
         """Cleanup code for context management."""
         self.local_images = None
 
@@ -102,7 +104,7 @@ class DockerImageUpdater:
         except Exception as e:
             bot_logger.debug(f"Version comparison error: {e}")
             return (
-                    remote_tag > current_tag
+                remote_tag > current_tag
             )  # Default to lexicographic comparison if version parsing fails
 
     @staticmethod

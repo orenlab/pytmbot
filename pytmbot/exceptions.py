@@ -75,8 +75,12 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         """
         exception_str = str(exception)
         secret_map = {
-            settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
-            settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
+            settings.bot_token.prod_token[
+                0
+            ].get_secret_value(): "********* BOT TOKEN *********",
+            settings.bot_token.dev_bot_token[
+                0
+            ].get_secret_value(): "********* DEV BOT TOKEN *********",
         }
         for secret, placeholder in secret_map.items():
             exception_str = exception_str.replace(secret, placeholder)
