@@ -137,9 +137,9 @@ class PyTMBot:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                    inspect.isclass(attr)
-                    and issubclass(attr, PluginInterface)
-                    and attr is not PluginInterface
+                inspect.isclass(attr)
+                and issubclass(attr, PluginInterface)
+                and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -181,7 +181,9 @@ class PyTMBot:
         except ValueError as ve:
             bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
         except Exception as error:
-            bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
+            bot_logger.error(
+                f"Unexpected error loading plugin '{plugin_name}': {error}"
+            )
 
     def _register_plugins(self, plugin_names: List[str]):
         """
@@ -190,7 +192,9 @@ class PyTMBot:
         Args:
             plugin_names (List[str]): A list of plugin names, potentially containing commas.
         """
-        plugins_to_register = [name.strip() for plugin in plugin_names for name in plugin.split(",")]
+        plugins_to_register = [
+            name.strip() for plugin in plugin_names for name in plugin.split(",")
+        ]
 
         for plugin_name in plugins_to_register:
             if plugin_name:
@@ -260,8 +264,8 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-            register_method: Callable,
+        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+        register_method: Callable,
     ):
         """
         Register handlers using the provided registration method.

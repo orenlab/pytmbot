@@ -41,7 +41,9 @@ class Keyboards:
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
         """
-        bot_logger.debug(f"Building referer main keyboard with data: {main_keyboard_data}")
+        bot_logger.debug(
+            f"Building referer main keyboard with data: {main_keyboard_data}"
+        )
 
         main_keyboard = ReplyKeyboardMarkup(
             resize_keyboard=True, one_time_keyboard=True
@@ -74,13 +76,15 @@ class Keyboards:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(button)
 
-        bot_logger.info(f"Inline keyboard for '{button_text}' constructed successfully.")
+        bot_logger.info(
+            f"Inline keyboard for '{button_text}' constructed successfully."
+        )
         return keyboard
 
     def build_reply_keyboard(
-            self,
-            keyboard_type: Optional[str] = None,
-            plugin_keyboard_data: Optional[dict[str, str]] = None,
+        self,
+        keyboard_type: Optional[str] = None,
+        plugin_keyboard_data: Optional[dict[str, str]] = None,
     ) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
@@ -95,7 +99,9 @@ class Keyboards:
         Raises:
             ValueError: If the keyboard buttons are empty.
         """
-        bot_logger.debug(f"Building reply keyboard. Keyboard type: {keyboard_type if keyboard_type else 'main'}")
+        bot_logger.debug(
+            f"Building reply keyboard. Keyboard type: {keyboard_type if keyboard_type else 'main'}"
+        )
 
         # Получение данных для клавиатуры
         keyboard_data = (
@@ -108,13 +114,17 @@ class Keyboards:
         keyboard_buttons = self._construct_keyboard(keyboard_data)
 
         if not keyboard_buttons:
-            bot_logger.error("Reply keyboard construction failed: Empty keyboard buttons")
+            bot_logger.error(
+                "Reply keyboard construction failed: Empty keyboard buttons"
+            )
             raise ValueError("Empty keyboard buttons")
 
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         reply_keyboard.add(*keyboard_buttons)
 
-        bot_logger.info(f"Reply keyboard with {len(keyboard_buttons)} buttons constructed successfully.")
+        bot_logger.info(
+            f"Reply keyboard with {len(keyboard_buttons)} buttons constructed successfully."
+        )
         return reply_keyboard
 
     @staticmethod
@@ -132,11 +142,15 @@ class Keyboards:
         Raises:
             AttributeError: If the keyboard type is invalid.
         """
-        bot_logger.debug(f"Fetching keyboard data for type: {keyboard_type if keyboard_type else 'main'}")
+        bot_logger.debug(
+            f"Fetching keyboard data for type: {keyboard_type if keyboard_type else 'main'}"
+        )
         match keyboard_type:
             case None:
                 return keyboard_settings.main_keyboard
-            case _ if keyboard_type in {attr for attr in dir(keyboard_settings) if attr.endswith("_keyboard")}:
+            case _ if keyboard_type in {
+                attr for attr in dir(keyboard_settings) if attr.endswith("_keyboard")
+            }:
                 bot_logger.debug(f"Valid keyboard type '{keyboard_type}' found.")
                 return getattr(keyboard_settings, keyboard_type)
             case _:
@@ -158,7 +172,9 @@ class Keyboards:
             f"{self.emojis.get_emoji(emoji)} {title}"
             for emoji, title in keyboard_data.items()
         ]
-        bot_logger.info(f"Constructed keyboard with {len(constructed_keyboard)} buttons.")
+        bot_logger.info(
+            f"Constructed keyboard with {len(constructed_keyboard)} buttons."
+        )
         return constructed_keyboard
 
     class ButtonData(NamedTuple):
@@ -174,7 +190,7 @@ class Keyboards:
         callback_data: str
 
     def build_inline_keyboard(
-            self, buttons_data: Union[List[ButtonData], ButtonData]
+        self, buttons_data: Union[List[ButtonData], ButtonData]
     ) -> InlineKeyboardMarkup:
         """
         Constructs an InlineKeyboardMarkup object for the inline keyboard.
@@ -198,7 +214,9 @@ class Keyboards:
             for button_data in buttons_data:
                 if not isinstance(button_data, self.ButtonData):
                     bot_logger.error(f"Invalid button data type: {type(button_data)}")
-                    raise ValueError("Each button data must be an instance of ButtonData.")
+                    raise ValueError(
+                        "Each button data must be an instance of ButtonData."
+                    )
 
                 button = InlineKeyboardButton(
                     text=button_data.text, callback_data=button_data.callback_data
@@ -208,7 +226,9 @@ class Keyboards:
             keyboard = InlineKeyboardMarkup(row_width=2)
             keyboard.add(*buttons)
 
-            bot_logger.info(f"Inline keyboard with {len(buttons)} buttons constructed successfully.")
+            bot_logger.info(
+                f"Inline keyboard with {len(buttons)} buttons constructed successfully."
+            )
             return keyboard
 
         except Exception as e:

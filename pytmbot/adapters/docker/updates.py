@@ -26,7 +26,7 @@ class DockerImageUpdater:
         return self
 
     def __exit__(
-            self, exc_type: type, exc_val: BaseException, exc_tb: TracebackType
+        self, exc_type: type, exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
         """Cleanup code for context management."""
         self.local_images = None
@@ -70,7 +70,7 @@ class DockerImageUpdater:
         tags_info = []
         for url in urls:
             try:
-                response = requests.get(url)
+                response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 data = response.json()
                 tags_info.extend(
@@ -104,7 +104,7 @@ class DockerImageUpdater:
         except Exception as e:
             bot_logger.debug(f"Version comparison error: {e}")
             return (
-                    remote_tag > current_tag
+                remote_tag > current_tag
             )  # Default to lexicographic comparison if version parsing fails
 
     @staticmethod

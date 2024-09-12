@@ -58,7 +58,9 @@ class Jinja2Renderer:
             jinja2.Environment: The initialized Jinja2 environment.
         """
         template_path = var_config.template_path
-        bot_logger.debug(f"Setting up Jinja2 environment with template path: {template_path}")
+        bot_logger.debug(
+            f"Setting up Jinja2 environment with template path: {template_path}"
+        )
 
         return SandboxedEnvironment(
             loader=jinja2.FileSystemLoader(template_path),
@@ -68,10 +70,10 @@ class Jinja2Renderer:
         )
 
     def render_templates(
-            self,
-            template_name: str,
-            emojis: Optional[Dict[str, str]] = None,
-            **kwargs: Dict[str, Any],
+        self,
+        template_name: str,
+        emojis: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
     ) -> str:
         """
         Render a Jinja2 template with the given name and context.
@@ -88,11 +90,13 @@ class Jinja2Renderer:
             exceptions.PyTMBotErrorTemplateError: If there is an error parsing the template.
         """
         try:
-            bot_logger.debug(f"Rendering template: {template_name} with context: {kwargs.keys()}")
-            template_subdir = self.__get_subdirectory(template_name)
-            rendered_template = self.__get_template(template_name, template_subdir).render(
-                emojis=emojis, **kwargs
+            bot_logger.debug(
+                f"Rendering template: {template_name} with context: {kwargs.keys()}"
             )
+            template_subdir = self.__get_subdirectory(template_name)
+            rendered_template = self.__get_template(
+                template_name, template_subdir
+            ).render(emojis=emojis, **kwargs)
             bot_logger.debug(f"Template {template_name} rendered successfully.")
             return rendered_template
         except TemplateError as error:
@@ -102,7 +106,7 @@ class Jinja2Renderer:
             ) from error
 
     def __get_template(
-            self, template_name: str, template_subdir: str
+        self, template_name: str, template_subdir: str
     ) -> jinja2.Template:
         """
         Get a Jinja2 template by its name.
@@ -169,10 +173,14 @@ class Jinja2Renderer:
 
         subdirectory = subdirectories.get(template_name[0])
         if subdirectory is None:
-            bot_logger.error(f"Unknown template: {template_name}, can't find subdirectory.")
+            bot_logger.error(
+                f"Unknown template: {template_name}, can't find subdirectory."
+            )
             raise exceptions.PyTMBotErrorTemplateError(
                 f"Unknown template: {template_name}, can't find subdirectory"
             )
 
-        bot_logger.debug(f"Using subdirectory {subdirectory} for template {template_name}")
+        bot_logger.debug(
+            f"Using subdirectory {subdirectory} for template {template_name}"
+        )
         return subdirectory

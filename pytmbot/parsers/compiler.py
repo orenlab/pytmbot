@@ -41,10 +41,10 @@ class Compiler:
         return self
 
     def __exit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[Any],
+            self,
+            exc_type: Optional[type],
+            exc_val: Optional[Exception],
+            exc_tb: Optional[Any],
     ) -> None:
         """
         Exit the runtime context related to this object.
