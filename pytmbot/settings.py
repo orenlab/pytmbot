@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import FrozenSet
 
 import yaml
 from pydantic import BaseModel
@@ -17,7 +16,7 @@ from pydantic import BaseModel
 from pytmbot.models.settings_model import SettingsModel
 
 
-def get_env_file_path() -> str:
+def get_config_file_path() -> str:
     """
     Constructs the path to the settings YAML file.
 
@@ -44,7 +43,7 @@ def load_settings_from_yaml() -> SettingsModel:
         yaml.YAMLError: If there is an error parsing the YAML file.
     """
     try:
-        with open(get_env_file_path(), "r") as f:
+        with open(get_config_file_path(), "r") as f:
             settings_data = yaml.safe_load(f)
         return SettingsModel(**settings_data)
     except FileNotFoundError:
@@ -56,14 +55,14 @@ class KeyboardSettings(BaseModel):
     Configuration settings for bot keyboards.
 
     Attributes:
-        main_keyboard (FrozenSet[dict[str, str]]): The main keyboard settings.
-        docker_keyboard (FrozenSet[dict[str, str]]): The Docker keyboard settings.
-        auth_keyboard (FrozenSet[dict[str, str]]): The authentication keyboard settings.
-        auth_processing_keyboard (FrozenSet[dict[str, str]]): The keyboard used during authentication processing.
-        back_keyboard (FrozenSet[dict[str, str]]): The back navigation keyboard settings.
+        main_keyboard (frozenset[dict[str, str]]): The main keyboard settings.
+        docker_keyboard (frozenset[dict[str, str]]): The Docker keyboard settings.
+        auth_keyboard (frozenset[dict[str, str]]): The authentication keyboard settings.
+        auth_processing_keyboard (frozenset[dict[str, str]]): The keyboard used during authentication processing.
+        back_keyboard (frozenset[dict[str, str]]): The back navigation keyboard settings.
     """
 
-    main_keyboard: FrozenSet[dict[str, str]] = {
+    main_keyboard: frozenset[dict[str, str]] = {
         "low_battery": "Load average",
         "pager": "Memory load",
         "stopwatch": "Sensors",
@@ -74,21 +73,21 @@ class KeyboardSettings(BaseModel):
         "satellite": "Network",
         "turtle": "About me",
     }
-    docker_keyboard: FrozenSet[dict[str, str]] = {
+    docker_keyboard: frozenset[dict[str, str]] = {
         "framed_picture": "Images",
         "toolbox": "Containers",
         "BACK_arrow": "Back to main menu",
     }
-    auth_keyboard: FrozenSet[dict[str, str]] = {
+    auth_keyboard: frozenset[dict[str, str]] = {
         "first_quarter_moon": "Get QR-code for 2FA app",
         "fountain_pen": "Enter 2FA code",
         "BACK_arrow": "Back to main menu",
     }
-    auth_processing_keyboard: FrozenSet[dict[str, str]] = {
+    auth_processing_keyboard: frozenset[dict[str, str]] = {
         "fountain_pen": "Enter 2FA code",
         "BACK_arrow": "Back to main menu",
     }
-    back_keyboard: FrozenSet[dict[str, str]] = {"BACK_arrow": "Back to main menu"}
+    back_keyboard: frozenset[dict[str, str]] = {"BACK_arrow": "Back to main menu"}
 
 
 class BotCommandSettings(BaseModel):
@@ -96,10 +95,10 @@ class BotCommandSettings(BaseModel):
     Configuration settings for bot commands.
 
     Attributes:
-        bot_commands (FrozenSet[dict[str, str]]): The bot commands with descriptions.
+        bot_commands (frozenset[dict[str, str]]): The bot commands with descriptions.
     """
 
-    bot_commands: FrozenSet[dict[str, str]] = {
+    bot_commands: frozenset[dict[str, str]] = {
         "/start": "Start bot!",
         "/help": "Get help",
         "/docker": "Launch the section about Docker",
@@ -116,10 +115,10 @@ class BotDescriptionSettings(BaseModel):
     Configuration settings for the bot description.
 
     Attributes:
-        bot_description (FrozenSet[str]): The description of the bot.
+        bot_description (frozenset[str]): The description of the bot.
     """
 
-    bot_description: FrozenSet[str] = (
+    bot_description: frozenset[str] = (
         "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
     )
 
@@ -133,14 +132,12 @@ class VarConfig(BaseModel):
         totp_max_attempts (int): Maximum attempts for TOTP authentication.
         bot_polling_timeout (int): Timeout for bot polling.
         bot_long_polling_timeout (int): Timeout for long polling.
-        plugin_template_path (str): Path to the plugin template directory.
     """
 
     template_path: str = os.path.join(os.path.dirname(__file__), "templates")
     totp_max_attempts: int = 3
     bot_polling_timeout: int = 30
     bot_long_polling_timeout: int = 60
-    plugin_template_path: str = os.path.join(os.path.dirname(__file__), "plugins")
 
 
 class LogsSettings(BaseModel):
@@ -148,11 +145,11 @@ class LogsSettings(BaseModel):
     Configuration settings for logging.
 
     Attributes:
-        valid_log_levels (FrozenSet[str]): Set of valid log levels.
+        valid_log_levels (frozenset[str]): Set of valid log levels.
         bot_logger_format (str): Format of the bot logger output.
     """
 
-    valid_log_levels: FrozenSet[str] = frozenset(["ERROR", "INFO", "DEBUG"])
+    valid_log_levels: frozenset[str] = frozenset(["ERROR", "INFO", "DEBUG"])
     bot_logger_format: str = (
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level: <8}</level> | <level>{message}</level> | "

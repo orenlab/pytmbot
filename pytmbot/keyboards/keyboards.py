@@ -5,7 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 from functools import lru_cache
-from typing import Dict, List, Optional, Union, NamedTuple
+from typing import Dict, List, Optional, Union, NamedTuple, FrozenSet
 
 from telebot.types import (
     InlineKeyboardButton,
@@ -72,18 +72,17 @@ class Keyboards:
 
         return keyboard
 
-    @lru_cache(maxsize=None)
     def build_reply_keyboard(
-        self,
-        keyboard_type: Optional[str] = None,
-        plugin_keyboard_data: Optional[dict[str, str]] = None,
+            self,
+            keyboard_type: Optional[str] = None,
+            plugin_keyboard_data: Optional[dict[str, str]] = None,
     ) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
 
         Args:
             keyboard_type (Optional[str]): The type of keyboard to construct. Defaults to None.
-            plugin_keyboard_data (Optional[dict[str, str]]): Data for the keyboard. Defaults to None.
+            plugin_keyboard_data (Optional[FrozenSet[dict[str, str]]]): Data for the keyboard. Defaults to None.
 
         Returns:
             ReplyKeyboardMarkup: The constructed reply keyboard markup.
@@ -173,7 +172,7 @@ class Keyboards:
         callback_data: str
 
     def build_inline_keyboard(
-        self, buttons_data: Union[List[ButtonData], ButtonData]
+            self, buttons_data: Union[List[ButtonData], ButtonData]
     ) -> InlineKeyboardMarkup:
         """
         Constructs an inline keyboard with the given button data.

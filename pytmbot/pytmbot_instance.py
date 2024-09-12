@@ -137,9 +137,9 @@ class PyTMBot:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                inspect.isclass(attr)
-                and issubclass(attr, PluginInterface)
-                and attr is not PluginInterface
+                    inspect.isclass(attr)
+                    and issubclass(attr, PluginInterface)
+                    and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -147,6 +147,8 @@ class PyTMBot:
     @bot_logger.catch()
     def _register_plugin(self, plugin_name: str):
         """Register a single plugin."""
+        bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
+
         if not self.__validate_plugin_name(plugin_name):
             bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping...")
             return
@@ -179,14 +181,22 @@ class PyTMBot:
         except ValueError as ve:
             bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
         except Exception as error:
-            bot_logger.error(
-                f"Unexpected error loading plugin '{plugin_name}': {error}"
-            )
+            bot_logger.error(f"Unexpected error loading plugin '{plugin_name}': {error}")
 
     def _register_plugins(self, plugin_names: List[str]):
-        """Register multiple plugins based on the provided list of plugin names."""
-        for plugin_name in plugin_names:
-            self._register_plugin(plugin_name)
+        """
+        Register multiple plugins based on the provided list of plugin names.
+
+        Args:
+            plugin_names (List[str]): A list of plugin names, potentially containing commas.
+        """
+        plugins_to_register = [name.strip() for plugin in plugin_names for name in plugin.split(",")]
+
+        for plugin_name in plugins_to_register:
+            if plugin_name:
+                self._register_plugin(plugin_name)
+            else:
+                bot_logger.error("Plugin name is empty after processing. Skipping...")
 
     def _create_bot_instance(self) -> TeleBot:
         """
@@ -250,8 +260,8 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-        register_method: Callable,
+            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+            register_method: Callable,
     ):
         """
         Register handlers using the provided registration method.
