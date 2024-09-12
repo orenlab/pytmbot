@@ -114,8 +114,8 @@ def validate_token(token: str) -> None:
 
 def validate_ids(ids: str) -> None:
     """Validates that the IDs contain only digits."""
-    for id in ids.split(","):
-        if not ID_REGEX.match(id.strip()):
+    for _id in ids.split(","):
+        if not ID_REGEX.match(_id.strip()):
             raise ValueError(f"Invalid ID: {id}. IDs must contain only digits.")
 
 
