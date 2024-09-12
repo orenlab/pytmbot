@@ -20,6 +20,7 @@ class Jinja2Renderer:
 
     def __init__(self):
         self._template_cache = weakref.WeakValueDictionary()
+        bot_logger.debug("Jinja2Renderer instance initialized.")
 
     @classmethod
     def instance(cls) -> "Jinja2Renderer":
@@ -30,7 +31,10 @@ class Jinja2Renderer:
             Jinja2Renderer: The singleton instance.
         """
         if cls._instance is None:
+            bot_logger.debug("Creating a new Jinja2Renderer instance.")
             cls._instance = cls._initialize_instance()
+        else:
+            bot_logger.debug("Reusing existing Jinja2Renderer instance.")
         return cls._instance
 
     @classmethod
@@ -41,6 +45,7 @@ class Jinja2Renderer:
         Returns:
             Jinja2Renderer: The initialized instance.
         """
+        bot_logger.debug("Initializing Jinja2 environment.")
         cls._jinja_env = cls.__initialize_jinja_environment()
         return cls()
 
@@ -53,6 +58,7 @@ class Jinja2Renderer:
             jinja2.Environment: The initialized Jinja2 environment.
         """
         template_path = var_config.template_path
+        bot_logger.debug(f"Setting up Jinja2 environment with template path: {template_path}")
 
         return SandboxedEnvironment(
             loader=jinja2.FileSystemLoader(template_path),
@@ -82,11 +88,15 @@ class Jinja2Renderer:
             exceptions.PyTMBotErrorTemplateError: If there is an error parsing the template.
         """
         try:
+            bot_logger.debug(f"Rendering template: {template_name} with context: {kwargs.keys()}")
             template_subdir = self.__get_subdirectory(template_name)
-            return self.__get_template(template_name, template_subdir).render(
+            rendered_template = self.__get_template(template_name, template_subdir).render(
                 emojis=emojis, **kwargs
             )
+            bot_logger.debug(f"Template {template_name} rendered successfully.")
+            return rendered_template
         except TemplateError as error:
+            bot_logger.error(f"Error parsing template: {template_name}, Error: {error}")
             raise exceptions.PyTMBotErrorTemplateError(
                 f"Error parsing template: {template_name}"
             ) from error
@@ -112,18 +122,19 @@ class Jinja2Renderer:
 
         if template is None:
             bot_logger.debug(
-                f"Template {template_name} not found in cache, loading from folder..."
+                f"Template {template_name} not found in cache, loading from folder {template_subdir}..."
             )
             self.jinja_env = self._jinja_env or self.__initialize_jinja_environment()
 
             template_path = os.path.join(template_subdir, template_name)
-            bot_logger.debug(f"Template path: {template_path}")
+            bot_logger.debug(f"Loading template from path: {template_path}")
 
             try:
                 template = self.jinja_env.get_template(template_path)
                 self._template_cache[cache_key] = template
                 bot_logger.debug(f"Template {template_name} loaded successfully!")
             except TemplateError as error:
+                bot_logger.error(f"Error loading template {template_name}: {error}")
                 raise exceptions.PyTMBotErrorTemplateError(
                     f"Error loading template: {template_name}"
                 ) from error
@@ -153,12 +164,15 @@ class Jinja2Renderer:
         if template_name.startswith("plugin_"):
             plugin_name = template_name.split("_")[1]
             plugin_dir = f"plugins_template/{plugin_name}"
+            bot_logger.debug(f"Plugin template detected, subdirectory: {plugin_dir}")
             return plugin_dir
 
         subdirectory = subdirectories.get(template_name[0])
         if subdirectory is None:
+            bot_logger.error(f"Unknown template: {template_name}, can't find subdirectory.")
             raise exceptions.PyTMBotErrorTemplateError(
                 f"Unknown template: {template_name}, can't find subdirectory"
             )
 
+        bot_logger.debug(f"Using subdirectory {subdirectory} for template {template_name}")
         return subdirectory
