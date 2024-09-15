@@ -5,7 +5,7 @@ charset-normalizer==3.3.2
 docker==7.1.0
 emoji==2.12.1
 humanize==4.10.0
-idna==3.8
+idna==3.9
 Jinja2==3.1.4
 loguru==0.7.2
 MarkupSafe==2.1.5

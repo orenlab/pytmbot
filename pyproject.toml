@@ -25,7 +25,6 @@ click = "^8.1.7"
 packaging = "^24.1"
 
 [tool.poetry.dev-dependencies]
-# Add development and testing dependencies.
 mypy = "^1.0.0"
 black = "^24.8.0"
 isort = "^5.0.0"
