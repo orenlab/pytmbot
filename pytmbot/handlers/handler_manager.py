@@ -11,9 +11,10 @@ from pytmbot.handlers.auth_processing.twofa_processing import (
     handle_totp_code_verification,
 )
 from pytmbot.handlers.bot_handlers.about import handle_about_command
-from pytmbot.handlers.bot_handlers.echo import handle_echo  # allways last
+from pytmbot.handlers.bot_handlers.echo import handle_echo  # always last
 from pytmbot.handlers.bot_handlers.inline.update import handle_update_info
 from pytmbot.handlers.bot_handlers.navigation import handle_navigation
+from pytmbot.handlers.bot_handlers.plugins import handle_plugins
 from pytmbot.handlers.bot_handlers.start import handle_start
 from pytmbot.handlers.bot_handlers.updates import handle_bot_updates
 from pytmbot.handlers.docker_handlers.containers import handle_containers
@@ -36,14 +37,14 @@ from pytmbot.handlers.server_handlers.memory import handle_memory
 from pytmbot.handlers.server_handlers.network import handle_network
 from pytmbot.handlers.server_handlers.process import handle_process
 from pytmbot.handlers.server_handlers.sensors import handle_sensors
+from pytmbot.handlers.server_handlers.server import handle_server
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
 from pytmbot.models.handlers_model import HandlerManager
 
 
-# Commands handlers:
 def handler_factory():
     """
-    Returns a dictionary of HandlerManager objects.
+    Returns a dictionary of HandlerManager objects for command handling.
 
     The dictionary keys represent command categories, and the values are lists
     of HandlerManager objects. Each HandlerManager object is initialized with
@@ -74,7 +75,7 @@ def handler_factory():
         ],
         "docker": [
             HandlerManager(callback=handle_docker, commands=["docker"]),
-            HandlerManager(callback=handle_docker, regexp="Docker"),
+            HandlerManager(callback=handle_docker, regexp="Docker info"),
         ],
         "filesystem": [
             HandlerManager(callback=handle_file_system, regexp="File system")
@@ -91,6 +92,14 @@ def handler_factory():
         "process": [HandlerManager(callback=handle_process, regexp="Process")],
         "sensors": [HandlerManager(callback=handle_sensors, regexp="Sensors")],
         "uptime": [HandlerManager(callback=handle_uptime, regexp="Uptime")],
+        "plugins": [
+            HandlerManager(callback=handle_plugins, commands=["plugins"]),
+            HandlerManager(callback=handle_plugins, regexp="Plugins"),
+        ],
+        "server": [
+            HandlerManager(callback=handle_server, commands=["server"]),
+            HandlerManager(callback=handle_server, regexp="Server"),
+        ],
         "qrcode": [
             HandlerManager(
                 callback=handle_qr_code_message,
@@ -110,7 +119,7 @@ def handler_factory():
 
 def inline_handler_factory():
     """
-    Returns a dictionary of HandlerManager objects.
+    Returns a dictionary of HandlerManager objects for inline query handling.
 
     The dictionary keys represent command categories, and the values are lists
     of HandlerManager objects. Each HandlerManager object is initialized with
@@ -167,7 +176,7 @@ def inline_handler_factory():
 
 def echo_handler_factory():
     """
-    Returns a dictionary of HandlerManager objects.
+    Returns a dictionary of HandlerManager objects for echo handling.
 
     The dictionary keys represent command categories, and the values are lists
     of HandlerManager objects. Each HandlerManager object is initialized with

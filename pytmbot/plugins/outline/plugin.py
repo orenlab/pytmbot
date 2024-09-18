@@ -7,7 +7,7 @@ from telebot.types import Message
 from pytmbot.globals import keyboards
 from pytmbot.logs import logged_handler_session
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.plugins.outline.config import OutlineConfig
+from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
@@ -39,9 +39,7 @@ class OutlinePlugin(PluginInterface):
             template_name="plugin_outline_index.jinja2",
             first_name=message.from_user.first_name,
         )
-        keyboard = keyboards.build_reply_keyboard(
-            plugin_keyboard_data=OutlineConfig.KEYBOARD
-        )
+        keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
         self.bot.send_message(message.chat.id, response, reply_markup=keyboard)
 
     @logged_handler_session
@@ -141,8 +139,8 @@ class OutlinePlugin(PluginInterface):
             )
 
     def _get_action_data(
-            self,
-            action: Literal["key_information", "server_information", "traffic_information"],
+        self,
+        action: Literal["key_information", "server_information", "traffic_information"],
     ) -> Optional[Dict]:
         """
         Retrieves action data from the plugin methods and processes it.
@@ -178,7 +176,7 @@ class OutlinePlugin(PluginInterface):
         return None
 
     def _compile_template(
-            self, template_name: str, first_name: str, context: Optional[Dict] = None
+        self, template_name: str, first_name: str, context: Optional[Dict] = None
     ) -> str:
         """
         Compiles the template with the provided context and first name.
@@ -189,10 +187,10 @@ class OutlinePlugin(PluginInterface):
         :return: The compiled template response as a string.
         """
         with Compiler(
-                template_name=template_name,
-                first_name=first_name,
-                set_naturalsize=set_naturalsize,
-                context=context or {},
+            template_name=template_name,
+            first_name=first_name,
+            set_naturalsize=set_naturalsize,
+            context=context or {},
         ) as compiler:
             response = compiler.compile()
 
@@ -210,7 +208,10 @@ class OutlinePlugin(PluginInterface):
         :return: The instance of TeleBot with registered handlers.
         """
         self.bot.register_message_handler(self.outline_handler, commands=["outline"])
-        self.bot.register_message_handler(self.handle_server_info, regexp="Server info")
+        self.bot.register_message_handler(self.outline_handler, regexp="Outline VPN")
+        self.bot.register_message_handler(
+            self.handle_server_info, regexp="Outline Server info"
+        )
         self.bot.register_message_handler(self.handle_keys, regexp="Keys")
         self.bot.register_message_handler(self.handle_traffic, regexp="Traffic")
 

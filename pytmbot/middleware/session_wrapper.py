@@ -1,6 +1,8 @@
 from typing import Union, Callable, Any
+
 import telebot
 from telebot.types import Message, CallbackQuery
+
 from pytmbot.globals import session_manager, settings
 from pytmbot.handlers.auth_processing.auth_processing import (
     handle_unauthorized_message,

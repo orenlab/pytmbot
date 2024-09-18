@@ -34,7 +34,7 @@ To build the pyTMBot project from source, follow these steps:
    This wizard will create a configuration file:
 
    | File           | Purpose                                                                                      |
-          |----------------|----------------------------------------------------------------------------------------------|
+             |----------------|----------------------------------------------------------------------------------------------|
    | `pytmbot.yaml` | Stores bot settings, including tokens, allowed user IDs, and paths to Docker and Podman sockets. |
 
    You can accept the default settings by pressing "Enter" when prompted.

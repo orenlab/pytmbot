@@ -1,9 +1,5 @@
-import importlib
-import importlib.util
-import inspect
-import re
 import time
-from typing import List, Dict, Callable, Type
+from typing import List, Dict, Callable
 
 import telebot
 from telebot import TeleBot
@@ -25,7 +21,7 @@ from pytmbot.handlers.handler_manager import (
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.models.handlers_model import HandlerManager
-from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils.utilities import parse_cli_args, is_running_in_docker
 
 
@@ -34,69 +30,29 @@ class PyTMBot:
     Manages the creation, configuration, and operation of a Telegram bot using the TeleBot library.
 
     Attributes:
-        args (Namespace):
-            Command line arguments parsed with `parse_cli_args`.
-        bot (TeleBot | None):
-            Instance of the TeleBot, or None if not initialized.
-
-    Methods:
-        _get_bot_token() -> str:
-            Retrieves the bot token based on the operational mode.
-
-        __validate_plugin_name(plugin_name: str) -> bool:
-            Validates the plugin name against a predefined pattern.
-
-        __module_exists(plugin_name: str) -> bool:
-            Checks if the module for the given plugin name exists.
-
-        __import_module(plugin_name: str):
-            Imports the module for the given plugin name.
-
-        __find_plugin_classes(module) -> List[Type[PluginInterface]]:
-            Finds and returns all valid plugin classes in the module.
-
-        _register_plugin(plugin_name: str):
-            Registers a single plugin by its name.
-
-        _register_plugins(plugin_names: List[str]):
-            Registers multiple plugins based on the provided list of plugin names.
-
-        _create_bot_instance() -> TeleBot:
-            Creates and configures the bot instance.
-
-        _initialize_bot(bot_token: str) -> TeleBot:
-            Initializes a TeleBot instance with the given token.
-
-        _setup_bot_commands_and_description():
-            Sets up the bot commands and description.
-
-        _setup_middleware():
-            Sets up the middleware for the bot.
-
-        _register_handlers(handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-                           register_method: Callable):
-            Registers handlers using the provided registration method.
-
-        _register_plugins_if_needed():
-            Registers plugins if specified in the command line arguments.
-
-        start_bot_instance():
-            Starts the bot instance and enters an infinite polling loop.
+        args (Namespace): Command line arguments parsed using `parse_cli_args`.
+        bot (TeleBot | None): Instance of TeleBot, or None if not initialized.
+        run_in_docker (bool): Indicates if the bot is running inside a Docker container.
+        plugin_manager (PluginManager): Manager for plugin discovery and registration.
     """
 
     def __init__(self):
         self.args = parse_cli_args()
         self.bot: TeleBot | None = None
         self.run_in_docker = is_running_in_docker()
+        self.plugin_manager = PluginManager()
 
     def _get_bot_token(self) -> str:
         """
-        Get the bot token based on the bot mode from the command line arguments.
+        Retrieves the bot token based on the operational mode (dev/prod).
+
         Returns:
             str: The bot token.
-        """
-        bot_logger.debug(f"Operational bot mode: {self.args.mode}")
 
+        Raises:
+            PyTMBotError: If the `pytmbot.yaml` file is missing or invalid.
+        """
+        bot_logger.debug(f"Current bot mode: {self.args.mode}")
         try:
             return (
                 settings.bot_token.dev_bot_token[0].get_secret_value()
@@ -108,117 +64,25 @@ class PyTMBot:
                 "pytmbot.yaml file is not valid or not found"
             ) from error
 
-    @staticmethod
-    def __validate_plugin_name(plugin_name: str) -> bool:
-        """Check if the plugin name is valid based on predefined pattern."""
-        valid_plugin_name_pattern = re.compile(r"^[a-z_]+$")
-        return bool(valid_plugin_name_pattern.match(plugin_name))
-
-    @staticmethod
-    def __module_exists(plugin_name: str) -> bool:
-        """Check if the module for the given plugin name exists."""
-        module_path = f"pytmbot.plugins.{plugin_name}.plugin"
-        return importlib.util.find_spec(module_path) is not None
-
-    @staticmethod
-    def __import_module(plugin_name: str):
-        """Import the module for the given plugin name."""
-        module_path = f"pytmbot.plugins.{plugin_name}.plugin"
-        try:
-            return importlib.import_module(module_path)
-        except ImportError as e:
-            bot_logger.error(f"ImportError: {e} - Module path: {module_path}")
-            raise
-
-    @staticmethod
-    def __find_plugin_classes(module) -> List[Type[PluginInterface]]:
-        """Find and return all valid plugin classes in the module."""
-        plugin_classes = []
-        for attribute_name in dir(module):
-            attr = getattr(module, attribute_name)
-            if (
-                    inspect.isclass(attr)
-                    and issubclass(attr, PluginInterface)
-                    and attr is not PluginInterface
-            ):
-                plugin_classes.append(attr)
-        return plugin_classes
-
-    @bot_logger.catch()
-    def _register_plugin(self, plugin_name: str):
-        """Register a single plugin."""
-        bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
-
-        if not self.__validate_plugin_name(plugin_name):
-            bot_logger.error(
-                f"Invalid plugin name: '{plugin_name}'. Skipping... "
-                f"Ensure that the plugin name follows the lowercase format with underscores."
-            )
-            return
-
-        if not self.__module_exists(plugin_name):
-            bot_logger.error(
-                f"Module '{plugin_name}' not found. Skipping... "
-                f"Check if the module path is correct or if the plugin is installed properly."
-            )
-            return
-
-        try:
-            module = self.__import_module(plugin_name)
-
-            if not hasattr(module, "__all__"):
-                bot_logger.error(
-                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping... "
-                    f"Ensure the module is correctly implemented."
-                )
-                return
-
-            plugin_classes = self.__find_plugin_classes(module)
-
-            if not plugin_classes:
-                bot_logger.error(
-                    f"No valid plugin class found in module '{plugin_name}'. Skipping... "
-                    f"Check module implementation."
-                )
-                return
-
-            plugin_instance = plugin_classes[0](self.bot)
-            plugin_instance.register()
-            bot_logger.info(f"Plugin '{plugin_name}' registered successfully.")
-
-        except ValueError as ve:
-            bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
-        except Exception as error:
-            bot_logger.exception(
-                f"Unexpected error loading plugin '{plugin_name}': {error}"
-            )
-
-    def _register_plugins(self, plugin_names: List[str]):
+    def _register_plugins_if_needed(self):
         """
-        Register multiple plugins based on the provided list of plugin names.
-
-        Args:
-            plugin_names (List[str]): A list of plugin names, potentially containing commas.
+        Registers plugins if specified in the command line arguments.
         """
-        plugins_to_register = [
-            name.strip() for plugin in plugin_names for name in plugin.split(",")
-        ]
-
-        for plugin_name in plugins_to_register:
-            if plugin_name:
-                self._register_plugin(plugin_name)
-            else:
-                bot_logger.warning("Plugin name is empty after processing. Skipping...")
+        if self.args.plugins != [""]:
+            try:
+                self.plugin_manager.register_plugins(self.args.plugins, self.bot)
+            except Exception as err:
+                bot_logger.exception(f"Failed to register plugins: {err}")
 
     def _create_bot_instance(self) -> TeleBot:
         """
-        Create and configure the bot instance.
+        Creates and configures the bot instance.
 
         Returns:
-            telebot.TeleBot: The created bot instance.
+            telebot.TeleBot: The initialized bot instance.
         """
         bot_token = self._get_bot_token()
-        bot_logger.debug("Bot token setup successful")
+        bot_logger.debug("Bot token successfully retrieved")
 
         self.bot = self._initialize_bot(bot_token)
         self._setup_bot_commands_and_description()
@@ -241,6 +105,15 @@ class PyTMBot:
         return self.bot
 
     def _initialize_bot(self, bot_token: str) -> TeleBot:
+        """
+        Initializes the bot instance with the provided token.
+
+        Args:
+            bot_token (str): The token used to authenticate the bot.
+
+        Returns:
+            telebot.TeleBot: The created TeleBot instance.
+        """
         self.bot = telebot.TeleBot(
             token=bot_token,
             threaded=True,
@@ -248,10 +121,13 @@ class PyTMBot:
             exception_handler=exceptions.TelebotCustomExceptionHandler(),
             skip_pending=True,
         )
-        bot_logger.debug("Bot instance created")
+        bot_logger.debug("Bot instance created successfully")
         return self.bot
 
     def _setup_bot_commands_and_description(self):
+        """
+        Configures the bot's commands and description from the settings.
+        """
         try:
             commands = [
                 telebot.types.BotCommand(command, desc)
@@ -259,11 +135,14 @@ class PyTMBot:
             ]
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
-            bot_logger.debug("Bot commands and description setup successful.")
+            bot_logger.debug("Bot commands and description set successfully.")
         except telebot.apihelper.ApiTelegramException as error:
-            bot_logger.error(f"Error setting up bot commands and description: {error}")
+            bot_logger.error(f"Failed to set bot commands and description: {error}")
 
     def _setup_middleware(self):
+        """
+        Sets up middleware for the bot.
+        """
         try:
             self.bot.setup_middleware(AccessControl(bot=self.bot))
             bot_logger.debug(f"Middleware setup successful: {AccessControl.__name__}.")
@@ -272,15 +151,15 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-            register_method: Callable,
+        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+        register_method: Callable,
     ):
         """
-        Register handlers using the provided registration method.
+        Registers bot handlers using the provided factory function and registration method.
 
         Args:
-            handler_factory_func (Callable[[], Dict[str, List[Handler]]]): A function that returns a dictionary
-            of handlers.
+            handler_factory_func (Callable[[], Dict[str, List[HandlerManager]]]):
+                A factory function that returns a dictionary of handlers.
             register_method (Callable): The method used to register the handlers.
         """
         try:
@@ -297,16 +176,9 @@ class PyTMBot:
         except Exception as err:
             bot_logger.exception(f"Failed to register handlers: {err}")
 
-    def _register_plugins_if_needed(self):
-        if self.args.plugins != [""]:
-            try:
-                self._register_plugins(self.args.plugins)
-            except Exception as err:
-                bot_logger.exception(f"Failed to register plugins: {err}")
-
     def start_bot_instance(self):
         """
-        Start the bot instance.
+        Starts the bot instance and enters an infinite polling loop.
         """
         bot_instance = self._create_bot_instance()
         bot_logger.info("Starting polling...")

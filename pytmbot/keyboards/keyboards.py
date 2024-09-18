@@ -103,7 +103,6 @@ class Keyboards:
             f"Building reply keyboard. Keyboard type: {keyboard_type if keyboard_type else 'main'}"
         )
 
-        # Получение данных для клавиатуры
         keyboard_data = (
             plugin_keyboard_data
             if plugin_keyboard_data

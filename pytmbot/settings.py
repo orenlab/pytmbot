@@ -63,15 +63,20 @@ class KeyboardSettings(BaseModel):
     """
 
     main_keyboard: frozenset[dict[str, str]] = {
+        "rocket": "Server",
+        "spouting_whale": "Docker",
+        "lollipop": "Plugins",
+        "mushroom": "About me",
+    }
+    server_keyboard: frozenset[dict[str, str]] = {
         "low_battery": "Load average",
         "pager": "Memory load",
         "stopwatch": "Sensors",
         "rocket": "Process",
         "flying_saucer": "Uptime",
         "floppy_disk": "File system",
-        "spouting_whale": "Docker",
         "satellite": "Network",
-        "turtle": "About me",
+        "BACK_arrow": "Back to main menu",
     }
     docker_keyboard: frozenset[dict[str, str]] = {
         "framed_picture": "Images",
