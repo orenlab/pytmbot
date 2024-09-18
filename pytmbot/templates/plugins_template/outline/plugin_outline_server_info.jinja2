@@ -1,0 +1,11 @@
+{# templates/server_info.jinja2 #}
+{{ first_name }}!
+
+Your Outline server is {{ "up and running" if context else "down" }}. You can check the status of your server using this command: <b>/outline_status</b>
+
+Server information:
+
+- Server name: <b>{{ context['name'] if context['name'] else 'Unknown' }}</b>
+- Metrics enabled: <b>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</b>
+- Created timestamp: <b>{{ context['createdTimestampMs'] if context['createdTimestampMs'] else 'N/A' }}</b>
+- Port for new access keys: <b>{{ context['portForNewAccessKeys'] if context['portForNewAccessKeys'] else 'N/A' }}</b>

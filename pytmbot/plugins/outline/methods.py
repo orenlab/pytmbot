@@ -10,11 +10,10 @@ also providing basic information about the status of local servers.
 from typing import List, Literal, Union
 
 from pyoutlineapi.client import PyOutlineWrapper
-from pyoutlineapi.models import Metrics, Server, AccessKeyList
+from pyoutlineapi.models import Metrics, AccessKeyList
 
 from pytmbot.logs import bot_logger
-from pytmbot.plugins.outline.config import PLUGIN_CONFIG_NAME
-from pytmbot.plugins.outline.models import OutlineConfig, OutlineServer, OutlineKey
+from pytmbot.plugins.outline.models import OutlineServer, OutlineKey
 from pytmbot.plugins.plugins_core import PluginCore
 
 
@@ -25,21 +24,19 @@ class PluginMethods(PluginCore):
         Initializes the PluginMethods class and sets up the Outline API client.
         """
         super().__init__()
-        self.plugin_config = self.load_plugin_external_config(
-            PLUGIN_CONFIG_NAME, OutlineConfig
-        )
-        api_url_secret = self.plugin_config.outline.api_url[0]
-        cert_secret = self.plugin_config.outline.cert[0]
+        self.plugin_config = self.settings.plugins_config.outline
+        api_url_secret = self.plugin_config.api_url[0]
+        cert_secret = self.plugin_config.cert[0]
         self.api_url = api_url_secret.get_secret_value()
         self.cert = cert_secret.get_secret_value()
         self.client = PyOutlineWrapper(self.api_url, self.cert, verify_tls=False)
 
-    def _fetch_server_information(self) -> Server:
+    def _fetch_server_information(self):
         """
         Fetches server information from the Outline API.
 
         Returns:
-            OutlineServer: An object containing information about the Outline server.
+            Server: An object containing information about the Outline server.
         """
         return self.client.get_server_info()
 

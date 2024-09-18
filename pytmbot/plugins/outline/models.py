@@ -34,9 +34,7 @@ class OutlineServer(PluginCoreModel):
     serverId: str
     metricsEnabled: bool
     createdTimestampMs: int
-    version: str
     portForNewAccessKeys: int
-    hostnameForAccessKeys: str
 
 
 class BytesTransferredByUserId(PluginCoreModel):
