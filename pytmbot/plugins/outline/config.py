@@ -19,7 +19,7 @@ PLUGIN_INDEX_KEY: dict[str, str] = {
 }
 
 KEYBOARD: dict[str, str] = {
-    "aerial_tramway": "Outline Server info",
+    "aerial_tramway": "Outline info",
     "books": "Keys",
     "bullet_train": "Traffic",
     "BACK_arrow": "Back to main menu",

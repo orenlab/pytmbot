@@ -75,7 +75,7 @@ def handler_factory():
         ],
         "docker": [
             HandlerManager(callback=handle_docker, commands=["docker"]),
-            HandlerManager(callback=handle_docker, regexp="Docker info"),
+            HandlerManager(callback=handle_docker, regexp="Docker"),
         ],
         "filesystem": [
             HandlerManager(callback=handle_file_system, regexp="File system")

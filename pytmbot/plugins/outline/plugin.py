@@ -210,7 +210,7 @@ class OutlinePlugin(PluginInterface):
         self.bot.register_message_handler(self.outline_handler, commands=["outline"])
         self.bot.register_message_handler(self.outline_handler, regexp="Outline VPN")
         self.bot.register_message_handler(
-            self.handle_server_info, regexp="Outline Server info"
+            self.handle_server_info, regexp="Outline info"
         )
         self.bot.register_message_handler(self.handle_keys, regexp="Keys")
         self.bot.register_message_handler(self.handle_traffic, regexp="Traffic")
