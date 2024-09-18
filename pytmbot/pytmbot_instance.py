@@ -137,9 +137,9 @@ class PyTMBot:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                inspect.isclass(attr)
-                and issubclass(attr, PluginInterface)
-                and attr is not PluginInterface
+                    inspect.isclass(attr)
+                    and issubclass(attr, PluginInterface)
+                    and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -151,13 +151,15 @@ class PyTMBot:
 
         if not self.__validate_plugin_name(plugin_name):
             bot_logger.error(
-                f"Invalid plugin name: '{plugin_name}'. Skipping... Ensure that the plugin name follows the lowercase format with underscores."
+                f"Invalid plugin name: '{plugin_name}'. Skipping... "
+                f"Ensure that the plugin name follows the lowercase format with underscores."
             )
             return
 
         if not self.__module_exists(plugin_name):
             bot_logger.error(
-                f"Module '{plugin_name}' not found. Skipping... Check if the module path is correct or if the plugin is installed properly."
+                f"Module '{plugin_name}' not found. Skipping... "
+                f"Check if the module path is correct or if the plugin is installed properly."
             )
             return
 
@@ -166,7 +168,8 @@ class PyTMBot:
 
             if not hasattr(module, "__all__"):
                 bot_logger.error(
-                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping... Ensure the module is correctly implemented."
+                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping... "
+                    f"Ensure the module is correctly implemented."
                 )
                 return
 
@@ -174,7 +177,8 @@ class PyTMBot:
 
             if not plugin_classes:
                 bot_logger.error(
-                    f"No valid plugin class found in module '{plugin_name}'. Skipping... Check module implementation."
+                    f"No valid plugin class found in module '{plugin_name}'. Skipping... "
+                    f"Check module implementation."
                 )
                 return
 
@@ -268,14 +272,15 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-        register_method: Callable,
+            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+            register_method: Callable,
     ):
         """
         Register handlers using the provided registration method.
 
         Args:
-            handler_factory_func (Callable[[], Dict[str, List[Handler]]]): A function that returns a dictionary of handlers.
+            handler_factory_func (Callable[[], Dict[str, List[Handler]]]): A function that returns a dictionary
+            of handlers.
             register_method (Callable): The method used to register the handlers.
         """
         try:
