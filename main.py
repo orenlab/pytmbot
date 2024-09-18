@@ -5,25 +5,20 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import logging
 import sys
 
-from pytmbot import pytmbot_instance
+from pytmbot import pytmbot_instance, logs
 
 
 def main():
     """
     Main function to start the pyTMBot instance.
     """
-    logging.basicConfig(
-        level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
     try:
         manager = pytmbot_instance.PyTMBot()
         manager.start_bot_instance()
     except Exception as e:
-        logging.error("Failed to start the bot instance: %s", e)
+        logs.bot_logger.error(f"Failed to start the bot instance: {e}")
         sys.exit(1)
 
 

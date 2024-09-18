@@ -1,5 +1,5 @@
-from typing import Any, Optional, List
 from collections import defaultdict
+from typing import Any, Optional, List
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -42,29 +42,33 @@ class AccessControl(BaseMiddleware):
         """
         user = message.from_user
         if not user:
-            bot_logger.error("No user information found in the message.")
+            bot_logger.error("User information missing in the message.")
             return CancelUpdate()
 
         user_id = user.id
-        user_name = user.username
+        user_name = user.username or "unknown"
         chat_id = message.chat.id
 
         if user_id not in self.allowed_user_ids:
             self.attempt_count[user_id] += 1
 
             if self.attempt_count[user_id] >= 3:
-                error_message = f"Exceeded access attempts. Ignoring session for user {user_name} (ID: {user_id})."
-                bot_logger.log("BLOCKED", error_message)
+                bot_logger.log(
+                    "BLOCKED",
+                    f"User {user_name} (ID: {user_id}) exceeded access attempts. Session blocked.",
+                )
                 return CancelUpdate()
 
-            error_message = f"Access denied for user {user_name} (ID: {user_id}). Reason: User not allowed."
-            bot_logger.log("DENIED", error_message)
+            bot_logger.log(
+                "DENIED",
+                f"Access denied for user {user_name} (ID: {user_id}). Unauthorized access attempt.",
+            )
             blocked_message = self.__get_message_text(self.attempt_count[user_id])
             self.bot.send_message(chat_id=chat_id, text=blocked_message)
 
             return CancelUpdate()
 
-        bot_logger.success(f"Access granted for user {user_name} (ID: {user_id})")
+        bot_logger.success(f"Access granted for user {user_name} (ID: {user_id}).")
         return None
 
     def post_process(

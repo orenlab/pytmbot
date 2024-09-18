@@ -150,11 +150,15 @@ class PyTMBot:
         bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
 
         if not self.__validate_plugin_name(plugin_name):
-            bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping...")
+            bot_logger.error(
+                f"Invalid plugin name: '{plugin_name}'. Skipping... Ensure that the plugin name follows the lowercase format with underscores."
+            )
             return
 
         if not self.__module_exists(plugin_name):
-            bot_logger.error(f"Module '{plugin_name}' not found. Skipping...")
+            bot_logger.error(
+                f"Module '{plugin_name}' not found. Skipping... Check if the module path is correct or if the plugin is installed properly."
+            )
             return
 
         try:
@@ -162,7 +166,7 @@ class PyTMBot:
 
             if not hasattr(module, "__all__"):
                 bot_logger.error(
-                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping..."
+                    f"Module '{plugin_name}' does not have '__all__' attribute. Skipping... Ensure the module is correctly implemented."
                 )
                 return
 
@@ -170,7 +174,7 @@ class PyTMBot:
 
             if not plugin_classes:
                 bot_logger.error(
-                    f"No valid plugin class found in module '{plugin_name}'. Skipping..."
+                    f"No valid plugin class found in module '{plugin_name}'. Skipping... Check module implementation."
                 )
                 return
 
@@ -181,7 +185,7 @@ class PyTMBot:
         except ValueError as ve:
             bot_logger.error(f"Plugin registration error for '{plugin_name}': {ve}")
         except Exception as error:
-            bot_logger.error(
+            bot_logger.exception(
                 f"Unexpected error loading plugin '{plugin_name}': {error}"
             )
 
@@ -200,7 +204,7 @@ class PyTMBot:
             if plugin_name:
                 self._register_plugin(plugin_name)
             else:
-                bot_logger.error("Plugin name is empty after processing. Skipping...")
+                bot_logger.warning("Plugin name is empty after processing. Skipping...")
 
     def _create_bot_instance(self) -> TeleBot:
         """
@@ -286,21 +290,21 @@ class PyTMBot:
                 f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers."
             )
         except Exception as err:
-            raise exceptions.PyTMBotError(f"Failed to register handlers: {err}")
+            bot_logger.exception(f"Failed to register handlers: {err}")
 
     def _register_plugins_if_needed(self):
         if self.args.plugins != [""]:
             try:
                 self._register_plugins(self.args.plugins)
             except Exception as err:
-                bot_logger.error(f"Failed to register plugins: {err}")
+                bot_logger.exception(f"Failed to register plugins: {err}")
 
     def start_bot_instance(self):
         """
         Start the bot instance.
         """
         bot_instance = self._create_bot_instance()
-        bot_logger.info("Starting polling............")
+        bot_logger.info("Starting polling...")
 
         while True:
             try:
@@ -313,7 +317,7 @@ class PyTMBot:
                 bot_logger.error(f"Polling failed: {error}")
                 time.sleep(10)
             except Exception as error:
-                bot_logger.error(f"Unexpected error: {error}")
+                bot_logger.exception(f"Unexpected error: {error}")
                 time.sleep(10)
 
 

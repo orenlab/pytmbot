@@ -1,10 +1,3 @@
-#!/venv/bin/python3
-"""
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
-
 import sys
 from functools import lru_cache
 from typing import Tuple, Any, Callable
@@ -22,116 +15,86 @@ from pytmbot.utils.utilities import (
 
 def build_bot_logger() -> loguru.logger:
     """
-    Builds a custom logger for the bot.
+    Builds a custom logger for the bot with custom levels and configurations.
 
-    This function removes the default logger, creates a new logger, sets the log format and output destination,
-    and adds custom log levels for "BLOCKED" and "DENIED".
+    This function removes the default logger, sets a new logger with specific log levels, formats, and output.
 
     Returns:
-        loguru.Logger: The logger object.
+        loguru.Logger: Configured logger object.
     """
     tabs = "\t" * 2  # Indentation for log messages
-
-    # Remove the default logger
-    logger.remove()
-
+    logger.remove()  # Remove default logger
     logs_settings = LogsSettings()
 
-    # Cache the log level map
     @lru_cache(maxsize=None)
     def get_log_level_map() -> set:
-        """
-        Returns a set of uppercase log levels from LogsSettings.valid_log_levels.
-
-        Returns:
-            set: A set of uppercase log levels.
-        """
+        """Returns a set of valid uppercase log levels."""
         return {level.upper() for level in logs_settings.valid_log_levels}
 
-    # Get the log level and colorize option from command line arguments
     cli_args = parse_cli_args()
     log_level = cli_args.log_level.upper()
     colorize_logs = cli_args.colorize_logs
 
-    # Set the log format and output destination
+    # Add the logger output configuration
     logger.add(
         sys.stdout,
         format=logs_settings.bot_logger_format,
         diagnose=True,
         backtrace=True,
         colorize=bool(colorize_logs),
-        level=(
-            log_level if log_level in get_log_level_map() else "INFO"
-        ),  # Set log level to INFO if invalid
+        level=log_level if log_level in get_log_level_map() else "INFO",
         catch=True,
     )
 
+    # Log startup information if in DEBUG mode
     if log_level == "DEBUG":
-        # Log initialization messages
         logger.debug(
-            "\n".join(
-                [
-                    "Logger initialized",
-                    f"{tabs} Log level: {logger.level}",
-                    f"{tabs} Python executable path: {sys.executable}",
-                    f"{tabs} Python version: {sys.version}",
-                    f"{tabs} Python module path: {sys.path}",
-                    f"{tabs} Python command args: {sys.argv}",
-                ]
-            )
+            f"Logger initialized\n"
+            f"{tabs}Log level: {logger.level}\n"
+            f"{tabs}Python path: {sys.executable}\n"
+            f"{tabs}Python version: {sys.version}\n"
+            f"{tabs}Module path: {sys.path}\n"
+            f"{tabs}Command args: {sys.argv}"
         )
 
-    logger.level("DENIED", no=39, color="<red>")  # Add custom log level for "DENIED"
-    logger.level(
-        "BLOCKED", no=38, color="<yellow>"
-    )  # Add custom log level for "BLOCKED"
+    # Custom log levels
+    logger.level("DENIED", no=39, color="<red>")
+    logger.level("BLOCKED", no=38, color="<yellow>")
 
     return logger
 
 
 def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Decorator function that logs the handling session of a handler function.
+    Decorator that logs the handling session of a handler function.
 
     Args:
-        func (Callable[..., Any]): The handler function to be logged.
+        func (Callable[..., Any]): Handler function to wrap and log.
 
     Returns:
         Callable[..., Any]: The wrapped handler function.
     """
 
     def handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
-        """
-        Wrapper function that records logs of work with handlers.
-
-        Args:
-            *args (Tuple[Any, ...]): Positional arguments passed to the handler function.
-            **kwargs (dict): Keyword arguments passed to the handler function.
-
-        Returns:
-            Any: The result of the handler function.
-        """
-        # Get information about the message
+        # Extract message info for logging
         username, user_id, language_code, is_bot, text = get_message_full_info(
             *args, **kwargs
         )
 
-        # Log the start of the handling session
         logger.info(
-            f"Start handling session @{func.__name__}: "
-            f"User: {username} - UserID: {user_id} - language: {language_code} - "
-            f"is_bot: {is_bot}"
+            f"Start handling @{func.__name__} session: User: {username}, UserID: {user_id}, "
+            f"Language: {language_code}, Is bot: {is_bot}"
         )
-        logger.debug(
-            f"Debug handling session @{func.__name__}: "
-            f"Text: {text} - arg: {str(args)} - kwarg: {str(kwargs)}"
-        )
+        logger.debug(f"Arguments: {args}, Keyword arguments: {kwargs}, Text: {text}")
+
         try:
             result = func(*args, **kwargs)
-            logger.success(f"Finished at @{func.__name__} for user: {username}")
+            logger.success(f"Finished @{func.__name__} session for user: {username}")
             return result
         except Exception as e:
-            logger.exception(f"Failed at @{func.__name__} - exception: {e}")
+            logger.exception(
+                f"Error in @{func.__name__} session for user: {username}, exception: {e}"
+            )
             raise
 
     return handler_session_wrapper
@@ -139,42 +102,33 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
 
 def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Decorator function that logs the handling session of an inline handler function.
+    Decorator that logs the handling session of an inline handler function.
 
     Args:
-        func (Callable[..., Any]): The inline handler function to be logged.
+        func (Callable[..., Any]): Inline handler function to wrap and log.
 
     Returns:
         Callable[..., Any]: The wrapped inline handler function.
     """
 
     def inline_handler_session_wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
-        """
-        Wrapper function that records logs of work with inline handlers.
-
-        Args:
-            *args (Tuple[Any, ...]): Positional arguments passed to the inline handler function.
-            **kwargs (dict): Keyword arguments passed to the inline handler function.
-
-        Returns:
-            Any: The result of the inline handler function.
-        """
         username, user_id, is_bot = get_inline_message_full_info(*args, **kwargs)
 
         logger.info(
-            f"Start handling session @{func.__name__}: "
-            f"User: {username} - UserID: {user_id} - is_bot: {is_bot}"
+            f"Start inline session @{func.__name__}: User: {username}, UserID: {user_id}, Is bot: {is_bot}"
         )
-        logger.debug(
-            f"Debug inline handling session @{func.__name__}: "
-            f"- arg: {str(args)} - kwarg: {str(kwargs)}"
-        )
+        logger.debug(f"Arguments: {args}, Keyword arguments: {kwargs}")
+
         try:
             result = func(*args, **kwargs)
-            logger.success(f"Finished at @{func.__name__} for user: {username}")
+            logger.success(
+                f"Finished inline session @{func.__name__} for user: {username}"
+            )
             return result
         except Exception as e:
-            logger.exception(f"Failed at @{func.__name__} - exception: {e}")
+            logger.exception(
+                f"Error in inline session @{func.__name__} for user: {username}, exception: {e}"
+            )
             raise
 
     return inline_handler_session_wrapper
