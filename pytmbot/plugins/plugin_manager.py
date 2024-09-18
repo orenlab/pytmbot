@@ -13,8 +13,16 @@ from pytmbot.plugins.plugin_interface import PluginInterface
 
 @dataclass
 class _PluginInfo:
-    """Stores plugin metadata for registration and management."""
+    """
+    Stores metadata for a plugin, including its name, version, description, commands, and index key.
 
+    Attributes:
+        name (str): The name of the plugin.
+        version (str): The version of the plugin.
+        description (str): A brief description of the plugin.
+        commands (Optional[dict[str, str]]): A dictionary mapping command names to descriptions.
+        index_key (Optional[dict[str, str]]): A dictionary mapping index keys to descriptions.
+    """
     name: str
     version: str
     description: str
@@ -25,6 +33,15 @@ class _PluginInfo:
 class PluginManager:
     """
     Manages the discovery, validation, and registration of plugins in the pyTMBot system.
+
+    This singleton class handles the loading and registration of plugins, validates plugin names,
+    and manages metadata about registered plugins.
+
+    Attributes:
+        _instance (Optional[PluginManager]): The singleton instance of the class.
+        _index_keys (dict[str, str]): A dictionary storing index keys for all registered plugins.
+        _plugin_names (dict[str, str]): A dictionary storing the names and versions of all registered plugins.
+        _plugin_descriptions (dict[str, str]): A dictionary storing descriptions for all registered plugins.
     """
 
     _instance = None
@@ -32,26 +49,59 @@ class PluginManager:
     _plugin_names = {}
     _plugin_descriptions = {}
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> 'PluginManager':
+        """
+        Creates or retrieves the singleton instance of the PluginManager.
+
+        Returns:
+            PluginManager: The singleton instance of the class.
+        """
         if cls._instance is None:
             cls._instance = super(PluginManager, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     @staticmethod
     def _validate_plugin_name(plugin_name: str) -> bool:
-        """Check if the plugin name is valid based on a predefined pattern."""
+        """
+        Validates the plugin name against a predefined pattern.
+
+        Args:
+            plugin_name (str): The name of the plugin to validate.
+
+        Returns:
+            bool: True if the name is valid, False otherwise.
+        """
         valid_plugin_name_pattern = re.compile(r"^[a-z_]+$")
         return bool(valid_plugin_name_pattern.match(plugin_name))
 
     @staticmethod
     def _module_exists(plugin_name: str) -> bool:
-        """Check if the module for the given plugin name exists."""
+        """
+        Checks if the module for the given plugin name exists.
+
+        Args:
+            plugin_name (str): The name of the plugin to check.
+
+        Returns:
+            bool: True if the module exists, False otherwise.
+        """
         module_path = f"pytmbot.plugins.{plugin_name}.config"
         return importlib.util.find_spec(module_path) is not None
 
     @staticmethod
     def _import_module(plugin_name: str):
-        """Import the module for the given plugin name."""
+        """
+        Imports the plugin module.
+
+        Args:
+            plugin_name (str): The name of the plugin module to import.
+
+        Returns:
+            module: The imported module.
+
+        Raises:
+            ImportError: If the module cannot be imported.
+        """
         module_path = f"pytmbot.plugins.{plugin_name}.plugin"
         try:
             return importlib.import_module(module_path)
@@ -61,7 +111,18 @@ class PluginManager:
 
     @staticmethod
     def _import_module_config(plugin_name: str):
-        """Dynamically import the plugin configuration module."""
+        """
+        Dynamically imports the plugin configuration module.
+
+        Args:
+            plugin_name (str): The name of the plugin configuration module to import.
+
+        Returns:
+            module: The imported configuration module.
+
+        Raises:
+            ImportError: If the configuration module cannot be imported.
+        """
         module_path = f"pytmbot.plugins.{plugin_name}.config"
         try:
             return importlib.import_module(module_path)
@@ -71,14 +132,22 @@ class PluginManager:
 
     @staticmethod
     def _find_plugin_classes(module) -> List[Type[PluginInterface]]:
-        """Find and return all valid plugin classes in the module."""
+        """
+        Finds and returns all valid plugin classes in the given module.
+
+        Args:
+            module: The module to search for plugin classes.
+
+        Returns:
+            List[Type[PluginInterface]]: A list of plugin classes found in the module.
+        """
         plugin_classes = []
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                inspect.isclass(attr)
-                and issubclass(attr, PluginInterface)
-                and attr is not PluginInterface
+                    inspect.isclass(attr)
+                    and issubclass(attr, PluginInterface)
+                    and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -86,13 +155,13 @@ class PluginManager:
     @staticmethod
     def _extract_plugin_info(module) -> Optional[_PluginInfo]:
         """
-        Extract necessary plugin configuration details.
+        Extracts necessary plugin configuration details from the given module.
 
         Args:
-            module: The plugin module.
+            module: The plugin module from which to extract configuration details.
 
         Returns:
-            _PluginInfo: A dataclass containing the plugin's configuration if valid.
+            _PluginInfo: A dataclass containing the plugin's configuration if valid, None otherwise.
         """
         try:
             name = getattr(module, "PLUGIN_NAME")
@@ -114,6 +183,12 @@ class PluginManager:
 
     @classmethod
     def add_plugin_info(cls, plugin_info: _PluginInfo):
+        """
+        Adds information about a plugin to the internal management structures.
+
+        Args:
+            plugin_info (_PluginInfo): The information about the plugin to add.
+        """
         if plugin_info:
             if plugin_info.index_key:
                 cls._index_keys.update(plugin_info.index_key)
@@ -122,18 +197,46 @@ class PluginManager:
 
     @classmethod
     def get_merged_index_keys(cls) -> dict[str, str]:
+        """
+        Retrieves the merged index keys for all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of index keys and their descriptions.
+        """
         return cls._index_keys
 
     @classmethod
     def get_plugin_names(cls) -> dict[str, str]:
+        """
+        Retrieves the names and versions of all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of plugin names and their versions.
+        """
         return cls._plugin_names
 
     @classmethod
     def get_plugin_descriptions(cls) -> dict[str, str]:
+        """
+        Retrieves the descriptions of all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of plugin names and their descriptions.
+        """
         return cls._plugin_descriptions
 
     def _register_plugin(self, plugin_name: str, bot: Optional[TeleBot] = None):
-        """Register a single plugin."""
+        """
+        Registers a single plugin by its name.
+
+        Args:
+            plugin_name (str): The name of the plugin to register.
+            bot (Optional[TeleBot]): The bot instance to which the plugin will be registered. Defaults to None.
+
+        Raises:
+            ImportError: If the plugin module or configuration cannot be imported.
+            AttributeError: If the plugin configuration is missing required attributes.
+        """
         bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
 
         if not self._validate_plugin_name(plugin_name):
@@ -174,11 +277,11 @@ class PluginManager:
 
     def register_plugins(self, plugin_names: List[str], bot: Optional[TeleBot] = None):
         """
-        Register multiple plugins.
+        Registers multiple plugins by their names.
 
         Args:
-            plugin_names (List[str]): A list of plugin names.
-            bot (TeleBot, optional): The bot instance to which the plugins will be registered. Defaults to None.
+            plugin_names (List[str]): A list of plugin names to register.
+            bot (Optional[TeleBot]): The bot instance to which the plugins will be registered. Defaults to None.
         """
         plugins_to_register = [
             name.strip() for plugin in plugin_names for name in plugin.split(",")
