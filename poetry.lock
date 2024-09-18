@@ -884,4 +884,4 @@ pyoutlineapi = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "ae799726f9cfd9667def69f25560e863b98c86d3b27317638e6d3a8005040555"
+content-hash = "1cedc348989c53131ae2fefcdb70eaeb7a4d01b4935c42d5e85d6178798781fe"
