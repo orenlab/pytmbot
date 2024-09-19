@@ -1,7 +1,8 @@
 # pyTMbot
 
-**pyTMbot** is a flexible Telegram bot designed to manage Docker containers, monitor server status, and extend its
-functionality through a plugin system. The bot operates synchronously without the need for webhooks.
+**pyTMbot** is a versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending
+its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating
+the need for webhooks.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -13,99 +14,107 @@ functionality through a plugin system. The bot operates synchronously without th
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 
-Developed using the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), and
-utilizing [psutil](https://github.com/giampaolo/psutil) and [docker-py](https://github.com/docker/docker-py) libraries.
+**pyTMbot** leverages
+the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), [psutil](https://github.com/giampaolo/psutil),
+and [docker-py](https://github.com/docker/docker-py) libraries to provide robust Docker and server management tools.
 
 ## 💡 Key Features
 
 ### 🐳 Docker Management
 
 - Manage Docker containers (start, stop, restart, etc.)
-- View the status of containers, including those that have completed
-- Access container logs
-- Retrieve information about Docker images
+- View and monitor the status of running and stopped containers
+- Access and search container logs
+- Retrieve and inspect Docker images
+- Inline query handling for managing containers directly from Telegram
 
 ### 🖥️ Local Server Monitoring
 
-- Load average details
-- Summary memory usage, including swap
-- Sensor data
-- Summary of processes
+- Load average details and monitoring
+- Summary of memory and swap usage
+- Real-time sensor data
+- Process summary and control
 - Uptime information
-- Basic file system and network connection information
+- Network and file system information
 
 ### 🔌 Plugin System
 
-- Extend the bot's functionality with custom plugins.
-- Official plugins available:
+- Extend functionality through custom plugins with simple configuration.
+- Example plugins:
     - **Monitor Plugin:** Monitor CPU, memory, and disk usage with customizable thresholds.
+    - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
+    - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from
+      Telegram.
 
-See [PLUGINS.md](docs/PLUGINS.md) for more information.
+Refer to [PLUGINS.md](docs/plugins) for more information on adding and managing plugins.
 
 ### 🔖 Additional Features
 
-- Check for bot updates using `/check_bot_updates`
-- Response templating with `Jinja2`
-- Accessible bot logs through Docker log aggregator
-- Emoji support 😅
-
-Screenshots: [screenshots.md](docs/screenshots.md)
+- Integrated bot update check: `/check_bot_updates`
+- Emoji support for improved user interaction 😎
+- Templated response system powered by Jinja2
+- Extensive logging through Docker log aggregators
 
 ## 🕸 Requirements
 
-Starting from version 0.9.0, the bot can be installed locally outside of Docker containers, though Docker-based
-deployment is still supported.
+Starting from version 0.9.0, **pyTMbot** can run locally or in Docker. Docker-based deployment is the recommended method
+for ease of maintenance.
 
-Full list of Python dependencies can be found in `requirements.txt`. For local installation, refer to `setup_req.txt`.
+- For local installation, check `setup_req.txt`.
+- Full Python dependencies are listed in `requirements.txt`.
 
-## 🔌 Installation, Setup, and Running the Bot
+## 🔌 Installation and Setup
 
-- See [installation.md](docs/installation.md) for detailed instructions.
+Refer to [installation.md](docs/installation.md) for full instructions on setting up the bot in your environment.
 
 ## 🛡 Security
 
-pyTMbot v.2 introduces significant architectural changes and new security measures:
+**pyTMbot** comes with security-first features, such as:
 
-- **Superuser Role:** Grants Docker container management rights securely.
-- **TOTP Two-Factor Authentication:** Enhances security with time-based unique codes and session controls.
+- **Superuser Role:** Manage Docker containers securely.
+- **TOTP 2FA Support:** Secure sensitive actions with time-based OTPs and QR code generation.
+- **Access Control:** Manage bot access using a customizable list of admin IDs.
 
-Learn more about these changes in our [blog post](#).
+Learn more about the security measures in our detailed [security guide](docs/security.md).
 
-## 💢 Supported Commands
+## 🧑‍💻 Commands and Handlers
 
-The bot supports various commands, as listed below:
+The bot provides a rich set of commands for users. Below is a table of the main commands available:
 
-| # | Command              | Button               | Note                            |
-|---|----------------------|----------------------|---------------------------------|
-| 1 | `/start`             | None                 | -                               |
-| 2 | `/help`              | None                 | -                               |
-| 3 | `/docker`            | 🐳 Docker            | -                               |
-| 4 | `/containers`        | 🧰 Containers        | Available in the Docker section |
-| 5 | `/images`            | 🖼️ Images           | Available in the Docker section |
-| 6 | `/back`              | 🔙 Back to main menu | Available in the Docker section |
-| 7 | `/check_bot_updates` | None                 | -                               |
+| # | Command              | Button               | Description                         |
+|---|----------------------|----------------------|-------------------------------------|
+| 1 | `/start`             | None                 | Initialize the bot                  |
+| 2 | `/help`              | None                 | Display help information            |
+| 3 | `/docker`            | 🐳 Docker            | Access Docker management commands   |
+| 4 | `/containers`        | 🧰 Containers        | View and manage Docker containers   |
+| 5 | `/images`            | 🖼️ Images           | Inspect Docker images               |
+| 6 | `/outline`           | 🔑 Outline VPN       | Manage and monitor Outline VPN keys |
+| 7 | `/check_bot_updates` | None                 | Check for available bot updates     |
+| 8 | `/back`              | 🔙 Back to main menu | Return to the main menu             |
+
+Check the [commands documentation](docs/commands.md) for a complete list of available commands and their usage.
 
 ## 📈 Roadmap
 
-For details on future updates, see [roadmap.md](docs/roadmap.md).
+To learn more about planned features and future updates, check the [roadmap](docs/roadmap.md).
 
 ## 🐋 Docker Hub
+
+You can find the official Docker image on Docker Hub:
 
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 [![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
 [![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
-Visit [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) for more details.
+Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) for more details.
 
-## 🧬 Authors
+## 🧬 Contributors
 
-- [@orenlab](https://github.com/orenlab)
-
-## 🚀 About Me
-
-I am a novice Python developer, and this is my first publicly available project in Python.
+- [Denis Rozhnovskiy (@orenlab)](https://github.com/orenlab)
 
 ## 📜 License
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.

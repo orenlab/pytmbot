@@ -38,7 +38,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Create plugin information dictionary
         plugins = {
-            name: plugin_descriptions.get(name, 'No description available')
+            name: plugin_descriptions.get(name, "No description available")
             for name in plugin_names
         }
 
@@ -52,10 +52,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Compile the response using the template
         with Compiler(
-                template_name="b_plugins.jinja2",
-                first_name=first_name,
-                plugins=plugins,
-                **emojis
+            template_name="b_plugins.jinja2",
+            first_name=first_name,
+            plugins=plugins,
+            **emojis,
         ) as compiler:
             response = compiler.compile()
 
@@ -69,4 +69,6 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
     except Exception as e:
         bot_logger.error(f"Failed to handle plugins: {e}")
-        bot.send_message(message.chat.id, "An error occurred while processing the plugins.")
+        bot.send_message(
+            message.chat.id, "An error occurred while processing the plugins."
+        )

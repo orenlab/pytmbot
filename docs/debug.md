@@ -1,6 +1,6 @@
-# Running pyTMBot v.2 in DEBUG Mode
+# Running pyTMBot v.0.2.0 in DEBUG Mode
 
-To run pyTMBot v.2 in DEBUG mode, follow these steps:
+To run pyTMBot v.0.2.0 in DEBUG mode, follow these steps:
 
 1. **Stop the Running Container**
 
@@ -31,7 +31,7 @@ To run pyTMBot v.2 in DEBUG mode, follow these steps:
    --name=pytmbot \
    --pid=host \
    --security-opt=no-new-privileges \
-   orenlab/pytmbot:latest \
+   orenlab/pytmbot:0.2.0 \
    --log_level DEBUG --mode prod
    ```
 
