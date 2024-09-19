@@ -40,7 +40,9 @@ class HandlerManager:
             Any: The result of the callback function execution.
         """
         combined_kwargs = {**self.kwargs, **extra_kwargs}
-        logger.debug(f"Executing callback {self.callback.__name__} with arguments: {combined_kwargs}")
+        logger.debug(
+            f"Executing callback {self.callback.__name__} with arguments: {combined_kwargs}"
+        )
         return self.callback(**combined_kwargs)
 
     @final
