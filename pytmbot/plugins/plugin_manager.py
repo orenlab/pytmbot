@@ -23,6 +23,7 @@ class _PluginInfo:
         commands (Optional[dict[str, str]]): A dictionary mapping command names to descriptions.
         index_key (Optional[dict[str, str]]): A dictionary mapping index keys to descriptions.
     """
+
     name: str
     version: str
     description: str
@@ -49,7 +50,7 @@ class PluginManager:
     _plugin_names = {}
     _plugin_descriptions = {}
 
-    def __new__(cls, *args, **kwargs) -> 'PluginManager':
+    def __new__(cls, *args, **kwargs) -> "PluginManager":
         """
         Creates or retrieves the singleton instance of the PluginManager.
 
@@ -145,9 +146,9 @@ class PluginManager:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                    inspect.isclass(attr)
-                    and issubclass(attr, PluginInterface)
-                    and attr is not PluginInterface
+                inspect.isclass(attr)
+                and issubclass(attr, PluginInterface)
+                and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes

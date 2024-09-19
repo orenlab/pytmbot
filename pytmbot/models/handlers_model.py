@@ -4,35 +4,46 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+from typing import Callable, Any, Dict, TypeAlias
+from typing import final
 
-from typing import Callable, Any, Dict
+from loguru import logger
+
+CallbackType: TypeAlias = Callable[..., Any]
 
 
 class HandlerManager:
     """Class for storing and managing callback functions and keyword arguments."""
 
-    def __init__(self, callback: Callable[..., Any], **kwargs: Any) -> None:
+    def __init__(self, callback: CallbackType, **kwargs: Any) -> None:
         """
         Initializes the HandlerManager with a callback and keyword arguments.
 
         Args:
-            callback (Callable[..., Any]): The callback function to be stored.
+            callback (CallbackType): The callback function to be stored.
             **kwargs (Any): Keyword arguments to be stored with the callback.
         """
         if not callable(callback):
+            logger.error(f"Invalid callback provided: {callback}")
             raise ValueError("The 'callback' parameter must be callable.")
-        self.callback: Callable[..., Any] = callback
+        self.callback: CallbackType = callback
         self.kwargs: Dict[str, Any] = kwargs
 
-    def execute(self) -> Any:
+    def execute(self, **extra_kwargs: Any) -> Any:
         """
-        Executes the stored callback function with the stored keyword arguments.
+        Executes the stored callback function with the stored and additional keyword arguments.
+
+        Args:
+            **extra_kwargs (Any): Additional keyword arguments to pass to the callback.
 
         Returns:
             Any: The result of the callback function execution.
         """
-        return self.callback(**self.kwargs)
+        combined_kwargs = {**self.kwargs, **extra_kwargs}
+        logger.debug(f"Executing callback {self.callback.__name__} with arguments: {combined_kwargs}")
+        return self.callback(**combined_kwargs)
 
+    @final
     def __eq__(self, other: object) -> bool:
         """
         Checks if two HandlerManager instances are equal.

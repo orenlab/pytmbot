@@ -42,7 +42,7 @@ from pytmbot.handlers.server_handlers.uptime import handle_uptime
 from pytmbot.models.handlers_model import HandlerManager
 
 
-def handler_factory():
+def handler_factory() -> dict[str, list[HandlerManager]]:
     """
     Returns a dictionary of HandlerManager objects for command handling.
 
@@ -105,19 +105,19 @@ def handler_factory():
                 callback=handle_qr_code_message,
                 regexp="Get QR-code for 2FA app",
                 func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
+                                     in settings.access_control.allowed_admins_ids,
             ),
             HandlerManager(
                 callback=handle_qr_code_message,
                 commands=["qrcode"],
                 func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
+                                     in settings.access_control.allowed_admins_ids,
             ),
         ],
     }
 
 
-def inline_handler_factory():
+def inline_handler_factory() -> dict[str, list[HandlerManager]]:
     """
     Returns a dictionary of HandlerManager objects for inline query handling.
 
@@ -174,7 +174,7 @@ def inline_handler_factory():
     }
 
 
-def echo_handler_factory():
+def echo_handler_factory() -> dict[str, list[HandlerManager]]:
     """
     Returns a dictionary of HandlerManager objects for echo handling.
 

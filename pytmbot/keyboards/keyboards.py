@@ -28,7 +28,6 @@ class Keyboards:
         Initializes the Keyboards class with an EmojiConverter instance.
         """
         self.emojis: EmojiConverter = EmojiConverter()
-        bot_logger.debug("Keyboards initialized with EmojiConverter instance.")
 
     @staticmethod
     def build_referer_main_keyboard(main_keyboard_data: str) -> ReplyKeyboardMarkup:
