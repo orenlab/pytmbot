@@ -46,7 +46,7 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
     - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from
       Telegram.
 
-Refer to [PLUGINS.md](docs/plugins) for more information on adding and managing plugins.
+Refer to [plugins.md](docs/plugins) for more information on adding and managing plugins.
 
 ### 🔖 Additional Features
 
@@ -92,8 +92,6 @@ The bot provides a rich set of commands for users. Below is a table of the main 
 | 7 | `/check_bot_updates` | None                 | Check for available bot updates     |
 | 8 | `/back`              | 🔙 Back to main menu | Return to the main menu             |
 
-Check the [commands documentation](docs/commands.md) for a complete list of available commands and their usage.
-
 ## 📈 Roadmap
 
 To learn more about planned features and future updates, check the [roadmap](docs/roadmap.md).
@@ -111,7 +109,7 @@ Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) fo
 
 ## 🧬 Contributors
 
-- [Denis Rozhnovskiy (@orenlab)](https://github.com/orenlab)
+- [@orenlab](https://github.com/orenlab)
 
 ## 📜 License
 
