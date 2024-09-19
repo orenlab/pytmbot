@@ -101,7 +101,7 @@
 To start the bot directly with Docker CLI:
 
 ```bash
-sudo docker run -d -m 100M \
+sudo docker run -d \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
 -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
 --env TZ="Asia/Yekaterinburg" \

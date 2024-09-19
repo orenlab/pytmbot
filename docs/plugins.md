@@ -1,15 +1,18 @@
 # pyTMbot Plugins
 
-pyTMbot supports a plugin system to extend the bot's functionality. This document describes the available plugins and how to configure them.
+pyTMbot supports a plugin system to extend the bot's functionality. This document describes the available plugins and
+how to configure them.
 
 ## Supported Plugins
 
 - **monitor**: Provides real-time monitoring of CPU, memory, and disk usage on the server where pyTMbot is running.
-- **outline**: Interacts with the Outline VPN server API, allowing for access key management and server settings updates.
+- **outline**: Interacts with the Outline VPN server API, allowing for access key management and server settings
+  updates.
 
 ## Plugin Usage
 
-Plugins do not require separate installation. To enable a plugin, specify it using the `--plugins` argument when starting the container.
+Plugins do not require separate installation. To enable a plugin, specify it using the `--plugins` argument when
+starting the container.
 
 ### Example Usage with Docker Compose
 
@@ -78,7 +81,8 @@ plugins_config:
 
 ### Outline Plugin Configuration
 
-The configuration for the Outline Plugin is also stored in the `plugins_config` section of the `pytmbot.yaml` file. Example:
+The configuration for the Outline Plugin is also stored in the `plugins_config` section of the `pytmbot.yaml` file.
+Example:
 
 ```yaml
 plugins_config:
@@ -91,7 +95,8 @@ plugins_config:
 
 ### Enabling Multiple Plugins
 
-To enable multiple plugins, update the `command` section in `docker-compose.yml`. For example, to enable both the `monitor` and `outline` plugins:
+To enable multiple plugins, update the `command` section in `docker-compose.yml`. For example, to enable both the
+`monitor` and `outline` plugins:
 
 ```yaml
 command: --plugins "monitor,outline"
@@ -109,11 +114,13 @@ docker-compose up -d
 
 #### Overview
 
-The Monitor Plugin provides real-time monitoring of CPU, memory, and disk usage on the server where pyTMbot is running. It sends notifications to the administrator if any of the thresholds defined in `pytmbot.yaml` are exceeded.
+The Monitor Plugin provides real-time monitoring of CPU, memory, and disk usage on the server where pyTMbot is running.
+It sends notifications to the administrator if any of the thresholds defined in `pytmbot.yaml` are exceeded.
 
 #### Configuration
 
-Monitor Plugin settings are defined in `pytmbot.yaml` under `plugins_config.monitor`. This includes thresholds for resource usage, notification limits, and retry attempts.
+Monitor Plugin settings are defined in `pytmbot.yaml` under `plugins_config.monitor`. This includes thresholds for
+resource usage, notification limits, and retry attempts.
 
 #### Example Configuration in `pytmbot.yaml`
 
@@ -141,7 +148,8 @@ plugins_config:
 
 #### Usage
 
-Once enabled, the Monitor Plugin automatically tracks system resource usage based on the settings provided. It will notify administrators if thresholds are exceeded.
+Once enabled, the Monitor Plugin automatically tracks system resource usage based on the settings provided. It will
+notify administrators if thresholds are exceeded.
 
 #### Exception Handling
 
@@ -149,17 +157,20 @@ The Monitor Plugin handles configuration errors and runtime issues. Errors are l
 
 #### Customization
 
-All thresholds and monitoring behavior can be customized via the `pytmbot.yaml` configuration file. Users can set their own CPU, memory, and disk usage limits, as well as adjust retry logic and notification intervals.
+All thresholds and monitoring behavior can be customized via the `pytmbot.yaml` configuration file. Users can set their
+own CPU, memory, and disk usage limits, as well as adjust retry logic and notification intervals.
 
 ### Outline Plugin
 
 #### Overview
 
-The Outline Plugin integrates with the Outline VPN server API to manage access keys, retrieve server statistics, update server settings, and monitor data usage.
+The Outline Plugin integrates with the Outline VPN server API to manage access keys, retrieve server statistics, update
+server settings, and monitor data usage.
 
 #### Configuration
 
-The Outline Plugin is configured in `pytmbot.yaml` under the `plugins_config` section. The API URL and certificate path are specified here.
+The Outline Plugin is configured in `pytmbot.yaml` under the `plugins_config` section. The API URL and certificate path
+are specified here.
 
 #### Example Configuration in `pytmbot.yaml`
 
@@ -174,11 +185,13 @@ plugins_config:
 
 #### Usage
 
-After enabling the plugin, it provides an interface for interacting with the Outline VPN server, allowing key management and server configuration updates based on the provided credentials.
+After enabling the plugin, it provides an interface for interacting with the Outline VPN server, allowing key management
+and server configuration updates based on the provided credentials.
 
 #### Exception Handling
 
-The Outline Plugin includes comprehensive error handling for API communication and configuration issues. Errors are logged for review.
+The Outline Plugin includes comprehensive error handling for API communication and configuration issues. Errors are
+logged for review.
 
 ## Future Enhancements
 

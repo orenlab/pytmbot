@@ -47,7 +47,7 @@ versatile Telegram bot for managing Docker containers and monitoring server stat
 To launch the Docker container directly:
 
 ```bash
-sudo docker run -d -m 100M \
+sudo docker run -d \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
 -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
 --env TZ="Asia/Yekaterinburg" \

@@ -23,7 +23,7 @@ To run pyTMBot v.0.2.0 in DEBUG mode, follow these steps:
    Launch the pyTMBot container in DEBUG mode by executing the following command:
 
    ```bash
-   sudo docker run -d -m 100M \
+   sudo docker run -d \
    -v /var/run/docker.sock:/var/run/docker.sock:ro \
    -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
    --env TZ="Asia/Yekaterinburg" \
