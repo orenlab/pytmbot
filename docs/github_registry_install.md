@@ -63,11 +63,42 @@
    sudo docker run --rm ghcr.io/orenlab/pytmbot:latest --salt
    ```
 
-This command will display a unique salt value and delete the container automatically.
+   This command will display a unique salt value and delete the container automatically.
 
 ## 🔌 Run the Bot
 
-To start the bot in a Docker container, use the following command:
+### Using Docker Compose
+
+1. **Create a `docker-compose.yml` File:**
+
+   ```yaml
+   version: '3.8'
+
+   services:
+     pytmbot:
+       image: ghcr.io/orenlab/pytmbot:latest
+       container_name: pytmbot
+       restart: always
+       environment:
+         - TZ=Asia/Yekaterinburg
+       volumes:
+         - /var/run/docker.sock:/var/run/docker.sock:ro
+         - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+       security_opt:
+         - no-new-privileges
+       pid: host
+       command: --log_level INFO
+   ```
+
+2. **Start the Container:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+### Using Docker CLI
+
+To start the bot directly with Docker CLI:
 
 ```bash
 sudo docker run -d -m 100M \
