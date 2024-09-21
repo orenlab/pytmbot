@@ -5,41 +5,37 @@
 To update the image to the latest version, please follow these steps:
 
 1. **Stop the running pyTMbot container:**
-
-   ```bash
-   sudo docker stop pytmbot
-   ```
+```bash
+sudo docker stop pytmbot
+```
 
 2. **Delete the outdated container:**
-
-   ```bash
-   sudo docker rm pytmbot
-   ```
+```bash
+sudo docker rm pytmbot
+```
 
 3. **Delete the outdated image:**
-
-   ```bash
-   sudo docker rmi pytmbot
-   ```
+```bash
+sudo docker rmi pytmbot
+```
 
 4. **Pull the updated image:**
-
-   ```bash
-   sudo docker pull orenlab/pytmbot:latest
-   ```
+```bash
+sudo docker pull orenlab/pytmbot:latest
+```
 
 5. **Run the container as you would if you had just installed the bot:**
 
-   ```bash
-   sudo docker run -d \
-   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-   -v /root/pytmbot.yaml:/opt/pytmbot/pytmbot.yaml:ro \
-   --env TZ="Asia/Yekaterinburg" \
-   --restart=always \
-   --name=pytmbot \
-   --pid=host \
-   --security-opt=no-new-privileges \
-   orenlab/pytmbot:latest
-   ```
+```bash
+sudo docker run -d \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+-v /root/pytmbot.yaml:/opt/pytmbot/pytmbot.yaml:ro \
+--env TZ="Asia/Yekaterinburg" \
+--restart=always \
+--name=pytmbot \
+--pid=host \
+--security-opt=no-new-privileges \
+orenlab/pytmbot:latest
+```
 
 *Note: Please don't forget to adjust the time zone!*
