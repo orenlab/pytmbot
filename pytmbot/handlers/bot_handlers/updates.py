@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 from datetime import datetime
-from typing import Dict
 
 import requests
 from telebot import TeleBot
@@ -159,11 +158,11 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
     }
 
     with Compiler(
-        template_name="b_bot_update.jinja2",
-        current_version=current_version,
-        release_date=release_date,
-        release_notes=release_notes,
-        **emojis,
+            template_name="b_bot_update.jinja2",
+            current_version=current_version,
+            release_date=release_date,
+            release_notes=release_notes,
+            **emojis,
     ) as compiler:
         return compiler.compile()
 
@@ -212,7 +211,7 @@ def _render_future_message(update_context: dict[str, str]) -> str:
         return compiler.compile()
 
 
-def __check_bot_update() -> Dict[str, str]:
+def __check_bot_update() -> dict[str, str]:
     """
     Check for bot updates and return release information.
 
@@ -220,37 +219,50 @@ def __check_bot_update() -> Dict[str, str]:
     of the bot. It uses the `__github_api_url__` constant to construct the URL.
 
     Returns:
-        Dict[str, str]: A dictionary containing the tag name, published date, and release body.
+        dict[str, str]: A dictionary containing the tag name, published date, and release body.
                         If an error occurs during the update check, an empty dictionary is returned.
     """
     try:
         bot_logger.debug("Checking for bot updates...")
-        # Send a GET request to the GitHub API
         with requests.get(__github_api_url__, timeout=5) as response:
-            # Raise an exception if the request was unsuccessful
             response.raise_for_status()
 
             bot_logger.debug(f"GitHub API response code: {response.status_code}")
 
-            # Parse the response as JSON
             data = response.json()
 
-            # Convert the published_at timestamp to a datetime object
-            published_date = datetime.fromisoformat(data.get("published_at"))
+            # Validate required fields in the response
+            if not isinstance(data, dict):
+                raise ValueError("Response data is not a dictionary")
 
-            # Create a dictionary with the release information
+            tag_name = data.get("tag_name")
+            published_at = data.get("published_at")
+            body = data.get("body")
+
+            if not tag_name or not isinstance(tag_name, str):
+                raise ValueError("Invalid or missing 'tag_name' in the response")
+
+            if not published_at or not isinstance(published_at, str):
+                raise ValueError("Invalid or missing 'published_at' in the response")
+
+            if not body or not isinstance(body, str):
+                raise ValueError("Invalid or missing 'body' in the response")
+
+            try:
+                published_date = datetime.fromisoformat(published_at)
+            except ValueError:
+                raise ValueError("Invalid 'published_at' format. Expected ISO format.")
+
             release_info = {
-                "tag_name": data.get("tag_name"),
+                "tag_name": tag_name,
                 "published_at": published_date.strftime("%Y-%m-%d, %H:%M:%S"),
-                "body": data.get("body"),
+                "body": body,
             }
 
             bot_logger.debug(f"GitHub API response: {release_info}")
 
-            # Return the release information
             return release_info
 
-    # If an exception occurs during the update check, log the error and return an empty dictionary
-    except requests.RequestException as e:
-        bot_logger.error(f"An error occurred: {e}")
+    except (requests.RequestException, ValueError) as e:
+        bot_logger.error(f"An error occurred during update check: {e}")
         return {}
