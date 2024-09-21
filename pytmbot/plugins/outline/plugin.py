@@ -1,10 +1,10 @@
 import json
-from typing import Dict, Optional, Literal
+from typing import Dict, Optional, Literal, Any
 
 from telebot import TeleBot
 from telebot.types import Message
 
-from pytmbot.globals import keyboards
+from pytmbot.globals import keyboards, em
 from pytmbot.logs import logged_handler_session
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
@@ -35,12 +35,17 @@ class OutlinePlugin(PluginInterface):
 
         :param message: The incoming Message object from Telegram.
         """
+        emojis: dict = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+        }
+
         response = self._compile_template(
             template_name="plugin_outline_index.jinja2",
             first_name=message.from_user.first_name,
+            **emojis,
         )
         keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
-        self.bot.send_message(message.chat.id, response, reply_markup=keyboard)
+        self.bot.send_message(message.chat.id, response, reply_markup=keyboard, parse_mode="Markdown")
 
     @logged_handler_session
     def handle_server_info(self, message: Message) -> Message:
@@ -51,6 +56,14 @@ class OutlinePlugin(PluginInterface):
         :param message: The incoming Message object from Telegram.
         """
         self.bot.send_chat_action(message.chat.id, "typing")
+
+        emojis: dict = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "label": em.get_emoji("label"),
+            "bar_chart": em.get_emoji("bar_chart"),
+            "alarm_clock": em.get_emoji("alarm_clock"),
+            "key": em.get_emoji("key")
+        }
 
         server_info = self._get_action_data(action="server_information")
         if server_info is None:
@@ -64,6 +77,7 @@ class OutlinePlugin(PluginInterface):
             template_name="plugin_outline_server_info.jinja2",
             first_name=message.from_user.first_name,
             context=server_info,
+            **emojis
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
@@ -77,6 +91,11 @@ class OutlinePlugin(PluginInterface):
         """
         self.bot.send_chat_action(message.chat.id, "typing")
 
+        emojis: dict = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "minus": em.get_emoji("minus"),
+        }
+
         keys = self._get_action_data(action="key_information")
         if keys is None:
             return self.bot.send_message(
@@ -89,6 +108,7 @@ class OutlinePlugin(PluginInterface):
             template_name="plugin_outline_keys.jinja2",
             first_name=message.from_user.first_name,
             context=keys,
+            **emojis
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
@@ -101,6 +121,11 @@ class OutlinePlugin(PluginInterface):
         :param message: The incoming Message object from Telegram.
         """
         self.bot.send_chat_action(message.chat.id, "typing")
+
+        emojis: dict = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "minus": em.get_emoji("minus"),
+        }
 
         traffic = self._get_action_data(action="traffic_information")
         if traffic is None:
@@ -128,6 +153,7 @@ class OutlinePlugin(PluginInterface):
                     "bytesTransferredByUserId": bytes_transferred,
                     "userNames": user_names,
                 },
+                **emojis
             )
             self.bot.send_message(message.chat.id, response, parse_mode="HTML")
         except Exception as e:
@@ -139,8 +165,8 @@ class OutlinePlugin(PluginInterface):
             )
 
     def _get_action_data(
-        self,
-        action: Literal["key_information", "server_information", "traffic_information"],
+            self,
+            action: Literal["key_information", "server_information", "traffic_information"],
     ) -> Optional[Dict]:
         """
         Retrieves action data from the plugin methods and processes it.
@@ -176,7 +202,7 @@ class OutlinePlugin(PluginInterface):
         return None
 
     def _compile_template(
-        self, template_name: str, first_name: str, context: Optional[Dict] = None
+            self, template_name: str, first_name: str, context: Optional[Dict] = None, **kwargs: dict[str, Any]
     ) -> str:
         """
         Compiles the template with the provided context and first name.
@@ -184,13 +210,15 @@ class OutlinePlugin(PluginInterface):
         :param template_name: The name of the Jinja2 template file.
         :param first_name: The first name of the user to personalize the response.
         :param context: Optional context dictionary to pass to the template.
+        :param kwargs: Additional keyword arguments to pass to the template.
         :return: The compiled template response as a string.
         """
         with Compiler(
-            template_name=template_name,
-            first_name=first_name,
-            set_naturalsize=set_naturalsize,
-            context=context or {},
+                template_name=template_name,
+                first_name=first_name,
+                set_naturalsize=set_naturalsize,
+                context=context or {},
+                **kwargs
         ) as compiler:
             response = compiler.compile()
 
