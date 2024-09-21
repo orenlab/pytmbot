@@ -10,6 +10,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from pytmbot import exceptions
 from pytmbot.globals import var_config
 from pytmbot.logs import bot_logger
+from pytmbot.parsers.filters import format_timestamp
 
 
 class Jinja2Renderer:
@@ -62,18 +63,22 @@ class Jinja2Renderer:
             f"Setting up Jinja2 environment with template path: {template_path}"
         )
 
-        return SandboxedEnvironment(
+        env = SandboxedEnvironment(
             loader=jinja2.FileSystemLoader(template_path),
             autoescape=select_autoescape(
                 ["html", "txt", "jinja2"], default_for_string=True
             ),
         )
 
+        env.filters["format_timestamp"] = format_timestamp
+
+        return env
+
     def render_templates(
-        self,
-        template_name: str,
-        emojis: Optional[Dict[str, str]] = None,
-        **kwargs: Dict[str, Any],
+            self,
+            template_name: str,
+            emojis: Optional[Dict[str, str]] = None,
+            **kwargs: Dict[str, Any],
     ) -> str:
         """
         Render a Jinja2 template with the given name and context.
@@ -106,7 +111,7 @@ class Jinja2Renderer:
             ) from error
 
     def __get_template(
-        self, template_name: str, template_subdir: str
+            self, template_name: str, template_subdir: str
     ) -> jinja2.Template:
         """
         Get a Jinja2 template by its name.
