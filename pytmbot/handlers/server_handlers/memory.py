@@ -52,6 +52,7 @@ def handle_memory(message: Message, bot: TeleBot):
             message.chat.id,
             text=bot_answer,
             reply_markup=keyboard,
+            parse_mode="Markdown",
         )
 
     except Exception as error:

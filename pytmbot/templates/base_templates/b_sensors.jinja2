@@ -1,6 +1,7 @@
 {# templates/sensors.jinja2 #}
-{{ thought_balloon }}Here is:
 
-{% for value in context %}{{ thermometer }} {{ value['sensor_name'] }}: {{ value['sensor_value'] }}°C
+{{ thought_balloon }} Here is:
+
+{% for value in context %}
+    {{ thermometer }} <b>{{ value['sensor_name'] }}:</b>{{ value['sensor_value'] }}°C
 {% endfor %}
-<blockquote>{{ exclamation }} Units of measurement: Degrees Celsius</blockquote>

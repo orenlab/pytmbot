@@ -1,8 +1,11 @@
-{# templates/sensors.jinja2 #}
-{{ thought_balloon }}Here is:
-
-{% for key, value in context.items() %}{{ horizontal_traffic_light }} {{ key }}: {{ value }}
+{{ thought_balloon }} Here is:
+{% if context %}
+{# Output data in key: value format #}
+{% for key, value in context.items() %}{{ horizontal_traffic_light }}{{ key }}: {{ value }}
 {% endfor %}
+{% else %}
+{{ warning }} No process data available at the moment.
+{% endif %}
 {% if running_in_docker %}
-    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the system resources.
+{{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the system resources.
 {% endif %}

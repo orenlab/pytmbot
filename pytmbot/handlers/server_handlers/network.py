@@ -42,7 +42,9 @@ def handle_network(message: Message, bot: TeleBot):
         ) as compiler:
             message_text = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=message_text)
+        return bot.send_message(
+            message.chat.id, text=message_text, parse_mode="Markdown"
+        )
 
     except Exception as error:
         raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")

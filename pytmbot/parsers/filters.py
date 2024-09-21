@@ -11,4 +11,4 @@ def format_timestamp(value: int) -> str:
     Returns:
         str: Timestamp as a string in the format '%d-%m-%Y %H:%M:%S'.
     """
-    return datetime.fromtimestamp(value / 1000).strftime('%d-%m-%Y %H:%M:%S')
+    return datetime.fromtimestamp(value / 1000).strftime("%d-%m-%Y %H:%M:%S")

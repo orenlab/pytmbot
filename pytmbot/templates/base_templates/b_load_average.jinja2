@@ -1,6 +1,8 @@
 {# templates/load_average.jinja2 #}
-{{ thought_balloon }}Here is:
 
-{{ desktop_computer }} Load in 1 minute: {{ context[0] }}
-{{ desktop_computer }} Load in 5 minutes: {{ context[1] }}
-{{ desktop_computer }} Load in 15 minutes: {{ context[2] }}
+{{ thought_balloon }} Here is:
+
+{{ desktop_computer }} **Load Average:**
+- **1 minute:** {{ context[0] }}
+- **5 minutes:** {{ context[1] }}
+- **15 minutes:** {{ context[2] }}

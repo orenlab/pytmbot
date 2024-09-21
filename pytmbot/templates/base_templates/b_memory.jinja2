@@ -1,5 +1,6 @@
 {# templates/memory.jinja2 #}
-{{ thought_balloon }}Here is:
 
-{% for key, value in context.items() %}{{ abacus }} {{ key }}: {{ value }}
+{{ thought_balloon }} Here is:
+
+{% for key, value in context.items() %}{{ abacus }} **{{ key }}:** {{ value }}
 {% endfor %}

@@ -40,7 +40,7 @@ def handle_load_average(message: Message, bot: TeleBot):
         ) as compiler:
             bot_answer = compiler.compile()
 
-        bot.send_message(message.chat.id, text=bot_answer)
+        bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
 
     except Exception as error:
         raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
