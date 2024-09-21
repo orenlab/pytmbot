@@ -7,7 +7,7 @@ Outline VPN plugin for pyTMBot
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import SecretStr
 
@@ -21,12 +21,6 @@ class OutlineVPN(PluginCoreModel):
     cert: list[SecretStr]
 
 
-class OutlineConfig(PluginCoreModel):
-    """Model for Outline plugin config"""
-
-    outline: OutlineVPN
-
-
 class OutlineServer(PluginCoreModel):
     """Model for Outline server"""
 
@@ -35,12 +29,6 @@ class OutlineServer(PluginCoreModel):
     metricsEnabled: bool
     createdTimestampMs: int
     portForNewAccessKeys: int
-
-
-class BytesTransferredByUserId(PluginCoreModel):
-    """Model for bytes transferred by user id"""
-
-    bytesTransferredByUserId: Dict[str, int]
 
 
 class OutlineKey(PluginCoreModel):
@@ -54,9 +42,3 @@ class OutlineKey(PluginCoreModel):
     access_url: str
     used_bytes: int
     data_limit: Optional[int]
-
-
-class OutlineKeys(PluginCoreModel):
-    """Model for Outline keys"""
-
-    keys: List[OutlineKey]
