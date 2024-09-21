@@ -8,7 +8,7 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
-from pytmbot.globals import psutil_adapter, em
+from pytmbot.globals import psutil_adapter, em, running_in_docker
 from pytmbot.logs import logged_handler_session, bot_logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -32,10 +32,11 @@ def handle_file_system(message: Message, bot: TeleBot):
             "thought_balloon": em.get_emoji("thought_balloon"),
             "floppy_disk": em.get_emoji("floppy_disk"),
             "minus": em.get_emoji("minus"),
+            "warning": em.get_emoji("warning"),
         }
 
         with Compiler(
-            template_name="b_fs.jinja2", context=disk_usage, **emojis
+            template_name="b_fs.jinja2", context=disk_usage, running_in_docker=running_in_docker, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 

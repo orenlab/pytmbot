@@ -8,7 +8,7 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
-from pytmbot.globals import em, psutil_adapter
+from pytmbot.globals import em, psutil_adapter, running_in_docker
 from pytmbot.logs import logged_handler_session, bot_logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -19,6 +19,7 @@ def handle_process(message: Message, bot: TeleBot):
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
         "horizontal_traffic_light": em.get_emoji("horizontal_traffic_light"),
+        "warning": em.get_emoji("warning"),
     }
 
     try:
@@ -35,7 +36,7 @@ def handle_process(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-            template_name="b_process.jinja2", context=process_count, **emojis
+                template_name="b_process.jinja2", context=process_count, running_in_docker=running_in_docker, **emojis
         ) as compiler:
             message_text = compiler.compile()
 

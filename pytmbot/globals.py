@@ -15,7 +15,7 @@ from pytmbot.settings import (
     bot_command_settings as app_bot_command_settings,
     bot_description_settings as app_bot_description_settings,
 )
-from pytmbot.utils.utilities import EmojiConverter
+from pytmbot.utils.utilities import EmojiConverter, is_running_in_docker
 
 # pyTMBot globals initialization
 
@@ -44,3 +44,5 @@ keyboards = Keyboards()
 em = EmojiConverter()
 # psutil adapter
 psutil_adapter = PsutilAdapter()
+# Running in docker
+running_in_docker = is_running_in_docker()

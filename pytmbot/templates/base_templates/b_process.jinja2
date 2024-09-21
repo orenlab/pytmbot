@@ -3,4 +3,6 @@
 
 {% for key, value in context.items() %}{{ horizontal_traffic_light }} {{ key }}: {{ value }}
 {% endfor %}
-<blockquote>Oh, oh, oh... I'm on this server too!</blockquote>
+{% if running_in_docker %}
+    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the system resources.
+{% endif %}

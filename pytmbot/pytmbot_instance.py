@@ -39,7 +39,6 @@ class PyTMBot:
     def __init__(self):
         self.args = parse_cli_args()
         self.bot: TeleBot | None = None
-        self.run_in_docker = is_running_in_docker()
         self.plugin_manager = PluginManager()
 
     def _get_bot_token(self) -> str:

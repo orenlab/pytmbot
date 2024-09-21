@@ -9,3 +9,7 @@
     {{ minus }} free space: {{ value['free'] }}
     {{ minus }} use percent: {{ value['percent'] }}%
 {% endfor %}
+
+{% if running_in_docker %}
+    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the system resources.
+{% endif %}
