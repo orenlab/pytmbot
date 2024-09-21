@@ -1,12 +1,23 @@
-# Access Control for pyTMBot 🚪🔐
+# 📜 Access Control for pyTMBot 🚪🔐
 
-## Overview
+## 🔍 Overview
 
 The access control mechanism in **pyTMBot** ensures that only authorized users can access certain functionalities. This
-process involves several key steps, including user identification, authentication, and authorization. Below is a
-detailed description of the access control workflow.
+process involves several key steps, including user identification, authentication, and authorization.
 
-## Workflow Diagram
+## 🔧 Session management
+
+In the latest updates, several improvements were implemented to enhance security and
+reliability:
+
+1. **Automatic Session Cleanup**:
+    - The `clear_expired_sessions` method is now called during each initialization of the `SessionManager` instance.
+      This ensures that expired sessions are regularly cleared, enhancing security by removing stale data.
+
+2. **Improved Safety Checks**:
+    - Methods that manipulate user data now include comprehensive checks to ensure data integrity and prevent errors.
+
+## 📊 Workflow Diagram
 
 ```mermaid
 graph TD
@@ -19,7 +30,7 @@ graph TD
     HandleRequest --> Done
 ```
 
-## Access Control Process
+## 📱 Access Control Process
 
 ### 1. User Request 📲
 
@@ -57,10 +68,10 @@ Once authentication is complete (if required), or if no additional authenticatio
 The access control process is complete, and the user’s request is either handled or denied based on the outcome of the
 above checks.
 
-## Conclusion
+## 📬 Conclusion
 
 This access control mechanism ensures secure and efficient management of user requests, balancing accessibility with
 necessary security measures.
 
 For further information or to report issues, please refer to
-our [GitHub repository](https://github.com/orenlab/pytmbot/issues) or [contact support](mailto:support@pytmbot.com).
+our [GitHub repository](https://github.com/orenlab/pytmbot/issues) or [contact support](mailto:pytelemonbot@mail.ru).

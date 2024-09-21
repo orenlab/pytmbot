@@ -45,6 +45,8 @@ ensures:
 - **Admin Whitelist:** Admins are whitelisted in the `settings` file to ensure that only authorized users can access
   critical operations, including QR code generation for 2FA setup.
 
+More details on access control can be found in the [auth_control.md](auth_control.md) document.
+
 ## 📊 Audit Logs
 
 - **Logging:** The bot leverages detailed logging to track user activity and access to critical resources. Logs include:
