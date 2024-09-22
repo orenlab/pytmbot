@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "pyTMBot"
-version = "0.2.0-dev"
-description = "Flexible Telegram bot designed to manage Docker containers, monitor server status, and extend its functionality through a plugin system"
+version = "0.2.0-rc1"
+description = "Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating the need for webhooks"
 authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
 readme = "README.md"
 license = "MIT"
