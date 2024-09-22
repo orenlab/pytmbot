@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pytmbot.parsers._parser import Jinja2Renderer
 
@@ -12,7 +12,6 @@ class Compiler:
 
     Attributes:
         template_name (str): The name of the Jinja2 template to compile.
-        kwargs (Dict[str, Any]): The context variables for rendering the template.
         renderer (Optional[Jinja2Renderer]): The Jinja2Renderer instance used for rendering, initialized when entering the context.
     """
 
@@ -41,10 +40,10 @@ class Compiler:
         return self
 
     def __exit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[Any],
+            self,
+            exc_type: Optional[type],
+            exc_val: Optional[Exception],
+            exc_tb: Optional[Any],
     ) -> None:
         """
         Exit the runtime context related to this object.

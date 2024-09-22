@@ -58,6 +58,82 @@ sudo docker run -d \
 orenlab/pytmbot:0.2.0 --plugins monitor
 ```
 
+## 🗂️ Configuration (pytmbot.yaml)
+
+Before running the bot, configure the `pytmbot.yaml` file with the necessary settings:
+
+```bash
+sudo -i
+cd /root
+touch pytmbot.yaml
+nano pytmbot.yaml
+```
+
+Here’s a sample configuration:
+
+```yaml
+# Setup bot tokens
+bot_token:
+  # Prod bot token.
+  prod_token:
+    - ''
+  # Development bot token. Not necessary for production bot.
+  dev_bot_token:
+    - ''
+# Setup access control
+access_control:
+  # The ID of the users who have permission to access the bot.
+  allowed_user_ids:
+    - 0000000000
+  # The ID of the admins who have permission to access the bot.
+  allowed_admins_ids:
+    - 0000000000
+  # Salt for TOTP secrets.
+  auth_salt:
+    - ''
+# Docker settings
+docker:
+  # Docker socket. Usually: unix:///var/run/docker.sock.
+  host:
+    - 'unix:///var/run/docker.sock'
+# Plugins configuration
+plugins_config:
+  # Configuration for Monitor plugin
+  monitor:
+    # Tracehold settings
+    tracehold:
+      cpu_usage_threshold:
+        - 80
+      memory_usage_threshold:
+        - 80
+      disk_usage_threshold:
+        - 80
+    max_notifications:
+      - 3
+    check_interval:
+      - 2
+    reset_notification_count:
+      - 5
+    retry_attempts:
+      - 3
+    retry_interval:
+      - 10
+  # Configuration for Outline plugin
+  outline:
+    api_url:
+      - ''
+    cert:
+      - ''
+```
+
+### 📋 Explanation of Configuration Fields
+
+- **bot_token**: Set your bot tokens here for production and development.
+- **access_control**: Define which user IDs have access to the bot and specify admin IDs.
+- **auth_salt**: Used for generating TOTP secrets.
+- **docker**: Specify the Docker socket for communication.
+- **plugins_config**: Configure the plugins, including thresholds and retry settings for monitoring.
+
 ## 🔌 Plugins
 
 **pyTMbot** supports a plugin system to extend its functionality. Plugins are configured in the `pytmbot.yaml` file and
@@ -80,34 +156,7 @@ can be enabled via Docker Compose or Docker CLI.
 
 2. **Configure Plugins in `pytmbot.yaml`:**
 
-   External plugin configurations should be placed under `plugins_config` in `pytmbot.yaml`. Example configuration:
-
-   ```yaml
-   plugins_config:
-     monitor:
-       tracehold:
-         cpu_usage_threshold:
-           - 80
-         memory_usage_threshold:
-           - 80
-         disk_usage_threshold:
-           - 80
-       max_notifications:
-         - 3
-       check_interval:
-         - 2
-       reset_notification_count:
-         - 5
-       retry_attempts:
-         - 3
-       retry_interval:
-         - 10
-     outline:
-       api_url:
-         - ''
-       cert:
-         - ''
-   ```
+   External plugin configurations should be placed under `plugins_config` in `pytmbot.yaml`.
 
    For more details on configuring plugins, refer
    to [plugins.md](https://github.com/orenlab/pytmbot/blob/master/docs/plugins.md).
@@ -135,6 +184,12 @@ To update to the latest image version:
    sudo docker pull orenlab/pytmbot:latest
    docker-compose up -d
    ```
+
+## 👾 Support, source code, questions and discussions
+
+- Support: https://github.com/orenlab/pytmbot/issues
+- Source code: [https://github.com/orenlab/pytmbot/](https://github.com/orenlab/pytmbot/)
+- Discussions: [https://github.com/orenlab/pytmbot/discussions](https://github.com/orenlab/pytmbot/discussions)
 
 ## 📜 License
 

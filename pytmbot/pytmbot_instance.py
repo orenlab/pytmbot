@@ -22,7 +22,7 @@ from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args, is_running_in_docker
+from pytmbot.utils.utilities import parse_cli_args
 
 
 class PyTMBot:
@@ -150,8 +150,8 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-        register_method: Callable,
+            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+            register_method: Callable,
     ):
         """
         Registers bot handlers using the provided factory function and registration method.
