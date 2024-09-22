@@ -1,0 +1,11 @@
+{% set access_keys = context['accessKeys'] %}
+
+{{ thought_balloon }}{{ first_name }},
+
+Here is the information about your access keys:
+
+Total number of keys: <b>{{ access_keys | length }}</b>
+
+<b>Key Names:</b>
+{% for key in access_keys %}{{ minus }} <i>{{ key['name'] }}</i>
+{% endfor %}

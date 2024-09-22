@@ -1,25 +1,37 @@
 [tool.poetry]
 name = "pyTMBot"
-version = "0.1.2-dev"
-description = "A simple Telegram bot designed to gather basic information about the status of your local computers and/or servers from Glances"
+version = "0.2.0-rc1"
+description = "Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating the need for webhooks"
 authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
 readme = "README.md"
+license = "MIT"
+repository = "https://github.com/orenlab/pytmbot"
 
 [tool.poetry.dependencies]
 python = "^3.12"
 emoji = "^2.9.0"
 jinja2 = "^3.1.3"
-pydantic = "^2.5.3"
-pydantic-settings = "^2.1.0"
+pydantic = "^2.9.1"
+pydantic-settings = "^2.5.2"
 docker = "^7.0.0"
-click = "^8.1.7"
 humanize = "^4.9.0"
 psutil = "^6.0.0"
 pytelegrambotapi = "^4.21.0"
 pyotp = "^2.9.0"
 qrcode = "^7.4.2"
 loguru = "^0.7.2"
+pyyaml = "^6.0.2"
+click = "^8.1.7"
 
+[tool.poetry.dev-dependencies]
+mypy = "^1.0.0"
+packaging = "^24.1"
+black = "^24.8.0"
+isort = "^5.0.0"
+
+[tool.poetry.extras]
+pyoutlineapi = ["pyoutlineapi"]
+click = ["click"]
 
 [build-system]
 requires = ["poetry-core"]

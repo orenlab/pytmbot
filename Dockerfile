@@ -13,83 +13,81 @@ ARG ALPINE_IMAGE=3.20
 ########################################################################################################################
 ######################### BUILD ALPINE BASED IMAGE #####################################################################
 ########################################################################################################################
-
-# Zero Alpine stage - setup base image
-FROM alpine:${ALPINE_IMAGE} AS alpine_base
-
-# Update base os components
-RUN apk --no-cache update && \
-    apk --no-cache upgrade && \
-# Add Timezone support in Alpine image
-    apk --no-cache add tzdata
-
-# App workdir
-WORKDIR /opt/pytmbot/
-
-# Setup env var
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/opt/pytmbot
-ENV PATH=/venv/bin:$PATH
-
-# Copy bot files
-COPY ./app ./app/
-
 # First Alpine stage - build Python deps
 FROM python:${PYTHON_IMAGE} AS builder
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
+RUN apk --no-cache update && \
+    apk --no-cache upgrade
+
+# Copy and install dependencies
 COPY requirements.txt .
 
-# Install all deps (need to build psutil)
-RUN apk --no-cache add gcc python3-dev musl-dev linux-headers && \
-# Activate venv
-    python${PYTHON_VERSION} -m venv --without-pip venv && \
-# Install deps
-    pip install --upgrade --no-cache-dir --no-deps --target="/venv/lib/python${PYTHON_VERSION}/site-packages"  \
-    -r requirements.txt --upgrade &&  \
-# Uninstall build deps
-    python${PYTHON_VERSION} -m pip uninstall pip setuptools -y && \
-    apk del gcc musl-dev linux-headers
+RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-headers binutils && \
+    python${PYTHON_VERSION} -m venv /venv && \
+    /venv/bin/python -m ensurepip --upgrade && \
+    /venv/bin/pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
+    /venv/bin/pip uninstall -y pip setuptools wheel && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip --strip-unneeded {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name 'tests' -exec rm -rf {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name '__pycache__' -exec rm -rf {} + && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.pyc' -exec rm -rf {} + && \
+    python3 -m pip uninstall -y pip setuptools wheel && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'pip*' -exec rm -rf {} + && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'setuptools*' -exec rm -rf {} + && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'wheel*' -exec rm -rf {} + && \
+    apk del .build-deps && \
+    rm -rf /root/.cache
 
-# Second Alpine stage - based on the base stage. Setup bot
-FROM alpine_base AS reliase_base
+########################################################################################################################
+######################### SETUP FINAL IMAGE ###########################################################################
+########################################################################################################################
+# Second Alpine stage - setup bot environment
+FROM alpine:${ALPINE_IMAGE} AS release_base
 
 # Python version (minimal - 3.12)
 ARG PYTHON_VERSION=3.12
 
-# Сopy only the necessary python files and directories from first stage
-COPY --from=builder /usr/local/bin/python3 /usr/local/bin/python3
-COPY --from=builder /usr/local/bin/python${PYTHON_VERSION} /usr/local/bin/python${PYTHON_VERSION}
-COPY --from=builder /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
-COPY --from=builder /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0 /usr/local/lib/libpython${PYTHON_VERSION}.so.1.0
-COPY --from=builder /usr/local/lib/libpython3.so /usr/local/lib/libpython3.so
+# Update and install essential packages in a single step
+RUN apk --no-cache upgrade && \
+    apk add --no-cache tzdata
 
-# Copy only the dependencies installation from the first stage image
+# Set workdir and environment variables
+WORKDIR /opt/app/
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/opt/app \
+    PATH=/venv/bin:$PATH
+
+# Copy app files in one step to reduce layers
+COPY ./pytmbot ./pytmbot
+COPY ./main.py ./main.py
+COPY ./entrypoint.sh ./entrypoint.sh
+
+# Make entrypoint script executable
+RUN chmod +x ./entrypoint.sh
+
+# Copy necessary Python files and directories from first stage
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
 COPY --from=builder /venv /venv
 
-# activate venv
-RUN source /venv/bin/activate && \
-# forward logs to Docker's log collector
-    ln -sf /dev/stdout /dev/stdout && \
-    ln -sf /dev/stderr /dev/stderr
-
 # Target for CI/CD image
-FROM reliase_base AS production
+FROM release_base AS production
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]
 
-# Target for self biuld image, --mode = prod
-FROM reliase_base AS self_build
+# Target for self build image, --mode = prod
+FROM release_base AS self_build
 
-# Copy .pytmbotenv file with token (prod, dev)
-COPY .pytmbotenv /opt/pytmbot/
+# Copy config file with token (prod, dev)
+COPY pytmbot.yaml ./
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]
 
 # Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
-FROM reliase_base AS prod
+FROM release_base AS prod
 
-ENTRYPOINT [ "/venv/bin/python3", "app/main.py" ]
+ENTRYPOINT ["./entrypoint.sh"]

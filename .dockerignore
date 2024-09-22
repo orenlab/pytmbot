@@ -5,27 +5,31 @@
 #######################################
 
 #######################################
-# All envirmoment files
+# Environment Files
+# Exclude environment directories and configuration files
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+outline.yaml
+pytmbot.yaml.sample
+
 #######################################
-# All md and DS_Store files
+# Documentation and Metadata
+# Exclude markdown, DS_Store, and other metadata files
 *.md
 **/.DS_Store
+
 #######################################
-### Python template
-# Byte-compiled / optimized / DLL files
+# Python Files
+# Exclude compiled Python files and packaging artifacts
 __pycache__/
 **/__pycache__
 *.py[cod]
 *$py.class
-# C extensions
 *.so
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -45,34 +49,47 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-# Setup requirements
 setup_req.txt
+
 #######################################
-### IDE
-# Cash dir
+# IDE and Editor Configurations
+# Exclude IDE-specific files and directories
 .idea
-# Runners configs
 .run
+
 #######################################
-### Github
-# Runners config
+# Git and GitHub
+# Exclude Git-related files and configuration
 .github
-# Git
 .gitignore
 .git
+
 #######################################
-### Docker
-# .dockerignore
+# Docker
+# Exclude Docker-related files
 .dockerignore
 docker-compose.yml
 Dockerfile
+
 #######################################
-### pyTMbot
-# app dir
-bot_cli
+# pyTMbot Specific
+# Exclude application-specific files and directories
+cli
 docs
+README.md
+SECURITY.md
+setup_bot.py
 tests
+
+#######################################
 # Poetry
+# Exclude Poetry configuration files
 poetry.lock
 pyproject.toml
+
+#######################################
+# Logs and Temporary Files
+# Exclude logs and temporary files
+*.log
+tmp/
 

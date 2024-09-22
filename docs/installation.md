@@ -1,14 +1,25 @@
-# pyTMBot installation and setup guide
+# pyTMBot Installation and Setup Guide
 
 ## 🔌 Installation
 
-There are three ways for today:
+You have three options for installing pyTMBot:
 
-1. Use a pre-build bot image from hub.docker.com (default way). Then, please follow
-   the [instructions](https://hub.docker.com/r/orenlab/pytmbot) posted on the Docker Hub.
+1. **Use a Pre-built Docker Image (Recommended)**
 
-2. Use a pre-build bot image from GitHub registry: [instructions in this section](github_registry_install)
+   The easiest way to get started is by using a pre-built Docker image. Follow
+   the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
 
-3. Assemble the image of the bot yourself: [instructions in this section](self_build)
+2. **Use a Pre-built Docker Image from GitHub Registry**
 
+   If you prefer using the GitHub registry, follow
+   the [installation instructions in this section](github_registry_install.md). This method may be preferred for those
+   who use GitHub as their primary source for Docker images.
 
+3. **Build the Docker Image Yourself**
+
+   For advanced users who want to build the Docker image from source, follow
+   the [self-build instructions](self_build.md). This option allows you to customize the build process but requires
+   additional setup.
+
+Choose the method that best suits your needs and follow the detailed instructions provided in the respective sections.
+Each method has its advantages depending on your preferences and requirements.

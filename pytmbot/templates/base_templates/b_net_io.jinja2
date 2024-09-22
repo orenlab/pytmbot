@@ -1,0 +1,16 @@
+{# templates/fs.jinja2 #}
+
+{{ thought_balloon }} Here is:
+
+{% for value in context %}
+    {{ up_left_arrow }} **Bytes sent:** {{ value['bytes_sent'] }}
+    {{ up_right_arrow }} **Bytes received:** {{ value['bytes_recv'] }}
+    {{ up_left_arrow }} **Packets sent:** {{ value['packets_sent'] }}
+    {{ up_right_arrow }} **Packets received:** {{ value['packets_recv'] }}
+    {{ up_right_arrow }} **Input errors:** {{ value['err_in'] }}
+    {{ up_left_arrow }} **Output errors:** {{ value['err_out'] }}
+    {{ up_right_arrow }} **Input dropped packets:** {{ value['drop_in'] }}
+    {{ up_left_arrow }} **Output dropped packets:** {{ value['drop_out'] }}
+{% endfor %}
+
+{{ globe_showing_europe_africa }} Bytes unite us! {{ hugging_face }}

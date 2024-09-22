@@ -1,0 +1,67 @@
+# Setup bot tokens
+bot_token:
+  # Prod bot token.
+  prod_token:
+    - ''
+  # Development bot token. Not necessary for production bot.
+  dev_bot_token:
+    - ''
+# Setup access control
+access_control:
+  # The ID of the users who have permission to access the bot.
+  # You can have one or more values - there are no restrictions.
+  allowed_user_ids:
+    - 0000000000
+    - 0000000000
+  # The ID of the admins who have permission to access the bot.
+  # You can have one or more values, there are no restrictions.
+  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
+  allowed_admins_ids:
+    - 0000000000
+    - 0000000000
+  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+  # A script for the fast generation of a truly unique "salt" is available in the bot's repository.
+  auth_salt:
+    - ''
+# Docker settings
+docker:
+  # Docker socket. Usually: unix:///var/run/docker.sock.
+  host:
+    - 'unix:///var/run/docker.sock'
+# Plugins configuration
+plugins_config:
+  # Configuration for Monitor plugin
+  monitor:
+    # Tracehold settings
+    tracehold:
+      # CPU usage thresholds in percentage
+      cpu_usage_threshold:
+        - 80
+      # Memory usage thresholds in percentage
+      memory_usage_threshold:
+        - 80
+      # Disk usage thresholds in percentage
+      disk_usage_threshold:
+        - 80
+      # Number of notifications to send for each type of overload
+    max_notifications:
+      - 3
+    # Check interval in seconds
+    check_interval:
+      - 2
+    # Reset notification count after X minutes
+    reset_notification_count:
+      - 5
+    # Number of attempts to retry starting monitoring in case of failure
+    retry_attempts:
+      - 3
+    # Interval (in seconds) between retry attempts
+    retry_interval:
+      - 10
+  # Configuration for Outline plugin
+  outline:
+    # Outline API settings
+    api_url:
+      - ''
+    cert:
+      - ''
