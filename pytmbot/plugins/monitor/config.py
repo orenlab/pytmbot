@@ -1,7 +1,7 @@
 from pytmbot.plugins.monitor.models import MonitorPluginConfig
 
 PLUGIN_NAME = "monitor"
-PLUGIN_VERSION = "0.0.1"
+PLUGIN_VERSION = "0.0.2"
 PLUGIN_DESCRIPTION = "System monitoring plugin for pyTMBot"
 
 

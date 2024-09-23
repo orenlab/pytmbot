@@ -43,7 +43,16 @@ plugins_config:
       # Disk usage thresholds in percentage
       disk_usage_threshold:
         - 80
-      # Number of notifications to send for each type of overload
+      # CPU temperature thresholds in Celsius
+      cpu_temperature_threshold:
+        - 85
+      # GPU temperature thresholds in Celsius
+      gpu_temperature_threshold:
+        - 90
+      # Disk temperature thresholds in Celsius
+      disk_temperature_threshold:
+        - 60
+    # Number of notifications to send for each type of overload
     max_notifications:
       - 3
     # Check interval in seconds

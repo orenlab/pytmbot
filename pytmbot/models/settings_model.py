@@ -65,10 +65,16 @@ class TraceholdSettings(BaseModel):
         cpu_usage_threshold (List[int]): Threshold for CPU usage in percentage.
         memory_usage_threshold (List[int]): Threshold for memory usage in percentage.
         disk_usage_threshold (List[int]): Threshold for disk usage in percentage.
+        cpu_temperature_threshold (List[int]): Threshold for CPU temperature in Celsius.
+        gpu_temperature_threshold (List[int]): Threshold for GPU temperature in Celsius.
+        disk_temperature_threshold (List[int]): Threshold for disk temperature in Celsius.
     """
     cpu_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
     memory_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
     disk_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
+    cpu_temperature_threshold: conlist(int, min_length=1, max_length=1) = [85]
+    gpu_temperature_threshold: conlist(int, min_length=1, max_length=1) = [90]
+    disk_temperature_threshold: conlist(int, min_length=1, max_length=1) = [60]
 
 
 class MonitorConfig(BaseModel):
