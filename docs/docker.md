@@ -83,12 +83,18 @@ bot_token:
 # Setup access control
 access_control:
   # The ID of the users who have permission to access the bot.
+  # You can have one or more values - there are no restrictions.
   allowed_user_ids:
     - 0000000000
+    - 0000000000
   # The ID of the admins who have permission to access the bot.
+  # You can have one or more values, there are no restrictions.
+  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
   allowed_admins_ids:
     - 0000000000
-  # Salt for TOTP secrets.
+    - 0000000000
+  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+  # A script for the fast generation of a truly unique "salt" is available in the bot's repository.
   auth_salt:
     - ''
 # Docker settings
@@ -102,24 +108,42 @@ plugins_config:
   monitor:
     # Tracehold settings
     tracehold:
+      # CPU usage thresholds in percentage
       cpu_usage_threshold:
         - 80
+      # Memory usage thresholds in percentage
       memory_usage_threshold:
         - 80
+      # Disk usage thresholds in percentage
       disk_usage_threshold:
         - 80
+      # CPU temperature thresholds in Celsius
+      cpu_temperature_threshold:
+        - 85
+      # GPU temperature thresholds in Celsius
+      gpu_temperature_threshold:
+        - 90
+      # Disk temperature thresholds in Celsius
+      disk_temperature_threshold:
+        - 60
+    # Number of notifications to send for each type of overload
     max_notifications:
       - 3
+    # Check interval in seconds
     check_interval:
       - 2
+    # Reset notification count after X minutes
     reset_notification_count:
       - 5
+    # Number of attempts to retry starting monitoring in case of failure
     retry_attempts:
       - 3
+    # Interval (in seconds) between retry attempts
     retry_interval:
       - 10
   # Configuration for Outline plugin
   outline:
+    # Outline API settings
     api_url:
       - ''
     cert:
@@ -133,6 +157,17 @@ plugins_config:
 - **auth_salt**: Used for generating TOTP secrets.
 - **docker**: Specify the Docker socket for communication.
 - **plugins_config**: Configure the plugins, including thresholds and retry settings for monitoring.
+
+**Note on `auth_salt` Parameter:**
+
+  The bot supports random salt generation. To generate a unique salt, run the following command in a separate terminal
+  window:
+
+   ```bash
+   sudo docker run --rm ghcr.io/orenlab/pytmbot:latest --salt
+   ```
+
+  This command will display a unique salt value and delete the container automatically.
 
 ## 🔌 Plugins
 

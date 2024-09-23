@@ -52,16 +52,30 @@ Plugin configurations are stored in the `pytmbot.yaml` file under the `plugins_c
 For the Monitor Plugin, the thresholds and other settings are defined in the `pytmbot.yaml` file. Example:
 
 ```yaml
+# Plugins configuration
 plugins_config:
+  # Configuration for Monitor plugin
   monitor:
-    # Threshold settings
+    # Tracehold settings
     tracehold:
+      # CPU usage thresholds in percentage
       cpu_usage_threshold:
         - 80
+      # Memory usage thresholds in percentage
       memory_usage_threshold:
         - 80
+      # Disk usage thresholds in percentage
       disk_usage_threshold:
         - 80
+      # CPU temperature thresholds in Celsius
+      cpu_temperature_threshold:
+        - 85
+      # GPU temperature thresholds in Celsius
+      gpu_temperature_threshold:
+        - 90
+      # Disk temperature thresholds in Celsius
+      disk_temperature_threshold:
+        - 60
     # Number of notifications to send for each type of overload
     max_notifications:
       - 3
@@ -71,10 +85,10 @@ plugins_config:
     # Reset notification count after X minutes
     reset_notification_count:
       - 5
-    # Number of attempts to retry monitoring on failure
+    # Number of attempts to retry starting monitoring in case of failure
     retry_attempts:
       - 3
-    # Retry interval in seconds between attempts
+    # Interval (in seconds) between retry attempts
     retry_interval:
       - 10
 ```
@@ -99,7 +113,7 @@ To enable multiple plugins, update the `command` section in `docker-compose.yml`
 `monitor` and `outline` plugins:
 
 ```yaml
-command: --plugins "monitor,outline"
+command: --plugins monitor,outline
 ```
 
 Then run:
@@ -125,23 +139,43 @@ resource usage, notification limits, and retry attempts.
 #### Example Configuration in `pytmbot.yaml`
 
 ```yaml
+# Plugins configuration
 plugins_config:
+  # Configuration for Monitor plugin
   monitor:
+    # Tracehold settings
     tracehold:
+      # CPU usage thresholds in percentage
       cpu_usage_threshold:
         - 80
+      # Memory usage thresholds in percentage
       memory_usage_threshold:
         - 80
+      # Disk usage thresholds in percentage
       disk_usage_threshold:
         - 80
+      # CPU temperature thresholds in Celsius
+      cpu_temperature_threshold:
+        - 85
+      # GPU temperature thresholds in Celsius
+      gpu_temperature_threshold:
+        - 90
+      # Disk temperature thresholds in Celsius
+      disk_temperature_threshold:
+        - 60
+    # Number of notifications to send for each type of overload
     max_notifications:
       - 3
+    # Check interval in seconds
     check_interval:
       - 2
+    # Reset notification count after X minutes
     reset_notification_count:
       - 5
+    # Number of attempts to retry starting monitoring in case of failure
     retry_attempts:
       - 3
+    # Interval (in seconds) between retry attempts
     retry_interval:
       - 10
 ```
