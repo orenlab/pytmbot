@@ -51,6 +51,8 @@ class SystemMonitorPlugin(PluginCore):
         self.monitoring_thread: threading.Thread | None = None
         self.retry_attempts: int = self.monitor_settings.retry_attempts[0]
         self.retry_interval: int = self.monitor_settings.retry_interval[0]
+        self.check_interval: int = self.monitor_settings.check_interval[0]  # Initial check interval
+        self.load_threshold: float = 70.0  # Threshold for load-based interval adjustment
         self.sensors_available: bool = True
 
         self.bot_logger.debug(f"Monitor plugin initialized with next tracehold settings:"
@@ -98,20 +100,31 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.warning("Monitoring is not running.")
 
     def _monitor_system(self) -> None:
-        """
-        Continuously monitors the system resources (CPU, memory, disk usage, and temperatures)
-        and sends notifications if any resource exceeds the configured thresholds.
-        """
         try:
             while self.monitoring:
+                self._adjust_check_interval()
                 self._check_cpu_usage()
                 self._check_memory_usage()
                 self._check_disk_usage()
-                self._check_temperatures()  # New function to monitor temperatures
-                time.sleep(self.settings.plugins_config.monitor.check_interval[0])
+                self._check_temperatures()
+                time.sleep(self.check_interval)
         except Exception as e:
             self.bot_logger.error(f"Unexpected error during system monitoring: {e}")
             self.monitoring = False
+
+    def _adjust_check_interval(self) -> None:
+        """
+        Adjust the check interval based on current CPU load.
+        """
+        cpu_load = psutil.cpu_percent(interval=1)
+        if cpu_load > self.load_threshold:
+            self.check_interval = 10  # Increase interval if load is high
+            self.bot_logger.info(
+                f"High CPU load detected ({cpu_load}%). Increasing check interval to {self.check_interval} seconds.")
+        else:
+            self.check_interval = self.monitor_settings.check_interval[0]  # Restore to normal interval
+            self.bot_logger.info(
+                f"CPU load is normal ({cpu_load}%). Restoring check interval to {self.check_interval} seconds.")
 
     def _check_temperatures(self) -> None:
         """Checks the current temperatures of system components and sends notifications if thresholds are exceeded."""
