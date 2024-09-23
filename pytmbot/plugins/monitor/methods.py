@@ -45,6 +45,7 @@ class SystemMonitorPlugin(PluginCore):
         self.notification_count: int = 0
         self.max_notifications: int = self.monitor_settings.max_notifications[0]
         self.cpu_temperature_threshold: float = self.monitor_settings.tracehold.cpu_temperature_threshold[0]
+        self.pch_temperature_threshold = self.cpu_temperature_threshold
         self.gpu_temperature_threshold: float = self.monitor_settings.tracehold.gpu_temperature_threshold[0]
         self.disk_temperature_threshold: float = self.monitor_settings.tracehold.disk_temperature_threshold[0]
         self.monitoring_thread: threading.Thread | None = None
@@ -113,10 +114,7 @@ class SystemMonitorPlugin(PluginCore):
             self.monitoring = False
 
     def _check_temperatures(self) -> None:
-        """
-        Checks the current temperatures of system components and sends a notification
-        if any component exceeds the configured temperature threshold for that type.
-        """
+        """Checks the current temperatures of system components and sends notifications if thresholds are exceeded."""
         try:
             temps = psutil.sensors_temperatures()
             if not temps and self.sensors_available:
@@ -127,27 +125,32 @@ class SystemMonitorPlugin(PluginCore):
             for name, entries in temps.items():
                 for entry in entries:
                     match name:
-                        case 'coretemp':  # Likely a CPU sensor
+                        case 'coretemp':
                             if entry.current > self.cpu_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}CPU temperature is high: {entry.current}°C (Threshold: {self.cpu_temperature_threshold}°C)"
                                 )
-                        case 'nvme' | 'disk':  # Disk sensors (e.g., NVMe, HDD)
+                        case 'nvme' | 'disk':
                             if entry.current > self.disk_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}Disk temperature is high: {entry.current}°C (Threshold: {self.disk_temperature_threshold}°C)"
                                 )
-                        case 'gpu':  # GPU sensor
+                        case 'gpu':
                             if entry.current > self.gpu_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}GPU temperature is high: {entry.current}°C (Threshold: {self.gpu_temperature_threshold}°C)"
+                                )
+                        case _ if 'pch' in name.lower():
+                            if entry.current > self.pch_temperature_threshold:
+                                self._send_notification(
+                                    f"{self.config.emoji_for_notification}PCH temperature is high: {entry.current}°C (Threshold: {self.pch_temperature_threshold}°C)"
                                 )
                         case _:
                             self.bot_logger.warning(f"Unknown temperature sensor: {name}")
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking temperatures: {e}")
         except ExceptionGroup as eg:
-            self.bot_logger.error(f"Multiple errors occurred while checking temperatures: {eg}")
+            self.bot_logger.error(f"Multiple error occurred while checking temperatures: {eg}")
 
     def _check_cpu_usage(self) -> None:
         """
