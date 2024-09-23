@@ -337,7 +337,7 @@ class MonitoringGraph:
         earliest_timestamp = data[0][0]
 
         periods_in_hours = [1, 6, 12, 24]
-        periods_in_days = range(1, 8)  # 1-7 дней
+        periods_in_days = range(1, 8)
 
         for hours in periods_in_hours:
             period_start = now - timedelta(hours=hours)

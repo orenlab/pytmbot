@@ -49,12 +49,13 @@ class MonitoringPlugin(PluginInterface):
             'thought_balloon': em.get_emoji('thought_balloon'),
             'warning': em.get_emoji('warning')
         }
-        response = Compiler(
-            template_name="plugin_monitor_index.jinja2",
-            first_name=message.from_user.first_name,
-            available_periods=available_periods,
-            **emojis
-        ).compile()
+        with Compiler(
+                template_name="plugin_monitor_index.jinja2",
+                first_name=message.from_user.first_name,
+                available_periods=available_periods,
+                **emojis
+        ) as compiler:
+            response = compiler.compile()
         return self.bot.send_message(message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown")
 
     def handle_cpu_usage(self, message: Message) -> Message:
