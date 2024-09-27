@@ -25,7 +25,6 @@ from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.logs import bot_logger
 import psutil
 
-from collections import deque
 from datetime import datetime
 import threading
 import time
