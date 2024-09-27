@@ -69,6 +69,8 @@ class SystemMonitorPlugin(PluginCore):
                               f" disk_temperature_threshold={self.disk_temperature_threshold},"
                               )
 
+        self.bot_logger.debug(f"Chat ID for notifications: {self.settings.chat_id.global_chat_id[0]}")
+
     def start_monitoring(self) -> None:
         """
         Starts the system monitoring process in a separate thread.
@@ -264,6 +266,7 @@ class SystemMonitorPlugin(PluginCore):
                 sanitized_message = message.replace(self.config.emoji_for_notification, "")
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
                 self.bot.send_message(self.settings.chat_id.global_chat_id[0], message)
+                print(self.settings.chat_id.global_chat_id[0])
 
                 # Reset the notification count after 5 minutes (300 seconds)
                 threading.Timer(300, self._reset_notification_count).start()
