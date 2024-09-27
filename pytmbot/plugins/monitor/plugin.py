@@ -2,6 +2,7 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import keyboards, em
+from pytmbot.logs import bot_logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.config import load_config
@@ -59,7 +60,21 @@ class MonitoringPlugin(PluginInterface):
         return self.bot.send_message(message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown")
 
     def handle_cpu_usage(self, message: Message) -> Message:
-        pass
+        """
+        Handles 'CPU usage' messages by sending a graph of the last hour's CPU usage.
+
+        :param message: The incoming Message object from Telegram.
+        :return: A Message object with a graph of the last hour's CPU usage.
+        """
+        try:
+            graph = self.monitoring_graph.plot_data(data_type="cpu_usage", period="1 hour(s)")
+            if graph is None:
+                return self.bot.send_message(message.chat.id, "No data available.")
+
+            return self.bot.send_photo(message.chat.id, graph)
+        except Exception as error:
+            self.plugin_logger.error(f"Unexpected error occurred: {error}")
+            return self.bot.send_message(message.chat.id, "Unexpected error occurred")
 
     def register(self):
         """
