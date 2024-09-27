@@ -230,7 +230,7 @@ class SystemMonitorPlugin(PluginCore):
         threshold = self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]
 
         try:
-            partitions = psutil.disk_partitions()
+            partitions = psutil.disk_partitions(all=False)
         except psutil.Error as e:
             self.bot_logger.error(f"Error retrieving disk partitions: {e}")
             return 0.0
