@@ -54,7 +54,7 @@ class ChatIdModel(BaseModel):
     Attributes:
         global_chat_id (Optional[List[int]]): Optional list of chat IDs for global notifications.
     """
-    global_chat_id: Optional[conlist(int, min_length=1)] = None
+    global_chat_id: conlist(int, min_length=1)
 
 
 class TraceholdSettings(BaseModel):
@@ -129,11 +129,11 @@ class SettingsModel(BaseSettings):
         bot_token (BotTokenModel): Bot token settings for both production and development.
         access_control (AccessControlModel): Access control settings for users and admins.
         docker (DockerHostModel): Docker host settings.
-        chat_id (Optional[ChatIdModel]): Optional chat ID settings for global notifications.
+        chat_id (ChatIdModel): Optional chat ID settings for global notifications.
         plugins_config (Optional[PluginsConfig]): Optional plugin configurations (monitoring, VPN).
     """
     bot_token: BotTokenModel
     access_control: AccessControlModel
     docker: DockerHostModel
-    chat_id: Optional[ChatIdModel] = None
-    plugins_config: Optional[PluginsConfig] = None
+    chat_id: ChatIdModel
+    plugins_config: Optional[PluginsConfig]
