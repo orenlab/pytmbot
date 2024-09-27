@@ -7,7 +7,7 @@ services:
       target: self_build
     restart: always
     pid: 'host'
-    image: orenlab/pytmbot:latest
+    image: orenlab/pytmbot:self-build
     security_opt:
       - no-new-privileges
     logging:
@@ -15,7 +15,8 @@ services:
         max-size: "10m"
         max-file: "3"
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
     command:
-      - "--log-level=DEBUG"
-      - "--mode=dev"
+      - --log_level INFO
+      - --plugins monitor
