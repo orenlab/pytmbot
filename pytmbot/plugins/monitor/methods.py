@@ -14,6 +14,7 @@ import pygal
 from telebot import TeleBot
 
 from pytmbot.plugins.monitor.models import MonitoringData
+from pytmbot.utils.utilities import is_running_in_docker
 
 # Check if the psutil module is installed
 if importlib.util.find_spec("psutil") is None:
@@ -57,6 +58,7 @@ class SystemMonitorPlugin(PluginCore):
         self.load_threshold: float = 70.0  # Threshold for load-based interval adjustment
         self.sensors_available: bool = True
         self.cpu_usage_is_high: bool = False
+        self.is_running_in_docker: bool = is_running_in_docker()
 
         # New monitoring data instance
         self.monitoring_data = MonitoringData(retention_days=7)
@@ -209,30 +211,48 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error checking memory usage: {e}")
             return 0.0
 
-    import psutil
-
     def _check_disk_usage(self) -> float:
         """
-        Checks the current disk usage for all physical partitions and sends a notification if any partition's
-        usage exceeds the configured threshold.
-        Excludes system partitions like loop, tmpfs, and others that are usually used by the system.
+        Checks the current disk usage for all physical partitions and sends a notification if any partition's usage exceeds the configured threshold.
+        Excludes partitions where device names or file system types match certain system partitions when running locally.
         """
-        excluded_fs_types = ["loop", "tmpfs", "devtmpfs", "proc", "sysfs", "cgroup", "mqueue", "hugetlbfs", "overlay",
+        excluded_keywords = ["loop", "tmpfs", "devtmpfs", "proc", "sysfs", "cgroup", "mqueue", "hugetlbfs", "overlay",
                              "aufs"]
+        threshold = self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]
 
-        total_disk_usage = 0.0
         try:
-            partitions = [p for p in psutil.disk_partitions() if p.fstype not in excluded_fs_types]
-            for partition in partitions:
-                usage = psutil.disk_usage(partition.mountpoint)
-                if usage.percent > self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]:
-                    self._send_notification(
-                        f"{self.config.emoji_for_notification}Disk usage is high on {partition.device}: {usage.percent}%")
-                total_disk_usage += usage.percent
-            return total_disk_usage / len(partitions) if partitions else 0.0
+            partitions = psutil.disk_partitions()
         except psutil.Error as e:
-            self.bot_logger.error(f"Error checking disk usage: {e}")
+            self.bot_logger.error(f"Error retrieving disk partitions: {e}")
             return 0.0
+
+        def calculate_avg_disk_usage(_partitions):
+            total_usage = 0.0
+            count = 0
+            for partition in _partitions:
+                try:
+                    usage = psutil.disk_usage(partition.mountpoint)
+                except psutil.Error as err:
+                    self.bot_logger.error(f"Error checking disk usage for {partition.device}: {err}")
+                    continue
+
+                if usage.percent > threshold:
+                    self._send_notification(
+                        f"{self.config.emoji_for_notification} Disk usage is high on {partition.device}: {usage.percent}%")
+                total_usage += usage.percent
+                count += 1
+
+            return total_usage / count if count > 0 else 0.0
+
+        match self.is_running_in_docker:
+            case True:
+                return calculate_avg_disk_usage(partitions)
+            case False:
+                filtered_partitions = [
+                    p for p in partitions if
+                    all(excl not in p.device and excl not in p.fstype for excl in excluded_keywords)
+                ]
+                return calculate_avg_disk_usage(filtered_partitions)
 
     def _send_notification(self, message: str) -> None:
         """
