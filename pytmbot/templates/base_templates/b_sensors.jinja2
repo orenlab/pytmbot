@@ -2,5 +2,5 @@
 
 {{ thought_balloon }} Here is:
 
-{% for value in context %}{{ thermometer }} <b>{{ value['sensor_name'] }}:</b>{{ value['sensor_value'] }}°C
+{% for value in context %}{{ thermometer }} <b>{{ value['sensor_name'] }}: </b>{{ value['sensor_value'] }}°C
 {% endfor %}
