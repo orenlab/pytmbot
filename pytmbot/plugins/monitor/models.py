@@ -28,6 +28,7 @@ class MonitoringData:
     """Singleton class for storing and managing monitoring data."""
 
     _instance = None
+    _data_added = False
 
     def __new__(cls, *args, **kwargs):
         """Override __new__ to ensure only one instance is created."""
@@ -60,6 +61,10 @@ class MonitoringData:
         self.data["memory_usage"].append((timestamp, memory))
         self.data["disk_usage"].append((timestamp, disk))
         self.data["temperatures"].append((timestamp, temperature))
+        if not self._data_added:
+            bot_logger.debug(
+                f"Data added to MonitoringData: CPU: {cpu}, Memory: {memory}, Disk: {disk}, Temperature: {temperature}.")
+            self._data_added = True
 
     def _clean_old_data(self):
         """Removes data older than the retention period."""
