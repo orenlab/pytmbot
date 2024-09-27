@@ -39,6 +39,13 @@ class SystemMonitorPlugin(PluginCore):
     """
 
     def __init__(self, config: 'MonitorConfig', bot: TeleBot) -> None:
+        """
+        Initializes the SystemMonitorPlugin with the given bot instance and configuration.
+
+        Args:
+            config (MonitorConfig): Configuration for the SystemMonitorPlugin.
+            bot (TeleBot): An instance of TeleBot to interact with Telegram API.
+        """
         super().__init__()
         self.bot: TeleBot = bot
         self.monitoring: bool = False
@@ -58,6 +65,7 @@ class SystemMonitorPlugin(PluginCore):
         self.sensors_available: bool = True
         self.cpu_usage_is_high: bool = False
         self.is_running_in_docker: bool = is_running_in_docker()
+        self.max_notifications_reached: bool = False
 
         # New monitoring data instance
         self.monitoring_data = MonitoringData(retention_days=7)
@@ -266,15 +274,15 @@ class SystemMonitorPlugin(PluginCore):
                 sanitized_message = message.replace(self.config.emoji_for_notification, "")
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
                 self.bot.send_message(self.settings.chat_id.global_chat_id[0], message)
-                print(self.settings.chat_id.global_chat_id[0])
 
                 # Reset the notification count after 5 minutes (300 seconds)
                 threading.Timer(300, self._reset_notification_count).start()
 
             except Exception as e:
                 self.bot_logger.error(f"Failed to send notification: {e}")
-        else:
+        elif not self.max_notifications_reached:
             self.bot_logger.warning("Max notifications reached; no more notifications will be sent.")
+            self.max_notifications_reached = True
 
     def _reset_notification_count(self) -> None:
         """
