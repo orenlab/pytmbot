@@ -2,7 +2,6 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import keyboards, em
-from pytmbot.logs import bot_logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.config import load_config
