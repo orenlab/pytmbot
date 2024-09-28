@@ -18,8 +18,6 @@ versatile Telegram bot for managing Docker containers and monitoring server stat
 1. **Create a `docker-compose.yml` File:**
 
    ```yaml
-   version: '3.8'
-
    services:
      pytmbot:
        image: orenlab/pytmbot:0.2.0
