@@ -7,6 +7,7 @@ import yaml
 
 from pytmbot import globals as g, logs
 from pytmbot.keyboards import keyboards as kb
+from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.models import handlers_model
 from pytmbot.plugins.models import PluginCoreModel
 
@@ -18,6 +19,7 @@ class PluginCore:
         self.bot_logger = logs.bot_logger
         self.keyboard = kb.Keyboards()
         self.handler_models = handlers_model.HandlerManager
+        self.session_manager = SessionManager()
 
     def __get_config_path(self, config_name: str) -> str:
         """
@@ -41,7 +43,7 @@ class PluginCore:
         return config_path
 
     def load_plugin_external_config(
-        self, config_name: str, config_model: type[PluginCoreModel]
+            self, config_name: str, config_model: type[PluginCoreModel]
     ) -> PluginCoreModel:
         """
         Loads plugin external configuration from a YAML file and creates a PluginCoreModel object.
