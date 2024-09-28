@@ -75,12 +75,10 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         """
         exception_str = str(exception)
         secret_map = {
-            settings.bot_token.prod_token[
-                0
-            ].get_secret_value(): "********* BOT TOKEN *********",
-            settings.bot_token.dev_bot_token[
-                0
-            ].get_secret_value(): "********* DEV BOT TOKEN *********",
+            settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
+            settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
+            settings.plugins_config.outline.api_url[0].get_secret_value(): "********* OUTLINE API URL *********",
+            settings.plugins_config.outline.cert[0].get_secret_value(): "********* CERT FINGERPRINT *********",
         }
         for secret, placeholder in secret_map.items():
             exception_str = exception_str.replace(secret, placeholder)
