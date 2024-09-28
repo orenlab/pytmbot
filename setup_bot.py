@@ -14,6 +14,15 @@ import jinja2
 
 from cli.generate_salt import generate_random_auth_salt
 
+import warnings
+
+warnings.warn(
+    "This module is deprecated and will be removed in a 0.2.0 release version. "
+    "Please use 'install.sh' instead (https://github.com/orenlab/pytmbot/blob/master/install.sh)",
+    DeprecationWarning,
+    stacklevel=1
+)
+
 APP_ENV_FILE = Path("pytmbot.yaml")
 
 config_template = """
@@ -132,10 +141,10 @@ class BotConfig:
 
 
 def prompt_for_input(
-    prompt_text: str,
-    default: Optional[str] = "",
-    mandatory: bool = False,
-    validation_func: Optional[callable] = None,
+        prompt_text: str,
+        default: Optional[str] = "",
+        mandatory: bool = False,
+        validation_func: Optional[callable] = None,
 ) -> str:
     """Prompts the user for input and applies validation."""
     if mandatory:
