@@ -81,9 +81,9 @@ class Keyboards:
         return keyboard
 
     def build_reply_keyboard(
-        self,
-        keyboard_type: Optional[str] = None,
-        plugin_keyboard_data: Optional[dict[str, str]] = None,
+            self,
+            keyboard_type: Optional[str] = None,
+            plugin_keyboard_data: Optional[dict[str, str]] = None,
     ) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
@@ -116,6 +116,11 @@ class Keyboards:
                 "Reply keyboard construction failed: Empty keyboard buttons"
             )
             raise ValueError("Empty keyboard buttons")
+
+        # Add "Back to main menu" button unless constructing the main or back keyboard
+        if keyboard_type and keyboard_type != 'back_keyboard':
+            bot_logger.debug("Adding '⬅️ Back to main menu' button.")
+            keyboard_buttons.append("⬅️ Back to main menu")
 
         reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         reply_keyboard.add(*keyboard_buttons)
@@ -188,7 +193,7 @@ class Keyboards:
         callback_data: str
 
     def build_inline_keyboard(
-        self, buttons_data: Union[List[ButtonData], ButtonData]
+            self, buttons_data: Union[List[ButtonData], ButtonData]
     ) -> InlineKeyboardMarkup:
         """
         Constructs an InlineKeyboardMarkup object for the inline keyboard.

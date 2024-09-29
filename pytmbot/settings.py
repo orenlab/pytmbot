@@ -76,21 +76,17 @@ class KeyboardSettings(BaseModel):
         "flying_saucer": "Uptime",
         "floppy_disk": "File system",
         "satellite": "Network",
-        "BACK_arrow": "Back to main menu",
     }
     docker_keyboard: frozenset[dict[str, str]] = {
         "framed_picture": "Images",
         "toolbox": "Containers",
-        "BACK_arrow": "Back to main menu",
     }
     auth_keyboard: frozenset[dict[str, str]] = {
         "first_quarter_moon": "Get QR-code for 2FA app",
         "fountain_pen": "Enter 2FA code",
-        "BACK_arrow": "Back to main menu",
     }
     auth_processing_keyboard: frozenset[dict[str, str]] = {
         "fountain_pen": "Enter 2FA code",
-        "BACK_arrow": "Back to main menu",
     }
     back_keyboard: frozenset[dict[str, str]] = {"BACK_arrow": "Back to main menu"}
 
