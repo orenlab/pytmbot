@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 from datetime import datetime
 from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
@@ -152,7 +153,7 @@ class EmojiConverter:
 
 
 def split_string_into_octets(
-    input_string: str, delimiter: str = ":", octet_index: int = 1
+        input_string: str, delimiter: str = ":", octet_index: int = 1
 ) -> str:
     """
     Extracts a specific octet from a string based on a delimiter.
@@ -176,10 +177,11 @@ def split_string_into_octets(
 
 
 def sanitize_logs(
-    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+        container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
 ) -> str:
     """
-    Sanitizes Docker container logs by replacing sensitive user information with asterisks.
+    Sanitizes Docker container logs by replacing sensitive user information
+    with asterisks and removing color codes.
 
     Args:
         container_logs (Union[str, Any]): The container logs.
@@ -189,6 +191,12 @@ def sanitize_logs(
     Returns:
         str: The sanitized logs.
     """
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+
+    # Remove color codes
+    container_logs = ansi_escape.sub('', container_logs)
+
+    # User information for sanitization
     user_info = [
         callback_query.from_user.username or "",
         callback_query.from_user.first_name or "",
@@ -197,6 +205,7 @@ def sanitize_logs(
         token,
     ]
 
+    # Replace sensitive information with asterisks
     for value in user_info:
         container_logs = container_logs.replace(value, "*" * len(value))
 
@@ -230,7 +239,7 @@ def get_message_full_info(*args: Any, **kwargs: Any) -> Tuple[
 
 
 def get_inline_message_full_info(
-    *args: Any, **kwargs: Any
+        *args: Any, **kwargs: Any
 ) -> Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
     """
     Retrieves full information for inline handlers logs.
