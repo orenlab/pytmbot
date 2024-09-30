@@ -2,7 +2,7 @@ import argparse
 import os
 import re
 from datetime import datetime
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import Any, Dict, Optional, Tuple, Union
 
 from humanize import (
@@ -308,6 +308,7 @@ def is_bot_development(app_version: str) -> bool:
     return len(app_version) > 6
 
 
+@lru_cache(maxsize=None)
 def is_running_in_docker() -> bool:
     """
     Determines whether the bot is running inside a Docker container.
