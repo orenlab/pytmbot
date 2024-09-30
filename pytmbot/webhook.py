@@ -10,18 +10,12 @@ class WebhookServer:
         self.bot = bot
 
     @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def webhook(self):
-        """
-        Receives updates from Telegram and processes them.
-        """
-        try:
-            # Retrieve the JSON payload from the request
-            payload = cherrypy.request.json
-            if payload:
-                # Process the update
-                self.bot.process_new_updates([telebot.types.Update.de_json(payload)])
-            return "OK", 200
-        except Exception as e:
-            bot_logger.error(f"Error processing webhook: {e}")
-            return "Error", 500
+    def index(self):
+        request = cherrypy.request
+        if request.headers.get('content-type') == 'application/json':
+            json_string = request.body.read().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            self.bot.process_new_updates([update])
+            return ''
+        raise cherrypy.HTTPError(403)
+
