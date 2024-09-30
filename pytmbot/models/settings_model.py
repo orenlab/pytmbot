@@ -138,7 +138,8 @@ class WebhookConfig(BaseModel):
     """
 
     url: conlist(SecretStr, min_length=4)
-    port: conlist(int, min_length=1, max_length=2) = [8443]
+    webhook_port: conlist(int, min_length=1, max_length=2) = [443]
+    local_port: conlist(int, min_length=1, max_length=2) = [5001]
     cert: conlist(SecretStr, min_length=4)
     cert_key: conlist(SecretStr, min_length=4)
 

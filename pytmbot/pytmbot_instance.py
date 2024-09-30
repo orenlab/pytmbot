@@ -255,7 +255,7 @@ class PyTMBot:
         try:
             ws = settings.webhook_config
             socket_host = self.args.socket_host
-            socket_port = ws.port[0]
+            socket_port = ws.local_port[0]
             ssl_certificate = ws.cert[0].get_secret_value() if ws.cert else None
             ssl_private_key = ws.cert_key[0].get_secret_value() if ws.cert_key else None
 
@@ -283,7 +283,7 @@ class PyTMBot:
     def _set_webhook(self, webhook_url: str, certificate_path: str = None, secret_token: str = None):
         try:
             self.bot.set_webhook(
-                url=webhook_url,
+                url=f"{webhook_url}:{settings.webhook_port}",
                 timeout=20,
                 allowed_updates=[
                     "message",
