@@ -88,8 +88,10 @@ class PyTMBot:
         self._setup_bot_commands_and_description()
 
         # Set up middlewares
-        self._setup_rate_limiting_middleware()
-        self._setup_ac_middleware()
+        self._setup_middlewares([
+            (AccessControl, {}),
+            (RateLimit, {'limit': 8, 'period': timedelta(seconds=10)})
+        ])
 
         # Register handlers
         self._register_handlers(handler_factory, self.bot.register_message_handler)
@@ -143,20 +145,50 @@ class PyTMBot:
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set bot commands and description: {error}")
 
-    def _setup_ac_middleware(self):
+    def _setup_middlewares(self, middlewares: list[tuple[type, dict]]):
         """
-        Sets up middleware for the bot.
-        """
-        try:
-            self.bot.setup_middleware(AccessControl(bot=self.bot))
-            bot_logger.debug(f"Middleware setup successful: {AccessControl.__name__}.")
-        except telebot.apihelper.ApiTelegramException as error:
-            bot_logger.error(f"Failed to set up middleware: {error}")
+        Sets up multiple middlewares for the bot.
 
-    def _setup_rate_limiting_middleware(self):
+        Args:
+            middlewares (list[tuple[type, dict]]): A list of tuples, where each tuple contains
+                a middleware class and a dictionary of arguments to be passed to its constructor.
+
+        Example:
+            To set up AccessControl and RateLimit middlewares:
+                self._setup_middlewares([
+                    (AccessControl, {}),
+                    (RateLimit, {'limit': 8, 'period': timedelta(seconds=10)})
+                ])
+        """
+        for middleware_class, kwargs in middlewares:
+            try:
+                self._setup_middleware(middleware_class, **kwargs)
+            except telebot.apihelper.ApiTelegramException as error:
+                bot_logger.error(f"Failed to set up middleware {middleware_class.__name__}: {error}")
+
+    def _setup_middleware(self, middleware_class: type, *args, **kwargs):
+        """
+        Sets up a specified middleware for the bot.
+
+        Args:
+            middleware_class (type): The middleware class to be set up.
+            *args: Positional arguments to be passed to the middleware constructor.
+            **kwargs: Keyword arguments to be passed to the middleware constructor.
+
+        Raises:
+            telebot.apihelper.ApiTelegramException: If there is an error while setting up the middleware.
+
+        Example:
+            To set up AccessControl middleware:
+                self._setup_middleware(AccessControl)
+
+            To set up RateLimit middleware with a limit of 5 requests per 10 seconds:
+                self._setup_middleware(RateLimit, limit=5, period=timedelta(seconds=10))
+        """
         try:
-            self.bot.setup_middleware(RateLimit(bot=self.bot, limit=5, period=timedelta(seconds=10)))
-            bot_logger.debug(f"Middleware setup successful: {RateLimit.__name__}.")
+            middleware_instance = middleware_class(bot=self.bot, *args, **kwargs)
+            self.bot.setup_middleware(middleware_instance)
+            bot_logger.debug(f"Middleware setup successful: {middleware_class.__name__}.")
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set up middleware: {error}")
 
