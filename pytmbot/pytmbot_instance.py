@@ -283,7 +283,7 @@ class PyTMBot:
     def _set_webhook(self, webhook_url: str, certificate_path: str = None, secret_token: str = None):
         try:
             self.bot.set_webhook(
-                url=f"{webhook_url}:{settings.webhook_port}",
+                url=f"{webhook_url}:{settings.webhook_config.webhook_port[0]}",
                 timeout=20,
                 allowed_updates=[
                     "message",
