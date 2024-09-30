@@ -112,8 +112,8 @@ class OutlineVPN(BaseModel):
         cert (List[SecretStr]): List of certificates required for VPN connections.
     """
 
-    api_url: conlist(SecretStr, min_length=1)
-    cert: conlist(SecretStr, min_length=1)
+    api_url: conlist(SecretStr)
+    cert: conlist(SecretStr)
 
 
 class PluginsConfig(BaseModel):
@@ -137,11 +137,11 @@ class WebhookConfig(BaseModel):
         url (List[SecretStr]): List of webhook URLs.
     """
 
-    url: conlist(SecretStr, min_length=1)
-    webhook_port: conlist(int, min_length=1, max_length=1) = [443]
-    local_port: conlist(int, min_length=1, max_length=1) = [5001]
-    cert: conlist(SecretStr, min_length=1)
-    cert_key: conlist(SecretStr, min_length=1)
+    url: conlist(SecretStr)
+    webhook_port: conlist(int) = [443]
+    local_port: conlist(int) = [5001]
+    cert: conlist(SecretStr)
+    cert_key: conlist(SecretStr)
 
 
 class SettingsModel(BaseSettings):
