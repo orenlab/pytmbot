@@ -190,7 +190,8 @@ class PyTMBot:
             self.bot.setup_middleware(middleware_instance)
             bot_logger.debug(f"Middleware setup successful: {middleware_class.__name__}.")
         except telebot.apihelper.ApiTelegramException as error:
-            bot_logger.error(f"Failed to set up middleware: {error}")
+            bot_logger.critical(f"Failed to set up middleware: {error}")
+            exit(1)
 
     @staticmethod
     def _register_handlers(
