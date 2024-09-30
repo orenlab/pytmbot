@@ -1,3 +1,6 @@
+from typing import Final
+
+from pytmbot.plugins.models import PluginsPermissionsModel
 from pytmbot.plugins.monitor.models import MonitorPluginConfig
 
 PLUGIN_NAME = "monitor"
@@ -13,6 +16,10 @@ KEYBOARD: dict[str, str] = {
     "thermometer": "Temperatures",
     "BACK_arrow": "Back to main menu",
 }
+PLUGIN_PERMISSIONS: Final[PluginsPermissionsModel] = PluginsPermissionsModel(
+    base_permission=True,
+    need_running_on_host_machine=False,
+)
 
 
 def load_config():

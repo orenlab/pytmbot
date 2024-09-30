@@ -8,7 +8,9 @@ from typing import List, Type, Optional
 from telebot import TeleBot
 
 from pytmbot.logs import bot_logger
+from pytmbot.plugins.models import PluginsPermissionsModel
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.utils.utilities import is_running_in_docker
 
 
 @dataclass
@@ -146,17 +148,36 @@ class PluginManager:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                inspect.isclass(attr)
-                and issubclass(attr, PluginInterface)
-                and attr is not PluginInterface
+                    inspect.isclass(attr)
+                    and issubclass(attr, PluginInterface)
+                    and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
 
     @staticmethod
-    def _extract_plugin_info(module) -> Optional[_PluginInfo]:
+    def _extract_plugin_permissions(module) -> PluginsPermissionsModel:
         """
-        Extracts necessary plugin configuration details from the given module.
+        Extracts the permission settings for the plugin from its configuration module.
+
+        Args:
+            module: The plugin configuration module to extract permissions from.
+
+        Returns:
+            PluginsPermissionsModel: A permission model object for the plugin.
+        """
+        permissions = getattr(module, "PLUGIN_PERMISSIONS", None)
+
+        if not isinstance(permissions, PluginsPermissionsModel):
+            bot_logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
+            raise ValueError(f"Invalid permissions model for plugin '{module.__name__}'")
+
+        return permissions
+
+    def _extract_plugin_info(self, module) -> _PluginInfo | None:
+        """
+        Extracts necessary plugin configuration details from the given module,
+        including permissions and environment requirements.
 
         Args:
             module: The plugin module from which to extract configuration details.
@@ -170,6 +191,13 @@ class PluginManager:
             description = getattr(module, "PLUGIN_DESCRIPTION")
             commands = getattr(module, "PLUGIN_COMMANDS", None)
             index_key = getattr(module, "PLUGIN_INDEX_KEY", None)
+            permissions = self._extract_plugin_permissions(module)
+
+            # Check if the plugin requires running on a host machine
+            if permissions.need_running_on_host_machine and is_running_in_docker():
+                bot_logger.warning(
+                    f"Plugin '{name}' requires host environment. Skipping registration in Docker container.")
+                return None
 
             return _PluginInfo(
                 name=name,
@@ -228,15 +256,11 @@ class PluginManager:
 
     def _register_plugin(self, plugin_name: str, bot: Optional[TeleBot] = None):
         """
-        Registers a single plugin by its name.
+        Registers a single plugin by its name, considering its permissions and sandbox environment.
 
         Args:
             plugin_name (str): The name of the plugin to register.
             bot (Optional[TeleBot]): The bot instance to which the plugin will be registered. Defaults to None.
-
-        Raises:
-            ImportError: If the plugin module or configuration cannot be imported.
-            AttributeError: If the plugin configuration is missing required attributes.
         """
         bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
 
@@ -257,6 +281,8 @@ class PluginManager:
                 bot_logger.error(f"Invalid plugin configuration for '{plugin_name}'.")
                 return
 
+            permissions: PluginsPermissionsModel = self._extract_plugin_permissions(config)
+
             self.add_plugin_info(plugin_info)
 
             plugin_classes = self._find_plugin_classes(module)
@@ -265,11 +291,18 @@ class PluginManager:
                 return
 
             plugin_instance = plugin_classes[0](bot)
-            plugin_instance.register()
 
-            bot_logger.info(
-                f"Plugin '{plugin_info.name}' (v{plugin_info.version}) registered successfully."
-            )
+            # Ensure that commands are executed in the sandbox
+            if permissions.base_permission:
+                plugin_instance.register()
+
+                bot_logger.info(
+                    f"Plugin '{plugin_info.name}' (v{plugin_info.version}) registered successfully."
+                )
+            else:
+                bot_logger.warning(
+                    f"Plugin '{plugin_info.name}' does not have permission to execute commands. Skipping registration."
+                )
 
         except Exception as error:
             bot_logger.exception(
