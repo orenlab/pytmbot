@@ -1,4 +1,5 @@
 import time
+from datetime import timedelta
 from typing import List, Dict, Callable
 
 import telebot
@@ -20,6 +21,7 @@ from pytmbot.handlers.handler_manager import (
 )
 from pytmbot.logs import bot_logger
 from pytmbot.middleware.access_control import AccessControl
+from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils.utilities import parse_cli_args
@@ -32,7 +34,6 @@ class PyTMBot:
     Attributes:
         args (Namespace): Command line arguments parsed using `parse_cli_args`.
         bot (TeleBot | None): Instance of TeleBot, or None if not initialized.
-        run_in_docker (bool): Indicates if the bot is running inside a Docker container.
         plugin_manager (PluginManager): Manager for plugin discovery and registration.
     """
 
@@ -85,7 +86,10 @@ class PyTMBot:
 
         self.bot = self._initialize_bot(bot_token)
         self._setup_bot_commands_and_description()
-        self._setup_middleware()
+
+        # Set up middlewares
+        self._setup_rate_limiting_middleware()
+        self._setup_ac_middleware()
 
         # Register handlers
         self._register_handlers(handler_factory, self.bot.register_message_handler)
@@ -93,6 +97,7 @@ class PyTMBot:
             inline_handler_factory, self.bot.register_callback_query_handler
         )
 
+        # Register plugins
         self._register_plugins_if_needed()
 
         # Register echo handlers
@@ -138,13 +143,20 @@ class PyTMBot:
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set bot commands and description: {error}")
 
-    def _setup_middleware(self):
+    def _setup_ac_middleware(self):
         """
         Sets up middleware for the bot.
         """
         try:
             self.bot.setup_middleware(AccessControl(bot=self.bot))
             bot_logger.debug(f"Middleware setup successful: {AccessControl.__name__}.")
+        except telebot.apihelper.ApiTelegramException as error:
+            bot_logger.error(f"Failed to set up middleware: {error}")
+
+    def _setup_rate_limiting_middleware(self):
+        try:
+            self.bot.setup_middleware(RateLimit(bot=self.bot, limit=5, period=timedelta(seconds=10)))
+            bot_logger.debug(f"Middleware setup successful: {RateLimit.__name__}.")
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set up middleware: {error}")
 
