@@ -43,7 +43,7 @@ class PluginCore:
         return config_path
 
     def load_plugin_external_config(
-            self, config_name: str, config_model: type[PluginCoreModel]
+        self, config_name: str, config_model: type[PluginCoreModel]
     ) -> PluginCoreModel:
         """
         Loads plugin external configuration from a YAML file and creates a PluginCoreModel object.

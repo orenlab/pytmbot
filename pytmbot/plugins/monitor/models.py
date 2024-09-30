@@ -40,7 +40,9 @@ class MonitoringData:
     def __init__(self, retention_days: int = 7):
         """Initialize the class with a retention period."""
         # To ensure __init__ is not called multiple times in case of repeated instantiation
-        if not hasattr(self, 'initialized'):  # This is to ensure it's only initialized once
+        if not hasattr(
+            self, "initialized"
+        ):  # This is to ensure it's only initialized once
             self.retention_days = retention_days
             self.data = {
                 "cpu_usage": deque(),
@@ -49,10 +51,16 @@ class MonitoringData:
                 "temperatures": deque(),
             }
             self.stop_event = threading.Event()
-            self.cleaning_thread = threading.Thread(target=self._clean_old_data, daemon=True)
+            self.cleaning_thread = threading.Thread(
+                target=self._clean_old_data, daemon=True
+            )
             self.cleaning_thread.start()
-            self.initialized = True  # Mark as initialized to avoid multiple initializations
-            bot_logger.info(f"MonitoringData initialized with retention period of {self.retention_days} days.")
+            self.initialized = (
+                True  # Mark as initialized to avoid multiple initializations
+            )
+            bot_logger.info(
+                f"MonitoringData initialized with retention period of {self.retention_days} days."
+            )
 
     def add_data(self, cpu: float, memory: float, disk: float, temperature: float):
         """Adds new data to the storage."""
@@ -63,7 +71,8 @@ class MonitoringData:
         self.data["temperatures"].append((timestamp, temperature))
         if not self._data_added:
             bot_logger.debug(
-                f"Data added to MonitoringData: CPU: {cpu}, Memory: {memory}, Disk: {disk}, Temperature: {temperature}.")
+                f"Data added to MonitoringData: CPU: {cpu}, Memory: {memory}, Disk: {disk}, Temperature: {temperature}."
+            )
             self._data_added = True
 
     def _clean_old_data(self):
@@ -80,7 +89,9 @@ class MonitoringData:
             while self.data[key] and self.data[key][0][0] < cutoff_time:
                 self.data[key].popleft()
             if old_count != len(self.data[key]):
-                bot_logger.debug(f"Removed old entries from {key}, new count: {len(self.data[key])}.")
+                bot_logger.debug(
+                    f"Removed old entries from {key}, new count: {len(self.data[key])}."
+                )
 
     def stop_cleaning(self):
         """Stops the background cleaning thread."""

@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
-from pytmbot.globals import settings
+from pytmbot.utils.utilities import sanitize_exception
 from pytmbot.logs import bot_logger
 
 
@@ -56,30 +56,8 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         Returns:
             bool: True if the exception was handled successfully.
         """
-        sanitized_exception = self._sanitize_exception(exception)
+        sanitized_exception = sanitize_exception(exception)
         bot_logger.exception(
             f"Exception in @Telebot: {sanitized_exception}", exc_info=True
         )
         return True
-
-    @staticmethod
-    def _sanitize_exception(exception: Exception) -> str:
-        """
-        Sanitizes exception messages by replacing sensitive information with placeholders.
-
-        Args:
-            exception (Exception): The exception to sanitize.
-
-        Returns:
-            str: The sanitized exception message.
-        """
-        exception_str = str(exception)
-        secret_map = {
-            settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
-            settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
-            settings.plugins_config.outline.api_url[0].get_secret_value(): "********* OUTLINE API URL *********",
-            settings.plugins_config.outline.cert[0].get_secret_value(): "********* CERT FINGERPRINT *********",
-        }
-        for secret, placeholder in secret_map.items():
-            exception_str = exception_str.replace(secret, placeholder)
-        return exception_str

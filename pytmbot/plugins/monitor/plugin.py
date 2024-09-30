@@ -41,22 +41,26 @@ class MonitoringPlugin(PluginInterface):
     def handle_monitoring(self, message: Message) -> Message:
         available_periods = self.monitoring_graph.get_time_periods()
         if not available_periods:
-            keyboard = keyboards.build_reply_keyboard(keyboard_type='back_keyboard')
+            keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
         else:
-            keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
+            keyboard = keyboards.build_reply_keyboard(
+                plugin_keyboard_data=config.KEYBOARD
+            )
         emojis = {
-            'minus': em.get_emoji('minus'),
-            'thought_balloon': em.get_emoji('thought_balloon'),
-            'warning': em.get_emoji('warning')
+            "minus": em.get_emoji("minus"),
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "warning": em.get_emoji("warning"),
         }
         with Compiler(
-                template_name="plugin_monitor_index.jinja2",
-                first_name=message.from_user.first_name,
-                available_periods=available_periods,
-                **emojis
+            template_name="plugin_monitor_index.jinja2",
+            first_name=message.from_user.first_name,
+            available_periods=available_periods,
+            **emojis,
         ) as compiler:
             response = compiler.compile()
-        return self.bot.send_message(message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown")
+        return self.bot.send_message(
+            message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown"
+        )
 
     def handle_cpu_usage(self, message: Message) -> Message:
         """
@@ -66,7 +70,9 @@ class MonitoringPlugin(PluginInterface):
         :return: A Message object with a graph of the last hour's CPU usage.
         """
         try:
-            graph = self.monitoring_graph.plot_data(data_type="cpu_usage", period="1 hour(s)")
+            graph = self.monitoring_graph.plot_data(
+                data_type="cpu_usage", period="1 hour(s)"
+            )
             if graph is None:
                 return self.bot.send_message(message.chat.id, "No data available.")
 
@@ -84,7 +90,9 @@ class MonitoringPlugin(PluginInterface):
         """
         monitor_plugin = SystemMonitorPlugin(config=self.config, bot=self.bot)
         monitor_plugin.start_monitoring()
-        self.bot.register_message_handler(self.handle_monitoring, regexp="Monitoring", pass_bot=True)
+        self.bot.register_message_handler(
+            self.handle_monitoring, regexp="Monitoring", pass_bot=True
+        )
         self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
 
 

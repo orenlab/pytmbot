@@ -148,9 +148,9 @@ class PluginManager:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                    inspect.isclass(attr)
-                    and issubclass(attr, PluginInterface)
-                    and attr is not PluginInterface
+                inspect.isclass(attr)
+                and issubclass(attr, PluginInterface)
+                and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -170,7 +170,9 @@ class PluginManager:
 
         if not isinstance(permissions, PluginsPermissionsModel):
             bot_logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
-            raise ValueError(f"Invalid permissions model for plugin '{module.__name__}'")
+            raise ValueError(
+                f"Invalid permissions model for plugin '{module.__name__}'"
+            )
 
         return permissions
 
@@ -196,7 +198,8 @@ class PluginManager:
             # Check if the plugin requires running on a host machine
             if permissions.need_running_on_host_machine and is_running_in_docker():
                 bot_logger.warning(
-                    f"Plugin '{name}' requires host environment. Skipping registration in Docker container.")
+                    f"Plugin '{name}' requires host environment. Skipping registration in Docker container."
+                )
                 return None
 
             return _PluginInfo(
@@ -281,7 +284,9 @@ class PluginManager:
                 bot_logger.error(f"Invalid plugin configuration for '{plugin_name}'.")
                 return
 
-            permissions: PluginsPermissionsModel = self._extract_plugin_permissions(config)
+            permissions: PluginsPermissionsModel = self._extract_plugin_permissions(
+                config
+            )
 
             self.add_plugin_info(plugin_info)
 

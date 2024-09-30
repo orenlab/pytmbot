@@ -38,7 +38,7 @@ class SystemMonitorPlugin(PluginCore):
     Sends notifications to a Telegram bot if any of the monitored resources exceed specified thresholds.
     """
 
-    def __init__(self, config: 'MonitorConfig', bot: TeleBot) -> None:
+    def __init__(self, config: "MonitorConfig", bot: TeleBot) -> None:
         """
         Initializes the SystemMonitorPlugin with the given bot instance and configuration.
 
@@ -49,19 +49,29 @@ class SystemMonitorPlugin(PluginCore):
         super().__init__()
         self.bot: TeleBot = bot
         self.monitoring: bool = False
-        self.config: 'MonitorConfig' = config
+        self.config: "MonitorConfig" = config
         self.monitor_settings = self.settings.plugins_config.monitor
         self.notification_count: int = 0
         self.max_notifications: int = self.monitor_settings.max_notifications[0]
-        self.cpu_temperature_threshold: float = self.monitor_settings.tracehold.cpu_temperature_threshold[0]
+        self.cpu_temperature_threshold: float = (
+            self.monitor_settings.tracehold.cpu_temperature_threshold[0]
+        )
         self.pch_temperature_threshold = self.cpu_temperature_threshold
-        self.gpu_temperature_threshold: float = self.monitor_settings.tracehold.gpu_temperature_threshold[0]
-        self.disk_temperature_threshold: float = self.monitor_settings.tracehold.disk_temperature_threshold[0]
+        self.gpu_temperature_threshold: float = (
+            self.monitor_settings.tracehold.gpu_temperature_threshold[0]
+        )
+        self.disk_temperature_threshold: float = (
+            self.monitor_settings.tracehold.disk_temperature_threshold[0]
+        )
         self.monitoring_thread: threading.Thread | None = None
         self.retry_attempts: int = self.monitor_settings.retry_attempts[0]
         self.retry_interval: int = self.monitor_settings.retry_interval[0]
-        self.check_interval: int = self.monitor_settings.check_interval[0]  # Initial check interval
-        self.load_threshold: float = 70.0  # Threshold for load-based interval adjustment
+        self.check_interval: int = self.monitor_settings.check_interval[
+            0
+        ]  # Initial check interval
+        self.load_threshold: float = (
+            70.0  # Threshold for load-based interval adjustment
+        )
         self.sensors_available: bool = True
         self.cpu_usage_is_high: bool = False
         self.is_running_in_docker: bool = is_running_in_docker()
@@ -70,14 +80,17 @@ class SystemMonitorPlugin(PluginCore):
         # New monitoring data instance
         self.monitoring_data = MonitoringData(retention_days=7)
 
-        self.bot_logger.debug(f"Monitor plugin initialized with next tracehold settings:"
-                              f" max_notifications={self.max_notifications},"
-                              f" cpu_temperature_threshold={self.cpu_temperature_threshold},"
-                              f" gpu_temperature_threshold={self.gpu_temperature_threshold},"
-                              f" disk_temperature_threshold={self.disk_temperature_threshold},"
-                              )
+        self.bot_logger.debug(
+            f"Monitor plugin initialized with next tracehold settings:"
+            f" max_notifications={self.max_notifications},"
+            f" cpu_temperature_threshold={self.cpu_temperature_threshold},"
+            f" gpu_temperature_threshold={self.gpu_temperature_threshold},"
+            f" disk_temperature_threshold={self.disk_temperature_threshold},"
+        )
 
-        self.bot_logger.debug(f"Chat ID for notifications: {self.settings.chat_id.global_chat_id[0]}")
+        self.bot_logger.debug(
+            f"Chat ID for notifications: {self.settings.chat_id.global_chat_id[0]}"
+        )
 
     def start_monitoring(self) -> None:
         """
@@ -96,11 +109,15 @@ class SystemMonitorPlugin(PluginCore):
                     self.bot_logger.info("System monitoring started successfully.")
                     return
                 except Exception as e:
-                    self.bot_logger.error(f"Failed to start monitoring on attempt {attempt + 1}: {e}")
+                    self.bot_logger.error(
+                        f"Failed to start monitoring on attempt {attempt + 1}: {e}"
+                    )
                     self.monitoring = False
                     time.sleep(self.retry_interval)
 
-            self.bot_logger.error("Failed to start system monitoring after multiple attempts. Manual restart required.")
+            self.bot_logger.error(
+                "Failed to start system monitoring after multiple attempts. Manual restart required."
+            )
         else:
             self.bot_logger.warning("Monitoring is already running.")
 
@@ -126,7 +143,9 @@ class SystemMonitorPlugin(PluginCore):
                 disk_usage = self._check_disk_usage()
                 temperatures = self._check_temperatures()
 
-                self.monitoring_data.add_data(cpu_usage, memory_usage, disk_usage, temperatures)
+                self.monitoring_data.add_data(
+                    cpu_usage, memory_usage, disk_usage, temperatures
+                )
 
                 time.sleep(self.check_interval)
         except Exception as e:
@@ -142,13 +161,17 @@ class SystemMonitorPlugin(PluginCore):
             self.cpu_usage_is_high = True
             self.check_interval = 10  # Increase interval if load is high
             self.bot_logger.info(
-                f"High CPU load detected ({cpu_load}%). Increasing check interval to {self.check_interval} seconds.")
+                f"High CPU load detected ({cpu_load}%). Increasing check interval to {self.check_interval} seconds."
+            )
         else:
-            self.check_interval = self.monitor_settings.check_interval[0]  # Restore to normal interval
+            self.check_interval = self.monitor_settings.check_interval[
+                0
+            ]  # Restore to normal interval
             if self.cpu_usage_is_high:
                 self.cpu_usage_is_high = False
                 self.bot_logger.debug(
-                    f"CPU load is normal ({cpu_load}%). Restoring check interval to {self.check_interval} seconds.")
+                    f"CPU load is normal ({cpu_load}%). Restoring check interval to {self.check_interval} seconds."
+                )
 
     def _check_temperatures(self) -> float:
         """Checks the current temperatures of system components and sends notifications if thresholds are exceeded."""
@@ -157,39 +180,45 @@ class SystemMonitorPlugin(PluginCore):
             temps = psutil.sensors_temperatures()
             if not temps and self.sensors_available:
                 self.sensors_available = False
-                self.bot_logger.warning("No temperature sensors available on this system.")
+                self.bot_logger.warning(
+                    "No temperature sensors available on this system."
+                )
                 return current_temp
 
             for name, entries in temps.items():
                 for entry in entries:
                     match name:
-                        case 'coretemp':
+                        case "coretemp":
                             if entry.current > self.cpu_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}CPU temperature is high: {entry.current}°C (Threshold: {self.cpu_temperature_threshold}°C)"
                                 )
-                        case 'nvme' | 'disk':
+                        case "nvme" | "disk":
                             if entry.current > self.disk_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}Disk temperature is high: {entry.current}°C (Threshold: {self.disk_temperature_threshold}°C)"
                                 )
-                        case 'gpu':
+                        case "gpu":
                             if entry.current > self.gpu_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}GPU temperature is high: {entry.current}°C (Threshold: {self.gpu_temperature_threshold}°C)"
                                 )
-                        case _ if 'pch' in name.lower():
+                        case _ if "pch" in name.lower():
                             if entry.current > self.pch_temperature_threshold:
                                 self._send_notification(
                                     f"{self.config.emoji_for_notification}PCH temperature is high: {entry.current}°C (Threshold: {self.pch_temperature_threshold}°C)"
                                 )
                         case _:
-                            self.bot_logger.warning(f"Unknown temperature sensor: {name}")
+                            self.bot_logger.warning(
+                                f"Unknown temperature sensor: {name}"
+                            )
                     current_temp = entry.current
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking temperatures: {e}")
         except ExceptionGroup as eg:
-            self.bot_logger.error(f"Multiple error occurred while checking temperatures: {eg}")
+            self.bot_logger.error(
+                f"Multiple error occurred while checking temperatures: {eg}"
+            )
 
         return current_temp
 
@@ -199,8 +228,13 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             cpu_usage = psutil.cpu_percent(interval=1)
-            if cpu_usage > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]:
-                self._send_notification(f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%")
+            if (
+                cpu_usage
+                > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]
+            ):
+                self._send_notification(
+                    f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%"
+                )
             return cpu_usage
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking CPU usage: {e}")
@@ -212,9 +246,15 @@ class SystemMonitorPlugin(PluginCore):
         """
         try:
             memory = psutil.virtual_memory()
-            if memory.percent > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[0]:
+            if (
+                memory.percent
+                > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[
+                    0
+                ]
+            ):
                 self._send_notification(
-                    f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%")
+                    f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%"
+                )
             return memory.percent
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking memory usage: {e}")
@@ -225,9 +265,21 @@ class SystemMonitorPlugin(PluginCore):
         Checks the current disk usage for all physical partitions and sends a notification if any partition's usage exceeds the configured threshold.
         Excludes partitions where device names or file system types match certain system partitions when running locally.
         """
-        excluded_keywords = ["loop", "tmpfs", "devtmpfs", "proc", "sysfs", "cgroup", "mqueue", "hugetlbfs", "overlay",
-                             "aufs"]
-        threshold = self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[0]
+        excluded_keywords = [
+            "loop",
+            "tmpfs",
+            "devtmpfs",
+            "proc",
+            "sysfs",
+            "cgroup",
+            "mqueue",
+            "hugetlbfs",
+            "overlay",
+            "aufs",
+        ]
+        threshold = self.settings.plugins_config.monitor.tracehold.disk_usage_threshold[
+            0
+        ]
 
         try:
             partitions = psutil.disk_partitions(all=False)
@@ -242,12 +294,15 @@ class SystemMonitorPlugin(PluginCore):
                 try:
                     usage = psutil.disk_usage(partition.mountpoint)
                 except psutil.Error as err:
-                    self.bot_logger.error(f"Error checking disk usage for {partition.device}: {err}")
+                    self.bot_logger.error(
+                        f"Error checking disk usage for {partition.device}: {err}"
+                    )
                     continue
 
                 if usage.percent > threshold:
                     self._send_notification(
-                        f"{self.config.emoji_for_notification} Disk usage is high on {partition.device}: {usage.percent}%")
+                        f"{self.config.emoji_for_notification} Disk usage is high on {partition.device}: {usage.percent}%"
+                    )
                 total_usage += usage.percent
                 count += 1
 
@@ -258,8 +313,12 @@ class SystemMonitorPlugin(PluginCore):
                 return calculate_avg_disk_usage(partitions)
             case False:
                 filtered_partitions = [
-                    p for p in partitions if
-                    all(excl not in p.device and excl not in p.fstype for excl in excluded_keywords)
+                    p
+                    for p in partitions
+                    if all(
+                        excl not in p.device and excl not in p.fstype
+                        for excl in excluded_keywords
+                    )
                 ]
                 return calculate_avg_disk_usage(filtered_partitions)
 
@@ -271,7 +330,9 @@ class SystemMonitorPlugin(PluginCore):
         if self.notification_count < self.max_notifications:
             try:
                 self.notification_count += 1
-                sanitized_message = message.replace(self.config.emoji_for_notification, "")
+                sanitized_message = message.replace(
+                    self.config.emoji_for_notification, ""
+                )
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
                 self.bot.send_message(self.settings.chat_id.global_chat_id[0], message)
 
@@ -281,7 +342,9 @@ class SystemMonitorPlugin(PluginCore):
             except Exception as e:
                 self.bot_logger.error(f"Failed to send notification: {e}")
         elif not self.max_notifications_reached:
-            self.bot_logger.warning("Max notifications reached; no more notifications will be sent.")
+            self.bot_logger.warning(
+                "Max notifications reached; no more notifications will be sent."
+            )
             self.max_notifications_reached = True
 
     def _reset_notification_count(self) -> None:
@@ -316,14 +379,14 @@ class MonitoringGraph:
         for hours in periods_in_hours:
             period_start = now - timedelta(hours=hours)
             if earliest_timestamp <= period_start:
-                available_periods.append(f'{hours} hour(s)')
+                available_periods.append(f"{hours} hour(s)")
             else:
                 break
 
         for days in periods_in_days:
             period_start = now - timedelta(days=days)
             if earliest_timestamp <= period_start:
-                available_periods.append(f'{days} day(s)')
+                available_periods.append(f"{days} day(s)")
             else:
                 break
 
@@ -336,7 +399,7 @@ class MonitoringGraph:
         data = self.monitoring_data.get_data()[data_type]
 
         # Determine if period is in hours or days
-        if 'hour' in period:
+        if "hour" in period:
             hours = int(period.split()[0])
             cutoff_time = datetime.now() - timedelta(hours=hours)
         else:
@@ -344,7 +407,9 @@ class MonitoringGraph:
             cutoff_time = datetime.now() - timedelta(days=days)
 
         # Filter data by time period
-        filtered_data = [(timestamp, value) for timestamp, value in data if timestamp >= cutoff_time]
+        filtered_data = [
+            (timestamp, value) for timestamp, value in data if timestamp >= cutoff_time
+        ]
 
         if not filtered_data:
             bot_logger.warning(f"No data available for the specified period: {period}.")
@@ -355,12 +420,12 @@ class MonitoringGraph:
         # Create a Pygal line chart
         line_chart = pygal.Line()
         line_chart.title = f'{data_type.replace("_", " ").title()} Over Last {period}'
-        line_chart.x_labels = [ts.strftime('%Y-%m-%d %H:%M:%S') for ts in timestamps]
+        line_chart.x_labels = [ts.strftime("%Y-%m-%d %H:%M:%S") for ts in timestamps]
         line_chart.add(data_type.replace("_", " ").title(), values)
 
         # Save the plot to a BytesIO object
         img_buffer = BytesIO()
-        img_buffer.write(line_chart.render(is_unicode=True).encode('utf-8'))
+        img_buffer.write(line_chart.render(is_unicode=True).encode("utf-8"))
         img_buffer.seek(0)
 
         bot_logger.info(f"Plot generated for {data_type} over the last {period}.")

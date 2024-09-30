@@ -11,6 +11,8 @@ from humanize import (
 )
 from telebot.types import CallbackQuery, Message
 
+from pytmbot.settings import settings
+
 
 # Utility functions
 
@@ -191,10 +193,10 @@ def sanitize_logs(
     Returns:
         str: The sanitized logs.
     """
-    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
     # Remove color codes
-    container_logs = ansi_escape.sub('', container_logs)
+    container_logs = ansi_escape.sub("", container_logs)
 
     # User information for sanitization
     user_info = [
@@ -334,3 +336,25 @@ def is_running_in_docker() -> bool:
         return True
 
     return False
+
+
+def sanitize_exception(exception: Exception) -> str:
+    """
+    Sanitizes exception messages by replacing sensitive information with placeholders.
+
+    Args:
+        exception (Exception): The exception to sanitize.
+
+    Returns:
+        str: The sanitized exception message.
+    """
+    exception_str = str(exception)
+    secret_map = {
+        settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
+        settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
+        settings.plugins_config.outline.api_url[0].get_secret_value(): "********* OUTLINE API URL *********",
+        settings.plugins_config.outline.cert[0].get_secret_value(): "********* CERT FINGERPRINT *********",
+    }
+    for secret, placeholder in secret_map.items():
+        exception_str = exception_str.replace(secret, placeholder)
+    return exception_str

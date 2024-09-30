@@ -64,14 +64,18 @@ class RateLimit(BaseMiddleware):
             bot_logger.warning(
                 f"User {user.username or 'unknown'} (ID: {user_id}) exceeded rate limit."
             )
-            self.bot.send_message(chat_id=message.chat.id,
-                                  text="You're sending messages too quickly. Please slow down.")
+            self.bot.send_message(
+                chat_id=message.chat.id,
+                text="You're sending messages too quickly. Please slow down.",
+            )
             return CancelUpdate()
 
         user_requests.append(now)
         return None
 
-    def post_process(self, message: Message, data: Any, exception: Optional[Exception]) -> None:
+    def post_process(
+        self, message: Message, data: Any, exception: Optional[Exception]
+    ) -> None:
         """
         Post-processes the incoming message.
 

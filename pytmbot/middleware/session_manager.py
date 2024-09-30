@@ -50,7 +50,9 @@ class SessionManager:
         """
         Starts a background thread that will periodically clean up expired sessions.
         """
-        self._cleanup_thread = threading.Timer(self._cleanup_interval, self._periodic_cleanup)
+        self._cleanup_thread = threading.Timer(
+            self._cleanup_interval, self._periodic_cleanup
+        )
         self._cleanup_thread.daemon = True
         self._cleanup_thread.start()
 
@@ -76,7 +78,9 @@ class SessionManager:
             dict[str, Any]: The user data.
         """
         if user_id not in self.__user_data:
-            self.__user_data[user_id] = {"auth_state": self.state_fabric.unauthenticated}
+            self.__user_data[user_id] = {
+                "auth_state": self.state_fabric.unauthenticated
+            }
         return self.__user_data[user_id]
 
     @property
@@ -126,7 +130,9 @@ class SessionManager:
         """
         user_data = self._get_user_data(user_id)
         user_data["totp_attempts"] = user_data.get("totp_attempts", 0) + 1
-        bot_logger.debug(f"Setting TOTP attempts for user {user_id} to {user_data['totp_attempts']}")
+        bot_logger.debug(
+            f"Setting TOTP attempts for user {user_id} to {user_data['totp_attempts']}"
+        )
 
     def get_totp_attempts(self, user_id: int) -> int:
         """
@@ -163,7 +169,9 @@ class SessionManager:
         Returns:
             None
         """
-        self._get_user_data(user_id)["blocked_time"] = datetime.now() + timedelta(minutes=10)
+        self._get_user_data(user_id)["blocked_time"] = datetime.now() + timedelta(
+            minutes=10
+        )
         bot_logger.debug(f"Setting blocked time for user {user_id}")
 
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
@@ -211,9 +219,9 @@ class SessionManager:
             bool: True if the user is authenticated, False otherwise.
         """
         return (
-                self.get_auth_state(user_id) == self.state_fabric.authenticated
-                and not self.is_blocked(user_id)
-                and not self.is_session_expired(user_id)
+            self.get_auth_state(user_id) == self.state_fabric.authenticated
+            and not self.is_blocked(user_id)
+            and not self.is_session_expired(user_id)
         )
 
     def set_login_time(self, user_id: int) -> None:
@@ -252,14 +260,16 @@ class SessionManager:
         """
         login_time = self.get_login_time(user_id)
         if login_time:
-            expired = datetime.now() > login_time + timedelta(minutes=self.session_timeout)
+            expired = datetime.now() > login_time + timedelta(
+                minutes=self.session_timeout
+            )
             bot_logger.debug(f"User {user_id} session expired: {expired}")
             return expired
         bot_logger.debug(f"User {user_id} session login time not found")
         return True
 
     def set_referer_uri_and_handler_type_for_user(
-            self, user_id: int, handler_type: str, referer_uri: str
+        self, user_id: int, handler_type: str, referer_uri: str
     ) -> None:
         """
         Set the referer URI and handler type for a given user ID.
@@ -284,7 +294,7 @@ class SessionManager:
             user_id (int): The ID of the user.
             Returns:
                 Optional[str]: The referer URI for the user, or None if not found.
-            """
+        """
         return self._get_user_data(user_id).get("referer_uri", None)
 
     def get_handler_type_for_user(self, user_id: int) -> Optional[str]:

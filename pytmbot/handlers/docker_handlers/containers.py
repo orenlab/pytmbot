@@ -94,7 +94,9 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
             template_name: Final[str] = "b_none.jinja2"
 
             # Define context and emojis
-            context: Final[str] = "There are no containers or incorrect settings are specified."
+            context: Final[str] = (
+                "There are no containers or incorrect settings are specified."
+            )
             emojis: Final[Dict[str, str]] = {
                 "thought_balloon": em.get_emoji("thought_balloon"),
             }

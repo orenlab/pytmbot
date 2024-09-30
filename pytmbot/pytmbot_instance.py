@@ -2,7 +2,9 @@ import time
 from datetime import timedelta
 from typing import List, Dict, Callable
 
+import requests
 import telebot
+import urllib3.exceptions
 from telebot import TeleBot
 
 from pytmbot import exceptions
@@ -24,7 +26,9 @@ from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args
+from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
+
+urllib3.disable_warnings()
 
 
 class PyTMBot:
@@ -88,10 +92,12 @@ class PyTMBot:
         self._setup_bot_commands_and_description()
 
         # Set up middlewares
-        self._setup_middlewares([
-            (AccessControl, {}),
-            (RateLimit, {'limit': 8, 'period': timedelta(seconds=10)})
-        ])
+        self._setup_middlewares(
+            [
+                (AccessControl, {}),
+                (RateLimit, {"limit": 8, "period": timedelta(seconds=10)}),
+            ]
+        )
 
         # Register handlers
         self._register_handlers(handler_factory, self.bot.register_message_handler)
@@ -164,7 +170,9 @@ class PyTMBot:
             try:
                 self._setup_middleware(middleware_class, **kwargs)
             except telebot.apihelper.ApiTelegramException as error:
-                bot_logger.error(f"Failed to set up middleware {middleware_class.__name__}: {error}")
+                bot_logger.error(
+                    f"Failed to set up middleware {middleware_class.__name__}: {error}"
+                )
 
     def _setup_middleware(self, middleware_class: type, *args, **kwargs):
         """
@@ -188,7 +196,9 @@ class PyTMBot:
         try:
             middleware_instance = middleware_class(bot=self.bot, *args, **kwargs)
             self.bot.setup_middleware(middleware_instance)
-            bot_logger.debug(f"Middleware setup successful: {middleware_class.__name__}.")
+            bot_logger.debug(
+                f"Middleware setup successful: {middleware_class.__name__}."
+            )
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.critical(f"Failed to set up middleware: {error}")
             exit(1)
@@ -234,11 +244,23 @@ class PyTMBot:
                     timeout=var_config.bot_polling_timeout,
                     long_polling_timeout=var_config.bot_long_polling_timeout,
                 )
-            except telebot.apihelper.ApiTelegramException as error:
-                bot_logger.error(f"Polling failed: {error}")
+            except telebot.apihelper.ApiTelegramException as t_error:
+                bot_logger.error(f"Polling failed: {sanitize_exception(t_error)}")
+                time.sleep(10)
+            except (
+                    urllib3.exceptions.ConnectionError,
+                    urllib3.exceptions.ReadTimeoutError,
+            ) as u_error:
+                bot_logger.error(f"Connection error: {sanitize_exception(u_error)}")
+                time.sleep(10)
+            except (
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.ConnectTimeout,
+            ) as r_error:
+                bot_logger.error(f"Connection error: {sanitize_exception(r_error)}")
                 time.sleep(10)
             except Exception as error:
-                bot_logger.exception(f"Unexpected error: {error}")
+                bot_logger.exception(f"Unexpected error: {sanitize_exception(error)}")
                 time.sleep(10)
 
 

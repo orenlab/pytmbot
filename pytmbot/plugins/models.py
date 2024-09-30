@@ -18,5 +18,6 @@ class PluginCoreModel(BaseModel):
 @final
 class PluginsPermissionsModel:
     """Plugin permissions model"""
+
     base_permission: Optional[bool] = False
     need_running_on_host_machine: Optional[bool] = False
