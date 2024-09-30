@@ -247,8 +247,7 @@ class PyTMBot:
         # Set the webhook
         self._set_webhook(
             webhook_url,
-            secret_token=secret_token,
-            certificate_path=settings.webhook_config.cert[0].get_secret_value()
+            certificate_path=settings.webhook_config.cert[0].get_secret_value() or None
         )
         bot_logger.info("Webhook successfully set.")
 
@@ -280,7 +279,7 @@ class PyTMBot:
             bot_logger.exception(f"Unexpected error while starting webhook: {error}")
             exit(1)
 
-    def _set_webhook(self, webhook_url: str, certificate_path: str = None, secret_token: str = None):
+    def _set_webhook(self, webhook_url: str, certificate_path: str = None):
         try:
             self.bot.set_webhook(
                 url=f"{webhook_url}:{settings.webhook_config.webhook_port[0]}",
@@ -291,7 +290,6 @@ class PyTMBot:
                 ],
                 drop_pending_updates=True,
                 certificate=certificate_path,
-                secret_token=secret_token
 
             )
         except telebot.apihelper.ApiTelegramException as error:
