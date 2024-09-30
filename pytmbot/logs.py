@@ -9,7 +9,7 @@ from pytmbot.settings import LogsSettings
 from pytmbot.utils.utilities import (
     parse_cli_args,
     get_inline_message_full_info,
-    get_message_full_info,
+    get_message_full_info, is_running_in_docker,
 )
 
 
@@ -54,7 +54,8 @@ def build_bot_logger() -> loguru.logger:
             f"{tabs}Python path: {sys.executable}\n"
             f"{tabs}Python version: {sys.version}\n"
             f"{tabs}Module path: {sys.path}\n"
-            f"{tabs}Command args: {sys.argv}"
+            f"{tabs}Command args: {sys.argv}\n"
+            f"{tabs}Running on: {"Docker" if is_running_in_docker() else "Host"}"
         )
 
     # Custom log levels
