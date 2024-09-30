@@ -229,8 +229,10 @@ class PyTMBot:
             bot_logger.debug(
                 f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers."
             )
+        except telebot.apihelper.ApiTelegramException as api_err:
+            bot_logger.error(f"Failed to register handlers: {sanitize_exception(api_err)}")
         except Exception as err:
-            bot_logger.exception(f"Failed to register handlers: {err}")
+            bot_logger.exception(f"Unexpected error while registering handlers: {err}")
 
     def _start_webhook_mode(self):
         """
@@ -279,7 +281,7 @@ class PyTMBot:
         except ValueError as value_error:
             bot_logger.exception(f"Failed to start webhook server: {value_error}")
         except Exception as error:
-            bot_logger.exception(f"Unexpected error while starting webhook: {error}")
+            bot_logger.exception(f"Unexpected error while starting webhook: {sanitize_exception(error)}")
             exit(1)
 
     def _set_webhook(self, webhook_url: str, certificate_path: str = None):
@@ -296,7 +298,7 @@ class PyTMBot:
 
             )
         except telebot.apihelper.ApiTelegramException as error:
-            bot_logger.error(f"Failed to set webhook: {error}")
+            bot_logger.error(f"Failed to set webhook: {sanitize_exception(error)}")
             exit(1)
 
     def start_bot_instance(self):
@@ -310,9 +312,9 @@ class PyTMBot:
             try:
                 self.bot.remove_webhook()
                 self._start_webhook_mode()
-            except telebot.apihelper.ApiTelegramException as error:
+            except Exception as error:
                 bot_logger.error(
-                    f"Failed to remove or set webhook: {error}. Exiting..."
+                    f"Unexpected error while starting or stopping webhook: {error}. Exiting..."
                 )
                 exit(1)
         else:

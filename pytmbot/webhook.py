@@ -2,6 +2,7 @@ import cherrypy
 import telebot
 from telebot import TeleBot
 from pytmbot.logs import bot_logger
+from pytmbot.utils.utilities import sanitize_exception
 
 
 class WebhookServer:
@@ -17,9 +18,12 @@ class WebhookServer:
             bot (TeleBot): The instance of the Telegram bot to process updates.
         """
         self.bot = bot
-        # Redirect CherryPy logs to bot_logger
-        cherrypy.log.access_log.addHandler(bot_logger)
-        cherrypy.log.error_log.addHandler(bot_logger)
+
+        # Disable the default CherryPy access log handler
+        cherrypy.log.access_log.handlers = []
+
+        # Disable propagation of the default CherryPy access log
+        cherrypy.log.access_log.propagate = False
 
     @cherrypy.expose
     def index(self):
@@ -44,8 +48,8 @@ class WebhookServer:
             else:
                 raise cherrypy.HTTPError(400, "Invalid Content-Type")
         except telebot.apihelper.ApiTelegramException as api_error:
-            bot_logger.error(f"Telegram API error: {api_error}")
+            bot_logger.error(f"Telegram API error: {sanitize_exception(api_error)}")
             raise cherrypy.HTTPError(400, "Bad Request")
         except Exception as error:
-            bot_logger.exception(f"Failed to process webhook request: {error}")
+            bot_logger.exception(f"Failed to process webhook request: {sanitize_exception(error)}")
             raise cherrypy.HTTPError(500, "Internal Server Error")
