@@ -96,7 +96,7 @@ def __aggregate_container_details(container_id: str) -> dict:
             "created": f"{created_day}, {created_time}",
             "run_at": set_naturaltime(
                 datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
-            ),
+            ) if attrs["State"].get("StartedAt", "") else "N/A",
             "status": attrs.get("State", {}).get("Status", "N/A"),
         }
 
