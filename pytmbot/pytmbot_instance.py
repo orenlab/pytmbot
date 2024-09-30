@@ -238,8 +238,12 @@ class PyTMBot:
         """
         bot_logger.info("Starting webhook mode...")
 
-        webhook_url = f"https://{settings.webhook_config.url[0].get_secret_value()}/webhook"
-        bot_logger.debug(f"Webhook URL: {webhook_url}")
+        url = settings.webhook_config.url[0].get_secret_value()
+        bot_logger.debug(f"Webhook URL: {url}")
+        port = settings.webhook_config.webhook_port[0]
+        bot_logger.debug(f"Webhook port: {port}")
+
+        webhook_url = f"https://{url}:{port}/webhook/{self._get_bot_token()}/"
 
         bot_logger.debug("Generated secret token for webhook.")
 
