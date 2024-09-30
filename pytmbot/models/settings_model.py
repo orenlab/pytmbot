@@ -129,6 +129,20 @@ class PluginsConfig(BaseModel):
     outline: OutlineVPN
 
 
+class WebhookConfig(BaseModel):
+    """
+    Model to configure webhook settings for the bot.
+
+    Attributes:
+        url (List[SecretStr]): List of webhook URLs.
+    """
+
+    url: conlist(SecretStr, min_length=4)
+    port: conlist(int, min_length=1, max_length=2) = [8443]
+    cert: conlist(SecretStr, min_length=4)
+    cert_key: conlist(SecretStr, min_length=4)
+
+
 class SettingsModel(BaseSettings):
     """
     Main settings model for configuring the bot.
@@ -146,3 +160,4 @@ class SettingsModel(BaseSettings):
     docker: DockerHostModel
     chat_id: ChatIdModel
     plugins_config: Optional[PluginsConfig]
+    webhook_config: Optional[WebhookConfig]

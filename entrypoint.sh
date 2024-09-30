@@ -16,8 +16,8 @@ LOG_LEVEL="INFO"
 MODE="prod"
 SALT="false"
 PLUGINS=""
-LOCAL_LOGGING="false"
-LOG_FILE="/root/pytmbot/pytmbot.log"
+WEBHOOK="False"
+SOCKET_HOST="127.0.0.1"
 
 # Function to handle errors
 handle_error() {
@@ -55,9 +55,17 @@ while [ $# -gt 0 ]; do
             PLUGINS="$2"
             shift 2
             ;;
-        --local)
-            LOCAL_LOGGING="true"
-            shift
+        --webhook)
+            WEBHOOK="$2"
+            if [ "$WEBHOOK" != "True" ] && [ "$WEBHOOK" != "False" ]; then
+                echo "Invalid option for --webhook: $2" >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        --socket_host)
+            SOCKET_HOST="$2"
+            shift 2
             ;;
         *)
             echo "Invalid option: $1" >&2
@@ -79,15 +87,8 @@ if [ "$SALT" = "true" ]; then
     fi
     /venv/bin/python3 pytmbot/utils/salt.py
 else
-    # Redirect logs to file if LOCAL_LOGGING is true
-    if [ "$LOCAL_LOGGING" = "true" ]; then
-        exec >> "$LOG_FILE" 2>&1
-        echo "Logging to $LOG_FILE"
-        exec "$(pwd)"/venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS"
-    else
-        exec /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS"
-    fi
-
+    # Execute the main Python script without local logging
+    exec /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS" --webhook "$WEBHOOK" --socket_host "$SOCKET_HOST"
 fi
 
 # Reset the trap before normal exit

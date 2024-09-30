@@ -1,6 +1,8 @@
 import argparse
 import os
+import random
 import re
+import string
 from datetime import datetime
 from functools import cached_property, lru_cache
 from typing import Any, Dict, Optional, Tuple, Union
@@ -45,6 +47,19 @@ def parse_cli_args() -> argparse.Namespace:
         choices=["True", "False"],
         default="True",
         help="Colorize logs",
+    )
+
+    parser.add_argument(
+        "--webhook",
+        choices=["True", "False"],
+        default="False",
+        help="Start in webhook mode",
+    )
+
+    parser.add_argument(
+        "--socket_host",
+        default="127.0.0.1",
+        help="Socket host for listening in webhook mode",
     )
 
     parser.add_argument(
@@ -358,3 +373,25 @@ def sanitize_exception(exception: Exception) -> str:
     for secret, placeholder in secret_map.items():
         exception_str = exception_str.replace(secret, placeholder)
     return exception_str
+
+
+def generate_secret_token(length: int = 128) -> str:
+    """
+    Generates a secret token for webhook requests.
+
+    Args:
+        length (int): The length of the token. Should be between 1 and 256.
+
+    Returns:
+        str: The generated secret token.
+
+    Raises:
+        ValueError: If the length is not between 1 and 256.
+    """
+    if length < 1 or length > 256:
+        raise ValueError("Token length must be between 1 and 256 characters.")
+
+    # Allowed characters
+    characters = string.ascii_letters + string.digits + "_-"
+    token = ''.join(random.choice(characters) for _ in range(length))
+    return token

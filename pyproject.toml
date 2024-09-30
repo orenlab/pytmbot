@@ -30,6 +30,7 @@ mypy = "^1.0.0"
 packaging = "^24.1"
 black = "^24.8.0"
 isort = "^5.0.0"
+cherrypy = "^18.8.0"
 
 [tool.poetry.extras]
 pyoutlineapi = ["pyoutlineapi"]

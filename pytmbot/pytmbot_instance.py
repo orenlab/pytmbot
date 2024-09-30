@@ -1,3 +1,4 @@
+# /venv/bin/python3
 import time
 from datetime import timedelta
 from typing import List, Dict, Callable
@@ -26,7 +27,8 @@ from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
+from pytmbot.utils.utilities import parse_cli_args, sanitize_exception, generate_secret_token
+from pytmbot.webhook import WebhookServer
 
 urllib3.disable_warnings()
 
@@ -230,13 +232,96 @@ class PyTMBot:
         except Exception as err:
             bot_logger.exception(f"Failed to register handlers: {err}")
 
+    def _start_webhook_mode(self):
+        """
+        Starts the bot in webhook mode and sets up the webhook.
+        """
+        bot_logger.info("Starting webhook mode...")
+
+        webhook_url = f"https://{settings.webhook_config.url[0].get_secret_value()}/webhook"
+        bot_logger.debug(f"Webhook URL: {webhook_url}")
+
+        secret_token = generate_secret_token()
+        bot_logger.debug("Generated secret token for webhook.")
+
+        # Set the webhook
+        self._set_webhook(
+            webhook_url,
+            secret_token=secret_token,
+            certificate_path=settings.webhook_config.cert[0].get_secret_value()
+        )
+        bot_logger.info("Webhook successfully set.")
+
+        try:
+            ws = settings.webhook_config
+            socket_host = self.args.socket_host
+            socket_port = ws.port[0]
+            ssl_certificate = ws.cert[0].get_secret_value() if ws.cert else None
+            ssl_private_key = ws.cert_key[0].get_secret_value() if ws.cert_key else None
+
+            # Start the CherryPy server
+            import cherrypy
+
+            cherrypy.config.update({
+                'server.socket_host': socket_host,
+                'server.socket_port': socket_port,
+                'server.ssl_module': 'builtin',
+                'server.ssl_certificate': ssl_certificate,
+                'server.ssl_private_key': ssl_private_key
+            })
+
+            bot_logger.info(f"Starting CherryPy server on {socket_host}:{socket_port} with SSL.")
+            cherrypy.quickstart(WebhookServer(self.bot), '/webhook')
+        except ImportError as import_error:
+            bot_logger.exception(f"Failed to import CherryPy: {import_error}")
+        except ValueError as value_error:
+            bot_logger.exception(f"Failed to start webhook server: {value_error}")
+        except Exception as error:
+            bot_logger.exception(f"Unexpected error while starting webhook: {error}")
+            exit(1)
+
+    def _set_webhook(self, webhook_url: str, certificate_path: str = None, secret_token: str = None):
+        try:
+            self.bot.set_webhook(
+                url=webhook_url,
+                timeout=20,
+                allowed_updates=[
+                    "message",
+                    "callback_query"
+                ],
+                drop_pending_updates=True,
+                certificate=certificate_path,
+                secret_token=secret_token
+
+            )
+        except telebot.apihelper.ApiTelegramException as error:
+            bot_logger.error(f"Failed to set webhook: {error}")
+            exit(1)
+
     def start_bot_instance(self):
         """
-        Starts the bot instance and enters an infinite polling loop.
+        Starts the bot instance and enters an infinite polling loop or webhook mode.
         """
         bot_instance = self._create_bot_instance()
-        bot_logger.info("Starting polling...")
+        bot_logger.info("Starting bot...")
 
+        if self.args.webhook:
+            try:
+                self.bot.remove_webhook()
+                self._start_webhook_mode()
+            except telebot.apihelper.ApiTelegramException as error:
+                bot_logger.error(
+                    f"Failed to remove or set webhook: {error}. Exiting..."
+                )
+                exit(1)
+        else:
+            self._start_polling_mode(bot_instance)
+
+    @staticmethod
+    def _start_polling_mode(bot_instance: TeleBot):
+        """
+        Starts the bot in polling mode.
+        """
         while True:
             try:
                 bot_instance.infinity_polling(
