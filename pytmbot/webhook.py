@@ -1,8 +1,31 @@
 import cherrypy
 import telebot
 from telebot import TeleBot
-
 from pytmbot.logs import bot_logger
+
+
+class CherryPyLogger:
+    """
+    Custom logger to redirect CherryPy logs to the bot_logger.
+    """
+
+    def debug(self, message, *args, **kwargs):
+        bot_logger.debug(message, *args, **kwargs)
+
+    def info(self, message, *args, **kwargs):
+        bot_logger.info(message, *args, **kwargs)
+
+    def warning(self, message, *args, **kwargs):
+        bot_logger.warning(message, *args, **kwargs)
+
+    def error(self, message, *args, **kwargs):
+        bot_logger.error(message, *args, **kwargs)
+
+    def critical(self, message, *args, **kwargs):
+        bot_logger.critical(message, *args, **kwargs)
+
+    def exception(self, message, *args, **kwargs):
+        bot_logger.exception(message, *args, **kwargs)
 
 
 class WebhookServer:
@@ -21,9 +44,9 @@ class WebhookServer:
             bot (TeleBot): The instance of the Telegram bot to process updates.
         """
         self.bot = bot
-        # Disable CherryPy logging
-        cherrypy.log.access_log.setLevel('ERROR')
-        cherrypy.log.error_log.setLevel('ERROR')
+        # Redirect CherryPy logs to bot_logger
+        cherrypy.log.access_log.setHandler(CherryPyLogger())
+        cherrypy.log.error_log.setHandler(CherryPyLogger())
 
     @cherrypy.expose
     def index(self):
