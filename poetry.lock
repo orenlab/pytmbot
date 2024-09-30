@@ -699,6 +699,22 @@ files = [
 test = ["coverage", "mypy", "ruff", "wheel"]
 
 [[package]]
+name = "pyoutlineapi"
+version = "0.1.3"
+description = "A Python package to interact with the Outline VPN Server API"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "pyoutlineapi-0.1.3-py3-none-any.whl", hash = "sha256:e5093cbcb1a4e1726f0a5b823290df072344e10ff81ce3581940c4da09be83e0"},
+    {file = "pyoutlineapi-0.1.3.tar.gz", hash = "sha256:10fc29d483bfe81a18f929d71ffd2c3236bbabf4aa93a09044fa34ad7c9a872a"},
+]
+
+[package.dependencies]
+pydantic = ">=2.0.0,<3.0.0"
+requests = ">=2.32.3,<3.0.0"
+requests-toolbelt = ">=1.0.0,<2.0.0"
+
+[[package]]
 name = "pypng"
 version = "0.20220715.0"
 description = "Pure Python library for saving and loading PNG images"
@@ -878,6 +894,20 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
+name = "requests-toolbelt"
+version = "1.0.0"
+description = "A utility belt for advanced users of python-requests"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+files = [
+    {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
+    {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
+]
+
+[package.dependencies]
+requests = ">=2.0.1,<3.0.0"
+
+[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -940,9 +970,9 @@ type = ["pytest-mypy"]
 
 [extras]
 click = ["click"]
-pyoutlineapi = []
+pyoutlineapi = ["pyoutlineapi"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "c7fe18357ec2680001c1274e66bead04f0e08874abdc29f7993f052491072658"
+content-hash = "944a0a070607ce84921ae505f30fb1f83019a7d54daa6bfd50e51d46894098b2"
