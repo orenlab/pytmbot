@@ -281,14 +281,14 @@ class PyTMBot:
     def _set_webhook(self, webhook_url: str, certificate_path: str = None):
         try:
             self.bot.set_webhook(
-                url=f"{webhook_url}:{settings.webhook_config.webhook_port[0]}",
+                url=f"{webhook_url}:{settings.webhook_config.webhook_port[0]}/{self._get_bot_token()}/",
                 timeout=20,
                 allowed_updates=[
                     "message",
                     "callback_query"
                 ],
                 drop_pending_updates=True,
-                certificate=certificate_path,
+                # certificate=certificate_path,
 
             )
         except telebot.apihelper.ApiTelegramException as error:
