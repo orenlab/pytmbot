@@ -27,7 +27,7 @@ from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args, sanitize_exception, generate_secret_token
+from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
 from pytmbot.webhook import WebhookServer
 
 urllib3.disable_warnings()
@@ -241,7 +241,6 @@ class PyTMBot:
         webhook_url = f"https://{settings.webhook_config.url[0].get_secret_value()}/webhook"
         bot_logger.debug(f"Webhook URL: {webhook_url}")
 
-        secret_token = generate_secret_token()
         bot_logger.debug("Generated secret token for webhook.")
 
         # Set the webhook
