@@ -273,7 +273,7 @@ class PyTMBot:
             })
 
             bot_logger.info(f"Starting CherryPy server on {socket_host}:{socket_port} with SSL.")
-            cherrypy.quickstart(WebhookServer(self.bot), '/webhook')
+            cherrypy.quickstart(WebhookServer(self.bot), f"/webhook/{self._get_bot_token()}", {'/': {}})
         except ImportError as import_error:
             bot_logger.exception(f"Failed to import CherryPy: {import_error}")
         except ValueError as value_error:
