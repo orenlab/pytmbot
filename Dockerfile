@@ -25,7 +25,7 @@ RUN apk --no-cache update && \
 # Copy and install dependencies
 COPY requirements.txt .
 
-RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-headers binutils && \
+RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-headers binutils expat && \
     python${PYTHON_VERSION} -m venv /venv && \
     /venv/bin/python -m ensurepip --upgrade && \
     /venv/bin/pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
