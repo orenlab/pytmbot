@@ -137,11 +137,11 @@ class WebhookConfig(BaseModel):
         url (List[SecretStr]): List of webhook URLs.
     """
 
-    url: conlist(SecretStr, min_length=4)
-    webhook_port: conlist(int, min_length=1, max_length=2) = [443]
-    local_port: conlist(int, min_length=1, max_length=2) = [5001]
-    cert: conlist(SecretStr, min_length=4)
-    cert_key: conlist(SecretStr, min_length=4)
+    url: conlist(SecretStr, min_length=1)
+    webhook_port: conlist(int, min_length=1, max_length=1) = [443]
+    local_port: conlist(int, min_length=1, max_length=1) = [5001]
+    cert: conlist(SecretStr, min_length=1)
+    cert_key: conlist(SecretStr, min_length=1)
 
 
 class SettingsModel(BaseSettings):
