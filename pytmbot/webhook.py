@@ -6,6 +6,7 @@ from pytmbot.logs import bot_logger
 
 
 class WebhookServer:
+
     def __init__(self, bot: TeleBot, token: str, host: str, port: int):
         """
         Initializes the FastAPI webhook server.
@@ -22,31 +23,17 @@ class WebhookServer:
         self.host = host
         self.port = port
 
+
         @self.app.post(f"/webhook/{self.token}/")
-        def process_webhook(request: Request) -> dict:
+        def process_webhook(update: dict):
             """
-            Process incoming webhook calls.
-
-            Args:
-                request (Request): The incoming request.
-
-            Returns:
-                dict: A response indicating the status of the processing.
+            Process webhook calls
             """
-            try:
-                update = request.body()
-                bot_logger.debug(f"Received update: {repr(update)}")
-
-                if update:
-                    update = telebot.types.Update.de_json(update)
-                    self.bot.process_new_updates([update])
-                else:
-                    bot_logger.warning("No update found in the request.")
-
-                return {"status": "ok"}
-            except Exception as e:
-                bot_logger.error(f"Failed to process update: {e}")
-                raise HTTPException(status_code=400, detail="Bad Request")
+            if update:
+                update = telebot.types.Update.de_json(update)
+                self.bot.process_new_updates([update])
+            else:
+                return
 
     def run(self):
         """
