@@ -1,8 +1,9 @@
 # pyTMbot
 
 **pyTMbot** is a versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending
-its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating
-the need for webhooks.
+its functionality through a modular plugin system. The bot supports both **polling** and **webhook** modes, offering
+flexibility based on your deployment requirements. Additionally, **pyTMbot** can be deployed either **directly on the
+host machine** or within a **Docker container**, providing flexibility in infrastructure setup.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -12,7 +13,6 @@ the need for webhooks.
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![Production Docker CI](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/prod-docker-ci.yml)
 
 **pyTMbot** leverages
 the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), [psutil](https://github.com/giampaolo/psutil),
@@ -58,11 +58,26 @@ Refer to [plugins.md](docs/plugins) for more information on adding and managing 
 
 ## 🕸 Requirements
 
-Starting from version 0.9.0, **pyTMbot** can run locally or in Docker. Docker-based deployment is the recommended method
-for ease of maintenance.
+Starting from version 0.9.0, **pyTMbot** can run **either directly on the host machine or in a Docker container**. Both
+deployment methods provide full functionality, but there are slight differences in system access depending on the
+environment:
 
-- For local installation, check `setup_req.txt`.
-- Full Python dependencies are listed in `requirements.txt`.
+- **Host machine deployment:** Direct access to system resources like CPU, memory, and sensors. Recommended for cases
+  where precise and real-time system monitoring is critical.
+- **Docker container deployment:** Ideal for isolated environments or multi-bot setups. Certain low-level system access
+  may be restricted due to container isolation, but Docker management and most server monitoring features remain fully
+  functional.
+
+The bot supports two operational modes:
+
+- **Polling Mode:** Simplified setup with no need for HTTPS or a static IP address. Recommended for small-scale or
+  development deployments.
+- **Webhook Mode:** Optimized for real-time updates with reduced latency. Suitable for production environments,
+  typically requiring an HTTPS server and a valid domain.
+
+To simplify the installation process, we provide an **`install.sh`** script that handles the setup, regardless of
+whether you choose to run **pyTMbot** on a host machine or within a Docker container. For full instructions on
+installation and configuration, refer to the [installation section](docs/installation.md).
 
 ## 🔌 Installation and Setup
 
@@ -74,7 +89,10 @@ Refer to [installation.md](docs/installation.md) for full instructions on settin
 
 - **Superuser Role:** Manage Docker containers securely.
 - **TOTP 2FA Support:** Secure sensitive actions with time-based OTPs and QR code generation.
-- **Access Control:** Manage bot access using a customizable list of admin IDs.
+- **Access Control Middleware:** Manage bot access using a customizable list of admin IDs.
+- **Rate Limiting Middleware:** To protect against **DoS (Denial-of-Service) attacks**, pyTMbot integrates middleware
+  that limits the number of requests allowed from a single user or IP address within a specified time frame. This
+  prevents abuse while ensuring smooth performance under heavy load.
 
 Learn more about the security measures in our detailed [security guide](docs/security.md).
 
