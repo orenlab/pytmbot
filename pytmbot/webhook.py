@@ -23,17 +23,24 @@ class WebhookServer:
         self.host = host
         self.port = port
 
-
         @self.app.post(f"/webhook/{self.token}/")
         def process_webhook(update: dict):
             """
             Process webhook calls
             """
-            if update:
-                update = telebot.types.Update.de_json(update)
-                self.bot.process_new_updates([update])
-            else:
-                return
+            try:
+                if update:
+                    bot_logger.debug(f"Received webhook update: {update}")
+                    update = telebot.types.Update.de_json(update)
+                    self.bot.process_new_updates([update])
+                else:
+                    bot_logger.warning("No update found in the request.")
+                    raise HTTPException(status_code=400, detail="Bad Request")
+
+                return {"status": "ok"}
+            except Exception as e:
+                bot_logger.error(f"Failed to process update: {e}")
+                raise HTTPException(status_code=500, detail="Internal Server Error")
 
     def run(self):
         """
@@ -50,7 +57,9 @@ class WebhookServer:
                 host=self.host,
                 port=self.port,
                 ssl_certfile=settings.webhook_config.cert[0].get_secret_value(),
-                ssl_keyfile=settings.webhook_config.cert_key[0].get_secret_value()
+                ssl_keyfile=settings.webhook_config.cert_key[0].get_secret_value(),
+                log_level="critical",
+                use_colors=True
             )
         except Exception as e:
             bot_logger.critical(f"Failed to start FastAPI server: {e}")
