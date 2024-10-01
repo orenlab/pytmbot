@@ -28,7 +28,6 @@ from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
-from pytmbot.webhook import WebhookServer
 
 urllib3.disable_warnings()
 
@@ -238,6 +237,7 @@ class PyTMBot:
         """
         Starts the bot in webhook mode and sets up the webhook.
         """
+        from pytmbot.webhook import WebhookServer
         bot_logger.info("Starting webhook mode...")
 
         url = settings.webhook_config.url[0].get_secret_value()
