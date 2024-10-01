@@ -52,8 +52,7 @@ ARG PYTHON_VERSION=3.12
 
 # Update and install essential packages in a single step
 RUN apk --no-cache upgrade && \
-    apk add --no-cache tzdata && \
-    apk add --no-cache expat
+    apk add --no-cache tzdata
 
 # Set workdir and environment variables
 WORKDIR /opt/app/

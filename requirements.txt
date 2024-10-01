@@ -1,4 +1,5 @@
 docker==7.1.0
+fastapi==0.115.0
 emoji==2.13.2
 humanize==4.10.0
 Jinja2==3.1.4
@@ -15,3 +16,4 @@ qrcode==8.0
 requests==2.32.3
 packaging>=24.1
 click>=8.1.7
+uvicorn==0.31.0
