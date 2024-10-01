@@ -51,8 +51,8 @@ def parse_cli_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--webhook",
-        choices=["True", "False"],
-        default="False",
+        choices=["run", "stop"],
+        default="stop",
         help="Start in webhook mode",
     )
 
