@@ -241,9 +241,11 @@ class PyTMBot:
             from pytmbot.webhook import WebhookServer
             bot_logger.info("Starting webhook mode...")
 
-            url = settings.webhook_config.url[0].get_secret_value()
+            webhook_settings = settings.webhook_config
+
+            url = webhook_settings.url[0].get_secret_value()
             bot_logger.debug(f"Webhook URL: {url}")
-            port = settings.webhook_config.webhook_port[0]
+            port = webhook_settings.webhook_port[0]
             bot_logger.debug(f"Webhook port: {port}")
 
             webhook_url = f"https://{url}:{port}/webhook/{self.bot.token}/"
@@ -258,10 +260,15 @@ class PyTMBot:
             bot_logger.info("Webhook successfully set.")
 
             # Start the FastAPI server
-            webhook_server = WebhookServer(self.bot, self.bot.token, self.args.socket_host, port)
+            webhook_server = WebhookServer(
+                self.bot,
+                self.bot.token,
+                self.args.socket_host,
+                webhook_settings.local_port[0]
+            )
             webhook_server.run()
         except ImportError as import_error:
-            bot_logger.exception(f"Failed to import CherryPy: {import_error}")
+            bot_logger.exception(f"Failed to import FastAPI: {import_error}")
         except ValueError as value_error:
             bot_logger.exception(f"Failed to start webhook server: {value_error}")
         except Exception as error:
