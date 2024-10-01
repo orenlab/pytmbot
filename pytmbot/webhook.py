@@ -1,4 +1,3 @@
-import fastapi
 import telebot
 from fastapi import FastAPI, Request, HTTPException
 from telebot import TeleBot
@@ -19,10 +18,9 @@ class WebhookServer:
         """
         self.bot = bot
         self.token = token
-        self.app = FastAPI(docs=None, redoc_url=None, title="PyTMBot Webhook server", version="0.1.0")
+        self.app = FastAPI(docs=None, redoc_url=None, title="PyTMBot Webhook Server", version="0.1.0")
         self.host = host
         self.port = port
-
 
         @self.app.post(f"/webhook/{self.token}/")
         def process_webhook(request: Request) -> dict:
@@ -36,8 +34,8 @@ class WebhookServer:
                 dict: A response indicating the status of the processing.
             """
             try:
-                update = request.json()
-                bot_logger.debug(f"Received update: {update}")
+                update = request.body()
+                bot_logger.debug(f"Received update: {repr(update)}")
 
                 if update:
                     update = telebot.types.Update.de_json(update)
