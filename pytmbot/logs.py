@@ -10,7 +10,7 @@ from pytmbot.utils.utilities import (
     parse_cli_args,
     get_inline_message_full_info,
     get_message_full_info,
-    is_running_in_docker,
+    is_running_in_docker, sanitize_exception,
 )
 
 
@@ -95,7 +95,7 @@ def logged_handler_session(func: Callable[..., Any]) -> Callable[..., Any]:
             return result
         except Exception as e:
             logger.exception(
-                f"Error in @{func.__name__} session for user: {username}, exception: {e}"
+                f"Error in @{func.__name__} session for user: {username}, exception: {sanitize_exception(e)}"
             )
             raise
 
@@ -129,7 +129,7 @@ def logged_inline_handler_session(func: Callable[..., Any]) -> Callable[..., Any
             return result
         except Exception as e:
             logger.exception(
-                f"Error in inline session @{func.__name__} for user: {username}, exception: {e}"
+                f"Error in inline session @{func.__name__} for user: {username}, exception: {sanitize_exception(e)}"
             )
             raise
 

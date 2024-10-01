@@ -58,6 +58,6 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
         """
         sanitized_exception = sanitize_exception(exception)
         bot_logger.exception(
-            f"Exception in @Telebot: {sanitized_exception}", exc_info=True
+            f"Exception in @Telebot: {sanitized_exception}"
         )
         return True
