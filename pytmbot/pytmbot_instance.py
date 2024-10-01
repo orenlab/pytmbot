@@ -295,7 +295,7 @@ class PyTMBot:
         bot_instance = self._create_bot_instance()
         bot_logger.info("Starting bot...")
 
-        if self.args.webhook is True:
+        if self.args.webhook == 'run':
             self._start_webhook_mode_with_error_handling()
         else:
             self._start_polling_mode_with_error_handling(bot_instance)
