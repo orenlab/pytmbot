@@ -237,45 +237,29 @@ class PyTMBot:
         """
         Starts the bot in webhook mode and sets up the webhook.
         """
-        from pytmbot.webhook import WebhookServer
-        bot_logger.info("Starting webhook mode...")
-
-        url = settings.webhook_config.url[0].get_secret_value()
-        bot_logger.debug(f"Webhook URL: {url}")
-        port = settings.webhook_config.webhook_port[0]
-        bot_logger.debug(f"Webhook port: {port}")
-
-        webhook_url = f"https://{url}:{port}/webhook/{self.bot.token}/"
-
-        bot_logger.debug("Generated secret token for webhook.")
-
-        # Set the webhook
-        self._set_webhook(
-            webhook_url,
-            certificate_path=settings.webhook_config.cert[0].get_secret_value() or None
-        )
-        bot_logger.info("Webhook successfully set.")
-
         try:
-            ws = settings.webhook_config
-            socket_host = self.args.socket_host
-            socket_port = ws.local_port[0]
-            ssl_certificate = ws.cert[0].get_secret_value() if ws.cert else None
-            ssl_private_key = ws.cert_key[0].get_secret_value() if ws.cert_key else None
+            from pytmbot.webhook import WebhookServer
+            bot_logger.info("Starting webhook mode...")
 
-            # Start the CherryPy server
-            import cherrypy
+            url = settings.webhook_config.url[0].get_secret_value()
+            bot_logger.debug(f"Webhook URL: {url}")
+            port = settings.webhook_config.webhook_port[0]
+            bot_logger.debug(f"Webhook port: {port}")
 
-            cherrypy.config.update({
-                'server.socket_host': socket_host,
-                'server.socket_port': socket_port,
-                'server.ssl_module': 'builtin',
-                'server.ssl_certificate': ssl_certificate,
-                'server.ssl_private_key': ssl_private_key
-            })
+            webhook_url = f"https://{url}:{port}/webhook/{self.bot.token}/"
 
-            bot_logger.info(f"Starting CherryPy server on {socket_host}:{socket_port} with SSL.")
-            cherrypy.quickstart(WebhookServer(self.bot), f"/webhook/{self.bot.token}", {'/': {}})
+            bot_logger.debug("Generated webhook URL.")
+
+            # Set the webhook
+            self._set_webhook(
+                webhook_url,
+                certificate_path=settings.webhook_config.cert[0].get_secret_value() or None
+            )
+            bot_logger.info("Webhook successfully set.")
+
+            # Start the FastAPI server
+            webhook_server = WebhookServer(self.bot, self.bot.token, self.args.socket_host, port)
+            webhook_server.run()
         except ImportError as import_error:
             bot_logger.exception(f"Failed to import CherryPy: {import_error}")
         except ValueError as value_error:

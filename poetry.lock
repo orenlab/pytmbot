@@ -12,15 +12,24 @@ files = [
 ]
 
 [[package]]
-name = "autocommand"
-version = "2.2.2"
-description = "A library to create a command-line program from a function"
+name = "anyio"
+version = "4.6.0"
+description = "High level compatibility layer for multiple asynchronous event loop implementations"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.9"
 files = [
-    {file = "autocommand-2.2.2-py3-none-any.whl", hash = "sha256:710afe251075e038e19e815e25f8155cabe02196cfb545b2185e0d9c8b2b0459"},
-    {file = "autocommand-2.2.2.tar.gz", hash = "sha256:878de9423c5596491167225c2a455043c3130fb5b7286ac83443d45e74955f34"},
+    {file = "anyio-4.6.0-py3-none-any.whl", hash = "sha256:c7d2e9d63e31599eeb636c8c5c03a7e108d73b345f064f1c19fdc87b79036a9a"},
+    {file = "anyio-4.6.0.tar.gz", hash = "sha256:137b4559cbb034c477165047febb6ff83f390fc3b20bf181c1fc0a728cb8beeb"},
 ]
+
+[package.dependencies]
+idna = ">=2.8"
+sniffio = ">=1.1"
+
+[package.extras]
+doc = ["Sphinx (>=7.4,<8.0)", "packaging", "sphinx-autodoc-typehints (>=1.2.0)", "sphinx-rtd-theme"]
+test = ["anyio[trio]", "coverage[toml] (>=7)", "exceptiongroup (>=1.2.0)", "hypothesis (>=4.0)", "psutil (>=5.9)", "pytest (>=7.0)", "pytest-mock (>=3.6.1)", "trustme", "uvloop (>=0.21.0b1)"]
+trio = ["trio (>=0.26.1)"]
 
 [[package]]
 name = "black"
@@ -177,51 +186,6 @@ files = [
 ]
 
 [[package]]
-name = "cheroot"
-version = "10.0.1"
-description = "Highly-optimized, pure-python HTTP server"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "cheroot-10.0.1-py3-none-any.whl", hash = "sha256:6ea332f20bfcede14e66174d112b30e9807492320d737ca628badc924d997595"},
-    {file = "cheroot-10.0.1.tar.gz", hash = "sha256:e0b82f797658d26b8613ec8eb563c3b08e6bd6a7921e9d5089bd1175ad1b1740"},
-]
-
-[package.dependencies]
-"jaraco.functools" = "*"
-more-itertools = ">=2.6"
-
-[package.extras]
-docs = ["furo", "jaraco.packaging (>=3.2)", "python-dateutil", "sphinx (>=1.8.2)", "sphinx-tabs (>=1.1.0)", "sphinxcontrib-apidoc (>=0.3.0)"]
-
-[[package]]
-name = "cherrypy"
-version = "18.10.0"
-description = "Object-Oriented HTTP framework"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "CherryPy-18.10.0-py3-none-any.whl", hash = "sha256:129e444b9a63cea4e765481b156376f1cfe319e64caaaec2485636532373b298"},
-    {file = "cherrypy-18.10.0.tar.gz", hash = "sha256:6c70e78ee11300e8b21c0767c542ae6b102a49cac5cfd4e3e313d7bb907c5891"},
-]
-
-[package.dependencies]
-cheroot = ">=8.2.1"
-"jaraco.collections" = "*"
-more-itertools = "*"
-portend = ">=2.1.1"
-"zc.lockfile" = "*"
-
-[package.extras]
-docs = ["alabaster", "docutils", "jaraco.packaging (>=3.2)", "rst.linker (>=1.11)", "sphinx", "sphinxcontrib-apidoc (>=0.3.0)"]
-json = ["simplejson"]
-memcached-session = ["python-memcached (>=1.58)"]
-routes-dispatcher = ["routes (>=2.3.1)"]
-ssl = ["pyOpenSSL"]
-testing = ["objgraph", "path.py", "pytest (>=5.3.5)", "pytest-cov", "pytest-forked", "pytest-services (>=2)", "pytest-sugar", "requests-toolbelt", "setuptools"]
-xcgi = ["flup"]
-
-[[package]]
 name = "click"
 version = "8.1.7"
 description = "Composable command line interface toolkit"
@@ -281,6 +245,37 @@ files = [
 
 [package.extras]
 dev = ["coverage", "pytest (>=7.4.4)"]
+
+[[package]]
+name = "fastapi"
+version = "0.115.0"
+description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "fastapi-0.115.0-py3-none-any.whl", hash = "sha256:17ea427674467486e997206a5ab25760f6b09e069f099b96f5b55a32fb6f1631"},
+    {file = "fastapi-0.115.0.tar.gz", hash = "sha256:f93b4ca3529a8ebc6fc3fcf710e5efa8de3df9b41570958abf1d97d843138004"},
+]
+
+[package.dependencies]
+pydantic = ">=1.7.4,<1.8 || >1.8,<1.8.1 || >1.8.1,<2.0.0 || >2.0.0,<2.0.1 || >2.0.1,<2.1.0 || >2.1.0,<3.0.0"
+starlette = ">=0.37.2,<0.39.0"
+typing-extensions = ">=4.8.0"
+
+[package.extras]
+all = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.5)", "httpx (>=0.23.0)", "itsdangerous (>=1.1.0)", "jinja2 (>=2.11.2)", "orjson (>=3.2.1)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.7)", "pyyaml (>=5.3.1)", "ujson (>=4.0.1,!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0)", "uvicorn[standard] (>=0.12.0)"]
+standard = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.5)", "httpx (>=0.23.0)", "jinja2 (>=2.11.2)", "python-multipart (>=0.0.7)", "uvicorn[standard] (>=0.12.0)"]
+
+[[package]]
+name = "h11"
+version = "0.14.0"
+description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "h11-0.14.0-py3-none-any.whl", hash = "sha256:e3fe4ac4b851c468cc8363d500db52c2ead036020723024a109d37346efaa761"},
+    {file = "h11-0.14.0.tar.gz", hash = "sha256:8f19fbbe99e72420ff35c00b27a34cb9937e902a8b810e2c88300c6f0a3b699d"},
+]
 
 [[package]]
 name = "humanize"
@@ -346,87 +341,6 @@ files = [
 
 [package.extras]
 colors = ["colorama (>=0.4.6)"]
-
-[[package]]
-name = "jaraco-collections"
-version = "5.1.0"
-description = "Collection objects similar to those in stdlib by jaraco"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "jaraco.collections-5.1.0-py3-none-any.whl", hash = "sha256:a9480be7fe741d34639b3c32049066d7634b520746552d1a5d0fcda07ada1020"},
-    {file = "jaraco_collections-5.1.0.tar.gz", hash = "sha256:0e4829409d39ad18a40aa6754fee2767f4d9730c4ba66dc9df89f1d2756994c2"},
-]
-
-[package.dependencies]
-"jaraco.text" = "*"
-
-[package.extras]
-check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)"]
-cover = ["pytest-cov"]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-enabler = ["pytest-enabler (>=2.2)"]
-test = ["pytest (>=6,!=8.1.*)"]
-type = ["pytest-mypy"]
-
-[[package]]
-name = "jaraco-context"
-version = "6.0.1"
-description = "Useful decorators and context managers"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "jaraco.context-6.0.1-py3-none-any.whl", hash = "sha256:f797fc481b490edb305122c9181830a3a5b76d84ef6d1aef2fb9b47ab956f9e4"},
-    {file = "jaraco_context-6.0.1.tar.gz", hash = "sha256:9bae4ea555cf0b14938dc0aee7c9f32ed303aa20a3b73e7dc80111628792d1b3"},
-]
-
-[package.extras]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-test = ["portend", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
-
-[[package]]
-name = "jaraco-functools"
-version = "4.1.0"
-description = "Functools like those found in stdlib"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "jaraco.functools-4.1.0-py3-none-any.whl", hash = "sha256:ad159f13428bc4acbf5541ad6dec511f91573b90fba04df61dafa2a1231cf649"},
-    {file = "jaraco_functools-4.1.0.tar.gz", hash = "sha256:70f7e0e2ae076498e212562325e805204fc092d7b4c17e0e86c959e249701a9d"},
-]
-
-[package.dependencies]
-more-itertools = "*"
-
-[package.extras]
-check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)"]
-cover = ["pytest-cov"]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-enabler = ["pytest-enabler (>=2.2)"]
-test = ["jaraco.classes", "pytest (>=6,!=8.1.*)"]
-type = ["pytest-mypy"]
-
-[[package]]
-name = "jaraco-text"
-version = "4.0.0"
-description = "Module for text manipulation"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "jaraco.text-4.0.0-py3-none-any.whl", hash = "sha256:08de508939b5e681b14cdac2f1f73036cd97f6f8d7b25e96b8911a9a428ca0d1"},
-    {file = "jaraco_text-4.0.0.tar.gz", hash = "sha256:5b71fecea69ab6f939d4c906c04fee1eda76500d1641117df6ec45b865f10db0"},
-]
-
-[package.dependencies]
-autocommand = "*"
-"jaraco.context" = ">=4.1"
-"jaraco.functools" = "*"
-more-itertools = "*"
-
-[package.extras]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-inflect = ["inflect"]
-test = ["pathlib2", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
 
 [[package]]
 name = "jinja2"
@@ -533,17 +447,6 @@ files = [
 ]
 
 [[package]]
-name = "more-itertools"
-version = "10.5.0"
-description = "More routines for operating on iterables, beyond itertools"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "more-itertools-10.5.0.tar.gz", hash = "sha256:5482bfef7849c25dc3c6dd53a6173ae4795da2a41a80faea6700d9f5846c5da6"},
-    {file = "more_itertools-10.5.0-py3-none-any.whl", hash = "sha256:037b0d3203ce90cca8ab1defbbdac29d5f993fc20131f3664dc8d6acfa872aef"},
-]
-
-[[package]]
 name = "mypy"
 version = "1.11.2"
 description = "Optional static typing for Python"
@@ -637,24 +540,6 @@ files = [
 docs = ["furo (>=2024.8.6)", "proselint (>=0.14)", "sphinx (>=8.0.2)", "sphinx-autodoc-typehints (>=2.4)"]
 test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest (>=8.3.2)", "pytest-cov (>=5)", "pytest-mock (>=3.14)"]
 type = ["mypy (>=1.11.2)"]
-
-[[package]]
-name = "portend"
-version = "3.2.0"
-description = "TCP port monitoring and discovery"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "portend-3.2.0-py3-none-any.whl", hash = "sha256:8b3fe3f78779df906559a21d9eaa6e21c8fa5a7a8cc76362cbbe1e16777399cf"},
-    {file = "portend-3.2.0.tar.gz", hash = "sha256:5250a352c19c959d767cac878b829d93e5dc7625a5143399a2a00dc6628ffb72"},
-]
-
-[package.dependencies]
-tempora = ">=1.8"
-
-[package.extras]
-docs = ["furo", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy (>=0.9.1)", "pytest-ruff"]
 
 [[package]]
 name = "psutil"
@@ -881,17 +766,6 @@ requests = ">=2.32.3,<3.0.0"
 requests-toolbelt = ">=1.0.0,<2.0.0"
 
 [[package]]
-name = "pypng"
-version = "0.20220715.0"
-description = "Pure Python library for saving and loading PNG images"
-optional = false
-python-versions = "*"
-files = [
-    {file = "pypng-0.20220715.0-py3-none-any.whl", hash = "sha256:4a43e969b8f5aaafb2a415536c1a8ec7e341cd6a3f957fd5b5f32a4cfeed902c"},
-    {file = "pypng-0.20220715.0.tar.gz", hash = "sha256:739c433ba96f078315de54c0db975aee537cbc3e1d0ae4ed9aab0ca1e427e2c1"},
-]
-
-[[package]]
 name = "pytelegrambotapi"
 version = "4.23.0"
 description = "Python Telegram bot api."
@@ -915,20 +789,6 @@ psutil = ["psutil"]
 redis = ["redis (>=3.4.1)"]
 uvicorn = ["uvicorn"]
 watchdog = ["watchdog"]
-
-[[package]]
-name = "python-dateutil"
-version = "2.9.0.post0"
-description = "Extensions to the standard Python datetime module"
-optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-files = [
-    {file = "python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"},
-    {file = "python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"},
-]
-
-[package.dependencies]
-six = ">=1.5"
 
 [[package]]
 name = "python-dotenv"
@@ -1031,26 +891,22 @@ files = [
 
 [[package]]
 name = "qrcode"
-version = "7.4.2"
+version = "8.0"
 description = "QR Code image generator"
 optional = false
-python-versions = ">=3.7"
+python-versions = "<4.0,>=3.9"
 files = [
-    {file = "qrcode-7.4.2-py3-none-any.whl", hash = "sha256:581dca7a029bcb2deef5d01068e39093e80ef00b4a61098a2182eac59d01643a"},
-    {file = "qrcode-7.4.2.tar.gz", hash = "sha256:9dd969454827e127dbd93696b20747239e6d540e082937c90f14ac95b30f5845"},
+    {file = "qrcode-8.0-py3-none-any.whl", hash = "sha256:9fc05f03305ad27a709eb742cf3097fa19e6f6f93bb9e2f039c0979190f6f1b1"},
+    {file = "qrcode-8.0.tar.gz", hash = "sha256:025ce2b150f7fe4296d116ee9bad455a6643ab4f6e7dce541613a4758cbce347"},
 ]
 
 [package.dependencies]
-colorama = {version = "*", markers = "platform_system == \"Windows\""}
-pypng = "*"
-typing-extensions = "*"
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
 
 [package.extras]
-all = ["pillow (>=9.1.0)", "pytest", "pytest-cov", "tox", "zest.releaser[recommended]"]
-dev = ["pytest", "pytest-cov", "tox"]
-maintainer = ["zest.releaser[recommended]"]
+all = ["pillow (>=9.1.0)", "pypng"]
 pil = ["pillow (>=9.1.0)"]
-test = ["coverage", "pytest"]
+png = ["pypng"]
 
 [[package]]
 name = "requests"
@@ -1088,54 +944,32 @@ files = [
 requests = ">=2.0.1,<3.0.0"
 
 [[package]]
-name = "setuptools"
-version = "75.1.0"
-description = "Easily download, build, install, upgrade, and uninstall Python packages"
+name = "sniffio"
+version = "1.3.1"
+description = "Sniff out which async library your code is running under"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.7"
 files = [
-    {file = "setuptools-75.1.0-py3-none-any.whl", hash = "sha256:35ab7fd3bcd95e6b7fd704e4a1539513edad446c097797f2985e0e4b960772f2"},
-    {file = "setuptools-75.1.0.tar.gz", hash = "sha256:d59a21b17a275fb872a9c3dae73963160ae079f1049ed956880cd7c09b120538"},
-]
-
-[package.extras]
-check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)", "ruff (>=0.5.2)"]
-core = ["importlib-metadata (>=6)", "importlib-resources (>=5.10.2)", "jaraco.collections", "jaraco.functools", "jaraco.text (>=3.7)", "more-itertools", "more-itertools (>=8.8)", "packaging", "packaging (>=24)", "platformdirs (>=2.6.2)", "tomli (>=2.0.1)", "wheel (>=0.43.0)"]
-cover = ["pytest-cov"]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "pyproject-hooks (!=1.1)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
-enabler = ["pytest-enabler (>=2.2)"]
-test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "jaraco.test", "packaging (>=23.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-home (>=0.5)", "pytest-perf", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel (>=0.44.0)"]
-type = ["importlib-metadata (>=7.0.2)", "jaraco.develop (>=7.21)", "mypy (==1.11.*)", "pytest-mypy"]
-
-[[package]]
-name = "six"
-version = "1.16.0"
-description = "Python 2 and 3 compatibility utilities"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
-files = [
-    {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
-    {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
+    {file = "sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"},
+    {file = "sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc"},
 ]
 
 [[package]]
-name = "tempora"
-version = "5.7.0"
-description = "Objects and routines pertaining to date and time (tempora)"
+name = "starlette"
+version = "0.38.6"
+description = "The little ASGI library that shines."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "tempora-5.7.0-py3-none-any.whl", hash = "sha256:93dac0d33825e66c8314d7bd206b9ecb959075c8728bb05b9b050b2726d0442a"},
-    {file = "tempora-5.7.0.tar.gz", hash = "sha256:888190a2dbe3255ff26dfa9fcecb25f4d38434c0f1943cd61de98bb41c410c50"},
+    {file = "starlette-0.38.6-py3-none-any.whl", hash = "sha256:4517a1409e2e73ee4951214ba012052b9e16f60e90d73cfb06192c19203bbb05"},
+    {file = "starlette-0.38.6.tar.gz", hash = "sha256:863a1588f5574e70a821dadefb41e4881ea451a47a3cd1b4df359d4ffefe5ead"},
 ]
 
 [package.dependencies]
-"jaraco.functools" = ">=1.20"
-python-dateutil = "*"
+anyio = ">=3.4.0,<5"
 
 [package.extras]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-test = ["backports.zoneinfo", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-freezer", "pytest-mypy", "pytest-ruff (>=0.2.1)", "types-python-dateutil", "tzdata"]
+full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
 
 [[package]]
 name = "typing-extensions"
@@ -1166,6 +1000,24 @@ socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "uvicorn"
+version = "0.31.0"
+description = "The lightning-fast ASGI server."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "uvicorn-0.31.0-py3-none-any.whl", hash = "sha256:cac7be4dd4d891c363cd942160a7b02e69150dcbc7a36be04d5f4af4b17c8ced"},
+    {file = "uvicorn-0.31.0.tar.gz", hash = "sha256:13bc21373d103859f68fe739608e2eb054a816dea79189bc3ca08ea89a275906"},
+]
+
+[package.dependencies]
+click = ">=7.0"
+h11 = ">=0.8"
+
+[package.extras]
+standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.14.0,!=0.15.0,!=0.15.1)", "watchfiles (>=0.13)", "websockets (>=10.4)"]
+
+[[package]]
 name = "win32-setctime"
 version = "1.1.0"
 description = "A small Python utility to set file creation time on Windows"
@@ -1178,23 +1030,6 @@ files = [
 
 [package.extras]
 dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
-
-[[package]]
-name = "zc-lockfile"
-version = "3.0.post1"
-description = "Basic inter-process locks"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "zc.lockfile-3.0.post1-py3-none-any.whl", hash = "sha256:ddb2d71088c061dc8a5edbaa346b637d742ca1e1564be75cb98e7dcae715de19"},
-    {file = "zc.lockfile-3.0.post1.tar.gz", hash = "sha256:adb2ee6d9e6a2333c91178dcb2c9b96a5744c78edb7712dc784a7d75648e81ec"},
-]
-
-[package.dependencies]
-setuptools = "*"
-
-[package.extras]
-test = ["zope.testing"]
 
 [[package]]
 name = "zipp"
@@ -1222,4 +1057,4 @@ pyoutlineapi = ["pyoutlineapi"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "4a61ee5b61ce42b404d6c2f7ad8442de3802761d7cf54485bfc3ce4b692c6473"
+content-hash = "c6a4b39ae6bf78aa00d18c76452bb1e263b82042bac078bfda1169aded61ffb9"
