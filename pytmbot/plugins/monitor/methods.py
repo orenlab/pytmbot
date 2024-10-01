@@ -191,22 +191,26 @@ class SystemMonitorPlugin(PluginCore):
                         case "coretemp":
                             if entry.current > self.cpu_temperature_threshold:
                                 self._send_notification(
-                                    f"{self.config.emoji_for_notification}CPU temperature is high: {entry.current}°C (Threshold: {self.cpu_temperature_threshold}°C)"
+                                    f"{self.config.emoji_for_notification}🔥 *CPU temperature is high:* {entry.current}°C\n"
+                                    f"📊 *Threshold:* {self.cpu_temperature_threshold}°C"
                                 )
                         case "nvme" | "disk":
                             if entry.current > self.disk_temperature_threshold:
                                 self._send_notification(
-                                    f"{self.config.emoji_for_notification}Disk temperature is high: {entry.current}°C (Threshold: {self.disk_temperature_threshold}°C)"
+                                    f"{self.config.emoji_for_notification}💽 *Disk temperature is high:* {entry.current}°C\n"
+                                    f"📊 *Threshold:* {self.disk_temperature_threshold}°C"
                                 )
                         case "gpu":
                             if entry.current > self.gpu_temperature_threshold:
                                 self._send_notification(
-                                    f"{self.config.emoji_for_notification}GPU temperature is high: {entry.current}°C (Threshold: {self.gpu_temperature_threshold}°C)"
+                                    f"{self.config.emoji_for_notification}🎮 *GPU temperature is high:* {entry.current}°C\n"
+                                    f"📊 *Threshold:* {self.gpu_temperature_threshold}°C"
                                 )
                         case _ if "pch" in name.lower():
                             if entry.current > self.pch_temperature_threshold:
                                 self._send_notification(
-                                    f"{self.config.emoji_for_notification}PCH temperature is high: {entry.current}°C (Threshold: {self.pch_temperature_threshold}°C)"
+                                    f"{self.config.emoji_for_notification}🌡️ *PCH temperature is high:* {entry.current}°C\n"
+                                    f"📊 *Threshold:* {self.pch_temperature_threshold}°C"
                                 )
                         case _:
                             self.bot_logger.warning(
@@ -217,7 +221,7 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error checking temperatures: {e}")
         except ExceptionGroup as eg:
             self.bot_logger.error(
-                f"Multiple error occurred while checking temperatures: {eg}"
+                f"Multiple errors occurred while checking temperatures: {eg}"
             )
 
         return current_temp
@@ -225,16 +229,20 @@ class SystemMonitorPlugin(PluginCore):
     def _check_cpu_usage(self) -> float:
         """
         Checks the current CPU usage and sends a notification if it exceeds the configured threshold.
+        Additionally, sends the TOP-5 processes by CPU usage if the bot is running on the host.
         """
         try:
             cpu_usage = psutil.cpu_percent(interval=1)
-            if (
-                cpu_usage
-                > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]
-            ):
-                self._send_notification(
-                    f"{self.config.emoji_for_notification}CPU usage is high: {cpu_usage}%"
+            if cpu_usage > self.settings.plugins_config.monitor.tracehold.cpu_usage_threshold[0]:
+                notification_message = (
+                    f"🔥 *High CPU Usage Detected!* 🔥\n"
+                    f"💻 CPU Usage: *{cpu_usage}%*\n"
                 )
+                if not self.is_running_in_docker:
+                    top_processes = self._get_top_processes_by_cpu()
+                    notification_message += f"🏆 *Top 5 Processes by CPU Usage*:\n{top_processes}"
+
+                self._send_notification(notification_message)
             return cpu_usage
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking CPU usage: {e}")
@@ -243,22 +251,52 @@ class SystemMonitorPlugin(PluginCore):
     def _check_memory_usage(self) -> float:
         """
         Checks the current memory usage and sends a notification if it exceeds the configured threshold.
+        Additionally, sends the TOP-5 processes by memory usage if the bot is running on the host.
         """
         try:
             memory = psutil.virtual_memory()
-            if (
-                memory.percent
-                > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[
-                    0
-                ]
-            ):
-                self._send_notification(
-                    f"{self.config.emoji_for_notification}Memory usage is high: {memory.percent}%"
+            if memory.percent > self.settings.plugins_config.monitor.tracehold.memory_usage_threshold[0]:
+                notification_message = (
+                    f"🚨 *High Memory Usage Detected!* 🚨\n"
+                    f"🧠 Memory Usage: *{memory.percent}%*\n"
                 )
+                if not self.is_running_in_docker:
+                    top_processes = self._get_top_processes_by_memory()
+                    notification_message += f"🏅 *Top 5 Processes by Memory Usage*:\n{top_processes}"
+
+                self._send_notification(notification_message)
             return memory.percent
         except psutil.Error as e:
             self.bot_logger.error(f"Error checking memory usage: {e}")
             return 0.0
+
+    @staticmethod
+    def _get_top_processes_by_cpu() -> str:
+        """
+        Returns a formatted string with the top 5 processes by CPU usage.
+        """
+        processes = [(proc.info['pid'], proc.info['name'], proc.info['cpu_percent'])
+                     for proc in psutil.process_iter(['pid', 'name', 'cpu_percent'])]
+        top_processes = sorted(processes, key=lambda x: x[2], reverse=True)[:5]
+
+        formatted_processes = "\n".join(
+            [f"{i + 1}. *{proc[1]}* (PID: `{proc[0]}`) - {proc[2]}%" for i, proc in enumerate(top_processes)]
+        )
+        return formatted_processes if top_processes else "No data available."
+
+    @staticmethod
+    def _get_top_processes_by_memory() -> str:
+        """
+        Returns a formatted string with the top 5 processes by memory usage.
+        """
+        processes = [(proc.info['pid'], proc.info['name'], proc.info['memory_percent'])
+                     for proc in psutil.process_iter(['pid', 'name', 'memory_percent'])]
+        top_processes = sorted(processes, key=lambda x: x[2], reverse=True)[:5]
+
+        formatted_processes = "\n".join(
+            [f"{i + 1}. *{proc[1]}* (PID: `{proc[0]}`) - {proc[2]:.2f}%" for i, proc in enumerate(top_processes)]
+        )
+        return formatted_processes if top_processes else "No data available."
 
     def _check_disk_usage(self) -> float:
         """
@@ -301,7 +339,7 @@ class SystemMonitorPlugin(PluginCore):
 
                 if usage.percent > threshold:
                     self._send_notification(
-                        f"{self.config.emoji_for_notification} Disk usage is high on {partition.device}: {usage.percent}%"
+                        f"{self.config.emoji_for_notification} *Disk usage is high on {partition.device}*: {usage.percent}%"
                     )
                 total_usage += usage.percent
                 count += 1
@@ -332,9 +370,9 @@ class SystemMonitorPlugin(PluginCore):
                 self.notification_count += 1
                 sanitized_message = message.replace(
                     self.config.emoji_for_notification, ""
-                )
+                ).replace("\n", " ")
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
-                self.bot.send_message(self.settings.chat_id.global_chat_id[0], message)
+                self.bot.send_message(self.settings.chat_id.global_chat_id[0], message, parse_mode="Markdown")
 
                 # Reset the notification count after 5 minutes (300 seconds)
                 threading.Timer(300, self._reset_notification_count).start()
