@@ -245,7 +245,7 @@ class PyTMBot:
         port = settings.webhook_config.webhook_port[0]
         bot_logger.debug(f"Webhook port: {port}")
 
-        webhook_url = f"https://{url}:{port}/webhook/{self._get_bot_token()}/"
+        webhook_url = f"https://{url}:{port}/webhook/{self.bot.token}/"
 
         bot_logger.debug("Generated secret token for webhook.")
 
@@ -275,7 +275,7 @@ class PyTMBot:
             })
 
             bot_logger.info(f"Starting CherryPy server on {socket_host}:{socket_port} with SSL.")
-            cherrypy.quickstart(WebhookServer(self.bot), f"/webhook/{self._get_bot_token()}", {'/': {}})
+            cherrypy.quickstart(WebhookServer(self.bot), f"/webhook/{self.bot.token}", {'/': {}})
         except ImportError as import_error:
             bot_logger.exception(f"Failed to import CherryPy: {import_error}")
         except ValueError as value_error:
@@ -294,31 +294,49 @@ class PyTMBot:
                     "callback_query"
                 ],
                 drop_pending_updates=True,
-                # certificate=certificate_path,
+                certificate=certificate_path,
 
             )
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set webhook: {sanitize_exception(error)}")
             exit(1)
 
-    def start_bot_instance(self):
+    def start_bot_instance(self) -> None:
         """
         Starts the bot instance and enters an infinite polling loop or webhook mode.
+
+        Raises:
+            SystemExit: Exits the program if an unexpected error occurs.
         """
         bot_instance = self._create_bot_instance()
         bot_logger.info("Starting bot...")
 
-        if self.args.webhook:
-            try:
-                self.bot.remove_webhook()
-                self._start_webhook_mode()
-            except Exception as error:
-                bot_logger.error(
-                    f"Unexpected error while starting or stopping webhook: {error}. Exiting..."
-                )
-                exit(1)
+        if self.args.webhook is True:
+            self._start_webhook_mode_with_error_handling()
         else:
+            self._start_polling_mode_with_error_handling(bot_instance)
+
+    def _start_webhook_mode_with_error_handling(self) -> None:
+        """Starts the bot in webhook mode with error handling."""
+        try:
+            self.bot.remove_webhook()
+            self._start_webhook_mode()
+        except Exception as error:
+            bot_logger.error(
+                f"Unexpected error while starting or stopping webhook: {error}. Exiting..."
+            )
+            exit(1)
+
+    def _start_polling_mode_with_error_handling(self, bot_instance) -> None:
+        """Starts the bot in polling mode with error handling."""
+        if self.bot.remove_webhook():
+            bot_logger.warning("Webhook removed, but not in webhook mode.")
+
+        try:
             self._start_polling_mode(bot_instance)
+        except Exception as error:
+            bot_logger.error(f"Unexpected error while starting polling mode: {error}. Exiting...")
+            exit(1)
 
     @staticmethod
     def _start_polling_mode(bot_instance: TeleBot):

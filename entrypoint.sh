@@ -16,7 +16,7 @@ LOG_LEVEL="INFO"
 MODE="prod"
 SALT="false"
 PLUGINS=""
-WEBHOOK="False"
+WEBHOOK="False"  # Set default value for webhook
 SOCKET_HOST="127.0.0.1"
 
 # Function to handle errors
@@ -56,12 +56,8 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --webhook)
-            WEBHOOK="$2"
-            if [ "$WEBHOOK" != "True" ] && [ "$WEBHOOK" != "False" ]; then
-                echo "Invalid option for --webhook: $2" >&2
-                exit 1
-            fi
-            shift 2
+            WEBHOOK="True"  # Set webhook to True if option is provided
+            shift
             ;;
         --socket_host)
             SOCKET_HOST="$2"
