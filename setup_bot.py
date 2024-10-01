@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
@@ -13,8 +14,6 @@ import click
 import jinja2
 
 from cli.generate_salt import generate_random_auth_salt
-
-import warnings
 
 warnings.warn(
     "This module is deprecated and will be removed in a 0.2.0 release version. "
@@ -141,10 +140,10 @@ class BotConfig:
 
 
 def prompt_for_input(
-    prompt_text: str,
-    default: Optional[str] = "",
-    mandatory: bool = False,
-    validation_func: Optional[callable] = None,
+        prompt_text: str,
+        default: Optional[str] = "",
+        mandatory: bool = False,
+        validation_func: Optional[callable] = None,
 ) -> str:
     """Prompts the user for input and applies validation."""
     if mandatory:

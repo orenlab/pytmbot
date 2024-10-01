@@ -148,9 +148,9 @@ class PluginManager:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                inspect.isclass(attr)
-                and issubclass(attr, PluginInterface)
-                and attr is not PluginInterface
+                    inspect.isclass(attr)
+                    and issubclass(attr, PluginInterface)
+                    and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes

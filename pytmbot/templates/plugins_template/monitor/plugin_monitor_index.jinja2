@@ -3,11 +3,12 @@
 Welcome to the server monitoring section! Here, you can visualize key metrics such as CPU usage, memory consumption, disk space, and temperatures in graphical format.
 
 {% if available_periods %}
-The bot can generate statistics for the following periods:
+    The bot can generate statistics for the following periods:
     {% for period in available_periods %}{{ minus }}{{ period }}
     {% endfor %}
 
-Feel free to select any available period to view detailed graphs. Thank you for your patience!
+    Feel free to select any available period to view detailed graphs. Thank you for your patience!
 {% else %}
-{{ warning }}Sorry, but currently, there are no available periods for statistics. Please give it a little time to gather data.
+    {{ warning }}Sorry, but currently, there are no available periods for statistics. Please give it a little time to
+    gather data.
 {% endif %}

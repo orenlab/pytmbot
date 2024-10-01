@@ -35,7 +35,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
             )
 
         with Compiler(
-            template_name="b_swap.jinja2", context=swap_data, **emojis
+                template_name="b_swap.jinja2", context=swap_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 

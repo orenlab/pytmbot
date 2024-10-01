@@ -35,9 +35,9 @@ class ManagerPlugin(PluginInterface):
             "mobile_phone": em.get_emoji("mobile_phone"),
         }
         with Compiler(
-            template_name="plugin_manager_index.jinja2",
-            first_name=message.from_user.first_name,
-            **emojis
+                template_name="plugin_manager_index.jinja2",
+                first_name=message.from_user.first_name,
+                **emojis
         ) as compiler:
             response = compiler.compile()
         return self.bot.send_message(

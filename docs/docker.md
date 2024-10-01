@@ -158,14 +158,14 @@ plugins_config:
 
 **Note on `auth_salt` Parameter:**
 
-  The bot supports random salt generation. To generate a unique salt, run the following command in a separate terminal
-  window:
+The bot supports random salt generation. To generate a unique salt, run the following command in a separate terminal
+window:
 
    ```bash
    sudo docker run --rm ghcr.io/orenlab/pytmbot:latest --salt
    ```
 
-  This command will display a unique salt value and delete the container automatically.
+This command will display a unique salt value and delete the container automatically.
 
 ## 🔌 Plugins
 

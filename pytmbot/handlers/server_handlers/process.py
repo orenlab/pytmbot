@@ -36,10 +36,10 @@ def handle_process(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-            template_name="b_process.jinja2",
-            context=process_count,
-            running_in_docker=running_in_docker,
-            **emojis,
+                template_name="b_process.jinja2",
+                context=process_count,
+                running_in_docker=running_in_docker,
+                **emojis,
         ) as compiler:
             message_text = compiler.compile()
 

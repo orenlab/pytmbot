@@ -1,7 +1,7 @@
 {# templates/memory.jinja2 #}
 {{ emojis['cross_mark'] }} Attention! {{ emojis['double_exclamation_mark'] }}DANGER zone!
 
-This section allows you to manage the container {{emojis['briefcase']}} <b>{{ container_name }}</b>.
+This section allows you to manage the container {{ emojis['briefcase'] }} <b>{{ container_name }}</b>.
 
 Current container state: <b>{{ state }}</b>
 
@@ -9,11 +9,11 @@ Current container state: <b>{{ state }}</b>
 
 The following options are available, depending on the current state of the container:
 <blockquote expandable>
-Start: Start the container using the last set of arguments.
-Stop: Stop the container completely.
-Restart: Restart the container using the last startup parameters.
-Remove:  Remove the container.
+    Start: Start the container using the last set of arguments.
+    Stop: Stop the container completely.
+    Restart: Restart the container using the last startup parameters.
+    Remove: Remove the container.
 </blockquote>
 
-Available options for the container {{emojis['briefcase']}} <b>{{ container_name }}</b>:
+Available options for the container {{ emojis['briefcase'] }} <b>{{ container_name }}</b>:
 

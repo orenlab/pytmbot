@@ -36,7 +36,7 @@ Container name: {{ basket }} *{{ container_name }}* {{ backhand_index_pointing_d
 {{ safety_pin }} *Env variable*:
 ```bash
 {% for value in container_attrs['env'] %}
-- {{ value }}
+    - {{ value }}
 {% endfor %}
 ```
 

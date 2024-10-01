@@ -7,8 +7,8 @@ also providing basic information about the status of local servers.
 
 from telebot import ExceptionHandler
 
-from pytmbot.utils.utilities import sanitize_exception
 from pytmbot.logs import bot_logger
+from pytmbot.utils.utilities import sanitize_exception
 
 
 class PyTMBotError(Exception):

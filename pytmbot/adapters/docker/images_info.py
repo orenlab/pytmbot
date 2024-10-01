@@ -44,7 +44,7 @@ def fetch_image_details():
                     "created": set_naturaltime(
                         datetime.fromisoformat(image.attrs.get("Created"))
                     )
-                    or "N/A",
+                               or "N/A",
                 }
                 for image in images
             ]

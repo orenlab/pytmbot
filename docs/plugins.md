@@ -5,7 +5,8 @@ how to configure them.
 
 ## Supported Plugins
 
-- **monitor**: Provides real-time monitoring of CPU, memory, temperature _(only on Linux)_, and disk usage on the server where pyTMbot is running.
+- **monitor**: Provides real-time monitoring of CPU, memory, temperature _(only on Linux)_, and disk usage on the server
+  where pyTMbot is running.
 - **outline**: Interacts with the Outline VPN server API, allowing for access key management and server settings
   updates.
 
@@ -128,7 +129,8 @@ docker-compose up -d
 
 #### Overview
 
-The Monitor Plugin provides real-time monitoring of CPU, memory, temperature _(only on Linux)_ and disk usage on the server where pyTMbot is running.
+The Monitor Plugin provides real-time monitoring of CPU, memory, temperature _(only on Linux)_ and disk usage on the
+server where pyTMbot is running.
 It sends notifications to the administrator if any of the thresholds defined in `pytmbot.yaml` are exceeded.
 
 #### Configuration

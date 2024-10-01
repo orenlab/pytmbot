@@ -74,7 +74,7 @@ def __compile_message():
 
     try:
         with Compiler(
-            template_name="d_docker.jinja2", context=docker_counters, **emojis
+                template_name="d_docker.jinja2", context=docker_counters, **emojis
         ) as compiler:
             return compiler.compile()
     except Exception as error:

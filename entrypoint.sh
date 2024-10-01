@@ -56,7 +56,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --webhook)
-            WEBHOOK="run"  # Set webhook to True if option is provided
+            WEBHOOK="True"  # Set webhook to True if option is provided
             shift
             ;;
         --socket_host)

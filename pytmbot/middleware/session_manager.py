@@ -219,9 +219,9 @@ class SessionManager:
             bool: True if the user is authenticated, False otherwise.
         """
         return (
-            self.get_auth_state(user_id) == self.state_fabric.authenticated
-            and not self.is_blocked(user_id)
-            and not self.is_session_expired(user_id)
+                self.get_auth_state(user_id) == self.state_fabric.authenticated
+                and not self.is_blocked(user_id)
+                and not self.is_session_expired(user_id)
         )
 
     def set_login_time(self, user_id: int) -> None:
@@ -269,7 +269,7 @@ class SessionManager:
         return True
 
     def set_referer_uri_and_handler_type_for_user(
-        self, user_id: int, handler_type: str, referer_uri: str
+            self, user_id: int, handler_type: str, referer_uri: str
     ) -> None:
         """
         Set the referer URI and handler type for a given user ID.

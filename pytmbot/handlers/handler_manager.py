@@ -105,13 +105,13 @@ def handler_factory() -> dict[str, list[HandlerManager]]:
                 callback=handle_qr_code_message,
                 regexp="Get QR-code for 2FA app",
                 func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
+                                     in settings.access_control.allowed_admins_ids,
             ),
             HandlerManager(
                 callback=handle_qr_code_message,
                 commands=["qrcode"],
                 func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
+                                     in settings.access_control.allowed_admins_ids,
             ),
         ],
     }

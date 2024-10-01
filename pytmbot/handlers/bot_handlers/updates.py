@@ -158,11 +158,11 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
     }
 
     with Compiler(
-        template_name="b_bot_update.jinja2",
-        current_version=current_version,
-        release_date=release_date,
-        release_notes=release_notes,
-        **emojis,
+            template_name="b_bot_update.jinja2",
+            current_version=current_version,
+            release_date=release_date,
+            release_notes=release_notes,
+            **emojis,
     ) as compiler:
         return compiler.compile()
 

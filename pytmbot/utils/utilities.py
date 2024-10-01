@@ -1,8 +1,6 @@
 import argparse
 import os
-import random
 import re
-import string
 from datetime import datetime
 from functools import cached_property, lru_cache
 from typing import Any, Dict, Optional, Tuple, Union
@@ -51,8 +49,8 @@ def parse_cli_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--webhook",
-        choices=["run", "stop"],
-        default="stop",
+        choices=['True', 'False'],
+        default='False',
         help="Start in webhook mode",
     )
 

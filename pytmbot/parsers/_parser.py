@@ -75,10 +75,10 @@ class Jinja2Renderer:
         return env
 
     def render_templates(
-        self,
-        template_name: str,
-        emojis: Optional[Dict[str, str]] = None,
-        **kwargs: Dict[str, Any],
+            self,
+            template_name: str,
+            emojis: Optional[Dict[str, str]] = None,
+            **kwargs: Dict[str, Any],
     ) -> str:
         """
         Render a Jinja2 template with the given name and context.
@@ -111,7 +111,7 @@ class Jinja2Renderer:
             ) from error
 
     def __get_template(
-        self, template_name: str, template_subdir: str
+            self, template_name: str, template_subdir: str
     ) -> jinja2.Template:
         """
         Get a Jinja2 template by its name.

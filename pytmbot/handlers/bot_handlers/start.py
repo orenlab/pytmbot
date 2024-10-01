@@ -24,7 +24,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
         first_name = message.from_user.first_name
 
         with Compiler(
-            template_name="b_index.jinja2", first_name=first_name
+                template_name="b_index.jinja2", first_name=first_name
         ) as compiler:
             answer = compiler.compile()
 

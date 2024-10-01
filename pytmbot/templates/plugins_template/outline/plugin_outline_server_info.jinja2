@@ -7,5 +7,7 @@ Server information:
 
 {{ label }} Server name: <b>{{ context['name'] if context['name'] else 'Unknown' }}</b>
 {{ bar_chart }} Metrics enabled: <b>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</b>
-{{ alarm_clock }} Created: <b>{{ context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A' }}</b>
-{{ key }} Port for new access keys: <b>{{ context['portForNewAccessKeys'] if context['portForNewAccessKeys'] else 'N/A' }}</b>
+{{ alarm_clock }} Created:
+<b>{{ context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A' }}</b>
+{{ key }} Port for new access keys:
+<b>{{ context['portForNewAccessKeys'] if context['portForNewAccessKeys'] else 'N/A' }}</b>

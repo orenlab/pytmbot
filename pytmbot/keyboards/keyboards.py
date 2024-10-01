@@ -81,9 +81,9 @@ class Keyboards:
         return keyboard
 
     def build_reply_keyboard(
-        self,
-        keyboard_type: Optional[str] = None,
-        plugin_keyboard_data: Optional[dict[str, str]] = None,
+            self,
+            keyboard_type: Optional[str] = None,
+            plugin_keyboard_data: Optional[dict[str, str]] = None,
     ) -> ReplyKeyboardMarkup:
         """
         Constructs a ReplyKeyboardMarkup object with the specified keyboard settings.
@@ -193,7 +193,7 @@ class Keyboards:
         callback_data: str
 
     def build_inline_keyboard(
-        self, buttons_data: Union[List[ButtonData], ButtonData]
+            self, buttons_data: Union[List[ButtonData], ButtonData]
     ) -> InlineKeyboardMarkup:
         """
         Constructs an InlineKeyboardMarkup object for the inline keyboard.

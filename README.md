@@ -41,7 +41,8 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
 
 - Extend functionality through custom plugins with simple configuration.
 - Example plugins:
-    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, and disk usage with customizable thresholds.
+    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, and disk usage with customizable
+      thresholds.
     - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
     - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from
       Telegram.

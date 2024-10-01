@@ -14,7 +14,7 @@ from pytmbot.models.docker_models import ContainersState
 
 
 def check_container_state(
-    container_name: str, target_state: str = "running"
+        container_name: str, target_state: str = "running"
 ) -> Optional[str]:
     """
     Checks the state of a Docker container.

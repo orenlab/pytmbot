@@ -41,7 +41,7 @@ class MonitoringData:
         """Initialize the class with a retention period."""
         # To ensure __init__ is not called multiple times in case of repeated instantiation
         if not hasattr(
-            self, "initialized"
+                self, "initialized"
         ):  # This is to ensure it's only initialized once
             self.retention_days = retention_days
             self.data = {

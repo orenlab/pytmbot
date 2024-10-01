@@ -12,7 +12,7 @@ from pytmbot.logs import bot_logger
 
 
 def handle_unauthorized_query(
-    query: Union[Message, CallbackQuery], bot: telebot.TeleBot
+        query: Union[Message, CallbackQuery], bot: telebot.TeleBot
 ) -> bool:
     """
     Handle unauthorized queries.
@@ -30,7 +30,7 @@ def handle_unauthorized_query(
 
 
 def access_denied_handler(
-    query: Union[Message, CallbackQuery], bot: telebot.TeleBot
+        query: Union[Message, CallbackQuery], bot: telebot.TeleBot
 ) -> bool:
     """
     Handle access denied queries.

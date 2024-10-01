@@ -3,15 +3,16 @@
 {{ thought_balloon }} Here is:
 
 {% for value in context %}
-    {{ floppy_disk }} Device name: {{ value['device_name'] }}  
-    {{ minus }} Filesystem type: {{ value['fs_type'] }}  
-    {{ minus }} Mount point: {{ value['mnt_point'] }}  
-    {{ minus }} Volume size: {{ value['size'] }}  
-    {{ minus }} Used space: {{ value['used'] }}  
-    {{ minus }} Free space: {{ value['free'] }}  
+    {{ floppy_disk }} Device name: {{ value['device_name'] }}
+    {{ minus }} Filesystem type: {{ value['fs_type'] }}
+    {{ minus }} Mount point: {{ value['mnt_point'] }}
+    {{ minus }} Volume size: {{ value['size'] }}
+    {{ minus }} Used space: {{ value['used'] }}
+    {{ minus }} Free space: {{ value['free'] }}
     {{ minus }} Usage percent: {{ value['percent'] }}%
 {% endfor %}
 
 {% if running_in_docker %}
-    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the system resources.
+    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the
+    system resources.
 {% endif %}

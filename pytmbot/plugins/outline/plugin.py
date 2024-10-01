@@ -167,8 +167,8 @@ class OutlinePlugin(PluginInterface):
             )
 
     def _get_action_data(
-        self,
-        action: Literal["key_information", "server_information", "traffic_information"],
+            self,
+            action: Literal["key_information", "server_information", "traffic_information"],
     ) -> Optional[Dict]:
         """
         Retrieves action data from the plugin methods and processes it.
@@ -204,11 +204,11 @@ class OutlinePlugin(PluginInterface):
         return None
 
     def _compile_template(
-        self,
-        template_name: str,
-        first_name: str,
-        context: Optional[Dict] = None,
-        **kwargs: dict[str, Any],
+            self,
+            template_name: str,
+            first_name: str,
+            context: Optional[Dict] = None,
+            **kwargs: dict[str, Any],
     ) -> str:
         """
         Compiles the template with the provided context and first name.
@@ -220,11 +220,11 @@ class OutlinePlugin(PluginInterface):
         :return: The compiled template response as a string.
         """
         with Compiler(
-            template_name=template_name,
-            first_name=first_name,
-            set_naturalsize=set_naturalsize,
-            context=context or {},
-            **kwargs,
+                template_name=template_name,
+                first_name=first_name,
+                set_naturalsize=set_naturalsize,
+                context=context or {},
+                **kwargs,
         ) as compiler:
             response = compiler.compile()
 

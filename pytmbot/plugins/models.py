@@ -4,10 +4,10 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+from dataclasses import dataclass
 from typing import final, Optional
 
 from pydantic import BaseModel
-from dataclasses import dataclass
 
 
 class PluginCoreModel(BaseModel):

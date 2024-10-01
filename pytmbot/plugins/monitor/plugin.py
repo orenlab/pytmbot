@@ -52,10 +52,10 @@ class MonitoringPlugin(PluginInterface):
             "warning": em.get_emoji("warning"),
         }
         with Compiler(
-            template_name="plugin_monitor_index.jinja2",
-            first_name=message.from_user.first_name,
-            available_periods=available_periods,
-            **emojis,
+                template_name="plugin_monitor_index.jinja2",
+                first_name=message.from_user.first_name,
+                available_periods=available_periods,
+                **emojis,
         ) as compiler:
             response = compiler.compile()
         return self.bot.send_message(

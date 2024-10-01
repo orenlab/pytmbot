@@ -17,7 +17,7 @@ from pytmbot.parsers.compiler import Compiler
 @logged_handler_session
 @bot_logger.catch()
 def handle_unauthorized_message(
-    query: Union[Message, CallbackQuery], bot: TeleBot
+        query: Union[Message, CallbackQuery], bot: TeleBot
 ) -> None:
     """
     Handles unauthorized messages received by the bot.
@@ -52,7 +52,7 @@ def handle_unauthorized_message(
     )
 
     with Compiler(
-        template_name="a_auth_required.jinja2", name=name, **emojis
+            template_name="a_auth_required.jinja2", name=name, **emojis
     ) as compiler:
         response = compiler.compile()
 
@@ -98,7 +98,7 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
     }
 
     with Compiler(
-        template_name="a_access_denied.jinja2", name=user_name, **emojis
+            template_name="a_access_denied.jinja2", name=user_name, **emojis
     ) as compiler:
         response = compiler.compile()
 

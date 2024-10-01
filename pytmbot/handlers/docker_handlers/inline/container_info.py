@@ -42,13 +42,13 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     emojis = get_emojis()
 
     with Compiler(
-        template_name="d_containers_full_info.jinja2",
-        **emojis,
-        container_name=container_name,
-        container_memory_stats=parse_container_memory_stats(container_stats),
-        container_cpu_stats=parse_container_cpu_stats(container_stats),
-        container_network_stats=parse_container_network_stats(container_stats),
-        container_attrs=parse_container_attrs(container_attrs),
+            template_name="d_containers_full_info.jinja2",
+            **emojis,
+            container_name=container_name,
+            container_memory_stats=parse_container_memory_stats(container_stats),
+            container_cpu_stats=parse_container_cpu_stats(container_stats),
+            container_network_stats=parse_container_network_stats(container_stats),
+            container_attrs=parse_container_attrs(container_attrs),
     ) as compiler:
         context = compiler.compile()
 
@@ -64,7 +64,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     ]
 
     if call.from_user.id in settings.access_control.allowed_admins_ids and int(
-        call.from_user.id
+            call.from_user.id
     ) == int(called_user_id):
         bot_logger.debug(
             f"User {call.from_user.id} is an admin. Added '__manage__' button"
