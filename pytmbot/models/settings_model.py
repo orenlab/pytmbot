@@ -50,6 +50,24 @@ class DockerHostModel(BaseModel):
     host: conlist(str, min_length=1)
 
 
+class InfluxDBModel(BaseModel):
+    """
+    Model to store InfluxDB information.
+
+    Attributes:
+        url (List[str]): List of InfluxDB URLs.
+        token (List[SecretStr]): List of InfluxDB tokens.
+        org (List[str]): List of InfluxDB organizations.
+        bucket (List[str]): List of InfluxDB buckets.
+    """
+
+    url: Optional[conlist(SecretStr, min_length=1)]
+    token: Optional[conlist(SecretStr, min_length=1)]
+    org: Optional[conlist(SecretStr, min_length=1)]
+    bucket: Optional[conlist(SecretStr, min_length=1)]
+    debug_mode: bool = False
+
+
 class ChatIdModel(BaseModel):
     """
     Model to handle optional chat ID configurations for global notifications.
@@ -160,5 +178,6 @@ class SettingsModel(BaseSettings):
     access_control: AccessControlModel
     docker: DockerHostModel
     chat_id: ChatIdModel
+    influxdb: Optional[InfluxDBModel]
     plugins_config: Optional[PluginsConfig]
     webhook_config: Optional[WebhookConfig]

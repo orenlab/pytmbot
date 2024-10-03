@@ -1,78 +1,126 @@
-# Setup bot tokens
+################################################################
+# General Bot Settings
+################################################################
+# Bot Token Configuration
 bot_token:
-  # Prod bot token.
+  # Production bot token.
   prod_token:
-    - ''
-  # Development bot token. Not necessary for production bot.
+    - 'YOUR_PROD_BOT_TOKEN'  # Replace with your actual production bot token.
+  # Development bot token. Optional for production bot.
   dev_bot_token:
-    - ''
-# Setup chat ID
+    - 'YOUR_DEV_BOT_TOKEN'    # Replace with your development bot token (if needed).
+
+# Chat ID Configuration
 chat_id:
-  # Global chat ID. Used for all notifications from plugin.
+  # Global chat ID. Used for all notifications from the plugin.
   global_chat_id:
-    - '-0000000000'
-# Setup access control
+    - 'YOUR_CHAT_ID'  # Replace with your actual chat ID for notifications.
+
+# Access Control Settings
 access_control:
-  # The ID of the users who have permission to access the bot.
-  # You can have one or more values - there are no restrictions.
+  # User IDs allowed to access the bot.
   allowed_user_ids:
+    - 0000000000  # Replace with actual user IDs.
     - 0000000000
-  # The ID of the admins who have permission to access the bot.
-  # You can have one or more values, there are no restrictions.
-  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
+  # Admin IDs allowed to access the bot.
   allowed_admins_ids:
+    - 0000000000  # Replace with actual admin IDs.
     - 0000000000
-  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
+  # Salt used for generating TOTP (Time-Based One-Time Password) secrets and verifying TOTP codes.
   auth_salt:
-    - 'QD5CODUFY3FAMAA7DZX7WMNUTHLA===='
-# Docker settings
+    - 'YOUR_AUTH_SALT'  # Replace with the salt for TOTP.
+
+################################################################
+# Docker Settings
+################################################################
 docker:
   # Docker socket. Usually: unix:///var/run/docker.sock.
   host:
-    - 'unix:///var/run/docker.sock'
-# Plugins configuration
+    - 'unix:///var/run/docker.sock'  # Path to the Docker socket.
+
+################################################################
+# Webhook Configuration
+################################################################
+webhook_config:
+  # Webhook URL
+  url:
+    - 'YOUR_WEBHOOK_URL'  # Replace with your actual webhook URL.
+  # Webhook port
+  webhook_port:
+    - 443  # Port for external webhook requests.
+  local_port:
+    - 5001  # Local port for internal requests.
+  cert:
+    - 'YOUR_CERTIFICATE'  # Path to the SSL certificate (if using HTTPS).
+  cert_key:
+    - 'YOUR_CERTIFICATE_KEY'  # Path to the SSL certificate's private key (if using HTTPS).
+
+################################################################
+# Plugins Configuration
+################################################################
 plugins_config:
-  # Configuration for Monitor plugin
+  # Configuration for the Monitor plugin
   monitor:
-    # Tracehold settings
+    # Threshold settings
     tracehold:
       # CPU usage thresholds in percentage
       cpu_usage_threshold:
-        - 80
+        - 80  # Threshold for CPU usage.
       # Memory usage thresholds in percentage
       memory_usage_threshold:
-        - 80
+        - 80  # Threshold for memory usage.
       # Disk usage thresholds in percentage
       disk_usage_threshold:
-        - 80
-      # CPU temperature thresholds in Celsius
+        - 80  # Threshold for disk usage.
+      # CPU temperature thresholds in degrees Celsius
       cpu_temperature_threshold:
-        - 85
-      # GPU temperature thresholds in Celsius
+        - 85  # Threshold for CPU temperature.
+      # GPU temperature thresholds in degrees Celsius
       gpu_temperature_threshold:
-        - 90
-      # Disk temperature thresholds in Celsius
+        - 90  # Threshold for GPU temperature.
+      # Disk temperature thresholds in degrees Celsius
       disk_temperature_threshold:
-        - 60
-    # Number of notifications to send for each type of overload
+        - 60  # Threshold for disk temperature.
+    # Maximum number of notifications for each type of overload
     max_notifications:
-      - 3
+      - 3  # Maximum number of notifications sent for a single event.
     # Check interval in seconds
     check_interval:
-      - 5
+      - 5  # Interval for system status checks.
     # Reset notification count after X minutes
     reset_notification_count:
-      - 5
-    # Number of attempts to retry starting monitoring in case of failure
+      - 5  # Time in minutes to reset the notification count.
+    # Number of attempts to retry monitoring startup in case of failure
     retry_attempts:
-      - 3
+      - 3  # Number of retry attempts.
     # Interval (in seconds) between retry attempts
     retry_interval:
-      - 10
-  # Configuration for Outline plugin
+      - 10  # Interval between retry attempts.
+
+  # Configuration for the Outline plugin
   outline:
     # Outline API settings
     api_url:
-      - ''
+      - 'YOUR_OUTLINE_API_URL'  # Replace with your actual Outline API URL.
+    # Certificate fingerprint
     cert:
-      - ''
+      - 'YOUR_OUTLINE_CERT'  # Replace with the actual path to your certificate.
+
+################################################################
+# InfluxDB Settings
+################################################################
+influxdb:
+  # InfluxDB host
+  url:
+    - 'http://influxdb:8086'  # URL of your InfluxDB server.
+  # InfluxDB token
+  token:
+    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token.
+  # InfluxDB organization name
+  org:
+    - 'pytmbot_monitor'  # Replace with your actual organization name in InfluxDB.
+  # InfluxDB bucket name
+  bucket:
+    - 'pytmbot'  # Replace with your actual bucket name in InfluxDB.
+  # InfluxDB debug mode
+  debug_mode: false  # Set to true to enable debug mode.

@@ -66,7 +66,7 @@ class RateLimit(BaseMiddleware):
             )
             self.bot.send_message(
                 chat_id=message.chat.id,
-                text="You're sending messages too quickly. Please slow down.",
+                text="⚠️ You're sending messages too quickly. 🕒 Please slow down.",
             )
             return CancelUpdate()
 
