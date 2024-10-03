@@ -72,6 +72,8 @@ class SystemMonitorPlugin(PluginCore):
         # Check if sensors are available
         self.sensors_available: bool = True
 
+        self.is_partition_excluded_logged = False
+
         # Initialize state tracking for event durations
         self.event_start_times = {}
         self.bot_logger.debug("Monitor plugin initialized.")
@@ -383,7 +385,9 @@ class SystemMonitorPlugin(PluginCore):
                     usage = psutil.disk_usage(partition.mountpoint)
                     disk_usage[partition.device] = usage.percent
                 else:
-                    self.bot_logger.debug(f"Excluding partition: {partition.device}")
+                    if not self.is_partition_excluded_logged:
+                        self.bot_logger.debug(f"Excluding partition: {partition.device}")
+                        self.is_partition_excluded_logged = True
         except psutil.Error as e:
             self.bot_logger.error(f"Error retrieving disk partitions: {e}")
 
