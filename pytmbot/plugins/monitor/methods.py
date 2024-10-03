@@ -348,14 +348,42 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error checking memory usage: {e}")
             return 0.0
 
+    @staticmethod
+    def _is_partition_excluded(partition: str) -> bool:
+        """
+        Checks if the given partition should be excluded from monitoring.
+
+        Args:
+            partition (str): The name of the partition to check.
+
+        Returns:
+            bool: True if the partition should be excluded, False otherwise.
+        """
+        excluded_keywords = [
+            "loop",
+            "tmpfs",
+            "devtmpfs",
+            "proc",
+            "sysfs",
+            "cgroup",
+            "mqueue",
+            "hugetlbfs",
+            "overlay",
+            "aufs",
+        ]
+        return any(keyword in partition for keyword in excluded_keywords)
+
     def _check_disk_usage(self) -> dict:
-        """Checks the current disk usage for all physical partitions."""
+        """Checks the current disk usage for all physical partitions, excluding certain keywords."""
         disk_usage = {}
         try:
             partitions = psutil.disk_partitions(all=False)
             for partition in partitions:
-                usage = psutil.disk_usage(partition.mountpoint)
-                disk_usage[partition.device] = usage.percent
+                if not self._is_partition_excluded(partition.device):  # Check if partition should be excluded
+                    usage = psutil.disk_usage(partition.mountpoint)
+                    disk_usage[partition.device] = usage.percent
+                else:
+                    self.bot_logger.debug(f"Excluding partition: {partition.device}")
         except psutil.Error as e:
             self.bot_logger.error(f"Error retrieving disk partitions: {e}")
 
