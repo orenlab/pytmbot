@@ -384,10 +384,6 @@ class SystemMonitorPlugin(PluginCore):
                 if not self._is_partition_excluded(partition.device):  # Check if partition should be excluded
                     usage = psutil.disk_usage(partition.mountpoint)
                     disk_usage[partition.device] = usage.percent
-                else:
-                    if not self.is_partition_excluded_logged:
-                        self.bot_logger.debug(f"Excluding partition: {partition.device}")
-                        self.is_partition_excluded_logged = True
         except psutil.Error as e:
             self.bot_logger.error(f"Error retrieving disk partitions: {e}")
 
