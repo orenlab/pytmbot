@@ -15,6 +15,7 @@ from typing import Optional
 import psutil
 from telebot import TeleBot
 
+from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.db.influxdb.influxdb_interface import InfluxDBInterface
 from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.plugins.plugins_core import PluginCore
@@ -48,6 +49,7 @@ class SystemMonitorPlugin(PluginCore):
         self.retry_attempts: int = self.monitor_settings.retry_attempts[0]
         self.retry_interval: int = self.monitor_settings.retry_interval[0]
         self.check_interval: int = self.monitor_settings.check_interval[0]
+        self.monitor_docker: bool = self.monitor_settings.monitor_docker
         self.event_threshold_duration: int = event_threshold_duration  # Minimum event duration before alert
 
         # Monitoring thresholds
@@ -66,8 +68,13 @@ class SystemMonitorPlugin(PluginCore):
         self._bucket = settings.influxdb.bucket[0].get_secret_value()
         self.influxdb_client = InfluxDBInterface(url=self._url, token=self._token, org=self._org, bucket=self._bucket)
 
-        # Check if Docker is running
+        # Check if running in Docker
         self.is_docker = is_running_in_docker()
+
+        # Store Docker counters
+        self.docker_counters = {}
+        self.docker_counters_last_updated = 0
+        self.docker_counters_update_interval = 300
 
         # Check if sensors are available
         self.sensors_available: bool = True
@@ -172,6 +179,16 @@ class SystemMonitorPlugin(PluginCore):
                 # Add OS and system metadata
                 metadata = self._get_platform_metadata()
 
+                if self.monitor_docker:
+                    current_time = time.time()
+                    if current_time - self.docker_counters_last_updated > self.docker_counters_update_interval:
+                        self.docker_counters = self._get_docker_counters()
+                        self.docker_counters_last_updated = current_time
+
+                fields.update(
+                    **{f"docker_{key}": value for key, value in self.docker_counters.items()}
+                )
+
                 # Write metrics and metadata to InfluxDB
                 with self.influxdb_client:
                     self.influxdb_client.write_data("system_metrics", fields, metadata)
@@ -187,7 +204,7 @@ class SystemMonitorPlugin(PluginCore):
         """
         return {
             "system": "docker" if self.is_docker else "bare-metal",
-            "hostname": psutil.users()[0].name,  # Get username
+            "hostname": platform.node(),  # Get username
             "os_type": platform.system(),  # OS Type
             "os_version": platform.version(),  # OS Version
             "os_release": platform.release(),  # OS Release
@@ -462,6 +479,14 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error checking fan speeds: {e}")
 
         return fans
+
+    def _get_docker_counters(self):
+        try:
+            docker_counters = fetch_docker_counters()
+            return docker_counters
+        except Exception as e:
+            self.bot_logger.error(f"Error retrieving docker counters: {e}")
+            return {}
 
     def _reset_notification_count(self) -> None:
         """

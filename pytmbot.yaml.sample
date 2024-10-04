@@ -96,6 +96,8 @@ plugins_config:
     # Interval (in seconds) between retry attempts
     retry_interval:
       - 10  # Interval between retry attempts.
+    # Monitor Docker images and containers
+    monitor_docker: True  # True - Monitor Docker images and containers. False - Do not monitor Docker.
 
   # Configuration for the Outline plugin
   outline:

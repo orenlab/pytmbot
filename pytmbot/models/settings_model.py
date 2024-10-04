@@ -119,6 +119,7 @@ class MonitorConfig(BaseModel):
     reset_notification_count: conlist(int, min_length=1, max_length=1) = [5]
     retry_attempts: conlist(int, min_length=1, max_length=2) = [3]
     retry_interval: conlist(int, min_length=1, max_length=2) = [10]
+    monitor_docker: bool = False
 
 
 class OutlineVPN(BaseModel):
