@@ -7,7 +7,7 @@ Monitor plugin for pyTMBot
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-
+import platform
 import threading
 import time
 from typing import Optional
@@ -125,10 +125,13 @@ class SystemMonitorPlugin(PluginCore):
         try:
             while self.monitoring:
                 self._adjust_check_interval()
+
                 cpu_usage = self._check_cpu_usage()
                 memory_usage = self._check_memory_usage()
                 disk_usage = self._check_disk_usage()
                 temperatures = self._check_temperatures()
+                fans = self._check_fans()  # Get fan speeds
+                load_avg_1, load_avg_5, load_avg_15 = self._check_load_average()  # Get load averages
 
                 # Track disk usage events individually for each disk
                 for disk, usage in disk_usage.items():
@@ -137,29 +140,60 @@ class SystemMonitorPlugin(PluginCore):
                     event_durations["disk_usage"][disk] = disk_event_duration
 
                 # Track temperatures individually for each sensor
-                for sensor, temp in temperatures.items():
+                for sensor, temp_data in temperatures.items():
                     temp_event_duration = self._track_event_duration(f"temp_{sensor}",
-                                                                     temp > self._get_temp_threshold(sensor))
+                                                                     temp_data["current"] > self._get_temp_threshold(
+                                                                         sensor))
                     event_durations["temperatures"][sensor] = temp_event_duration
 
-                # Collect only metrics that exceeded thresholds for longer than the minimal interval
+                # Track fan speeds individually for each fan
+                for fan, speed in fans.items():
+                    fan_event_duration = self._track_event_duration(f"fan_{fan}_speed",
+                                                                    speed["current"] > self.config.fan_speed_threshold)
+                    event_durations["fans"][fan] = fan_event_duration
+
+                # Collect metrics and metadata
                 fields = {
                     "cpu_usage": cpu_usage,
                     "memory_usage": memory_usage,
+                    "load_avg_1m": load_avg_1,  # Load average (1 minute)
+                    "load_avg_5m": load_avg_5,  # Load average (5 minutes)
+                    "load_avg_15m": load_avg_15,  # Load average (15 minutes)
                     **{f"disk_{key}_usage": value for key, value in disk_usage.items()},
-                    **{f"temp_{key}": value for key, value in temperatures.items()}
+                    **{f"temp_{sensor}_current": temp_data["current"] for sensor, temp_data in temperatures.items()},
+                    **{f"temp_{sensor}_high": temp_data["high"] for sensor, temp_data in temperatures.items() if
+                       temp_data["high"] is not None},
+                    **{f"temp_{sensor}_critical": temp_data["critical"] for sensor, temp_data in temperatures.items() if
+                       temp_data["critical"] is not None},
+                    **{f"fan_{sensor}_speed": speed["current"] for sensor, speed in fans.items()}
                 }
 
-                with self.influxdb_client:
-                    self.influxdb_client.write_data("system_metrics", fields)
+                # Add OS and system metadata
+                metadata = self._get_platform_metadata()
 
-                # Send notifications if thresholds are exceeded
-                self._send_aggregated_notifications(cpu_usage, memory_usage, disk_usage, temperatures, event_durations)
+                # Write metrics and metadata to InfluxDB
+                with self.influxdb_client:
+                    self.influxdb_client.write_data("system_metrics", fields, metadata)
 
                 time.sleep(self.check_interval)
         except Exception as e:
             self.bot_logger.exception(f"Unexpected error during system monitoring: {e}")
             self.monitoring = False
+
+    def _get_platform_metadata(self) -> dict:
+        """
+        Get the metadata for the current platform.
+        """
+        return {
+            "system": "docker" if self.is_docker else "bare-metal",
+            "hostname": psutil.users()[0].name,  # Get username
+            "os_type": platform.system(),  # OS Type
+            "os_version": platform.version(),  # OS Version
+            "os_release": platform.release(),  # OS Release
+            "architecture": platform.machine(),  # CPU Architecture
+            "processor": platform.processor(),  # OS Name
+            "sensors_available": self.sensors_available,
+        }
 
     def _track_event_duration(self, event_name: str, event_occurred: bool) -> Optional[float]:
         """
@@ -312,8 +346,19 @@ class SystemMonitorPlugin(PluginCore):
         else:
             self.check_interval = self.monitor_settings.check_interval[0]  # Restore to normal interval
 
+    def _check_load_average(self) -> tuple[float, float, float]:
+        """
+        Checks the current load average (1, 5, and 15 minutes).
+        """
+        try:
+            load_avg_1, load_avg_5, load_avg_15 = psutil.getloadavg()  # Get the 1, 5, and 15 minute load averages
+            return load_avg_1, load_avg_5, load_avg_15
+        except (AttributeError, psutil.Error) as e:
+            self.bot_logger.error(f"Error checking load average: {e}")
+            return 0.0, 0.0, 0.0
+
     def _check_temperatures(self) -> dict:
-        """Checks the current temperatures of system components."""
+        """Checks the current temperatures of system components and captures high/critical thresholds."""
         temperatures = {}
         try:
             temps = psutil.sensors_temperatures()
@@ -324,7 +369,12 @@ class SystemMonitorPlugin(PluginCore):
 
             for name, entries in temps.items():
                 for entry in entries:
-                    temperatures[name] = entry.current
+                    sensor_key = f"{name}_{entry.label or 'default'}"  # Use label if available, else 'default'
+                    temperatures[sensor_key] = {
+                        "current": entry.current,
+                        "high": entry.high if entry.high else None,  # High threshold, if available
+                        "critical": entry.critical if entry.critical else None  # Critical threshold, if available
+                    }
 
             return temperatures
         except psutil.Error as e:
@@ -388,6 +438,28 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error retrieving disk partitions: {e}")
 
         return disk_usage
+
+    def _check_fans(self) -> dict:
+        """Checks the current fan speeds of system components."""
+        fans = {}
+        try:
+            fan_speeds = psutil.sensors_fans()
+            if not fan_speeds:
+                self.bot_logger.warning("No fan sensors available on this system.")
+                return fans
+
+            for name, entries in fan_speeds.items():
+                for entry in entries:
+                    sensor_key = f"{name}_{entry.label or 'default'}"  # Use label if available, else 'default'
+                    fans[sensor_key] = {
+                        "current": entry.current
+                    }
+
+            return fans
+        except psutil.Error as e:
+            self.bot_logger.error(f"Error checking fan speeds: {e}")
+
+        return fans
 
     def _reset_notification_count(self) -> None:
         """
