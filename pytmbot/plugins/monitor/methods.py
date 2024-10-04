@@ -73,6 +73,7 @@ class SystemMonitorPlugin(PluginCore):
         self.sensors_available: bool = True
 
         self.is_partition_excluded_logged = False
+        self.is_fans_sensors_available_logged = True
 
         # Initialize state tracking for event durations
         self.event_start_times = {}
@@ -444,8 +445,9 @@ class SystemMonitorPlugin(PluginCore):
         fans = {}
         try:
             fan_speeds = psutil.sensors_fans()
-            if not fan_speeds:
+            if not fan_speeds and self.is_fans_sensors_available_logged:
                 self.bot_logger.warning("No fan sensors available on this system.")
+                self.is_fans_sensors_available_logged = False
                 return fans
 
             for name, entries in fan_speeds.items():
