@@ -26,65 +26,62 @@ class InfluxDBInterface:
         self.token = token
         self.org = org
         self.bucket = bucket
-        self.client = None
+        self.client: Optional[InfluxDBClient] = None
         self.write_api = None
         self.query_api = None
         self.bot_logger = bot_logger
+        self.debug_mode = settings.influxdb.debug_mode
 
     def __enter__(self):
-        """
-        Enter the runtime context related to this object.
-        Opens the InfluxDB client connection.
-        """
+        """Enter the runtime context related to this object. Opens the InfluxDB client connection."""
         self.client = InfluxDBClient(url=self.url, token=self.token, org=self.org)
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
-        self.debug_mode = settings.influxdb.debug_mode
         if self.debug_mode:
             self.bot_logger.debug(f"InfluxDB client initialized with URL: {self.url}")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        """
-        Exit the runtime context related to this object.
-        Closes the InfluxDB client connection.
-        """
+        """Exit the runtime context related to this object. Closes the InfluxDB client connection."""
         if self.client:
             self.client.close()
             if self.debug_mode:
                 self.bot_logger.debug("InfluxDB client successfully closed.")
 
     def write_data(self, measurement: str, fields: dict[str, float], tags: Optional[dict[str, str]] = None) -> None:
+        """Write data to InfluxDB.
+
+        Args:
+            measurement (str): The measurement name.
+            fields (dict): Field values to write.
+            tags (Optional[dict]): Tags to associate with the measurement.
+        """
         try:
-            point = Point(measurement)
+            point = Point(measurement).time(datetime.now())
 
             # Add tags if provided
             if tags:
-                for key, value in tags.items():
-                    point = point.tag(key, value)
+                point = point.tags(tags)
 
             # Add field values
-            for key, value in fields.items():
-                point = point.field(key, value)
+            point = point.fields(fields)
 
-            point = point.time(datetime.now())
             if self.debug_mode:
                 self.bot_logger.debug(
                     f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}")
             self.write_api.write(bucket=self.bucket, record=point)
         except InfluxDBError as e:
             self.bot_logger.error(f"Error writing to InfluxDB: {e}")
-            exit(2)
+            raise
 
     def query_data(self, measurement: str, start: str, stop: str, field: str) -> List[Tuple[datetime, float]]:
-        """
-        Query data from InfluxDB for a specific measurement and time range.
+        """Query data from InfluxDB for a specific measurement and time range.
 
         Args:
             measurement (str): The name of the measurement to query.
-            start (str): Start time in RFC3339 format (e.g., "2023-09-01T00:00:00Z").
-            stop (str): Stop time in RFC3339 format (e.g., "2023-09-01T23:59:59Z").
-            field (str): The field key to query (e.g., "cpu").
+            start (str): Start time in RFC3339 format.
+            stop (str): Stop time in RFC3339 format.
+            field (str): The field key to query.
 
         Returns:
             List[Tuple[datetime, float]]: List of timestamp and field value tuples.
@@ -111,3 +108,4 @@ class InfluxDBInterface:
             return results
         except InfluxDBError as e:
             self.bot_logger.error(f"Error querying InfluxDB: {e}")
+            raise  # Raise exception to indicate failure
