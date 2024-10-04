@@ -38,7 +38,6 @@ class DockerAdapter:
         """
         try:
             self.client = docker.DockerClient(base_url=self.docker_url)
-            bot_logger.debug("Docker client initialized.")
             return self.client
         except Exception as err:
             bot_logger.error(f"Failed creating Docker client: {err}")
@@ -61,6 +60,5 @@ class DockerAdapter:
         if self.client:
             try:
                 self.client.close()
-                bot_logger.debug("Docker client closed.")
             except Exception as err:
                 bot_logger.error(f"Failed closing Docker client: {err}")
