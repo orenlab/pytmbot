@@ -1,25 +1,34 @@
-# pyTMBot Installation and Setup Guide
+# 🚀 pyTMBot Installation and Setup Guide
 
-## 🔌 Installation
+## 🔌 Installation Options
 
-You have three options for installing pyTMBot:
+You have several options for installing pyTMBot. Choose the method that best suits your needs:
 
-1. **Use a Pre-built Docker Image (Recommended)**
+### 1. 📜 **Use the `install.sh` script (Recommended)**
 
-   The easiest way to get started is by using a pre-built Docker image. Follow
-   the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
+The easiest way to get started is by using the **install.sh** script. Follow
+the [detailed instructions here](script_install.md) to quickly install and set up pyTMBot with minimal effort.
 
-2. **Use a Pre-built Docker Image from GitHub Registry**
+### 2. 🐳 **Use a Pre-built Docker Image from Docker Hub**
 
-   If you prefer using the GitHub registry, follow
-   the [installation instructions in this section](github_registry_install.md). This method may be preferred for those
-   who use GitHub as their primary source for Docker images.
+You can run pyTMBot using a pre-built Docker image for a fast and simple setup. Follow
+the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
 
-3. **Build the Docker Image Yourself**
+### 3. 🏷️ **Use a Pre-built Docker Image from GitHub Registry**
 
-   For advanced users who want to build the Docker image from source, follow
-   the [self-build instructions](self_build.md). This option allows you to customize the build process but requires
-   additional setup.
+If you prefer to use GitHub's Container Registry, you can follow
+the [installation instructions here](github_registry_install.md). This option may be ideal for users who rely on GitHub
+as their primary source for Docker images.
 
-Choose the method that best suits your needs and follow the detailed instructions provided in the respective sections.
-Each method has its advantages depending on your preferences and requirements.
+### 4. 🔧 **Build the Docker Image Yourself**
+
+For advanced users who prefer full control, you can build the Docker image from source. This allows for customization of
+the build process. See the [self-build instructions](self_build.md) for more details on how to configure and build the
+image yourself.
+
+---
+
+Each method has its advantages depending on your environment and preferences. Follow the detailed instructions provided
+in the respective sections to complete your installation.
+
+Happy monitoring! 🚀
