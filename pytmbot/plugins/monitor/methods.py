@@ -95,11 +95,12 @@ class SystemMonitorPlugin(PluginCore):
     def start_monitoring(self) -> None:
         """
         Starts the system monitoring process in a separate thread.
-        If the monitoring fails to start, it will retry up to `retry_attempts` times.
+        If the monitoring fails to start, it will retry up to `max_attempts` times.
         """
         if not self._monitoring:
             self._monitoring = True
-            for attempt in range(self._retry_attempts):
+            max_attempts = self._retry_attempts
+            for attempt in range(max_attempts):
                 try:
                     self._start_monitoring_thread()
                     return
@@ -122,10 +123,7 @@ class SystemMonitorPlugin(PluginCore):
         monitoring_thread = threading.Thread(
             target=self._monitor_system, daemon=True
         )
-        monitoring_thread.start()
-        monitoring_thread = threading.Thread(
-            target=self._monitor_system, daemon=True
-        )
+        monitoring_thread.name = "SystemMonitoringThread"
         monitoring_thread.start()
 
     def stop_monitoring(self) -> None:
@@ -247,11 +245,14 @@ class SystemMonitorPlugin(PluginCore):
 
     def _record_metrics(self, fields: dict) -> None:
         """Record system metrics to InfluxDB."""
-        metadata = self._get_platform_metadata()
+        try:
+            metadata = self._get_platform_metadata()
 
-        # Write metrics and metadata to InfluxDB
-        with self.influxdb_client as client:
-            client.write_data("system_metrics", fields, metadata)
+            # Write metrics and metadata to InfluxDB
+            with self.influxdb_client as client:
+                client.write_data("system_metrics", fields, metadata)
+        except Exception as e:
+            self.bot_logger.exception(f"Error writing metrics to InfluxDB: {e}")
 
     def _track_event_duration(self, event_name: str, event_occurred: bool) -> Optional[float]:
         """

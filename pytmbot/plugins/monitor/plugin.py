@@ -70,12 +70,15 @@ class MonitoringPlugin(PluginInterface):
         This method initializes the SystemMonitorPlugin with the loaded configuration
         and the bot instance, then starts monitoring system metrics.
         """
-        monitor_plugin = SystemMonitorPlugin(config=self.config, bot=self.bot)
-        monitor_plugin.start_monitoring()
-        self.bot.register_message_handler(
-            self.handle_monitoring, regexp="Monitoring", pass_bot=True
-        )
-        self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
+        try:
+            monitor_plugin = SystemMonitorPlugin(config=self.config, bot=self.bot)
+            monitor_plugin.start_monitoring()
+            self.bot.register_message_handler(
+                self.handle_monitoring, regexp="Monitoring", pass_bot=True
+            )
+            self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
+        except Exception as e:
+            self.plugin_logger.error(f"Failed to register monitoring plugin: {e}")
 
 
 __all__ = ["MonitoringPlugin"]
