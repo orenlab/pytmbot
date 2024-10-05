@@ -1,6 +1,6 @@
 import re
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Tuple, Optional
 from urllib.parse import urlparse
 
@@ -103,7 +103,7 @@ class InfluxDBInterface:
             for key, value in fields.items():
                 point = point.field(key, value)
 
-            point = point.time(datetime.now())
+            point = point.time(datetime.now(timezone.utc))
             if self.debug_mode:
                 bot_logger.debug(f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}")
             self.write_api.write(bucket=self.bucket, record=point)
