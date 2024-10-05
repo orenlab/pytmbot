@@ -44,7 +44,6 @@ class InfluxDBInterface:
 
     def __enter__(self):
         """Enter the runtime context related to this object."""
-        bot_logger.debug(f"Connecting to InfluxDB: {self.url}")
         self.client = InfluxDBClient(url=self.url, token=self.token, org=self.org)
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
