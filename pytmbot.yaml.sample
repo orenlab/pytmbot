@@ -20,12 +20,10 @@ chat_id:
 access_control:
   # User IDs allowed to access the bot.
   allowed_user_ids:
-    - 0000000000  # Replace with actual user IDs.
-    - 0000000000
+
   # Admin IDs allowed to access the bot.
   allowed_admins_ids:
-    - 0000000000  # Replace with actual admin IDs.
-    - 0000000000
+
   # Salt used for generating TOTP (Time-Based One-Time Password) secrets and verifying TOTP codes.
   auth_salt:
     - 'YOUR_AUTH_SALT'  # Replace with the salt for TOTP.
@@ -114,15 +112,15 @@ plugins_config:
 influxdb:
   # InfluxDB host
   url:
-    - 'http://influxdb:8086'  # URL of your InfluxDB server.
+    - 'YOUR_INFLUXDB_URL'  # URL of your InfluxDB server.
   # InfluxDB token
   token:
     - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token.
   # InfluxDB organization name
   org:
-    - 'pytmbot_monitor'  # Replace with your actual organization name in InfluxDB.
+    - 'YOUR_INFLUXDB_ORG'  # Replace with your actual organization name in InfluxDB.
   # InfluxDB bucket name
   bucket:
-    - 'pytmbot'  # Replace with your actual bucket name in InfluxDB.
+    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your actual bucket name in InfluxDB.
   # InfluxDB debug mode
-  debug_mode: false  # Set to true to enable debug mode.
+  debug_mode: YOUR_INFLUXDB_DEBUG_MODE  # Set to true to enable debug mode.

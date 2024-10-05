@@ -8,7 +8,13 @@ set -euo pipefail
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
+
+# Config file and sample file paths
+CONFIG_FILE="/opt/pytmbot/pytmbot.yaml"
+SAMPLE_FILE="/opt/pytmbot/pytmbot.yaml.sample"
 
 # Minimum Python version required
 REQUIRED_PYTHON="3.12.0"
@@ -18,6 +24,13 @@ GITHUB_REPO="https://github.com/orenlab/pytmbot.git"
 
 # Bot service name
 SERVICE_NAME="pytmbot"
+
+# Utility function for logging
+log_message() {
+  local color="$1"
+  local message="$2"
+  echo -e "${color}${message}${NC}" | tee -a "$LOG_FILE"
+}
 
 cd /opt/ || exit 1
 
@@ -39,12 +52,43 @@ show_spinner() {
   printf "    \b\b\b\b"
 }
 
+# Function to display a banner
+show_banner() {
+    local action="$1"
+
+    # Clear the terminal for better visibility
+    clear
+
+    # Create a stylish banner
+    echo -e "${BLUE}######################################################################"
+    echo -e "${GREEN}##                      pyTMBot Installer                          ##"
+    echo -e "${BLUE}######################################################################"
+    echo -e "${WHITE}  Starting the ${YELLOW}${action^^}${WHITE} process...${NC}"
+    echo -e "${BLUE}######################################################################"
+    echo ""
+}
+
 # Function to check if the script is running as root
 check_root() {
   if ! sudo -n true 2>/dev/null; then
-    echo -e "${RED}This script requires root privileges. Please use 'sudo' or switch to a user with appropriate permissions.${NC}" | tee -a "$LOG_FILE"
+    log_message "$RED" "This script requires root privileges. Please use 'sudo' or switch to a user with appropriate permissions."
     exit 1
   fi
+}
+
+
+# Generate a random auth salt for the bot.
+generate_auth_salt() {
+  if ! command -v openssl &> /dev/null; then
+    echo "Error: openssl is not installed. Please install it and try again." >&2
+    echo "-QD5CODUFY3FAMAA7DZX7WMNUTHLA===="
+  fi
+
+  auth_salt=$(openssl rand -base64 32)
+
+  auth_salt="${auth_salt}===="
+
+  echo "-$auth_salt"
 }
 
 # Function to check if a command exists
@@ -54,16 +98,19 @@ command_exists() {
 
 # Function to create user pytmbot and add to docker group
 create_pytmbot_user() {
-  echo -e "${GREEN}Ensuring user 'pytmbot' exists and is in the 'docker' group...${NC}" | tee -a "$LOG_FILE"
+
+  show_banner "Creating user"
+
+  log_message "$GREEN" "Ensuring user 'pytmbot' exists and is in the 'docker' group..."
 
   # Check if user 'pytmbot' exists, if not, create it
   if ! id "pytmbot" &>/dev/null; then
-    echo "Creating user 'pytmbot'..." | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "User 'pytmbot' does not exist. Creating..."
     useradd --system --no-create-home --shell /usr/sbin/nologin pytmbot
     mkdir -p /opt/pytmbot && chown pytmbot:pytmbot /opt/pytmbot
-    echo "User 'pytmbot' created successfully." | tee -a "$LOG_FILE"
+    log_message "$GREEN" "User 'pytmbot' created successfully."
   else
-    echo "User 'pytmbot' already exists." | tee -a "$LOG_FILE"
+    log_message "$GREEN" "User 'pytmbot' already exists."
   fi
 
   # Check if Docker is installed
@@ -72,75 +119,71 @@ create_pytmbot_user() {
     if [[ "${install_docker,,}" =~ ^[y]$ ]]; then
       install_docker_app
     else
-      echo -e "${RED}Docker is required for pyTMBot. Aborting installation.${NC}" | tee -a "$LOG_FILE"
+      show_banner "cancelled installation"
+      log_message "$RED" "Docker is required for pyTMBot. Aborting installation."
       exit 1
     fi
   else
-    echo "Docker is already installed." | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Docker is already installed."
   fi
 
   # Check if user 'pytmbot' is already in the 'docker' group
+  show_banner "Adding user to group 'docker'"
   if groups pytmbot | grep &>/dev/null '\bdocker\b'; then
-    echo "User 'pytmbot' is already in the 'docker' group." | tee -a "$LOG_FILE"
+    log_message "$GREEN" "User 'pytmbot' is already in the 'docker' group."
   else
     # Add user 'pytmbot' to the 'docker' group
-    echo "Adding user 'pytmbot' to the 'docker' group..." | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "User 'pytmbot' is not in the 'docker' group. Adding..."
     usermod -aG docker pytmbot
-    echo "User 'pytmbot' added to the 'docker' group." | tee -a "$LOG_FILE"
+    log_message "$GREEN" "User 'pytmbot' added to the 'docker' group successfully."
   fi
 
-  echo -e "${GREEN}User 'pytmbot' created and added to 'docker' group successfully.${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "User and group created successfully."
 }
 
 # Function to check the Python version
 check_python_version() {
-  echo -e "${GREEN}Checking Python version...${NC}" | tee -a "$LOG_FILE"
+  show_banner "Checking Python version"
 
-  (
-    # Get the Python version
+  # Get the Python version
     PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 
     # Check if the Python version was determined
     if [[ -z "$PYTHON_VERSION" ]]; then
-      echo -e "${RED}Unable to determine Python version. Please ensure Python is installed.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Unable to determine Python version. Please ensure Python is installed."
       exit 1
     fi
 
     # Compare the installed Python version with the required version
     if [[ "$(printf '%s\n' "$REQUIRED_PYTHON" "$PYTHON_VERSION" | sort -V | head -n1)" == "$REQUIRED_PYTHON" ]]; then
-      echo -e "${GREEN}Python version $PYTHON_VERSION is sufficient for pyTMBot.${NC}" | tee -a "$LOG_FILE"
+      log_message "$GREEN" "Python version $PYTHON_VERSION is sufficient for pyTMBot."
     else
-      echo -e "${RED}Python version $PYTHON_VERSION is too old. Required version is $REQUIRED_PYTHON or newer.${NC}" | tee -a "$LOG_FILE"
-      read -r -p "Would you like to install Python 3.12? [y/N]: " install_python
+      log_message "$RED" "Python version $PYTHON_VERSION is not sufficient for pyTMBot. Required version is $REQUIRED_PYTHON or newer."
+      read -r -p "Would you like to install Python 3.12 in user environment? [y/N]: " install_python
       if [[ "${install_python,,}" =~ ^[y]$ ]]; then
         install_python_user
       else
-        echo -e "${RED}Python 3.12 is required for pyTMBot. Aborting installation.${NC}" | tee -a "$LOG_FILE"
+        log_message "$RED" "Python 3.12 is required for pyTMBot. Aborting installation."
         exit 1
       fi
     fi
-  ) &
-
-  show_spinner $!
-  echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
 }
 
 # Function to check and install Python 3.12 if needed
 install_python_user() {
-  echo -e "${GREEN}Checking for Python installation...${NC}" | tee -a "$LOG_FILE"
+  show_banner "Installing Python 3.12 in user env"
 
   if command_exists python3.12; then
-    echo -e "${GREEN}Python 3.12 is already installed.${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Python 3.12 is already installed."
     return
   fi
 
-  echo -e "${GREEN}Installing Python 3.12...${NC}" | tee -a "$LOG_FILE"
+  log_message "$YELLOW" "Python 3.12 is not installed. Installing..."
 
   (
     case "$(grep -oP '(?<=^ID=).+' /etc/os-release)" in
       ubuntu|debian)
         if ! grep -q '^deb .*/deadsnakes' /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-          echo -e "${YELLOW}Adding deadsnakes PPA...${NC}" | tee -a "$LOG_FILE"
           add-apt-repository ppa:deadsnakes/ppa -y >> "$LOG_FILE" 2>&1
         fi
         apt-get update -y >> "$LOG_FILE" 2>&1
@@ -153,84 +196,70 @@ install_python_user() {
         pacman -Syu --noconfirm python >> "$LOG_FILE" 2>&1
         ;;
       *)
-        echo -e "${RED}Unsupported OS. Please install Python 3.12 manually.${NC}" | tee -a "$LOG_FILE"
+        log_message "$RED" "Unsupported OS. Please install Python 3.12 manually."
         exit 1
         ;;
     esac
   ) &
 
   show_spinner $!
-  echo -e "${GREEN}Done! Python 3.12 installed successfully.${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Python 3.12 installed successfully."
 }
 
 # Function to create a Python virtual environment and install dependencies
 setup_virtualenv() {
-  echo -e "${GREEN}Setting up Python virtual environment...${NC}" | tee -a "$LOG_FILE"
+  show_banner "dependencies installation"
 
-  local python_cmd
-  if command_exists python3.12; then
-    python_cmd=python3.12
-  else
-    python_cmd=python3
-  fi
-
-  if ! command_exists pip3; then
-    echo -e "${RED}Pip3 is required but not installed.${NC}" | tee -a "$LOG_FILE"
-    exit 1
-  fi
-
-  if ! command_exists virtualenv; then
-    echo -e "${YELLOW}Virtualenv is not installed. Installing...${NC}" | tee -a "$LOG_FILE"
-    (
-      pip3 install -U virtualenv >> "$LOG_FILE" 2>&1
-    ) &
-    show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
-  fi
-
-  printf %s"Creating virtual environment...${NC} "
+  log_message "$GREEN" "Setting up Python virtual environment..."
   (
+    local python_cmd
+    if command_exists python3.12; then
+      python_cmd=python3.12
+    else
+      python_cmd=python3
+    fi
+
+    if ! command_exists pip3; then
+      log_message "$RED" "Pip3 is required but not installed."
+      exit 1
+    fi
+
+    if ! command_exists virtualenv; then
+        pip3 install -U virtualenv >> "$LOG_FILE" 2>&1
+    fi
     virtualenv -p "$python_cmd" ./pytmbot/venv >> "$LOG_FILE" 2>&1
-  ) &
-  show_spinner $!
-  printf %s "${GREEN}Done!${NC}\n" | tee -a "$LOG_FILE"
 
-  echo -e "Activating virtual environment...${NC}" | tee -a "$LOG_FILE"
-  # shellcheck disable=SC1091
-  source ./pytmbot/venv/bin/activate
+    source ./pytmbot/venv/bin/activate
 
-  echo -e "Updating pip and setuptools...${NC}" | tee -a "$LOG_FILE"
-  (
     pip install -U pip setuptools >> "$LOG_FILE" 2>&1
-  ) &
-  show_spinner $!
-  echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
 
-  echo -e "Installing Python dependencies from requirements.txt...${NC}" | tee -a "$LOG_FILE"
-  (
     pip install -r ./pytmbot/requirements.txt >> "$LOG_FILE" 2>&1
-  ) &
-  show_spinner $!
-  echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
 
-  echo -e "${GREEN}Python virtual environment setup completed successfully.${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Dependencies installed successfully."
+  )&
+  show_spinner $!
+  log_message "$GREEN" "Done!"
 }
 
 # Function to create systemd service file for the bot
 create_service() {
-  echo -e "${GREEN}Starting the creation/updating of the systemd service...${NC}" | tee -a "$LOG_FILE"
+
+  show_banner "Creating systemd service file"
+
   SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
   # Check if the service file already exists
   if [ -f "$SERVICE_FILE" ]; then
-    echo -e "${YELLOW}Service file already exists at $SERVICE_FILE. Updating the existing service...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Service file already exists at $SERVICE_FILE. Updating the existing service..."
   else
-    echo -e "${GREEN}Service file does not exist. Creating a new service file at $SERVICE_FILE...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Service file does not exist. Creating a new service file at $SERVICE_FILE..."
   fi
 
   # Prompt user for plugins to run
-  echo -e "${GREEN}Please select the plugins to run (comma-separated):${NC}" | tee -a "$LOG_FILE"
-  echo -e "1) outline\n2) monitor" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Please select the plugins to run (comma-separated):"
+  echo ""
+  log_message "$GREEN" "1) outline\n2) monitor"
+  echo ""
   read -r -p "Enter your choice (1, 2 or 1,2): " plugin_choice
 
   # Prepare the plugin options
@@ -239,20 +268,21 @@ create_service() {
     2) plugins="monitor" ;;
     1,2) plugins="outline,monitor" ;;
     *)
-      echo -e "${RED}Invalid choice. No plugins will be set.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Invalid choice. No plugins will be set."
       plugins="" # No plugins selected
       ;;
   esac
 
   # Prompt user for logging level
-  echo -e "${GREEN}Please select the logging level (INFO, ERROR, DEBUG):${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Please select the logging level (INFO, ERROR, DEBUG):"
+  echo ""
   read -r -p "Enter your choice: " log_level
 
   # Validate logging level
   case "$log_level" in
     INFO|ERROR|DEBUG) ;;
     *)
-      echo -e "${RED}Invalid logging level. Defaulting to INFO.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Invalid logging level. Defaulting to INFO."
       log_level="INFO" # Default logging level
       ;;
   esac
@@ -286,42 +316,41 @@ WantedBy=multi-user.target
 EOF
   } >> "$LOG_FILE" 2>&1
 
-  echo -e "${GREEN}Service file successfully created/updated at $SERVICE_FILE.${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Service file created/updated successfully at $SERVICE_FILE."
 }
 
 # Function to install Docker app
 install_docker_app() {
-  echo -e "${GREEN}Setting up Docker container...${NC}" | tee -a "$LOG_FILE"
+
+  show_banner "Docker installation"
 
   if ! command_exists docker; then
-    echo -e "${YELLOW}Docker is not installed. Installing Docker...${NC}" | tee -a "$LOG_FILE"
-    {
-      curl -fsSL https://get.docker.com | bash
-    } >> "$LOG_FILE" 2>&1 &
-
-    show_spinner $!
-    echo -e "${GREEN}Docker installed successfully.${NC}" | tee -a "$LOG_FILE"
+    log_message "YELLOW" "Docker is not installed. Installing Docker..."
+    (
+      curl -fsSL https://get.docker.com | bash >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   else
-    echo -e "${GREEN}Docker is already installed.${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Docker is already installed. Skipping..."
   fi
 }
 
 configure_bot() {
-  CONFIG_FILE="/opt/pytmbot/pytmbot.yaml"
 
-  echo "Configuring pyTMBot..." | tee -a "$LOG_FILE"
-  echo "We need some information to configure the bot from you. Let's get started..." | tee -a "$LOG_FILE"
+  show_banner "Configuring pyTMBot..."
+
+  log_message "$YELLOW" "We need some information to configure the bot from you. Let's get started..."
+  echo ""
 
   # Prompt for bot tokens
   read -r -p "Enter your production bot token: " prod_token
   read -r -p "Enter your development bot token (optional): " dev_token
-  read -r -p "Enter your global chat ID for notifications: " global_chat_id
+  read -r -p "Enter your global chat ID for notifications (-0000000000): " global_chat_id
+
+  # Prompt for allowed user and admin IDs
   read -r -p "Enter allowed user ID(s) (comma-separated): " allowed_user_ids
   read -r -p "Enter allowed admin ID(s) (comma-separated): " allowed_admins_ids
-  read -r -p "Enter auth salt (default: 'QD5CODUFY3FAMAA7DZX7WMNUTHLA===='): " auth_salt
-  auth_salt="${auth_salt:-QD5CODUFY3FAMAA7DZX7WMNUTHLA====}"
 
-  # Convert allowed_user_ids and allowed_admins_ids into YAML format
+  # Prepare YAML for allowed user and admin IDs
   allowed_user_ids_yaml=$(echo "$allowed_user_ids" | tr ',' '\n' | sed 's/^/    - /')
   allowed_admins_ids_yaml=$(echo "$allowed_admins_ids" | tr ',' '\n' | sed 's/^/    - /')
 
@@ -329,129 +358,71 @@ configure_bot() {
   read -r -p "Enter Docker socket (default: 'unix:///var/run/docker.sock'): " docker_host
   docker_host="${docker_host:-unix:///var/run/docker.sock}"
 
-  # Prompt for monitoring thresholds
-  read -r -p "Enter CPU usage threshold (default: 80): " cpu_threshold
-  cpu_threshold="${cpu_threshold:-80}"
-  read -r -p "Enter memory usage threshold (default: 80): " memory_threshold
-  memory_threshold="${memory_threshold:-80}"
-  read -r -p "Enter disk usage threshold (default: 80): " disk_threshold
-  disk_threshold="${disk_threshold:-80}"
-  read -r -p "Enter CPU temperature threshold (default: 85): " cpu_temp_threshold
-  cpu_temp_threshold="${cpu_temp_threshold:-85}"
-  read -r -p "Enter GPU temperature threshold (default: 90): " gpu_temp_threshold
-  gpu_temp_threshold="${gpu_temp_threshold:-90}"
-  read -r -p "Enter disk temperature threshold (default: 60): " disk_temp_threshold
-  disk_temp_threshold="${disk_temp_threshold:-60}"
-  read -r -p "Enter monitoring check interval in seconds (default: 2): " check_interval
-  check_interval="${check_interval:-2}"
+  # Prompt for Webhook settings
+  read -r -p "Enter Webhook URL (default: 'https://yourdomain.com/webhook'): " webhook_url
+  webhook_url="${webhook_url:-https://yourdomain.com/webhook}"
+  read -r -p "Enter Webhook port (default: 443): " webhook_port
+  webhook_port="${webhook_port:-443}"
+  read -r -p "Enter Local port (default: 5001): " local_port
+  local_port="${local_port:-5001}"
+  read -r -p "Enter path to SSL certificate: " cert
+  read -r -p "Enter path to SSL certificate key: " cert_key
 
-  # Write configuration to the YAML file
-  cat << EOF > "$CONFIG_FILE"
-# Setup bot tokens
-bot_token:
-  # Prod bot token.
-  prod_token:
-    - '$prod_token'
-  # Development bot token. Not necessary for production bot.
-  dev_bot_token:
-    - '$dev_token'
+  # Prompt for InfluxDB settings
+  read -r -p "Enter InfluxDB URL (default: 'http://influxdb:8086'): " influxdb_url
+  influxdb_url="${influxdb_url:-http://influxdb:8086}"
+  read -r -p "Enter InfluxDB token: " influxdb_token
+  read -r -p "Enter InfluxDB organization name (default: 'pytmbot_monitor'): " influxdb_org
+  influxdb_org="${influxdb_org:-pytmbot_monitor}"
+  read -r -p "Enter InfluxDB bucket name (default: 'pytmbot'): " influxdb_bucket
+  influxdb_bucket="${influxdb_bucket:-pytmbot}"
+  read -r -p "Enable InfluxDB debug mode? (true/false, default: false): " influxdb_debug
+  influxdb_debug="${influxdb_debug:-false}"
 
-# Setup chat ID
-chat_id:
-  # Global chat ID. Used for all notifications from plugin.
-  global_chat_id:
-    - '$global_chat_id'
+  auth_salt=$(generate_auth_salt)
 
-# Setup access control
-access_control:
-  # The ID of the users who have permission to access the bot.
-  # You can have one or more values - there are no restrictions.
-  allowed_user_ids:
-$allowed_user_ids_yaml
-  # The ID of the admins who have permission to access the bot.
-  # You can have one or more values, there are no restrictions.
-  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
-  allowed_admins_ids:
-$allowed_admins_ids_yaml
-  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
-  auth_salt:
-    - '$auth_salt'
+  # Update the configuration file
+  sed -e "s/YOUR_PROD_BOT_TOKEN/$prod_token/" \
+      -e "s/YOUR_DEV_BOT_TOKEN/$dev_token/" \
+      -e "s/YOUR_CHAT_ID/$global_chat_id/" \
+      -e "s|YOUR_AUTH_SALT|$auth_salt|" \
+      -e "s|unix:///var/run/docker.sock|$docker_host|" \
+      -e "s|YOUR_WEBHOOK_URL|$webhook_url|" \
+      -e "s|YOUR_WEBHOOK_PORT|$webhook_port|" \
+      -e "s|YOUR_LOCAL_PORT|$local_port|" \
+      -e "s|YOUR_CERT_PATH|$cert|" \
+      -e "s|YOUR_CERT_KEY_PATH|$cert_key|" \
+      -e "s|YOUR_INFLUXDB_URL|$influxdb_url|" \
+      -e "s|YOUR_INFLUXDB_TOKEN|$influxdb_token|" \
+      -e "s|YOUR_INFLUXDB_ORG|$influxdb_org|" \
+      -e "s|YOUR_INFLUXDB_BUCKET|$influxdb_bucket|" \
+      -e "s|YOUR_INFLUXDB_DEBUG_MODE|$influxdb_debug|" \
+      "$SAMPLE_FILE" > "$CONFIG_FILE"
 
-# Docker settings
-docker:
-  # Docker socket. Usually: unix:///var/run/docker.sock.
-  host:
-    - '$docker_host'
+  # Append allowed user and admin IDs to the config file
+  sed -i "/allowed_user_ids:/r /dev/stdin" "$CONFIG_FILE" <<< "$allowed_user_ids_yaml"
+  sed -i "/allowed_admins_ids:/r /dev/stdin" "$CONFIG_FILE" <<< "$allowed_admins_ids_yaml"
 
-# Plugins configuration
-plugins_config:
-  # Configuration for Monitor plugin
-  monitor:
-    # Tracehold settings
-    tracehold:
-      # CPU usage thresholds in percentage
-      cpu_usage_threshold:
-        - $cpu_threshold
-      # Memory usage thresholds in percentage
-      memory_usage_threshold:
-        - $memory_threshold
-      # Disk usage thresholds in percentage
-      disk_usage_threshold:
-        - $disk_threshold
-      # CPU temperature thresholds in Celsius
-      cpu_temperature_threshold:
-        - $cpu_temp_threshold
-      # GPU temperature thresholds in Celsius
-      gpu_temperature_threshold:
-        - $gpu_temp_threshold
-      # Disk temperature thresholds in Celsius
-      disk_temperature_threshold:
-        - $disk_temp_threshold
-    # Number of notifications to send for each type of overload
-    max_notifications:
-      - 3
-    # Check interval in seconds
-    check_interval:
-      - $check_interval
-    # Reset notification count after X minutes
-    reset_notification_count:
-      - 5
-    # Number of attempts to retry starting monitoring in case of failure
-    retry_attempts:
-      - 3
-    # Interval (in seconds) between retry attempts
-    retry_interval:
-      - 10
-  # Configuration for Outline plugin
-  outline:
-    # Outline API settings
-    api_url:
-      - ''
-    cert:
-      - ''
-EOF
-
-  echo "Configuration written to $CONFIG_FILE." | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Configuration written to $CONFIG_FILE."
 }
 
 clone_repo() {
-    # Clone the repository
-  echo -n "Cloning the repository..." | tee -a "$LOG_FILE"
+  show_banner "Cloning pyTMBot repository..."
+
+  log_message "$YELLOW" "Cloning pyTMBot repository..."
   (
     git clone "$GITHUB_REPO" /opt/pytmbot >> "$LOG_FILE" 2>&1
     cd /opt/pytmbot || { echo -e "${RED}Failed to enter directory.${NC}" | tee -a "$LOG_FILE"; exit 1; }
-  ) &
-  show_spinner $!
-  echo -e "${GREEN} Done!${NC}" | tee -a "$LOG_FILE"
+  ) & show_spinner $! && log_message "$GREEN" "Done!"
 }
 
 install_local() {
-  echo -e "${GREEN}Starting local installation...${NC}" | tee -a "$LOG_FILE"
+  show_banner "Installing locally..."
 
   # Create the pytmbot user and add to docker group
   create_pytmbot_user
 
-  echo -n "Installing required packages..." | tee -a "$LOG_FILE"
+  log_message "$YELLOW" "Installing required packages..."
   (
     if [ -f /etc/debian_version ]; then
       apt-get update -y >> "$LOG_FILE" 2>&1
@@ -462,12 +433,10 @@ install_local() {
       pacman -Syu --noconfirm >> "$LOG_FILE" 2>&1
       pacman -S --noconfirm python python-pip git >> "$LOG_FILE" 2>&1
     else
-      echo -e "${RED}Unsupported operating system.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Unsupported OS. Please install Python 3.12 manually."
       exit 1
     fi
-  ) &
-  show_spinner $!
-  echo -e "${GREEN} Done!${NC}" | tee -a "$LOG_FILE"
+  ) & show_spinner $! && log_message "$GREEN" "Done!"
 
   # Clone the repository
   clone_repo
@@ -485,126 +454,123 @@ install_local() {
   create_service
 
   # Reload systemd and start the service
-  echo -e "${GREEN}Reloading systemd and starting the service...${NC}" | tee -a "$LOG_FILE"
+  log_message "$YELLOW" "Reloading systemd and starting the service..."
   (
       # shellcheck disable=SC2129
       systemctl daemon-reload >> "$LOG_FILE" 2>&1
       systemctl start "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
       systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
-  ) &
-  show_spinner $!
-  echo -e "${GREEN} Done!${NC}" | tee -a "$LOG_FILE"
+  ) & show_spinner $! && log_message "$GREEN" "Done!"
 
-  echo -e "${GREEN}Local installation completed. Service '$SERVICE_NAME' is running.${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Local installation completed. Service '$SERVICE_NAME' is running."
 }
 
 uninstall_pytmbot() {
-  echo -e "${GREEN}Starting uninstallation process...${NC}" | tee -a "$LOG_FILE"
+
+  show_banner "Uninstalling pyTMBot..."
 
   # Check if service exists and is loaded
   if systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo -e "Stopping the service...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Stopping the service..."
     (
-    systemctl stop "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      systemctl stop "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   fi
 
   if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-    echo -e "Disabling the service...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Disabling the service..."
     (
-    systemctl disable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      systemctl disable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   fi
 
   if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
-    echo -e "Removing systemd service...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Removing the service file..."
     (
-    rm -f "/etc/systemd/system/$SERVICE_NAME.service" >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      rm -f "/etc/systemd/system/$SERVICE_NAME.service" >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
 
     # Reload systemd daemon after removing the service file
-    echo -e "Reloading systemd daemon...${NC}" | tee -a "$LOG_FILE"
-    systemctl daemon-reload >> "$LOG_FILE" 2>&1 &
-    show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Reloading systemd daemon..."
+    (
+      systemctl daemon-reload >> "$LOG_FILE" 2>&1 &
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   else
-    echo -e "${YELLOW}Service $SERVICE_NAME not found. Skipping.${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Service file not found. Skipping..."
   fi
 
   # Remove bot files and virtual environment
   if [ -d "/opt/pytmbot" ]; then
-    echo -e "${GREEN}Removing bot files from /opt/pytmbot...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Removing bot files from /opt/pytmbot..."
     (
-    rm -rf /opt/pytmbot >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      rm -rf /opt/pytmbot >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   else
-    echo -e "${YELLOW}Bot files not found in /opt/pytmbot. Skipping.${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Bot files not found in /opt/pytmbot. Skipping..."
   fi
 
   # Check if user exists and delete it
   if id "pytmbot" &>/dev/null; then
-    echo -e "Removing user 'pytmbot'...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Removing user 'pytmbot'..."
     (
-    userdel pytmbot >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      userdel pytmbot >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   else
-    echo -e "${YELLOW}User 'pytmbot' not found. Skipping.${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "User 'pytmbot' not found. Skipping..."
   fi
 
   # Ask user if they want to remove logs
   read -r -p "Do you want to remove log files (/var/log/pytmbot.log, pytmbot_install.log, pytmbot_error.log)? [y/N]: " remove_logs
 
   if [[ "$remove_logs" =~ ^[Yy]$ ]]; then
-    echo -e "${GREEN}Removing log files...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Removing log files..."
     (
-    rm -f /var/log/pytmbot.log /var/log/pytmbot_install.log /var/log/pytmbot_error.log >> "$LOG_FILE" 2>&1
-    ) & show_spinner $!
-    echo -e "${GREEN}Done!${NC}" | tee -a "$LOG_FILE"
+      rm -f /var/log/pytmbot.log /var/log/pytmbot_install.log /var/log/pytmbot_error.log >> "$LOG_FILE" 2>&1
+    ) & show_spinner $! && log_message "$GREEN" "Done!"
   else
-    echo -e "${YELLOW}Log files retained.${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Log files not removed. Skipping..."
   fi
 
-  echo -e "${GREEN}Uninstallation completed.${NC}" | tee -a "$LOG_FILE"
+  log_message "$GREEN" "Uninstallation completed."
 }
 
 # Function to install Docker app
 install_bot_in_docker() {
-  echo -e "${GREEN}Setting up Docker container...${NC}" | tee -a "$LOG_FILE"
+  show_banner "Installing in Docker..."
+
+  log_message "$GREEN" "Starting installation in Docker..."
+  create_pytmbot_user
 
   # Check if Docker is installed
   if ! command_exists docker; then
-    echo -e "${YELLOW}Docker is not installed. Installing Docker...${NC}" | tee -a "$LOG_FILE"
+    log_message "$YELLOW" "Docker is not installed. Installing Docker..."
     install_docker_app >> "$LOG_FILE" 2>&1
   fi
 
   read -r -p "Do you want to use a pre-built Docker image (1) or build from source (2)? [1/2]: " choice
 
   if [[ "$choice" == "1" ]]; then
-    echo -e "${GREEN}Using pre-built Docker image...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Using pre-built Docker image..."
 
     if [ -d "/opt/pytmbot" ]; then
-      echo -e "${GREEN}Removing existing bot files from /opt/pytmbot...${NC}" | tee -a "$LOG_FILE"
-      rm -rf /opt/pytmbot || { echo -e "${RED}Failed to remove /opt/pytmbot.${NC}" | tee -a "$LOG_FILE"; exit 1; }
-      echo -e "${GREEN}Old bot files removed successfully!${NC}" | tee -a "$LOG_FILE"
+      log_message "$YELLOW" "Removing old bot files from /opt/pytmbot..."
+      (
+        rm -rf /opt/pytmbot || { log_message "$RED" "Failed to remove old bot files from /opt/pytmbot." | tee -a "$LOG_FILE"; exit 1; }
+      ) & show_spinner $! && log_message "$GREEN" "Done!"
     fi
 
     create_pytmbot_user
 
-    echo -e "${GREEN}Creating bot directory at /opt/pytmbot...${NC}" | tee -a "$LOG_FILE"
-    mkdir -p /opt/pytmbot || { echo -e "${RED}Failed to create directory /opt/pytmbot.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+    log_message "$YELLOW" "Creating bot directory at /opt/pytmbot..."
+    mkdir -p /opt/pytmbot || { log_message "$RED" "Failed to create bot directory at /opt/pytmbot." | tee -a "$LOG_FILE"; exit 1; }
 
     configure_bot
 
-    echo -e "${GREEN}Creating docker-compose.yml file...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Creating docker-compose.yml file..."
     cat << EOF > /opt/pytmbot/docker-compose.yml
 services:
   pytmbot:
-    image: orenlab/pytmbot:v0.2.0-rc2
+    image: orenlab/pytmbot:alpine-dev
     container_name: pytmbot
     restart: always
     environment:
@@ -623,9 +589,9 @@ services:
     command: --plugins monitor
 EOF
 
-    echo -e "${GREEN}docker-compose.yml created successfully.${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "docker-compose.yml file created successfully."
 
-    echo -e "${GREEN}Starting the Docker container...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Starting Docker container..."
     (
       cd /opt/pytmbot || exit 1
       docker compose up -d
@@ -633,35 +599,35 @@ EOF
 
     # shellcheck disable=SC2181
     if [[ $? -eq 0 ]]; then
-      echo -e "${GREEN}Docker container started successfully.${NC}" | tee -a "$LOG_FILE"
+      log_message "$GREEN" "Docker container started successfully."
     else
-      echo -e "${RED}Failed to start Docker container.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Failed to start Docker container."
       exit 1
     fi
 
   elif [[ "$choice" == "2" ]]; then
-    echo -e "${GREEN}Building from source...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Building Docker image from source..."
     clone_repo
 
-    cd /opt/pytmbot || { echo -e "${RED}Failed to enter directory.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+    cd /opt/pytmbot || { log_message "$RED" "Failed to enter directory." | tee -a "$LOG_FILE"; exit 1; }
 
     configure_bot
 
-    echo -e "${GREEN}Starting the Docker container...${NC}" | tee -a "$LOG_FILE"
+    log_message "$GREEN" "Docker image built successfully. Starting Docker container..."
     (
       docker compose up -d
     ) >> "$LOG_FILE" 2>&1
 
     # shellcheck disable=SC2181
     if [[ $? -eq 0 ]]; then
-      echo -e "${GREEN}Docker container started successfully.${NC}" | tee -a "$LOG_FILE"
+      log_message "$GREEN" "Docker container started successfully."
     else
-      echo -e "${RED}Failed to start Docker container.${NC}" | tee -a "$LOG_FILE"
+      log_message "$RED" "Failed to start Docker container."
       exit 1
     fi
 
   else
-    echo -e "${RED}Invalid option. Aborting installation.${NC}" | tee -a "$LOG_FILE"
+    log_message "$RED" "Invalid choice. Aborting installation."
     exit 1
   fi
 }
@@ -669,28 +635,59 @@ EOF
 # Check if script is run as root
 check_root
 
+show_banner "Installation"
+
+echo -e "${YELLOW}Before proceeding with the setup, please gather the following information:${NC}"
+
+echo ""
+echo -e "1. ${GREEN}Telegram Token:${NC} Obtain your Telegram bot token from BotFather when creating your bot."
+echo ""
+echo -e "2. ${GREEN}Allowed Telegram User IDs:${NC} You can enter any valid Telegram user IDs. If you are unsure, enter arbitrary values, and later check the logs of pyTMBot to add the correct IDs to the configuration."
+echo ""
+echo -e "3. ${GREEN}Global Chat ID:${NC} To get your chat ID, send a message to your bot and then visit the following URL in your browser: ${GREEN}https://api.telegram.org/bot<YourBotToken>/getUpdates${NC}. Look for the chat object in the JSON response to find your chat_id."
+echo ""
+echo -e "4. ${GREEN}Docker Socket Path:${NC} The default path is usually ${GREEN}unix:///var/run/docker.sock${NC}. You may need to adjust this if your Docker setup is different."
+echo ""
+echo -e "5. ${GREEN}Webhook Configuration:${NC} If running in webhook mode, provide your domain URL or public IP. If running locally, you will need the path to the SSL certificate and its corresponding private key."
+echo ""
+echo -e "6. ${GREEN}Plugin Information:${NC} For the Monitor plugin, InfluxDB is required (recommended to run in a Docker container). You will need the following details for the connection:"
+echo -e "   - ${GREEN}InfluxDB URL:${NC} Address of your InfluxDB server."
+echo -e "   - ${GREEN}Organization Name:${NC} Your InfluxDB organization name."
+echo -e "   - ${GREEN}Bucket Name:${NC} The name of your InfluxDB bucket."
+echo -e "   - ${GREEN}InfluxDB Token:${NC} Your authorization token for InfluxDB."
+echo ""
+echo -e "${YELLOW}Once you have gathered this information, you can proceed with the installation setup.${NC}"
+echo ""
+read -r -p "Do you want to proceed with the installation? (y/n): " choice
+
+if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+  show_banner "cancelled installation"
+  exit 0
+else
+  echo ""
+  echo -e "${GREEN}Continuing with the installation...${NC}"
+fi
+
 # Choose installation method with descriptions
+echo ""
 echo -e "${GREEN}Choose installation method:${NC}" | tee -a "$LOG_FILE"
+echo ""
 echo "1. Docker installation - Run the bot inside a Docker container for easy management and isolation." | tee -a "$LOG_FILE"
 echo "2. Local installation - Provides more control and flexibility, as it runs directly on the system without process isolation." | tee -a "$LOG_FILE"
 echo "3. Uninstall pyTMBot - Completely remove the bot and its files from your system." | tee -a "$LOG_FILE"
+echo ""
+echo ""
 read -r -p "Enter the number (1, 2 or 3): " choice
 
 case $choice in
   1)
-    echo -e "${GREEN}#############################################################################${NC}" | tee -a "$LOG_FILE"
     install_bot_in_docker  # Docker installation
-    echo -e "${GREEN}#############################################################################${NC}" | tee -a "$LOG_FILE"
     ;;
   2)
-    echo -e "${YELLOW}#############################################################################${NC}" | tee -a "$LOG_FILE"
     install_local  # Local installation
-    echo -e "${YELLOW}#############################################################################${NC}" | tee -a "$LOG_FILE"
     ;;
   3)
-    echo -e "${RED}#############################################################################${NC}" | tee -a "$LOG_FILE"
     uninstall_pytmbot  # Uninstall the bot
-    echo -e "${RED}#############################################################################${NC}" | tee -a "$LOG_FILE"
     ;;
   *)
     echo -e "${RED}Invalid choice. Please choose 1, 2, or 3.${NC}" | tee -a "$LOG_FILE"
