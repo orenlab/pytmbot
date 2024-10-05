@@ -453,10 +453,6 @@ install_local() {
   # Setup virtual environment
   setup_virtualenv
 
-  # Install required container InfluxDB
-  log_message "$YELLOW" "Now we needed check if InfluxDB container exists. If it doesn't exist, we will create it."
-  install_influxdb
-
   # Configure bot settings
   configure_bot
 
@@ -601,9 +597,6 @@ EOF
 
     log_message "$GREEN" "docker-compose.yml file created successfully."
 
-    log_message "$YELLOW" "Now we needed check if InfluxDB container exists. If it doesn't exist, we will create it."
-    install_influxdb
-
     log_message "$GREEN" "Starting Docker container..."
     (
       cd /opt/pytmbot || exit 1
@@ -686,140 +679,6 @@ fi
     log_message "$RED" "Local pyTMBot directory not found."
     exit 1
   fi
-}
-
-
-install_influxdb() {
-  local influxdb_container_name="influxdb"
-  local new_influxdb_container_name="influxdb_pytmbot"
-  local default_username="pytmbot"
-  local default_org="pytmbot_monitor"
-  local default_bucket="pytmbot_monitor"
-
-  show_banner "Installing InfluxDB"
-
-  # Check if InfluxDB container exists
-  if [ "$(docker ps -a -q -f name="$influxdb_container_name")" ]; then
-    log_message "$YELLOW" "An InfluxDB container already exists."
-
-    # Ask user what to do with the existing container
-    echo "What would you like to do?"
-    echo "1) Delete the existing container (WARNING: This will remove all data)"
-    echo "2) Create a new container with name 'influxdb_pytmbot'"
-    echo "3) Use the existing container and exit"
-
-    read -r -p "Enter your choice (1/2/3): " choice
-
-    case $choice in
-      1)
-        show_banner "Deleting the existing InfluxDB container"
-
-        log_message "$RED" "WARNING: You are about to delete the existing InfluxDB container and all its data!"
-        read -r -p "Are you sure? Type 'yes' to confirm: " confirm
-        if [ "$confirm" == "yes" ]; then
-          log_message "$BLUE" "Stopping and removing the existing InfluxDB container..."
-          (
-            docker stop "$influxdb_container_name" >"$LOG_FILE" 2>&1 && \
-            docker rm "$influxdb_container_name" >>"$LOG_FILE" 2>&1 && \
-            docker volume rm influxdb_influxdb_data  >>"$LOG_FILE" 2>&1
-           ) & show_spinner $!
-        else
-          log_message "$YELLOW" "Operation aborted. Exiting..."
-          return
-        fi
-        ;;
-      2)
-        show_banner "Creating a new InfluxDB container"
-        log_message "$BLUE" "Creating a new InfluxDB container with name 'influxdb_pytmbot'..."
-        influxdb_container_name="$new_influxdb_container_name"
-        ;;
-      3)
-        show_banner "Using the existing InfluxDB container"
-        log_message "$GREEN" "Using the existing InfluxDB container. Exiting..."
-        return
-        ;;
-      *)
-        show_banner "Returning..."
-        log_message "$RED" "Invalid choice. Exiting..."
-        return
-        ;;
-    esac
-  fi
-
-  show_banner "Configure InfluxDB"
-
-  # Ask for user input
-  read -r -p "Enter InfluxDB admin username [${default_username}]: " username
-  username=${username:-$default_username}
-
-  read -r -sp "Enter InfluxDB admin password (leave empty to auto-generate): " password
-  if [ -z "$password" ]; then
-    password=$(openssl rand -base64 19)
-    log_message "$BLUE" "Auto-generated password: $password"
-    echo -e "\nAuto-generated password: $password"
-  else
-    log_message "$BLUE" "Using provided password: $password"
-    return
-  fi
-
-  read -r -p "Enter InfluxDB organization name [${default_org}]: " org
-  org=${org:-$default_org}
-
-  read -r -p "Enter InfluxDB bucket name [${default_bucket}]: " bucket
-  bucket=${bucket:-$default_bucket}
-
-  show_banner "Pulling and starting InfluxDB container"
-
-  log_message "$BLUE" "Pulling the latest InfluxDB Docker image..."
-  (docker pull influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
-
-  log_message "$BLUE" "Starting InfluxDB container..."
-  (docker run -d --name "$influxdb_container_name" -p 8086:8086 \
-    -e DOCKER_INFLUXDB_INIT_USERNAME="$username" \
-    -e DOCKER_INFLUXDB_INIT_PASSWORD="$password" \
-    -e DOCKER_INFLUXDB_INIT_ORG="$org" \
-    -e DOCKER_INFLUXDB_INIT_BUCKET="$bucket" \
-    influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
-
-  show_banner "Waiting for InfluxDB to be ready 20 seconds..."
-
-  # Wait for InfluxDB to be ready
-  log_message "$BLUE" "Waiting for InfluxDB to be ready..."
-  sleep 20
-
-  show_banner "Generating InfluxDB admin token"
-
-  # Generate InfluxDB token
-  log_message "$BLUE" "Generating InfluxDB admin token..."
-  # shellcheck disable=SC2155
-  export INFLUXDB_TOKEN=$(docker exec -it "$influxdb_container_name" influx auth create \
-    --org "$org" \
-    --user "$username" \
-    --description "Admin Token" \
-    --write-buckets \
-    --read-buckets | grep "Token" | awk '{print $3}' >"$LOG_FILE" 2>&1)
-
-  # Export InfluxDB token
-  export INFLUXDB_TOKEN=token
-
-  if [ -n "$INFLUXDB_TOKEN" ]; then
-    log_message "$GREEN" "InfluxDB Admin Token generated successfully."
-    log_message "$WHITE" "Admin Token: $INFLUXDB_TOKEN (Make sure to store this securely in your environment!)"
-  else
-    log_message "$RED" "Failed to generate InfluxDB admin token."
-    unset INFLUXDB_TOKEN
-  fi
-
-  show_banner "InfluxDB installed"
-
-  log_message "$GREEN" "InfluxDB has been installed and started successfully."
-  log_message "$WHITE" "Please, write securely the following information (show it only once!!!):"
-  echo ""
-  log_message "$WHITE" "InfluxDB URL: http://127.0.0.1:8086 or http://$influxdb_container_name:8086 or http://server_public_ip:8086"
-  log_message "$WHITE" "Admin Username: $username"
-  log_message "$WHITE" "Organization: $org"
-  log_message "$WHITE" "Bucket: $bucket"
-  log_message "$WHITE" "Password: $password (Make sure to store this securely!)"
 }
 
 # Check if script is run as root
