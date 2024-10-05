@@ -688,10 +688,6 @@ fi
   fi
 }
 
-generate_password() {
-  local password_length=16
-  tr -dc A-Za-z0-9 </dev/urandom | head -c $password_length
-}
 
 install_influxdb() {
   local influxdb_container_name="influxdb"
@@ -758,10 +754,12 @@ install_influxdb() {
 
   read -r -sp "Enter InfluxDB admin password (leave empty to auto-generate): " password
   if [ -z "$password" ]; then
-    password=$(generate_password)
+    password=$(openssl rand -base64 19)
+    log_message "$BLUE" "Auto-generated password: $password"
     echo -e "\nAuto-generated password: $password"
   else
-    echo
+    log_message "$BLUE" "Using provided password: $password"
+    return
   fi
 
   read -r -p "Enter InfluxDB organization name [${default_org}]: " org
@@ -793,12 +791,13 @@ install_influxdb() {
 
   # Generate InfluxDB token
   log_message "$BLUE" "Generating InfluxDB admin token..."
-  token "$(docker exec -it "$influxdb_container_name" influx auth create \
+  # shellcheck disable=SC2155
+  export INFLUXDB_TOKEN=$(docker exec -it "$influxdb_container_name" influx auth create \
     --org "$org" \
     --user "$username" \
     --description "Admin Token" \
     --write-buckets \
-    --read-buckets | grep "Token" | awk '{print $3}' >"$LOG_FILE" 2>&1)"
+    --read-buckets | grep "Token" | awk '{print $3}' >"$LOG_FILE" 2>&1)
 
   # Export InfluxDB token
   export INFLUXDB_TOKEN=token
