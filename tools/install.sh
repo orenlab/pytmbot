@@ -371,11 +371,7 @@ configure_bot() {
   # Prompt for InfluxDB settings
   read -r -p "Enter InfluxDB URL (default: 'http://influxdb:8086'): " influxdb_url
   influxdb_url="${influxdb_url:-http://influxdb:8086}"
-  if [ -z "$INFLUXDB_TOKEN" ]; then
-    read -r -p "Enter InfluxDB token: " influxdb_token
-  else
-    influxdb_token="$INFLUXDB_TOKEN"
-  fi
+  read -r -p "Enter InfluxDB token: " influxdb_token
   read -r -p "Enter InfluxDB organization name (default: 'pytmbot_monitor'): " influxdb_org
   influxdb_org="${influxdb_org:-pytmbot_monitor}"
   read -r -p "Enter InfluxDB bucket name (default: 'pytmbot'): " influxdb_bucket
