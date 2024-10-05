@@ -835,6 +835,26 @@ echo ""
 
 read -r -p "Do you want to proceed with the installation? (y/n): " choice
 
+if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+  show_banner "cancelled installation"
+  exit 0
+else
+  echo ""
+  echo -e "${GREEN}Continuing with the installation...${NC}"
+fi
+
+# Choose installation method with descriptions
+echo ""
+echo -e "${GREEN}Choose installation method:${NC}" | tee -a "$LOG_FILE"
+echo ""
+echo "1. Docker installation - Run the bot inside a Docker container for easy management and isolation." | tee -a "$LOG_FILE"
+echo "2. Local installation - Provides more control and flexibility, as it runs directly on the system without process isolation." | tee -a "$LOG_FILE"
+echo "3. Update local installation - Update the bot to the latest version." | tee -a "$LOG_FILE"
+echo "4. Uninstall local installation pyTMBot - Completely remove the bot and its files from your system." | tee -a "$LOG_FILE"
+echo ""
+echo ""
+read -r -p "Enter the number (1, 2, 3 or 4): " choice
+
 case $choice in
   1)
     install_bot_in_docker  # Docker installation
