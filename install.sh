@@ -639,17 +639,17 @@ update_local_pytmbot() {
   if [ -d "/opt/pytmbot" ]; then
     log_message "$GREEN" "Updating local pyTMBot..."
       cd /opt/pytmbot || { log_message "$RED" "Failed to enter directory." | tee -a "$LOG_FILE"; exit 1;}
-      git pull || { log_message "$RED" "Failed to update pyTMBot. Check your internet connection." | tee -a "$LOG_FILE"; exit 1; }
+      git pull || { log_message "$RED" "Failed to update pyTMBot. Check your internet connection." | tee -a "$LOG_FILE"  2>&1; exit 1; }
 
       # shellcheck disable=SC2181
       if [[ $? -eq 0 ]]; then
         log_message "$GREEN" "pyTMBot updated successfully."
         echo ""
-        log_message "$GREEN" "Please ensure that your version is python.yaml file matches the updated version (compare your current python.yaml with the sample python.yaml)"
+        log_message "$GREEN" "Please ensure that your version is pytmbot.yaml file matches the updated version (compare your current pytmbot.yaml with the sample pytmbot.yaml)"
         echo ""
         log_message "$GREEN" "An up-to-date example of the pytmbot.yaml file is always available on the official repository at: https://github.com/orenlab/pytmbot/blob/master/pytmbot.yaml.sample."
 
-        read -p -r "Try to restart the service $SERVICE_NAME? [y/N] " choice\
+        read -r -p "Try to restart the service $SERVICE_NAME? [y/N] " choice
 
         if [[ ! "$choice" =~ ^[Yy]$ ]]; then
           show_banner "Trying to restart the service $SERVICE_NAME"
