@@ -371,7 +371,11 @@ configure_bot() {
   # Prompt for InfluxDB settings
   read -r -p "Enter InfluxDB URL (default: 'http://influxdb:8086'): " influxdb_url
   influxdb_url="${influxdb_url:-http://influxdb:8086}"
-  read -r -p "Enter InfluxDB token: " influxdb_token
+  if [ -z "$INFLUXDB_TOKEN" ]; then
+    read -r -p "Enter InfluxDB token: " influxdb_token
+  else
+    influxdb_token="$INFLUXDB_TOKEN"
+  fi
   read -r -p "Enter InfluxDB organization name (default: 'pytmbot_monitor'): " influxdb_org
   influxdb_org="${influxdb_org:-pytmbot_monitor}"
   read -r -p "Enter InfluxDB bucket name (default: 'pytmbot'): " influxdb_bucket
@@ -402,6 +406,8 @@ configure_bot() {
   # Append allowed user and admin IDs to the config file
   sed -i "/allowed_user_ids:/r /dev/stdin" "$CONFIG_FILE" <<< "$allowed_user_ids_yaml"
   sed -i "/allowed_admins_ids:/r /dev/stdin" "$CONFIG_FILE" <<< "$allowed_admins_ids_yaml"
+
+  unset INFLUXDB_TOKEN
 
   log_message "$GREEN" "Configuration written to $CONFIG_FILE."
 }
@@ -446,6 +452,10 @@ install_local() {
 
   # Setup virtual environment
   setup_virtualenv
+
+  # Install required container InfluxDB
+  log_message "$YELLOW" "Now we needed check if InfluxDB container exists. If it doesn't exist, we will create it."
+  install_influxdb
 
   # Configure bot settings
   configure_bot
@@ -591,6 +601,9 @@ EOF
 
     log_message "$GREEN" "docker-compose.yml file created successfully."
 
+    log_message "$YELLOW" "Now we needed check if InfluxDB container exists. If it doesn't exist, we will create it."
+    install_influxdb
+
     log_message "$GREEN" "Starting Docker container..."
     (
       cd /opt/pytmbot || exit 1
@@ -675,53 +688,152 @@ fi
   fi
 }
 
+generate_password() {
+  local password_length=16
+  tr -dc A-Za-z0-9 </dev/urandom | head -c $password_length
+}
+
+install_influxdb() {
+  local influxdb_container_name="influxdb"
+  local new_influxdb_container_name="influxdb_pytmbot"
+  local default_username="pytmbot"
+  local default_org="pytmbot_monitor"
+  local default_bucket="pytmbot_monitor"
+
+  # Check if InfluxDB container exists
+  if [ "$(docker ps -a -q -f name="$influxdb_container_name")" ]; then
+    log_message "$YELLOW" "An InfluxDB container already exists."
+
+    # Ask user what to do with the existing container
+    echo "What would you like to do?"
+    echo "1) Delete the existing container (WARNING: This will remove all data)"
+    echo "2) Create a new container with name 'influxdb_pytmbot'"
+    echo "3) Use the existing container and exit"
+
+    read -r -p "Enter your choice (1/2/3): " choice
+
+    case $choice in
+      1)
+        log_message "$RED" "WARNING: You are about to delete the existing InfluxDB container and all its data!"
+        read -r -p "Are you sure? Type 'yes' to confirm: " confirm
+        if [ "$confirm" == "yes" ]; then
+          log_message "$BLUE" "Stopping and removing the existing InfluxDB container..."
+          (docker stop "$influxdb_container_name" >"$LOG_FILE" 2>&1 && docker rm "$influxdb_container_name" >>"$LOG_FILE" 2>&1) & show_spinner $!
+        else
+          log_message "$YELLOW" "Operation aborted. Exiting..."
+          return
+        fi
+        ;;
+      2)
+        log_message "$BLUE" "Creating a new InfluxDB container with name 'influxdb_pytmbot'..."
+        influxdb_container_name="$new_influxdb_container_name"
+        ;;
+      3)
+        log_message "$GREEN" "Using the existing InfluxDB container. Exiting..."
+        return
+        ;;
+      *)
+        log_message "$RED" "Invalid choice. Exiting..."
+        return
+        ;;
+    esac
+  fi
+
+  # Ask for user input
+  read -r -p "Enter InfluxDB admin username [${default_username}]: " username
+  username=${username:-$default_username}
+
+  read -r -sp "Enter InfluxDB admin password (leave empty to auto-generate): " password
+  if [ -z "$password" ]; then
+    password=$(generate_password)
+    echo -e "\nAuto-generated password: $password"
+  else
+    echo
+  fi
+
+  read -r -p "Enter InfluxDB organization name [${default_org}]: " org
+  org=${org:-$default_org}
+
+  read -r -p "Enter InfluxDB bucket name [${default_bucket}]: " bucket
+  bucket=${bucket:-$default_bucket}
+
+  log_message "$BLUE" "Pulling the latest InfluxDB Docker image..."
+  (docker pull influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
+
+  log_message "$BLUE" "Starting InfluxDB container..."
+  (docker run -d --name "$influxdb_container_name" -p 8086:8086 \
+    -e DOCKER_INFLUXDB_INIT_USERNAME="$username" \
+    -e DOCKER_INFLUXDB_INIT_PASSWORD="$password" \
+    -e DOCKER_INFLUXDB_INIT_ORG="$org" \
+    -e DOCKER_INFLUXDB_INIT_BUCKET="$bucket" \
+    influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
+
+  # Wait for InfluxDB to be ready
+  log_message "$BLUE" "Waiting for InfluxDB to be ready..."
+  sleep 10
+
+  # Generate InfluxDB token
+  log_message "$BLUE" "Generating InfluxDB admin token..."
+  token "$(docker exec -it "$influxdb_container_name" influx auth create \
+    --org "$org" \
+    --user "$username" \
+    --description "Admin Token" \
+    --write-buckets \
+    --read-buckets | grep "Token" | awk '{print $3}' >"$LOG_FILE" 2>&1)"
+
+  # Export InfluxDB token
+  export INFLUXDB_TOKEN=token
+
+  if [ -n "$INFLUXDB_TOKEN" ]; then
+    log_message "$GREEN" "InfluxDB Admin Token generated successfully."
+    log_message "$WHITE" "Admin Token: $INFLUXDB_TOKEN (Make sure to store this securely in your environment!)"
+  else
+    log_message "$RED" "Failed to generate InfluxDB admin token."
+    unset INFLUXDB_TOKEN
+  fi
+
+  log_message "$GREEN" "InfluxDB has been installed and started successfully."
+  log_message "$WHITE" "Please, write securely the following information (show it only once!!!):"
+  echo ""
+  log_message "$WHITE" "InfluxDB URL: http://127.0.0.1:8086 or http://$influxdb_container_name:8086 or http://server_public_ip:8086"
+  log_message "$WHITE" "Admin Username: $username"
+  log_message "$WHITE" "Organization: $org"
+  log_message "$WHITE" "Bucket: $bucket"
+  log_message "$WHITE" "Password: $password (Make sure to store this securely!)"
+}
+
 # Check if script is run as root
 check_root
 
 show_banner "Installation"
 
-echo -e "${YELLOW}Before proceeding with the setup, please gather the following information:${NC}"
+log_message "$YELLOW" "Before proceeding with the setup, please gather the following information:"
 
 echo ""
-echo -e "1. ${GREEN}Telegram Token:${NC} Obtain your Telegram bot token from BotFather when creating your bot."
+log_message "$GREEN" "1. Telegram Token: Obtain your Telegram bot token from BotFather when creating your bot."
 echo ""
-echo -e "2. ${GREEN}Allowed Telegram User IDs:${NC} You can enter any valid Telegram user IDs. If you are unsure, enter arbitrary values, and later check the logs of pyTMBot to add the correct IDs to the configuration."
+log_message "$GREEN" "2. Allowed Telegram User IDs: You can enter any valid Telegram user IDs. If you are unsure, enter arbitrary values, and later check the logs of pyTMBot to add the correct IDs to the configuration."
 echo ""
-echo -e "3. ${GREEN}Global Chat ID:${NC} To get your chat ID, send a message to your bot and then visit the following URL in your browser: ${GREEN}https://api.telegram.org/bot<YourBotToken>/getUpdates${NC}. Look for the chat object in the JSON response to find your chat_id."
+log_message "$GREEN" "3. Global Chat ID: To get your chat ID, send a message to your bot and then visit the following URL in your browser:"
+log_message "$GREEN" "   https://api.telegram.org/bot<YourBotToken>/getUpdates"
+log_message "$WHITE" "   Look for the chat object in the JSON response to find your chat_id."
 echo ""
-echo -e "4. ${GREEN}Docker Socket Path:${NC} The default path is usually ${GREEN}unix:///var/run/docker.sock${NC}. You may need to adjust this if your Docker setup is different."
+log_message "$GREEN" "4. Docker Socket Path: The default path is usually unix:///var/run/docker.sock. You may need to adjust this if your Docker setup is different."
 echo ""
-echo -e "5. ${GREEN}Webhook Configuration:${NC} If running in webhook mode, provide your domain URL or public IP. If running locally, you will need the path to the SSL certificate and its corresponding private key."
+log_message "$GREEN" "5. Webhook Configuration: If running in webhook mode, provide your domain URL or public IP."
+log_message "$GREEN" "   If running locally, you will need the path to the SSL certificate and its corresponding private key."
 echo ""
-echo -e "6. ${GREEN}Plugin Information:${NC} For the Monitor plugin, InfluxDB is required (recommended to run in a Docker container). You will need the following details for the connection:"
-echo -e "   - ${GREEN}InfluxDB URL:${NC} Address of your InfluxDB server."
-echo -e "   - ${GREEN}Organization Name:${NC} Your InfluxDB organization name."
-echo -e "   - ${GREEN}Bucket Name:${NC} The name of your InfluxDB bucket."
-echo -e "   - ${GREEN}InfluxDB Token:${NC} Your authorization token for InfluxDB."
+log_message "$GREEN" "6. Plugin Information: For the Monitor plugin, InfluxDB is required (recommended to run in a Docker container)."
+log_message "$GREEN" "   If you already have InfluxDB installed, you will need the following details for the connection:"
+log_message "$GREEN" "   - InfluxDB URL: Address of your InfluxDB server."
+log_message "$GREEN" "   - Organization Name: Your InfluxDB organization name."
+log_message "$GREEN" "   - Bucket Name: The name of your InfluxDB bucket."
+log_message "$GREEN" "   - InfluxDB Token: Your authorization token for InfluxDB."
 echo ""
-echo -e "${YELLOW}Once you have gathered this information, you can proceed with the installation setup.${NC}"
+log_message "$YELLOW" "Once you have gathered this information, you can proceed with the installation setup."
 echo ""
+
 read -r -p "Do you want to proceed with the installation? (y/n): " choice
-
-if [[ ! "$choice" =~ ^[Yy]$ ]]; then
-  show_banner "cancelled installation"
-  exit 0
-else
-  echo ""
-  echo -e "${GREEN}Continuing with the installation...${NC}"
-fi
-
-# Choose installation method with descriptions
-echo ""
-echo -e "${GREEN}Choose installation method:${NC}" | tee -a "$LOG_FILE"
-echo ""
-echo "1. Docker installation - Run the bot inside a Docker container for easy management and isolation." | tee -a "$LOG_FILE"
-echo "2. Local installation - Provides more control and flexibility, as it runs directly on the system without process isolation." | tee -a "$LOG_FILE"
-echo "3. Update local installation - Update the bot to the latest version." | tee -a "$LOG_FILE"
-echo "4. Uninstall local installation pyTMBot - Completely remove the bot and its files from your system." | tee -a "$LOG_FILE"
-echo ""
-echo ""
-read -r -p "Enter the number (1, 2, 3 or 4): " choice
 
 case $choice in
   1)
