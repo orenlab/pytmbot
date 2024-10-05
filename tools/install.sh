@@ -700,6 +700,8 @@ install_influxdb() {
   local default_org="pytmbot_monitor"
   local default_bucket="pytmbot_monitor"
 
+  show_banner "Installing InfluxDB"
+
   # Check if InfluxDB container exists
   if [ "$(docker ps -a -q -f name="$influxdb_container_name")" ]; then
     log_message "$YELLOW" "An InfluxDB container already exists."
@@ -714,30 +716,41 @@ install_influxdb() {
 
     case $choice in
       1)
+        show_banner "Deleting the existing InfluxDB container"
+
         log_message "$RED" "WARNING: You are about to delete the existing InfluxDB container and all its data!"
         read -r -p "Are you sure? Type 'yes' to confirm: " confirm
         if [ "$confirm" == "yes" ]; then
           log_message "$BLUE" "Stopping and removing the existing InfluxDB container..."
-          (docker stop "$influxdb_container_name" >"$LOG_FILE" 2>&1 && docker rm "$influxdb_container_name" >>"$LOG_FILE" 2>&1) & show_spinner $!
+          (
+            docker stop "$influxdb_container_name" >"$LOG_FILE" 2>&1 && \
+            docker rm "$influxdb_container_name" >>"$LOG_FILE" 2>&1 && \
+            docker volume rm influxdb_influxdb_data  >>"$LOG_FILE" 2>&1
+           ) & show_spinner $!
         else
           log_message "$YELLOW" "Operation aborted. Exiting..."
           return
         fi
         ;;
       2)
+        show_banner "Creating a new InfluxDB container"
         log_message "$BLUE" "Creating a new InfluxDB container with name 'influxdb_pytmbot'..."
         influxdb_container_name="$new_influxdb_container_name"
         ;;
       3)
+        show_banner "Using the existing InfluxDB container"
         log_message "$GREEN" "Using the existing InfluxDB container. Exiting..."
         return
         ;;
       *)
+        show_banner "Returning..."
         log_message "$RED" "Invalid choice. Exiting..."
         return
         ;;
     esac
   fi
+
+  show_banner "Configure InfluxDB"
 
   # Ask for user input
   read -r -p "Enter InfluxDB admin username [${default_username}]: " username
@@ -757,6 +770,8 @@ install_influxdb() {
   read -r -p "Enter InfluxDB bucket name [${default_bucket}]: " bucket
   bucket=${bucket:-$default_bucket}
 
+  show_banner "Pulling and starting InfluxDB container"
+
   log_message "$BLUE" "Pulling the latest InfluxDB Docker image..."
   (docker pull influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
 
@@ -768,9 +783,13 @@ install_influxdb() {
     -e DOCKER_INFLUXDB_INIT_BUCKET="$bucket" \
     influxdb:latest >"$LOG_FILE" 2>&1) & show_spinner $!
 
+  show_banner "Waiting for InfluxDB to be ready 20 seconds..."
+
   # Wait for InfluxDB to be ready
   log_message "$BLUE" "Waiting for InfluxDB to be ready..."
-  sleep 10
+  sleep 20
+
+  show_banner "Generating InfluxDB admin token"
 
   # Generate InfluxDB token
   log_message "$BLUE" "Generating InfluxDB admin token..."
@@ -791,6 +810,8 @@ install_influxdb() {
     log_message "$RED" "Failed to generate InfluxDB admin token."
     unset INFLUXDB_TOKEN
   fi
+
+  show_banner "InfluxDB installed"
 
   log_message "$GREEN" "InfluxDB has been installed and started successfully."
   log_message "$WHITE" "Please, write securely the following information (show it only once!!!):"
