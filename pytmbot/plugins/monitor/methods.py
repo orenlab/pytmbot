@@ -234,13 +234,7 @@ class SystemMonitorPlugin(PluginCore):
         os_info = platform.uname()
         return {
             "system": "docker" if self.is_docker else "bare-metal",
-            "hostname": os_info.node,
-            "os_type": os_info.system,
-            "os_version": os_info.version,
-            "os_release": os_info.release,
-            "architecture": os_info.machine,
-            "processor": os_info.processor,
-            "sensors_available": str(self.sensors_available),  # Ensure it's a string for tags
+            "hostname": os_info.node
         }
 
     def _record_metrics(self, fields: dict) -> None:
