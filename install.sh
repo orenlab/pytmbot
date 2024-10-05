@@ -639,7 +639,11 @@ update_local_pytmbot() {
   if [ -d "/opt/pytmbot" ]; then
     log_message "$GREEN" "Updating local pyTMBot..."
       cd /opt/pytmbot || { log_message "$RED" "Failed to enter directory." | tee -a "$LOG_FILE"; exit 1;}
-      git pull || { log_message "$RED" "Failed to update pyTMBot. Check your internet connection." | tee -a "$LOG_FILE"  2>&1; exit 1; }
+
+      log_message "$GREEN" "Downloading latest pyTMBot..."
+      (
+        git pull > "$LOG_FILE" 2>&1 || { log_message "$RED" "Failed to update pyTMBot. Check your internet connection." | tee -a "$LOG_FILE"; exit 1; }
+      ) & show_spinner $! && log_message "$GREEN" "Done!"
 
       # shellcheck disable=SC2181
       if [[ $? -eq 0 ]]; then
@@ -651,7 +655,7 @@ update_local_pytmbot() {
 
         read -r -p "Try to restart the service $SERVICE_NAME? [y/N] " choice
 
-        if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
           show_banner "Trying to restart the service $SERVICE_NAME"
           systemctl restart "$SERVICE_NAME"
           exit 0
