@@ -20,7 +20,7 @@ Running the Script
 To get the latest version of the script and run it:
 
 ```bash
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/install.sh)"
 ```
 
 ### Installation Options
@@ -28,12 +28,20 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads
 When running the script, you will be prompted to choose one of the following options:
 
 1. Docker installation: Runs pyTMbot inside a Docker container for easy management and isolation.
-   • This option manages pyTMbot within a Docker environment, reducing dependency conflicts and offering process
-   isolation.
+
+- This option manages pyTMbot within a Docker environment, reducing dependency conflicts and offering process
+  isolation.
+
 2. Local installation: Installs pyTMbot directly on your system.
-   • The script installs `Python 3.12` (if necessary), sets up a virtual environment, and installs all required
-   dependencies.
-3. Uninstall pyTMbot: Completely removes the bot and its files from your system.
+
+- The script installs `Python 3.12` (if necessary), sets up a virtual environment, and installs all required
+  dependencies.
+
+3. Update local installation: Updates pyTMbot to the latest version.
+
+- The script updates `pyTMbot` from source from GitHub officially maintained repository.
+
+4. Uninstall pyTMbot: Completely removes the bot and its files from your system.
    • Deletes all files related to pyTMbot and cleans up the environment.
 
 ### Logs
