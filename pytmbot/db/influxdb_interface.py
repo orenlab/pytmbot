@@ -40,8 +40,7 @@ class InfluxDBInterface:
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
         self.debug_mode = settings.influxdb.debug_mode
-        if self.debug_mode:
-            self.bot_logger.debug(f"InfluxDB client initialized with URL: {self.url}")
+        self.bot_logger.info(f"InfluxDB client initialized with URL: {self.url}")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:

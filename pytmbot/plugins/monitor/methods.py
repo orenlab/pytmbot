@@ -250,8 +250,8 @@ class SystemMonitorPlugin(PluginCore):
         metadata = self._get_platform_metadata()
 
         # Write metrics and metadata to InfluxDB
-        with self.influxdb_client:
-            self.influxdb_client.write_data("system_metrics", fields, metadata)
+        with self.influxdb_client as client:
+            client.write_data("system_metrics", fields, metadata)
 
     def _track_event_duration(self, event_name: str, event_occurred: bool) -> Optional[float]:
         """
