@@ -20,7 +20,7 @@ Running the Script
 To get the latest version of the script and run it:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
 ```
 
 ### Installation Options
