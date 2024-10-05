@@ -632,6 +632,45 @@ EOF
   fi
 }
 
+update_local_pytmbot() {
+
+  show_banner "Updating local pyTMBot"
+
+  if [ -d "/opt/pytmbot" ]; then
+    log_message "$GREEN" "Updating local pyTMBot..."
+      cd /opt/pytmbot || { log_message "$RED" "Failed to enter directory." | tee -a "$LOG_FILE"; exit 1;}
+      git pull || { log_message "$RED" "Failed to update pyTMBot. Check your internet connection." | tee -a "$LOG_FILE"; exit 1; }
+
+      # shellcheck disable=SC2181
+      if [[ $? -eq 0 ]]; then
+        log_message "$GREEN" "pyTMBot updated successfully."
+        echo ""
+        log_message "$GREEN" "Please ensure that your version is python.yaml file matches the updated version (compare your current python.yaml with the sample python.yaml)"
+        echo ""
+        log_message "$GREEN" "An up-to-date example of the pytmbot.yaml file is always available on the official repository at: https://github.com/orenlab/pytmbot/blob/master/pytmbot.yaml.sample."
+
+        read -p -r "Try to restart the service $SERVICE_NAME? [y/N] " choice\
+
+        if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+          show_banner "Trying to restart the service $SERVICE_NAME"
+          systemctl restart "$SERVICE_NAME"
+          exit 0
+        else
+          echo ""
+          echo -e "${GREEN}Ok, you need to restart the service manually, use command: systemctl restart $SERVICE_NAME${NC}"
+fi
+
+        systemctl restart "$SERVICE_NAME"
+      else
+        log_message "$RED" "Failed to update pyTMBot."
+        exit 1
+      fi
+  else
+    log_message "$RED" "Local pyTMBot directory not found."
+    exit 1
+  fi
+}
+
 # Check if script is run as root
 check_root
 
@@ -674,10 +713,11 @@ echo -e "${GREEN}Choose installation method:${NC}" | tee -a "$LOG_FILE"
 echo ""
 echo "1. Docker installation - Run the bot inside a Docker container for easy management and isolation." | tee -a "$LOG_FILE"
 echo "2. Local installation - Provides more control and flexibility, as it runs directly on the system without process isolation." | tee -a "$LOG_FILE"
-echo "3. Uninstall pyTMBot - Completely remove the bot and its files from your system." | tee -a "$LOG_FILE"
+echo "3. Update local installation - Update the bot to the latest version." | tee -a "$LOG_FILE"
+echo "4. Uninstall local installation pyTMBot - Completely remove the bot and its files from your system." | tee -a "$LOG_FILE"
 echo ""
 echo ""
-read -r -p "Enter the number (1, 2 or 3): " choice
+read -r -p "Enter the number (1, 2, 3 or 4): " choice
 
 case $choice in
   1)
@@ -687,6 +727,9 @@ case $choice in
     install_local  # Local installation
     ;;
   3)
+    update_local_pytmbot  # Update the bot
+    ;;
+  4)
     uninstall_pytmbot  # Uninstall the bot
     ;;
   *)
