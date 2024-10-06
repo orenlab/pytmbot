@@ -92,6 +92,11 @@ class SystemMonitorPlugin(PluginCore):
         # Check if sensors are available
         self.sensors_available = True
 
+        self.last_disk_usage = {}
+        self.last_poll_time = 0
+        self.poll_interval = 10 * 60
+        self.return_cached_disk_usage = False
+
     def start_monitoring(self) -> None:
         """
         Starts the system monitoring process in a separate thread.
@@ -474,16 +479,26 @@ class SystemMonitorPlugin(PluginCore):
 
     def _get_disk_usage(self) -> dict:
         """Returns the current disk usage for all physical partitions, excluding certain keywords."""
-        disk_usage = {}
-        try:
-            partitions = psutil.disk_partitions(all=False)
-            for partition in partitions:
-                if not self._is_partition_excluded(partition.device):
-                    disk_usage[partition.device] = psutil.disk_usage(partition.mountpoint).percent
-        except psutil.Error as e:
-            self.bot_logger.error(f"Failed to retrieve disk partitions: {e}")
+        current_time = time.time()
 
-        return disk_usage
+        if current_time - self.last_poll_time >= self.poll_interval:
+            disk_usage = {}
+            try:
+                partitions = psutil.disk_partitions(all=False)
+                for partition in partitions:
+                    if not self._is_partition_excluded(partition.device):
+                        disk_usage[partition.device] = psutil.disk_usage(partition.mountpoint).percent
+                self.last_disk_usage = disk_usage
+                self.last_poll_time = current_time
+                self.return_cached_disk_usage = True
+            except psutil.Error as e:
+                self.bot_logger.error(f"Failed to retrieve disk partitions: {e}")
+        else:
+            if self.return_cached_disk_usage:
+                self.bot_logger.debug("Returning cached disk usage data.")
+                self.return_cached_disk_usage = False
+
+        return self.last_disk_usage
 
     def _get_fan_speeds(self) -> dict[str, dict[str, int]]:
         """
