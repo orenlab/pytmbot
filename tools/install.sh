@@ -583,6 +583,9 @@ services:
       - "/opt/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro"
     security_opt:
       - no-new-privileges
+    read_only: true
+    cap_drop:
+      - ALL
     logging:
       options:
         max-size: "10m"

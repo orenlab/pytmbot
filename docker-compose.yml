@@ -26,5 +26,10 @@ services:
     # Webhook Mode
     ports:
       - "127.0.0.1:5001:5001"  # Expose Webhook port only on localhost to prevent external access
+    # Logging
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Run command
     command: --plugins monitor,outline --log-level DEBUG --socket_host 172.18.0.3 --webhook  # Bot start parameters: webhook mode, logging, and plugins
