@@ -1,22 +1,30 @@
 services:
+
   pytmbot:
-    container_name: "pytmbot"
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: self_build
-    restart: always
-    pid: 'host'
-    image: orenlab/pytmbot:self-build
+    # Lightweight Alpine-based image with dev environment for pyTMbot
+    image: orenlab/pytmbot:alpine-dev
+    container_name: pytmbot
+    # Restart the container only on failure for reliability
+    restart: on-failure
+    # Set timezone for proper timestamp handling
+    environment:
+      - TZ=Asia/Yekaterinburg
+    volumes:
+      # Read-only access to Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read-only bot configuration file to prevent modifications
+      - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+    # Prevent the process in the container from gaining additional privileges
     security_opt:
       - no-new-privileges
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /opt/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
-    command:
-      - --log_level INFO
-      - --plugins monitor
+    # Make the container's filesystem read-only to reduce risks of modification or attack
+    read_only: true
+    # Drop all capabilities to minimize potential attacks
+    cap_drop:
+      - ALL
+    pid: host  # Use the host's PID namespace for monitoring processes (use with caution)
+    # Webhook Mode
+    ports:
+      - "127.0.0.1:5001:5001"  # Expose Webhook port only on localhost to prevent external access
+    # Run command
+    command: --plugins monitor,outline --log-level DEBUG --socket_host 172.18.0.3 --webhook  # Bot start parameters: webhook mode, logging, and plugins
