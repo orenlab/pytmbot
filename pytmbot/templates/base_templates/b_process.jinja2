@@ -1,7 +1,7 @@
 {{ thought_balloon }} Here is:{% if context %}
     {# Output data in key: value format #}
-    {% for key, value in context.items() %}{{ horizontal_traffic_light }}
-        {{ key }}: {{ value }}
+    {% for key, value in context.items() %}
+        {{ horizontal_traffic_light }} {{ key }}: {{ value }}
     {% endfor %}
 {% else %}{{ warning }} No process data available at the moment.{% endif %}
 
