@@ -41,6 +41,7 @@ class SystemMonitorPlugin(PluginCore):
                                              before sending a notification. Defaults to 60 seconds.
         """
         super().__init__()
+        self._init_mode = True
         self.bot = bot
         self.config = config
         self._monitoring = False
@@ -604,15 +605,22 @@ class SystemMonitorPlugin(PluginCore):
             for image in fetch_image_details()
         }
 
-        # Check for new containers
-        for container_id, container in new_container_hashes.items():
-            if container_id not in self._previous_container_hashes:
-                self._send_detailed_container_notification(container)
+        if self._init_mode:
+            self._init_mode = False
+            self.bot_logger.info(
+                f"Init Docker containers and images monitoring with {len(new_container_hashes)} containers and {len(new_image_hashes)} images.")
+            self.bot_logger.debug(f"Known containers: {new_container_hashes}")
+            self.bot_logger.debug(f"Known images: {new_image_hashes}")
+        else:
+            # Detect new containers
+            new_container_ids = new_container_hashes.keys() - self._previous_container_hashes.keys()
+            for container_id in new_container_ids:
+                self._send_detailed_container_notification(new_container_hashes[container_id])
 
-        # Check for new images
-        for image_id, image in new_image_hashes.items():
-            if image_id not in self._previous_image_hashes:
-                self._send_detailed_image_notification(image)
+            # Detect new images
+            new_image_ids = new_image_hashes.keys() - self._previous_image_hashes.keys()
+            for image_id in new_image_ids:
+                self._send_detailed_image_notification(new_image_hashes[image_id])
 
         # Update previous hashes and counts
         self._previous_container_hashes = new_container_hashes
