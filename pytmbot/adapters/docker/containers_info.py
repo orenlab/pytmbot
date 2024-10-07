@@ -91,6 +91,7 @@ def __aggregate_container_details(container_id: str) -> dict:
         )
 
         container_context = {
+            "id": container_id,
             "name": attrs["Name"].strip("/").title(),
             "image": attrs.get("Config", {}).get("Image", "N/A"),
             "created": f"{created_day}, {created_time}",
