@@ -602,7 +602,7 @@ class SystemMonitorPlugin(PluginCore):
 
         new_image_hashes = {
             image['id']: image
-            for image in fetch_image_details()
+            for image in new_images
         }
 
         if self._init_mode:
