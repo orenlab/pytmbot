@@ -226,6 +226,9 @@ class SystemMonitorPlugin(PluginCore):
                     current_time = time.time()
                     if current_time - self.docker_counters_last_updated > self.docker_counters_update_interval:
                         self._detect_docker_changes()
+                        self.docker_counters_last_updated = current_time
+                        self.bot_logger.debug(
+                            f"Updated Docker counters: {self._previous_counts}")
 
                 fields.update(
                     **{
