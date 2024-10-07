@@ -15,7 +15,8 @@ from typing import Optional
 import psutil
 from telebot import TeleBot
 
-from pytmbot.adapters.docker.containers_info import fetch_docker_counters
+from pytmbot.adapters.docker.containers_info import fetch_docker_counters, retrieve_containers_stats
+from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.db.influxdb_interface import InfluxDBInterface
 from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.plugins.plugins_core import PluginCore
@@ -79,9 +80,16 @@ class SystemMonitorPlugin(PluginCore):
         self.is_docker = is_running_in_docker()
 
         # Store Docker counters
-        self.docker_counters = {}
         self.docker_counters_last_updated = 0
         self.docker_counters_update_interval = 5 * 60
+
+        # Store previous container and image hashes
+        self._previous_container_hashes = {}
+        self._previous_image_hashes = {}
+        self._previous_counts = {
+            'containers_count': 0,
+            'images_count': 0
+        }
 
         # Initialize state tracking for event durations
         self.event_start_times = {}
@@ -217,19 +225,14 @@ class SystemMonitorPlugin(PluginCore):
                 if self.monitor_docker:
                     current_time = time.time()
                     if current_time - self.docker_counters_last_updated > self.docker_counters_update_interval:
-                        old_counters = self.docker_counters if self.docker_counters else self._get_docker_counters()
-                        self.docker_counters = self._get_docker_counters()
-                        self._send_docker_change_notification(old_counters, self.docker_counters)
-                        self.docker_counters_last_updated = current_time
-                        self.bot_logger.debug(
-                            f"Updated Docker counters: {self.docker_counters}. Old counters: {old_counters}")
+                        self._detect_docker_changes()
 
-                    fields.update(
-                        **{
-                            f"docker_{key}": value
-                            for key, value in self.docker_counters.items()
-                        }
-                    )
+                fields.update(
+                    **{
+                        f"docker_{key}": value
+                        for key, value in self._previous_counts.items()
+                    }
+                )
 
                 self._record_metrics(fields)
 
@@ -531,28 +534,36 @@ class SystemMonitorPlugin(PluginCore):
             self.bot_logger.error(f"Error retrieving docker counters: {e}")
             return {}
 
-    def _send_docker_change_notification(self, old_counts: dict, new_counts: dict) -> None:
+    def _send_detailed_container_notification(self, container_context):
         """
-        Sends a notification if the number of Docker containers or images has changed.
+        Sends a detailed notification about a new container.
         """
-        container_change = new_counts["containers_count"] - old_counts["containers_count"]
-        image_change = new_counts["images_count"] - old_counts["images_count"]
+        message = (
+            f"🚨 *Potential Security Incident: New Docker Container* 🚨\n"
+            f"📦 *Name:* {container_context['name']}\n"
+            f"🖼️ *Image:* {container_context['image']}\n"
+            f"🕒 *Created:* {container_context['created']}\n"
+            f"🚀 *Running Since:* {container_context['run_at']}\n"
+            f"📊 *Status:* {container_context['status']}\n"
+            "Please review this new container."
+        )
+        self._send_notification(message)
 
-        if container_change > 0:
-            message = (
-                f"🐳 *New Docker containers detected!* 🐳\n"
-                f"📦 *{container_change}* new container(s) running.\n"
-                f"📊 Current containers: {new_counts['containers_count']}"
-            )
-            self._send_notification(message)
-
-        if image_change > 0:
-            message = (
-                f"🖼️ *New Docker images detected!* 🖼️\n"
-                f"🖼️ *{image_change}* new image(s) available.\n"
-                f"📊 Current images: {new_counts['images_count']}"
-            )
-            self._send_notification(message)
+    def _send_detailed_image_notification(self, image_context):
+        """
+        Sends a detailed notification about a new Docker image.
+        """
+        message = (
+            f"🚨 *Potential Security Incident: New Docker Image* 🚨\n"
+            f"🖼️ *ID:* {image_context['id']}\n"
+            f"🏷️ *Tags:* {', '.join(image_context['tags'])}\n"
+            f"🔧 *Architecture:* {image_context['architecture']}\n"
+            f"💻 *OS:* {image_context['os']}\n"
+            f"📦 *Size:* {image_context['size']}\n"
+            f"🕒 *Created:* {image_context['created']}\n"
+            "Please review this new image."
+        )
+        self._send_notification(message)
 
     def _reset_notification_count(self) -> None:
         """
@@ -561,3 +572,46 @@ class SystemMonitorPlugin(PluginCore):
         self.notification_count = 0
         self.max_notifications_reached = False
         self.bot_logger.info("Notification count has been reset.")
+
+    def _get_docker_status(self):
+        """
+        Get the current Docker status.
+        """
+        new_counts = self._get_docker_counters()
+        new_containers = retrieve_containers_stats()
+        new_images = fetch_image_details()
+
+        return new_counts, new_containers, new_images
+
+    def _detect_docker_changes(self):
+        """
+        Detects changes in running Docker containers and images, and sends notifications if new ones are found.
+        Uses unique identifiers (hashes) for efficient tracking.
+        """
+        new_counts, new_containers, new_images = self._get_docker_status()
+
+        # Create hashes for the new containers and images
+        new_container_hashes = {
+            container['id']: container
+            for container in new_containers
+        }
+
+        new_image_hashes = {
+            image['id']: image
+            for image in fetch_image_details()
+        }
+
+        # Check for new containers
+        for container_id, container in new_container_hashes.items():
+            if container_id not in self._previous_container_hashes:
+                self._send_detailed_container_notification(container)
+
+        # Check for new images
+        for image_id, image in new_image_hashes.items():
+            if image_id not in self._previous_image_hashes:
+                self._send_detailed_image_notification(image)
+
+        # Update previous hashes and counts
+        self._previous_container_hashes = new_container_hashes
+        self._previous_image_hashes = new_image_hashes
+        self._previous_counts = new_counts
