@@ -221,13 +221,15 @@ class SystemMonitorPlugin(PluginCore):
                         self.docker_counters = self._get_docker_counters()
                         self._send_docker_change_notification(old_counters, self.docker_counters)
                         self.docker_counters_last_updated = current_time
+                        self.bot_logger.debug(
+                            f"Updated Docker counters: {self.docker_counters}. Old counters: {old_counters}")
 
-                fields.update(
-                    **{
-                        f"docker_{key}": value
-                        for key, value in self.docker_counters.items()
-                    }
-                )
+                    fields.update(
+                        **{
+                            f"docker_{key}": value
+                            for key, value in self.docker_counters.items()
+                        }
+                    )
 
                 self._record_metrics(fields)
 
