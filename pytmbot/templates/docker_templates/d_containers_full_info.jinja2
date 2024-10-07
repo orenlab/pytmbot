@@ -36,7 +36,8 @@
 
 ### {{ safety_pin }} *Env variables*:
 ```bash
-{% if container_attrs['env'] %}{% for value in container_attrs['env'] %}
+{% if container_attrs['env'] %}
+    {% for value in container_attrs['env'] %}
     - {{ value }}
 {% endfor %}
 {% else %}
@@ -47,9 +48,7 @@ No environment variables found.
 ### {{ sandwich }} *Launch arguments*:
 {{ minus }} Run command:
 ```bash
-{% if container_attrs['command'] %}{% for value in container_attrs['command'] %}
-{{ value }}
-{% endfor %}
+{% if container_attrs['command'] %}{% for value in container_attrs['command'] %}{{ value }} {% endfor %}
 {% else %}
 No run command available.
 {% endif %}
@@ -57,9 +56,7 @@ No run command available.
 
 ### {{ sandwich }} *Run args*:
 ```bash
-{% if container_attrs['args'] %}{% for value in container_attrs['args'] %}
-{{ value }}
-{% endfor %}
+{% if container_attrs['args'] %}{% for value in container_attrs['args'] %}{{ value }} {% endfor %}
 {% else %}
 No run arguments found.
 {% endif %}
