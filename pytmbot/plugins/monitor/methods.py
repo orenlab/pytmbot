@@ -533,14 +533,14 @@ class SystemMonitorPlugin(PluginCore):
         """
         Sends a notification if the number of Docker containers or images has changed.
         """
-        container_change = new_counts["containers"] - old_counts["containers"]
-        image_change = new_counts["images"] - old_counts["images"]
+        container_change = new_counts["containers_count"] - old_counts["containers_count"]
+        image_change = new_counts["images_count"] - old_counts["images_count"]
 
         if container_change > 0:
             message = (
                 f"🐳 *New Docker containers detected!* 🐳\n"
                 f"📦 *{container_change}* new container(s) running.\n"
-                f"📊 Current containers: {new_counts['containers']}"
+                f"📊 Current containers: {new_counts['containers_count']}"
             )
             self._send_notification(message)
 
@@ -548,7 +548,7 @@ class SystemMonitorPlugin(PluginCore):
             message = (
                 f"🖼️ *New Docker images detected!* 🖼️\n"
                 f"🖼️ *{image_change}* new image(s) available.\n"
-                f"📊 Current images: {new_counts['images']}"
+                f"📊 Current images: {new_counts['images_count']}"
             )
             self._send_notification(message)
 
