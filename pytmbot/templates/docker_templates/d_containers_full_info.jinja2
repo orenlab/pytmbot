@@ -1,55 +1,68 @@
+
 {# templates/containers.jinja2 #}
 
-{{ thought_balloon }}Here is:
+{{ thought_balloon }} Here is:
 
-Container name: {{ basket }} *{{ container_name }}* {{ backhand_index_pointing_down }}
+**Container name**: {{ basket }} *{{ container_name }}* {{ backhand_index_pointing_down }}
 
-{{ flag_in_hole }} *CPU*:
-{{ minus }} periods: {{ container_cpu_stats['periods'] }}
-{{ minus }} throttled periods: {{ container_cpu_stats['throttled_periods'] }}
-{{ minus }} throttled data: {{ container_cpu_stats['throttling_data'] }}
+### {{ flag_in_hole }} *CPU*:
+{{ minus }} Periods: {{ container_cpu_stats['periods'] | default('N/A') }}
+{{ minus }} Throttled periods: {{ container_cpu_stats['throttled_periods'] | default('N/A') }}
+{{ minus }} Throttling data: {{ container_cpu_stats['throttling_data'] | default('N/A') }}
 
-{{ railway_car }} *Memory*:
-{{ minus }} usage: {{ container_memory_stats['mem_usage'] }} or {{ container_memory_stats['mem_percent'] }}%
-{{ minus }} limit: {{ container_memory_stats['mem_limit'] }}
+### {{ railway_car }} *Memory*:
+{{ minus }} Usage: {{ container_memory_stats['mem_usage'] | default('N/A') }} or {{ container_memory_stats['mem_percent'] | default('N/A') }}%
+{{ minus }} Limit: {{ container_memory_stats['mem_limit'] | default('N/A') }}
 
-{{ radio }} *Networks*:
-{{ minus }} rx bytes: {{ container_network_stats['rx_bytes'] }}
-{{ minus }} tx bytes: {{ container_network_stats['tx_bytes'] }}
-{{ minus }} rx dropped: {{ container_network_stats['rx_dropped'] }}
-{{ minus }} tx dropped: {{ container_network_stats['tx_dropped'] }}
-{{ minus }} rx errors: {{ container_network_stats['rx_errors'] }}
-{{ minus }} tx errors: {{ container_network_stats['tx_errors'] }}
+### {{ radio }} *Networks*:
+{{ minus }} RX bytes: {{ container_network_stats['rx_bytes'] | default('N/A') }}
+{{ minus }} TX bytes: {{ container_network_stats['tx_bytes'] | default('N/A') }}
+{{ minus }} RX dropped: {{ container_network_stats['rx_dropped'] | default('N/A') }}
+{{ minus }} TX dropped: {{ container_network_stats['tx_dropped'] | default('N/A') }}
+{{ minus }} RX errors: {{ container_network_stats['rx_errors'] | default('N/A') }}
+{{ minus }} TX errors: {{ container_network_stats['tx_errors'] | default('N/A') }}
 
-*{{ container_name }}* attributes {{ backhand_index_pointing_down }}:
+**{{ container_name }}** attributes {{ backhand_index_pointing_down }}:
 
-{{ puzzle_piece }} *State*:
-{{ minus }} running: {{ container_attrs['running'] }}
-{{ minus }} paused: {{ container_attrs['paused'] }}
-{{ minus }} restarting: {{ container_attrs['restarting'] }}
-{{ minus }} restarting count: {{ container_attrs['restarting_count'] }}
-{{ minus }} dead: {{ container_attrs['dead'] }}
+### {{ puzzle_piece }} *State*:
+{{ minus }} Running: {{ container_attrs['running'] | default('N/A') }}
+{{ minus }} Paused: {{ container_attrs['paused'] | default('N/A') }}
+{{ minus }} Restarting: {{ container_attrs['restarting'] | default('N/A') }}
+{{ minus }} Restarting count: {{ container_attrs['restarting_count'] | default('N/A') }}
+{{ minus }} Dead: {{ container_attrs['dead'] | default('N/A') }}
 
-{{ radioactive }} *Exits*:
-{{ minus }} exit code: {{ container_attrs['exit_code'] }}
+### {{ radioactive }} *Exits*:
+{{ minus }} Exit code: {{ container_attrs['exit_code'] | default('N/A') }}
 
-{{ safety_pin }} *Env variable*:
+### {{ safety_pin }} *Env variables*:
 ```bash
-{% for value in container_attrs['env'] %}
+{% if container_attrs['env'] %}{% for value in container_attrs['env'] %}
     - {{ value }}
 {% endfor %}
+{% else %}
+No environment variables found.
+{% endif %}
 ```
 
-{{ sandwich }} *Launch arguments*:
+### {{ sandwich }} *Launch arguments*:
 {{ minus }} Run command:
 ```bash
-{% for value in container_attrs['command'] %}{{ value }} {% endfor %}
+{% if container_attrs['command'] %}{% for value in container_attrs['command'] %}
+{{ value }}
+{% endfor %}
+{% else %}
+No run command available.
+{% endif %}
 ```
 
-{{ sandwich }} *Run args*:
+### {{ sandwich }} *Run args*:
 ```bash
-{% for value in container_attrs['args'] %}{{ value }} {% endfor %}
+{% if container_attrs['args'] %}{% for value in container_attrs['args'] %}
+{{ value }}
+{% endfor %}
+{% else %}
+No run arguments found.
+{% endif %}
 ```
 
-It seems to be everything...) {{ banjo }}{{ banjo }}{{ banjo }}
-
+It seems to be everything... {{ banjo }} {{ banjo }} {{ banjo }}
