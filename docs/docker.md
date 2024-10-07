@@ -17,21 +17,39 @@ versatile Telegram bot for managing Docker containers and monitoring server stat
 
 1. **Create a `docker-compose.yml` File:**
 
-   ```yaml
-   services:
-     pytmbot:
-       image: orenlab/pytmbot:0.2.0
-       container_name: pytmbot
-       restart: always
-       environment:
-         - TZ=Asia/Yekaterinburg
-       volumes:
-         - /var/run/docker.sock:/var/run/docker.sock:ro
-         - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
-       security_opt:
-         - no-new-privileges
-       pid: host
-       command: --plugins monitor
+```yaml
+services:
+
+  pytmbot:
+    # Lightweight Alpine-based image with dev environment for pyTMbot
+    image: orenlab/pytmbot:0.2.0
+    container_name: pytmbot
+    # Restart the container only on failure for reliability
+    restart: on-failure
+    # Set timezone for proper timestamp handling
+    environment:
+      - TZ=Asia/Yekaterinburg
+    volumes:
+      # Read-only access to Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read-only bot configuration file to prevent modifications
+      - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+    # Prevent the process in the container from gaining additional privileges
+    security_opt:
+      - no-new-privileges
+    # Make the container's filesystem read-only to reduce risks of modification or attack
+    read_only: true
+    # Drop all capabilities to minimize potential attacks
+    cap_drop:
+      - ALL
+    pid: host  # Use the host's PID namespace for monitoring processes (use with caution)
+    # Logging
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Run command
+    command: --plugins monitor  # Bot start parameters
    ```
 
 2. **Start the Container:**
@@ -70,82 +88,132 @@ nano pytmbot.yaml
 Here’s a sample configuration:
 
 ```yaml
-# Setup bot tokens
+################################################################
+# General Bot Settings
+################################################################
+# Bot Token Configuration
 bot_token:
-  # Prod bot token.
+  # Production bot token.
   prod_token:
-    - ''
-  # Development bot token. Not necessary for production bot.
+    - 'YOUR_PROD_BOT_TOKEN'  # Replace with your actual production bot token.
+  # Development bot token. Optional for production bot.
   dev_bot_token:
-    - ''
-# Setup access control
+    - 'YOUR_DEV_BOT_TOKEN'    # Replace with your development bot token (if needed).
+
+# Chat ID Configuration
+chat_id:
+  # Global chat ID. Used for all notifications from the plugin.
+  global_chat_id:
+    - 'YOUR_CHAT_ID'  # Replace with your actual chat ID for notifications.
+
+# Access Control Settings
 access_control:
-  # The ID of the users who have permission to access the bot.
-  # You can have one or more values - there are no restrictions.
+  # User IDs allowed to access the bot.
   allowed_user_ids:
-    - 0000000000
-    - 0000000000
-  # The ID of the admins who have permission to access the bot.
-  # You can have one or more values, there are no restrictions.
-  # However, it's important to keep in mind that these users will be able to manage Docker images and containers.
+
+  # Admin IDs allowed to access the bot.
   allowed_admins_ids:
-    - 0000000000
-    - 0000000000
-  # Salt is used to generate TOTP (Time-Based One-Time Password) secrets and to verify the TOTP code.
-  # A script for the fast generation of a truly unique "salt" is available in the bot's repository.
+
+  # Salt used for generating TOTP (Time-Based One-Time Password) secrets and verifying TOTP codes.
   auth_salt:
-    - ''
-# Docker settings
+    - 'YOUR_AUTH_SALT'  # Replace with the salt for TOTP.
+
+################################################################
+# Docker Settings
+################################################################
 docker:
   # Docker socket. Usually: unix:///var/run/docker.sock.
   host:
-    - 'unix:///var/run/docker.sock'
-# Plugins configuration
+    - 'unix:///var/run/docker.sock'  # Path to the Docker socket.
+
+################################################################
+# Webhook Configuration
+################################################################
+webhook_config:
+  # Webhook URL
+  url:
+    - 'YOUR_WEBHOOK_URL'  # Replace with your actual webhook URL.
+  # Webhook port
+  webhook_port:
+    - 443  # Port for external webhook requests.
+  local_port:
+    - 5001  # Local port for internal requests.
+  cert:
+    - 'YOUR_CERTIFICATE'  # Path to the SSL certificate (if using HTTPS).
+  cert_key:
+    - 'YOUR_CERTIFICATE_KEY'  # Path to the SSL certificate's private key (if using HTTPS).
+
+################################################################
+# Plugins Configuration
+################################################################
 plugins_config:
-  # Configuration for Monitor plugin
+  # Configuration for the Monitor plugin
   monitor:
-    # Tracehold settings
+    # Threshold settings
     tracehold:
       # CPU usage thresholds in percentage
       cpu_usage_threshold:
-        - 80
+        - 80  # Threshold for CPU usage.
       # Memory usage thresholds in percentage
       memory_usage_threshold:
-        - 80
+        - 80  # Threshold for memory usage.
       # Disk usage thresholds in percentage
       disk_usage_threshold:
-        - 80
-      # CPU temperature thresholds in Celsius
+        - 80  # Threshold for disk usage.
+      # CPU temperature thresholds in degrees Celsius
       cpu_temperature_threshold:
-        - 85
-      # GPU temperature thresholds in Celsius
+        - 85  # Threshold for CPU temperature.
+      # GPU temperature thresholds in degrees Celsius
       gpu_temperature_threshold:
-        - 90
-      # Disk temperature thresholds in Celsius
+        - 90  # Threshold for GPU temperature.
+      # Disk temperature thresholds in degrees Celsius
       disk_temperature_threshold:
-        - 60
-    # Number of notifications to send for each type of overload
+        - 60  # Threshold for disk temperature.
+    # Maximum number of notifications for each type of overload
     max_notifications:
-      - 3
+      - 3  # Maximum number of notifications sent for a single event.
     # Check interval in seconds
     check_interval:
-      - 2
+      - 5  # Interval for system status checks.
     # Reset notification count after X minutes
     reset_notification_count:
-      - 5
-    # Number of attempts to retry starting monitoring in case of failure
+      - 5  # Time in minutes to reset the notification count.
+    # Number of attempts to retry monitoring startup in case of failure
     retry_attempts:
-      - 3
+      - 3  # Number of retry attempts.
     # Interval (in seconds) between retry attempts
     retry_interval:
-      - 10
-  # Configuration for Outline plugin
+      - 10  # Interval between retry attempts.
+    # Monitor Docker images and containers
+    monitor_docker: True  # True - Monitor Docker images and containers. False - Do not monitor Docker.
+
+  # Configuration for the Outline plugin
   outline:
     # Outline API settings
     api_url:
-      - ''
+      - 'YOUR_OUTLINE_API_URL'  # Replace with your actual Outline API URL.
+    # Certificate fingerprint
     cert:
-      - ''
+      - 'YOUR_OUTLINE_CERT'  # Replace with the actual path to your certificate.
+
+################################################################
+# InfluxDB Settings
+################################################################
+influxdb:
+  # InfluxDB host
+  url:
+    - 'YOUR_INFLUXDB_URL'  # URL of your InfluxDB server.
+  # InfluxDB token
+  token:
+    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token.
+  # InfluxDB organization name
+  org:
+    - 'YOUR_INFLUXDB_ORG'  # Replace with your actual organization name in InfluxDB.
+  # InfluxDB bucket name
+  bucket:
+    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your actual bucket name in InfluxDB.
+  # InfluxDB debug mode
+  debug_mode: false  # Set to true to enable debug mode.
 ```
 
 ### 📋 Explanation of Configuration Fields
@@ -154,7 +222,9 @@ plugins_config:
 - **access_control**: Define which user IDs have access to the bot and specify admin IDs.
 - **auth_salt**: Used for generating TOTP secrets.
 - **docker**: Specify the Docker socket for communication.
+- **webhook_config**: Configure the webhook server.
 - **plugins_config**: Configure the plugins, including thresholds and retry settings for monitoring.
+- **influxdb**: Configure the InfluxDB server (required for Monitor Plugin).
 
 **Note on `auth_salt` Parameter:**
 
@@ -162,10 +232,16 @@ The bot supports random salt generation. To generate a unique salt, run the foll
 window:
 
    ```bash
-   sudo docker run --rm ghcr.io/orenlab/pytmbot:latest --salt
+   sudo docker run --rm orenlab/pytmbot:0.2.0 --salt
    ```
 
 This command will display a unique salt value and delete the container automatically.
+
+Alternatively, you can use the official script to configure the bot to run on a host or inside a Docker container.
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
+```
 
 ## 🔌 Plugins
 
@@ -174,8 +250,16 @@ can be enabled via Docker Compose or Docker CLI.
 
 ### Supported Plugins
 
-- **Monitor**: Provides real-time monitoring of CPU, memory, and disk usage on the server.
-- **Outline**: Interacts with the Outline VPN server API for managing access keys and updating server settings.
+- Extend functionality through custom plugins with simple configuration.
+- Support multiple plugins:
+    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, disk usage, and detect changes in Docker
+      containers and images. The plugin sends notifications for various monitored parameters, including new containers
+      and images, ensuring timely awareness of system status.
+    - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
+    - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from Telegram.
+
+Refer to [plugins.md](https://github.com/orenlab/pytmbot/blob/master/docs/plugins.md) for more information on adding and
+managing plugins.
 
 ### How to Enable Plugins
 

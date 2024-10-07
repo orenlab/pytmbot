@@ -41,11 +41,11 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
 
 - Extend functionality through custom plugins with simple configuration.
 - Example plugins:
-    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, and disk usage with customizable
-      thresholds.
+    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, disk usage, and detect changes in Docker
+      containers and images. The plugin sends notifications for various monitored parameters, including new containers
+      and images, ensuring timely awareness of system status.
     - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
-    - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from
-      Telegram.
+    - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from Telegram.
 
 Refer to [plugins.md](docs/plugins) for more information on adding and managing plugins.
 
@@ -96,21 +96,6 @@ Refer to [installation.md](docs/installation.md) for full instructions on settin
 
 Learn more about the security measures in our detailed [security guide](docs/security.md).
 
-## 🧑‍💻 Commands and Handlers
-
-The bot provides a rich set of commands for users. Below is a table of the main commands available:
-
-| # | Command              | Button               | Description                         |
-|---|----------------------|----------------------|-------------------------------------|
-| 1 | `/start`             | None                 | Initialize the bot                  |
-| 2 | `/help`              | None                 | Display help information            |
-| 3 | `/docker`            | 🐳 Docker            | Access Docker management commands   |
-| 4 | `/containers`        | 🧰 Containers        | View and manage Docker containers   |
-| 5 | `/images`            | 🖼️ Images           | Inspect Docker images               |
-| 6 | `/outline`           | 🔑 Outline VPN       | Manage and monitor Outline VPN keys |
-| 7 | `/check_bot_updates` | None                 | Check for available bot updates     |
-| 8 | `/back`              | 🔙 Back to main menu | Return to the main menu             |
-
 ## 📈 Roadmap
 
 To learn more about planned features and future updates, check the [roadmap](docs/roadmap.md).
@@ -125,6 +110,19 @@ You can find the official Docker image on Docker Hub:
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
 Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) for more details.
+
+## 📚 Documentation
+
+- 🔒 [Auth Control](docs/auth_control.md)
+- ⚙️ [CLI Args](docs/bot_cli_args.md)
+- 🐞 [Debugging](docs/debug.md)
+- 🐳 [Docker](docs/docker.md)
+- 🛠️ [Installation](docs/installation.md)
+- 📦 [Plugins](docs/plugins.md)
+- 🗺️ [Roadmap](docs/roadmap.md)
+- 📜 [Scripts Installation](docs/script_install.md)
+- 🔐 [Security](docs/security.md)
+- ⚙️ [Settings](docs/settings.md)
 
 ## 🧬 Contributors
 

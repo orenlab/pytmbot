@@ -1,9 +1,9 @@
-# pyTMbot Installation Script
+# 📦 pyTMbot Installation Script
 
 This script provides an easy way to install, manage, and uninstall the pyTMbot either inside a Docker container or
 locally on your system. It also includes support for setting up a Python virtual environment for local installations.
 
-## Requirements
+## ✅ Requirements
 
 - **Root privileges**: The script requires `sudo` or root access to install necessary system packages.
 - **Supported Operating Systems**:
@@ -11,7 +11,7 @@ locally on your system. It also includes support for setting up a Python virtual
     - CentOS/RHEL/Fedora
     - Arch Linux
 
-## Usage
+## ⚙ Usage ️
 
 ### Preparing the Script
 
@@ -23,39 +23,36 @@ To get the latest version of the script and run it:
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
 ```
 
-### Installation Options
+### 🛠️ Installation Options
 
 When running the script, you will be prompted to choose one of the following options:
 
-1. Docker installation: Runs pyTMbot inside a Docker container for easy management and isolation.
+1. **Docker installation**: Runs pyTMbot inside a Docker container for easy management and isolation.
+    - This option manages pyTMbot within a Docker environment, reducing dependency conflicts and offering process
+      isolation.
 
-- This option manages pyTMbot within a Docker environment, reducing dependency conflicts and offering process
-  isolation.
+2. **Local installation**: Installs pyTMbot directly on your system.
+    - The script installs `Python 3.12` (if necessary), sets up a virtual environment, and installs all required
+      dependencies.
 
-2. Local installation: Installs pyTMbot directly on your system.
+3. **Update local installation**: Updates pyTMbot to the latest version.
+    - The script updates `pyTMbot` from source from the GitHub officially maintained repository.
 
-- The script installs `Python 3.12` (if necessary), sets up a virtual environment, and installs all required
-  dependencies.
+4. **Uninstall pyTMbot**: Completely removes the bot and its files from your system.
+    - Deletes all files related to pyTMbot and cleans up the environment.
 
-3. Update local installation: Updates pyTMbot to the latest version.
-
-- The script updates `pyTMbot` from source from GitHub officially maintained repository.
-
-4. Uninstall pyTMbot: Completely removes the bot and its files from your system.
-   • Deletes all files related to pyTMbot and cleans up the environment.
-
-### Logs
+### 📜 Logs
 
 All output is logged to `/var/log/pytmbot_install.log`. If any issues arise, check this log for detailed information.
 
-### Troubleshooting
+### ❗ Troubleshooting
 
 - `Unsupported OS`: If your OS is unsupported by the script, you’ll need to manually install Python 3.12.
 - `Permission Denied`: Ensure you are running the script with sudo or as root.
 - `Docker Issues`: Confirm Docker is installed and properly configured on your system, as the script does not handle
   Docker installation.
 
-## Uninstallation
+## 🚫 Uninstallation
 
 ### Local Uninstallation
 
@@ -65,7 +62,7 @@ To completely remove pyTMbot from a local installation:
 sudo ./install.sh
 ```
 
-Then, choose option `3` for uninstallation.
+Then, choose option `4` for uninstallation.
 
 ### Docker Uninstallation
 
@@ -77,6 +74,6 @@ sudo docker rm pytmbot
 sudo docker rmi orenlab/pytmbot
 ```
 
-License
+## 📜 License
 
 This script is open-source and licensed under the MIT License.
