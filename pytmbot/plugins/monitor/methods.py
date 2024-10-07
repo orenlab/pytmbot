@@ -81,7 +81,7 @@ class SystemMonitorPlugin(PluginCore):
         # Store Docker counters
         self.docker_counters = {}
         self.docker_counters_last_updated = 0
-        self.docker_counters_update_interval = 300
+        self.docker_counters_update_interval = 5 * 60
 
         # Initialize state tracking for event durations
         self.event_start_times = {}
@@ -217,7 +217,9 @@ class SystemMonitorPlugin(PluginCore):
                 if self.monitor_docker:
                     current_time = time.time()
                     if current_time - self.docker_counters_last_updated > self.docker_counters_update_interval:
+                        old_counters = self.docker_counters if self.docker_counters else self._get_docker_counters()
                         self.docker_counters = self._get_docker_counters()
+                        self._send_docker_change_notification(old_counters, self.docker_counters)
                         self.docker_counters_last_updated = current_time
 
                 fields.update(
@@ -526,6 +528,29 @@ class SystemMonitorPlugin(PluginCore):
         except Exception as e:
             self.bot_logger.error(f"Error retrieving docker counters: {e}")
             return {}
+
+    def _send_docker_change_notification(self, old_counts: dict, new_counts: dict) -> None:
+        """
+        Sends a notification if the number of Docker containers or images has changed.
+        """
+        container_change = new_counts["containers"] - old_counts["containers"]
+        image_change = new_counts["images"] - old_counts["images"]
+
+        if container_change > 0:
+            message = (
+                f"🐳 *New Docker containers detected!* 🐳\n"
+                f"📦 *{container_change}* new container(s) running.\n"
+                f"📊 Current containers: {new_counts['containers']}"
+            )
+            self._send_notification(message)
+
+        if image_change > 0:
+            message = (
+                f"🖼️ *New Docker images detected!* 🖼️\n"
+                f"🖼️ *{image_change}* new image(s) available.\n"
+                f"📊 Current images: {new_counts['images']}"
+            )
+            self._send_notification(message)
 
     def _reset_notification_count(self) -> None:
         """
