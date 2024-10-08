@@ -5,6 +5,13 @@ set -uef
 ln -sf /dev/stdout /dev/stdout
 ln -sf /dev/stderr /dev/stderr
 
+# Function to handle errors
+handle_error() {
+    echo "An unexpected error occurred. Exiting." >&2
+    exit 1
+}
+
+
 # Check if required tools are installed
 if ! command -v /venv/bin/python3 >/dev/null 2>&1; then
     echo >&2 "Python3 is required but it's not installed. Aborting."
@@ -18,15 +25,6 @@ SALT="false"
 PLUGINS=""
 WEBHOOK="False"  # Set default value for webhook
 SOCKET_HOST="127.0.0.1"
-
-# Function to handle errors
-handle_error() {
-    echo "An unexpected error occurred. Exiting." >&2
-    exit 1
-}
-
-# Set trap for errors during execution
-trap 'handle_error' ERR
 
 # Parse arguments using a while loop
 while [ $# -gt 0 ]; do
@@ -81,12 +79,11 @@ if [ "$SALT" = "true" ]; then
         echo "Error: pytmbot/utils/salt.py does not exist or cannot be accessed." >&2
         exit 1
     fi
-    /venv/bin/python3 pytmbot/utils/salt.py
+    /venv/bin/python3 pytmbot/utils/salt.py || handle_error
 else
     # Execute the main Python script without local logging
-    exec /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS" --webhook "$WEBHOOK" --socket_host "$SOCKET_HOST"
+    /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS" --webhook "$WEBHOOK" --socket_host "$SOCKET_HOST" || handle_error
 fi
 
-# Reset the trap before normal exit
-trap - ERR
+# Exit successfully
 exit 0
