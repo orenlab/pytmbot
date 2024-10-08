@@ -1,27 +1,26 @@
-# pyTMbot Plugins 🌟
+pyTMbot Plugins 🌟
 
-pyTMbot supports a plugin system to extend the bot's functionality. This document describes the available plugins and
-how to configure them.
+pyTMbot supports a plugin system that allows you to extend the bot’s functionality. This document describes the
+supported plugins and their configuration.
 
-## 🧩 Supported Plugins
+🧩 Supported Plugins
 
-- **monitor**: Provides real-time monitoring of CPU, memory, temperature _(only on Linux)_, and disk usage on the server
-  where pyTMbot is running.
-- **outline**: Interacts with the Outline VPN server API, allowing for access key management and server settings
-  updates.
+- Monitor: Provides real-time monitoring of server resources such as CPU, memory, temperature (Linux only), and disk
+  usage. It also monitors Docker containers and images, sending notifications about potential security incidents when
+  new ones are detected.
+- Outline: Integrates with the Outline VPN server API, allowing you to manage access keys and update server settings.
 
-## ⚙️ Plugin Usage
+⚙️ Plugin Usage
 
-Plugins do not require separate installation. To enable a plugin, specify it using the `--plugins` argument when
-starting the container.
+Plugins do not require separate installation. To activate the desired plugins, use the --plugins argument when starting
+the container.
 
-### 🐳 Example Usage with Docker Compose
+🐳 Example Usage with Docker Compose
 
-Create a `docker-compose.yml` file with the following configuration:
+Create a docker-compose.yml file with the following configuration:
 
 ```yaml
 services:
-
   pytmbot:
     # Lightweight Alpine-based image with dev environment for pyTMbot
     image: orenlab/pytmbot:alpine-dev
@@ -36,22 +35,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Read-only bot configuration file to prevent modifications
       - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
-    # Prevent the process in the container from gaining additional privileges
     security_opt:
       - no-new-privileges
-    # Make the container's filesystem read-only to reduce risks of modification or attack
-    read_only: true
-    # Drop all capabilities to minimize potential attacks
+    read_only: true  # Make the container's filesystem read-only to reduce risks
     cap_drop:
-      - ALL
+      - ALL  # Drop all capabilities to minimize attack surfaces
     pid: host  # Use the host's PID namespace for monitoring processes (use with caution)
-    # Logging
     logging:
       options:
         max-size: "10m"
         max-file: "3"
-    # Run command
-    command: --plugins monitor,outline --log-level DEBUG  # Bot start parameters: logging, and plugins
+    command: --plugins monitor,outline --log-level DEBUG  # Bot start parameters: logging and plugins`
 ```
 
 To start the container:
@@ -60,99 +54,84 @@ To start the container:
 docker-compose up -d
 ```
 
-### 🔧 External Configuration for Plugins
+📋 Plugin Details
 
-Plugin configurations are stored in the `pytmbot.yaml` file under the `plugins_config` section.
+📊 Monitor Plugin
 
-#### Example: Monitor Plugin Configuration
+Overview
 
-For the Monitor Plugin, the thresholds and other settings are defined in the `pytmbot.yaml` file. Example:
+The Monitor plugin provides real-time monitoring of server resources such as CPU, memory, temperature (Linux only), and
+disk usage. It also monitors Docker containers and images, sending notifications about potential security incidents when
+new ones are detected.
+
+Configuration
+
+Monitor plugin settings are located in the pytmbot.yaml file under plugins_config.monitor. Here’s an example
+configuration:
 
 ```yaml
 plugins_config:
-  # Configuration for Monitor plugin
   monitor:
-    # Tracehold settings
+    # Threshold settings
     tracehold:
-      # CPU usage thresholds in percentage
-      cpu_usage_threshold:
-        - 80
-      # Memory usage thresholds in percentage
-      memory_usage_threshold:
-        - 80
-      # Disk usage thresholds in percentage
-      disk_usage_threshold:
-        - 80
-      # CPU temperature thresholds in Celsius
-      cpu_temperature_threshold:
-        - 85
-      # GPU temperature thresholds in Celsius
-      gpu_temperature_threshold:
-        - 90
-      # Disk temperature thresholds in Celsius
-      disk_temperature_threshold:
-        - 60
-    # Number of notifications to send for each type of overload
-    max_notifications:
-      - 3
-    # Check interval in seconds
-    check_interval:
-      - 7
-    # Reset notification count after X minutes
-    reset_notification_count:
-      - 5
-    # Number of attempts to retry starting monitoring in case of failure
-    retry_attempts:
-      - 3
-    # Interval (in seconds) between retry attempts
-    retry_interval:
-      - 10
-    # Enable Docker images and containers count monitoring
-    monitor_docker: True
+      cpu_usage_threshold: [ 80 ]  # CPU usage threshold in percentage
+      memory_usage_threshold: [ 80 ]  # Memory usage threshold in percentage
+      disk_usage_threshold: [ 80 ]  # Disk usage threshold in percentage
+      cpu_temperature_threshold: [ 85 ]  # CPU temperature threshold in Celsius
+      gpu_temperature_threshold: [ 90 ]  # GPU temperature threshold in Celsius
+      disk_temperature_threshold: [ 60 ]  # Disk temperature threshold in Celsius
+    # Notification settings
+    max_notifications: [ 3 ]  # Maximum number of notifications for each type of overload
+    check_interval: [ 7 ]  # Check interval in seconds
+    reset_notification_count: [ 5 ]  # Reset notification count after X minutes
+    retry_attempts: [ 3 ]  # Number of attempts to restart monitoring in case of failure
+    retry_interval: [ 10 ]  # Interval (in seconds) between retry attempts
+    monitor_docker: True  # Enable monitoring of Docker containers and images
 ```
 
-For Monitor Plugin required `InfluxDB` (recommended run in Docker Container) settings are defined in the `pytmbot.yaml`
-file. Example:
+You also need to configure InfluxDB settings:
 
 ```yaml
-################################################################
-# InfluxDB Settings
-################################################################
 influxdb:
-  # InfluxDB host
-  url:
-    - 'YOUR_INFLUXDB_URL'  # URL of your InfluxDB server.
-  # InfluxDB token
-  token:
-    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token.
-  # InfluxDB organization name
-  org:
-    - 'YOUR_INFLUXDB_ORG'  # Replace with your actual organization name in InfluxDB.
-  # InfluxDB bucket name
-  bucket:
-    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your actual bucket name in InfluxDB.
-  # InfluxDB debug mode
-  debug_mode: false  # Set to true to enable debug mode.
+  url: [ 'YOUR_INFLUXDB_URL' ]
+  token: [ 'YOUR_INFLUXDB_TOKEN' ]
+  org: [ 'YOUR_INFLUXDB_ORG' ]
+  bucket: [ 'YOUR_INFLUXDB_BUCKET' ]
+  debug_mode: false
 ```
 
-### Outline Plugin Configuration
+Behavior
 
-The configuration for the Outline Plugin is also stored in the `plugins_config` section of the `pytmbot.yaml` file.
-Example:
+Once enabled, the Monitor plugin tracks server resources as well as Docker containers and images. It sends notifications
+to administrators when resource thresholds are exceeded or when new containers and images are detected.
+
+🛡️ Outline Plugin
+
+Overview
+
+The Outline plugin integrates with the Outline VPN server API, allowing you to manage access keys, retrieve server
+statistics, update server settings, and monitor data usage.
+
+Configuration
+
+The Outline plugin is configured in the plugins_config.outline section of the pytmbot.yaml file. Example configuration:
 
 ```yaml
 plugins_config:
   outline:
-    api_url:
-      - 'https://your-outline-server.com'
-    cert:
-      - 'cert fingerprint'
+    api_url: [ 'https://your-outline-server.com' ]
+    cert: [ 'cert fingerprint' ]
 ```
 
-### 🛠️ Enabling Multiple Plugins
+Behavior
 
-To enable multiple plugins, update the `command` section in `docker-compose.yml`. For example, to enable both the
-`monitor` and `outline` plugins:
+Once enabled, the Outline plugin provides an interface to interact with the Outline VPN server, allowing key management
+and server configuration updates based on the provided credentials.
+
+🛠️ Enabling Multiple Plugins
+
+To activate multiple plugins, update the command section in the docker-compose.yml file. For example, to enable both the
+Monitor and Outline plugins:
 
 ```yaml
 command: --plugins monitor,outline
@@ -164,50 +143,7 @@ Then run:
 docker-compose up -d
 ```
 
-## 📋 Plugin Details
-
-### 📊 Monitor Plugin
-
-#### Overview
-
-The Monitor Plugin provides real-time monitoring of CPU, memory, temperature _(only on Linux)_ and disk usage on the
-server where pyTMbot is running.
-It sends notifications to the administrator if any of the thresholds defined in `pytmbot.yaml` are exceeded.
-
-#### Configuration
-
-Monitor Plugin settings are defined in `pytmbot.yaml` under `plugins_config.monitor`. This includes thresholds for
-resource usage, notification limits, and retry attempts.
-
-#### Usage
-
-Once enabled, the Monitor Plugin automatically tracks system resource usage based on the settings provided. It will
-notify administrators if thresholds are exceeded.
-
-#### Customization
-
-All thresholds and monitoring behavior can be customized via the `pytmbot.yaml` configuration file. Users can set their
-own CPU, memory, and disk usage limits, as well as adjust retry logic and notification intervals.
-
-### 🛡️ Outline Plugin
-
-#### Overview
-
-The Outline Plugin integrates with the Outline VPN server API to manage access keys, retrieve server statistics, update
-server settings, and monitor data usage.
-
-#### Configuration
-
-The Outline Plugin is configured in `pytmbot.yaml` under the `plugins_config.outline` section. The API URL and
-certificate path
-are specified here.
-
-#### Usage
-
-After enabling the plugin, it provides an interface for interacting with the Outline VPN server, allowing key management
-and server configuration updates based on the provided credentials.
-
-## 🚀 Future Enhancements
+🚀 Future Enhancements
 
 - Additional plugins and features may be added in future updates.
 - Continued improvements to plugin stability and functionality.
