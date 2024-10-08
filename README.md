@@ -47,7 +47,7 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
     - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
     - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from Telegram.
 
-Refer to [plugins.md](docs/plugins) for more information on adding and managing plugins.
+Refer to [plugins.md](docs/plugins.md) for more information on adding and managing plugins.
 
 ### 🔖 Additional Features
 
