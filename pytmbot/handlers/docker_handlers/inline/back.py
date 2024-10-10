@@ -23,7 +23,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
 
     keyboard_buttons = [
         keyboards.ButtonData(
-            text=button.upper(),
+            text=button,
             callback_data=f"__get_full__:{button}:{call.from_user.id}",
         )
         for button in buttons
