@@ -1,9 +1,23 @@
 #!/bin/sh
 set -uef
+########################################################################################################################
+#                                                                                                                      #
+#                                               pyTMBot - entrypoint.sh                                                #
+# -------------------------------------------------------------------------------------------------------------------- #
+# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
+# and extending its functionality with plugins.                                                                        #
+#                                                                                                                      #
+# Project:        pyTMBot                                                                                              #
+# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
+# Repository:     https://github.com/orenlab/pytmbot                                                                   #
+# License:        MIT                                                                                                  #
+# Description:    This entrypoint.sh run the main.py script with the specified arguments.                              #
+#                                                                                                                      #
+########################################################################################################################
 
-# Create symlinks for logging to stdout and stderr
-ln -sf /dev/stdout /dev/stdout
-ln -sf /dev/stderr /dev/stderr
+# Create symlinks for logging to stdout and stderr if they do not exist
+[ ! -L /dev/stdout ] && ln -sf /dev/stdout /dev/stdout
+[ ! -L /dev/stderr ] && ln -sf /dev/stderr /dev/stderr
 
 # Function to handle errors
 handle_error() {
@@ -11,22 +25,21 @@ handle_error() {
     exit 1
 }
 
-
 # Check if required tools are installed
 if ! command -v /venv/bin/python3 >/dev/null 2>&1; then
     echo >&2 "Python3 is required but it's not installed. Aborting."
     exit 1
 fi
 
-# Default values
-LOG_LEVEL="INFO"
-MODE="prod"
-SALT="false"
-PLUGINS=""
-WEBHOOK="False"  # Set default value for webhook
-SOCKET_HOST="127.0.0.1"
+# Default values for script arguments
+LOG_LEVEL="INFO"         # Set the default log level
+MODE="prod"              # Set the default mode (prod/dev)
+SALT="false"             # Default value for salt execution
+PLUGINS=""               # Default value for plugins
+WEBHOOK="False"          # Set default value for webhook
+SOCKET_HOST="127.0.0.1" # Default socket host
 
-# Parse arguments using a while loop
+# Parse command-line arguments using a while loop
 while [ $# -gt 0 ]; do
     case "$1" in
         --log-level)
@@ -46,19 +59,19 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --salt)
-            SALT="true"
+            SALT="true"  # Enable salt execution
             shift
             ;;
         --plugins)
-            PLUGINS="$2"
+            PLUGINS="$2"  # Set plugins to load
             shift 2
             ;;
         --webhook)
-            WEBHOOK="True"  # Set webhook to True if option is provided
+            WEBHOOK="True"  # Enable webhook mode
             shift
             ;;
         --socket_host)
-            SOCKET_HOST="$2"
+            SOCKET_HOST="$2"  # Set socket host address
             shift 2
             ;;
         *)
@@ -81,7 +94,7 @@ if [ "$SALT" = "true" ]; then
     fi
     /venv/bin/python3 pytmbot/utils/salt.py || handle_error
 else
-    # Execute the main Python script without local logging
+    # Execute the main Python script with the specified arguments
     /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS" --webhook "$WEBHOOK" --socket_host "$SOCKET_HOST" || handle_error
 fi
 
