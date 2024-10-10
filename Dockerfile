@@ -29,15 +29,14 @@ RUN apk --no-cache add --virtual .build-deps gcc python3-dev musl-dev linux-head
     python${PYTHON_VERSION} -m venv /venv && \
     /venv/bin/python -m ensurepip --upgrade && \
     /venv/bin/pip install --upgrade --no-cache-dir --target="/venv/lib/python${PYTHON_VERSION}/site-packages" -r requirements.txt && \
-    /venv/bin/pip uninstall -y pip setuptools wheel && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip --strip-unneeded {} + && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name 'tests' -exec rm -rf {} + && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name '__pycache__' -exec rm -rf {} + && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.pyc' -exec rm -rf {} + && \
-    python3 -m pip uninstall -y pip setuptools wheel && \
-    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'pip*' -exec rm -rf {} + && \
-    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'setuptools*' -exec rm -rf {} + && \
-    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'wheel*' -exec rm -rf {} + && \
+    /venv/bin/pip uninstall -y pip setuptools wheel || echo "No module to uninstall" && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip --strip-unneeded {} + || echo "No *.so to strip" && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name 'tests' -exec rm -rf {} + || echo "No tests to remove" && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name '__pycache__' -exec rm -rf {} + || echo "No __pycache__ to remove" && \
+    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.pyc' -exec rm -rf {} + || echo "No *.pyc to remove" && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'pip*' -exec rm -rf {} + || echo "No pip to remove" && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'setuptools*' -exec rm -rf {} + || echo "No setuptools to remove" && \
+    find /usr/local/lib/python${PYTHON_VERSION}/ -name 'wheel*' -exec rm -rf {} + || echo "No wheel to remove" && \
     apk del .build-deps && \
     rm -rf /root/.cache
 
