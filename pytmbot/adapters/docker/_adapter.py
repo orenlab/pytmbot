@@ -19,7 +19,6 @@ class DockerAdapter:
         Returns:
             None
         """
-        self.docker_initialized = False
         self.docker_url: str = settings.docker.host[0]
         self.client = None
 
@@ -40,8 +39,7 @@ class DockerAdapter:
         """
         try:
             self.client = docker.DockerClient(base_url=self.docker_url)
-            if not self.docker_initialized:
-                self.docker_initialized = True
+            if settings.docker.debug_docker_client:
                 bot_logger.debug(f"Docker client initialized with URL: {self.docker_url}")
             return self.client
         except docker.errors.DockerException as err:
@@ -68,6 +66,8 @@ class DockerAdapter:
         if self.client:
             try:
                 self.client.close()
+                if settings.docker.debug_docker_client:
+                    bot_logger.debug("Docker client successfully closed.")
             except docker.errors.DockerException as err:
                 bot_logger.error(f"Failed closing Docker client: {err}")
                 raise
