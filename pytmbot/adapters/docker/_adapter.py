@@ -1,9 +1,7 @@
 import traceback
 
-try:
-    import docker
-except ImportError:
-    raise ImportError("Error loading 'docker' package. Install it!")
+import docker
+import docker.errors
 
 from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
@@ -21,8 +19,12 @@ class DockerAdapter:
         Returns:
             None
         """
+        self.docker_initialized = False
         self.docker_url: str = settings.docker.host[0]
         self.client = None
+
+        if not self.docker_url:
+            raise ValueError("Docker URL is not set in the configuration.")
 
     def __enter__(self) -> docker.DockerClient:
         """
@@ -38,9 +40,15 @@ class DockerAdapter:
         """
         try:
             self.client = docker.DockerClient(base_url=self.docker_url)
+            if not self.docker_initialized:
+                self.docker_initialized = True
+                bot_logger.debug(f"Docker client initialized with URL: {self.docker_url}")
             return self.client
+        except docker.errors.DockerException as err:
+            bot_logger.error(f"Failed creating Docker client at {self.docker_url}: {err}")
+            raise
         except Exception as err:
-            bot_logger.error(f"Failed creating Docker client: {err}")
+            bot_logger.error(f"Unexpected error when initializing Docker client: {err}")
             raise
 
     def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: traceback) -> None:
@@ -60,5 +68,9 @@ class DockerAdapter:
         if self.client:
             try:
                 self.client.close()
-            except Exception as err:
+            except docker.errors.DockerException as err:
                 bot_logger.error(f"Failed closing Docker client: {err}")
+                raise
+            except Exception as err:
+                bot_logger.error(f"Unexpected error when closing Docker client: {err}")
+                raise
