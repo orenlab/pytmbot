@@ -54,11 +54,6 @@ ARG PYTHON_VERSION=3.12
 RUN apk --no-cache upgrade && \
     apk --no-cache add tzdata shadow
 
-# Create a non-root user and group with restricted privileges
-RUN groupadd -g 1033 docker && \
-    useradd -u 1000 -g docker -m botuser && \
-    usermod -aG docker botuser
-
 # Set workdir and environment variables
 WORKDIR /opt/app/
 
@@ -77,14 +72,8 @@ COPY ./pytmbot ./pytmbot
 COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
-# Set ownership of the app files to the new user
-RUN chown -R botuser:docker /opt/app
-
 # Make entrypoint script executable and set strict permissions
 RUN chmod 700 ./entrypoint.sh
-
-# Switch to the non-root user
-USER botuser
 
 ########################################################################################################################
 ######################### TARGETS SETUP ###############################################################################
