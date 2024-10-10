@@ -48,6 +48,7 @@ class DockerHostModel(BaseModel):
     """
 
     host: conlist(str, min_length=1)
+    debug_docker_client: bool = False
 
 
 class InfluxDBModel(BaseModel):

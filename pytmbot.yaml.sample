@@ -35,6 +35,8 @@ docker:
   # Docker socket. Usually: unix:///var/run/docker.sock.
   host:
     - 'unix:///var/run/docker.sock'  # Path to the Docker socket.
+  # Debug Docker client (to many logs in debug mode with enabled Monitor plugin and Docker containers count monitoring)
+  debug_docker_client: false
 
 ################################################################
 # Webhook Configuration

@@ -15,6 +15,7 @@ from docker.errors import APIError, NotFound
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.logs import bot_logger
 from pytmbot.utils.utilities import set_naturaltime
+from pytmbot.globals import settings
 
 
 def __fetch_containers_list() -> List[str]:
@@ -58,7 +59,8 @@ def __get_container_attributes(container_id: str):
 
     try:
         with DockerAdapter() as adapter:
-            bot_logger.debug(f"Retrieving container details for ID: {container_id}.")
+            if settings.docker.debug_docker_client:
+                bot_logger.debug(f"Retrieving container details for ID: {container_id}.")
             return adapter.containers.get(container_id)
     except Exception as e:
         bot_logger.error(
@@ -105,9 +107,10 @@ def __aggregate_container_details(container_id: str) -> dict:
             "status": attrs.get("State", {}).get("Status", "N/A"),
         }
 
-        bot_logger.debug(
-            f"Time taken to build container details: {time.time() - start_time:.5f} seconds."
-        )
+        if settings.docker.debug_docker_client:
+            bot_logger.debug(
+                f"Time taken to build container details: {time.time() - start_time:.5f} seconds."
+            )
 
         return container_context
 
@@ -135,16 +138,17 @@ def retrieve_containers_stats() -> Union[List[Dict[str, str]], Dict[None, None]]
         containers_id = __fetch_containers_list()
 
         if not containers_id:
-            bot_logger.debug("No containers found. Returning empty dictionary.")
+            bot_logger.warning("No containers found. Returning empty dictionary.")
             return {}
 
         with ThreadPoolExecutor() as executor:
             details = list(executor.map(__aggregate_container_details, containers_id))
 
-        bot_logger.debug(f"Returning container details: {details}.")
-        bot_logger.debug(
-            f"Done retrieving container details in {time.time() - start_time:.5f} seconds."
-        )
+        if settings.docker.debug_docker_client:
+            bot_logger.debug(f"Returning container details: {details}.")
+            bot_logger.debug(
+                f"Done retrieving container details in {time.time() - start_time:.5f} seconds."
+            )
 
         return details
 
