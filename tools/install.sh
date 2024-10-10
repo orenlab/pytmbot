@@ -8,8 +8,9 @@ set -euo pipefail
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+CYAN='\033[1;36m'
 WHITE='\033[1;37m'
+GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # Config file and sample file paths
@@ -59,12 +60,18 @@ show_banner() {
     # Clear the terminal for better visibility
     clear
 
+    # Define border style
+    local border_style="═══════════════════════════════════════════════════════════════════════════════════════════════"
+
     # Create a stylish banner
-    echo -e "${BLUE}######################################################################"
-    echo -e "${GREEN}##                      pyTMBot Installer                          ##"
-    echo -e "${BLUE}######################################################################"
-    echo -e "${WHITE}  Starting the ${YELLOW}${action^^}${WHITE} process...${NC}"
-    echo -e "${BLUE}######################################################################"
+    echo -e "${CYAN}${border_style}"
+    printf "${GREEN}## %-*s ##\n" $(( ${#border_style} - 4 ))   "pyTMBot Installer"
+    echo -e "${CYAN}${border_style}"
+    echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
+    echo -e "${CYAN}${border_style}"
+    echo -e "${WHITE}Version: 0.2.0-rc3${NC}"
+    echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
+    echo -e "${CYAN}${border_style}"
     echo ""
 }
 
@@ -681,7 +688,7 @@ fi
 }
 
 # Check if script is run as root
-check_root
+#check_root
 
 show_banner "Installation"
 
