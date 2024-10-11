@@ -155,8 +155,8 @@ class LogsSettings(BaseModel):
         "<green>{time:YYYY-MM-DD}</green> "
         "[<cyan>{time:HH:mm:ss}</cyan>] "
         "[<level>{level: <8}</level>] "
-        "[<magenta>{module}</magenta>] "
-        "› <level>{message}</level>"
+        "› <level>{message}</level> "
+        "› [<magenta>{module}</magenta>]"
     )
 
 
