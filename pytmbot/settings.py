@@ -153,10 +153,10 @@ class LogsSettings(BaseModel):
     valid_log_levels: frozenset[str] = frozenset(["ERROR", "INFO", "DEBUG"])
     bot_logger_format: str = (
         "<green>{time:YYYY-MM-DD}</green> "
-        "[<cyan>{time:HH:mm:ss}</cyan>] "
-        "[<level>{level: <8}</level>] "
-        "› <level>{message}</level> "
-        "› [<magenta>{module}</magenta>]"
+        "[<cyan>{time:HH:mm:ss}</cyan>]"
+        "[<level>{level: <8}</level>]"
+        "[<magenta>{module: <16}</magenta>] › "
+        "<level>{message}</level> "
     )
 
 
