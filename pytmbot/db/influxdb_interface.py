@@ -147,3 +147,58 @@ class InfluxDBInterface:
         except InfluxDBError as e:
             bot_logger.error(f"Error querying InfluxDB: {e}")
             return []
+
+    def get_available_measurements(self) -> List[str]:
+        """
+        Retrieve a list of available measurements from InfluxDB.
+
+        Returns:
+            List[str]: List of measurement names.
+        """
+        try:
+            query = f'import "influxdata/influxdb/schema" \
+                    schema.measurements(bucket: "{self.bucket}")'
+
+            if self.debug_mode:
+                bot_logger.debug(f"Running query to get measurements: {query}")
+
+            tables = self.query_api.query(query, org=self.org)
+            measurements = [record.get_value() for table in tables for record in table.records]
+
+            bot_logger.info(f"Retrieved {len(measurements)} measurements from InfluxDB.")
+            return measurements
+        except InfluxDBError as e:
+            bot_logger.error(f"Error retrieving measurements from InfluxDB: {e}")
+            return []
+
+    def get_available_fields(self, measurement: str) -> List[str]:
+        """
+        Retrieve a list of available fields for a specific measurement from InfluxDB.
+
+        Args:
+            measurement (str): The measurement name.
+
+        Returns:
+            List[str]: List of field names.
+        """
+        try:
+            query = (
+                f'from(bucket: "{self.bucket}") '
+                f'|> range(start: -1h) '
+                f'|> filter(fn: (r) => r._measurement == "{measurement}") '
+                f'|> keep(columns: ["_field"]) '
+                f'|> distinct(column: "_field") '
+                f'|> yield(name: "fields")'
+            )
+
+            if self.debug_mode:
+                bot_logger.debug(f"Running query to get fields for measurement {measurement}: {query}")
+
+            tables = self.query_api.query(query, org=self.org)
+            fields = [record.get_value() for table in tables for record in table.records]
+
+            bot_logger.info(f"Retrieved {len(fields)} fields for measurement {measurement}.")
+            return fields
+        except InfluxDBError as e:
+            bot_logger.error(f"Error retrieving fields for measurement {measurement} from InfluxDB: {e}")
+            return []
