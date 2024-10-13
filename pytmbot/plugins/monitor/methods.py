@@ -350,7 +350,10 @@ class SystemMonitorPlugin(PluginCore):
         cpu_event_duration = self._track_event_duration("cpu_usage_exceeded", cpu_usage > self.cpu_usage_threshold)
         if cpu_event_duration and cpu_event_duration >= self.event_threshold_duration:
             messages.append(
-                f"🔥 *High CPU Usage Detected!* 🔥\n💻 CPU Usage: *{cpu_usage}%*\n⏱️ Duration: {int(cpu_event_duration)} seconds")
+                f"<b>🔥 High CPU Usage Detected! 🔥</b>\n"
+                f"<b>💻 CPU Usage:</b> <i>{cpu_usage}%</i>\n"
+                f"<b>⏱️ Duration:</b> {int(cpu_event_duration)} seconds"
+            )
 
         # Memory usage notification
         mem_event_duration = self._track_event_duration("memory_usage_exceeded",
@@ -358,21 +361,29 @@ class SystemMonitorPlugin(PluginCore):
                                                         self.monitor_settings.tracehold.memory_usage_threshold[0])
         if mem_event_duration and mem_event_duration >= self.event_threshold_duration:
             messages.append(
-                f"🚨 *High Memory Usage Detected!* 🚨\n🧠 Memory Usage: *{memory_usage}%*\n⏱️ Duration: {int(mem_event_duration)} seconds")
+                f"<b>🚨 High Memory Usage Detected! 🚨</b>\n"
+                f"<b>🧠 Memory Usage:</b> <i>{memory_usage}%</i>\n"
+                f"<b>⏱️ Duration:</b> {int(mem_event_duration)} seconds"
+            )
 
         # Disk usage notifications
         for disk, usage in disk_usage.items():
             disk_event_duration = event_durations["disk_usage"].get(disk)
             if disk_event_duration and disk_event_duration >= self.event_threshold_duration:
                 messages.append(
-                    f"💽 *High Disk Usage Detected on {disk}!* 💽\n📊 Disk Usage: *{usage}%*\n⏱️ Duration: {int(disk_event_duration)} seconds")
+                    f"<b>💽 High Disk Usage Detected on {disk}! 💽</b>\n"
+                    f"<b>📊 Disk Usage:</b> <i>{usage}%</i>\n"
+                    f"<b>⏱️ Duration:</b> {int(disk_event_duration)} seconds"
+                )
 
         # Temperature notifications
         for sensor, temp in temperatures.items():
             temp_event_duration = event_durations["temperatures"].get(sensor)
             if temp_event_duration and temp_event_duration >= self.event_threshold_duration:
                 messages.append(
-                    f"🌡️ *{sensor} temperature is high:* {temp}°C\n⏱️ Duration: {int(temp_event_duration)} seconds")
+                    f"<b>🌡️ {sensor} temperature is high:</b> <i>{temp}°C</i>\n"
+                    f"<b>⏱️ Duration:</b> {int(temp_event_duration)} seconds"
+                )
 
         if messages and self.notification_count < self.max_notifications:
             aggregated_message = "\n\n".join(messages)
@@ -391,7 +402,7 @@ class SystemMonitorPlugin(PluginCore):
             try:
                 sanitized_message = message.replace(self.config.emoji_for_notification, "").replace("\n", " ")
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
-                self.bot.send_message(self.settings.chat_id.global_chat_id[0], message, parse_mode="Markdown")
+                self.bot.send_message(self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML")
             except Exception as e:
                 self.bot_logger.error(f"Failed to send notification: {e}")
         elif not self.max_notifications_reached:
@@ -543,12 +554,12 @@ class SystemMonitorPlugin(PluginCore):
         Sends a detailed notification about a new container.
         """
         message = (
-            f"🚨 *Potential Security Incident: New Docker Container* 🚨\n"
-            f"📦 *Name:* {container_context['name']}\n"
-            f"🖼️ *Image:* {container_context['image']}\n"
-            f"🕒 *Created:* {container_context['created']}\n"
-            f"🚀 *Running Since:* {container_context['run_at']}\n"
-            f"📊 *Status:* {container_context['status']}\n"
+            f"🚨 <b>Potential Security Incident: New Docker Container</b> 🚨\n"
+            f"📦 <b>Name:</b> <i>{container_context['name']}</i>\n"
+            f"🖼️ <b>Image:</b> <i>{container_context['image']}</i>\n"
+            f"🕒 <b>Created:</b> <i>{container_context['created']}</i>\n"
+            f"🚀 <b>Running Since:</b> <i>{container_context['run_at']}</i>\n"
+            f"📊 <b>Status:</b> <i>{container_context['status']}</i>\n"
             "Please review this new container."
         )
         self._send_notification(message)
@@ -558,13 +569,13 @@ class SystemMonitorPlugin(PluginCore):
         Sends a detailed notification about a new Docker image.
         """
         message = (
-            f"🚨 *Potential Security Incident: New Docker Image* 🚨\n"
-            f"🖼️ *ID:* {image_context['id']}\n"
-            f"🏷️ *Tags:* {', '.join(image_context['tags'])}\n"
-            f"🔧 *Architecture:* {image_context['architecture']}\n"
-            f"💻 *OS:* {image_context['os']}\n"
-            f"📦 *Size:* {image_context['size']}\n"
-            f"🕒 *Created:* {image_context['created']}\n"
+            f"🚨 <b>Potential Security Incident: New Docker Image</b> 🚨\n"
+            f"🖼️ <b>ID:</b> <i>{image_context['id']}</i>\n"
+            f"🏷️ <b>Tags:</b> <i>{', '.join(image_context['tags'])}</i>\n"
+            f"🔧 <b>Architecture:</b> <i>{image_context['architecture']}</i>\n"
+            f"💻 <b>OS:</b> <i>{image_context['os']}</i>\n"
+            f"📦 <b>Size:</b> <i>{image_context['size']}</i>\n"
+            f"🕒 <b>Created:</b> <i>{image_context['created']}</i>\n"
             "Please review this new image."
         )
         self._send_notification(message)
