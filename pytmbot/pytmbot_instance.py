@@ -1,4 +1,6 @@
 # /venv/bin/python3
+import socket
+import ssl
 import time
 from datetime import timedelta
 from typing import List, Dict, Callable
@@ -332,8 +334,12 @@ class PyTMBot:
     @staticmethod
     def _start_polling_mode(bot_instance: TeleBot):
         """
-        Starts the bot in polling mode.
+        Starts the bot in polling mode with dynamic backoff for connection errors.
         """
+        base_sleep_time = 10
+        max_sleep_time = 300
+        current_sleep_time = base_sleep_time
+
         while True:
             try:
                 bot_instance.infinity_polling(
@@ -341,24 +347,38 @@ class PyTMBot:
                     timeout=var_config.bot_polling_timeout,
                     long_polling_timeout=var_config.bot_long_polling_timeout,
                 )
+                current_sleep_time = base_sleep_time
+            except ssl.SSLError as ssl_error:
+                bot_logger.critical(
+                    f"SSL error (potential security issue): {sanitize_exception(ssl_error)}. Shutting down.")
+                raise ssl_error
             except telebot.apihelper.ApiTelegramException as t_error:
-                bot_logger.error(f"Polling failed: {sanitize_exception(t_error)}")
-                time.sleep(10)
+                bot_logger.error(
+                    f"Polling failed: {sanitize_exception(t_error)}. Retrying in {current_sleep_time} seconds.")
+                time.sleep(current_sleep_time)
+                current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
             except (
                     urllib3.exceptions.ConnectionError,
                     urllib3.exceptions.ReadTimeoutError,
-            ) as u_error:
-                bot_logger.error(f"Connection error: {sanitize_exception(u_error)}")
-                time.sleep(10)
-            except (
                     requests.exceptions.ConnectionError,
                     requests.exceptions.ConnectTimeout,
-            ) as r_error:
-                bot_logger.error(f"Connection error: {sanitize_exception(r_error)}")
-                time.sleep(10)
+                    socket.timeout,
+                    OSError,
+            ) as conn_error:
+                bot_logger.error(
+                    f"Connection error: {sanitize_exception(conn_error)}. Retrying in {current_sleep_time} seconds.")
+                time.sleep(current_sleep_time)
+                current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
+            except telebot.apihelper.ApiException as api_error:
+                bot_logger.error(
+                    f"API error: {sanitize_exception(api_error)}. Retrying in {current_sleep_time} seconds.")
+                time.sleep(current_sleep_time)
+                current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
             except Exception as error:
-                bot_logger.exception(f"Unexpected error: {sanitize_exception(error)}")
-                time.sleep(10)
+                bot_logger.exception(
+                    f"Unexpected error: {sanitize_exception(error)}. Retrying in {current_sleep_time} seconds.")
+                time.sleep(current_sleep_time)
+                current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
 
 
 __all__ = ["PyTMBot"]
