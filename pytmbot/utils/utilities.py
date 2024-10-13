@@ -17,6 +17,7 @@ from pytmbot.settings import settings
 # Utility functions
 
 
+@lru_cache(maxsize=None)
 def parse_cli_args() -> argparse.Namespace:
     """
     Parses command line arguments using `argparse`.
