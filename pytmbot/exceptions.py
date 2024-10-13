@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import ExceptionHandler
 
 from pytmbot.logs import bot_logger
-from pytmbot.utils.utilities import sanitize_exception
+from pytmbot.utils.utilities import sanitize_exception, parse_cli_args
 
 
 class PyTMBotError(Exception):
@@ -57,7 +57,13 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
             bool: True if the exception was handled successfully.
         """
         sanitized_exception = sanitize_exception(exception)
-        bot_logger.exception(
-            f"Exception in @Telebot: {sanitized_exception}"
-        )
+        log_level = parse_cli_args().log_level
+
+        if log_level == "DEBUG":
+            # Log the full exception trace at the DEBUG level
+            bot_logger.opt(exception=exception).debug(f"Exception in @Telebot: {sanitized_exception}")
+        else:
+            # Log only the short exception message without the trace at INFO or higher levels
+            bot_logger.error(f"Exception in @Telebot: {sanitized_exception}")
+
         return True
