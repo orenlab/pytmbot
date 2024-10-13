@@ -371,7 +371,7 @@ def sanitize_exception(exception: Exception) -> str:
     }
 
     for secret, placeholder in secret_map.items():
-        secret_escaped = re.escape(secret)
-        exception_str = re.sub(f"(?<!\w){secret_escaped}(?!\w)", placeholder, exception_str)
+        secret_escaped = re.escape(secret)  # Escape the secret for use in regex
+        exception_str = re.sub(rf"(?<!\w){secret_escaped}(?!\w)", placeholder, exception_str)  # Use raw string
 
     return exception_str
