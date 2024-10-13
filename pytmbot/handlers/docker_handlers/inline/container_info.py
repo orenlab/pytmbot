@@ -84,5 +84,5 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
