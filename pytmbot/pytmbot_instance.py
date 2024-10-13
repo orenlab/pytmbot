@@ -1,5 +1,4 @@
 # /venv/bin/python3
-import socket
 import ssl
 import time
 from datetime import timedelta
@@ -362,7 +361,6 @@ class PyTMBot:
                     urllib3.exceptions.ReadTimeoutError,
                     requests.exceptions.ConnectionError,
                     requests.exceptions.ConnectTimeout,
-                    socket.timeout,
                     OSError,
             ) as conn_error:
                 bot_logger.error(
