@@ -12,7 +12,5 @@
     {{ minus }} Usage percent: {{ value['percent'] }}%
 {% endfor %}
 
-{% if running_in_docker %}
-    {{ warning }} As the bot is running inside a Docker container, it is not possible to provide information about the
-    system resources.
-{% endif %}
+{% if running_in_docker %}{{ warning }} Since the bot is running inside a Docker container, it is impossible to provide
+    comprehensive information about system resources.{% endif %}
