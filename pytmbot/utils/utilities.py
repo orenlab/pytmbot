@@ -364,14 +364,16 @@ def sanitize_exception(exception: Exception) -> str:
     """
     exception_str = str(exception)
     secret_map = {
-        settings.bot_token.prod_token[0].get_secret_value(): "********* BOT TOKEN *********",
-        settings.bot_token.dev_bot_token[0].get_secret_value(): "********* DEV BOT TOKEN *********",
-        settings.plugins_config.outline.api_url[0].get_secret_value(): "********* OUTLINE API URL *********",
-        settings.plugins_config.outline.cert[0].get_secret_value(): "********* CERT FINGERPRINT *********",
+        secret.get_secret_value(): "********* {} *********".format(secret.name.upper())
+        for secret in (
+            settings.bot_token.prod_token[0],
+            settings.bot_token.dev_bot_token[0],
+            settings.plugins_config.outline.api_url[0],
+            settings.plugins_config.outline.cert[0],
+        )
     }
 
     for secret, placeholder in secret_map.items():
-        secret_escaped = re.escape(secret)  # Escape the secret for use in regex
-        exception_str = re.sub(rf"(?<!\w){secret_escaped}(?!\w)", placeholder, exception_str)  # Use raw string
+        exception_str = exception_str.replace(secret, placeholder, 1)
 
     return exception_str
