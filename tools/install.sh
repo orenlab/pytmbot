@@ -688,7 +688,7 @@ fi
 }
 
 # Check if script is run as root
-#check_root
+check_root
 
 show_banner "Installation"
 
