@@ -15,7 +15,7 @@
 ########################################################################################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.12.7-alpine3.20
+ARG PYTHON_IMAGE=3.13-alpine3.20
 ARG ALPINE_IMAGE=3.20
 
 ########################################################################################################################
@@ -25,7 +25,7 @@ ARG ALPINE_IMAGE=3.20
 FROM python:${PYTHON_IMAGE} AS builder
 
 # Python version (minimal - 3.12)
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.13
 
 # Copy and install dependencies
 COPY requirements.txt .
@@ -48,7 +48,7 @@ RUN apk --no-cache add --virtual .build-deps \
 FROM alpine:${ALPINE_IMAGE} AS release_base
 
 # Python version (minimal - 3.12)
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.13
 
 # Update and install essential packages in a single step
 RUN apk --no-cache upgrade && \
