@@ -30,7 +30,7 @@ class SystemMonitorPlugin(PluginCore):
     Sends notifications to a Telegram bot if any of the monitored resources exceed specified thresholds.
     """
 
-    def __init__(self, config: "MonitorConfig", bot: TeleBot, event_threshold_duration: int = 60) -> None:
+    def __init__(self, config: "MonitorConfig", bot: TeleBot, event_threshold_duration: int = 40) -> None:
         """
         Initializes the SystemMonitorPlugin with the given bot instance and configuration.
 
@@ -414,7 +414,7 @@ class SystemMonitorPlugin(PluginCore):
         cpu_load = psutil.cpu_percent(interval=1)
         if cpu_load > self.load_threshold:
             self.check_interval = 10  # Increase interval if load is high
-            self.bot_logger.info(
+            self.bot_logger.warning(
                 f"High CPU load detected ({cpu_load}%). Increasing check interval to {self.check_interval} seconds."
             )
         else:
