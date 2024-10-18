@@ -52,7 +52,7 @@ ARG PYTHON_VERSION=3.13
 
 # Update and install essential packages in a single step
 RUN apk --no-cache upgrade && \
-    apk --no-cache add tzdata shadow
+    apk --no-cache add tzdata
 
 # Set workdir and environment variables
 WORKDIR /opt/app/
@@ -72,7 +72,7 @@ COPY ./pytmbot ./pytmbot
 COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
-# Make entrypoint script executable and set strict permissions
+# Set permissions for entrypoint script
 RUN chmod 700 ./entrypoint.sh
 
 ########################################################################################################################
@@ -89,10 +89,5 @@ FROM release_base AS self_build
 
 # Copy config file with token (prod, dev)
 COPY pytmbot.yaml ./
-
-ENTRYPOINT ["./entrypoint.sh"]
-
-# Target for CI/CD stable tag (0.0.9, 0.1.1, latest)
-FROM release_base AS prod
 
 ENTRYPOINT ["./entrypoint.sh"]
