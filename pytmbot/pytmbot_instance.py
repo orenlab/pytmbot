@@ -361,6 +361,8 @@ class PyTMBot:
                     urllib3.exceptions.ReadTimeoutError,
                     requests.exceptions.ConnectionError,
                     requests.exceptions.ConnectTimeout,
+                    urllib3.exceptions.MaxRetryError,
+                    urllib3.exceptions.NameResolutionError,
                     OSError,
             ) as conn_error:
                 bot_logger.error(

@@ -364,7 +364,7 @@ def sanitize_exception(exception: Exception) -> str:
     """
     exception_str = str(exception)
     secret_map = {
-        secret.get_secret_value(): "********* {} *********".format(secret)
+        secret.get_secret_value(): "******************"
         for secret in (
             settings.bot_token.prod_token[0],
             settings.bot_token.dev_bot_token[0],
