@@ -20,7 +20,7 @@ from pytmbot.utils.utilities import EmojiConverter, is_running_in_docker
 # pyTMBot globals initialization
 
 # Global namespace information
-__version__ = "v0.2.0-rc3"
+__version__ = "v0.2.0-rc4"
 __author__ = "Denis Rozhnovskiy <pytelemonbot@mail.ru>"
 __license__ = "MIT"
 __repository__ = "https://github.com/orenlab/pytmbot"
