@@ -2,6 +2,8 @@ import telebot
 from telebot import TeleBot
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from pytmbot.exceptions import PyTMBotError
 from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 from time import time
@@ -84,11 +86,16 @@ class WebhookServer:
         """
         Starts the FastAPI application.
         """
-        try:
-            bot_logger.info(
-                f"Starting FastAPI webhook server on {self.host}:{self.port}..."
-            )
+        if self.port == 80:
+            bot_logger.critical(
+                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead.")
+            raise PyTMBotError(
+                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead.")
 
+        bot_logger.info(
+            f"Starting FastAPI webhook server on {self.host}:{self.port}...")
+
+        try:
             uvicorn.run(
                 self.app,
                 host=self.host,
@@ -97,7 +104,7 @@ class WebhookServer:
                 ssl_keyfile=settings.webhook_config.cert_key[0].get_secret_value(),
                 log_level="critical",
                 use_colors=True,
-            )
+                )
         except Exception as e:
             bot_logger.critical(f"Failed to start FastAPI server: {e}")
             raise

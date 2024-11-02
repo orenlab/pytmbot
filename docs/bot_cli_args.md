@@ -28,6 +28,9 @@ configuration file. Below are the sections you need to complete:
 
 - **webhook_config**: Fill the parameters in the `webhook_config` section.
 
+Bot cannot be run in 80 port for security reasons. Use reverse proxy to run the bot (e.g. Nginx, Nginx Proxy Manager or
+Traefik).
+
 ### Plugins Configuration (if using `--plugins`)
 
 - **Monitor Plugin**: Adjust the threshold values in the `monitor` section of your configuration.
