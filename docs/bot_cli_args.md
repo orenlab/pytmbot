@@ -12,6 +12,7 @@ argument you can use when starting the bot.
 | `--webhook`     | `str`  | `False`     | `True`, `False`          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                 |
 | `--socket_host` | `str`  | `127.0.0.1` | N/A                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.      |
 | `--plugins`     | `list` | `[]`        | N/A                      | Specify a list of plugins to load when starting the bot. Separate multiple plugins with spaces. |
+| `--salt`        | `str`  | `False`     | N/A                      | Generate unique salt for using it in TOTP auth                                                  |
 
 ## 📄 Required Configurations
 
@@ -47,10 +48,10 @@ command:
 python main.py --mode dev --log-level DEBUG --plugins monitor
 ```
 
-To run the bot in production mode with webhook support and colorized logs, use:
+To run the bot in production mode with webhook support, use:
 
 ```bash
-python main.py --mode prod --webhook True --colorize_logs True
+python main.py --mode prod --webhook True
 ```
 
 📜 Notes
