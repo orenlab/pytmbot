@@ -35,8 +35,6 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          # Specify the build context
-          context: .
           # Specify the build target (useful for multi-stage builds)
           target: production
           # Enable SBOM (Software Bill of Materials) generation for image transparency
