@@ -207,8 +207,8 @@ class PyTMBot:
 
     @staticmethod
     def _register_handlers(
-            handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
-            register_method: Callable,
+        handler_factory_func: Callable[[], Dict[str, List[HandlerManager]]],
+        register_method: Callable,
     ):
         """
         Registers bot handlers using the provided factory function and registration method.
@@ -230,7 +230,9 @@ class PyTMBot:
                 f"Registered {sum(len(handlers) for handlers in handlers_dict.values())} handlers."
             )
         except telebot.apihelper.ApiTelegramException as api_err:
-            bot_logger.error(f"Failed to register handlers: {sanitize_exception(api_err)}")
+            bot_logger.error(
+                f"Failed to register handlers: {sanitize_exception(api_err)}"
+            )
         except Exception as err:
             bot_logger.exception(f"Unexpected error while registering handlers: {err}")
 
@@ -240,6 +242,7 @@ class PyTMBot:
         """
         try:
             from pytmbot.webhook import WebhookServer
+
             bot_logger.info("Starting webhook mode...")
 
             webhook_settings = settings.webhook_config
@@ -256,7 +259,8 @@ class PyTMBot:
             # Set the webhook
             self._set_webhook(
                 webhook_url,
-                certificate_path=settings.webhook_config.cert[0].get_secret_value() or None
+                certificate_path=settings.webhook_config.cert[0].get_secret_value()
+                or None,
             )
             bot_logger.info("Webhook successfully set.")
 
@@ -265,7 +269,7 @@ class PyTMBot:
                 self.bot,
                 self.bot.token,
                 self.args.socket_host,
-                webhook_settings.local_port[0]
+                webhook_settings.local_port[0],
             )
             webhook_server.run()
         except ImportError as import_error:
@@ -273,7 +277,9 @@ class PyTMBot:
         except ValueError as value_error:
             bot_logger.exception(f"Failed to start webhook server: {value_error}")
         except Exception as error:
-            bot_logger.exception(f"Unexpected error while starting webhook: {sanitize_exception(error)}")
+            bot_logger.exception(
+                f"Unexpected error while starting webhook: {sanitize_exception(error)}"
+            )
             exit(1)
 
     def _set_webhook(self, webhook_url: str, certificate_path: str = None):
@@ -281,13 +287,9 @@ class PyTMBot:
             self.bot.set_webhook(
                 url=webhook_url,
                 timeout=20,
-                allowed_updates=[
-                    "message",
-                    "callback_query"
-                ],
+                allowed_updates=["message", "callback_query"],
                 drop_pending_updates=True,
                 certificate=certificate_path,
-
             )
         except telebot.apihelper.ApiTelegramException as error:
             bot_logger.error(f"Failed to set webhook: {sanitize_exception(error)}")
@@ -303,7 +305,7 @@ class PyTMBot:
         bot_instance = self._create_bot_instance()
         bot_logger.info("Starting bot...")
 
-        if self.args.webhook == 'True':
+        if self.args.webhook == "True":
             self._start_webhook_mode_with_error_handling()
         else:
             self._start_polling_mode_with_error_handling(bot_instance)
@@ -327,7 +329,9 @@ class PyTMBot:
         try:
             self._start_polling_mode(bot_instance)
         except Exception as error:
-            bot_logger.error(f"Unexpected error while starting polling mode: {error}. Exiting...")
+            bot_logger.error(
+                f"Unexpected error while starting polling mode: {error}. Exiting..."
+            )
             exit(1)
 
     @staticmethod
@@ -349,34 +353,39 @@ class PyTMBot:
                 current_sleep_time = base_sleep_time
             except ssl.SSLError as ssl_error:
                 bot_logger.critical(
-                    f"SSL error (potential security issue): {sanitize_exception(ssl_error)}. Shutting down.")
+                    f"SSL error (potential security issue): {sanitize_exception(ssl_error)}. Shutting down."
+                )
                 raise ssl_error
             except telebot.apihelper.ApiTelegramException as t_error:
                 bot_logger.error(
-                    f"Polling failed: {sanitize_exception(t_error)}. Retrying in {current_sleep_time} seconds.")
+                    f"Polling failed: {sanitize_exception(t_error)}. Retrying in {current_sleep_time} seconds."
+                )
                 time.sleep(current_sleep_time)
                 current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
             except (
-                    urllib3.exceptions.ConnectionError,
-                    urllib3.exceptions.ReadTimeoutError,
-                    requests.exceptions.ConnectionError,
-                    requests.exceptions.ConnectTimeout,
-                    urllib3.exceptions.MaxRetryError,
-                    urllib3.exceptions.NameResolutionError,
-                    OSError,
+                urllib3.exceptions.ConnectionError,
+                urllib3.exceptions.ReadTimeoutError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ConnectTimeout,
+                urllib3.exceptions.MaxRetryError,
+                urllib3.exceptions.NameResolutionError,
+                OSError,
             ) as conn_error:
                 bot_logger.error(
-                    f"Connection error: {sanitize_exception(conn_error)}. Retrying in {current_sleep_time} seconds.")
+                    f"Connection error: {sanitize_exception(conn_error)}. Retrying in {current_sleep_time} seconds."
+                )
                 time.sleep(current_sleep_time)
                 current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
             except telebot.apihelper.ApiException as api_error:
                 bot_logger.error(
-                    f"API error: {sanitize_exception(api_error)}. Retrying in {current_sleep_time} seconds.")
+                    f"API error: {sanitize_exception(api_error)}. Retrying in {current_sleep_time} seconds."
+                )
                 time.sleep(current_sleep_time)
                 current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
             except Exception as error:
                 bot_logger.exception(
-                    f"Unexpected error: {sanitize_exception(error)}. Retrying in {current_sleep_time} seconds.")
+                    f"Unexpected error: {sanitize_exception(error)}. Retrying in {current_sleep_time} seconds."
+                )
                 time.sleep(current_sleep_time)
                 current_sleep_time = min(current_sleep_time * 2, max_sleep_time)
 

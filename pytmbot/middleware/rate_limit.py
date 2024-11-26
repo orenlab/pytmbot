@@ -74,7 +74,7 @@ class RateLimit(BaseMiddleware):
         return None
 
     def post_process(
-            self, message: Message, data: Any, exception: Optional[Exception]
+        self, message: Message, data: Any, exception: Optional[Exception]
     ) -> None:
         """
         Post-processes the incoming message.

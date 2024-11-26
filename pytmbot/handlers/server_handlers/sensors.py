@@ -34,16 +34,16 @@ def handle_sensors(message: Message, bot: TeleBot):
             return bot.send_message(
                 message.chat.id,
                 text="I'm sorry to inform you that I was unable to retrieve the sensor values. "
-                     "There seems to be an issue with my system. Please try again later.",
+                "There seems to be an issue with my system. Please try again later.",
             )
 
         with Compiler(
-                template_name="b_sensors.jinja2",
-                context=sensors_data,
-                thought_balloon=em.get_emoji("thought_balloon"),
-                thermometer=em.get_emoji("thermometer"),
-                exclamation=em.get_emoji("red_exclamation_mark"),
-                melting_face=em.get_emoji("melting_face"),
+            template_name="b_sensors.jinja2",
+            context=sensors_data,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            thermometer=em.get_emoji("thermometer"),
+            exclamation=em.get_emoji("red_exclamation_mark"),
+            melting_face=em.get_emoji("melting_face"),
         ) as compiler:
             sensors_message = compiler.compile()
 

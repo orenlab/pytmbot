@@ -52,10 +52,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Compile the response using the template
         with Compiler(
-                template_name="b_plugins.jinja2",
-                first_name=first_name,
-                plugins=plugins,
-                **emojis,
+            template_name="b_plugins.jinja2",
+            first_name=first_name,
+            plugins=plugins,
+            **emojis,
         ) as compiler:
             response = compiler.compile()
 

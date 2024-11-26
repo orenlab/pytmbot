@@ -88,12 +88,15 @@ class WebhookServer:
         """
         if self.port == 80:
             bot_logger.critical(
-                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead.")
+                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead."
+            )
             raise PyTMBotError(
-                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead.")
+                "Cannot run webhook server on port 80 for security reasons. Use reverse proxy instead."
+            )
 
         bot_logger.info(
-            f"Starting FastAPI webhook server on {self.host}:{self.port}...")
+            f"Starting FastAPI webhook server on {self.host}:{self.port}..."
+        )
 
         try:
             uvicorn.run(
@@ -104,7 +107,7 @@ class WebhookServer:
                 ssl_keyfile=settings.webhook_config.cert_key[0].get_secret_value(),
                 log_level="critical",
                 use_colors=True,
-                )
+            )
         except Exception as e:
             bot_logger.critical(f"Failed to start FastAPI server: {e}")
             raise

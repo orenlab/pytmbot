@@ -117,7 +117,7 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
 
         # Render the template with the context data and emojis
         with Compiler(
-                template_name=template_name, context=context, **emojis
+            template_name=template_name, context=context, **emojis
         ) as compiler:
             compiled_data = compiler.compile()
 

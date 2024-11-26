@@ -69,7 +69,7 @@ show_banner() {
     echo -e "${CYAN}${border_style}"
     echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
     echo -e "${CYAN}${border_style}"
-    echo -e "${WHITE}Version: 0.2.0-rc3${NC}"
+    echo -e "${WHITE}Version: 0.2.0${NC}"
     echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
     echo -e "${CYAN}${border_style}"
     echo ""

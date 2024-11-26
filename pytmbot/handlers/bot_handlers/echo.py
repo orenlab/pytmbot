@@ -36,9 +36,9 @@ def handle_echo(message: Message, bot: TeleBot):
         }
 
         with Compiler(
-                template_name="b_echo.jinja2",
-                first_name=message.from_user.first_name,
-                **emojis,
+            template_name="b_echo.jinja2",
+            first_name=message.from_user.first_name,
+            **emojis,
         ) as compiler:
             bot_answer = compiler.compile()
 

@@ -72,7 +72,7 @@ class AccessControl(BaseMiddleware):
         return None
 
     def post_process(
-            self, message: Message, data: Any, exception: Optional[Exception]
+        self, message: Message, data: Any, exception: Optional[Exception]
     ) -> None:
         # Implement if necessary or remove if not used.
         pass

@@ -41,10 +41,10 @@ def handle_memory(message: Message, bot: TeleBot):
         keyboard = keyboards.build_inline_keyboard(button_data)
 
         with Compiler(
-                template_name="b_memory.jinja2",
-                context=memory_info,
-                thought_balloon=em.get_emoji("thought_balloon"),
-                abacus=em.get_emoji("abacus"),
+            template_name="b_memory.jinja2",
+            context=memory_info,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            abacus=em.get_emoji("abacus"),
         ) as compiler:
             bot_answer = compiler.compile()
 

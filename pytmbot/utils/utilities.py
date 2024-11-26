@@ -50,8 +50,8 @@ def parse_cli_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--webhook",
-        choices=['True', 'False'],
-        default='False',
+        choices=["True", "False"],
+        default="False",
         help="Start in webhook mode",
     )
 
@@ -169,7 +169,7 @@ class EmojiConverter:
 
 
 def split_string_into_octets(
-        input_string: str, delimiter: str = ":", octet_index: int = 1
+    input_string: str, delimiter: str = ":", octet_index: int = 1
 ) -> str:
     """
     Extracts a specific octet from a string based on a delimiter.
@@ -193,7 +193,7 @@ def split_string_into_octets(
 
 
 def sanitize_logs(
-        container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
 ) -> str:
     """
     Sanitizes Docker container logs by replacing sensitive user information
@@ -255,7 +255,7 @@ def get_message_full_info(*args: Any, **kwargs: Any) -> Tuple[
 
 
 def get_inline_message_full_info(
-        *args: Any, **kwargs: Any
+    *args: Any, **kwargs: Any
 ) -> Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
     """
     Retrieves full information for inline handlers logs.

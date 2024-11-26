@@ -93,12 +93,12 @@ class TraceholdSettings(BaseModel):
         disk_temperature_threshold (List[int]): Threshold for disk temperature in Celsius.
     """
 
-    cpu_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
-    memory_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
-    disk_usage_threshold: conlist(int, min_length=1, max_length=1) = [80]
-    cpu_temperature_threshold: conlist(int, min_length=1, max_length=1) = [85]
-    gpu_temperature_threshold: conlist(int, min_length=1, max_length=1) = [90]
-    disk_temperature_threshold: conlist(int, min_length=1, max_length=1) = [60]
+    cpu_usage_threshold: conlist(int, min_length=1, max_length=1)
+    memory_usage_threshold: conlist(int, min_length=1, max_length=1)
+    disk_usage_threshold: conlist(int, min_length=1, max_length=1)
+    cpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
+    gpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
+    disk_temperature_threshold: conlist(int, min_length=1, max_length=1)
 
 
 class MonitorConfig(BaseModel):
@@ -115,11 +115,11 @@ class MonitorConfig(BaseModel):
     """
 
     tracehold: TraceholdSettings
-    max_notifications: conlist(int, min_length=1, max_length=1) = [3]
-    check_interval: conlist(int, min_length=1, max_length=1) = [2]
-    reset_notification_count: conlist(int, min_length=1, max_length=1) = [5]
-    retry_attempts: conlist(int, min_length=1, max_length=2) = [3]
-    retry_interval: conlist(int, min_length=1, max_length=2) = [10]
+    max_notifications: conlist(int, min_length=1, max_length=1)
+    check_interval: conlist(int, min_length=1, max_length=1)
+    reset_notification_count: conlist(int, min_length=1, max_length=1)
+    retry_attempts: conlist(int, min_length=1, max_length=2)
+    retry_interval: conlist(int, min_length=1, max_length=2)
     monitor_docker: bool = False
 
 
@@ -158,8 +158,8 @@ class WebhookConfig(BaseModel):
     """
 
     url: conlist(SecretStr)
-    webhook_port: conlist(int) = [443]
-    local_port: conlist(int) = [5001]
+    webhook_port: conlist(int)
+    local_port: conlist(int)
     cert: conlist(SecretStr)
     cert_key: conlist(SecretStr)
 

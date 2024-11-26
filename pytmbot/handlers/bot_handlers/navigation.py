@@ -35,7 +35,7 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
     }
 
     with Compiler(
-            template_name="b_back.jinja2", first_name=first_name, **emojis
+        template_name="b_back.jinja2", first_name=first_name, **emojis
     ) as compiler:
         response = compiler.compile()
 

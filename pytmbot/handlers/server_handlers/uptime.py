@@ -44,7 +44,7 @@ def handle_uptime(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_uptime.jinja2", context=uptime_data, **emojis
+            template_name="b_uptime.jinja2", context=uptime_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 

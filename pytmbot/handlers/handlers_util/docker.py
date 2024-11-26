@@ -99,7 +99,7 @@ def get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> 
 
 
 def parse_container_memory_stats(
-        container_stats: Dict[str, Any]
+    container_stats: Dict[str, Any]
 ) -> Dict[str, Union[str, float]]:
     """
     Parse the memory statistics of a container.

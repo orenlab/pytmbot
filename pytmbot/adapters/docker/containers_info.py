@@ -60,7 +60,9 @@ def __get_container_attributes(container_id: str):
     try:
         with DockerAdapter() as adapter:
             if settings.docker.debug_docker_client:
-                bot_logger.debug(f"Retrieving container details for ID: {container_id}.")
+                bot_logger.debug(
+                    f"Retrieving container details for ID: {container_id}."
+                )
             return adapter.containers.get(container_id)
     except Exception as e:
         bot_logger.error(

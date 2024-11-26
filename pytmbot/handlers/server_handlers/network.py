@@ -38,7 +38,7 @@ def handle_network(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_net_io.jinja2", context=network_statistics, **emojis
+            template_name="b_net_io.jinja2", context=network_statistics, **emojis
         ) as compiler:
             message_text = compiler.compile()
 

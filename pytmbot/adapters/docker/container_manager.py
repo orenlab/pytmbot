@@ -175,16 +175,16 @@ class ContainerManager:
             bool: True if the user is allowed to manage containers, False otherwise.
         """
         return (
-                user_id in settings.access_control.allowed_admins_ids
-                and session_manager.is_authenticated(user_id)
+            user_id in settings.access_control.allowed_admins_ids
+            and session_manager.is_authenticated(user_id)
         )
 
     def managing_container(
-            self,
-            user_id: int,
-            container_id: Union[str, int],
-            action: Literal["start", "stop", "restart", "rename"],
-            **kwargs,
+        self,
+        user_id: int,
+        container_id: Union[str, int],
+        action: Literal["start", "stop", "restart", "rename"],
+        **kwargs,
     ):
         """
         Manages a Docker container based on the given action.

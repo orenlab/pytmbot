@@ -40,10 +40,14 @@ class DockerAdapter:
         try:
             self.client = docker.DockerClient(base_url=self.docker_url)
             if settings.docker.debug_docker_client:
-                bot_logger.debug(f"Docker client initialized with URL: {self.docker_url}")
+                bot_logger.debug(
+                    f"Docker client initialized with URL: {self.docker_url}"
+                )
             return self.client
         except docker.errors.DockerException as err:
-            bot_logger.error(f"Failed creating Docker client at {self.docker_url}: {err}")
+            bot_logger.error(
+                f"Failed creating Docker client at {self.docker_url}: {err}"
+            )
             raise
         except Exception as err:
             bot_logger.error(f"Unexpected error when initializing Docker client: {err}")

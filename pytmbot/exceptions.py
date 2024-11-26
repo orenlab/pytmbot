@@ -61,7 +61,9 @@ class TelebotCustomExceptionHandler(ExceptionHandler):
 
         if log_level == "DEBUG":
             # Log the full exception trace at the DEBUG level
-            bot_logger.opt(exception=exception).debug(f"Exception in @Telebot: {sanitized_exception}")
+            bot_logger.opt(exception=exception).debug(
+                f"Exception in @Telebot: {sanitized_exception}"
+            )
         else:
             # Log only the short exception message without the trace at INFO or higher levels
             bot_logger.error(f"Exception in @Telebot: {sanitized_exception}")

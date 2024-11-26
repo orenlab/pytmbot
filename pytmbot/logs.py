@@ -10,7 +10,8 @@ from pytmbot.utils.utilities import (
     parse_cli_args,
     get_inline_message_full_info,
     get_message_full_info,
-    is_running_in_docker, sanitize_exception,
+    is_running_in_docker,
+    sanitize_exception,
 )
 
 

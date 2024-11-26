@@ -68,7 +68,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         return
 
     if session_manager.get_blocked_time(
-            user_id
+        user_id
     ) and datetime.now() < session_manager.get_blocked_time(user_id):
         _handle_blocked_user(message, bot)
         return
@@ -146,7 +146,7 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
 
     with Compiler(
-            template_name="a_send_totp_code.jinja2", name=name, **emojis
+        template_name="a_send_totp_code.jinja2", name=name, **emojis
     ) as compiler:
         response = compiler.compile()
 
@@ -214,7 +214,7 @@ def _block_user(user_id: int) -> None:
 
 
 def __create_referer_keyboard(
-        user_id: int,
+    user_id: int,
 ) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
     """
     Creates a referer keyboard based on the user's handler type and referer URI.

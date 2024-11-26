@@ -37,7 +37,9 @@ class InfluxDBInterface:
 
         if not self.check_url() and not self.warning_showed:
             self.warning_showed = True
-            bot_logger.warning(f"Using non-local InfluxDB URL: {self.url}. Make sure is it secure.")
+            bot_logger.warning(
+                f"Using non-local InfluxDB URL: {self.url}. Make sure is it secure."
+            )
 
         if self.debug_mode:
             bot_logger.debug(f"InfluxDB client initialized with URL: {self.url}")
@@ -81,7 +83,9 @@ class InfluxDBInterface:
             private_ip_patterns = [
                 re.compile(r"^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$"),  # 10.x.x.x
                 re.compile(r"^192\.168\.\d{1,3}\.\d{1,3}$"),  # 192.168.x.x
-                re.compile(r"^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$"),  # 172.16.x.x - 172.31.x.x
+                re.compile(
+                    r"^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$"
+                ),  # 172.16.x.x - 172.31.x.x
             ]
 
             for pattern in private_ip_patterns:
@@ -92,7 +96,12 @@ class InfluxDBInterface:
 
         return False
 
-    def write_data(self, measurement: str, fields: dict[str, float], tags: Optional[dict[str, str]] = None) -> None:
+    def write_data(
+        self,
+        measurement: str,
+        fields: dict[str, float],
+        tags: Optional[dict[str, str]] = None,
+    ) -> None:
         try:
             point = Point(measurement)
 
@@ -105,13 +114,17 @@ class InfluxDBInterface:
 
             point = point.time(datetime.now(timezone.utc))
             if self.debug_mode:
-                bot_logger.debug(f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}")
+                bot_logger.debug(
+                    f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}"
+                )
             self.write_api.write(bucket=self.bucket, record=point)
         except InfluxDBError as e:
             bot_logger.error(f"Error writing to InfluxDB: {e}")
             raise
 
-    def query_data(self, measurement: str, start: str, stop: str, field: str) -> List[Tuple[datetime, float]]:
+    def query_data(
+        self, measurement: str, start: str, stop: str, field: str
+    ) -> List[Tuple[datetime, float]]:
         """
         Query data from InfluxDB for a specific measurement and time range.
 
@@ -127,7 +140,7 @@ class InfluxDBInterface:
         try:
             query = (
                 f'from(bucket: "{self.bucket}") '
-                f'|> range(start: {start}, stop: {stop}) '
+                f"|> range(start: {start}, stop: {stop}) "
                 f'|> filter(fn: (r) => r._measurement == "{measurement}") '
                 f'|> filter(fn: (r) => r._field == "{field}") '
                 f'|> yield(name: "mean")'
@@ -163,9 +176,13 @@ class InfluxDBInterface:
                 bot_logger.debug(f"Running query to get measurements: {query}")
 
             tables = self.query_api.query(query, org=self.org)
-            measurements = [record.get_value() for table in tables for record in table.records]
+            measurements = [
+                record.get_value() for table in tables for record in table.records
+            ]
 
-            bot_logger.info(f"Retrieved {len(measurements)} measurements from InfluxDB.")
+            bot_logger.info(
+                f"Retrieved {len(measurements)} measurements from InfluxDB."
+            )
             return measurements
         except InfluxDBError as e:
             bot_logger.error(f"Error retrieving measurements from InfluxDB: {e}")
@@ -184,7 +201,7 @@ class InfluxDBInterface:
         try:
             query = (
                 f'from(bucket: "{self.bucket}") '
-                f'|> range(start: -1h) '
+                f"|> range(start: -1h) "
                 f'|> filter(fn: (r) => r._measurement == "{measurement}") '
                 f'|> keep(columns: ["_field"]) '
                 f'|> distinct(column: "_field") '
@@ -192,13 +209,21 @@ class InfluxDBInterface:
             )
 
             if self.debug_mode:
-                bot_logger.debug(f"Running query to get fields for measurement {measurement}: {query}")
+                bot_logger.debug(
+                    f"Running query to get fields for measurement {measurement}: {query}"
+                )
 
             tables = self.query_api.query(query, org=self.org)
-            fields = [record.get_value() for table in tables for record in table.records]
+            fields = [
+                record.get_value() for table in tables for record in table.records
+            ]
 
-            bot_logger.info(f"Retrieved {len(fields)} fields for measurement {measurement}.")
+            bot_logger.info(
+                f"Retrieved {len(fields)} fields for measurement {measurement}."
+            )
             return fields
         except InfluxDBError as e:
-            bot_logger.error(f"Error retrieving fields for measurement {measurement} from InfluxDB: {e}")
+            bot_logger.error(
+                f"Error retrieving fields for measurement {measurement} from InfluxDB: {e}"
+            )
             return []

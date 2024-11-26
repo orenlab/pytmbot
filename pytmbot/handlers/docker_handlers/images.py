@@ -33,9 +33,9 @@ def handle_images(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="d_images.jinja2",
-                context=images,
-                thought_balloon=em.get_emoji("thought_balloon"),
+            template_name="d_images.jinja2",
+            context=images,
+            thought_balloon=em.get_emoji("thought_balloon"),
         ) as compiler:
             bot_answer = compiler.compile()
 

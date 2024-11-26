@@ -15,7 +15,10 @@ from typing import Optional
 import psutil
 from telebot import TeleBot
 
-from pytmbot.adapters.docker.containers_info import fetch_docker_counters, retrieve_containers_stats
+from pytmbot.adapters.docker.containers_info import (
+    fetch_docker_counters,
+    retrieve_containers_stats,
+)
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.db.influxdb_interface import InfluxDBInterface
 from pytmbot.models.settings_model import MonitorConfig
@@ -30,7 +33,9 @@ class SystemMonitorPlugin(PluginCore):
     Sends notifications to a Telegram bot if any of the monitored resources exceed specified thresholds.
     """
 
-    def __init__(self, config: "MonitorConfig", bot: TeleBot, event_threshold_duration: int = 20) -> None:
+    def __init__(
+        self, config: "MonitorConfig", bot: TeleBot, event_threshold_duration: int = 20
+    ) -> None:
         """
         Initializes the SystemMonitorPlugin with the given bot instance and configuration.
 
@@ -59,10 +64,14 @@ class SystemMonitorPlugin(PluginCore):
             "cpu": self.monitor_settings.tracehold.cpu_temperature_threshold[0],
             "pch": self.monitor_settings.tracehold.cpu_temperature_threshold[0],
             "gpu": self.monitor_settings.tracehold.gpu_temperature_threshold[0],
-            "disk": self.monitor_settings.tracehold.disk_temperature_threshold[0]
+            "disk": self.monitor_settings.tracehold.disk_temperature_threshold[0],
         }
-        self.cpu_usage_threshold = self.monitor_settings.tracehold.cpu_usage_threshold[0]
-        self.disk_usage_threshold = self.monitor_settings.tracehold.disk_usage_threshold[0]
+        self.cpu_usage_threshold = self.monitor_settings.tracehold.cpu_usage_threshold[
+            0
+        ]
+        self.disk_usage_threshold = (
+            self.monitor_settings.tracehold.disk_usage_threshold[0]
+        )
         self.load_threshold = 70.0
 
         # InfluxDB settings
@@ -74,7 +83,7 @@ class SystemMonitorPlugin(PluginCore):
             url=self.influxdb_url,
             token=self.influxdb_token,
             org=self.influxdb_org,
-            bucket=self.influxdb_bucket
+            bucket=self.influxdb_bucket,
         )
 
         # Check if running in Docker
@@ -87,10 +96,7 @@ class SystemMonitorPlugin(PluginCore):
         # Store previous container and image hashes
         self._previous_container_hashes = {}
         self._previous_image_hashes = {}
-        self._previous_counts = {
-            'containers_count': 0,
-            'images_count': 0
-        }
+        self._previous_counts = {"containers_count": 0, "images_count": 0}
 
         # Initialize state tracking for event durations
         self.event_start_times = {}
@@ -134,9 +140,7 @@ class SystemMonitorPlugin(PluginCore):
         """
         Starts the system monitoring process in a separate daemon thread.
         """
-        monitoring_thread = threading.Thread(
-            target=self._monitor_system, daemon=True
-        )
+        monitoring_thread = threading.Thread(target=self._monitor_system, daemon=True)
         monitoring_thread.name = "SystemMonitoringThread"
         monitoring_thread.start()
 
@@ -199,10 +203,7 @@ class SystemMonitorPlugin(PluginCore):
                     "load_average_1m": load_averages[0],
                     "load_average_5m": load_averages[1],
                     "load_average_15m": load_averages[2],
-                    **{
-                        f"disk_{key}_usage": value
-                        for key, value in disk_usage.items()
-                    },
+                    **{f"disk_{key}_usage": value for key, value in disk_usage.items()},
                     **{
                         f"temperature_{sensor}_current": temp_data["current"]
                         for sensor, temp_data in temperatures.items()
@@ -225,11 +226,15 @@ class SystemMonitorPlugin(PluginCore):
 
                 if self.monitor_docker:
                     current_time = time.time()
-                    if current_time - self.docker_counters_last_updated > self.docker_counters_update_interval:
+                    if (
+                        current_time - self.docker_counters_last_updated
+                        > self.docker_counters_update_interval
+                    ):
                         self._detect_docker_changes()
                         self.docker_counters_last_updated = current_time
                         self.bot_logger.debug(
-                            f"Updated Docker counters: {self._previous_counts}")
+                            f"Updated Docker counters: {self._previous_counts}"
+                        )
 
                 fields.update(
                     **{
@@ -250,7 +255,7 @@ class SystemMonitorPlugin(PluginCore):
         os_info = platform.uname()
         return {
             "system": "docker" if self.is_docker else "bare-metal",
-            "hostname": os_info.node
+            "hostname": os_info.node,
         }
 
     def _record_metrics(self, fields: dict) -> None:
@@ -264,7 +269,9 @@ class SystemMonitorPlugin(PluginCore):
         except Exception as e:
             self.bot_logger.exception(f"Error writing metrics to InfluxDB: {e}")
 
-    def _track_event_duration(self, event_name: str, event_occurred: bool) -> Optional[float]:
+    def _track_event_duration(
+        self, event_name: str, event_occurred: bool
+    ) -> Optional[float]:
         """
         Track the start time of an event and return the duration it has been active.
         Also detect when the event has ended to send a notification.
@@ -291,7 +298,9 @@ class SystemMonitorPlugin(PluginCore):
                 self.event_start_times.pop(event_name, None)
             return None
 
-    def _send_resolution_notification(self, event_name: str, event_duration: float) -> None:
+    def _send_resolution_notification(
+        self, event_name: str, event_duration: float
+    ) -> None:
         """
         Sends a notification when an event (e.g., high CPU usage) has been resolved.
 
@@ -307,7 +316,7 @@ class SystemMonitorPlugin(PluginCore):
             "cpu_temp_exceeded": "🌡️ *CPU temperature normalized* 🌡️",
             "gpu_temp_exceeded": "🌡️ *GPU temperature normalized* 🌡️",
             "disk_temp_exceeded": "🌡️ *Disk temperature normalized* 🌡️",
-            "pch_temp_exceeded": "🌡️ *PCH temperature normalized* 🌡️"
+            "pch_temp_exceeded": "🌡️ *PCH temperature normalized* 🌡️",
         }
 
         # Find the appropriate description
@@ -329,11 +338,18 @@ class SystemMonitorPlugin(PluginCore):
         """
 
         # Return the threshold for the sensor, or a default value if sensor is unknown
-        return self.temperature_thresholds.get(sensor, 80.0)  # 80°C as a default threshold
+        return self.temperature_thresholds.get(
+            sensor, 80.0
+        )  # 80°C as a default threshold
 
-    def _send_aggregated_notifications(self, cpu_usage: float, memory_usage: float, disk_usage: dict,
-                                       temperatures: dict,
-                                       event_durations: dict) -> None:
+    def _send_aggregated_notifications(
+        self,
+        cpu_usage: float,
+        memory_usage: float,
+        disk_usage: dict,
+        temperatures: dict,
+        event_durations: dict,
+    ) -> None:
         """
         Aggregates notifications based on monitored values and sends a single message if thresholds are exceeded.
 
@@ -347,10 +363,13 @@ class SystemMonitorPlugin(PluginCore):
         messages = []
 
         # CPU usage notification
-        cpu_event_duration = self._track_event_duration("cpu_usage_exceeded", cpu_usage > self.cpu_usage_threshold)
+        cpu_event_duration = self._track_event_duration(
+            "cpu_usage_exceeded", cpu_usage > self.cpu_usage_threshold
+        )
         if cpu_event_duration and cpu_event_duration >= self.event_threshold_duration:
             self.bot_logger.debug(
-                f"CPU event duration: {cpu_event_duration} seconds (threshold duration: {self.event_threshold_duration})")
+                f"CPU event duration: {cpu_event_duration} seconds (threshold duration: {self.event_threshold_duration})"
+            )
             messages.append(
                 f"<b>🔥 High CPU Usage Detected! 🔥</b>\n"
                 f"<b>💻 CPU Usage:</b> <i>{cpu_usage}%</i>\n"
@@ -358,9 +377,10 @@ class SystemMonitorPlugin(PluginCore):
             )
 
         # Memory usage notification
-        mem_event_duration = self._track_event_duration("memory_usage_exceeded",
-                                                        memory_usage >
-                                                        self.monitor_settings.tracehold.memory_usage_threshold[0])
+        mem_event_duration = self._track_event_duration(
+            "memory_usage_exceeded",
+            memory_usage > self.monitor_settings.tracehold.memory_usage_threshold[0],
+        )
         if mem_event_duration and mem_event_duration >= self.event_threshold_duration:
             messages.append(
                 f"<b>🚨 High Memory Usage Detected! 🚨</b>\n"
@@ -371,7 +391,10 @@ class SystemMonitorPlugin(PluginCore):
         # Disk usage notifications
         for disk, usage in disk_usage.items():
             disk_event_duration = event_durations["disk_usage"].get(disk)
-            if disk_event_duration and disk_event_duration >= self.event_threshold_duration:
+            if (
+                disk_event_duration
+                and disk_event_duration >= self.event_threshold_duration
+            ):
                 messages.append(
                     f"<b>💽 High Disk Usage Detected on {disk}! 💽</b>\n"
                     f"<b>📊 Disk Usage:</b> <i>{usage}%</i>\n"
@@ -381,7 +404,10 @@ class SystemMonitorPlugin(PluginCore):
         # Temperature notifications
         for sensor, temp in temperatures.items():
             temp_event_duration = event_durations["temperatures"].get(sensor)
-            if temp_event_duration and temp_event_duration >= self.event_threshold_duration:
+            if (
+                temp_event_duration
+                and temp_event_duration >= self.event_threshold_duration
+            ):
                 messages.append(
                     f"<b>🌡️ {sensor} temperature is high:</b> <i>{temp}°C</i>\n"
                     f"<b>⏱️ Duration:</b> {int(temp_event_duration)} seconds"
@@ -389,7 +415,9 @@ class SystemMonitorPlugin(PluginCore):
 
         if messages and self.notification_count < self.max_notifications:
             aggregated_message = "\n\n".join(messages)
-            self.bot_logger.debug(f"Monitoring aggregated notification sent: {aggregated_message}")
+            self.bot_logger.debug(
+                f"Monitoring aggregated notification sent: {aggregated_message}"
+            )
             self._send_notification(aggregated_message)
 
             self.notification_count += 1
@@ -402,13 +430,19 @@ class SystemMonitorPlugin(PluginCore):
         """
         if self.notification_count < self.max_notifications:
             try:
-                sanitized_message = message.replace(self.config.emoji_for_notification, "").replace("\n", " ")
+                sanitized_message = message.replace(
+                    self.config.emoji_for_notification, ""
+                ).replace("\n", " ")
                 self.bot_logger.info(f"Sending notification: {sanitized_message}")
-                self.bot.send_message(self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML")
+                self.bot.send_message(
+                    self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML"
+                )
             except Exception as e:
                 self.bot_logger.error(f"Failed to send notification: {e}")
         elif not self.max_notifications_reached:
-            self.bot_logger.warning("Max notifications reached; no more notifications will be sent.")
+            self.bot_logger.warning(
+                "Max notifications reached; no more notifications will be sent."
+            )
             self.max_notifications_reached = True
 
     def _adjust_check_interval(self) -> None:
@@ -420,14 +454,18 @@ class SystemMonitorPlugin(PluginCore):
                 f"High CPU load detected ({cpu_load}%). Increasing check interval to {self.check_interval} seconds."
             )
         else:
-            self.check_interval = self.monitor_settings.check_interval[0]  # Restore to normal interval
+            self.check_interval = self.monitor_settings.check_interval[
+                0
+            ]  # Restore to normal interval
 
     def _check_load_average(self) -> tuple[float, float, float]:
         """
         Checks the current load average (1, 5, and 15 minutes).
         """
         try:
-            load_avg_1, load_avg_5, load_avg_15 = psutil.getloadavg()  # Get the 1, 5, and 15 minute load averages
+            load_avg_1, load_avg_5, load_avg_15 = (
+                psutil.getloadavg()
+            )  # Get the 1, 5, and 15 minute load averages
             return load_avg_1, load_avg_5, load_avg_15
         except (AttributeError, psutil.Error) as e:
             self.bot_logger.error(f"Error checking load average: {e}")
@@ -440,7 +478,9 @@ class SystemMonitorPlugin(PluginCore):
             temps = psutil.sensors_temperatures()
             if not temps and self.sensors_available:
                 self.sensors_available = False
-                self.bot_logger.warning("No temperature sensors available on this system.")
+                self.bot_logger.warning(
+                    "No temperature sensors available on this system."
+                )
                 return temperatures
 
             for name, entries in temps.items():
@@ -448,8 +488,12 @@ class SystemMonitorPlugin(PluginCore):
                     sensor_key = f"{name}_{entry.label or 'default'}"  # Use label if available, else 'default'
                     temperatures[sensor_key] = {
                         "current": entry.current,
-                        "high": entry.high if entry.high else None,  # High threshold, if available
-                        "critical": entry.critical if entry.critical else None  # Critical threshold, if available
+                        "high": (
+                            entry.high if entry.high else None
+                        ),  # High threshold, if available
+                        "critical": (
+                            entry.critical if entry.critical else None
+                        ),  # Critical threshold, if available
                     }
 
             return temperatures
@@ -511,7 +555,9 @@ class SystemMonitorPlugin(PluginCore):
                 partitions = psutil.disk_partitions(all=False)
                 for partition in partitions:
                     if not self._is_partition_excluded(partition.device):
-                        disk_usage[partition.device] = psutil.disk_usage(partition.mountpoint).percent
+                        disk_usage[partition.device] = psutil.disk_usage(
+                            partition.mountpoint
+                        ).percent
                 self.last_disk_usage = disk_usage
                 self.last_poll_time = current_time
                 self.return_cached_disk_usage = True
@@ -609,26 +655,27 @@ class SystemMonitorPlugin(PluginCore):
 
         # Create hashes for the new containers and images
         new_container_hashes = {
-            container['id']: container
-            for container in new_containers
+            container["id"]: container for container in new_containers
         }
 
-        new_image_hashes = {
-            image['id']: image
-            for image in new_images
-        }
+        new_image_hashes = {image["id"]: image for image in new_images}
 
         if self._init_mode:
             self._init_mode = False
             self.bot_logger.info(
-                f"Init Docker containers and images monitoring with {len(new_container_hashes)} containers and {len(new_image_hashes)} images.")
+                f"Init Docker containers and images monitoring with {len(new_container_hashes)} containers and {len(new_image_hashes)} images."
+            )
             self.bot_logger.debug(f"Known containers: {new_container_hashes}")
             self.bot_logger.debug(f"Known images: {new_image_hashes}")
         else:
             # Detect new containers
-            new_container_ids = new_container_hashes.keys() - self._previous_container_hashes.keys()
+            new_container_ids = (
+                new_container_hashes.keys() - self._previous_container_hashes.keys()
+            )
             for container_id in new_container_ids:
-                self._send_detailed_container_notification(new_container_hashes[container_id])
+                self._send_detailed_container_notification(
+                    new_container_hashes[container_id]
+                )
 
             # Detect new images
             new_image_ids = new_image_hashes.keys() - self._previous_image_hashes.keys()

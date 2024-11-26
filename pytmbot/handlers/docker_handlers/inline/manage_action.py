@@ -108,10 +108,10 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-                container_manager.managing_container(
-                    call.from_user.id, container_name, action="start"
-                )
-                is None
+            container_manager.managing_container(
+                call.from_user.id, container_name, action="start"
+            )
+            is None
         ):
             return show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
@@ -141,10 +141,10 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-                container_manager.managing_container(
-                    call.from_user.id, container_name, action="stop"
-                )
-                is None
+            container_manager.managing_container(
+                call.from_user.id, container_name, action="stop"
+            )
+            is None
         ):
             return show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
@@ -214,7 +214,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
 
 
 def __rename_container(
-        call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
+    call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
 ):
     """
     Renames a Docker container based on the provided parameters.
@@ -231,10 +231,10 @@ def __rename_container(
     if is_new_name_valid(new_container_name):
         try:
             if container_manager.managing_container(
-                    call.from_user.id,
-                    container_name,
-                    action="rename",
-                    new_container_name=new_container_name,
+                call.from_user.id,
+                container_name,
+                action="rename",
+                new_container_name=new_container_name,
             ):
                 return show_handler_info(
                     call=call, text=f"Renaming {container_name}: Success", bot=bot

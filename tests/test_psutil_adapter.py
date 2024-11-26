@@ -62,7 +62,7 @@ class TestPsutilAdapter(unittest.TestCase):
     @patch("psutil.disk_usage")
     @patch("pytmbot.utils.utilities.set_naturalsize")
     def test_get_disk_usage(
-            self, mock_set_naturalsize, mock_disk_usage, mock_disk_partitions
+        self, mock_set_naturalsize, mock_disk_usage, mock_disk_partitions
     ):
         """
         Test the get_disk_usage method.
