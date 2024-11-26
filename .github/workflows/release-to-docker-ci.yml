@@ -1,12 +1,13 @@
-name: Push Release image to Docker registry
+name: Push Release Image to Docker Registry
 
 on:
+  # Trigger the workflow on release publication
   release:
     types: [ published ]
 
 jobs:
   push_to_registry:
-    name: Push Docker image to Docker Hub
+    name: Push Docker Image to Docker Hub
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -14,44 +15,82 @@ jobs:
       attestations: write
 
     steps:
+      # Step 1: Check out the repository
       - name: Check out the repo
         uses: actions/checkout@v4
+        with:
+          # Ensures all submodules are fetched if needed
+          fetch-depth: 0
 
+      # Step 2: Set up QEMU for multi-platform builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
 
+      # Step 3: Set up Docker Buildx for advanced building capabilities
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          install: true
 
+      # Step 4: Log in to Docker Hub to authenticate the build and push process
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKER_USERNAME }} # Docker Hub username stored as a secret
+          password: ${{ secrets.DOCKER_PASSWORD }} # Docker Hub password stored as a secret
 
+      # Step 5: Cache Docker build layers to improve performance
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
-          path: /tmp/.buildx-cache
+          # Path for cached Docker layers
+          path: ${{ runner.os }}/.buildx-cache
+          # Cache key based on the GitHub SHA to ensure unique caches per commit
           key: ${{ runner.os }}-docker-${{ github.sha }}
+          # Fall back to similar cache keys
           restore-keys: |
             ${{ runner.os }}-docker-
 
+      # Step 6: Extract metadata such as tags and labels from the GitHub release
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4
         with:
+          # The image name to push
           images: ${{ github.repository }}
+          # Automatically generate tags based on the release version
+          tags: |
+            type=semver,pattern={{version}}
+          # Automatically apply metadata labels to the image
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.version=${{ github.event.release.tag_name }}
 
+      # Step 7: Build and push the Docker image
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v5
         with:
+          # Context of the build (typically the root of the repo)
           context: .
+          # Specify supported platforms, including Apple Silicon (arm64)
+          platforms: linux/amd64,linux/arm64
+          # Specify the target build stage (if using multi-stage builds)
           target: production
+          # Specify the Dockerfile to use
           file: Dockerfile
+          # Enable pushing the built image to the registry
           push: true
+          # Use metadata for tagging the image
           tags: ${{ steps.meta.outputs.tags }}
+          # Use metadata for adding labels
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+          # Enable build cache for faster builds
+          cache-from: type=local,src=./.buildx-cache
+          cache-to: type=local,dest=./.buildx-cache,mode=max
+          # Enable SBOM generation for better transparency
+          sbom: true
+          # Enable SLSA Provenance for supply chain security
+          provenance: true

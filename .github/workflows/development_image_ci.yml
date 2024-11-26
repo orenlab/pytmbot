@@ -1,29 +1,56 @@
 name: Push Alpine Dev Image
 
 on:
+  # Trigger the workflow on pushes to the master branch
   push:
     branches:
       - 'master'
 
 jobs:
-  docker:
+  push_dev_image:
+    name: Build and Push Dev Image
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1: Set up QEMU for multi-platform builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      # Step 2: Set up Docker Buildx for advanced build capabilities
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      # Step 3: Log in to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push
+          username: ${{ secrets.DOCKER_USERNAME }}  # Docker Hub username stored as a secret
+          password: ${{ secrets.DOCKER_PASSWORD }}  # Docker Hub password stored as a secret
+
+      # Step 4: Build and push the Docker image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
+          # Specify the build context
+          context: .
+          # Specify the build target (useful for multi-stage builds)
           target: production
-          sbom: True
-          provenance: True
+          # Enable SBOM (Software Bill of Materials) generation for image transparency
+          sbom: true
+          # Enable SLSA provenance for supply chain security
+          provenance: true
+          # Specify the Dockerfile location
           file: Dockerfile
+          # Enable pushing the built image to the Docker registry
           push: true
+          # Specify supported platforms, including Apple Silicon (ARM64)
+          platforms: linux/amd64,linux/arm64
+          # Tag the image for easy identification
           tags: orenlab/pytmbot:alpine-dev
+          # Enable caching to optimize builds
+          cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
+          cache-to: type=inline,mode=max
