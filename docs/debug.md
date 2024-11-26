@@ -31,7 +31,7 @@ To run pyTMBot v.0.2.0 in DEBUG mode, follow these steps:
    --name=pytmbot \
    --pid=host \
    --security-opt=no-new-privileges \
-   orenlab/pytmbot:0.2.0 \
+   orenlab/pytmbot:latest \
    --log_level DEBUG --mode prod
    ```
 

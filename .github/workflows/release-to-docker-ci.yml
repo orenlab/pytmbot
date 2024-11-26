@@ -73,8 +73,6 @@ jobs:
         id: push
         uses: docker/build-push-action@v5
         with:
-          # Context of the build (typically the root of the repo)
-          context: .
           # Specify supported platforms, including Apple Silicon (arm64)
           platforms: linux/amd64,linux/arm64
           # Specify the target build stage (if using multi-stage builds)
