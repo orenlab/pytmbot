@@ -22,11 +22,13 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
 
 ### 🐳 Docker Management
 
-- Manage Docker containers (start, stop, restart, etc.)
-- View and monitor the status of running and stopped containers
-- Access and search container logs
-- Retrieve and inspect Docker images
-- Inline query handling for managing containers directly from Telegram
+- Efficient management of Docker containers (start, stop, restart, etc.)
+- Monitor and retrieve real-time status of running and stopped containers
+- Access and search detailed container logs
+- Retrieve, inspect, and manage Docker images, including tag information and metadata
+- Seamless inline query handling for direct container management via Telegram
+- **NEW**: Docker image update checking: Manually check for newer image versions by comparing local tags with those
+  available on Docker Hub, helping ensure that your containers can be updated when needed
 
 ### 🖥️ Local Server Monitoring
 
