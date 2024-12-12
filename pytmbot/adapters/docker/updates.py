@@ -65,7 +65,7 @@ class DockerImageUpdater:
 
     @staticmethod
     async def _fetch_remote_tags(
-        session: aiohttp.ClientSession, repo: str
+            session: aiohttp.ClientSession, repo: str
     ) -> List[TagInfo]:
         """Fetches available tags for a repository from Docker Hub asynchronously."""
         if not repo:
@@ -145,10 +145,10 @@ class DockerImageUpdater:
         return updates
 
     async def _check_repo_updates(
-        self,
-        repo: str,
-        tags: List[Dict[str, Optional[str]]],
-        updates: Dict[str, Dict[str, List[UpdateInfo]]],
+            self,
+            repo: str,
+            tags: List[Dict[str, Optional[str]]],
+            updates: Dict[str, Dict[str, List[UpdateInfo]]],
     ):
         """Helper function to check for updates for a specific repository."""
         remote_tags = await self._get_remote_tags(repo)
@@ -157,17 +157,37 @@ class DockerImageUpdater:
         all_updates = []
 
         for local_tag_info in tags:
+            local_tag = local_tag_info["tag"]
             local_tag_date = local_tag_info["created_at"]
-            for remote_tag_info in remote_tags:
-                if self._is_remote_tag_newer(local_tag_date, remote_tag_info):
-                    update_info = UpdateInfo(
-                        current_tag=local_tag_info["tag"],
-                        newer_tag=remote_tag_info.name,
-                        created_at_local=local_tag_date,
-                        created_at_remote=remote_tag_info.created_at,
-                    )
-                    all_updates.append(update_info)
-                    bot_logger.info(f"Update found for {repo}: {update_info.to_dict()}")
+
+            # 1. Check for updates specifically for the current local tag
+            specific_updates = [
+                UpdateInfo(
+                    current_tag=local_tag,
+                    newer_tag=remote_tag_info.name,
+                    created_at_local=local_tag_date,
+                    created_at_remote=remote_tag_info.created_at,
+                )
+                for remote_tag_info in remote_tags
+                if remote_tag_info.name == local_tag
+                   and self._is_remote_tag_newer(local_tag_date, remote_tag_info)
+            ]
+
+            # 2. Add updates for other newer tags
+            other_updates = [
+                UpdateInfo(
+                    current_tag=local_tag,
+                    newer_tag=remote_tag_info.name,
+                    created_at_local=local_tag_date,
+                    created_at_remote=remote_tag_info.created_at,
+                )
+                for remote_tag_info in remote_tags
+                if remote_tag_info.name != local_tag
+                   and self._is_remote_tag_newer(local_tag_date, remote_tag_info)
+            ]
+
+            # Combine specific and other updates
+            all_updates.extend(specific_updates + other_updates)
 
         # Sort updates by remote tag creation date in descending order (newest first)
         all_updates.sort(key=lambda x: isoparse(x.created_at_remote), reverse=True)
@@ -182,3 +202,9 @@ class DockerImageUpdater:
         result = asyncio.run(self._check_updates())
         bot_logger.info(f"Update check result: {result}")
         return json.dumps(result, indent=4)
+
+
+if __name__ == "__main__":
+    updater = DockerImageUpdater()
+    updater.initialize()
+    print(updater.to_json())
