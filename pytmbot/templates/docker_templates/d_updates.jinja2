@@ -4,7 +4,7 @@
     {% for repo, info in updates.items() %}
         🔧 <b>{{ repo }}</b>:
 
-        - 🏷️ Current tag: <b>{{ info.current_tag }}</b> (Created: {{ info.created_at_local | format_timestamp }})
+        🏷️ Current tag: <b>{{ info.current_tag }}</b> (Created: {{ info.created_at_local | format_timestamp }})
 
         🔽 <b>Available updates</b>:
         {% for update in info.updates %}
@@ -14,6 +14,6 @@
 {% if no_updates %}
     🚫 <b>No Updates Found</b> 🚫
     {% for repo in no_updates %}
-        - 🐳 <b>{{ repo }}</b>
+        🐳 <b>{{ repo }}</b>
     {% endfor %}
 {% endif %}
