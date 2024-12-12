@@ -1,21 +1,25 @@
 from datetime import datetime
+from typing import Union
+
+from dateutil import parser
 
 
-def format_timestamp(value: str or int) -> str:
+def format_timestamp(value: Union[str, int]) -> str:
     """
-    Format a timestamp (either string or integer) into a human-readable string.
+    Format a timestamp (either ISO 8601 string or integer in milliseconds)
+    into a human-readable string.
 
     Args:
-        value (str or int): Timestamp in ISO 8601 string format or in seconds (integer).
+        value (Union[str, int]): Timestamp in ISO 8601 format or integer (milliseconds).
 
     Returns:
-        str: Formatted timestamp as a string in the format '%d-%m-%Y %H:%M:%S'.
+        str: Formatted timestamp as '%d-%m-%Y %H:%M:%S'.
     """
     if isinstance(value, str):
         try:
-            dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+            dt = parser.isoparse(value)
         except ValueError:
-            dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+            raise ValueError("Invalid string format for timestamp.")
     elif isinstance(value, int):
         dt = datetime.fromtimestamp(value / 1000)
     else:
