@@ -24,6 +24,7 @@ from pytmbot.handlers.docker_handlers.inline.back import handle_back_to_containe
 from pytmbot.handlers.docker_handlers.inline.container_info import (
     handle_containers_full_info,
 )
+from pytmbot.handlers.docker_handlers.inline.image_updates import handle_image_updates
 from pytmbot.handlers.docker_handlers.inline.logs import handle_get_logs
 from pytmbot.handlers.docker_handlers.inline.manage import handle_manage_container
 from pytmbot.handlers.docker_handlers.inline.manage_action import (
@@ -169,6 +170,12 @@ def inline_handler_factory() -> dict[str, list[HandlerManager]]:
             HandlerManager(
                 callback=handle_manage_container_action,
                 func=lambda call: managing_action_fabric(call),
+            )
+        ],
+        "image_updates": [
+            HandlerManager(
+                callback=handle_image_updates,
+                func=lambda call: call.data == "__check_updates__",
             )
         ],
     }

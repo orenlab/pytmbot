@@ -32,6 +32,14 @@ def handle_images(message: Message, bot: TeleBot):
                 message.chat.id, text="Failed to fetch images. Please try again later."
             )
 
+        keyboard_button = [
+            keyboards.ButtonData(
+                text="Check updates", callback_data="__check_updates__"
+            )
+        ]
+
+        inline_button = keyboards.build_inline_keyboard(keyboard_button)
+
         with Compiler(
             template_name="d_images.jinja2",
             context=images,
@@ -39,12 +47,10 @@ def handle_images(message: Message, bot: TeleBot):
         ) as compiler:
             bot_answer = compiler.compile()
 
-        reply_keyboard = keyboards.build_reply_keyboard(keyboard_type="docker_keyboard")
-
         return bot.send_message(
             message.chat.id,
             text=bot_answer,
-            reply_markup=reply_keyboard,
+            reply_markup=inline_button,
             parse_mode="HTML",
         )
     except Exception as error:

@@ -1,10 +1,11 @@
+import asyncio
 import json
 import re
-from types import TracebackType
-from typing import Dict, List, Union
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
-import requests
-from packaging import version
+import aiohttp
+from dateutil.parser import isoparse
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.logs import bot_logger
@@ -13,235 +14,171 @@ from pytmbot.models.docker_models import TagInfo, UpdateInfo
 
 class DockerImageUpdater:
     """Class to check for updates for local Docker images by comparing their tags
-    with the tags available on the Docker Hub repository. It also checks tag priorities
-    and can parse versions of different formats.
-    """
+    with the tags available on the Docker Hub repository."""
 
     def __init__(self) -> None:
         """Initializes DockerImageUpdater with a Docker client instance."""
+        self.local_images: Dict[str, List[Dict[str, Optional[str]]]] = {}
+        self.local_patterns: Dict[str, Dict[str, Optional[str]]] = {}
+
+    def initialize(self):
+        """Initialization to fetch local images and determine patterns."""
         self.local_images = self._get_local_images()
 
-    def __enter__(self) -> "DockerImageUpdater":
-        """Support for context management protocol."""
-        return self
-
-    def __exit__(
-        self, exc_type: type, exc_val: BaseException, exc_tb: TracebackType
-    ) -> None:
-        """Cleanup code for context management."""
-        self.local_images = None
-
     @staticmethod
-    def _get_local_images() -> Dict[str, List[Dict[str, Union[str, None]]]]:
-        """Fetches all local Docker images and their associated tags.
-
-        Returns:
-            Dict[str, List[Dict[str, Union[str, None]]]]: A dictionary where the keys are image repositories
-            and the values are lists of tags with their creation dates.
-        """
+    def _get_local_images() -> Dict[str, List[Dict[str, Optional[str]]]]:
+        """Fetches all local Docker images and their associated tags."""
         with DockerAdapter() as adapter:
-            images = adapter.images.list(all=True)
-        local_images = {}
+            images = adapter.images.list(all=False)
+            bot_logger.info(f"Fetched images from Docker: {images}")
+
+        local_images: Dict[str, List[Dict[str, Optional[str]]]] = {}
+
         for image in images:
-            for tag in image.tags:
-                repo, tag_version = tag.split(":")
-                if repo not in local_images:
-                    local_images[repo] = []
-                local_images[repo].append(
-                    {"tag": tag_version, "created_at": image.attrs.get("Created")}
+            repo_tags = image.tags
+
+            if not repo_tags:
+                bot_logger.warning(f"Image doesn't have any 'RepoTags': {image}")
+                continue  # Skip this image if RepoTags is empty
+
+            for tag in repo_tags:
+                if ":" not in tag:
+                    bot_logger.warning(f"Invalid tag format: {tag}")
+                    continue
+                repo, tag_version = tag.split(":", 1)
+
+                created_at = image.attrs.get("Created")
+                if isinstance(created_at, int):
+                    created_at = datetime.fromtimestamp(
+                        created_at, tz=timezone.utc
+                    ).isoformat()
+
+                local_images.setdefault(repo, []).append(
+                    {
+                        "tag": tag_version,
+                        "created_at": created_at,
+                    }
                 )
+
         bot_logger.info(f"Fetched local images: {local_images}")
         return local_images
 
     @staticmethod
-    def _get_remote_tags(repo: str) -> List[TagInfo]:
-        """Fetches all available tags for a given repository from Docker Hub, along with the creation date.
+    async def _fetch_remote_tags(
+        session: aiohttp.ClientSession, repo: str
+    ) -> List[TagInfo]:
+        """Fetches available tags for a repository from Docker Hub asynchronously."""
+        if not repo:
+            bot_logger.error("The repository name must be specified")
 
-        Args:
-            repo (str): The name of the repository on Docker Hub.
-
-        Returns:
-            List[TagInfo]: A list of TagInfo objects containing tag names and creation dates.
-        """
         urls = [
             f"https://registry.hub.docker.com/v2/repositories/{repo}/tags/",
             f"https://registry.hub.docker.com/v2/repositories/library/{repo}/tags/",
         ]
-        tags_info = []
+        tags_info: List[TagInfo] = []
+
         for url in urls:
             try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                tags_info.extend(
-                    TagInfo(name=result["name"], created_at=result["tag_last_pushed"])
-                    for result in data["results"]
-                )
-                bot_logger.info(f"Fetched tags from {url}")
-                break
-            except requests.exceptions.RequestException as e:
-                bot_logger.error(f"Failed to fetch tags from {url}: {e}")
+                async with session.get(url, timeout=10) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    if not data.get("results"):
+                        bot_logger.warning(f"No tags found for repo '{repo}'")
+                        continue
+                    tags_info.extend(
+                        TagInfo(
+                            name=result["name"],
+                            created_at=result.get("tag_last_pushed", ""),
+                        )
+                        for result in data.get("results", [])
+                    )
+                    bot_logger.info(f"Fetched tags from {url}")
+                    break
+            except aiohttp.ClientError as e:
+                bot_logger.warning(f"Failed to fetch tags from {url}: {e}")
+            except json.JSONDecodeError as e:
+                bot_logger.error(f"Failed to decode JSON response from {url}: {e}")
         return tags_info
 
-    def _compare_versions(self, current_tag: str, remote_tag: str) -> bool:
-        """Compares two tags by parsing version information if possible.
-
-        Args:
-            current_tag (str): The local tag of the image.
-            remote_tag (str): The remote tag from the repository.
-
-        Returns:
-            bool: True if the remote tag is newer, otherwise False.
-        """
-        try:
-            current_version = version.parse(self._extract_version(current_tag))
-            remote_version = version.parse(self._extract_version(remote_tag))
-            result = remote_version > current_version
-            bot_logger.debug(
-                f"Comparing versions: current={current_version}, remote={remote_version}, result={result}"
-            )
-            return result
-        except Exception as e:
-            bot_logger.debug(f"Version comparison error: {e}")
-            return (
-                remote_tag > current_tag
-            )  # Default to lexicographic comparison if version parsing fails
+    async def _get_remote_tags(self, repo: str) -> List[TagInfo]:
+        """Asynchronously fetches remote tags for a repository."""
+        async with aiohttp.ClientSession() as session:
+            return await self._fetch_remote_tags(session, repo)
 
     @staticmethod
     def _extract_version(tag: str) -> str:
-        """Extracts the version part from a tag, assuming the version is the leading part of the tag.
-
-        Args:
-            tag (str): The tag to extract the version from.
-
-        Returns:
-            str: The version part of the tag.
-        """
+        """Extracts the version number from a tag, handling common patterns."""
         version_match = re.match(r"^v?(\d+(\.\d+)+)", tag)
         return version_match.group(1) if version_match else tag
 
     @staticmethod
-    def _get_tag_priority(tag: str) -> int:
-        """Assigns a priority to the tag based on common tag names like 'latest', 'stable', 'beta', etc.
+    def _is_remote_tag_newer(local_tag_date, remote_tag_info):
+        """Compares the date of local tag with remote tag."""
+        try:
+            if isinstance(local_tag_date, int):
+                local_tag_date = datetime.fromtimestamp(
+                    local_tag_date, tz=timezone.utc
+                ).isoformat()
 
-        Args:
-            tag (str): The Docker image tag.
+            if isinstance(local_tag_date, str):
+                local_date = isoparse(local_tag_date)
+            else:
+                return False
 
-        Returns:
-            int: A numerical priority, lower values indicate higher priority.
-        """
-        priority_tags = {
-            "latest": 0,
-            "stable": 1,
-            "beta": 2,
-            "alpha": 3,
-            "dev": 4,
-            "pre-release": 5,
-        }
-        priority = priority_tags.get(
-            tag.lower(), 100
-        )  # 100 is the default priority for unknown tags
-        bot_logger.debug(f"Tag '{tag}' has priority {priority}")
-        return priority
+            remote_date = isoparse(remote_tag_info.created_at)
+            return local_date < remote_date
 
-    def _compare_priority(self, current_tag: str, remote_tag: str) -> bool:
-        """Compares two tags based on their priority if they don't have version numbers.
+        except Exception as e:
+            bot_logger.error(f"Error comparing dates: {e}")
+            return False
 
-        Args:
-            current_tag (str): The local tag of the image.
-            remote_tag (str): The remote tag from the repository.
+    async def _check_updates(self) -> Dict[str, Dict[str, List[UpdateInfo]]]:
+        """Checks for updates by comparing local and remote tag creation dates."""
+        updates: Dict[str, Dict[str, List[UpdateInfo]]] = {}
 
-        Returns:
-            bool: True if the remote tag has higher priority, otherwise False.
-        """
-        current_priority = self._get_tag_priority(current_tag)
-        remote_priority = self._get_tag_priority(remote_tag)
-        result = remote_priority < current_priority
-        bot_logger.debug(
-            f"Comparing priorities: current_tag={current_tag} (priority={current_priority}), "
-            f"remote_tag={remote_tag} (priority={remote_priority}), result={result}"
-        )
-        return result
-
-    @staticmethod
-    def _is_developer_tag(tag: str) -> bool:
-        """Determines if a tag is a developer tag based on known tag types.
-
-        Args:
-            tag (str): The Docker image tag.
-
-        Returns:
-            bool: True if the tag is a developer tag, otherwise False.
-        """
-        developer_tags = {"dev", "development", "test", "alpha", "beta", "pre-release"}
-        result = any(dev_tag in tag.lower() for dev_tag in developer_tags)
-        bot_logger.debug(
-            f"Tag '{tag}' is {'a developer tag' if result else 'not a developer tag'}"
-        )
-        return result
-
-    def _check_updates(self) -> Dict[str, Dict[str, List[Dict[str, str]]]]:
-        """Checks all local images for updates by comparing their tags with the available remote tags.
-
-        Returns:
-            Dict[str, Dict[str, List[Dict[str, str]]]]: A dictionary with repositories as keys and their tags
-            along with potential updates.
-        """
-        updates = {}
+        tasks = []
         for repo, tags in self.local_images.items():
             bot_logger.info(f"Checking updates for repository '{repo}'")
-            remote_tags = self._get_remote_tags(repo)
-            updates[repo] = {
-                "current_tags": tags,
-                "stable_updates": [],
-                "developer_updates": [],
-            }
+            tasks.append(self._check_repo_updates(repo, tags, updates))
 
-            for tag_info in tags:
-                tag = tag_info["tag"]
-                for remote_tag_info in remote_tags:
-                    remote_tag = remote_tag_info.name
-                    if self._compare_versions(tag, remote_tag):
-                        update_info = UpdateInfo(
-                            current_tag=tag,
-                            newer_tag=remote_tag,
-                            created_at_local=tag_info["created_at"],
-                            created_at_remote=remote_tag_info.created_at,
-                        )
-                        if self._is_developer_tag(remote_tag):
-                            updates[repo]["developer_updates"].append(
-                                update_info.to_dict()
-                            )
-                        else:
-                            updates[repo]["stable_updates"].append(
-                                update_info.to_dict()
-                            )
-                        bot_logger.info(f"Update found: {update_info.to_dict()}")
-
-        # Sort and limit the developer updates
-        for repo, info in updates.items():
-            info["developer_updates"] = sorted(
-                info["developer_updates"],
-                key=lambda x: x["created_at_remote"],
-                reverse=True,
-            )[:3]
-            bot_logger.info(
-                f"Sorted developer updates for repository '{repo}': {info['developer_updates']}"
-            )
-
+        await asyncio.gather(*tasks)
         return updates
 
-    def to_json(self) -> str:
-        """Returns the update check result in JSON format.
+    async def _check_repo_updates(
+        self,
+        repo: str,
+        tags: List[Dict[str, Optional[str]]],
+        updates: Dict[str, Dict[str, List[UpdateInfo]]],
+    ):
+        """Helper function to check for updates for a specific repository."""
+        remote_tags = await self._get_remote_tags(repo)
+        repo_updates = {"updates": []}
 
-        Returns:
-            str: A JSON string containing the updates.
-        """
-        result = self._check_updates()
+        all_updates = []
+
+        for local_tag_info in tags:
+            local_tag_date = local_tag_info["created_at"]
+            for remote_tag_info in remote_tags:
+                if self._is_remote_tag_newer(local_tag_date, remote_tag_info):
+                    update_info = UpdateInfo(
+                        current_tag=local_tag_info["tag"],
+                        newer_tag=remote_tag_info.name,
+                        created_at_local=local_tag_date,
+                        created_at_remote=remote_tag_info.created_at,
+                    )
+                    all_updates.append(update_info)
+                    bot_logger.info(f"Update found for {repo}: {update_info.to_dict()}")
+
+        # Sort updates by remote tag creation date in descending order (newest first)
+        all_updates.sort(key=lambda x: isoparse(x.created_at_remote), reverse=True)
+
+        # Limit updates to the first 5
+        repo_updates["updates"] = [update.to_dict() for update in all_updates[:5]]
+
+        updates[repo] = repo_updates
+
+    def to_json(self) -> str:
+        """Returns the update check result in JSON format."""
+        result = asyncio.run(self._check_updates())
         bot_logger.info(f"Update check result: {result}")
         return json.dumps(result, indent=4)
-
-
-if __name__ == "__main__":
-    with DockerImageUpdater() as updater:
-        print(updater.to_json())

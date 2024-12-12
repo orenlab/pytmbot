@@ -10,7 +10,8 @@
 <b>Throttling data:</b> <i>{{ container_cpu_stats['throttling_data'] | default('N/A') }}</i>
 
 {{ railway_car }}# <b>Memory:</b>
-<b>Usage:</b> <i>{{ container_memory_stats['mem_usage'] | default('N/A') }}</i> or <i>{{ container_memory_stats['mem_percent'] | default('N/A') }}%</i>
+<b>Usage:</b> <i>{{ container_memory_stats['mem_usage'] | default('N/A') }}</i> or
+<i>{{ container_memory_stats['mem_percent'] | default('N/A') }}%</i>
 <b>Limit:</b> <i>{{ container_memory_stats['mem_limit'] | default('N/A') }}</i>
 
 {{ radio }}# <b>Networks:</b>
@@ -37,28 +38,28 @@
 <pre>
 {% if container_attrs['env'] %}
     {% for value in container_attrs['env'] %}
-    - <i>{{ value }}</i>
+        - <i>{{ value }}</i>
     {% endfor %}
 {% else %}
-No environment variables found.
+    No environment variables found.
 {% endif %}
 </pre>
 
 {{ sandwich }}# <b>Launch arguments:</b>
 <pre>
 {% if container_attrs['command'] and container_attrs['command']|length > 0 %}
-{% for value in container_attrs['command'] %} <i>{{ value }}</i>{% endfor %}
+    {% for value in container_attrs['command'] %} <i>{{ value }}</i>{% endfor %}
 {% else %}
-No run command available.
+    No run command available.
 {% endif %}
 </pre>
 
 {{ sandwich }}# <b>Run args:</b>
 <pre>
 {% if container_attrs['args'] and container_attrs['args']|length > 0 %}
-{% for value in container_attrs['args'] %} <i>{{ value }}</i>{% endfor %}
+    {% for value in container_attrs['args'] %} <i>{{ value }}</i>{% endfor %}
 {% else %}
-No run arguments found.
+    No run arguments found.
 {% endif %}
 </pre>
 

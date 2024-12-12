@@ -16,6 +16,7 @@ sudo nano /etc/nginx/sites-available/influxdb
 ```
 
 Add the following configuration:
+
 ```bash
 server {
     listen 80;

@@ -1,3 +1,4 @@
+aiohttp==3.11.10
 docker==7.1.0
 emoji==2.14.0
 fastapi==0.115.6
@@ -16,3 +17,5 @@ PyYAML==6.0.2
 qrcode==7.4.2
 requests==2.32.3
 uvicorn==0.32.1
+python-dateutil>=2.9.0.post0
+urllib3>=2.2.3

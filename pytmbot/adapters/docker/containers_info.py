@@ -13,9 +13,9 @@ from typing import Dict, List, Union
 from docker.errors import APIError, NotFound
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 from pytmbot.utils.utilities import set_naturaltime
-from pytmbot.globals import settings
 
 
 def __fetch_containers_list() -> List[str]:
