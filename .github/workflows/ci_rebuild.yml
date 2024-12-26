@@ -2,7 +2,7 @@ name: CI Rebuild All Supported Tags
 
 on:
   schedule:
-    - cron: '0 13 * * 4' # Run every Thursday at 13:00 UTC (18:00 Yekaterinburg time)
+    - cron: '0 14 * * 4' # Run every Thursday at 13:00 UTC (18:00 Yekaterinburg time)
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
           build-args: --target prod
           sbom: true
           provenance: true
-          file: hub.Dockerfile
+          file: Dockerfile
           push: true
           tags: |
             ${{ join(fromJson(env.tags), ',') }}
