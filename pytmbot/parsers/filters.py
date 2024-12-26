@@ -1,14 +1,28 @@
 from datetime import datetime
+from typing import Union
+
+from dateutil import parser
 
 
-def format_timestamp(value: int) -> str:
+def format_timestamp(value: Union[str, int]) -> str:
     """
-    Format a timestamp from Docker into a human-readable string.
+    Format a timestamp (either ISO 8601 string or integer in milliseconds)
+    into a human-readable string.
 
     Args:
-        value (int): Timestamp in milliseconds.
+        value (Union[str, int]): Timestamp in ISO 8601 format or integer (milliseconds).
 
     Returns:
-        str: Timestamp as a string in the format '%d-%m-%Y %H:%M:%S'.
+        str: Formatted timestamp as '%d-%m-%Y %H:%M:%S'.
     """
-    return datetime.fromtimestamp(value / 1000).strftime("%d-%m-%Y %H:%M:%S")
+    if isinstance(value, str):
+        try:
+            dt = parser.isoparse(value)
+        except ValueError:
+            raise ValueError("Invalid string format for timestamp.")
+    elif isinstance(value, int):
+        dt = datetime.fromtimestamp(value / 1000)
+    else:
+        raise TypeError("Unsupported type for timestamp. Expected str or int.")
+
+    return dt.strftime("%d-%m-%Y %H:%M:%S")

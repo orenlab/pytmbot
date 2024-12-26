@@ -1,7 +1,8 @@
 {{ thought_balloon }} Here is:{% if context %}
     {# Output data in key: value format #}
-{% for key, value in context.items() %}
-{{ horizontal_traffic_light }} {{ key }}: {{ value }}{% endfor %}
-{% else %}{{ warning }} No process data available at the moment.{% endif %}
+    {% for key, value in context.items() %}
+        {{ horizontal_traffic_light }} {{ key }}: {{ value }}{% endfor %}
+    {% else %}{{ warning }} No process data available at the moment.{% endif %}
 
-{% if running_in_docker %}{{ warning }} Since the bot is running inside a Docker container, it is impossible to provide comprehensive information about system resources.{% endif %}
+{% if running_in_docker %}{{ warning }} Since the bot is running inside a Docker container, it is impossible to provide
+    comprehensive information about system resources.{% endif %}

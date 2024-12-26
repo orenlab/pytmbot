@@ -1,24 +1,27 @@
 # pyTMbot Docker Image
 
-Welcome to the **pyTMbot** Docker Hub page! This guide will walk you through setting up and running pyTMbot step-by-step, ensuring a smooth experience from initial configuration to deployment.
+Welcome to the **pyTMbot** Docker Hub page! This guide will walk you through setting up and running pyTMbot
+step-by-step, ensuring a smooth experience from initial configuration to deployment.
 
 ## 🐋 Image Overview
 
 - **Image Name:** `orenlab/pytmbot`
 - **Tags:**
-  - `latest` - The latest stable release image based on Alpine Linux.
-  - `0.X.X` - Specific stable release versions based on Alpine Linux.
-  - `alpine-dev` - Latest development version based on Alpine Linux.
+    - `latest` - The latest stable release image based on Alpine Linux.
+    - `0.X.X` - Specific stable release versions based on Alpine Linux.
+    - `alpine-dev` - Latest development version based on Alpine Linux.
 
 ## 🚀 Step-by-Step Setup
 
 ### 1️⃣ Preparing for Deployment
 
-Before we begin, ensure you have Docker and Docker Compose installed on your system. If not, please refer to the [Docker documentation](https://docs.docker.com/get-docker/) for installation instructions.
+Before we begin, ensure you have Docker and Docker Compose installed on your system. If not, please refer to
+the [Docker documentation](https://docs.docker.com/get-docker/) for installation instructions.
 
 ### 2️⃣ Generating the Authentication Salt
 
-To securely configure the bot, you'll need a unique salt value for Time-Based One-Time Passwords (TOTP). Run the following command to generate it:
+To securely configure the bot, you'll need a unique salt value for Time-Based One-Time Passwords (TOTP). Run the
+following command to generate it:
 
 ```bash
 sudo docker run --rm orenlab/pytmbot:latest --salt
@@ -30,43 +33,19 @@ Save the generated salt for later use in the `pytmbot.yaml` configuration.
 
 Create a `pytmbot.yaml` file to define your bot's settings. Here’s how:
 
+- **Download the Configuration File:**
+
 ```bash
-sudo -i
-cd /root
-nano pytmbot.yaml
+sudo curl -o /root/pytmbot.yaml https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/pytmbot.yaml.sample
 ```
 
-#### Example Configuration File
+- **Edit the Configuration File:**
 
-```yaml
-# General Bot Settings
-bot_token:
-  prod_token: ['YOUR_PROD_BOT_TOKEN']  # Replace with your production bot token.
-chat_id:
-  global_chat_id: ['YOUR_CHAT_ID']  # Replace with your Telegram chat ID.
-access_control:
-  allowed_user_ids: ['123456789']
-  allowed_admins_ids: ['987654321']
-auth_salt: ['YOUR_GENERATED_SALT']
-
-# Docker Settings
-docker:
-  host: ['unix:///var/run/docker.sock']
-  debug_docker_client: false
-
-# Plugins Configuration
-plugins_config:
-  monitor:
-    cpu_usage_threshold: [80]
-    memory_usage_threshold: [80]
-    check_interval: [10]
-    retry_attempts: [3]
-  outline:
-    api_url: ['YOUR_OUTLINE_API_URL']
-    cert: ['YOUR_OUTLINE_CERT']
+```bash
+nano /root/pytmbot.yaml
 ```
 
-Refer to the **Plugins Configuration** section below for additional plugin examples.
+Please follow the instructions provided in the sample configuration.
 
 ### 4️⃣ Creating the `docker-compose.yml` File
 
@@ -93,7 +72,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: --plugins monitor,outline
+    command: --plugins monitor,outline # if needed
 ```
 
 ### 5️⃣ Deploying the Container
@@ -107,14 +86,18 @@ docker-compose up -d
 Alternatively, you can launch the container directly with the Docker CLI:
 
 ```bash
-sudo docker run -d \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+docker run -d \
+--name pytmbot \
+--restart on-failure \
 --env TZ="Asia/Yekaterinburg" \
---restart=always \
---name=pytmbot \
+--volume /var/run/docker.sock:/var/run/docker.sock:ro \
+--volume /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+--security-opt no-new-privileges \
+--read-only \
+--cap-drop ALL \
 --pid=host \
---security-opt=no-new-privileges \
+--log-opt max-size=10m \
+--log-opt max-file=3 \
 orenlab/pytmbot:latest --plugins monitor,outline
 ```
 
@@ -124,33 +107,14 @@ pyTMbot supports an extensive plugin system to extend its functionality. Below a
 
 ### Monitor Plugin
 
-The **Monitor Plugin** tracks system metrics and Docker events. Here’s an example configuration:
-
-```yaml
-plugins_config:
-  monitor:
-    cpu_usage_threshold: [80]
-    memory_usage_threshold: [80]
-    disk_usage_threshold: [85]
-    check_interval: [5]
-    max_notifications: [3]
-    retry_attempts: [3]
-    retry_interval: [10]
-    monitor_docker: true
-```
+The **Monitor Plugin** tracks system metrics and Docker events.
 
 ### Outline VPN Plugin
 
-To monitor your [Outline VPN](https://getoutline.org/), configure the plugin as follows:
+To monitor your [Outline VPN](https://getoutline.org/)
 
-```yaml
-plugins_config:
-  outline:
-    api_url: ['YOUR_OUTLINE_API_URL']
-    cert: ['YOUR_OUTLINE_CERT']
-```
-
-For more detailed plugin configurations, visit the [plugins documentation](https://github.com/orenlab/pytmbot/blob/master/docs/plugins.md).
+For more detailed plugin configurations, visit
+the [plugins documentation](https://github.com/orenlab/pytmbot/blob/master/docs/plugins.md).
 
 ## 🛠️ Updating the Image
 

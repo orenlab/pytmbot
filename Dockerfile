@@ -16,7 +16,7 @@
 
 # Set base images tag
 ARG PYTHON_IMAGE=3.13-alpine3.20
-ARG ALPINE_IMAGE=3.20
+ARG ALPINE_IMAGE=3.21
 
 ########################################################################################################################
 ######################### BUILD ALPINE BASED IMAGE #####################################################################
@@ -73,7 +73,9 @@ COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
 # Set permissions for entrypoint script
-RUN chmod 700 ./entrypoint.sh
+RUN chmod 700 ./entrypoint.sh && \
+    rm -rf /root/.cache/* &&  \
+    rm -rf /tmp/*
 
 ########################################################################################################################
 ######################### TARGETS SETUP ###############################################################################
