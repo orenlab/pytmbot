@@ -2,7 +2,7 @@ name: CI Rebuild All Supported Tags
 
 on:
   schedule:
-    - cron: '0 14 * * 4' # Run every Thursday at 13:00 UTC (18:00 Yekaterinburg time)
+    - cron: '10 19 * * 4' # Run every Thursday at 19:00 UTC
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -10,39 +10,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Set up git and clone the repository
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history and tags
 
-      # Retrieve all tags and filter by minimum version
       - name: Get all supported tags
         id: get_tags
         run: |
-          git fetch --tags
           # Retrieve all tags in 0.0.0 format starting from 0.2.0
           min_version="0.2.0"
-          tags=$(git tag -l | sort -V | awk -v min_version="$min_version" '$0 >= min_version')
+          tags=$(git tag -l | sort -V | awk -v min_version="$min_version" '$0 >= min_version' | sed 's/^/orenlab\/pytmbot:/')
           latest_tag=$(echo "$tags" | tail -n 1)
-          echo "tags=$tags" >> $GITHUB_ENV
-          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+          
+          # Convert tags to JSON array format for build-push-action
+          tags_json=$(echo "$tags" | tr '\n' ',' | sed 's/,$//')
+          echo "tags_json=$tags_json" >> $GITHUB_OUTPUT
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
 
-      # Log in to Docker Hub
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build and push Docker images
       - name: Build and push Docker images
         uses: docker/build-push-action@v5
         with:
           context: .
-          build-args: --target prod
+          target: prod
+          platforms: linux/amd64,linux/arm64
           sbom: true
           provenance: true
           file: Dockerfile
           push: true
           tags: |
-            ${{ join(fromJson(env.tags), ',') }}
+            ${{ steps.get_tags.outputs.tags_json }}
             orenlab/pytmbot:latest
