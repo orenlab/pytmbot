@@ -73,7 +73,9 @@ COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
 # Set permissions for entrypoint script
-RUN chmod 700 ./entrypoint.sh
+RUN chmod 700 ./entrypoint.sh && \
+    rm -rf /root/.cache/* &&  \
+    rm -rf /tmp/*
 
 ########################################################################################################################
 ######################### TARGETS SETUP ###############################################################################
