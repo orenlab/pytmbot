@@ -2,7 +2,7 @@ name: CI Rebuild All Supported Tags
 
 on:
   schedule:
-    - cron: '30 17 * * 5'
+    - cron: '00 18 * * 5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -18,13 +18,24 @@ jobs:
       - name: Get all supported tags
         id: get_tags
         run: |
-          # Retrieve all tags in 0.0.0 format starting from 0.2.0
+          # Minimum supported version
           min_version="0.2.0"
-          tags=$(git tag -l | sort -V | awk -v min_version="$min_version" '$0 >= min_version' | sed 's/^/orenlab\/pytmbot:/')
+
+          # Get all tags matching x.y.z format
+          tags=$(git tag -l | grep -E '^([0-9]+\.[0-9]+\.[0-9]+)$' | sort -V | awk -v min_version="$min_version" '$0 >= min_version')
+
+          if [ -z "$tags" ]; then
+            echo "No tags found starting from $min_version"
+            exit 1
+          fi
+
+          # Get the latest tag (last one in sorted list)
           latest_tag=$(echo "$tags" | tail -n 1)
-          
-          # Convert tags to JSON array format for build-push-action
-          tags_json=$(echo "$tags" | tr '\n' ',' | sed 's/,$//')
+
+          # Prepare Docker tags: latest and all versioned tags
+          docker_tags=$(echo "$tags" | sed 's/^/orenlab\/pytmbot:/')
+          tags_json="orenlab/pytmbot:latest,$(echo "$docker_tags" | tr '\n' ',' | sed 's/,$//')"
+
           echo "tags_json=$tags_json" >> $GITHUB_OUTPUT
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
 
@@ -41,6 +52,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          # Build context is the directory containing Dockerfile
           target: production
           platforms: linux/amd64,linux/arm64
           sbom: true
@@ -49,4 +61,3 @@ jobs:
           push: true
           tags: |
             ${{ steps.get_tags.outputs.tags_json }}
-            orenlab/pytmbot:latest
