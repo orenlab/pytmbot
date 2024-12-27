@@ -2,7 +2,7 @@ name: CI Rebuild All Supported Tags
 
 on:
   schedule:
-    - cron: '10 19 * * 4' # Run every Thursday at 19:00 UTC
+    - cron: '30 17 * * 5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          target: prod
+          target: production
           platforms: linux/amd64,linux/arm64
           sbom: true
           provenance: true
