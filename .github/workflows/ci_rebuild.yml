@@ -2,7 +2,7 @@ name: CI Rebuild All Supported Tags
 
 on:
   schedule:
-    - cron: '00 18 * * 5'
+    - cron: '10 18 * * 5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
