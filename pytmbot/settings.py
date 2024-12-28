@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from typing import Dict, FrozenSet, ClassVar
 
 import yaml
 from pydantic import BaseModel
@@ -25,9 +26,7 @@ def get_config_file_path() -> str:
     """
     current_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(current_dir)
-    env_file_path = os.path.join(root_dir, "pytmbot.yaml")
-
-    return env_file_path
+    return os.path.join(root_dir, "pytmbot.yaml")
 
 
 @lru_cache(maxsize=None)
@@ -42,33 +41,28 @@ def load_settings_from_yaml() -> SettingsModel:
         FileNotFoundError: If the YAML file is not found.
         yaml.YAMLError: If there is an error parsing the YAML file.
     """
+    config_path = get_config_file_path()
     try:
-        with open(get_config_file_path(), "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             settings_data = yaml.safe_load(f)
         return SettingsModel(**settings_data)
     except FileNotFoundError:
-        raise FileNotFoundError("pytmbot.yaml not found")
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(f"Error parsing YAML file: {e}")
 
 
-class KeyboardSettings(BaseModel):
-    """
-    Configuration settings for bot keyboards.
-
-    Attributes:
-        main_keyboard (frozenset[dict[str, str]]): The main keyboard settings.
-        docker_keyboard (frozenset[dict[str, str]]): The Docker keyboard settings.
-        auth_keyboard (frozenset[dict[str, str]]): The authentication keyboard settings.
-        auth_processing_keyboard (frozenset[dict[str, str]]): The keyboard used during authentication processing.
-        back_keyboard (frozenset[dict[str, str]]): The back navigation keyboard settings.
-    """
-
-    main_keyboard: frozenset[dict[str, str]] = {
+def get_default_main_keyboard() -> Dict[str, str]:
+    return {
         "rocket": "Server",
         "spouting_whale": "Docker",
         "lollipop": "Plugins",
         "mushroom": "About me",
     }
-    server_keyboard: frozenset[dict[str, str]] = {
+
+
+def get_default_server_keyboard() -> Dict[str, str]:
+    return {
         "low_battery": "Load average",
         "pager": "Memory load",
         "stopwatch": "Sensors",
@@ -77,29 +71,34 @@ class KeyboardSettings(BaseModel):
         "floppy_disk": "File system",
         "satellite": "Network",
     }
-    docker_keyboard: frozenset[dict[str, str]] = {
+
+
+def get_default_docker_keyboard() -> Dict[str, str]:
+    return {
         "framed_picture": "Images",
         "toolbox": "Containers",
     }
-    auth_keyboard: frozenset[dict[str, str]] = {
+
+
+def get_default_auth_keyboard() -> Dict[str, str]:
+    return {
         "first_quarter_moon": "Get QR-code for 2FA app",
         "fountain_pen": "Enter 2FA code",
     }
-    auth_processing_keyboard: frozenset[dict[str, str]] = {
+
+
+def get_default_auth_processing_keyboard() -> Dict[str, str]:
+    return {
         "fountain_pen": "Enter 2FA code",
     }
-    back_keyboard: frozenset[dict[str, str]] = {"BACK_arrow": "Back to main menu"}
 
 
-class BotCommandSettings(BaseModel):
-    """
-    Configuration settings for bot commands.
+def get_default_back_keyboard() -> Dict[str, str]:
+    return {"BACK_arrow": "Back to main menu"}
 
-    Attributes:
-        bot_commands (frozenset[dict[str, str]]): The bot commands with descriptions.
-    """
 
-    bot_commands: frozenset[dict[str, str]] = {
+def get_default_bot_commands() -> Dict[str, str]:
+    return {
         "/start": "Start bot!",
         "/help": "Get help",
         "/docker": "Launch the section about Docker",
@@ -111,17 +110,74 @@ class BotCommandSettings(BaseModel):
     }
 
 
+def get_default_log_levels() -> FrozenSet[str]:
+    return frozenset(["ERROR", "INFO", "DEBUG"])
+
+
+class KeyboardSettings(BaseModel):
+    """
+    Configuration settings for bot keyboards.
+
+    Attributes:
+        main_keyboard (Dict[str, str]): The main keyboard settings.
+        server_keyboard (Dict[str, str]): The server keyboard settings.
+        docker_keyboard (Dict[str, str]): The Docker keyboard settings.
+        auth_keyboard (Dict[str, str]): The authentication keyboard settings.
+        auth_processing_keyboard (Dict[str, str]): The keyboard used during authentication.
+        back_keyboard (Dict[str, str]): The back navigation keyboard settings.
+    """
+    main_keyboard: Dict[str, str]
+    server_keyboard: Dict[str, str]
+    docker_keyboard: Dict[str, str]
+    auth_keyboard: Dict[str, str]
+    auth_processing_keyboard: Dict[str, str]
+    back_keyboard: Dict[str, str]
+
+    model_config = {
+        "frozen": True,
+        "json_schema_extra": {
+            "main_keyboard": get_default_main_keyboard(),
+            "server_keyboard": get_default_server_keyboard(),
+            "docker_keyboard": get_default_docker_keyboard(),
+            "auth_keyboard": get_default_auth_keyboard(),
+            "auth_processing_keyboard": get_default_auth_processing_keyboard(),
+            "back_keyboard": get_default_back_keyboard(),
+        }
+    }
+
+
+class BotCommandSettings(BaseModel):
+    """
+    Configuration settings for bot commands.
+
+    Attributes:
+        bot_commands (Dict[str, str]): The bot commands with descriptions.
+    """
+    bot_commands: Dict[str, str]
+
+    model_config = {
+        "frozen": True,
+        "json_schema_extra": {
+            "bot_commands": get_default_bot_commands()
+        }
+    }
+
+
 class BotDescriptionSettings(BaseModel):
     """
     Configuration settings for the bot description.
 
     Attributes:
-        bot_description (frozenset[str]): The description of the bot.
+        bot_description (str): The description of the bot.
     """
-
-    bot_description: frozenset[str] = (
-        "pyTMBot - A simple Telegram bot designed to gather basic information about the status of your local servers"
+    bot_description: ClassVar[str] = (
+        "pyTMBot - A simple Telegram bot designed to gather basic information "
+        "about the status of your local servers"
     )
+
+    model_config = {
+        "frozen": True
+    }
 
 
 class VarConfig(BaseModel):
@@ -134,11 +190,14 @@ class VarConfig(BaseModel):
         bot_polling_timeout (int): Timeout for bot polling.
         bot_long_polling_timeout (int): Timeout for long polling.
     """
+    template_path: ClassVar[str] = os.path.join(os.path.dirname(__file__), "templates")
+    totp_max_attempts: ClassVar[int] = 3
+    bot_polling_timeout: ClassVar[int] = 30
+    bot_long_polling_timeout: ClassVar[int] = 60
 
-    template_path: str = os.path.join(os.path.dirname(__file__), "templates")
-    totp_max_attempts: int = 3
-    bot_polling_timeout: int = 30
-    bot_long_polling_timeout: int = 60
+    model_config = {
+        "frozen": True
+    }
 
 
 class LogsSettings(BaseModel):
@@ -146,12 +205,11 @@ class LogsSettings(BaseModel):
     Configuration settings for logging.
 
     Attributes:
-        valid_log_levels (frozenset[str]): Set of valid log levels.
+        valid_log_levels (FrozenSet[str]): Set of valid log levels.
         bot_logger_format (str): Format of the bot logger output.
     """
-
-    valid_log_levels: frozenset[str] = frozenset(["ERROR", "INFO", "DEBUG"])
-    bot_logger_format: str = (
+    valid_log_levels: FrozenSet[str]
+    bot_logger_format: ClassVar[str] = (
         "<green>{time:YYYY-MM-DD}</green> "
         "[<cyan>{time:HH:mm:ss}</cyan>]"
         "[<level>{level: <8}</level>]"
@@ -159,11 +217,25 @@ class LogsSettings(BaseModel):
         "<level>{message}</level> "
     )
 
+    model_config = {
+        "frozen": True,
+        "json_schema_extra": {
+            "valid_log_levels": get_default_log_levels()
+        }
+    }
+
 
 # Load settings and configurations
 settings = load_settings_from_yaml()
 var_config = VarConfig()
-log_settings = LogsSettings()
-keyboard_settings = KeyboardSettings()
-bot_command_settings = BotCommandSettings()
+log_settings = LogsSettings(valid_log_levels=get_default_log_levels())
+keyboard_settings = KeyboardSettings(
+    main_keyboard=get_default_main_keyboard(),
+    server_keyboard=get_default_server_keyboard(),
+    docker_keyboard=get_default_docker_keyboard(),
+    auth_keyboard=get_default_auth_keyboard(),
+    auth_processing_keyboard=get_default_auth_processing_keyboard(),
+    back_keyboard=get_default_back_keyboard()
+)
+bot_command_settings = BotCommandSettings(bot_commands=get_default_bot_commands())
 bot_description_settings = BotDescriptionSettings()

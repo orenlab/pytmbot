@@ -1,9 +1,12 @@
+from collections import deque
 from time import time
+from typing import Dict
 
 import telebot
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 from telebot import TeleBot
 
 from pytmbot.exceptions import PyTMBotError
@@ -18,24 +21,30 @@ class RateLimit404:
         """
         self.limit = limit
         self.period = period
-        self.requests = {}
+        self.requests: Dict[str, deque] = {}
 
     def is_rate_limited(self, client_ip: str) -> bool:
         """
         Checks if a client IP exceeds the rate limit for 404 errors.
         """
         current_time = time()
-        request_times = self.requests.setdefault(client_ip, [])
+        if client_ip not in self.requests:
+            self.requests[client_ip] = deque()
 
-        self.requests[client_ip] = [
-            t for t in request_times if t > current_time - self.period
-        ]
+        request_times = self.requests[client_ip]
+        while request_times and request_times[0] < current_time - self.period:
+            request_times.popleft()
 
-        if len(self.requests[client_ip]) >= self.limit:
+        if len(request_times) >= self.limit:
             return True
 
-        self.requests[client_ip].append(current_time)
+        request_times.append(current_time)
         return False
+
+
+class WebhookUpdate(BaseModel):
+    update_id: int
+    message: Dict
 
 
 class WebhookServer:
@@ -48,12 +57,12 @@ class WebhookServer:
         self.host = host
         self.port = port
         self.app = FastAPI(
-            docs=None, redoc_url=None, title="PyTMBot Webhook Server", version="0.1.0"
+            docs_url=None, redoc_url=None, title="PyTMBot Webhook Server", version="0.1.0"
         )
         self.rate_limiter = RateLimit404(limit=8, period=10)
 
         @self.app.exception_handler(404)
-        def not_found_handler(request: Request, exc: HTTPException):
+        async def not_found_handler(request: Request, exc: HTTPException):
             client_ip = request.client.host
             if self.rate_limiter.is_rate_limited(client_ip):
                 return JSONResponse(
@@ -65,19 +74,24 @@ class WebhookServer:
             )
 
         @self.app.post(f"/webhook/{self.token}/")
-        def process_webhook(update: dict):
+        async def process_webhook(update: dict):
             """
             Process webhook calls.
             """
             try:
                 if not update:
                     bot_logger.warning("No update found in the request.")
-                    raise HTTPException(status_code=400, detail="Bad Request")
+                    raise HTTPException(status_code=400, detail="Empty request payload")
 
-                bot_logger.debug(f"Received webhook update: {update}")
-                update = telebot.types.Update.de_json(update)
-                self.bot.process_new_updates([update])
+                validated_update = WebhookUpdate(**update)
+                bot_logger.debug(f"Received webhook update: {validated_update}")
+                update_obj = telebot.types.Update.de_json(update)
+                self.bot.process_new_updates([update_obj])
                 return {"status": "ok"}
+
+            except ValidationError as ve:
+                bot_logger.error(f"Validation error: {ve}")
+                raise HTTPException(status_code=400, detail="Invalid request format")
 
             except Exception as e:
                 bot_logger.error(f"Failed to process update: {e}")
@@ -107,7 +121,7 @@ class WebhookServer:
                 ssl_certfile=settings.webhook_config.cert[0].get_secret_value(),
                 ssl_keyfile=settings.webhook_config.cert_key[0].get_secret_value(),
                 log_level="critical",
-                use_colors=True,
+                access_log=False,
             )
         except Exception as e:
             bot_logger.critical(f"Failed to start FastAPI server: {e}")

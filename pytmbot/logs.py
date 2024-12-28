@@ -5,7 +5,7 @@ from typing import Tuple, Any, Callable, Set
 import loguru
 from loguru import logger
 
-from pytmbot.settings import LogsSettings
+from pytmbot.settings import log_settings
 from pytmbot.utils.utilities import (
     parse_cli_args,
     get_inline_message_full_info,
@@ -29,16 +29,15 @@ def build_bot_logger() -> loguru.logger:
         loguru.Logger: Configured logger object.
     """
     logger.remove()
-    logs_settings = LogsSettings()
     cli_args = parse_cli_args()
 
     log_level = cli_args.log_level.upper()
-    if log_level not in get_log_level_map(tuple(logs_settings.valid_log_levels)):
+    if log_level not in get_log_level_map(tuple(log_settings.valid_log_levels)):
         log_level = "INFO"
 
     logger.add(
         sys.stdout,
-        format=logs_settings.bot_logger_format,
+        format=log_settings.bot_logger_format,
         diagnose=True,
         backtrace=True,
         colorize=bool(cli_args.colorize_logs),
