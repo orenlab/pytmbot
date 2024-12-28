@@ -334,5 +334,10 @@ class WebhookServer:
         else:
             bot_logger.info(f"Starting webhook server without SSL on {self.host}:{self.port}")
 
-        server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
-        await server.serve()
+        try:
+            server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
+            await server.serve()
+        except Exception as e:
+            error_msg = f"Failed to start webhook server: {sanitize_exception(e)}"
+            bot_logger.error(error_msg)
+            raise PyTMBotError(error_msg)
