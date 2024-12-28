@@ -1,13 +1,11 @@
 from collections import deque
-from functools import cached_property
 from time import time
-from typing import Optional, Dict
+from typing import Dict
 
 import telebot
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ValidationError
 from telebot import TeleBot
 
 from pytmbot.exceptions import PyTMBotError
@@ -29,8 +27,10 @@ class RateLimit404:
         Checks if a client IP exceeds the rate limit for 404 errors.
         """
         current_time = time()
-        request_times = self.requests.setdefault(client_ip, deque())
+        if client_ip not in self.requests:
+            self.requests[client_ip] = deque()
 
+        request_times = self.requests[client_ip]
         while request_times and request_times[0] < current_time - self.period:
             request_times.popleft()
 
@@ -39,31 +39,6 @@ class RateLimit404:
 
         request_times.append(current_time)
         return False
-
-
-# Define Pydantic models for strict validation
-class Message(BaseModel):
-    message_id: int
-    text: Optional[str]
-
-
-class InlineQuery(BaseModel):
-    id: str
-    query: str
-    offset: str
-
-
-class CallbackQuery(BaseModel):
-    id: str
-    data: Optional[str]
-    message: Optional[Message]
-
-
-class WebhookUpdate(BaseModel):
-    update_id: int
-    message: Optional[Message]
-    inline_query: Optional[InlineQuery]
-    callback_query: Optional[CallbackQuery]
 
 
 class WebhookServer:
@@ -79,20 +54,6 @@ class WebhookServer:
             docs_url=None, redoc_url=None, title="PyTMBot Webhook Server", version="0.1.0"
         )
         self.rate_limiter = RateLimit404(limit=8, period=10)
-        self._setup_routes()
-
-    @cached_property
-    def hashed_token(self) -> str:
-        """
-        Returns a hashed version of the token for added security.
-        """
-        import hashlib
-        return hashlib.sha256(self.token.encode()).hexdigest()
-
-    def _setup_routes(self):
-        """
-        Set up routes and handlers.
-        """
 
         @self.app.exception_handler(404)
         async def not_found_handler(request: Request, exc: HTTPException):
@@ -109,39 +70,17 @@ class WebhookServer:
         @self.app.post(f"/webhook/{self.token}/")
         async def process_webhook(update: dict):
             """
-            Process webhook calls using validated models and telebot.types.Update.de_json.
+            Process webhook calls.
             """
             try:
-                # Validate update using Pydantic
-                validated_update = WebhookUpdate(**update)
-                bot_logger.debug(f"Validated update: {validated_update.model_dump_json()}")
+                if not update:
+                    bot_logger.warning("No update found in the request.")
+                    raise HTTPException(status_code=400, detail="Empty request payload")
 
-                # Deserialize using telebot for processing
+                bot_logger.debug(f"Received webhook update: {update}")
                 update_obj = telebot.types.Update.de_json(update)
-
-                # Handle updates based on their type
-                match validated_update:
-                    case _ if validated_update.message:
-                        bot_logger.info(f"Processing message: {validated_update.message.message_id}")
-                        self.bot.process_new_updates([update_obj])
-
-                    case _ if validated_update.inline_query:
-                        bot_logger.info(f"Processing inline query: {validated_update.inline_query.id}")
-                        self.bot.process_new_updates([update_obj])
-
-                    case _ if validated_update.callback_query:
-                        bot_logger.info(f"Processing callback query: {validated_update.callback_query.id}")
-                        self.bot.process_new_updates([update_obj])
-
-                    case _:
-                        bot_logger.warning("Unsupported update type received.")
-                        return {"status": "no_action"}
-
+                self.bot.process_new_updates([update_obj])
                 return {"status": "ok"}
-
-            except ValidationError as ve:
-                bot_logger.error(f"Validation error: {ve}")
-                raise HTTPException(status_code=400, detail="Invalid request format")
 
             except Exception as e:
                 bot_logger.error(f"Failed to process update: {e}")
