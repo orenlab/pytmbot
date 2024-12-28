@@ -222,9 +222,7 @@ class PyTMBot:
             )
 
             server = WebhookServer(self.bot, **webhook_config)
-
-            import asyncio
-            asyncio.run(server.start())
+            server.start()
 
         except ImportError as err:
             bot_logger.exception(f"Failed to import FastAPI: {err}")

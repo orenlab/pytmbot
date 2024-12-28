@@ -8,12 +8,8 @@ import telebot
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import Response
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from typing_extensions import override
 
 from pytmbot.exceptions import PyTMBotError
 from pytmbot.globals import settings
@@ -32,19 +28,11 @@ class WebhookManager:
         self.port = port
         self.secret_token = secret_token
 
-    async def setup_webhook(self, webhook_path: str) -> None:
-        """
-        Configures the webhook for the bot.
-
-        Args:
-            webhook_path (str): The path component of the webhook URL
-
-        Raises:
-            PyTMBotError: If webhook configuration fails
-        """
+    def setup_webhook(self, webhook_path: str) -> None:
+        """Configures the webhook for the bot."""
         try:
             # Remove any existing webhook first
-            await self.remove_webhook()
+            self.remove_webhook()
 
             webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
             cert_path = settings.webhook_config.cert[0].get_secret_value() or None
@@ -54,25 +42,19 @@ class WebhookManager:
             self.bot.set_webhook(
                 url=webhook_url,
                 timeout=20,
-                allowed_updates=['message', 'edited_message', 'inline_query', 'callback_query', ],
+                allowed_updates=['message', 'edited_message', 'inline_query', 'callback_query'],
                 drop_pending_updates=True,
                 certificate=cert_path,
                 secret_token=self.secret_token
             )
             bot_logger.info("Webhook successfully configured")
-
         except ApiTelegramException as e:
             error_msg = f"Failed to set webhook: {sanitize_exception(e)}"
             bot_logger.error(error_msg)
             raise PyTMBotError(error_msg) from e
 
-    async def remove_webhook(self) -> None:
-        """
-        Removes the existing webhook configuration.
-
-        Raises:
-            PyTMBotError: If webhook removal fails
-        """
+    def remove_webhook(self) -> None:
+        """Removes the existing webhook configuration."""
         try:
             self.bot.remove_webhook()
             bot_logger.debug("Existing webhook removed")
@@ -80,26 +62,6 @@ class WebhookManager:
             error_msg = f"Failed to remove webhook: {sanitize_exception(e)}"
             bot_logger.error(error_msg)
             raise PyTMBotError(error_msg) from e
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Middleware for adding security headers."""
-
-    def __init__(self, app: FastAPI) -> None:
-        super().__init__(app)
-        self.security_headers = {
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            "X-XSS-Protection": "1; mode=block",
-            "Content-Security-Policy": "default-src 'self'"
-        }
-
-    @override
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        response = await call_next(request)
-        response.headers.update(self.security_headers)
-        return response
 
 
 class RateLimit:
@@ -177,14 +139,14 @@ class WebhookServer:
 
     def _create_app(self) -> FastAPI:
         @asynccontextmanager
-        async def lifespan():
+        def lifespan():
             bot_logger.info("Initializing webhook server...")
             try:
                 # Configure webhook during startup
-                await self.webhook_manager.setup_webhook(self.webhook_path)
+                self.webhook_manager.setup_webhook(self.webhook_path)
                 yield
                 # Cleanup webhook during shutdown
-                await self.webhook_manager.remove_webhook()
+                self.webhook_manager.remove_webhook()
             except Exception as e:
                 bot_logger.error(f"Webhook lifecycle error: {sanitize_exception(e)}")
                 raise
@@ -197,16 +159,6 @@ class WebhookServer:
             title="PyTMBot Webhook Server",
             version="2.1.0",
             lifespan=lifespan
-        )
-
-        app.add_middleware(SecurityHeadersMiddleware)
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=[],
-            allow_credentials=False,
-            allow_methods=["POST"],
-            allow_headers=["*"],
-            max_age=3600,
         )
 
         self._setup_routes(app)
@@ -225,7 +177,7 @@ class WebhookServer:
 
     def _setup_routes(self, app: FastAPI) -> None:
         @app.exception_handler(404)
-        async def not_found_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        def not_found_handler(request: Request, exc: HTTPException) -> JSONResponse:
             client_ip = request.client.host
             if self.rate_limiter_404.is_rate_limited(client_ip):
                 return JSONResponse(
@@ -237,7 +189,7 @@ class WebhookServer:
                 content={"detail": "Not found"}
             )
 
-        async def verify_telegram_ip(
+        def verify_telegram_ip(
                 request: Request,
                 x_forwarded_for: Annotated[str | None, Header()] = None
         ) -> str:
@@ -252,7 +204,7 @@ class WebhookServer:
             return client_ip
 
         @app.post(self.webhook_path)
-        async def process_webhook(
+        def process_webhook(
                 update: UpdateModel,
                 client_ip: Annotated[str, Depends(verify_telegram_ip)],
                 x_telegram_bot_api_secret_token: Annotated[str | None, Header()]
@@ -299,7 +251,7 @@ class WebhookServer:
                 bot_logger.error(f"Failed to process update: {str(e)}")
                 raise HTTPException(status_code=500, detail="Internal server error")
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """
         Starts the webhook server asynchronously.
 
@@ -336,7 +288,7 @@ class WebhookServer:
 
         try:
             server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
-            await server.serve()
+            server.serve()
         except Exception as e:
             error_msg = f"Failed to start webhook server: {sanitize_exception(e)}"
             bot_logger.error(error_msg)
