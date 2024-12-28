@@ -4,7 +4,7 @@ import ssl
 import time
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, TypeAlias, Final, NotRequired, TypedDict
+from typing import Any, TypeAlias, Final, TypedDict
 
 import requests
 import telebot
@@ -42,7 +42,7 @@ RegisterMethod: TypeAlias = Callable[..., Any]
 class WebhookConfig(TypedDict):
     """Webhook configuration."""
     host: str
-    local_port: NotRequired[int]
+    port: int
     token: str
 
 
@@ -217,7 +217,7 @@ class PyTMBot:
 
             webhook_config = WebhookConfig(
                 host=self.args.socket_host,
-                local_port=settings.webhook_config.local_port[0],
+                port=settings.webhook_config.local_port[0],
                 token=self.bot.token,
             )
 
