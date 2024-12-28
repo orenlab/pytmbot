@@ -16,7 +16,7 @@ def main():
     """
     try:
         manager = pytmbot_instance.PyTMBot()
-        manager.start_bot_instance()
+        manager.launch_bot()
     except Exception as e:
         logs.bot_logger.critical(f"Failed to start the bot instance: {e}")
         sys.exit(1)

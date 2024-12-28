@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import secrets
 from datetime import datetime
 from functools import cached_property, lru_cache
 from typing import Any, Dict, Optional, Tuple, Union
@@ -169,7 +170,7 @@ class EmojiConverter:
 
 
 def split_string_into_octets(
-    input_string: str, delimiter: str = ":", octet_index: int = 1
+        input_string: str, delimiter: str = ":", octet_index: int = 1
 ) -> str:
     """
     Extracts a specific octet from a string based on a delimiter.
@@ -193,7 +194,7 @@ def split_string_into_octets(
 
 
 def sanitize_logs(
-    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+        container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
 ) -> str:
     """
     Sanitizes Docker container logs by replacing sensitive user information
@@ -255,7 +256,7 @@ def get_message_full_info(*args: Any, **kwargs: Any) -> Tuple[
 
 
 def get_inline_message_full_info(
-    *args: Any, **kwargs: Any
+        *args: Any, **kwargs: Any
 ) -> Tuple[Union[str, None], Union[int, None], Union[bool, None]]:
     """
     Retrieves full information for inline handlers logs.
@@ -377,3 +378,16 @@ def sanitize_exception(exception: Exception) -> str:
         exception_str = exception_str.replace(secret, placeholder, 1)
 
     return exception_str
+
+
+def generate_secret_token(secret_length: int = 32) -> str:
+    """
+    Generates a secret token for use in various parts of the bot.
+
+    Args:
+        secret_length (int, optional): The length of the secret token. Defaults to 32.
+
+    Returns:
+        str: The generated secret token.
+    """
+    return secrets.token_urlsafe(secret_length)
