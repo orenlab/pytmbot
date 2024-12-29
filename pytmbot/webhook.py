@@ -233,7 +233,7 @@ class WebhookServer:
         @app.exception_handler(404)
         def not_found_handler(request: Request, exc: HTTPException) -> JSONResponse:
             client_ip = request.client.host
-            bot_logger.debug(f"404 request from {client_ip}: {request.url}")
+            bot_logger.warning(f"404 request from {client_ip}: {request.url}")
 
             if self.rate_limiter_404.is_rate_limited(client_ip):
                 bot_logger.warning(f"Rate limit exceeded for 404 requests from {client_ip}")
