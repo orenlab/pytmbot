@@ -4,12 +4,14 @@ import ssl
 import time
 from collections.abc import Callable
 from datetime import timedelta
+from time import sleep
 from typing import Any, TypeAlias, Final, TypedDict
 
 import requests
 import telebot
 import urllib3.exceptions
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from telebot.types import BotCommand
 
 from pytmbot import exceptions
@@ -65,6 +67,14 @@ class PyTMBot:
         self.args = parse_cli_args()
         self.bot: TeleBot | None = None
         self.plugin_manager = PluginManager()
+
+    def is_healthy(self) -> bool:
+        """Check if the bot is healthy (i.e., able to contact Telegram)."""
+        try:
+            return self.bot is not None and self.bot.get_me()
+        except telebot.apihelper.ApiException:
+            bot_logger.error("Cannot connect to Telegram API")
+            return False
 
     def retrieve_bot_token(self) -> str:
         """Retrieves bot token based on operational mode."""
@@ -206,6 +216,32 @@ class PyTMBot:
         except Exception as error:
             bot_logger.error(f"Failed to start bot: {error}")
             raise
+
+    def recovery(self) -> bool:
+        """Recover bot functionality by restarting in the current mode"""
+        try:
+            # Verify API connection first
+            self.bot.get_me()
+
+            # Stop current mode
+            if self.args.webhook == "True":
+                self.bot.remove_webhook()
+            else:
+                self.bot.stop_polling()
+
+            # Use shorter adaptive delay
+            sleep(2)
+
+            # Restart and verify
+            self.launch_bot()
+            return True
+
+        except ApiTelegramException as err:
+            bot_logger.error(f"Telegram API error during recovery: {err}")
+            return False
+        except Exception as err:
+            bot_logger.error(f"Critical error during recovery: {err}")
+            return False
 
     def start_webhook_server(self) -> None:
         """Initializes and starts webhook server."""

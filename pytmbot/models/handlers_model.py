@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 from typing import Callable, Any, Dict, TypeAlias
 from typing import final
 
-from loguru import logger
+from pytmbot.logs import bot_logger
 
 CallbackType: TypeAlias = Callable[..., Any]
 
@@ -24,7 +24,7 @@ class HandlerManager:
             **kwargs (Any): Keyword arguments to be stored with the callback.
         """
         if not callable(callback):
-            logger.error(f"Invalid callback provided: {callback}")
+            bot_logger.error(f"Invalid callback provided: {callback}")
             raise ValueError("The 'callback' parameter must be callable.")
         self.callback: CallbackType = callback
         self.kwargs: Dict[str, Any] = kwargs
@@ -40,7 +40,7 @@ class HandlerManager:
             Any: The result of the callback function execution.
         """
         combined_kwargs = {**self.kwargs, **extra_kwargs}
-        logger.debug(
+        bot_logger.debug(
             f"Executing callback {self.callback.__name__} with arguments: {combined_kwargs}"
         )
         return self.callback(**combined_kwargs)

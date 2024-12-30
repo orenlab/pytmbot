@@ -72,6 +72,9 @@ COPY ./pytmbot ./pytmbot
 COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
+#HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
+#  CMD ["/entrypoint.sh", "--health_check", "True"]
+
 # Set permissions for entrypoint script
 RUN chmod 700 ./entrypoint.sh && \
     rm -rf /root/.cache/* &&  \

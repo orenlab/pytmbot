@@ -17,6 +17,18 @@ class PyTMBotError(Exception):
     """
 
 
+class BotInitializationError(PyTMBotError):
+    """
+    Exception raised when there is an error during bot initialization.
+    """
+
+
+class ShutdownError(PyTMBotError):
+    """
+    Exception raised when there is an error during bot shutdown.
+    """
+
+
 class PyTMBotConnectionError(PyTMBotError):
     """
     Exception raised when there is an error connecting to the server.
@@ -38,6 +50,18 @@ class PyTMBotErrorTemplateError(PyTMBotError):
 class DockerAdapterException(PyTMBotError):
     """
     Exception raised when there is an error interacting with Docker.
+    """
+
+
+class AuthenticationError(PyTMBotError):
+    """
+    Exception raised when there is an error during authentication.
+    """
+
+
+class QRCodeGenerationError(PyTMBotError):
+    """
+    Exception raised when there is an error generating a QR code.
     """
 
 

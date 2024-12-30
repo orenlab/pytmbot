@@ -5,6 +5,7 @@ import io
 import pyotp
 import qrcode
 
+from pytmbot.exceptions import QRCodeGenerationError
 from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 
@@ -34,8 +35,8 @@ class TwoFactorAuthenticator:
         # Concatenate the user ID, salt, and username
         message = f"{str(self.user_id)}{self.salt}{self.username}".encode()
 
-        # Hash the concatenated message using SHA256
-        h = hashlib.sha256(message)
+        # Hash the concatenated message using blake2b
+        h = hashlib.blake2b(message, digest_size=64)
 
         # Encode the hash digest as base32 and decode it to a string
         return base64.b32encode(h.digest()).decode()
@@ -82,8 +83,9 @@ class TwoFactorAuthenticator:
                 )
                 return img_bytes.getvalue()
         except Exception as e:
-            bot_logger.error(f"Error generating QR code for user {self.username}: {e}")
-            raise
+            error_msg = f"Error generating QR code for user {self.username}: {e}"
+            bot_logger.error(error_msg)
+            raise QRCodeGenerationError(error_msg)
 
     def verify_totp_code(self, code: str) -> bool:
         """

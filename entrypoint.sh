@@ -34,10 +34,11 @@ fi
 # Default values for script arguments
 LOG_LEVEL="INFO"         # Set the default log level
 MODE="prod"              # Set the default mode (prod/dev)
-SALT="false"             # Default value for salt execution
+SALT="False"             # Default value for salt execution
 PLUGINS=""               # Default value for plugins
 WEBHOOK="False"          # Set default value for webhook
 SOCKET_HOST="127.0.0.1" # Default socket host
+HEALTH_CHECK="False"     # Set default value for health check
 
 # Parse command-line arguments using a while loop
 while [ $# -gt 0 ]; do
@@ -59,7 +60,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --salt)
-            SALT="true"  # Enable salt execution
+            SALT="True"  # Enable salt execution
             shift
             ;;
         --plugins)
@@ -74,6 +75,10 @@ while [ $# -gt 0 ]; do
             SOCKET_HOST="$2"  # Set socket host address
             shift 2
             ;;
+        --health_check)
+            HEALTH_CHECK="True"  # Enable health check
+            shift
+            ;;
         *)
             echo "Invalid option: $1" >&2
             exit 1
@@ -87,7 +92,16 @@ if [ ! -f "main.py" ]; then
     exit 1
 fi
 
-if [ "$SALT" = "true" ]; then
+if [ "$HEALTH_CHECK" = "True" ]; then
+
+    if pgrep -f "/venv/bin/python3 main.py --health_check" > /dev/null; then
+        exit 0  # Healthy
+    else
+        exit 1  # Unhealthy
+    fi
+fi
+
+if [ "$SALT" = "True" ]; then
     if [ ! -f "pytmbot/utils/salt.py" ]; then
         echo "Error: pytmbot/utils/salt.py does not exist or cannot be accessed." >&2
         exit 1

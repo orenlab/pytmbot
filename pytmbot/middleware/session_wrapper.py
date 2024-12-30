@@ -13,7 +13,7 @@ from pytmbot.logs import bot_logger
 
 def handle_unauthorized_query(
     query: Union[Message, CallbackQuery], bot: telebot.TeleBot
-) -> bool:
+) -> None:
     """
     Handle unauthorized queries.
 

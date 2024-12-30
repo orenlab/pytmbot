@@ -65,6 +65,13 @@ def parse_cli_args() -> argparse.Namespace:
         "--plugins", nargs="+", default=[], help="List of plugins to load"
     )
 
+    parser.add_argument(
+        "--health_check",
+        choices=["True", "False"],
+        default="False",
+        help="Enable health check",
+    )
+
     args = parser.parse_args()
     return args
 
