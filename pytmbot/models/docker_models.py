@@ -47,6 +47,7 @@ class UpdateInfo(BaseModel):
     newer_tag: str
     created_at_local: str
     created_at_remote: str
+    current_digest: str
 
     def to_dict(self) -> Dict[str, str]:
         """Converts UpdateInfo to a dictionary.
