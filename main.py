@@ -209,7 +209,6 @@ def main() -> NoReturn:
 
     if args.health_check == "True":
         health_status = HealthStatus()
-        print(f"Health check result: {health_status.last_health_check_result}")
         sys.exit(0 if health_status.last_health_check_result else 1)
     else:
         launcher = BotLauncher()

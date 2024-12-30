@@ -27,7 +27,6 @@ class SessionManager:
     """
     A class for managing user sessions.
     """
-
     _instance: Optional[Self] = None
     _user_data: dict[int, dict[str, Any]] = field(default_factory=dict)
     state_fabric: _StateFabric = _StateFabric()
@@ -35,7 +34,8 @@ class SessionManager:
     session_timeout: int = 10  # Session timeout in minutes
 
     def __init__(self):
-        self._SessionManager__user_data = None
+        # Initialize _user_data as an empty dictionary
+        self._SessionManager__user_data = self._user_data
 
     def __new__(cls) -> SessionManager:
         """
