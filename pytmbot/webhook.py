@@ -16,7 +16,7 @@ from pytmbot.globals import settings
 from pytmbot.logs import bot_logger
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
-from pytmbot.utils.utilities import sanitize_exception, generate_secret_token
+from pytmbot.utils.utilities import sanitize_exception, generate_secret_token, mask_token_in_message
 
 
 class RateLimit:
@@ -79,7 +79,7 @@ class WebhookManager:
     def setup_webhook(self, webhook_path: str) -> None:
         """Configures the webhook for the bot."""
         try:
-            bot_logger.debug(f"Starting webhook setup with path: {webhook_path}")
+            bot_logger.debug(f"Starting webhook setup with path: {mask_token_in_message(webhook_path, self.bot.token)}")
 
             # Remove any existing webhook first
             self.remove_webhook()
@@ -87,7 +87,7 @@ class WebhookManager:
             webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
             cert_path = settings.webhook_config.cert[0].get_secret_value() or None
             bot_logger.debug(
-                f"Webhook configuration - URL: {webhook_url}, "
+                f"Webhook configuration - URL: {mask_token_in_message(webhook_url, self.bot.token)}, "
                 f"Certificate present: {bool(cert_path)}"
             )
 
@@ -106,7 +106,7 @@ class WebhookManager:
             # Verify webhook was set correctly
             new_webhook_info = self.bot.get_webhook_info()
             bot_logger.info(
-                f"Webhook successfully configured. New webhook info: {new_webhook_info}"
+                f"Webhook successfully configured. New webhook info: {mask_token_in_message(str(new_webhook_info), self.bot.token)}"
             )
 
         except ApiTelegramException as e:
@@ -188,7 +188,7 @@ class WebhookServer:
             Yields:
                 None
             """
-            bot_logger.info("Starting webhook server lifecycle")
+            bot_logger.info("Webhook server lifecycle running...")
             try:
                 bot_logger.debug("Configuring webhook during startup")
                 self.webhook_manager.setup_webhook(self.webhook_path)
@@ -320,7 +320,6 @@ class WebhookServer:
 
     def start(self) -> None:
         """Starts the webhook server."""
-        bot_logger.info("Starting webhook server")
 
         if self.port < 1024:
             error_msg = "Cannot run webhook server on privileged ports. Use reverse proxy instead."
