@@ -17,8 +17,6 @@ from pytmbot.settings import settings
 
 # Utility functions
 
-
-@lru_cache(maxsize=None)
 def parse_cli_args() -> argparse.Namespace:
     """
     Parses command line arguments using `argparse`.
@@ -34,40 +32,33 @@ def parse_cli_args() -> argparse.Namespace:
         default="prod",
         help="PyTMBot mode (dev or prod)",
     )
-
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "ERROR"],
         default="INFO",
         help="Log level",
     )
-
     parser.add_argument(
-        "--colorize_logs",
-        choices=["True", "False"],
-        default="True",
-        help="Colorize logs",
+        "--colorize-logs",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable log colorization",
     )
-
     parser.add_argument(
         "--webhook",
-        choices=["True", "False"],
-        default="False",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help="Start in webhook mode",
     )
-
     parser.add_argument(
-        "--socket_host",
+        "--socket-host",
         default="127.0.0.1",
-        help="Socket host for listening in webhook mode",
+        help="Socket host for webhook mode",
     )
-
     parser.add_argument(
         "--plugins", nargs="+", default=[], help="List of plugins to load"
     )
-
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def round_up_tuple(numbers: Tuple[float, ...]) -> Dict[int, float]:
@@ -391,3 +382,25 @@ def generate_secret_token(secret_length: int = 32) -> str:
         str: The generated secret token.
     """
     return secrets.token_urlsafe(secret_length)
+
+
+def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> str:
+    """
+    Masks a token within a message by replacing its middle part with asterisks.
+
+    Args:
+        message (str): The original message containing the token.
+        token (str): The token to be masked.
+        visible_chars (int): Number of visible characters at the beginning and end of the token.
+
+    Returns:
+        str: The message with the token masked.
+    """
+
+    def mask_token(token: str, visible_chars: int) -> str:
+        if len(token) <= visible_chars * 2:
+            return '*' * len(token)  # Fully mask the token if it's too short
+        return f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}"
+
+    masked_token = mask_token(token, visible_chars)
+    return message.replace(token, masked_token)
