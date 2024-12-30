@@ -28,14 +28,9 @@ class SessionManager:
     A class for managing user sessions.
     """
     _instance: Optional[Self] = None
-    _user_data: dict[int, dict[str, Any]] = field(default_factory=dict)
     state_fabric: _StateFabric = _StateFabric()
     _cleanup_interval: int = 600  # Cleanup expired sessions interval in seconds
     session_timeout: int = 10  # Session timeout in minutes
-
-    def __init__(self):
-        # Initialize _user_data as an empty dictionary
-        self._SessionManager__user_data = self._user_data
 
     def __new__(cls) -> SessionManager:
         """
@@ -47,6 +42,7 @@ class SessionManager:
         if cls._instance is None:
             cls._instance = super(SessionManager, cls).__new__(cls)
             cls._instance._start_cleanup_thread()
+            cls._instance._user_data = {}
         return cls._instance
 
     def _start_cleanup_thread(self) -> None:
@@ -336,18 +332,18 @@ class SessionManager:
         Returns:
             None
         """
-        if not hasattr(self, '_SessionManager__user_data'):
+        if not hasattr(self, '_user_data'):
             bot_logger.warning("User data attribute is missing. Reinitializing...")
-            self._SessionManager__user_data = {}
-
-        expired_users = [
-            user_id
-            for user_id, user_data in self._SessionManager__user_data.items()
-            if self.is_session_expired(user_id)
-        ]
-        for user_id in expired_users:
-            bot_logger.debug(f"Clearing expired session for user {user_id}")
-            self._SessionManager__user_data.pop(user_id, None)
+            _user_data = {}
+        else:
+            expired_users = [
+                user_id
+                for user_id, user_data in self._user_data.items()
+                if self.is_session_expired(user_id)
+            ]
+            for user_id in expired_users:
+                bot_logger.debug(f"Clearing expired session for user {user_id}")
+                self._user_data.pop(user_id, None)
 
     def reset_referer_uri_and_handler_type_for_user(self, user_id: int) -> None:
         """
