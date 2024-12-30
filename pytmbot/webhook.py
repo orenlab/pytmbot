@@ -151,7 +151,7 @@ class WebhookServer:
         # Generate secure webhook path and secret token
         self.secret_token = generate_secret_token()
         self.webhook_path = f"/webhook/{generate_secret_token(16)}/{self.token}/"
-        bot_logger.debug(f"Generated webhook path: {self.webhook_path}")
+        bot_logger.debug(f"Generated webhook path: {mask_token_in_message(self.webhook_path, self.bot.token)}")
 
         # Initialize webhook manager
         webhook_settings = settings.webhook_config
