@@ -17,6 +17,7 @@ from pytmbot.settings import settings
 
 # Utility functions
 
+@lru_cache(maxsize=None)
 def parse_cli_args() -> argparse.Namespace:
     """
     Parses command line arguments using `argparse`.
@@ -32,33 +33,40 @@ def parse_cli_args() -> argparse.Namespace:
         default="prod",
         help="PyTMBot mode (dev or prod)",
     )
+
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "ERROR"],
         default="INFO",
         help="Log level",
     )
+
     parser.add_argument(
-        "--colorize-logs",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable or disable log colorization",
+        "--colorize_logs",
+        choices=["True", "False"],
+        default="True",
+        help="Colorize logs",
     )
+
     parser.add_argument(
         "--webhook",
-        action=argparse.BooleanOptionalAction,
-        default=False,
+        choices=["True", "False"],
+        default="False",
         help="Start in webhook mode",
     )
+
     parser.add_argument(
-        "--socket-host",
+        "--socket_host",
         default="127.0.0.1",
-        help="Socket host for webhook mode",
+        help="Socket host for listening in webhook mode",
     )
+
     parser.add_argument(
         "--plugins", nargs="+", default=[], help="List of plugins to load"
     )
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    return args
 
 
 def round_up_tuple(numbers: Tuple[float, ...]) -> Dict[int, float]:
