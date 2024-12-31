@@ -46,7 +46,6 @@ class HealthStatus:
 
     @last_health_check_result.setter
     def last_health_check_result(self, value: Optional[bool]) -> None:
-        print(f"Setting last health check result to: {value}")
         self._last_health_check_result = value is not None and value
 
 
