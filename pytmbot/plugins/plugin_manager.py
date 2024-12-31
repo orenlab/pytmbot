@@ -6,7 +6,6 @@ import weakref
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from threading import Lock
 from typing import List, Type, Optional, Dict, Set
 
 from telebot import TeleBot
@@ -52,8 +51,6 @@ class PluginManager:
     Manages the discovery, validation, and registration of plugins in the pyTMBot system.
     """
 
-    LOCK_TIMEOUT = 5  # seconds
-    _lock = Lock()
     _instance = None
     _index_keys: Dict[str, str] = {}
     _plugin_names: Dict[str, str] = {}
@@ -72,14 +69,12 @@ class PluginManager:
     def __new__(cls, *args, **kwargs) -> "PluginManager":
         """Creates or retrieves the singleton instance of the PluginManager."""
         if cls._instance is None:
-            if not cls._lock.acquire(timeout=cls.LOCK_TIMEOUT):
-                raise RuntimeError("Failed to acquire lock while creating PluginManager instance")
             try:
                 if cls._instance is None:
                     cls._instance = super(PluginManager, cls).__new__(cls)
                     cls._instance._initialize()
-            finally:
-                cls._lock.release()
+            except Exception as e:
+                bot_logger.error(f"Failed to create PluginManager instance: {e}")
         return cls._instance
 
     def _initialize(self):
@@ -232,18 +227,15 @@ class PluginManager:
         if not plugin_info:
             return False
 
-        if not cls._lock.acquire(timeout=cls.LOCK_TIMEOUT):
-            bot_logger.error("Failed to acquire lock while adding plugin info")
-            return False
-
         try:
             if plugin_info.index_key:
                 cls._index_keys.update(plugin_info.index_key)
             cls._plugin_names[plugin_info.name] = plugin_info.version
             cls._plugin_descriptions[plugin_info.name] = plugin_info.description
             return True
-        finally:
-            cls._lock.release()
+        except Exception as e:
+            bot_logger.error(f"Failed to add plugin info: {e}")
+            return False
 
     def _cleanup_plugin(self, plugin_name: str):
         """Performs cleanup operations for a plugin."""
@@ -256,15 +248,11 @@ class PluginManager:
                 except Exception as e:
                     bot_logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
 
-            if not self._lock.acquire(timeout=self.LOCK_TIMEOUT):
-                bot_logger.error(f"Failed to acquire lock while cleaning up plugin '{plugin_name}'")
-                return
-
             try:
                 self._plugin_instances.pop(plugin_name, None)
                 self._loaded_plugins.discard(plugin_name)
-            finally:
-                self._lock.release()
+            except Exception as e:
+                bot_logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
 
     def _register_plugin(self, plugin_name: str, bot: Optional[TeleBot] = None):
         """Registers a single plugin with enhanced security and resource management."""
@@ -301,11 +289,6 @@ class PluginManager:
             # Clean up existing plugin
             self._cleanup_plugin(plugin_name)
 
-            # Register the new plugin
-            if not self._lock.acquire(timeout=self.LOCK_TIMEOUT):
-                bot_logger.error(f"Failed to acquire lock while registering plugin '{plugin_name}'")
-                return
-
             try:
                 if not self.add_plugin_info(plugin_info):
                     return
@@ -322,8 +305,12 @@ class PluginManager:
                     bot_logger.warning(
                         f"Plugin '{plugin_info.name}' does not have permission to execute commands. Skipping registration."
                     )
-            finally:
-                self._lock.release()
+
+            except Exception as error:
+                bot_logger.exception(
+                    f"Unexpected error registering plugin '{plugin_name}': {error}"
+                )
+                self._cleanup_plugin(plugin_name)
 
         except Exception as error:
             bot_logger.exception(
@@ -343,16 +330,13 @@ class PluginManager:
 
     def cleanup_all_plugins(self):
         """Cleanly shuts down all registered plugins."""
-        if not self._lock.acquire(timeout=self.LOCK_TIMEOUT):
-            bot_logger.error("Failed to acquire lock while cleaning up all plugins")
-            return
 
         try:
             for plugin_name in list(self._loaded_plugins):
                 self._cleanup_plugin(plugin_name)
             self._loaded_plugins.clear()
-        finally:
-            self._lock.release()
+        except Exception as e:
+            bot_logger.error(f"Error cleaning up plugins: {e}")
 
     def __del__(self):
         """Ensure cleanup when the manager is destroyed."""
