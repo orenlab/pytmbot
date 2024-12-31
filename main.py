@@ -105,7 +105,7 @@ class BotLauncher:
                             time.sleep(HEALTH_CHECK_INTERVAL)
 
                 uptime_display = naturaltime(self.start_time)
-                self.logger.info(
+                self.logger.debug(
                     f"Health check passed - "
                     f"Uptime: {uptime_display}, "
                     f"Active: {bool(self.bot)}"
