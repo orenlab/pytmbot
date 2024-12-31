@@ -86,6 +86,7 @@ class PluginManager:
     def _initialize(self):
         """Initialize the plugin manager instance with required attributes."""
         self._plugin_base_path = Path("pytmbot/plugins")
+        self._plugin_base_for_import = "pytmbot.plugins"
         self._load_blacklist()
 
     def _load_blacklist(self):
@@ -157,7 +158,7 @@ class PluginManager:
         Returns:
             bool: True if the module exists, False otherwise.
         """
-        module_path = f"{self._plugin_base_path}.{plugin_name}.config"
+        module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
         return importlib.util.find_spec(module_path) is not None
 
     def _import_module(self, plugin_name: str):
@@ -176,7 +177,7 @@ class PluginManager:
         if not self._validate_plugin_path(plugin_name):
             raise ImportError(f"Plugin path validation failed for '{plugin_name}'")
 
-        module_path = f"{self._plugin_base_path}.{plugin_name}.plugin"
+        module_path = f"{self._plugin_base_for_import}.{plugin_name}.plugin"
         try:
             return importlib.import_module(module_path)
         except ImportError as e:
@@ -199,7 +200,7 @@ class PluginManager:
         if not self._validate_plugin_path(plugin_name):
             raise ImportError(f"Plugin config path validation failed for '{plugin_name}'")
 
-        module_path = f"{self._plugin_base_path}.{plugin_name}.config"
+        module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
         try:
             return importlib.import_module(module_path)
         except ImportError as e:
