@@ -72,7 +72,7 @@ class WebhookManager:
         self.port = port
         self.secret_token = secret_token
         bot_logger.debug(
-            f"Initialized WebhookManager with URL: {url}, port: {port}, "
+            f"Initialized WebhookManager with URL: {mask_token_in_message(url, bot.token)}, port: {port}, "
             f"secret token present: {bool(secret_token)}"
         )
 
@@ -86,13 +86,14 @@ class WebhookManager:
 
             webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
             cert_path = settings.webhook_config.cert[0].get_secret_value() or None
-            bot_logger.debug(
-                f"Webhook configuration - URL: {mask_token_in_message(webhook_url, self.bot.token)}, "
-                f"Certificate present: {bool(cert_path)}"
-            )
 
             webhook_info = self.bot.get_webhook_info()
             bot_logger.debug(f"Current webhook info before setup: {webhook_info}")
+
+            bot_logger.debug(
+                f"Applying webhook configuration - URL: {mask_token_in_message(webhook_url, self.bot.token)}, "
+                f"Certificate present: {bool(cert_path)}"
+            )
 
             self.bot.set_webhook(
                 url=webhook_url,
@@ -125,7 +126,7 @@ class WebhookManager:
 
             # Verify webhook was removed
             new_webhook_info = self.bot.get_webhook_info()
-            bot_logger.debug(f"Webhook removed. New webhook info: {new_webhook_info}")
+            bot_logger.debug(f"Webhook removed successfully. New webhook info: {new_webhook_info}")
         except ApiTelegramException as e:
             error_msg = f"Failed to remove webhook: {sanitize_exception(e)}"
             bot_logger.error(error_msg)
@@ -136,9 +137,7 @@ class WebhookServer:
     """FastAPI server for handling Telegram webhook requests."""
 
     def __init__(self, bot: TeleBot, token: str, host: str, port: int) -> None:
-        bot_logger.debug(
-            f"Initializing WebhookServer - host: {host}, port: {port}"
-        )
+        bot_logger.debug(f"Initializing WebhookServer - host: {host}, port: {port}")
 
         self.bot = bot
         self.token = token
@@ -157,10 +156,6 @@ class WebhookServer:
         webhook_settings = settings.webhook_config
         webhook_url = webhook_settings.url[0].get_secret_value()
         webhook_port = webhook_settings.webhook_port[0]
-
-        bot_logger.debug(
-            f"Creating WebhookManager with URL: {webhook_url}, port: {webhook_port}"
-        )
 
         self.webhook_manager = WebhookManager(
             bot=bot,
@@ -188,9 +183,9 @@ class WebhookServer:
             Yields:
                 None
             """
-            bot_logger.info("Webhook server lifecycle running...")
+            bot_logger.info("Starting webhook server lifecycle...")
             try:
-                bot_logger.debug("Configuring webhook during startup")
+                bot_logger.debug("Initiating webhook configuration")
                 self.webhook_manager.setup_webhook(self.webhook_path)
                 yield
             except Exception as e:
@@ -286,24 +281,22 @@ class WebhookServer:
                     raise HTTPException(status_code=403, detail="Invalid secret token")
 
                 self.request_counter += 1
-                bot_logger.debug(f"Request counter: {self.request_counter}")
+
+                update_dict = update.model_dump(exclude_unset=True, by_alias=True)
+                update_type = self._get_update_type(update)
+
+                bot_logger.debug(f"Processing update #{self.request_counter} - Type: {update_type}")
+                bot_logger.debug(f"Update details from {client_ip}: {update_dict}")
 
                 if self.request_counter > 1000:
                     bot_logger.warning("Request threshold reached, preparing for restart")
                     self.request_counter = 0
                     self.last_restart = datetime.now()
 
-                update_dict = update.model_dump(exclude_unset=True, by_alias=True)
-                update_type = self._get_update_type(update)
-
-                bot_logger.debug(
-                    f"Processing {update_type} update from {client_ip}: {update_dict}"
-                )
-
                 update_obj = telebot.types.Update.de_json(update_dict)
                 self.bot.process_new_updates([update_obj])
 
-                bot_logger.debug(f"Successfully processed {update_type} update")
+                bot_logger.debug(f"Successfully processed {update_type} update #{self.request_counter}")
                 return JSONResponse(
                     status_code=200,
                     content={"status": "ok", "update_type": update_type}
@@ -341,14 +334,14 @@ class WebhookServer:
                 "workers": 1
             }
 
+            bot_logger.info(
+                f"Starting webhook server on {self.host}:{self.port} {'with' if cert_file and key_file else 'without'} SSL")
+
             if cert_file and key_file:
-                bot_logger.info(f"Starting webhook server with SSL on {self.host}:{self.port}")
                 uvicorn_config.update({
                     "ssl_certfile": cert_file,
                     "ssl_keyfile": key_file
                 })
-            else:
-                bot_logger.info(f"Starting webhook server without SSL on {self.host}:{self.port}")
 
             uvicorn.run(**uvicorn_config)
 
