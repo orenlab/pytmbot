@@ -225,19 +225,16 @@ class WebhookServer:
         self.rate_limiter_404 = RateLimit(limit=5, period=10)
 
     def _create_app(self) -> FastAPI:
-        log = self.log.bind_context(
-            action="create_server"
-        )
 
         @asynccontextmanager
         async def lifespan() -> AsyncGenerator[None, None]:
-            lifespan_log = self.log.bind_context(
-                action="lifespan",
-                webhook_path=mask_token_in_message(self.webhook_path, self.token)
-            )
-            lifespan_log.info("Starting webhook server lifecycle...")
+            context = {
+                "action": "lifespan",
+                "webhook_path": mask_token_in_message(self.webhook_path, self.token)
+            }
+            self.log.info("Starting webhook server lifecycle...", context=context)
             try:
-                lifespan_log.debug("Initiating webhook configuration")
+                self.log.debug("Initiating webhook configuration")
                 self.webhook_manager.setup_webhook(self.webhook_path)
                 yield
             except Exception as e:
@@ -250,7 +247,7 @@ class WebhookServer:
                 ))
             finally:
                 try:
-                    lifespan_log.debug("Removing webhook during shutdown")
+                    self.log.debug("Removing webhook during shutdown")
                     self.webhook_manager.remove_webhook()
                 except Exception as e:
                     raise ShutdownError(ErrorContext(
@@ -260,7 +257,7 @@ class WebhookServer:
                             "exception": e
                         }
                     ))
-                lifespan_log.info("Webhook server shutdown complete")
+                self.log.info("Webhook server shutdown complete")
 
         app = FastAPI(
             docs_url=None,
@@ -271,7 +268,7 @@ class WebhookServer:
         )
 
         self._setup_routes(app)
-        log.info("FastAPI application created successfully")
+        self.log.info("FastAPI application created successfully")
         return app
 
     @staticmethod
@@ -286,21 +283,23 @@ class WebhookServer:
         return "unknown"
 
     def _setup_routes(self, app: FastAPI) -> None:
-        route_log = self.log.bind_context(action="setup_routes")
-        route_log.debug("Setting up FastAPI routes")
+        context = {
+            "action": "setup_routes"
+        }
+        self.log.debug("Setting up FastAPI routes", context=context)
 
         @app.exception_handler(404)
         def not_found_handler(request: Request) -> JSONResponse:
             client_ip = request.client.host
-            error_log = self.log.bind_context(
-                action="handle_404",
-                client_ip=client_ip,
-                url=str(request.url)
-            )
-            error_log.warning("404 request received")
+            _context = {
+                "action": "handle_404",
+                "client_ip": client_ip,
+                "url": str(request.url)
+            }
+            self.log.warning("404 request received", context=_context)
 
             if self.rate_limiter_404.is_rate_limited(client_ip):
-                error_log.warning("Rate limit exceeded for 404 requests")
+                self.log.warning("Rate limit exceeded for 404 requests")
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Too many not found requests"}
@@ -315,15 +314,15 @@ class WebhookServer:
                 x_forwarded_for: Annotated[str | None, Header()] = None
         ) -> str:
             client_ip = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.client.host
-            ip_log = self.log.bind_context(
-                action="verify_ip",
-                client_ip=client_ip,
-                x_forwarded_for=x_forwarded_for
-            )
-            ip_log.debug("Verifying Telegram IP")
+            _context = {
+                "action": "verify_ip",
+                "client_ip": client_ip,
+                "x_forwarded_for": x_forwarded_for
+            }
+            self.log.debug("Verifying Telegram IP", context=_context)
 
             if not self.telegram_ip_validator.is_telegram_ip(client_ip):
-                ip_log.warning("Request from non-Telegram IP rejected")
+                self.log.warning("Request from non-Telegram IP rejected")
                 raise HTTPException(
                     status_code=403,
                     detail="Access denied: Request must come from Telegram servers"
@@ -336,23 +335,23 @@ class WebhookServer:
                 client_ip: Annotated[str, Depends(verify_telegram_ip)],
                 x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None
         ) -> JSONResponse:
-            webhook_log = self.log.bind_context(
-                action="process_webhook",
-                client_ip=client_ip,
-                request_counter=self.request_counter
-            )
-            webhook_log.debug("Received webhook request")
+            _context = {
+                "action": "process_webhook",
+                "client_ip": client_ip,
+                "request_counter": self.request_counter
+            }
+            self.log.debug("Received webhook request", context=_context)
 
             try:
                 if self.rate_limiter.is_rate_limited(client_ip):
-                    webhook_log.warning("Rate limit exceeded")
+                    self.log.warning("Rate limit exceeded")
                     raise HTTPException(
                         status_code=429,
                         detail="Rate limit exceeded"
                     )
 
                 if x_telegram_bot_api_secret_token != self.secret_token:
-                    webhook_log.warning(
+                    self.log.warning(
                         "Invalid secret token",
                         received_token=x_telegram_bot_api_secret_token
                     )
@@ -363,14 +362,15 @@ class WebhookServer:
                 update_dict = update.model_dump(exclude_unset=True, by_alias=True)
                 update_type = self._get_update_type(update)
 
-                webhook_log = webhook_log.bind_context(
-                    update_type=update_type,
-                    update_id=update_dict.get('update_id')
-                )
-                webhook_log.debug("Processing update")
+                _update_context = {
+                    "action": "process_update",
+                    "update_type": update_type,
+                    "update_id": update_dict.get('update_id')
+                }
+                self.log.debug("Processing update", context=_update_context)
 
                 if self.request_counter > 1000:
-                    webhook_log.warning(
+                    self.log.warning(
                         "Request threshold reached",
                         total_requests=self.request_counter,
                         last_restart=self.last_restart
@@ -381,21 +381,21 @@ class WebhookServer:
                 update_obj = telebot.types.Update.de_json(update_dict)
                 self.bot.process_new_updates([update_obj])
 
-                webhook_log.debug("Update processed successfully")
+                self.log.debug("Update processed successfully")
                 return JSONResponse(
                     status_code=200,
                     content={"status": "ok", "update_type": update_type}
                 )
 
             except ValueError as e:
-                webhook_log.error(
+                self.log.error(
                     "Invalid update format",
                     error=str(e),
                     update_data=update.model_dump()
                 )
                 raise HTTPException(status_code=400, detail="Invalid update format")
             except Exception as e:
-                webhook_log.error(
+                self.log.error(
                     "Failed to process update",
                     error=str(e),
                     update_data=update.model_dump()
@@ -404,14 +404,14 @@ class WebhookServer:
 
     def start(self) -> None:
         """Starts the webhook server."""
-        start_log = self.log.bind_context(
-            action="start_server",
-            host=self.host,
-            port=self.port,
-            server_type="uvicorn",
-            webhook_path=mask_token_in_message(self.webhook_path, self.token)
-        )
-        start_log.info("Initializing webhook server start")
+        _context = {
+            "action": "start_server",
+            "host": self.host,
+            "port": self.port,
+            "server_type": "uvicorn",
+            "webhook_path": mask_token_in_message(self.webhook_path, self.token)
+        }
+        self.log.info("Initializing webhook server start", context=_context)
 
         if self.port < 1024:
             raise InitializationError(ErrorContext(
@@ -437,15 +437,15 @@ class WebhookServer:
                 "workers": 1
             }
 
-            start_log = start_log.bind_context(
-                ssl_enabled=bool(cert_file and key_file),
-                ssl_cert_present=bool(cert_file),
-                ssl_key_present=bool(key_file),
-                config=uvicorn_config,
-                proxy_enabled=True,
-                workers_count=1
-            )
-            start_log.info("Starting webhook server with configuration")
+            _context = {
+                "ssl_enabled": bool(cert_file and key_file),
+                "ssl_cert_present": bool(cert_file),
+                "ssl_key_present": bool(key_file),
+                "config": uvicorn_config,
+                "proxy_enabled": True,
+                "workers_count": 1
+            }
+            self.log.info("Starting webhook server with configuration", context=_context)
 
             if cert_file and key_file:
                 ssl_config = {
@@ -453,9 +453,9 @@ class WebhookServer:
                     "ssl_keyfile": key_file
                 }
                 uvicorn_config.update(ssl_config)
-                start_log.debug("SSL configuration added to server config")
+                self.log.debug("SSL configuration added to server config")
 
-            start_log.info("Running uvicorn server")
+            self.log.info("Running uvicorn server")
             uvicorn.run(**uvicorn_config)
 
         except FileNotFoundError as e:
