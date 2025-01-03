@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Optional, Dict
+from typing import Optional
 
 from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
@@ -27,7 +27,7 @@ class MonitoringPlugin(PluginInterface):
         config (Dict[str, Any]): Configuration settings for monitoring.
     """
 
-    __slots__ = ('plugin_logger', 'config')
+    __slots__ = ('plugin_logger', 'config', '__weakref__')
 
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
