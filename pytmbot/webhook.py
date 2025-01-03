@@ -430,7 +430,7 @@ class WebhookServer:
                 "app": self.app,
                 "host": self.host,
                 "port": self.port,
-                "log_level": "critical",
+                "log_level": "debug",
                 "access_log": False,
                 "proxy_headers": True,
                 "forwarded_allow_ips": "*",
