@@ -227,7 +227,7 @@ class WebhookServer:
     def _create_app(self) -> FastAPI:
 
         @asynccontextmanager
-        async def lifespan() -> AsyncGenerator[None, None]:
+        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             context = {
                 "action": "lifespan",
                 "webhook_path": mask_token_in_message(self.webhook_path, self.token)
