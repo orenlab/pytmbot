@@ -18,13 +18,13 @@ from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils.utilities import generate_secret_token, mask_token_in_message
 
-logger = Logger()
+web_server_logger = Logger()
 
 
 class RateLimit:
     def __init__(self, limit: int, period: int, ban_threshold: int = 50) -> None:
-        self.log = logger
-        self.log = logger.bind_context(
+        self.log = web_server_logger
+        self.log = web_server_logger.bind_context(
             component="rate_limiter",
             limit=limit,
             period=period,
@@ -97,8 +97,8 @@ class WebhookManager:
     """Manages webhook configuration and lifecycle."""
 
     def __init__(self, bot: TeleBot, url: str, port: int, secret_token: str = None) -> None:
-        self.log = logger
-        self.log = logger.bind_context(
+        self.log = web_server_logger
+        self.log = web_server_logger.bind_context(
             component="webhook_manager",
             webhook_url=mask_token_in_message(url, bot.token),
             port=port,
@@ -192,8 +192,8 @@ class WebhookServer:
     """FastAPI server for handling Telegram webhook requests."""
 
     def __init__(self, bot: TeleBot, token: str, host: str, port: int) -> None:
-        self.log = logger
-        self.log = logger.bind_context(
+        self.log = web_server_logger
+        self.log = web_server_logger.bind_context(
             component="webhook_server",
             host=host,
             port=port
