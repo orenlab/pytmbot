@@ -9,21 +9,22 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.containers_info import get_container_state
-from pytmbot.globals import keyboards, em, session_manager
+from pytmbot.globals import keyboards, em, session_manager, button_data
 from pytmbot.handlers.handlers_util.docker import show_handler_info
-from pytmbot.logs import logged_inline_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
 
+logger = Logger()
 container_state = ContainersState
 
 
 # func=lambda call: call.data.startswith('__manage__')
-@bot_logger.catch()
+@logger.catch()
 @two_factor_auth_required
-@logged_inline_handler_session
+@logger.session_decorator
 def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     """
     Handles the callback for managing a container.
@@ -41,7 +42,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
 
     # Check if the user is an admin
     if int(call.from_user.id) != int(called_user_id):
-        bot_logger.log(
+        logger.log(
             "DENIED",
             f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function",
         )
@@ -50,12 +51,12 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         )
 
     is_authenticated = session_manager.is_authenticated(call.from_user.id)
-    bot_logger.debug(
+    logger.debug(
         f"User {call.from_user.id} authenticated status: {is_authenticated}"
     )
 
     if not is_authenticated:
-        bot_logger.log(
+        logger.log(
             "DENIED",
             f"User {call.from_user.id} NOT authenticated. "
             f"Denied '__manage__' function for container {container_name}",
@@ -68,7 +69,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
 
     # Create the keyboard buttons
     keyboard_buttons = [
-        keyboards.ButtonData(
+        button_data(
             text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
             callback_data=f"__get_full__:{container_name}:{call.from_user.id}",
         ),
@@ -76,22 +77,22 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
 
     state = get_container_state(container_name)
 
-    bot_logger.info(f"Container {container_name} state: {state}")
+    logger.info(f"Container {container_name} state: {state}")
 
     if state == container_state.running:
-        bot_logger.debug(f"Added '__stop__' button for {container_name}")
+        logger.debug(f"Added '__stop__' button for {container_name}")
         keyboard_buttons.insert(
             0,
-            keyboards.ButtonData(
+            button_data(
                 text=f"{em.get_emoji('no_entry')} Stop",
                 callback_data=f"__stop__:{container_name}:{call.from_user.id}",
             ),
         )
 
-        bot_logger.debug(f"Added '__restart__' button for {container_name}")
+        logger.debug(f"Added '__restart__' button for {container_name}")
         keyboard_buttons.insert(
             1,
-            keyboards.ButtonData(
+            button_data(
                 text=f"{em.get_emoji('recycling_symbol')} Restart",
                 callback_data=f"__restart__:{container_name}:{call.from_user.id}",
             ),
@@ -102,10 +103,10 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         container_state.stopped,
         container_state.dead,
     ]:
-        bot_logger.debug(f"Added '__start__' button for {container_name}")
+        logger.debug(f"Added '__start__' button for {container_name}")
         keyboard_buttons.insert(
             0,
-            keyboards.ButtonData(
+            button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
                 callback_data=f"__start__:{container_name}:{call.from_user.id}",
             ),
@@ -121,10 +122,10 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     }
 
     with Compiler(
-        "d_managing_containers.jinja2",
-        emojis=emojis,
-        state=state,
-        container_name=container_name,
+            "d_managing_containers.jinja2",
+            emojis=emojis,
+            state=state,
+            container_name=container_name,
     ) as compiler:
         context = compiler.compile()
 

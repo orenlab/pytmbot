@@ -15,6 +15,7 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import BotCommand
 
 from pytmbot import exceptions
+from pytmbot.exceptions import InitializationError, ErrorContext
 from pytmbot.globals import (
     settings,
     __version__,
@@ -28,21 +29,19 @@ from pytmbot.handlers.handler_manager import (
     inline_handler_factory,
     echo_handler_factory,
 )
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
 
-# Type Hints
 MiddlewareType: TypeAlias = tuple[type, dict[str, Any]]
 HandlerDict: TypeAlias = dict[str, list[HandlerManager]]
 RegisterMethod: TypeAlias = Callable[..., Any]
 
 
 class WebhookConfig(TypedDict):
-    """Webhook configuration."""
     host: str
     port: int
     token: str
@@ -57,74 +56,114 @@ DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
 
 
 class PyTMBot:
-    """
-    Manages the creation, configuration, and operation of a Telegram bot using the TeleBot library.
-
-    This class implements a more robust error handling, type safety, and follows Python 3.12+ best practices.
-    """
-
     def __init__(self) -> None:
-        self.args = parse_cli_args()
+        self.args, self.log = parse_cli_args(), Logger().bind_context(
+            core=frozenset([("action", "core_init"), ("version", __version__)])
+        )
         self.bot: TeleBot | None = None
         self.plugin_manager = PluginManager()
 
     def is_healthy(self) -> bool:
-        """Check if the bot is healthy (i.e., able to contact Telegram)."""
+        context = {"action": "health_check"}
+        self.log.debug("Performing health check", **context)
         try:
-            return self.bot is not None and self.bot.get_me()
-        except telebot.apihelper.ApiException:
-            bot_logger.error("Cannot connect to Telegram API")
+            healthy = self.bot is not None and self.bot.get_me()
+            self.log.debug("Health check completed", healthy=bool(healthy), **context)
+            return healthy
+        except telebot.apihelper.ApiException as e:
+            self.log.error("Telegram API connection failed", error=sanitize_exception(e), **context)
+            return False
+        except Exception as e:
+            self.log.error("Health check failed", error=sanitize_exception(e), **context)
             return False
 
     def retrieve_bot_token(self) -> str:
-        """Retrieves bot token based on operational mode."""
-        bot_logger.debug(f"Current bot mode: {self.args.mode}")
+        context = {"action": "token_retrieval"}
         try:
-            return (
+            token = (
                 settings.bot_token.dev_bot_token[0].get_secret_value()
                 if self.args.mode == "dev"
                 else settings.bot_token.prod_token[0].get_secret_value()
             )
-        except (FileNotFoundError, ValueError) as error:
-            raise exceptions.PyTMBotError("Invalid or missing pytmbot.yaml file") from error
+            self.log.debug("Bot token retrieved", **context)
+            return token
+        except AttributeError as error:
+            raise InitializationError(ErrorContext(
+                message="Error retrieving bot token",
+                error_code="CORE_001",
+                metadata={"original_error": str(error)}
+            )
+            )
+        except FileNotFoundError as error:
+            raise InitializationError(ErrorContext(
+                message="File not found error",
+                error_code="CORE_002",
+                metadata={"original_error": str(error)}
+            )
+            )
+        except ValueError as error:
+            raise InitializationError(ErrorContext(
+                message="Value error",
+                error_code="CORE_003",
+                metadata={"requested_mode": self.args.mode, "original_error": str(error)}
+            )
+            )
 
     def initialize_bot_core(self) -> TeleBot:
-        """Creates and configures the core bot instance with all necessary setup."""
-        bot_token = self.retrieve_bot_token()
-        bot_logger.debug("Bot token retrieved successfully")
+        context = {"action": "core_init"}
+        self.log.info("Initializing bot core", **context)
 
+        bot_token = self.retrieve_bot_token()
         self.bot = self.create_base_bot(bot_token)
         self.configure_bot_features()
 
-        bot_logger.info(
-            f"New instance started! PyTMBot {__version__} ({__repository__})"
+        self.log.info(
+            f"Bot initialized successfully: {__version__} ({__repository__})",
+            **context
         )
         return self.bot
 
     def create_base_bot(self, bot_token: str) -> TeleBot:
-        """Creates the base bot instance with initial configuration."""
-        self.bot = telebot.TeleBot(
-            token=bot_token,
-            threaded=True,
-            use_class_middlewares=True,
-            exception_handler=exceptions.TelebotCustomExceptionHandler(),
-            skip_pending=True,
-        )
-        bot_logger.debug("Bot instance created successfully")
-        return self.bot
+        context = {"action": "bot_creation"}
+        try:
+            bot = telebot.TeleBot(
+                token=bot_token,
+                threaded=True,
+                use_class_middlewares=True,
+                exception_handler=exceptions.TelebotExceptionHandler(),
+                skip_pending=True,
+            )
+            self.log.debug("Bot instance created", **context)
+            return bot
+        except Exception as e:
+            self.log.error(
+                "Bot instance creation failed",
+                error=sanitize_exception(e),
+                **context
+            )
+            raise
 
     def configure_bot_features(self) -> None:
-        """Configures all bot features and capabilities."""
         if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not properly initialized")
+            raise RuntimeError("Bot instance not initialized")
 
-        self.setup_commands_and_description()
-        self.setup_middleware_chain(DEFAULT_MIDDLEWARES)
-        self.register_handler_chain()
-        self.load_plugins()
+        context = {"action": "features_config"}
+        try:
+            self.setup_commands_and_description()
+            self.setup_middleware_chain(DEFAULT_MIDDLEWARES)
+            self.register_handler_chain()
+            self.load_plugins()
+            self.log.info("Bot features configured successfully", **context)
+        except Exception as e:
+            self.log.error(
+                "Features configuration failed",
+                error=sanitize_exception(e),
+                **context
+            )
+            raise
 
     def setup_commands_and_description(self) -> None:
-        """Sets up bot commands and description in Telegram."""
+        context = {"action": "commands_setup"}
         try:
             commands = [
                 BotCommand(command, desc)
@@ -132,80 +171,107 @@ class PyTMBot:
             ]
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
-            bot_logger.debug("Bot commands and description configured successfully")
-        except telebot.apihelper.ApiTelegramException as error:
-            bot_logger.error(f"Failed to set bot commands/description: {error}")
+            self.log.debug(
+                "Commands and description set",
+                commands_count=len(commands),
+                **context
+            )
+        except ApiTelegramException as error:
+            self.log.error(
+                "Failed to set commands/description",
+                error=sanitize_exception(error),
+                **context
+            )
 
     def register_handler_chain(self) -> None:
-        """Registers complete chain of bot handlers."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not properly initialized")
-
         handlers_config = [
             (handler_factory, self.bot.register_message_handler),
             (inline_handler_factory, self.bot.register_callback_query_handler),
             (echo_handler_factory, self.bot.register_message_handler),
         ]
 
+        context = {"action": "handlers_registration"}
         for factory, register_method in handlers_config:
-            self.register_handler_group(factory, register_method)
+            try:
+                self.register_handler_group(factory, register_method)
+            except Exception as e:
+                self.log.error(
+                    "Handler registration failed",
+                    handler_type=factory.__name__,
+                    error=sanitize_exception(e),
+                    **context
+                )
+                raise
 
     def setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
-        """Sets up chain of middleware processors."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not properly initialized")
-
-        for middleware_class, kwargs in middlewares:
+        context = {"action": "middleware_setup"}
+        for middleware_class, kwargs in sorted(middlewares, key=lambda x: x[1].get("priority", 999)):
             try:
                 middleware_instance = middleware_class(bot=self.bot, **kwargs)
                 self.bot.setup_middleware(middleware_instance)
-                bot_logger.debug(
-                    f"Middleware setup successful: {middleware_class.__name__}"
+                self.log.debug(
+                    "Middleware configured",
+                    middleware=middleware_class.__name__,
+                    priority=kwargs.get("priority"),
+                    **context
                 )
             except Exception as error:
-                bot_logger.critical(f"Failed to set up middleware: {error}")
+                self.log.critical(
+                    "Middleware setup failed",
+                    middleware=middleware_class.__name__,
+                    error=sanitize_exception(error),
+                    **context
+                )
                 raise
 
     def load_plugins(self) -> None:
-        """Loads and initializes plugin system if enabled."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not properly initialized")
+        if not self.args.plugins:
+            return
 
-        if self.args.plugins != [""]:
-            try:
-                self.plugin_manager.register_plugins(self.args.plugins, self.bot)
-            except Exception as err:
-                bot_logger.exception(f"Failed to register plugins: {err}")
-
-    @staticmethod
-    def register_handler_group(
-            handler_factory_func: Callable[[], HandlerDict],
-            register_method: RegisterMethod,
-    ) -> None:
-        """Registers group of related handlers."""
+        context = {"action": "plugins_load"}
         try:
-            bot_logger.debug(
-                f"Registering handlers using {register_method.__name__}..."
+            self.plugin_manager.register_plugins(self.args.plugins, self.bot)
+            self.log.info(
+                "Plugins loaded",
+                plugins=self.args.plugins,
+                **context
+            )
+        except Exception as err:
+            self.log.error(
+                "Plugin registration failed",
+                error=sanitize_exception(err),
+                **context
             )
 
+    def register_handler_group(
+            self,
+            handler_factory_func: Callable[[], HandlerDict],
+            register_method: RegisterMethod
+    ) -> None:
+        context = {"action": "handler_group_registration"}
+        try:
             handlers_dict = handler_factory_func()
-            handler_count = 0
-
             for handlers in handlers_dict.values():
                 for handler in handlers:
                     register_method(handler.callback, **handler.kwargs, pass_bot=True)
-                    handler_count += 1
-
-            bot_logger.debug(f"Registered {handler_count} handlers")
-
+            self.log.debug(
+                "Handler group registered",
+                factory=handler_factory_func.__name__,
+                **context
+            )
         except Exception as err:
-            bot_logger.exception(f"Handler registration failed: {err}")
+            self.log.error(
+                "Handler group registration failed",
+                factory=handler_factory_func.__name__,
+                error=sanitize_exception(err),
+                **context
+            )
             raise
 
     def launch_bot(self) -> None:
-        """Launches bot instance in appropriate mode."""
+        context = {"action": "bot_launch"}
         self.bot = self.initialize_bot_core()
-        bot_logger.info("Starting bot...")
+        self.log.info("Starting bot", **context)
 
         try:
             self.bot.remove_webhook()
@@ -214,66 +280,92 @@ class PyTMBot:
             else:
                 self.start_polling_loop(self.bot)
         except Exception as error:
-            bot_logger.error(f"Failed to start bot: {error}")
+            self.log.error(
+                "Bot launch failed",
+                error=sanitize_exception(error),
+                **context
+            )
             raise
 
     def recovery(self) -> bool:
-        """Recover bot functionality by restarting in the current mode"""
+        context = {"action": "recovery"}
         try:
-            # Verify API connection first
             self.bot.get_me()
-
-            # Stop current mode
             if self.args.webhook == "True":
                 self.bot.remove_webhook()
             else:
                 self.bot.stop_polling()
 
-            # Use shorter adaptive delay
             sleep(2)
-
-            # Restart and verify
             self.launch_bot()
+            self.log.info("Recovery successful", **context)
             return True
 
         except ApiTelegramException as err:
-            bot_logger.error(f"Telegram API error during recovery: {err}")
+            self.log.error(
+                "Recovery failed: API error",
+                error=sanitize_exception(err),
+                **context
+            )
             return False
         except Exception as err:
-            bot_logger.error(f"Critical error during recovery: {err}")
+            self.log.error(
+                "Recovery failed: critical error",
+                error=sanitize_exception(err),
+                **context
+            )
             return False
 
     def start_webhook_server(self) -> None:
-        """Initializes and starts webhook server."""
+        context = {"action": "webhook_start"}
         if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not properly initialized")
+            raise RuntimeError("Bot instance not initialized")
 
         try:
             from pytmbot.webhook import WebhookServer
 
-            webhook_config = WebhookConfig(
+            config = WebhookConfig(
                 host=self.args.socket_host,
                 port=settings.webhook_config.local_port[0],
                 token=self.bot.token,
             )
 
-            server = WebhookServer(self.bot, **webhook_config)
+            server = WebhookServer(self.bot, **config)
+            self.log.info(
+                "Starting webhook server",
+                host=config["host"],
+                port=config["port"],
+                **context
+            )
             server.start()
 
         except ImportError as err:
-            bot_logger.exception(f"Failed to import FastAPI: {err}")
+            self.log.error(
+                "FastAPI import failed",
+                error=sanitize_exception(err),
+                **context
+            )
             raise
         except Exception as err:
-            bot_logger.exception(f"Webhook startup failed: {err}")
+            self.log.error(
+                "Webhook server start failed",
+                error=sanitize_exception(err),
+                **context
+            )
             raise
 
-    @staticmethod
-    def start_polling_loop(bot_instance: TeleBot) -> None:
-        """Runs main polling loop with exponential backoff."""
+    def start_polling_loop(self, bot_instance: TeleBot) -> None:
         current_sleep_time = DEFAULT_BASE_SLEEP_TIME
+        context = {
+            "action": "polling",
+            "skip_pending": True,
+            "timeout": var_config.bot_polling_timeout,
+            "long_polling_timeout": var_config.bot_long_polling_timeout
+        }
 
         while True:
             try:
+                self.log.info("Starting polling loop", **context)
                 bot_instance.infinity_polling(
                     skip_pending=True,
                     timeout=var_config.bot_polling_timeout,
@@ -282,8 +374,10 @@ class PyTMBot:
                 current_sleep_time = DEFAULT_BASE_SLEEP_TIME
 
             except ssl.SSLError as ssl_error:
-                bot_logger.critical(
-                    f"SSL error (security issue): {sanitize_exception(ssl_error)}"
+                self.log.critical(
+                    "SSL security error",
+                    error=sanitize_exception(ssl_error),
+                    **context
                 )
                 raise
 
@@ -298,15 +392,14 @@ class PyTMBot:
                     telebot.apihelper.ApiException,
                     OSError,
             ) as error:
-                bot_logger.error(
-                    f"Connection error: {sanitize_exception(error)}. "
-                    f"Retry in {current_sleep_time} seconds"
+                self.log.error(
+                    "Polling connection error",
+                    error=sanitize_exception(error),
+                    retry_delay=current_sleep_time,
+                    **context
                 )
                 time.sleep(current_sleep_time)
                 current_sleep_time = min(
                     current_sleep_time * 2,
                     DEFAULT_MAX_SLEEP_TIME
                 )
-
-
-__all__ = ["PyTMBot"]

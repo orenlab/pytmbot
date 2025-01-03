@@ -27,6 +27,7 @@ influxdb-client = "^1.46.0"
 pypng = "^0.20220715.0"
 qrcode = "7.4.2"
 aiohttp = "==3.11.11"
+pyoutlineapi = "^0.1.3"
 
 [tool.poetry.plugins.outline]
 pyoutlineapi = "^0.1.3"

@@ -4,92 +4,139 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+from dataclasses import dataclass
+from typing import Any
 
 from telebot import ExceptionHandler
 
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.utils.utilities import sanitize_exception, parse_cli_args
 
-
-class PyTMBotError(Exception):
-    """
-    Base class for all exceptions related to PyTeleMonBot.
-    """
+logger = Logger()
 
 
-class BotInitializationError(PyTMBotError):
-    """
-    Exception raised when there is an error during bot initialization.
-    """
+@dataclass
+class ErrorContext:
+    message: str
+    error_code: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    def sanitized(self) -> 'ErrorContext':
+        return ErrorContext(
+            message=sanitize_exception(Exception(self.message)),
+            error_code=self.error_code,
+            metadata={k: sanitize_exception(Exception(str(v)))
+                      for k, v in (self.metadata or {}).items()}
+        )
 
 
-class ShutdownError(PyTMBotError):
-    """
-    Exception raised when there is an error during bot shutdown.
-    """
+class BaseBotException(Exception):
+    def __init__(self, context: ErrorContext | str) -> None:
+        self.context = context if isinstance(context, ErrorContext) else ErrorContext(str(context))
+        super().__init__(str(self.context.message))
+
+    def sanitized_message(self) -> str:
+        return sanitize_exception(self)
+
+    def sanitized_context(self) -> ErrorContext:
+        return self.context.sanitized()
 
 
-class PyTMBotConnectionError(PyTMBotError):
-    """
-    Exception raised when there is an error connecting to the server.
-    """
+class BotException(BaseBotException):
+    """Base class for bot operation related exceptions."""
 
 
-class PyTMBotErrorHandlerError(PyTMBotError):
-    """
-    Exception raised when there is an error handling a message.
-    """
+class InitializationError(BotException):
+    """Raised during bot initialization failures."""
 
 
-class PyTMBotErrorTemplateError(PyTMBotError):
-    """
-    Exception raised when there is an error using a template.
-    """
+class ShutdownError(BotException):
+    """Raised during bot shutdown failures."""
 
 
-class DockerAdapterException(PyTMBotError):
-    """
-    Exception raised when there is an error interacting with Docker.
-    """
+class AuthError(BotException):
+    """Raised during authentication failures."""
 
 
-class AuthenticationError(PyTMBotError):
-    """
-    Exception raised when there is an error during authentication.
-    """
+class ConnectionException(BaseBotException):
+    """Base class for connection related exceptions."""
 
 
-class QRCodeGenerationError(PyTMBotError):
-    """
-    Exception raised when there is an error generating a QR code.
-    """
+class ServerConnectionError(ConnectionException):
+    """Raised on server connection failures."""
 
 
-class TelebotCustomExceptionHandler(ExceptionHandler):
-    """
-    Custom exception handler for handling exceptions raised by Telebot.
-    """
+class HandlingException(BaseBotException):
+    """Base class for message and template handling exceptions."""
+
+
+class MessageHandlerError(HandlingException):
+    """Raised on message handling failures."""
+
+
+class TemplateError(HandlingException):
+    """Raised on template processing failures."""
+
+
+class DockerException(BaseBotException):
+    """Base class for Docker related exceptions."""
+
+
+class DockerConnectionError(DockerException):
+    """Raised on Docker daemon connection failures."""
+
+
+class DockerOperationException(DockerException):
+    """Base class for Docker operation exceptions."""
+
+
+class ContainerException(DockerOperationException):
+    """Base class for container related exceptions."""
+
+
+class ContainerNotFoundError(ContainerException):
+    """Raised when a container cannot be found."""
+
+
+class ImageException(DockerOperationException):
+    """Base class for image related exceptions."""
+
+
+class ImageOperationError(ImageException):
+    """Raised on image operation failures."""
+
+
+class QRCodeError(BaseBotException):
+    """Raised on QR code generation failures."""
+
+
+class TelebotExceptionHandler(ExceptionHandler):
+    """Custom exception handler for Telebot with structured logging."""
 
     def handle(self, exception: Exception) -> bool:
-        """
-        Logs and handles exceptions raised by Telebot.
-
-        Args:
-            exception (Exception): The exception to handle.
-
-        Returns:
-            bool: True if the exception was handled successfully.
-        """
-        sanitized_exception = sanitize_exception(exception)
+        """Handle and log Telebot exceptions with appropriate detail level."""
         log_level = parse_cli_args().log_level
 
-        if log_level == "DEBUG":
-            # Log the full exception trace at the DEBUG level
-            bot_logger.opt(exception=exception).debug(
-                f"Exception in @Telebot: {sanitized_exception}"
-            )
+        if isinstance(exception, BaseBotException):
+            sanitized_msg = exception.sanitized_message()
+            error_context = exception.sanitized_context()
+
+            log_msg = sanitized_msg
+            if error_context.metadata:
+                log_msg = f"{sanitized_msg} - Context: {error_context.metadata}"
         else:
-            # Log only the short exception message without the trace at INFO or higher levels
-            bot_logger.error(f"Exception in @Telebot: {sanitized_exception}")
+            log_msg = sanitize_exception(exception)
+
+        logger.opt(exception=exception).log(
+            "DEBUG" if log_level == "DEBUG" else "ERROR",
+            f"Exception in @Telebot: {log_msg}"
+        )
 
         return True
+
+
+# Backwards compatibility aliases
+# PyTMBotError = BaseBotException
+# PyTMBotConnectionError = ServerConnectionError
+# PyTMBotErrorHandlerError = MessageHandlerError
+# PyTMBotErrorTemplateError = TemplateError

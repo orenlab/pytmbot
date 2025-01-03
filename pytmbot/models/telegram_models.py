@@ -7,7 +7,9 @@ also providing basic information about the status of local servers.
 
 import ipaddress
 
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
+
+logger = Logger()
 
 
 class TelegramIPValidator:
@@ -51,5 +53,5 @@ class TelegramIPValidator:
             return False
 
         except ValueError:
-            bot_logger.error(f"Invalid IP address format: {ip_str}")
+            logger.error(f"Invalid IP address format: {ip_str}")
             return False

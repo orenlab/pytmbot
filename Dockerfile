@@ -9,7 +9,7 @@
 # Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
 # Repository:     https://github.com/orenlab/pytmbot                                                                   #
 # License:        MIT                                                                                                  #
-# Description:    This Dockerfile builds a secure, minimal image based on Alpine Linux with Python 3.12.               #
+# Description:    This Dockerfile builds a secure, minimal image based on Alpine Linux with Python 3.13.               #
 #                 It includes a Docker socket for managing containers without requiring root access for other tasks.   #
 #                                                                                                                      #
 ########################################################################################################################

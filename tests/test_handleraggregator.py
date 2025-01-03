@@ -2,7 +2,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
-from app.core.handlers.handlers_aggregator import HandlersAggregator
+from pytmbot.core.handlers.handlers_aggregator import HandlersAggregator
 
 
 class TestHandlersAggregator(unittest.TestCase):

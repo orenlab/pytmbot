@@ -11,16 +11,24 @@ from fastapi.responses import JSONResponse
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
-from pytmbot.exceptions import PyTMBotError
+from pytmbot.exceptions import InitializationError, ErrorContext, ShutdownError, BotException
 from pytmbot.globals import settings
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
-from pytmbot.utils.utilities import sanitize_exception, generate_secret_token, mask_token_in_message
+from pytmbot.utils.utilities import generate_secret_token, mask_token_in_message
+
+logger = Logger()
 
 
 class RateLimit:
     def __init__(self, limit: int, period: int, ban_threshold: int = 50) -> None:
+        self.log = logger.bind_context(
+            component="rate_limiter",
+            limit=limit,
+            period=period,
+            ban_threshold=ban_threshold
+        )
         self.limit = limit
         self.period = period
         self.ban_threshold = ban_threshold
@@ -28,16 +36,28 @@ class RateLimit:
         self.banned_ips: Dict[str, datetime] = {}
 
     def is_banned(self, client_ip: str) -> bool:
+        self.log = self.log.bind_context(
+            ip=client_ip,
+            action="check_ban",
+            banned_ips_count=len(self.banned_ips)
+        )
         if client_ip not in self.banned_ips:
             return False
 
         ban_time = self.banned_ips[client_ip]
         if (datetime.now() - ban_time).total_seconds() > 3600:
+            self.log.info("Ban expired, removing IP from banned list")
             del self.banned_ips[client_ip]
             return False
+        self.log.warning("Request from banned IP rejected")
         return True
 
     def is_rate_limited(self, client_ip: str) -> bool:
+        self.log = self.log.bind_context(
+            ip=client_ip,
+            action="rate_check",
+            current_requests_count=len(self.requests.get(client_ip, []))
+        )
         if self.is_banned(client_ip):
             return True
 
@@ -53,10 +73,19 @@ class RateLimit:
 
         if len(request_times) >= self.ban_threshold:
             self.banned_ips[client_ip] = datetime.now()
-            bot_logger.warning(f"IP {client_ip} banned for excessive requests")
+            self.log.warning(
+                "IP banned for excessive requests",
+                requests_count=len(request_times),
+                time_window=self.period
+            )
             return True
 
         if len(request_times) >= self.limit:
+            self.log.warning(
+                "Rate limit exceeded",
+                requests_count=len(request_times),
+                time_window=self.period
+            )
             return True
 
         request_times.append(current_time)
@@ -67,32 +96,34 @@ class WebhookManager:
     """Manages webhook configuration and lifecycle."""
 
     def __init__(self, bot: TeleBot, url: str, port: int, secret_token: str = None) -> None:
+        self.log = logger.bind_context(
+            component="webhook_manager",
+            webhook_url=mask_token_in_message(url, bot.token),
+            port=port,
+            has_secret_token=bool(secret_token)
+        )
         self.bot = bot
         self.url = url
         self.port = port
         self.secret_token = secret_token
-        bot_logger.debug(
-            f"Initialized WebhookManager with URL: {mask_token_in_message(url, bot.token)}, port: {port}, "
-            f"secret token present: {bool(secret_token)}"
-        )
+        self.log.debug("Initialized WebhookManager")
 
     def setup_webhook(self, webhook_path: str) -> None:
-        """Configures the webhook for the bot."""
+        log = self.log.bind_context(
+            action="setup",
+            webhook_path=mask_token_in_message(webhook_path, self.bot.token)
+        )
+
         try:
-            bot_logger.debug(f"Starting webhook setup with path: {mask_token_in_message(webhook_path, self.bot.token)}")
-
-            # Remove any existing webhook first
             self.remove_webhook()
-
             webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
             cert_path = settings.webhook_config.cert[0].get_secret_value() or None
 
-            webhook_info = self.bot.get_webhook_info()
-            bot_logger.debug(f"Current webhook info before setup: {webhook_info}")
-
-            bot_logger.debug(
-                f"Applying webhook configuration - URL: {mask_token_in_message(webhook_url, self.bot.token)}, "
-                f"Certificate present: {bool(cert_path)}"
+            log.debug(
+                "Configuring webhook",
+                webhook_info=self.bot.get_webhook_info(),
+                cert_present=bool(cert_path),
+                webhook_url=mask_token_in_message(webhook_url, self.bot.token)
             )
 
             self.bot.set_webhook(
@@ -104,40 +135,66 @@ class WebhookManager:
                 secret_token=self.secret_token
             )
 
-            # Verify webhook was set correctly
             new_webhook_info = self.bot.get_webhook_info()
-            bot_logger.info(
-                f"Webhook successfully configured. New webhook info: {mask_token_in_message(str(new_webhook_info), self.bot.token)}"
+            log.info(
+                "Webhook configured successfully",
+                new_webhook_info=mask_token_in_message(str(new_webhook_info), self.bot.token)
             )
 
         except ApiTelegramException as e:
-            error_msg = f"Failed to set webhook: {sanitize_exception(e)}"
-            bot_logger.error(error_msg)
-            raise PyTMBotError(error_msg) from e
+            log.error(
+                "Webhook setup failed",
+                error=e
+            )
+            raise InitializationError(ErrorContext(
+                message="Webhook setup failed",
+                error_code="WEBHOOK_SETUP_FAILED",
+                metadata={
+                    "exception": e
+                })
+            )
 
     def remove_webhook(self) -> None:
         """Removes the existing webhook configuration."""
+
+        log = self.log.bind_context(
+            action="remove_webhook"
+        )
+
         try:
-            bot_logger.debug("Attempting to remove existing webhook")
             webhook_info = self.bot.get_webhook_info()
-            bot_logger.debug(f"Current webhook info before removal: {webhook_info}")
+            log.debug(
+                "Checking existing webhook",
+                current_webhook_info=webhook_info
+            )
 
             self.bot.remove_webhook()
 
             # Verify webhook was removed
             new_webhook_info = self.bot.get_webhook_info()
-            bot_logger.debug(f"Webhook removed successfully. New webhook info: {new_webhook_info}")
+            log.debug(
+                "Webhook removed successfully",
+                new_webhook_info=new_webhook_info
+            )
         except ApiTelegramException as e:
-            error_msg = f"Failed to remove webhook: {sanitize_exception(e)}"
-            bot_logger.error(error_msg)
-            raise PyTMBotError(error_msg) from e
+            raise InitializationError(ErrorContext(
+                message="Failed to remove webhook",
+                error_code="WEBHOOK_REMOVE_FAILED",
+                metadata={
+                    "exception": e
+                }
+            ))
 
 
 class WebhookServer:
     """FastAPI server for handling Telegram webhook requests."""
 
     def __init__(self, bot: TeleBot, token: str, host: str, port: int) -> None:
-        bot_logger.debug(f"Initializing WebhookServer - host: {host}, port: {port}")
+        self.log = logger.bind_context(
+            component="webhook_server",
+            host=host,
+            port=port
+        )
 
         self.bot = bot
         self.token = token
@@ -150,7 +207,6 @@ class WebhookServer:
         # Generate secure webhook path and secret token
         self.secret_token = generate_secret_token()
         self.webhook_path = f"/webhook/{generate_secret_token(16)}/{self.token}/"
-        bot_logger.debug(f"Generated webhook path: {mask_token_in_message(self.webhook_path, self.bot.token)}")
 
         # Initialize webhook manager
         webhook_settings = settings.webhook_config
@@ -169,36 +225,42 @@ class WebhookServer:
         self.rate_limiter_404 = RateLimit(limit=5, period=10)
 
     def _create_app(self) -> FastAPI:
-        bot_logger.debug("Creating FastAPI application")
+        log = self.log.bind_context(
+            action="create_server"
+        )
 
         @asynccontextmanager
-        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-            """
-            Async context manager for FastAPI lifespan events.
-            Handles webhook setup on startup and cleanup on shutdown.
-
-            Args:
-                app: FastAPI application instance
-
-            Yields:
-                None
-            """
-            bot_logger.info("Starting webhook server lifecycle...")
+        async def lifespan() -> AsyncGenerator[None, None]:
+            lifespan_log = self.log.bind_context(
+                action="lifespan",
+                webhook_path=mask_token_in_message(self.webhook_path, self.token)
+            )
+            lifespan_log.info("Starting webhook server lifecycle...")
             try:
-                bot_logger.debug("Initiating webhook configuration")
+                lifespan_log.debug("Initiating webhook configuration")
                 self.webhook_manager.setup_webhook(self.webhook_path)
                 yield
             except Exception as e:
-                error_msg = f"Webhook lifecycle error: {sanitize_exception(e)}"
-                bot_logger.error(error_msg)
-                raise
+                raise InitializationError(ErrorContext(
+                    message="Webhook lifecycle error",
+                    error_code="WEBHOOK_LIFECYCLE_ERROR",
+                    metadata={
+                        "exception": e
+                    }
+                ))
             finally:
                 try:
-                    bot_logger.debug("Removing webhook during shutdown")
+                    lifespan_log.debug("Removing webhook during shutdown")
                     self.webhook_manager.remove_webhook()
                 except Exception as e:
-                    bot_logger.error(f"Error during webhook cleanup: {sanitize_exception(e)}")
-                bot_logger.info("Webhook server shutdown complete")
+                    raise ShutdownError(ErrorContext(
+                        message="Error during webhook cleanup",
+                        error_code="WEBHOOK_CLEANUP_ERROR",
+                        metadata={
+                            "exception": e
+                        }
+                    ))
+                lifespan_log.info("Webhook server shutdown complete")
 
         app = FastAPI(
             docs_url=None,
@@ -209,6 +271,7 @@ class WebhookServer:
         )
 
         self._setup_routes(app)
+        log.info("FastAPI application created successfully")
         return app
 
     @staticmethod
@@ -223,15 +286,21 @@ class WebhookServer:
         return "unknown"
 
     def _setup_routes(self, app: FastAPI) -> None:
-        bot_logger.debug("Setting up FastAPI routes")
+        route_log = self.log.bind_context(action="setup_routes")
+        route_log.debug("Setting up FastAPI routes")
 
         @app.exception_handler(404)
-        def not_found_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        def not_found_handler(request: Request) -> JSONResponse:
             client_ip = request.client.host
-            bot_logger.warning(f"404 request from {client_ip}: {request.url}")
+            error_log = self.log.bind_context(
+                action="handle_404",
+                client_ip=client_ip,
+                url=str(request.url)
+            )
+            error_log.warning("404 request received")
 
             if self.rate_limiter_404.is_rate_limited(client_ip):
-                bot_logger.warning(f"Rate limit exceeded for 404 requests from {client_ip}")
+                error_log.warning("Rate limit exceeded for 404 requests")
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Too many not found requests"}
@@ -246,10 +315,15 @@ class WebhookServer:
                 x_forwarded_for: Annotated[str | None, Header()] = None
         ) -> str:
             client_ip = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.client.host
-            bot_logger.debug(f"Verifying Telegram IP: {client_ip}")
+            ip_log = self.log.bind_context(
+                action="verify_ip",
+                client_ip=client_ip,
+                x_forwarded_for=x_forwarded_for
+            )
+            ip_log.debug("Verifying Telegram IP")
 
             if not self.telegram_ip_validator.is_telegram_ip(client_ip):
-                bot_logger.warning(f"Request from non-Telegram IP: {client_ip}")
+                ip_log.warning("Request from non-Telegram IP rejected")
                 raise HTTPException(
                     status_code=403,
                     detail="Access denied: Request must come from Telegram servers"
@@ -262,21 +336,25 @@ class WebhookServer:
                 client_ip: Annotated[str, Depends(verify_telegram_ip)],
                 x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None
         ) -> JSONResponse:
-            bot_logger.debug(f"Received webhook request from {client_ip}")
+            webhook_log = self.log.bind_context(
+                action="process_webhook",
+                client_ip=client_ip,
+                request_counter=self.request_counter
+            )
+            webhook_log.debug("Received webhook request")
 
             try:
                 if self.rate_limiter.is_rate_limited(client_ip):
-                    bot_logger.warning(f"Rate limit exceeded for {client_ip}")
+                    webhook_log.warning("Rate limit exceeded")
                     raise HTTPException(
                         status_code=429,
                         detail="Rate limit exceeded"
                     )
 
                 if x_telegram_bot_api_secret_token != self.secret_token:
-                    bot_logger.warning(
-                        f"Invalid secret token from {client_ip}. "
-                        f"Expected: {self.secret_token}, "
-                        f"Received: {x_telegram_bot_api_secret_token}"
+                    webhook_log.warning(
+                        "Invalid secret token",
+                        received_token=x_telegram_bot_api_secret_token
                     )
                     raise HTTPException(status_code=403, detail="Invalid secret token")
 
@@ -285,39 +363,64 @@ class WebhookServer:
                 update_dict = update.model_dump(exclude_unset=True, by_alias=True)
                 update_type = self._get_update_type(update)
 
-                bot_logger.debug(f"Processing update #{self.request_counter} - Type: {update_type}")
-                bot_logger.debug(f"Update details from {client_ip}: {update_dict}")
+                webhook_log = webhook_log.bind_context(
+                    update_type=update_type,
+                    update_id=update_dict.get('update_id')
+                )
+                webhook_log.debug("Processing update")
 
                 if self.request_counter > 1000:
-                    bot_logger.warning("Request threshold reached, preparing for restart")
+                    webhook_log.warning(
+                        "Request threshold reached",
+                        total_requests=self.request_counter,
+                        last_restart=self.last_restart
+                    )
                     self.request_counter = 0
                     self.last_restart = datetime.now()
 
                 update_obj = telebot.types.Update.de_json(update_dict)
                 self.bot.process_new_updates([update_obj])
 
-                bot_logger.debug(f"Successfully processed {update_type} update #{self.request_counter}")
+                webhook_log.debug("Update processed successfully")
                 return JSONResponse(
                     status_code=200,
                     content={"status": "ok", "update_type": update_type}
                 )
 
             except ValueError as e:
-                error_msg = f"Invalid update format: {str(e)}"
-                bot_logger.error(f"{error_msg}\nUpdate data: {update.model_dump()}")
+                webhook_log.error(
+                    "Invalid update format",
+                    error=str(e),
+                    update_data=update.model_dump()
+                )
                 raise HTTPException(status_code=400, detail="Invalid update format")
             except Exception as e:
-                error_msg = f"Failed to process update: {str(e)}"
-                bot_logger.error(f"{error_msg}\nUpdate data: {update.model_dump()}")
+                webhook_log.error(
+                    "Failed to process update",
+                    error=str(e),
+                    update_data=update.model_dump()
+                )
                 raise HTTPException(status_code=500, detail="Internal server error")
 
     def start(self) -> None:
         """Starts the webhook server."""
+        start_log = self.log.bind_context(
+            action="start_server",
+            host=self.host,
+            port=self.port,
+            server_type="uvicorn",
+            webhook_path=mask_token_in_message(self.webhook_path, self.token)
+        )
+        start_log.info("Initializing webhook server start")
 
         if self.port < 1024:
-            error_msg = "Cannot run webhook server on privileged ports. Use reverse proxy instead."
-            bot_logger.error(error_msg)
-            raise PyTMBotError(error_msg)
+            raise InitializationError(ErrorContext(
+                message="Cannot run webhook server on privileged ports.",
+                error_code="PRIVILEGED_PORT_ERROR",
+                metadata={
+                    "requested_port": self.port
+                }
+            ))
 
         try:
             cert_file = settings.webhook_config.cert[0].get_secret_value()
@@ -334,18 +437,60 @@ class WebhookServer:
                 "workers": 1
             }
 
-            bot_logger.info(
-                f"Starting webhook server on {self.host}:{self.port} {'with' if cert_file and key_file else 'without'} SSL")
+            start_log = start_log.bind_context(
+                ssl_enabled=bool(cert_file and key_file),
+                ssl_cert_present=bool(cert_file),
+                ssl_key_present=bool(key_file),
+                config=uvicorn_config,
+                proxy_enabled=True,
+                workers_count=1
+            )
+            start_log.info("Starting webhook server with configuration")
 
             if cert_file and key_file:
-                uvicorn_config.update({
+                ssl_config = {
                     "ssl_certfile": cert_file,
                     "ssl_keyfile": key_file
-                })
+                }
+                uvicorn_config.update(ssl_config)
+                start_log.debug("SSL configuration added to server config")
 
+            start_log.info("Running uvicorn server")
             uvicorn.run(**uvicorn_config)
 
+        except FileNotFoundError as e:
+            raise InitializationError(ErrorContext(
+                message="Failed to start webhook server - SSL certificate or key file not found",
+                error_code="FILE_NOT_FOUND_ERROR",
+                metadata={
+                    "exception": e
+                }
+            ))
+
+        except PermissionError as e:
+            raise InitializationError(ErrorContext(
+                message="Failed to start webhook server - Permission denied",
+                error_code="PERMISSION_ERROR",
+                metadata={
+                    "exception": e
+                }
+            ))
+
+        except OSError as e:
+            raise InitializationError(ErrorContext(
+                message="Failed to start webhook server - System error",
+                error_code="OS_ERROR",
+                metadata={
+                    "exception": e
+                }
+            ))
+
         except Exception as e:
-            error_msg = f"Failed to start webhook server: {sanitize_exception(e)}"
-            bot_logger.error(error_msg)
-            raise PyTMBotError(error_msg) from e
+            raise BotException(ErrorContext(
+                message="Failed to start webhook server",
+                error_code="UNEXPECTED_ERROR",
+                metadata={
+                    "error_class": e.__class__.__name__,
+                    "exception": e
+                }
+            ))

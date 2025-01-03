@@ -4,13 +4,15 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.updates import DockerImageUpdater
-from pytmbot.logs import logged_inline_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # func=lambda call: call.data.startswith('__check_updates__')
-@bot_logger.catch()
-@logged_inline_handler_session
+@logger.catch()
+@logger.session_decorator
 def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     """
     Handles the callback for images updates.

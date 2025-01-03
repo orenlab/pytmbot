@@ -8,13 +8,17 @@ from telebot import TeleBot
 from telebot.types import Message, LinkPreviewOptions
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards
-from pytmbot.logs import logged_handler_session
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # commands=['help', 'start'])
-@logged_handler_session
+# @logger.session_decorator
+@logger.session_decorator
 def handle_start(message: Message, bot: TeleBot) -> None:
     try:
         bot.send_chat_action(message.chat.id, "typing")
@@ -24,7 +28,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
         first_name = message.from_user.first_name
 
         with Compiler(
-            template_name="b_index.jinja2", first_name=first_name
+                template_name="b_index.jinja2", first_name=first_name
         ) as compiler:
             answer = compiler.compile()
 
@@ -36,4 +40,11 @@ def handle_start(message: Message, bot: TeleBot) -> None:
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling the start command",
+            error_code="HAND_014",
+            metadata={"exception": str(error)}
+        ))

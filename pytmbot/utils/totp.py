@@ -5,9 +5,11 @@ import io
 import pyotp
 import qrcode
 
-from pytmbot.exceptions import QRCodeGenerationError
+from pytmbot.exceptions import QRCodeError, ErrorContext
 from pytmbot.globals import settings
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
+
+logger = Logger()
 
 
 class TwoFactorAuthenticator:
@@ -41,7 +43,7 @@ class TwoFactorAuthenticator:
         # Encode the hash digest as base32 and decode it to a string
         return base64.b32encode(h.digest()).decode()
 
-    @bot_logger.catch()
+    @logger.catch()
     def __generate_totp_auth_uri(self) -> str:
         """
         Generates a TOTP authentication URI using the secret key and account information.
@@ -65,7 +67,7 @@ class TwoFactorAuthenticator:
         Returns:
             bytes: The generated QR code as bytes.
         """
-        bot_logger.info(f"Starting QR code generation for user: {self.username}...")
+        logger.info(f"Starting QR code generation for user: {self.username}...")
 
         try:
             # Generate the TOTP authentication URI
@@ -78,14 +80,16 @@ class TwoFactorAuthenticator:
             with io.BytesIO() as img_bytes:
                 qr_code.save(img_bytes)
 
-                bot_logger.info(
+                logger.info(
                     f"QR code successfully generated for user: {self.username}."
                 )
                 return img_bytes.getvalue()
         except Exception as e:
-            error_msg = f"Error generating QR code for user {self.username}: {e}"
-            bot_logger.error(error_msg)
-            raise QRCodeGenerationError(error_msg)
+            raise QRCodeError(ErrorContext(
+                message="QR code generation failed.",
+                error_code="QR_CODE_GENERATION_ERROR",
+                metadata={"original_error": str(e)}
+            ))
 
     def verify_totp_code(self, code: str) -> bool:
         """
@@ -98,19 +102,19 @@ class TwoFactorAuthenticator:
             bool: True if the TOTP code is verified, False otherwise.
         """
         if not isinstance(code, str) or len(code) != 6:
-            bot_logger.error(
+            logger.error(
                 f"Invalid TOTP code format for user {self.username}. Code length must be 6."
             )
             return False
 
         totp = pyotp.TOTP(self.__generate_secret())
-        bot_logger.info(f"Verifying TOTP code for user {self.username}...")
+        logger.info(f"Verifying TOTP code for user {self.username}...")
 
         if totp.verify(code):
-            bot_logger.info(
+            logger.info(
                 f"TOTP code successfully verified for user {self.username}."
             )
             return True
 
-        bot_logger.error(f"Failed to verify TOTP code for user {self.username}.")
+        logger.error(f"Failed to verify TOTP code for user {self.username}.")
         return False

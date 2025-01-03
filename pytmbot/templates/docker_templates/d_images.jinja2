@@ -1,13 +1,33 @@
-{# templates/images.jinja2 #}
+{# templates/docker_templates/d_images.jinja2 #}
+{{ context.emojis.thought_balloon }} Here are the images:
 
-{{ thought_balloon }}Here is:
-
-{% for value in context %}{{ spouting_whale }} Image ID: <b>{{ value['id'] }}</b>:
-    {{ minus }} Name: {{ value["name"][0] }}
-    {{ minus }} Tags: {{ value["tags"][0] }}
-    {{ minus }} OS architecture: {{ value["architecture"] }}
-    {{ minus }} Target OS: {{ value["os"] }}
-    {{ minus }} Image size: {{ value["size"] }}
-    {{ minus }} Crated: {{ value["created"] }}
-
-{% endfor %}
+{%- for value in context.images %}
+    {{ context.emojis.spouting_whale }} <b>Image ID:</b> {{ value['id'] }}
+    {{context.emojis.minus }} <b>Name:</b> {{ value.get("name", "N/A") }}
+    {{context.emojis.minus }} <b>Tags:</b> {{ value.get("tags", ["N/A"]) | join(", ") }}
+    {{context.emojis.minus }} <b>OS Architecture:</b> {{ value.get("architecture", "N/A") }}
+    {{context.emojis.minus }} <b>Target OS:</b> {{ value.get("os", "N/A") }}
+    {{context.emojis.minus }} <b>Image Size:</b> {{ value.get("size", "N/A") }}
+    {{context.emojis.minus }} <b>Created:</b> {{ value.get("created", "N/A") }}
+    {%- if value.get("author") %}
+    {{- context.emojis.minus }} <b>Author:</b> {{ value["author"] }}
+    {%- endif -%}
+    {%- if value.get("docker_version") %}
+    {{- context.emojis.minus }} <b>Docker Version:</b> {{ value["docker_version"] }}
+    {%- endif -%}
+    {%- if value.get("labels") %}
+    {{- context.emojis.minus }} <b>Labels:</b> {{ value["labels"] | tojson }}
+    {%- endif -%}
+    {%- if value.get("exposed_ports") %}
+    {{- context.emojis.minus }} <b>Exposed Ports:</b> {{ value["exposed_ports"] | join(", ") }}
+    {%- endif -%}
+    {%- if value.get("env_variables") %}
+    {{- context.emojis.minus }} <b>Environment Variables:</b> {{ value["env_variables"] | join(", ") }}
+    {%- endif -%}
+    {%- if value.get("entrypoint") %}
+    {{- context.emojis.minus }} <b>Entrypoint:</b> {{ value["entrypoint"] | join(" ") }}
+    {%- endif -%}
+    {%- if value.get("cmd") %}
+    {{- context.emojis.minus }} <b>Command:</b> {{ value["cmd"] | join(" ") }}
+    {%- endif -%}
+{% else %}<b>No images available.</b>{% endfor %}

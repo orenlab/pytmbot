@@ -11,12 +11,14 @@ from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.models import handlers_model
 from pytmbot.plugins.models import PluginCoreModel
 
+logger = logs.Logger()
+
 
 class PluginCore:
     def __init__(self):
         self.settings = g.settings
         self.var_config = g.var_config
-        self.bot_logger = logs.bot_logger
+        self.logger = logger
         self.keyboard = kb.Keyboards()
         self.handler_models = handlers_model.HandlerManager
         self.session_manager = SessionManager()
@@ -37,7 +39,7 @@ class PluginCore:
         config_path = os.path.join(grandparent_dir, config_name)
 
         if not os.path.isfile(config_path):
-            self.bot_logger.error(f"Config file not found: {config_name}")
+            self.logger.error(f"Config file not found: {config_name}")
             raise FileNotFoundError(f"Config file not found: {config_name}")
 
         return config_path
@@ -60,14 +62,14 @@ class PluginCore:
             with open(config_path, "r") as f:
                 config_data = yaml.safe_load(f)
 
-            self.bot_logger.debug(f"Loaded plugin config: {config_name}")
+            self.logger.debug(f"Loaded plugin config: {config_name}")
 
             return config_model(**config_data)
         except yaml.YAMLError as err:
-            self.bot_logger.error(f"Error parsing YAML file {config_name}: {err}")
+            self.logger.error(f"Error parsing YAML file {config_name}: {err}")
             raise
         except Exception as err:
-            self.bot_logger.error(f"Error loading plugin config: {err}")
+            self.logger.error(f"Error loading plugin config: {err}")
             raise
 
     def build_plugin_keyboard(self, plugin_keyboard_data: dict[str, str]) -> Any:

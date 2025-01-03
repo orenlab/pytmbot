@@ -8,16 +8,18 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import keyboards, em, button_data
 from pytmbot.handlers.handlers_util.docker import show_handler_info, get_sanitized_logs
-from pytmbot.logs import logged_inline_handler_session
+from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import split_string_into_octets
 
+logger = Logger()
+
 
 # func=lambda call: call.data.startswith('__get_logs__')
-@logged_inline_handler_session
+@logger.session_decorator
 @two_factor_auth_required
 def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     """
@@ -47,11 +49,11 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     }
 
     with Compiler(
-        "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
+            "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
     ) as compiler:
         context = compiler.compile()
 
-    keyboard_buttons = keyboards.ButtonData(
+    keyboard_buttons = button_data(
         text="Back to all containers", callback_data="back_to_containers"
     )
 

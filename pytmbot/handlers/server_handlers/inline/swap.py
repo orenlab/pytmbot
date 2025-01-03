@@ -9,13 +9,16 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import psutil_adapter, em
-from pytmbot.logs import logged_inline_handler_session
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # func=lambda call: call.data == '__swap_info__'
-@logged_inline_handler_session
+@logger.session_decorator
 def handle_swap_info(call: CallbackQuery, bot: TeleBot):
     """Handles the swap_info command."""
 
@@ -35,7 +38,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
             )
 
         with Compiler(
-            template_name="b_swap.jinja2", context=swap_data, **emojis
+                template_name="b_swap.jinja2", context=swap_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -45,4 +48,13 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
             text=bot_answer,
         )
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="Sorry, but i can't get swap memory values. Please try again later."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling inline swap info",
+            error_code="HAND_009",
+            metadata={"exception": str(error)}
+        ))

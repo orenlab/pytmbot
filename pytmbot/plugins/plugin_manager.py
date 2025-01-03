@@ -10,11 +10,12 @@ from typing import List, Type, Optional, Dict, Set
 
 from telebot import TeleBot
 
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.plugins.models import PluginsPermissionsModel
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.utils.utilities import is_running_in_docker
 
+logger = Logger()
 
 @dataclass
 class _PluginInfo:
@@ -74,7 +75,7 @@ class PluginManager:
                     cls._instance = super(PluginManager, cls).__new__(cls)
                     cls._instance._initialize()
             except Exception as e:
-                bot_logger.error(f"Failed to create PluginManager instance: {e}")
+                logger.error(f"Failed to create PluginManager instance: {e}")
         return cls._instance
 
     def _initialize(self):
@@ -138,7 +139,7 @@ class PluginManager:
         try:
             return importlib.import_module(module_path)
         except ImportError as e:
-            bot_logger.error(f"ImportError: {e} - Module path: {module_path}")
+            logger.error(f"ImportError: {e} - Module path: {module_path}")
             raise
 
     def _import_module_config(self, plugin_name: str):
@@ -150,7 +151,7 @@ class PluginManager:
         try:
             return importlib.import_module(module_path)
         except ImportError as e:
-            bot_logger.error(f"Failed to import plugin config '{plugin_name}': {e}")
+            logger.error(f"Failed to import plugin config '{plugin_name}': {e}")
             raise
 
     @staticmethod
@@ -173,7 +174,7 @@ class PluginManager:
         permissions = getattr(module, "PLUGIN_PERMISSIONS", None)
 
         if not isinstance(permissions, PluginsPermissionsModel):
-            bot_logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
+            logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
             raise ValueError(f"Invalid permissions model for plugin '{module.__name__}'")
 
         if not hasattr(permissions, 'base_permission'):
@@ -204,7 +205,7 @@ class PluginManager:
             permissions = self._extract_plugin_permissions(module)
 
             if permissions.need_running_on_host_machine and is_running_in_docker():
-                bot_logger.warning(
+                logger.warning(
                     f"Plugin '{name}' requires host environment. Skipping registration in Docker container."
                 )
                 return None
@@ -218,7 +219,7 @@ class PluginManager:
                 resource_limits=resource_limits
             )
         except AttributeError as e:
-            bot_logger.error(f"Plugin config error: missing required attributes - {e}")
+            logger.error(f"Plugin config error: missing required attributes - {e}")
             return None
 
     @classmethod
@@ -234,7 +235,7 @@ class PluginManager:
             cls._plugin_descriptions[plugin_info.name] = plugin_info.description
             return True
         except Exception as e:
-            bot_logger.error(f"Failed to add plugin info: {e}")
+            logger.error(f"Failed to add plugin info: {e}")
             return False
 
     def _cleanup_plugin(self, plugin_name: str):
@@ -246,24 +247,24 @@ class PluginManager:
                 try:
                     instance.cleanup()
                 except Exception as e:
-                    bot_logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
+                    logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
 
             try:
                 self._plugin_instances.pop(plugin_name, None)
                 self._loaded_plugins.discard(plugin_name)
             except Exception as e:
-                bot_logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
+                logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
 
     def _register_plugin(self, plugin_name: str, bot: Optional[TeleBot] = None):
         """Registers a single plugin with enhanced security and resource management."""
-        bot_logger.debug(f"Attempting to register plugin: '{plugin_name}'")
+        logger.debug(f"Attempting to register plugin: '{plugin_name}'")
 
         if not self._validate_plugin_name(plugin_name):
-            bot_logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping.")
+            logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping.")
             return
 
         if not self._module_exists(plugin_name):
-            bot_logger.error(f"Plugin '{plugin_name}' not found. Skipping.")
+            logger.error(f"Plugin '{plugin_name}' not found. Skipping.")
             return
 
         try:
@@ -273,14 +274,14 @@ class PluginManager:
 
             plugin_info = self._extract_plugin_info(config)
             if not plugin_info:
-                bot_logger.error(f"Invalid plugin configuration for '{plugin_name}'.")
+                logger.error(f"Invalid plugin configuration for '{plugin_name}'.")
                 return
 
             permissions = self._extract_plugin_permissions(config)
             plugin_classes = self._find_plugin_classes(module)
 
             if not plugin_classes:
-                bot_logger.error(f"No valid plugin class found in '{plugin_name}'.")
+                logger.error(f"No valid plugin class found in '{plugin_name}'.")
                 return
 
             # Create plugin instance
@@ -298,22 +299,22 @@ class PluginManager:
                 if permissions.base_permission:
                     plugin_instance.register()
                     self._loaded_plugins.add(plugin_name)
-                    bot_logger.info(
+                    logger.info(
                         f"Plugin '{plugin_info.name}' (v{plugin_info.version}) registered successfully."
                     )
                 else:
-                    bot_logger.warning(
+                    logger.warning(
                         f"Plugin '{plugin_info.name}' does not have permission to execute commands. Skipping registration."
                     )
 
             except Exception as error:
-                bot_logger.exception(
+                logger.exception(
                     f"Unexpected error registering plugin '{plugin_name}': {error}"
                 )
                 self._cleanup_plugin(plugin_name)
 
         except Exception as error:
-            bot_logger.exception(
+            logger.exception(
                 f"Unexpected error registering plugin '{plugin_name}': {error}"
             )
             self._cleanup_plugin(plugin_name)
@@ -336,7 +337,7 @@ class PluginManager:
                 self._cleanup_plugin(plugin_name)
             self._loaded_plugins.clear()
         except Exception as e:
-            bot_logger.error(f"Error cleaning up plugins: {e}")
+            logger.error(f"Error cleaning up plugins: {e}")
 
     def __del__(self):
         """Ensure cleanup when the manager is destroyed."""

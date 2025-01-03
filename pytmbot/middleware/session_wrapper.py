@@ -8,7 +8,9 @@ from pytmbot.handlers.auth_processing.auth_processing import (
     handle_unauthorized_message,
     handle_access_denied,
 )
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
+
+logger = Logger()
 
 
 def handle_unauthorized_query(
@@ -65,7 +67,7 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
         user = getattr(query, "from_user", None)
         if user is None:
-            bot_logger.error("Query does not contain valid user information.")
+            logger.error("Query does not contain valid user information.")
             return access_denied_handler(query, bot)
 
         user_id = user.id
@@ -79,7 +81,7 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
         if user_id in settings.access_control.allowed_admins_ids:
             is_authenticated = session_manager.is_authenticated(user_id)
-            bot_logger.debug(
+            logger.debug(
                 f"User {user_id} authentication status: {is_authenticated}"
             )
 
@@ -87,20 +89,20 @@ def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
                 session_manager.set_referer_uri_and_handler_type_for_user(
                     user_id, handler_type, referer_handler
                 )
-                bot_logger.error(
+                logger.error(
                     f"User {user_id} not authenticated. Redirecting to authorization page."
                 )
                 return handle_unauthorized_query(query, bot)
 
             if session_manager.is_session_expired(user_id):
                 session_manager.set_auth_state(user_id, "unauthenticated")
-                bot_logger.error(f"Session expired for user {user_id}")
+                logger.error(f"Session expired for user {user_id}")
                 return handle_unauthorized_query(query, bot)
 
-            bot_logger.debug(f"Access granted to administrative user {user_id}")
+            logger.debug(f"Access granted to administrative user {user_id}")
             return func(query, bot)
         else:
-            bot_logger.error(f"Access denied for user {user_id}. Not an admin.")
+            logger.error(f"Access denied for user {user_id}. Not an admin.")
             return access_denied_handler(query, bot)
 
     return wrapper

@@ -7,7 +7,9 @@ from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
 from telebot.types import Message, User
 
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
+
+logger = Logger()
 
 # Type aliases for better readability
 Timestamp: TypeAlias = datetime
@@ -75,7 +77,7 @@ class RateLimit(BaseMiddleware):
 
     def _handle_rate_limit(self, message: Message, user: User) -> CancelUpdate:
         """Handle rate limit exceeded scenario."""
-        bot_logger.warning(
+        logger.warning(
             "Rate limit exceeded",
             extra={
                 "user_id": user.id,
@@ -93,7 +95,7 @@ class RateLimit(BaseMiddleware):
 
         return CancelUpdate()
 
-    @bot_logger.catch()
+    @logger.catch()
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
         """
         Process incoming message and enforce rate limiting.
@@ -109,7 +111,7 @@ class RateLimit(BaseMiddleware):
             CancelUpdate: If user information is missing
         """
         if not (user := message.from_user):
-            bot_logger.error("Missing user information in message")
+            logger.error("Missing user information in message")
             return CancelUpdate()
 
         current_time = datetime.now()

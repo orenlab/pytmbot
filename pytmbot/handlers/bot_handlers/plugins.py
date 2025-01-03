@@ -8,15 +8,18 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import Message
 
+from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
-from pytmbot.logs import logged_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.plugin_manager import PluginManager
 
+logger = Logger()
 plugin_manager = PluginManager()
 
 
-@logged_handler_session
+@logger.session_decorator
 def handle_plugins(message: Message, bot: TeleBot) -> None:
     """
     Handle the plugin menu for the bot.
@@ -52,10 +55,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Compile the response using the template
         with Compiler(
-            template_name="b_plugins.jinja2",
-            first_name=first_name,
-            plugins=plugins,
-            **emojis,
+                template_name="b_plugins.jinja2",
+                first_name=first_name,
+                plugins=plugins,
+                **emojis,
         ) as compiler:
             response = compiler.compile()
 
@@ -67,8 +70,12 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
             parse_mode="Markdown",
         )
 
-    except Exception as e:
-        bot_logger.error(f"Failed to handle plugins: {e}")
+    except Exception as error:
         bot.send_message(
-            message.chat.id, "An error occurred while processing the plugins."
+            message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling plugins",
+            error_code="HAND_015",
+            metadata={"exception": str(error)}
+        ))

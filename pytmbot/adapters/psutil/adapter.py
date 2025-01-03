@@ -1,283 +1,232 @@
+from contextlib import suppress
 from datetime import datetime
-from typing import Tuple, List, Dict, Union
 
-try:
-    import psutil
-except ImportError:
-    raise ModuleNotFoundError("psutil library is not installed. Please install it.")
+import psutil
 
-from pytmbot.logs import bot_logger
+from pytmbot.adapters.psutil.types import LoadAverage, MemoryStats, DiskStats, SwapStats, SensorStats, ProcessStats, \
+    NetworkIOStats, UserInfo, NetworkInterfaceStats, CPUFrequencyStats, CPUUsageStats
+from pytmbot.logs import Logger
 from pytmbot.utils.utilities import set_naturalsize
+
+# Type definitions
+
+
+logger = Logger()
 
 
 class PsutilAdapter:
-    """
-    A class that wraps the psutil library for easier usage.
-    Provides methods to retrieve various system statistics using the psutil library.
-    """
+    """Provides system statistics using psutil with advanced error handling."""
 
-    def __init__(self):
-        """
-        Initialize the PsutilAdapter class.
-        """
-        self.psutil = psutil
+    def __init__(self) -> None:
+        self._psutil = psutil
 
     @staticmethod
-    def get_load_average() -> Tuple[float, float, float]:
-        """
-        Get the load average for the last 1 minute, 5 minutes, and 15 minutes.
-
-        Returns:
-            Tuple[float, float, float]: The load average.
-        """
-        bot_logger.debug("Retrieving load average...")
-        load_average = psutil.getloadavg()
-        return load_average
-
-    def get_memory(self) -> Dict[str, Union[str, int]]:
-        """
-        Retrieve current memory usage statistics.
-
-        Returns:
-            Dict[str, Union[str, int]]: Memory usage statistics.
-        """
+    def _safe_execute(operation: str, func, fallback, **log_context) -> any:
+        """Execute operations safely with proper logging and error handling."""
         try:
-            memory_stats = self.psutil.virtual_memory()
-            memory_current = {
-                key: (
-                    set_naturalsize(getattr(memory_stats, key))
-                    if key != "percent"
-                    else memory_stats.percent
+            logger.debug(f"Retrieving {operation}", extra=log_context)
+            result = func()
+            logger.debug(
+                f"Successfully retrieved {operation}",
+                extra={"result": result, **log_context}
+            )
+            return result
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve {operation}",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "operation": operation,
+                    **log_context
+                }
+            )
+            return fallback
+
+    def get_load_average(self) -> LoadAverage:
+        """Get system load averages."""
+        return self._safe_execute(
+            "load averages",
+            self._psutil.getloadavg,
+            (0.0, 0.0, 0.0)
+        )
+
+    def get_memory(self) -> MemoryStats:
+        """Get memory statistics with natural size formatting."""
+        memory_attrs = [
+            "total", "available", "percent", "used", "free",
+            "active", "inactive", "cached", "shared"
+        ]
+
+        def _get_memory():
+            stats = self._psutil.virtual_memory()
+            return {
+                attr: (
+                    set_naturalsize(getattr(stats, attr))
+                    if attr != "percent" else getattr(stats, attr)
                 )
-                for key in [
-                    "total",
-                    "available",
-                    "percent",
-                    "used",
-                    "free",
-                    "active",
-                    "inactive",
-                    "cached",
-                    "shared",
-                ]
+                for attr in memory_attrs
+                if hasattr(stats, attr)
             }
-            return memory_current
-        except (PermissionError, ValueError) as e:
-            bot_logger.error(f"Failed to retrieve memory statistics: {e}")
-            return {}
 
-    def get_disk_usage(self) -> List[Dict[str, Union[str, float]]]:
-        """
-        Get partition usage statistics.
+        return self._safe_execute("memory stats", _get_memory, {})
 
-        Returns:
-            List[Dict[str, Union[str, float]]]: Usage statistics for each partition.
-        """
-        try:
-            fs_stats = self.psutil.disk_partitions(all=False)
-            fs_current = []
-            for fs in fs_stats:
-                disk_usage = self.psutil.disk_usage(fs.mountpoint)
-                fs_current.append(
-                    {
+    def get_disk_usage(self) -> list[DiskStats]:
+        """Get disk usage statistics for all mounted partitions."""
+
+        def _get_disk_stats():
+            stats = []
+            for fs in self._psutil.disk_partitions(all=False):
+                with suppress(Exception):
+                    usage = self._psutil.disk_usage(fs.mountpoint)
+                    stats.append({
                         "device_name": fs.device,
                         "fs_type": fs.fstype,
                         "mnt_point": fs.mountpoint.replace("\u00A0", " "),
-                        "size": set_naturalsize(disk_usage.total),
-                        "used": set_naturalsize(disk_usage.used),
-                        "free": set_naturalsize(disk_usage.free),
-                        "percent": disk_usage.percent,
-                    }
-                )
-            bot_logger.debug(f"File system stats: {fs_current}")
-            return fs_current
-        except (PermissionError, KeyError) as e:
-            bot_logger.error(f"Failed to retrieve disk usage statistics: {e}")
-            return []
+                        "size": set_naturalsize(usage.total),
+                        "used": set_naturalsize(usage.used),
+                        "free": set_naturalsize(usage.free),
+                        "percent": usage.percent
+                    })
+            return stats
 
-    def get_swap_memory(self) -> Dict[str, Union[str, int]]:
-        """
-        Get swap memory usage.
+        return self._safe_execute("disk usage", _get_disk_stats, [])
 
-        Returns:
-            Dict[str, Union[str, int]]: Swap memory usage statistics.
-        """
-        try:
-            swap = self.psutil.swap_memory()
-            sw_current = {
+    def get_swap_memory(self) -> SwapStats:
+        """Get swap memory usage statistics."""
+
+        def _get_swap():
+            swap = self._psutil.swap_memory()
+            return {
                 "total": set_naturalsize(swap.total),
                 "used": set_naturalsize(swap.used),
                 "free": set_naturalsize(swap.free),
-                "percent": swap.percent,
+                "percent": swap.percent
             }
-            bot_logger.debug(f"Swap memory stats: {sw_current}")
-            return sw_current
-        except PermissionError as e:
-            bot_logger.error(f"Failed to retrieve swap memory statistics: {e}")
-            return {}
 
-    def get_sensors_temperatures(self) -> List[Dict[str, Union[str, float]]]:
-        """
-        Get sensors temperatures.
+        return self._safe_execute("swap memory", _get_swap, {})
 
-        Returns:
-            List[Dict[str, Union[str, float]]]: Sensor temperatures.
-        """
-        sensors_current: List[Dict[str, Union[str, float]]] = []
-        try:
-            sensors_stat = self.psutil.sensors_temperatures()
-            if not sensors_stat:
-                bot_logger.error("No temperature sensors data available")
-            for sensor_name, temperature_stats in sensors_stat.items():
-                sensors_current.append(
-                    {
-                        "sensor_name": sensor_name,
-                        "sensor_value": temperature_stats[0][1],
-                    }
-                )
-            bot_logger.debug(f"Sensors stats: {sensors_current}")
-            return sensors_current
-        except (AttributeError, KeyError, ValueError) as e:
-            bot_logger.error(f"Failed to retrieve sensors temperatures: {e}")
-            return []
+    def get_sensors_temperatures(self) -> list[SensorStats]:
+        """Get sensor temperatures."""
+
+        def _get_temps():
+            sensors = []
+            temps = self._psutil.sensors_temperatures()
+            if not temps:
+                return sensors
+
+            for name, stats in temps.items():
+                if stats and len(stats) > 0:
+                    sensors.append({
+                        "sensor_name": name,
+                        "sensor_value": stats[0][1]
+                    })
+            return sensors
+
+        return self._safe_execute("sensor temperatures", _get_temps, [])
 
     @staticmethod
     def get_uptime() -> str:
-        """
-        Get the system uptime in the format 'X days, Y hours, Z minutes, A seconds'.
-
-        Returns:
-            str: The uptime.
-        """
-        uptime_raw = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
-        uptime = str(uptime_raw).split(".")[0]
-        bot_logger.debug(f"Uptime: {uptime}")
-        return uptime
-
-    def get_process_counts(self) -> Dict[str, int]:
-        """
-        Get the counts of running, sleeping, and idle processes.
-
-        Returns:
-            Dict[str, int]: Process counts.
-        """
+        """Get system uptime as a formatted string."""
         try:
-            process_counts = {
-                status: sum(
-                    1 for proc in self.psutil.process_iter() if proc.status() == status
-                )
-                for status in ["running", "sleeping", "idle"]
-            }
-            process_counts["total"] = sum(process_counts.values())
-            bot_logger.debug(f"Process counts: {process_counts}")
-            return process_counts
-        except AttributeError as e:
-            bot_logger.error(f"Failed to retrieve process counts: {e}")
-            return {}
-
-    def get_net_io_counters(self) -> List[Dict[str, Union[str, int]]]:
-        """
-        Retrieves network I/O statistics.
-
-        Returns:
-            List[Dict[str, Union[str, int]]]: Network I/O statistics.
-        """
-        try:
-            net_io_stat = self.psutil.net_io_counters()
-            net_io_stat_current = [
-                {
-                    "bytes_sent": set_naturalsize(net_io_stat.bytes_sent),
-                    "bytes_recv": set_naturalsize(net_io_stat.bytes_recv),
-                    "packets_sent": net_io_stat.packets_sent,
-                    "packets_recv": net_io_stat.packets_recv,
-                    "err_in": net_io_stat.errin,
-                    "err_out": net_io_stat.errout,
-                    "drop_in": net_io_stat.dropin,
-                    "drop_out": net_io_stat.dropout,
-                }
-            ]
-            bot_logger.debug(f"Network I/O stats: {net_io_stat_current}")
-            return net_io_stat_current
-        except AttributeError as e:
-            bot_logger.error(f"Failed to retrieve network I/O statistics: {e}")
-            return []
-
-    def get_users_info(self) -> List[Dict[str, Union[str, float]]]:
-        """
-        Get the list of users currently logged into the system.
-
-        Returns:
-            List[Dict[str, Union[str, float]]]: List of users with login time.
-        """
-        users_info = []
-        try:
-            users = self.psutil.users()
-            for user in users:
-                users_info.append(
-                    {
-                        "username": user.name,
-                        "terminal": user.terminal,
-                        "host": user.host,
-                        "started": user.started,
-                    }
-                )
-            bot_logger.debug(f"Retrieved {len(users_info)} users currently logged in")
+            uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
+            return str(uptime).split(".")[0]
         except Exception as e:
-            bot_logger.error(f"Failed to retrieve users information: {e}")
-        return users_info
+            logger.error("Failed to get uptime", extra={"error": str(e)})
+            return "unknown"
 
-    def get_net_interface_stats(self) -> Dict[str, Dict[str, Union[int, str]]]:
-        """
-        Get detailed network statistics per interface.
+    def get_process_counts(self) -> ProcessStats:
+        """Get process counts by status."""
 
-        Returns:
-            Dict[str, Dict[str, Union[int, str]]]: Network statistics per interface.
-        """
-        net_if_stats = self.psutil.net_if_stats()
-        net_if_addrs = self.psutil.net_if_addrs()
-
-        net_stats = {}
-        for interface, stats in net_if_stats.items():
-            net_stats[interface] = {
-                "is_up": stats.isup,
-                "speed": stats.speed,
-                "duplex": stats.duplex,
-                "mtu": stats.mtu,
-                "ip_address": (
-                    net_if_addrs[interface][0].address
-                    if interface in net_if_addrs
-                    else "N/A"
-                ),
+        def _get_counts():
+            counts = {
+                status: sum(1 for proc in self._psutil.process_iter(['status'])
+                            if proc.info['status'] == status)
+                for status in ('running', 'sleeping', 'idle')
             }
-        bot_logger.debug(f"Network interface stats: {net_stats}")
-        return net_stats
+            counts['total'] = sum(counts.values())
+            return counts
 
-    def get_cpu_frequency(self) -> Dict[str, float]:
-        """
-        Get the CPU frequency (current, min, max).
+        return self._safe_execute("process counts", _get_counts, {})
 
-        Returns:
-            Dict[str, float]: CPU frequency statistics.
-        """
-        cpu_freq = self.psutil.cpu_freq()
-        cpu_freq_stats = {
-            "current_freq": cpu_freq.current,
-            "min_freq": cpu_freq.min,
-            "max_freq": cpu_freq.max,
-        }
-        bot_logger.debug(f"CPU frequency stats: {cpu_freq_stats}")
-        return cpu_freq_stats
+    def get_net_io_counters(self) -> list[NetworkIOStats]:
+        """Get network I/O statistics."""
 
-    def get_cpu_usage(self) -> Dict[str, Union[float, List[float]]]:
-        """
-        Get CPU usage statistics.
+        def _get_net_io():
+            stats = self._psutil.net_io_counters()
+            return [{
+                "bytes_sent": set_naturalsize(stats.bytes_sent),
+                "bytes_recv": set_naturalsize(stats.bytes_recv),
+                "packets_sent": stats.packets_sent,
+                "packets_recv": stats.packets_recv,
+                "err_in": stats.errin,
+                "err_out": stats.errout,
+                "drop_in": stats.dropin,
+                "drop_out": stats.dropout
+            }]
 
-        Returns:
-            Dict[str, Union[float, List[float]]]: CPU usage statistics.
-        """
-        cpu_stats = {
-            "cpu_percent": self.psutil.cpu_percent(interval=1),
-            "cpu_percent_per_core": self.psutil.cpu_percent(interval=1, percpu=True),
-        }
-        bot_logger.debug(f"CPU usage stats: {cpu_stats}")
-        return cpu_stats
+        return self._safe_execute("network I/O", _get_net_io, [])
+
+    def get_users_info(self) -> list[UserInfo]:
+        """Get information about logged-in users."""
+
+        def _get_users():
+            return [{
+                "username": user.name,
+                "terminal": user.terminal,
+                "host": user.host,
+                "started": user.started
+            } for user in self._psutil.users()]
+
+        return self._safe_execute("users info", _get_users, [])
+
+    def get_net_interface_stats(self) -> dict[str, NetworkInterfaceStats]:
+        """Get network interface statistics."""
+
+        def _get_net_stats():
+            if_stats = self._psutil.net_if_stats()
+            if_addrs = self._psutil.net_if_addrs()
+
+            return {
+                interface: {
+                    "is_up": stats.isup,
+                    "speed": stats.speed,
+                    "duplex": stats.duplex,
+                    "mtu": stats.mtu,
+                    "ip_address": (
+                        if_addrs[interface][0].address
+                        if interface in if_addrs and if_addrs[interface]
+                        else "N/A"
+                    )
+                }
+                for interface, stats in if_stats.items()
+            }
+
+        return self._safe_execute("network interface stats", _get_net_stats, {})
+
+    def get_cpu_frequency(self) -> CPUFrequencyStats:
+        """Get CPU frequency information."""
+
+        def _get_cpu_freq():
+            freq = self._psutil.cpu_freq()
+            return {
+                "current_freq": freq.current,
+                "min_freq": freq.min,
+                "max_freq": freq.max
+            }
+
+        return self._safe_execute("CPU frequency", _get_cpu_freq, {})
+
+    def get_cpu_usage(self) -> CPUUsageStats:
+        """Get CPU usage statistics."""
+
+        def _get_cpu_usage():
+            return {
+                "cpu_percent": self._psutil.cpu_percent(interval=1),
+                "cpu_percent_per_core": self._psutil.cpu_percent(interval=1, percpu=True)
+            }
+
+        return self._safe_execute("CPU usage", _get_cpu_usage, {
+            "cpu_percent": 0.0,
+            "cpu_percent_per_core": []
+        })

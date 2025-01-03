@@ -412,10 +412,7 @@ def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> s
         str: The message with the token masked.
     """
 
-    def mask_token(token: str, visible_chars: int) -> str:
-        if len(token) <= visible_chars * 2:
-            return '*' * len(token)  # Fully mask the token if it's too short
-        return f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}"
-
-    masked_token = mask_token(token, visible_chars)
-    return message.replace(token, masked_token)
+    if len(token) <= visible_chars * 2:
+        return message.replace(token, '*' * len(token))  # Fully mask the token if it's too short
+    return message.replace(token,
+                           f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}")

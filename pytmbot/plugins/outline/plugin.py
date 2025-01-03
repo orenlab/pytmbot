@@ -5,7 +5,6 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import keyboards, em
-from pytmbot.logs import logged_handler_session
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
@@ -25,9 +24,9 @@ class OutlinePlugin(PluginInterface):
         :param bot: An instance of TeleBot to interact with Telegram API.
         """
         super().__init__(bot)
-        self.plugin_logger = plugin.bot_logger
+        self.plugin_logger = plugin.logger
 
-    @logged_handler_session
+    @plugin.logger.session_decorator(session_type="handler")
     def outline_handler(self, message: Message) -> None:
         """
         Handles the '/outline' command by sending a compiled response
@@ -49,7 +48,7 @@ class OutlinePlugin(PluginInterface):
             message.chat.id, response, reply_markup=keyboard, parse_mode="Markdown"
         )
 
-    @logged_handler_session
+    @plugin.logger.session_decorator(session_type="handler")
     def handle_server_info(self, message: Message) -> Message:
         """
         Handles messages with 'Server info' by sending server information
@@ -83,7 +82,7 @@ class OutlinePlugin(PluginInterface):
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @logged_handler_session
+    @plugin.logger.session_decorator(session_type="handler")
     def handle_keys(self, message: Message) -> Message:
         """
         Handles messages with 'Keys' by sending key information compiled
@@ -114,7 +113,7 @@ class OutlinePlugin(PluginInterface):
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @logged_handler_session
+    @plugin.logger.session_decorator(session_type="handler")
     def handle_traffic(self, message: Message) -> Message:
         """
         Handles messages with 'Traffic' by sending traffic information

@@ -8,13 +8,16 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em, psutil_adapter
-from pytmbot.logs import logged_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # regexp="Network
-@logged_handler_session
+@logger.session_decorator
 def handle_network(message: Message, bot: TeleBot):
     emojis = {
         "up_left_arrow": em.get_emoji("up-left_arrow"),
@@ -29,7 +32,7 @@ def handle_network(message: Message, bot: TeleBot):
         network_statistics = psutil_adapter.get_net_io_counters()
 
         if network_statistics is None:
-            bot_logger.error(
+            logger.error(
                 f"Failed at @{__name__}: Error occurred while getting network statistics"
             )
             return bot.send_message(
@@ -38,7 +41,7 @@ def handle_network(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-            template_name="b_net_io.jinja2", context=network_statistics, **emojis
+                template_name="b_net_io.jinja2", context=network_statistics, **emojis
         ) as compiler:
             message_text = compiler.compile()
 
@@ -47,4 +50,11 @@ def handle_network(message: Message, bot: TeleBot):
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling network statistics",
+            error_code="HAND_005",
+            metadata={"exception": str(error)}
+        ))

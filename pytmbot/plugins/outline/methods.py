@@ -12,7 +12,6 @@ from typing import List, Literal, Union
 from pyoutlineapi.client import PyOutlineWrapper
 from pyoutlineapi.models import Metrics, AccessKeyList
 
-from pytmbot.logs import bot_logger
 from pytmbot.plugins.outline.models import OutlineServer, OutlineKey
 from pytmbot.plugins.plugins_core import PluginCore
 
@@ -59,8 +58,8 @@ class PluginMethods(PluginCore):
         return self.client.get_access_keys()
 
     def outline_action_manager(
-        self,
-        action: Literal["server_information", "traffic_information", "key_information"],
+            self,
+            action: Literal["server_information", "traffic_information", "key_information"],
     ) -> Union[OutlineServer, Metrics, List[OutlineKey]]:
         """
         Manages actions based on the provided action string and returns the appropriate data.
@@ -86,5 +85,5 @@ class PluginMethods(PluginCore):
         try:
             return action_map[action]()
         except Exception as error:
-            bot_logger.exception(f"Failed at @Outline plugin: {error}")
+            self.logger.exception(f"Failed at @Outline plugin: {error}")
             raise

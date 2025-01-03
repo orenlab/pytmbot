@@ -8,9 +8,10 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.settings import settings
 
+logger = Logger()
 
 class InfluxDBInterface:
     """A class for interacting with InfluxDB for storing and retrieving monitoring data."""
@@ -37,12 +38,12 @@ class InfluxDBInterface:
 
         if not self.check_url() and not self.warning_showed:
             self.warning_showed = True
-            bot_logger.warning(
+            logger.warning(
                 f"Using non-local InfluxDB URL: {self.url}. Make sure is it secure."
             )
 
         if self.debug_mode:
-            bot_logger.debug(f"InfluxDB client initialized with URL: {self.url}")
+            logger.debug(f"InfluxDB client initialized with URL: {self.url}")
 
     def __enter__(self):
         """Enter the runtime context related to this object."""
@@ -59,7 +60,7 @@ class InfluxDBInterface:
         if self.client:
             self.client.close()
             if self.debug_mode:
-                bot_logger.debug("InfluxDB client successfully closed.")
+                logger.debug("InfluxDB client successfully closed.")
 
     def check_url(self) -> bool:
         """
@@ -77,7 +78,7 @@ class InfluxDBInterface:
         # Check if it's a private IP address
         try:
             ip = socket.gethostbyname(hostname)
-            bot_logger.debug(f"Resolved IP for {hostname}: {ip}")
+            logger.debug(f"Resolved IP for {hostname}: {ip}")
 
             # Match private IP ranges
             private_ip_patterns = [
@@ -92,7 +93,7 @@ class InfluxDBInterface:
                 if pattern.match(ip):
                     return True
         except socket.gaierror:
-            bot_logger.warning(f"Failed to resolve hostname: {hostname}")
+            logger.warning(f"Failed to resolve hostname: {hostname}")
 
         return False
 
@@ -114,12 +115,12 @@ class InfluxDBInterface:
 
             point = point.time(datetime.now(timezone.utc))
             if self.debug_mode:
-                bot_logger.debug(
+                logger.debug(
                     f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}"
                 )
             self.write_api.write(bucket=self.bucket, record=point)
         except InfluxDBError as e:
-            bot_logger.error(f"Error writing to InfluxDB: {e}")
+            logger.error(f"Error writing to InfluxDB: {e}")
             raise
 
     def query_data(
@@ -147,7 +148,7 @@ class InfluxDBInterface:
             )
 
             if self.debug_mode:
-                bot_logger.debug(f"Running query: {query}")
+                logger.debug(f"Running query: {query}")
             tables = self.query_api.query(query, org=self.org)
             results = []
 
@@ -155,10 +156,10 @@ class InfluxDBInterface:
                 for record in table.records:
                     results.append((record.get_time(), record.get_value()))
 
-            bot_logger.info(f"Query returned {len(results)} records from InfluxDB.")
+            logger.info(f"Query returned {len(results)} records from InfluxDB.")
             return results
         except InfluxDBError as e:
-            bot_logger.error(f"Error querying InfluxDB: {e}")
+            logger.error(f"Error querying InfluxDB: {e}")
             return []
 
     def get_available_measurements(self) -> List[str]:
@@ -173,19 +174,19 @@ class InfluxDBInterface:
                     schema.measurements(bucket: "{self.bucket}")'
 
             if self.debug_mode:
-                bot_logger.debug(f"Running query to get measurements: {query}")
+                logger.debug(f"Running query to get measurements: {query}")
 
             tables = self.query_api.query(query, org=self.org)
             measurements = [
                 record.get_value() for table in tables for record in table.records
             ]
 
-            bot_logger.info(
+            logger.info(
                 f"Retrieved {len(measurements)} measurements from InfluxDB."
             )
             return measurements
         except InfluxDBError as e:
-            bot_logger.error(f"Error retrieving measurements from InfluxDB: {e}")
+            logger.error(f"Error retrieving measurements from InfluxDB: {e}")
             return []
 
     def get_available_fields(self, measurement: str) -> List[str]:
@@ -209,7 +210,7 @@ class InfluxDBInterface:
             )
 
             if self.debug_mode:
-                bot_logger.debug(
+                logger.debug(
                     f"Running query to get fields for measurement {measurement}: {query}"
                 )
 
@@ -218,12 +219,12 @@ class InfluxDBInterface:
                 record.get_value() for table in tables for record in table.records
             ]
 
-            bot_logger.info(
+            logger.info(
                 f"Retrieved {len(fields)} fields for measurement {measurement}."
             )
             return fields
         except InfluxDBError as e:
-            bot_logger.error(
+            logger.error(
                 f"Error retrieving fields for measurement {measurement} from InfluxDB: {e}"
             )
             return []

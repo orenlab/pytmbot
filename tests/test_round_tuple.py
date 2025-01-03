@@ -1,6 +1,6 @@
 import unittest
 
-from app.utilities.utilities import round_up_tuple
+from pytmbot.utils.utilities import round_up_tuple
 
 
 class TestRoundUpTuple(unittest.TestCase):

@@ -214,7 +214,7 @@ class LogsSettings(BaseModel):
         "[<cyan>{time:HH:mm:ss}</cyan>]"
         "[<level>{level: <8}</level>]"
         "[<magenta>{module: <16}</magenta>] › "
-        "<level>{message}</level> "
+        "<level>{message}</level> | {extra}"
     )
 
     model_config = {
@@ -228,7 +228,6 @@ class LogsSettings(BaseModel):
 # Load settings and configurations
 settings = load_settings_from_yaml()
 var_config = VarConfig()
-log_settings = LogsSettings(valid_log_levels=get_default_log_levels())
 keyboard_settings = KeyboardSettings(
     main_keyboard=get_default_main_keyboard(),
     server_keyboard=get_default_server_keyboard(),

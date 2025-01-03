@@ -1,16 +1,16 @@
-{# templates/fs.jinja2 #}
-
-{{ thought_balloon }} Here is:
+<b>{{ thought_balloon }} Here’s the Filesystem Info:</b>
 
 {% for value in context %}
-    {{ floppy_disk }} Device name: {{ value['device_name'] }}
-    {{ minus }} Filesystem type: {{ value['fs_type'] }}
-    {{ minus }} Mount point: {{ value['mnt_point'] }}
-    {{ minus }} Volume size: {{ value['size'] }}
-    {{ minus }} Used space: {{ value['used'] }}
-    {{ minus }} Free space: {{ value['free'] }}
-    {{ minus }} Usage percent: {{ value['percent'] }}%
+    <b>{{ floppy_disk }} Device Name:</b> {{ value['device_name'] }}
+    - <b>Filesystem Type:</b> {{ value['fs_type'] }}
+    - <b>Mount Point:</b> {{ value['mnt_point'] }}
+    - <b>Volume Size:</b> {{ value['size'] }}
+    - <b>Used Space:</b> {{ value['used'] }}
+    - <b>Free Space:</b> {{ value['free'] }}
+    - <b>Usage Percent:</b> {{ value['percent'] }}%
 {% endfor %}
 
-{% if running_in_docker %}{{ warning }} Since the bot is running inside a Docker container, it is impossible to provide
-    comprehensive information about system resources.{% endif %}
+{% if running_in_docker %}
+    <b>{{ warning }} Note:</b> Since the bot is running inside a Docker container, comprehensive information about
+    system resources is not available.
+{% endif %}

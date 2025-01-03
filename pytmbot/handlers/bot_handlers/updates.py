@@ -11,14 +11,17 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, __version__, em, __github_api_url__
-from pytmbot.logs import bot_logger, logged_handler_session
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import is_bot_development
 
+logger = Logger()
+
 
 # commands=['check_bot_updates']
-@logged_handler_session
+@logger.session_decorator
 def handle_bot_updates(message: Message, bot: TeleBot) -> None:
     """
     Handle the 'check_bot_updates' command by sending a typing action to the chat,
@@ -53,7 +56,11 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling bot updates",
+            error_code="HAND_013",
+            metadata={"exception": str(error)}
+        ))
 
 
 def _process_message() -> tuple[str, bool]:
@@ -158,11 +165,11 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
     }
 
     with Compiler(
-        template_name="b_bot_update.jinja2",
-        current_version=current_version,
-        release_date=release_date,
-        release_notes=release_notes,
-        **emojis,
+            template_name="b_bot_update.jinja2",
+            current_version=current_version,
+            release_date=release_date,
+            release_notes=release_notes,
+            **emojis,
     ) as compiler:
         return compiler.compile()
 
@@ -223,11 +230,11 @@ def __check_bot_update() -> dict[str, str]:
                         If an error occurs during the update check, an empty dictionary is returned.
     """
     try:
-        bot_logger.debug("Checking for bot updates...")
+        logger.debug("Checking for bot updates...")
         with requests.get(__github_api_url__, timeout=5) as response:
             response.raise_for_status()
 
-            bot_logger.debug(f"GitHub API response code: {response.status_code}")
+            logger.debug(f"GitHub API response code: {response.status_code}")
 
             data = response.json()
 
@@ -259,10 +266,10 @@ def __check_bot_update() -> dict[str, str]:
                 "body": body,
             }
 
-            bot_logger.debug(f"GitHub API response: {release_info}")
+            logger.debug(f"GitHub API response: {release_info}")
 
             return release_info
 
     except (requests.RequestException, ValueError) as e:
-        bot_logger.error(f"An error occurred during update check: {e}")
+        logger.error(f"An error occurred during update check: {e}")
         return {}

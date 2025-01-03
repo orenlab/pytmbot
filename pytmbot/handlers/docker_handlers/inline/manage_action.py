@@ -12,11 +12,12 @@ from pytmbot.adapters.docker.container_manager import ContainerManager
 from pytmbot.adapters.docker.utils import check_container_state
 from pytmbot.globals import session_manager, keyboards
 from pytmbot.handlers.handlers_util.docker import show_handler_info
-from pytmbot.logs import logged_inline_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.utils.utilities import split_string_into_octets, is_new_name_valid
 
+logger = Logger()
 container_manager = ContainerManager()
 containers_state = ContainersState()
 
@@ -42,7 +43,7 @@ def managing_action_fabric(call: CallbackQuery):
 
 # func=lambda call: managing_action_fabric(call)
 @two_factor_auth_required
-@logged_inline_handler_session
+@logger.session_decorator
 def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
     container_name, called_user_id = split_string_into_octets(
         call.data
@@ -58,7 +59,7 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
         None
     """
     if int(call.from_user.id) != int(called_user_id):
-        bot_logger.log(
+        logger.log(
             "DENIED", f"User {call.from_user.id}: Denied '__manage__' function"
         )
         return show_handler_info(
@@ -66,7 +67,7 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
         )
 
     if not session_manager.is_authenticated(call.from_user.id):
-        bot_logger.log(
+        logger.log(
             "DENIED",
             f"User {call.from_user.id}: Not authenticated. Denied '__start__' function",
         )
@@ -88,7 +89,7 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
             call=call, container_name=container_name, bot=bot
         )
     else:
-        bot_logger.log(
+        logger.log(
             "ERROR",
             f"Error occurred while managing {container_name}: Unknown action {managing_action}",
         )
@@ -108,10 +109,10 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-            container_manager.managing_container(
-                call.from_user.id, container_name, action="start"
-            )
-            is None
+                container_manager.managing_container(
+                    call.from_user.id, container_name, action="start"
+                )
+                is None
         ):
             return show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
@@ -123,7 +124,7 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
                 bot=bot,
             )
     except Exception as e:
-        bot_logger.log("ERROR", f"Error occurred while starting {container_name}: {e}")
+        logger.log("ERROR", f"Error occurred while starting {container_name}: {e}")
         return
 
 
@@ -141,10 +142,10 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-            container_manager.managing_container(
-                call.from_user.id, container_name, action="stop"
-            )
-            is None
+                container_manager.managing_container(
+                    call.from_user.id, container_name, action="stop"
+                )
+                is None
         ):
             return show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
@@ -156,7 +157,7 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
                 bot=bot,
             )
     except Exception as e:
-        bot_logger.log("ERROR", f"Error occurred while stopping {container_name}: {e}")
+        logger.log("ERROR", f"Error occurred while stopping {container_name}: {e}")
         return
 
 
@@ -180,7 +181,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
 
         if container_state == containers_state.running:
 
-            bot_logger.info(
+            logger.info(
                 f"Restarting {container_name} for user {call.from_user.id}: Success. State: {container_state}"
             )
             keyboards_key = keyboards.ButtonData(
@@ -196,7 +197,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
                 reply_markup=keyboard,
             )
         else:
-            bot_logger.error(
+            logger.error(
                 f"Error occurred while restarting {container_name}: State: {container_state}"
             )
 
@@ -207,14 +208,14 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             )
 
     except Exception as e:
-        bot_logger.log(
+        logger.log(
             "ERROR", f"Error occurred while restarting {container_name}: {e}"
         )
         return
 
 
 def __rename_container(
-    call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
+        call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
 ):
     """
     Renames a Docker container based on the provided parameters.
@@ -231,10 +232,10 @@ def __rename_container(
     if is_new_name_valid(new_container_name):
         try:
             if container_manager.managing_container(
-                call.from_user.id,
-                container_name,
-                action="rename",
-                new_container_name=new_container_name,
+                    call.from_user.id,
+                    container_name,
+                    action="rename",
+                    new_container_name=new_container_name,
             ):
                 return show_handler_info(
                     call=call, text=f"Renaming {container_name}: Success", bot=bot
@@ -246,7 +247,7 @@ def __rename_container(
                     bot=bot,
                 )
         except Exception as e:
-            bot_logger.log(
+            logger.log(
                 "ERROR", f"Error occurred while renaming {container_name}: {e}"
             )
             return

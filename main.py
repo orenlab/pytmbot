@@ -1,8 +1,10 @@
+import os
 import platform
 import signal
 import sys
 import threading
 import time
+import traceback
 from contextlib import contextmanager
 from datetime import datetime
 from typing import NoReturn, Final, Optional
@@ -10,7 +12,11 @@ from typing import NoReturn, Final, Optional
 from humanize import naturaltime
 
 from pytmbot import logs
-from pytmbot.exceptions import BotInitializationError, ShutdownError
+from pytmbot.exceptions import (
+    InitializationError,
+    ShutdownError,
+    ErrorContext
+)
 from pytmbot.utils.system import check_python_version
 from pytmbot.utils.utilities import parse_cli_args
 
@@ -19,25 +25,22 @@ args = parse_cli_args()
 if args.health_check != "True":
     from pytmbot import pytmbot_instance
 
-# Constants
-SHUTDOWN_TIMEOUT: Final[int] = 10  # seconds
-HEALTH_CHECK_INTERVAL: Final[int] = 60  # seconds
+SHUTDOWN_TIMEOUT: Final[int] = 10
+HEALTH_CHECK_INTERVAL: Final[int] = 60
 MIN_PYTHON_VERSION: Final[float] = 3.10
 
 
 class HealthStatus:
-    """
-    Singleton class to track and manage the health status of the bot.
-    """
+    """Singleton class to track and manage the health status of the bot."""
+    _instance: Optional["HealthStatus"] = None
 
     def __init__(self):
         self._last_health_check_result = None
 
-    _instance: Optional["HealthStatus"] = None
-
     def __new__(cls) -> "HealthStatus":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance._last_health_check_result = None
         return cls._instance
 
     @property
@@ -50,31 +53,16 @@ class HealthStatus:
 
 
 class BotLauncher:
-    """
-    Manages the lifecycle of the PyTMBot instance including startup,
-    shutdown, and health monitoring.
-    """
-
     def __init__(self) -> None:
-        """Initialize the bot launcher with signal handlers and logger."""
         self.bot: pytmbot_instance.PyTMBot | None = None
-        self.logger = logs.bot_logger
+        self.logger = logs.Logger()
         self.shutdown_requested = threading.Event()
         self.health_check_thread: threading.Thread | None = None
         self.start_time = datetime.now()
 
     def _signal_handler(self, signum: int, _) -> None:
-        """
-        Handle incoming system signals for graceful shutdown.
-        """
-        signal_map = {
-            signal.SIGTERM: "SIGTERM",
-            signal.SIGINT: "SIGINT",
-            signal.SIGHUP: "SIGHUP"
-        }
-
         try:
-            sig_name = signal_map.get(signal.Signals(signum), f"Unknown signal {signum}")
+            sig_name = signal.Signals(signum).name
         except ValueError:
             sig_name = f"Unknown signal {signum}"
 
@@ -82,20 +70,13 @@ class BotLauncher:
         self.shutdown_requested.set()
 
     def _health_check(self) -> None:
-        """
-        Periodic health check of the bot instance and system resources.
-        Runs in a separate thread.
-        """
         health_status = HealthStatus()
 
         while not self.shutdown_requested.is_set():
             try:
                 if self.bot:
                     is_healthy = self.bot.is_healthy()
-                    if is_healthy:
-                        health_status.last_health_check_result = True
-                    else:
-                        health_status.last_health_check_result = False
+                    health_status.last_health_check_result = is_healthy
 
                     if not is_healthy:
                         self.logger.warning("Bot health check failed - attempting recovery...")
@@ -105,9 +86,7 @@ class BotLauncher:
 
                 uptime_display = naturaltime(self.start_time)
                 self.logger.debug(
-                    f"Health check passed - "
-                    f"Uptime: {uptime_display}, "
-                    f"Active: {bool(self.bot)}"
+                    f"Health check passed - Uptime: {uptime_display}, Active: {bool(self.bot)}"
                 )
 
             except Exception as e:
@@ -117,10 +96,6 @@ class BotLauncher:
 
     @contextmanager
     def _managed_bot(self):
-        """
-        Context manager for bot lifecycle management.
-        Ensures proper initialization and cleanup.
-        """
         try:
             self.bot = pytmbot_instance.PyTMBot()
             yield self.bot
@@ -145,37 +120,35 @@ class BotLauncher:
             self.logger.info("Shutdown completed successfully")
 
         except Exception as e:
-            raise ShutdownError(f"Error during shutdown: {e}")
+            raise ShutdownError(ErrorContext(
+                message=f"Error during shutdown: {str(e)}",
+                metadata={"exception": str(e)}
+            ))
 
-    def validate_environment(self) -> None:
-        """
-        Validate the execution environment including Python version,
-        system resources, and dependencies.
-        """
+    @staticmethod
+    def validate_environment() -> None:
         try:
             if not check_python_version(MIN_PYTHON_VERSION):
-                raise BotInitializationError(
-                    f"Python {MIN_PYTHON_VERSION}+ required, "
-                    f"but running on {platform.python_version()}"
-                )
+                raise InitializationError(ErrorContext(
+                    message=f"Python {MIN_PYTHON_VERSION}+ required, but running on {platform.python_version()}",
+                    error_code="INIT_001",
+                    metadata={"current_version": platform.python_version()}
+                ))
 
         except Exception as e:
-            self.logger.exception(f"Environment validation failed: {e}")
-            raise BotInitializationError(f"Environment validation failed: {e}")
+            raise InitializationError(ErrorContext(
+                message=f"Environment validation failed: {str(e)}",
+                error_code="INIT_002",
+                metadata={"original_error": str(e)}
+            ))
 
     def run(self) -> NoReturn:
-        """
-        Main entry point for starting the bot.
-        """
         try:
-            # Setup signal handlers
             for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
                 signal.signal(sig, self._signal_handler)
 
-            # Validate environment
             self.validate_environment()
 
-            # Start health check thread
             self.health_check_thread = threading.Thread(
                 target=self._health_check,
                 name="HealthCheckThread",
@@ -186,26 +159,33 @@ class BotLauncher:
             self.logger.info("Starting PyTMBot...")
 
             with self._managed_bot() as bot:
-                # Run the bot until shutdown is requested
                 bot.launch_bot()
-
                 while not self.shutdown_requested.is_set():
                     time.sleep(1)
-
-                # Perform cleanup
                 self.shutdown()
 
-            # Clean exit
             sys.exit(0)
 
         except Exception as e:
-            self.logger.critical(f"Fatal error: {e}")
+            ctx = {
+                'exception_type': type(e).__name__,
+                'exception_value': str(e),
+                'traceback': traceback.format_exc(),
+                'shutdown_requested': self.shutdown_requested.is_set(),
+                'last_health_check_result': HealthStatus().last_health_check_result,
+                'uptime': naturaltime(self.start_time),
+                'active': bool(self.bot),
+                'pid': os.getpid(),
+                'python_version': platform.python_version(),
+                'system': platform.system(),
+                'architecture': platform.machine(),
+                'platform': platform.platform()
+            }
+            self.logger.critical(f"Fatal error. Exiting...", extra=ctx)
             sys.exit(1)
 
 
 def main() -> NoReturn:
-    """Main function to start the PyTMBot instance."""
-
     if args.health_check == "True":
         health_status = HealthStatus()
         sys.exit(0 if health_status.last_health_check_result else 1)

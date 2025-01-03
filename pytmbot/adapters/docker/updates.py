@@ -8,8 +8,10 @@ import aiohttp
 from dateutil.parser import isoparse
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger
 from pytmbot.models.docker_models import TagInfo, UpdateInfo
+
+logger = Logger()
 
 
 class DockerImageUpdater:
@@ -31,7 +33,7 @@ class DockerImageUpdater:
         """Fetches all local Docker images and their associated tags."""
         with DockerAdapter() as adapter:
             images = adapter.images.list(all=False)
-            bot_logger.info(f"Fetched images from Docker: {images}")
+            logger.info(f"Fetched images from Docker: {images}")
 
         local_images: Dict[str, List[Dict[str, Optional[str]]]] = {}
 
@@ -39,12 +41,12 @@ class DockerImageUpdater:
             repo_tags = image.tags
 
             if not repo_tags:
-                bot_logger.warning(f"Image doesn't have any 'RepoTags': {image}")
+                logger.warning(f"Image doesn't have any 'RepoTags': {image}")
                 continue  # Skip this image if RepoTags is empty
 
             for tag in repo_tags:
                 if ":" not in tag:
-                    bot_logger.warning(f"Invalid tag format: {tag}")
+                    logger.warning(f"Invalid tag format: {tag}")
                     continue
                 repo, tag_version = tag.split(":", 1)
 
@@ -61,7 +63,7 @@ class DockerImageUpdater:
                     }
                 )
 
-        bot_logger.info(f"Fetched local images: {local_images}")
+        logger.info(f"Fetched local images: {local_images}")
         return local_images
 
     async def _fetch_remote_tags(
@@ -70,7 +72,7 @@ class DockerImageUpdater:
         """Fetches available tags for a repository from Docker Hub asynchronously."""
         cached_tags = self.tag_cache.get(repo)
         if cached_tags:
-            bot_logger.info(f"Using cached tags for repository: {repo}")
+            logger.info(f"Using cached tags for repository: {repo}")
             return cached_tags
 
         base_urls = [
@@ -83,7 +85,7 @@ class DockerImageUpdater:
                 async with session.get(url, timeout=10) as response:
                     if response.status == 429:
                         retry_after = int(response.headers.get("Retry-After", "5"))
-                        bot_logger.warning(
+                        logger.warning(
                             f"Rate limit reached for {repo}, retrying after {retry_after} seconds"
                         )
                         await asyncio.sleep(retry_after)
@@ -92,7 +94,7 @@ class DockerImageUpdater:
                     response.raise_for_status()
                     data = await response.json()
                     if not data.get("results"):
-                        bot_logger.warning(f"No tags found for repo '{repo}' at {url}")
+                        logger.warning(f"No tags found for repo '{repo}' at {url}")
                         continue
 
                     tags_info.extend(
@@ -101,12 +103,12 @@ class DockerImageUpdater:
                     )
                     # Cache and break if successful
                     self.tag_cache[repo] = tags_info
-                    bot_logger.info(f"Fetched tags for {repo} from {url}")
+                    logger.info(f"Fetched tags for {repo} from {url}")
                     break
             except aiohttp.ClientError as e:
-                bot_logger.warning(f"Failed to fetch tags from {url}: {e}")
+                logger.warning(f"Failed to fetch tags from {url}: {e}")
             except json.JSONDecodeError as e:
-                bot_logger.error(f"Failed to decode JSON response from {url}: {e}")
+                logger.error(f"Failed to decode JSON response from {url}: {e}")
         return tags_info
 
     async def _get_remote_tags(self, repo: str) -> List[TagInfo]:
@@ -174,7 +176,7 @@ class DockerImageUpdater:
             # Compare dates
             return local_date < remote_date
         except Exception as e:
-            bot_logger.error(f"Error comparing dates: {e}")
+            logger.error(f"Error comparing dates: {e}")
             return False
 
     async def _check_updates(self) -> Dict[str, Dict[str, List[UpdateInfo]]]:
@@ -183,7 +185,7 @@ class DockerImageUpdater:
 
         tasks = []
         for repo, tags in self.local_images.items():
-            bot_logger.info(f"Checking updates for repository '{repo}'")
+            logger.info(f"Checking updates for repository '{repo}'")
             tasks.append(self._check_repo_updates(repo, tags, updates))
 
         await asyncio.gather(*tasks)
@@ -211,11 +213,11 @@ class DockerImageUpdater:
 
             # 0. Special handling for 'latest'
             if local_tag == "latest":
-                bot_logger.info(f"Checking updates specifically for the 'latest' tag in repository '{repo}'")
+                logger.info(f"Checking updates specifically for the 'latest' tag in repository '{repo}'")
                 # Find remote `latest`
                 remote_latest = next((tag for tag in remote_tags if tag.name == "latest"), None)
                 if not remote_latest:
-                    bot_logger.warning(f"No 'latest' tag found for repository '{repo}'")
+                    logger.warning(f"No 'latest' tag found for repository '{repo}'")
                     continue
 
                 # Check if remote `latest` is newer than local `latest`
@@ -225,6 +227,7 @@ class DockerImageUpdater:
                         newer_tag="latest",
                         created_at_local=local_tag_date,
                         created_at_remote=remote_latest.created_at,
+                        current_digest=remote_latest.digest
                     ))
                 continue
 
@@ -235,6 +238,7 @@ class DockerImageUpdater:
                     newer_tag=remote_tag_info.name,
                     created_at_local=local_tag_date,
                     created_at_remote=remote_tag_info.created_at,
+                    current_digest=remote_tag_info.digest,
                 )
                 for remote_tag_info in remote_tags
                 if remote_tag_info.name == local_tag
@@ -248,6 +252,7 @@ class DockerImageUpdater:
                     newer_tag=remote_tag_info.name,
                     created_at_local=local_tag_date,
                     created_at_remote=remote_tag_info.created_at,
+                    current_digest=remote_tag_info.digest,
                 )
                 for remote_tag_info in remote_tags
                 if remote_tag_info.name != local_tag
@@ -268,6 +273,5 @@ class DockerImageUpdater:
     def to_json(self) -> str:
         """Returns the update check result in JSON format."""
         result = asyncio.run(self._check_updates())
-        bot_logger.info(f"Update check result: {result}")
+        logger.info(f"Update check result: {result}")
         return json.dumps(result, indent=4)
-

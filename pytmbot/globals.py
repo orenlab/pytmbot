@@ -6,11 +6,10 @@ also providing basic information about the status of local servers.
 """
 
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
-from pytmbot.keyboards.keyboards import Keyboards
+from pytmbot.keyboards.keyboards import Keyboards, ButtonData
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.settings import (
     settings as app_settings,
-    log_settings as app_log_settings,
     var_config as app_var_config,
     bot_command_settings as app_bot_command_settings,
     bot_description_settings as app_bot_description_settings,
@@ -36,12 +35,12 @@ session_manager = SessionManager()
 bot_commands_settings = app_bot_command_settings
 # Bot description
 bot_description_settings = app_bot_description_settings
-# Logs settings
-log_settings = app_log_settings
 # Keyboard
 keyboards = Keyboards()
 # EmojiConverter
 em = EmojiConverter()
+# ButtonData
+button_data = ButtonData
 # psutil adapter
 psutil_adapter = PsutilAdapter()
 # Running in docker
