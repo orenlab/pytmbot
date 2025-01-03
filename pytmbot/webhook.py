@@ -486,6 +486,7 @@ class WebhookServer:
             ))
 
         except Exception as e:
+            self.log.exception(f"Failed to start webhook server: {e}")
             raise BotException(ErrorContext(
                 message="Failed to start webhook server",
                 error_code="UNEXPECTED_ERROR",
