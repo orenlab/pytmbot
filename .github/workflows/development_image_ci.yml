@@ -8,8 +8,8 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write    # Needed for signing
-  security-events: write  # Needed for SBOM
+  id-token: write
+  security-events: write
 
 jobs:
   push_dev_image:
@@ -68,10 +68,11 @@ jobs:
           cache-to: type=inline,mode=max
           provenance: mode=max
           sbom: true
+          # Изменённая конфигурация outputs
           outputs: |
-            type=docker,dest=image.tar
-            type=sbom,dest=sbom.spdx
-            type=sbom,dest=sbom.cdx
+            type=registry,push=true
+            type=oci
+            type=sbom
 
       - name: Sign the image
         if: success()
@@ -81,31 +82,13 @@ jobs:
           echo "${{ steps.build-and-push.outputs.digest }}" > image-digest.txt
           cosign sign --yes "orenlab/pytmbot@$(cat image-digest.txt)"
 
-      - name: Verify SBOM generation
-        if: success()
-        run: |
-          echo "Checking SBOM for image..."
-          docker buildx imagetools inspect orenlab/pytmbot:alpine-dev --format "{{ json .SBOM }}"
-
-      - name: Generate SBOM with Syft (backup)
+      - name: Generate SBOM with Syft
         if: success()
         uses: anchore/sbom-action@v0
         with:
           image: orenlab/pytmbot:alpine-dev
           format: spdx-json
           output-file: sbom-syft.json
-
-      - name: Upload SBOM artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-files
-          path: |
-            sbom.spdx
-            sbom.cdx
-            sbom-syft.json
-            image-digest.txt
-          retention-days: 5
 
       - name: Scan for vulnerabilities
         if: success()
@@ -114,3 +97,13 @@ jobs:
           image: orenlab/pytmbot:alpine-dev
           fail-build: false
           severity-cutoff: high
+
+      - name: Upload SBOM
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-files
+          path: |
+            sbom-syft.json
+            image-digest.txt
+          retention-days: 5
