@@ -265,7 +265,7 @@ class WebhookServer(BaseComponent):
             log.debug("Configuring FastAPI routes")
 
             @app.exception_handler(404)
-            def not_found_handler(request: Request) -> JSONResponse:
+            async def not_found_handler(request: Request, exc: HTTPException) -> JSONResponse:
                 client_ip = request.client.host
                 with self.log_context(
                         action="handle_404",
@@ -276,7 +276,7 @@ class WebhookServer(BaseComponent):
                         _log.warning("Rate limit exceeded for 404 requests")
                         return JSONResponse(status_code=429, content={"detail": "Too many not found requests"})
 
-                    log.warning("404 request received")
+                    _log.warning("404 request received")
                     return JSONResponse(status_code=404, content={"detail": "Not found"})
 
             def verify_telegram_ip(
