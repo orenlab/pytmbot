@@ -50,7 +50,7 @@ jobs:
             type=raw,value=alpine-dev
           labels: |
             org.opencontainers.image.title=pyTMbot
-            org.opencontainers.image.description=Telegram bot for Docker monitoring (Dev version)
+            org.opencontainers.image.description=Telegram bot for Docker monitoring
             org.opencontainers.image.source=https://github.com/orenlab/pytmbot
 
       - name: Build and push Docker image
@@ -66,15 +66,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
           cache-to: type=inline,mode=max
+          provenance: mode=max
           sbom: true
-          provenance: true
-          attestations:
-            sbom: true
-            provenance: true
           outputs: |
-            type=image,name=target
-            type=sbom,format=spdx
-            type=sbom,format=cyclonedx
+            type=docker,dest=image.tar
+            type=sbom,dest=sbom.spdx
+            type=sbom,dest=sbom.cdx
 
       - name: Sign the image
         if: success()
@@ -104,6 +101,8 @@ jobs:
         with:
           name: sbom-files
           path: |
+            sbom.spdx
+            sbom.cdx
             sbom-syft.json
             image-digest.txt
           retention-days: 5
