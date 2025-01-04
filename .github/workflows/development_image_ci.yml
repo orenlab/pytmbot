@@ -67,12 +67,10 @@ jobs:
           cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
           cache-to: type=inline,mode=max
           provenance: mode=max
-          sbom: true
-          # Изменённая конфигурация outputs
+          # Убрали sbom из настроек
           outputs: |
             type=registry,push=true
             type=oci
-            type=sbom
 
       - name: Sign the image
         if: success()
