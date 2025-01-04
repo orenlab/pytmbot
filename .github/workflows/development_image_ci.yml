@@ -17,30 +17,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # 2. Set up QEMU for multi-architecture builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
+      # 3. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.1.1
+      # 4. Install Cosign
+      - name: Install Cosign
+        run: |
+          COSIGN_VERSION=$(curl -s https://api.github.com/repos/sigstore/cosign/releases/latest | jq -r .tag_name)
+          curl -LO https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64
+          chmod +x cosign-linux-amd64
+          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
 
+      # 5. Login to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # 6. Extract metadata for the Docker image
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -53,6 +63,7 @@ jobs:
             org.opencontainers.image.description=Telegram bot for Docker monitoring
             org.opencontainers.image.source=https://github.com/orenlab/pytmbot
 
+      # 7. Build and push the Docker image
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
@@ -67,19 +78,26 @@ jobs:
           cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
           cache-to: type=inline,mode=max
           provenance: mode=max
-          # Убрали sbom из настроек
           outputs: |
             type=registry,push=true
             type=oci
 
+      # 8. Clear TUF cache before signing
+      - name: Clear TUF cache
+        run: |
+          rm -rf ~/.sigstore
+
+      # 9. Sign the Docker image
       - name: Sign the image
         if: success()
         env:
           COSIGN_EXPERIMENTAL: 1
+          FULCIO_URL: "https://fulcio.sigstore.dev"
         run: |
           echo "${{ steps.build-and-push.outputs.digest }}" > image-digest.txt
           cosign sign --yes "orenlab/pytmbot@$(cat image-digest.txt)"
 
+      # 10. Generate SBOM with Syft
       - name: Generate SBOM with Syft
         if: success()
         uses: anchore/sbom-action@v0
@@ -87,7 +105,10 @@ jobs:
           image: orenlab/pytmbot:alpine-dev
           format: spdx-json
           output-file: sbom-syft.json
+        env:
+          SYFT_LOG: "error"
 
+      # 11. Scan the Docker image for vulnerabilities
       - name: Scan for vulnerabilities
         if: success()
         uses: anchore/scan-action@v3
@@ -96,6 +117,7 @@ jobs:
           fail-build: false
           severity-cutoff: high
 
+      # 12. Upload SBOM and image digest as artifacts
       - name: Upload SBOM
         if: success()
         uses: actions/upload-artifact@v4
