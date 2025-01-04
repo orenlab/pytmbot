@@ -17,17 +17,12 @@ from pytmbot.exceptions import (
     ShutdownError,
     ErrorContext
 )
-from pytmbot.utils.system import check_python_version
 from pytmbot.utils.utilities import parse_cli_args
 
 args = parse_cli_args()
 
 if args.health_check != "True":
     from pytmbot import pytmbot_instance
-
-SHUTDOWN_TIMEOUT: Final[int] = 10
-HEALTH_CHECK_INTERVAL: Final[int] = 60
-MIN_PYTHON_VERSION: Final[float] = 3.10
 
 
 class HealthStatus:
@@ -52,12 +47,16 @@ class HealthStatus:
         self._last_health_check_result = value is not None and value
 
 
-class BotLauncher:
+class BotLauncher(logs.BaseComponent):
+    SHUTDOWN_TIMEOUT: Final[int] = 10
+    HEALTH_CHECK_INTERVAL: Final[int] = 60
+    MIN_PYTHON_VERSION: Final[float] = 3.10
+
     def __init__(self) -> None:
-        self.bot: pytmbot_instance.PyTMBot | None = None
-        self.logger = logs.Logger()
+        super().__init__("bot_launcher")
+        self.bot = None
         self.shutdown_requested = threading.Event()
-        self.health_check_thread: threading.Thread | None = None
+        self.health_check_thread = None
         self.start_time = datetime.now()
 
     def _signal_handler(self, signum: int, _) -> None:
@@ -66,7 +65,8 @@ class BotLauncher:
         except ValueError:
             sig_name = f"Unknown signal {signum}"
 
-        self.logger.warning(f"Received {sig_name} signal - initiating graceful shutdown...")
+        with self.log_context(signal=sig_name) as log:
+            log.warning("Received signal - initiating graceful shutdown")
         self.shutdown_requested.set()
 
     def _health_check(self) -> None:
@@ -79,20 +79,24 @@ class BotLauncher:
                     health_status.last_health_check_result = is_healthy
 
                     if not is_healthy:
-                        self.logger.warning("Bot health check failed - attempting recovery...")
-                        if not self.bot.recovery():
-                            self.logger.error("Recovery failed. Retrying in next check...")
-                            time.sleep(HEALTH_CHECK_INTERVAL)
+                        with self.log_context(recovery_attempt=True) as log:
+                            log.warning("Bot health check failed - attempting recovery")
+                            if not self.bot.recovery():
+                                log.error("Recovery failed. Retrying in next check")
+                                time.sleep(self.HEALTH_CHECK_INTERVAL)
 
-                uptime_display = naturaltime(self.start_time)
-                self.logger.debug(
-                    f"Health check passed - Uptime: {uptime_display}, Active: {bool(self.bot)}"
-                )
+                    uptime_display = naturaltime(self.start_time)
+                    with self.log_context(
+                            uptime=uptime_display,
+                            active=bool(self.bot)
+                    ) as log:
+                        log.debug("Health check passed")
 
             except Exception as e:
-                self.logger.error(f"Health check error: {e}")
+                with self.log_context(error=str(e)):
+                    log.error("Health check error")
 
-            time.sleep(HEALTH_CHECK_INTERVAL)
+            time.sleep(self.HEALTH_CHECK_INTERVAL)
 
     @contextmanager
     def _managed_bot(self):
@@ -107,17 +111,18 @@ class BotLauncher:
             return
 
         try:
-            self.logger.info("Initiating graceful shutdown sequence...")
-            self.shutdown_requested.set()
+            with self.log_context() as log:
+                log.info("Initiating graceful shutdown sequence")
+                self.shutdown_requested.set()
 
-            if hasattr(self.bot, 'bot') and self.bot.bot:
-                self.bot.bot.stop_polling()
-                self.bot.bot.remove_webhook()
+                if hasattr(self.bot, 'bot') and self.bot.bot:
+                    self.bot.bot.stop_polling()
+                    self.bot.bot.remove_webhook()
 
-            if self.health_check_thread and self.health_check_thread.is_alive():
-                self.health_check_thread.join(timeout=SHUTDOWN_TIMEOUT)
+                if self.health_check_thread and self.health_check_thread.is_alive():
+                    self.health_check_thread.join(timeout=self.SHUTDOWN_TIMEOUT)
 
-            self.logger.info("Shutdown completed successfully")
+                    log.info("Shutdown completed successfully")
 
         except Exception as e:
             raise ShutdownError(ErrorContext(
@@ -125,12 +130,12 @@ class BotLauncher:
                 metadata={"exception": str(e)}
             ))
 
-    @staticmethod
-    def validate_environment() -> None:
+    def validate_environment(self) -> None:
         try:
-            if not check_python_version(MIN_PYTHON_VERSION):
+            from pytmbot.utils.system import check_python_version
+            if not check_python_version(self.MIN_PYTHON_VERSION):
                 raise InitializationError(ErrorContext(
-                    message=f"Python {MIN_PYTHON_VERSION}+ required, but running on {platform.python_version()}",
+                    message=f"Python {self.MIN_PYTHON_VERSION}+ required, but running on {platform.python_version()}",
                     error_code="INIT_001",
                     metadata={"current_version": platform.python_version()}
                 ))
@@ -156,7 +161,8 @@ class BotLauncher:
             )
             self.health_check_thread.start()
 
-            self.logger.info("Starting PyTMBot...")
+            with self.log_context() as log:
+                log.info("Starting PyTMBot")
 
             with self._managed_bot() as bot:
                 bot.launch_bot()
@@ -181,7 +187,8 @@ class BotLauncher:
                 'architecture': platform.machine(),
                 'platform': platform.platform()
             }
-            self.logger.critical(f"Fatal error. Exiting...", extra=ctx)
+            with self.log_context(**ctx) as log:
+                log.critical("Fatal error. Exiting...")
             sys.exit(1)
 
 

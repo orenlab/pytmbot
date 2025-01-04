@@ -29,6 +29,9 @@ class ErrorContext:
                       for k, v in (self.metadata or {}).items()}
         )
 
+    def dict(self):
+        return self.__dict__
+
 
 class BaseBotException(Exception):
     def __init__(self, context: ErrorContext | str) -> None:
@@ -133,7 +136,6 @@ class TelebotExceptionHandler(ExceptionHandler):
         )
 
         return True
-
 
 # Backwards compatibility aliases
 # PyTMBotError = BaseBotException

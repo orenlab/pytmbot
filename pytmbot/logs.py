@@ -4,14 +4,16 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
-from functools import wraps, cache
-from typing import Any, Callable, ClassVar, Self, Generator, Optional
+from functools import wraps
+from typing import Any, Callable, ClassVar, Generator, TypeVar
 from weakref import WeakValueDictionary
 
 from loguru import logger
 from telebot.types import Update, Message, CallbackQuery, InlineQuery
 
 from pytmbot.utils.utilities import parse_cli_args
+
+T = TypeVar('T')
 
 
 class LogLevel(StrEnum):
@@ -42,55 +44,33 @@ class LogConfig:
     }
 
 
-class LogContext:
-
-    def __init__(self, logger_instance: Logger, **context: Any) -> None:
-        self.logger = logger_instance
-        self.context = context
-        self.previous_context: Optional[dict[str, Any]] = None
-
-    def __enter__(self) -> Logger:
-        self.previous_context = getattr(self.logger.logger, "_context", {}).copy()
-
-        new_context = {
-            **self.previous_context,
-            **self.context,
-            "context_id": id(self)
-        }
-
-        self.logger._logger = self.logger.logger.bind(**new_context)
-        return self.logger
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if self.previous_context is not None:
-            self.logger._logger = logger.bind(**self.previous_context)
-        else:
-            self.logger._logger = logger.bind()
-
-
 class Logger:
-    _instances = WeakValueDictionary()
+    """
+    Singleton logger class with context management and session tracking capabilities.
+    Uses WeakValueDictionary for efficient memory management.
+    """
+    _instance = WeakValueDictionary()
     _initialized: bool = False
 
-    def __new__(cls) -> Self:
-        if 'default' not in cls._instances:
+    def __new__(cls) -> Logger:
+        if 'default' not in cls._instance:
             instance = super().__new__(cls)
-            cls._instances['default'] = instance
-        return cls._instances['default']
+            cls._instance['default'] = instance
+        return cls._instance['default']
 
     def __init__(self) -> None:
         if not self._initialized:
             self._logger = logger
-            self._log_level = LogLevel(parse_cli_args().log_level.upper())
-            self._configure_logger()
+            self._configure_logger(parse_cli_args().log_level.upper())
             self.__class__._initialized = True
 
-    def _configure_logger(self) -> None:
-        logger.remove()
-        logger.add(
+    def _configure_logger(self, log_level: str) -> None:
+        """Configure logger with custom settings and levels."""
+        self._logger.remove()
+        self._logger.add(
             sys.stdout,
             format=LogConfig.FORMAT,
-            level=str(self._log_level),
+            level=log_level,
             colorize=True,
             backtrace=True,
             diagnose=True,
@@ -98,76 +78,75 @@ class Logger:
         )
 
         for level_name, (level_no, color) in LogConfig.CUSTOM_LEVELS.items():
-            logger.level(level_name, no=level_no, color=color)
-
-    @contextmanager
-    def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
-        with LogContext(self, **kwargs) as log:
-            yield log
+            self._logger.level(level_name, no=level_no, color=color)
 
     @staticmethod
-    def _extract_update_data(update: Any) -> dict[str, Any]:
-        if isinstance(update, Update):
-            if update.message:
-                obj = update.message
-            elif update.callback_query:
-                obj = update.callback_query
-            elif update.inline_query:
-                obj = update.inline_query
-            else:
-                return {"update_type": "unknown", "update_id": update.update_id}
-            update_type = type(obj).__name__.lower()
-        elif isinstance(update, (Message, CallbackQuery, InlineQuery)):
-            obj = update
-            update_type = type(obj).__name__.lower()
-        else:
-            raise ValueError("Unsupported type of update object")
+    def _format_context(**kwargs: Any) -> str:
+        """Cache formatted context strings for better performance."""
+        return " ".join(f"{k}={v}" for k, v in sorted(kwargs.items()) if v is not None)
 
-        chat_id = getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None
-        user_id = getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None
-        username = getattr(obj.from_user, "username", None) if hasattr(obj, "from_user") else None
+    @staticmethod
+    def _extract_update_data(update: Update | Message | CallbackQuery | InlineQuery) -> dict[str, Any]:
+        """Extract relevant data from Telegram update objects."""
+        if isinstance(update, Update):
+            obj = update.message or update.callback_query or update.inline_query
+            if not obj:
+                return {"update_type": "unknown", "update_id": update.update_id}
+        else:
+            obj = update
+
+        update_type = type(obj).__name__.lower()
+
         return {
             "update_type": update_type,
             "update_id": getattr(update, "update_id", None),
-            "chat_id": chat_id,
-            "user_id": user_id,
-            "username": username,
+            "chat_id": getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None,
+            "user_id": getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None,
+            "username": getattr(obj.from_user, "username", None) if hasattr(obj, "from_user") else None,
         }
 
-    @cache
-    def _format_context(self, **kwargs: Any) -> str:
-        return " ".join(f"{k}={v}" for k, v in kwargs.items() if v is not None)
+    @contextmanager
+    def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+        """Context manager for temporary logging context."""
+        previous = getattr(self._logger, "_context", {}).copy()
+        try:
+            self._logger = self._logger.bind(
+                **kwargs,
+                context=self._format_context(**kwargs)
+            )
+            yield self
+        finally:
+            self._logger = logger.bind(**previous) if previous else logger.bind()
 
-    def bind_context(self, **kwargs: Any) -> Self:
-        return self._logger.bind(context=self._format_context(**kwargs))
+    def session_decorator(self, func: Callable[..., T] = None) -> Callable[..., T]:
+        """Decorator for tracking session context in handlers."""
 
-    def session_decorator(self, func: Callable[..., Any] = None) -> Callable:
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            @wraps(func)
+        def decorator(f: Callable[..., T]) -> Callable[..., T]:
+            @wraps(f)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 telegram_object = next(
-                    filter(lambda arg: isinstance(arg, (Update, Message, CallbackQuery)), args),
+                    (arg for arg in args if isinstance(arg, (Update, Message, CallbackQuery))),
                     None
                 )
 
-                if telegram_object is None:
+                if not telegram_object:
                     raise ValueError(
-                        "No Telegram Update, Message, or CallbackQuery object found among arguments"
+                        "No Telegram Update, Message, or CallbackQuery object found in arguments"
                     )
 
                 update_data = self._extract_update_data(telegram_object)
 
                 with self.context(
-                        component=func.__name__,
-                        action=func.__name__,
+                        component=f.__name__,
+                        action=f.__name__,
                         **update_data
                 ) as log:
                     try:
-                        result = func(*args, **kwargs)
-                        log.success(f"Handler {func.__name__} executed successfully")
+                        result = f(*args, **kwargs)
+                        log.success(f"Handler {f.__name__} completed")
                         return result
                     except Exception as e:
-                        log.exception(f"Error in handler {func.__name__}: {str(e)}")
+                        log.exception(f"Handler {f.__name__} failed: {str(e)}")
                         raise
 
             return wrapper
@@ -177,9 +156,20 @@ class Logger:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._logger, name)
 
-    @property
-    def logger(self):
-        return self._logger
+
+class BaseComponent:
+    """Base component with integrated logging capabilities."""
+
+    def __init__(self, component_name: str = ""):
+        self._log = Logger()
+        self.component_name = component_name if component_name else self.__class__.__name__
+        with self._log.context(component=self.component_name) as log:
+            self._log = log
+
+    @contextmanager
+    def log_context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+        with self._log.context(**kwargs) as log:
+            yield log
 
 
-__all__ = ["Logger", "LogLevel", "LogContext"]
+__all__ = ["Logger", "LogLevel", "BaseComponent"]

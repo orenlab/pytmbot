@@ -13,10 +13,8 @@ from jinja2.sandbox import SandboxedEnvironment
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import var_config
-from pytmbot.logs import Logger, LogContext
+from pytmbot.logs import Logger, BaseComponent
 from pytmbot.parsers.filters import format_timestamp
-
-logger = Logger()
 
 TEMPLATE_SUBDIRECTORIES: Final[Dict[str, str]] = {
     'a': 'auth_templates',
@@ -35,7 +33,7 @@ class TemplateMetadata:
         return hash((self.name, self.subdirectory))
 
 
-class Jinja2Renderer:
+class Jinja2Renderer(BaseComponent):
     """
     A thread-safe singleton class for rendering Jinja2 templates with caching support.
 
@@ -48,11 +46,11 @@ class Jinja2Renderer:
 
     def __init__(self) -> None:
         """Initialize the renderer with a weak reference cache for templates."""
-        self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = WeakValueDictionary()
+        super().__init__("template_renderer")
 
-        with LogContext(logger) as log:
-            log.info("Initializing Jinja2Renderer instance",
-                     extra={"cache_type": "WeakValueDictionary"})
+        with self.log_context(action="init", cache_type="WeakValueDictionary") as log:
+            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = WeakValueDictionary()
+            log.info("Initialized Jinja2Renderer instance")
 
     @classmethod
     def instance(cls) -> Jinja2Renderer:
@@ -65,10 +63,11 @@ class Jinja2Renderer:
         Thread-safety: This method is thread-safe through Python's GIL.
         """
         if cls._instance is None:
-            with LogContext(logger) as log:
+            logger = Logger()
+            with logger.context(component="template_renderer", action="create_singleton") as log:
                 log.info("Creating new Jinja2Renderer singleton instance")
                 cls._instance = cls._initialize_instance()
-                log.debug("Jinja2Renderer singleton instance created successfully")
+                log.success("Jinja2Renderer singleton instance created successfully")
         return cls._instance
 
     @classmethod
@@ -79,7 +78,8 @@ class Jinja2Renderer:
         Returns:
             Jinja2Renderer: A newly initialized instance.
         """
-        with LogContext(logger) as log:
+        logger = Logger()
+        with logger.context(component="template_renderer", action="initialize") as log:
             log.info("Initializing Jinja2 environment")
             cls._jinja_env = cls._create_jinja_environment()
             return cls()
@@ -95,11 +95,13 @@ class Jinja2Renderer:
         Security: Uses SandboxedEnvironment to prevent code execution in templates.
         """
         template_path = Path(var_config.template_path)
+        logger = Logger()
 
-        with LogContext(logger) as log:
-            log.info("Creating Jinja2 environment",
-                     extra={"template_path": str(template_path)})
-
+        with logger.context(
+                component="template_renderer",
+                action="create_environment",
+                template_path=str(template_path)
+        ) as log:
             env = SandboxedEnvironment(
                 loader=FileSystemLoader(template_path),
                 autoescape=select_autoescape(
@@ -113,11 +115,13 @@ class Jinja2Renderer:
             # Register custom filters
             env.filters['format_timestamp'] = format_timestamp
 
-            log.debug("Jinja2 environment created successfully",
-                      extra={"filters": list(env.filters.keys())})
+            log.success(
+                "Jinja2 environment created successfully",
+                filters=list(env.filters.keys())
+            )
             return env
 
-    def render_templates(
+    def render_template(
             self,
             template_name: str,
             emojis: Optional[Dict[str, str]] = None,
@@ -139,14 +143,12 @@ class Jinja2Renderer:
 
         Security: All template rendering is done in a sandboxed environment
         """
-        try:
-            with LogContext(logger) as log:
-                log.info(f"Rendering template",
-                         extra={
-                             "template": template_name,
-                             "context_keys": list(kwargs.keys())
-                         })
-
+        with self.log_context(
+                action="render",
+                template=template_name,
+                context_keys=list(kwargs.keys())
+        ) as log:
+            try:
                 template_subdir = self._get_template_subdirectory(template_name)
                 template = self._get_template(
                     TemplateMetadata(template_name, template_subdir)
@@ -154,23 +156,22 @@ class Jinja2Renderer:
 
                 rendered = template.render(emojis=emojis or {}, **kwargs)
 
-                log.debug("Template rendered successfully",
-                          extra={"template": template_name,
-                                 "output_length": len(rendered)})
+                log.success(
+                    "Template rendered successfully",
+                    output_length=len(rendered)
+                )
                 return rendered
 
-        except TemplateError as error:
-            with LogContext(logger) as log:
-                log.error("Template rendering failed",
-                          extra={
-                              "template": template_name,
-                              "error": str(error)
-                          })
-            raise exceptions.TemplateError(ErrorContext(
-                message="Template rendering failed",
-                error_code="TEMPLATE_001",
-                metadata={"template": template_name, "error": str(error)}
-            ))
+            except TemplateError as error:
+                log.error(
+                    "Template rendering failed",
+                    error=str(error)
+                )
+                raise exceptions.TemplateError(ErrorContext(
+                    message="Template rendering failed",
+                    error_code="TEMPLATE_001",
+                    metadata={"template": template_name, "error": str(error)}
+                ))
 
     @lru_cache(maxsize=128)
     def _get_template_subdirectory(self, template_name: str) -> str:
@@ -186,24 +187,23 @@ class Jinja2Renderer:
         Raises:
             PyTMBotErrorTemplateError: If template subdirectory cannot be determined
         """
-        if template_name.startswith("plugin_"):
-            plugin_name = template_name.split("_", 1)[1]
-            return f"plugins_template/{plugin_name}"
+        with self.log_context(action="get_subdirectory", template=template_name) as log:
+            if template_name.startswith("plugin_"):
+                plugin_name = template_name.split("_", 1)[1]
+                return f"plugins_template/{plugin_name}"
 
-        try:
-            return TEMPLATE_SUBDIRECTORIES[template_name[0]]
-        except (IndexError, KeyError) as error:
-            with LogContext(logger) as log:
-                log.error("Invalid template name",
-                          extra={
-                              "template": template_name,
-                              "error": str(error)
-                          })
-            raise exceptions.TemplateError(ErrorContext(
-                message="Invalid template name",
-                error_code="TEMPLATE_002",
-                metadata={"template": template_name, "error": str(error)}
-            ))
+            try:
+                return TEMPLATE_SUBDIRECTORIES[template_name[0]]
+            except (IndexError, KeyError) as error:
+                log.error(
+                    "Invalid template name",
+                    error=str(error)
+                )
+                raise exceptions.TemplateError(ErrorContext(
+                    message="Invalid template name",
+                    error_code="TEMPLATE_002",
+                    metadata={"template": template_name, "error": str(error)}
+                ))
 
     def _get_template(self, metadata: TemplateMetadata) -> Template:
         """
@@ -218,34 +218,35 @@ class Jinja2Renderer:
         Raises:
             PyTMBotErrorTemplateError: If template cannot be loaded
         """
-        if template := self._template_cache.get(metadata):
-            return template
+        with self.log_context(
+                action="get_template",
+                template=metadata.name,
+                subdirectory=metadata.subdirectory
+        ) as log:
+            if template := self._template_cache.get(metadata):
+                log.debug("Template found in cache")
+                return template
 
-        try:
-            with LogContext(logger) as log:
-                log.debug("Template cache miss, loading from filesystem",
-                          extra={
-                              "template": metadata.name,
-                              "subdirectory": metadata.subdirectory
-                          })
+            try:
+                log.debug("Template cache miss, loading from filesystem")
 
                 template_path = Path(metadata.subdirectory) / metadata.name
                 template = self._jinja_env.get_template(str(template_path))
                 self._template_cache[metadata] = template
 
-                log.info("Template loaded and cached successfully",
-                         extra={"template_path": str(template_path)})
+                log.success(
+                    "Template loaded and cached successfully",
+                    template_path=str(template_path)
+                )
                 return template
 
-        except TemplateError as error:
-            with LogContext(logger) as log:
-                log.error("Failed to load template",
-                          extra={
-                              "template": metadata.name,
-                              "error": str(error)
-                          })
-            raise exceptions.TemplateError(ErrorContext(
-                message="Failed to load template",
-                error_code="TEMPLATE_003",
-                metadata={"template": metadata.name, "error": str(error)}
-            ))
+            except TemplateError as error:
+                log.error(
+                    "Failed to load template",
+                    error=str(error)
+                )
+                raise exceptions.TemplateError(ErrorContext(
+                    message="Failed to load template",
+                    error_code="TEMPLATE_003",
+                    metadata={"template": metadata.name, "error": str(error)}
+                ))

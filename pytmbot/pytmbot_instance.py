@@ -29,12 +29,12 @@ from pytmbot.handlers.handler_manager import (
     inline_handler_factory,
     echo_handler_factory,
 )
-from pytmbot.logs import Logger
+from pytmbot.logs import Logger, BaseComponent
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args, sanitize_exception
+from pytmbot.utils.utilities import parse_cli_args, sanitize_exception, get_environment_state
 
 MiddlewareType: TypeAlias = tuple[type, dict[str, Any]]
 HandlerDict: TypeAlias = dict[str, list[HandlerManager]]
@@ -55,11 +55,21 @@ DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
 ]
 
 
-class PyTMBot:
+class PyTMBot(BaseComponent):
     def __init__(self) -> None:
-        self.args, self.log = parse_cli_args(), Logger().bind_context(
-            core=frozenset([("action", "core_init"), ("version", __version__)])
-        )
+        super().__init__("core")
+        self.args = parse_cli_args()
+        self.log = Logger()
+
+        init_context = {
+            "core": {
+                "action": "core_init",
+                "version": __version__,
+                "environment": get_environment_state()
+            }}
+
+        self.log.info("Initializing PyTMBot", **init_context)
+
         self.bot: TeleBot | None = None
         self.plugin_manager = PluginManager()
 

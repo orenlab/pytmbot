@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import secrets
+import sys
 from datetime import datetime
 from functools import cached_property, lru_cache
 from typing import Any, Dict, Optional, Tuple, Union
@@ -416,3 +417,25 @@ def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> s
         return message.replace(token, '*' * len(token))  # Fully mask the token if it's too short
     return message.replace(token,
                            f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}")
+
+
+
+def get_environment_state() -> dict[str, Any]:
+    """
+    Retrieves the current environment state of the system.
+
+    Returns:
+        dict: A dictionary with the following keys:
+            - "Python path": The path to the Python executable.
+            - "Python version": The version of the Python interpreter.
+            - "Module path": The list of directories where Python modules are searched.
+            - "Command args": The list of command-line arguments passed to the script.
+            - "Running on": A string indicating whether the code is running on Docker or Bare Metal.
+    """
+    return {
+        "Python path": sys.executable,
+        "Python version": sys.version,
+        "Module path": sys.path,
+        "Command args": sys.argv,
+        "Running on": 'Docker' if is_running_in_docker() else 'Bare Metal'
+    }
