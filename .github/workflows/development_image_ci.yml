@@ -95,7 +95,7 @@ jobs:
           FULCIO_URL: "https://fulcio.sigstore.dev"
         run: |
           echo "${{ steps.build-and-push.outputs.digest }}" > image-digest.txt
-          cosign sign --yes "orenlab/pytmbot@$(cat image-digest.txt)"
+          cosign sign --yes --output-signature cosign.sig orenlab/pytmbot@$(cat image-digest.txt)
 
       # 10. Generate SBOM with Syft
       - name: Generate SBOM with Syft
