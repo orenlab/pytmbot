@@ -319,14 +319,31 @@ class SystemMonitorPlugin(PluginCore):
         for key, value in fields.items():
             if isinstance(value, (int, float, str, bool, type(None))):
                 sanitized_fields[key] = value
-            elif isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, (int, float)):
-                        sanitized_fields[f"{key}_{sub_key}"] = sub_value
-                    else:
-                        logger.warning(f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}")
-            else:
-                logger.warning(f"Unsupported type for field '{key}': {type(value)}")
+                continue
+
+            if isinstance(value, dict):
+                sanitized_fields.update({
+                    f"{key}_{sub_key}": sub_value
+                    for sub_key, sub_value in value.items()
+                    if isinstance(sub_value, (int, float))
+                })
+                unsupported = {sub_key: sub_value for sub_key, sub_value in value.items() if not isinstance(sub_value, (int, float))}
+                for sub_key, sub_value in unsupported.items():
+                    logger.warning(f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}")
+                continue
+
+            if isinstance(value, tuple):
+                sanitized_fields.update({
+                    f"{key}_{i + 1}m": item
+                    for i, item in enumerate(value)
+                    if isinstance(item, (int, float))
+                })
+                unsupported = [(i, item) for i, item in enumerate(value) if not isinstance(item, (int, float))]
+                for i, item in unsupported:
+                    logger.warning(f"Unsupported type for tuple element '{key}_{i}': {type(item)}")
+                continue
+
+            logger.warning(f"Unsupported type for field '{key}': {type(value)}")
         return sanitized_fields
 
     def _send_notification(self, message: str) -> None:
