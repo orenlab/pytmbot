@@ -310,7 +310,7 @@ class SystemMonitorPlugin(PluginCore):
 
             logger.debug("Metrics recorded successfully")
         except Exception as e:
-            logger.error(f"Error writing metrics to InfluxDB: {e}")
+            logger.exception(f"Error writing metrics to InfluxDB: {e}")
 
     def _send_notification(self, message: str) -> None:
         if self.state.notification_count >= self.monitor_settings.max_notifications[0]:
