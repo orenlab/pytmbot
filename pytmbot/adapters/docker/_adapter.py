@@ -52,7 +52,7 @@ class DockerAdapter:
             )
 
         # Log initialization with context
-        self._log_with_context("Docker adapter initialized", level="info")
+        self._log_with_context("Docker adapter initialized", level="debug")
 
     @cached_property
     def _timeout_config(self) -> dict[str, int]:
@@ -85,8 +85,6 @@ class DockerAdapter:
             'session_id': self._session_id,
             'docker_url': self._docker_url,
             'uptime': (datetime.now() - self._start_time).total_seconds(),
-            'system_info': self._system_info,
-            'timeout_config': self._timeout_config
         }
 
         if self._client:
@@ -239,26 +237,3 @@ class DockerAdapter:
                 level="debug",
                 additional_context=context
             )
-
-    def verify_connection(self) -> bool:
-        """
-        Verify that the Docker connection is alive and responding.
-
-        Returns:
-            bool: True if connection is healthy, False otherwise
-        """
-        try:
-            with self as client:
-                client.ping()
-                self._log_with_context(
-                    "Connection verification successful",
-                    level="info"
-                )
-                return True
-        except Exception as e:
-            self._log_with_context(
-                "Connection verification failed",
-                level="error",
-                error=e
-            )
-            return False

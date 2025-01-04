@@ -298,7 +298,7 @@ class WebhookServer(BaseComponent):
                             status_code=403,
                             detail="Access denied: Request must come from Telegram servers"
                         )
-                    log.debug("Telegram IP verified successfully")
+                    log.info("Telegram IP verified successfully")
                     return client_ip
 
             @app.post(self.webhook_path)
@@ -347,7 +347,7 @@ class WebhookServer(BaseComponent):
                                 update_type=update_type,
                                 update_id=update_dict.get('update_id')
                         ) as update_log:
-                            update_log.debug("Processing Telegram update")
+                            update_log.info("Processing Telegram update")
                             update_obj = telebot.types.Update.de_json(update_dict)
                             self.bot.process_new_updates([update_obj])
                             update_log.debug("Update processed successfully")

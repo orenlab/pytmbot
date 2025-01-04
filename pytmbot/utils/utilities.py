@@ -4,7 +4,7 @@ import re
 import secrets
 import sys
 from datetime import datetime
-from functools import cached_property, lru_cache
+from functools import cached_property, lru_cache, cache
 from typing import Any, Dict, Optional, Tuple, Union
 
 from humanize import (
@@ -419,7 +419,7 @@ def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> s
                            f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}")
 
 
-
+@cache
 def get_environment_state() -> dict[str, Any]:
     """
     Retrieves the current environment state of the system.

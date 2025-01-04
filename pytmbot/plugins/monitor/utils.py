@@ -21,16 +21,18 @@ class SystemMetrics:
         'cgroup', 'mqueue', 'hugetlbfs', 'overlay', 'aufs'
     })
 
-    @staticmethod
-    def collect_metrics() -> ResourceMetrics:
+    def __init__(self):
+        self.sensors_available = True
+
+    def collect_metrics(self) -> ResourceMetrics:
         """Collect all system metrics efficiently."""
         return {
-            'cpu_usage': SystemMetrics._check_cpu_usage(),
-            'memory_usage': SystemMetrics._check_memory_usage(),
-            'disk_usage': SystemMetrics._get_disk_usage(),
-            'temperatures': SystemMetrics._check_temperatures(),
-            'fan_speeds': SystemMetrics._get_fan_speeds(),
-            'load_averages': SystemMetrics._check_load_average()
+            'cpu_usage': self._check_cpu_usage(),
+            'memory_usage': self._check_memory_usage(),
+            'disk_usage': self._get_disk_usage(),
+            'temperatures': self._check_temperatures(),
+            'fan_speeds': self._get_fan_speeds(),
+            'load_averages': self._check_load_average()
         }
 
     @staticmethod
@@ -62,12 +64,12 @@ class SystemMetrics:
             logger.error(f"Disk usage check failed: {e}", exc_info=True)
             return {}
 
-    @staticmethod
-    def _check_temperatures() -> Dict[str, Dict[str, Optional[float]]]:
+    def _check_temperatures(self) -> Dict[str, Dict[str, Optional[float]]]:
         try:
             temps = psutil.sensors_temperatures()
-            if not temps:
+            if not temps and self.sensors_available:
                 logger.warning("No temperature sensors available")
+                self.sensors_available = False
                 return {}
 
             return {

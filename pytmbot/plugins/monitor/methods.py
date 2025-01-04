@@ -72,6 +72,8 @@ class SystemMonitorPlugin(PluginCore):
         self.poll_interval = 10 * 60  # 10 minutes
         self.docker_counters_update_interval = 5 * 60  # 5 minutes
 
+        self.system_metrics = SystemMetrics()
+
     def _init_influxdb(self) -> None:
         try:
             self.influxdb_client = InfluxDBInterface(
@@ -119,7 +121,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._adjust_check_interval()
 
                 # Collect and process metrics
-                metrics = SystemMetrics.collect_metrics()
+                metrics = self.system_metrics.collect_metrics()
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
@@ -309,7 +311,7 @@ class SystemMonitorPlugin(PluginCore):
             with self.influxdb_client as client:
                 client.write_data("system_metrics", sanitized_fields, metadata)
 
-            logger.debug("Metrics recorded successfully")
+            logger.debug("Metrics recorded successfully", extra=fields)
         except Exception as e:
             logger.exception(f"Error writing metrics to InfluxDB: {e}")
 
@@ -327,7 +329,8 @@ class SystemMonitorPlugin(PluginCore):
                     for sub_key, sub_value in value.items()
                     if isinstance(sub_value, (int, float))
                 })
-                unsupported = {sub_key: sub_value for sub_key, sub_value in value.items() if not isinstance(sub_value, (int, float))}
+                unsupported = {sub_key: sub_value for sub_key, sub_value in value.items() if
+                               not isinstance(sub_value, (int, float))}
                 for sub_key, sub_value in unsupported.items():
                     logger.warning(f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}")
                 continue
