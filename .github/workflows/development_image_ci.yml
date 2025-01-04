@@ -1,10 +1,15 @@
 name: Push Alpine Dev Image
 
 on:
-  # Trigger the workflow on pushes to the master branch
   push:
     branches:
       - '0.2.2'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write    # Needed for signing
+  security-events: write  # Needed for SBOM
 
 jobs:
   push_dev_image:
@@ -12,43 +17,101 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Set up QEMU for multi-platform builds
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
-      # Step 2: Set up Docker Buildx for advanced build capabilities
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
 
-      # Step 3: Log in to Docker Hub
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.1.1
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}  # Docker Hub username stored as a secret
-          password: ${{ secrets.DOCKER_PASSWORD }}  # Docker Hub password stored as a secret
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step 4: Build and push the Docker image
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: orenlab/pytmbot
+          tags: |
+            type=raw,value=alpine-dev
+          labels: |
+            org.opencontainers.image.title=pyTMbot
+            org.opencontainers.image.description=Telegram bot for Docker monitoring (Dev version)
+            org.opencontainers.image.source=https://github.com/orenlab/pytmbot
+
       - name: Build and push Docker image
+        id: build-and-push
         uses: docker/build-push-action@v5
         with:
-          # Specify the build target (useful for multi-stage builds)
+          context: .
           target: production
-          # Enable SBOM (Software Bill of Materials) generation for image transparency
-          sbom: true
-          # Enable SLSA provenance for supply chain security
-          provenance: true
-          # Specify the Dockerfile location
           file: Dockerfile
-          # Enable pushing the built image to the Docker registry
           push: true
-          # Specify supported platforms, including Apple Silicon (ARM64)
           platforms: linux/amd64,linux/arm64
-          # Tag the image for easy identification
-          tags: orenlab/pytmbot:alpine-dev
-          # Enable caching to optimize builds
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
           cache-to: type=inline,mode=max
+          sbom: true
+          provenance: true
+          attestations:
+            sbom: true
+            provenance: true
+          outputs: |
+            type=image,name=target
+            type=sbom,format=spdx
+            type=sbom,format=cyclonedx
+
+      - name: Sign the image
+        if: success()
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          echo "${{ steps.build-and-push.outputs.digest }}" > image-digest.txt
+          cosign sign --yes "orenlab/pytmbot@$(cat image-digest.txt)"
+
+      - name: Verify SBOM generation
+        if: success()
+        run: |
+          echo "Checking SBOM for image..."
+          docker buildx imagetools inspect orenlab/pytmbot:alpine-dev --format "{{ json .SBOM }}"
+
+      - name: Generate SBOM with Syft (backup)
+        if: success()
+        uses: anchore/sbom-action@v0
+        with:
+          image: orenlab/pytmbot:alpine-dev
+          format: spdx-json
+          output-file: sbom-syft.json
+
+      - name: Upload SBOM artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-files
+          path: |
+            sbom-syft.json
+            image-digest.txt
+          retention-days: 5
+
+      - name: Scan for vulnerabilities
+        if: success()
+        uses: anchore/scan-action@v3
+        with:
+          image: orenlab/pytmbot:alpine-dev
+          fail-build: false
+          severity-cutoff: high
