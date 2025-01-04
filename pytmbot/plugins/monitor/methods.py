@@ -304,13 +304,30 @@ class SystemMonitorPlugin(PluginCore):
     def _record_metrics(self, fields: dict) -> None:
         try:
             metadata = SystemInfo.get_platform_metadata(self.is_docker)
+            sanitized_fields = self._sanitize_fields(fields)
 
             with self.influxdb_client as client:
-                client.write_data("system_metrics", fields, metadata)
+                client.write_data("system_metrics", sanitized_fields, metadata)
 
             logger.debug("Metrics recorded successfully")
         except Exception as e:
             logger.exception(f"Error writing metrics to InfluxDB: {e}")
+
+    @staticmethod
+    def _sanitize_fields(fields: dict) -> dict:
+        sanitized_fields = {}
+        for key, value in fields.items():
+            if isinstance(value, (int, float, str, bool, type(None))):
+                sanitized_fields[key] = value
+            elif isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, (int, float)):
+                        sanitized_fields[f"{key}_{sub_key}"] = sub_value
+                    else:
+                        logger.warning(f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}")
+            else:
+                logger.warning(f"Unsupported type for field '{key}': {type(value)}")
+        return sanitized_fields
 
     def _send_notification(self, message: str) -> None:
         if self.state.notification_count >= self.monitor_settings.max_notifications[0]:
