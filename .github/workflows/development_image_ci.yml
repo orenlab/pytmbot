@@ -72,10 +72,10 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
-          DIGEST=$(docker inspect orenlab/pytmbot:alpine-dev --format='{{index .RepoDigests 0}}')
-          cosign sign --yes $DIGEST
-          cosign generate-attestation $DIGEST > provenance.att
-          cosign attest --yes --predicate provenance.att $DIGEST
+          IMAGE_REF="orenlab/pytmbot:alpine-dev"
+          cosign sign --yes $IMAGE_REF
+          cosign generate-attestation $IMAGE_REF > provenance.att
+          cosign attest --yes --predicate provenance.att $IMAGE_REF
 
       - uses: anchore/scan-action@v3
         with:
