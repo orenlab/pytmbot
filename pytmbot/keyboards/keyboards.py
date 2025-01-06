@@ -148,8 +148,7 @@ class Keyboards:
 
             reply_keyboard = ReplyKeyboardMarkup(
                 resize_keyboard=True,
-                selective=True,
-                row_width=2
+                row_width=3
             )
 
             # Group buttons into pairs for better layout
