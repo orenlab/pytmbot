@@ -17,43 +17,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the repository code
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Set up QEMU for multi-architecture builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v3
         with:
-          platforms: all
+          platforms: linux/amd64,linux/arm64
 
-      # 3. Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
         with:
           install: true
+          driver-opts: |
+            image=moby/buildkit:v0.12.5
 
-      # 4. Install Cosign
       - name: Install Cosign
         run: |
-          COSIGN_VERSION=$(curl -s https://api.github.com/repos/sigstore/cosign/releases/latest | jq -r .tag_name)
-          curl -LO https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64
-          chmod +x cosign-linux-amd64
-          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+          curl -Lo cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+          chmod +x cosign
+          sudo mv cosign /usr/local/bin/cosign
 
-      # 5. Login to Docker Hub
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 6. Extract metadata for the Docker image
-      - name: Extract metadata
+      - uses: docker/metadata-action@v5
         id: meta
-        uses: docker/metadata-action@v5
         with:
           images: orenlab/pytmbot
           tags: |
@@ -63,10 +53,8 @@ jobs:
             org.opencontainers.image.description=Telegram bot for Docker monitoring
             org.opencontainers.image.source=https://github.com/orenlab/pytmbot
 
-      # 7. Build and push the Docker image
-      - name: Build and push Docker image
+      - uses: docker/build-push-action@v5
         id: build-and-push
-        uses: docker/build-push-action@v5
         with:
           context: .
           target: production
@@ -75,55 +63,29 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
-          cache-to: type=inline,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: mode=max
-          outputs: |
-            type=registry,push=true
-            type=oci
+          sbom: true
 
-      # 8. Clear TUF cache before signing
-      - name: Clear TUF cache
-        run: |
-          rm -rf ~/.sigstore
-
-      # 9. Sign the Docker image
-      - name: Sign the image
-        if: success()
+      - name: Sign image and generate attestation
         env:
           COSIGN_EXPERIMENTAL: 1
-          FULCIO_URL: "https://fulcio.sigstore.dev"
         run: |
-          echo "${{ steps.build-and-push.outputs.digest }}" > image-digest.txt
-          cosign sign --yes --output-signature cosign.sig orenlab/pytmbot@$(cat image-digest.txt)
+          DIGEST=$(docker inspect orenlab/pytmbot:alpine-dev --format='{{index .RepoDigests 0}}')
+          cosign sign --yes $DIGEST
+          cosign generate-attestation $DIGEST > provenance.att
+          cosign attest --yes --predicate provenance.att $DIGEST
 
-      # 10. Generate SBOM with Syft
-      - name: Generate SBOM with Syft
-        if: success()
-        uses: anchore/sbom-action@v0
-        with:
-          image: orenlab/pytmbot:alpine-dev
-          format: spdx-json
-          output-file: sbom-syft.json
-        env:
-          SYFT_LOG: "error"
-
-      # 11. Scan the Docker image for vulnerabilities
-      - name: Scan for vulnerabilities
-        if: success()
-        uses: anchore/scan-action@v3
+      - uses: anchore/scan-action@v3
         with:
           image: orenlab/pytmbot:alpine-dev
           fail-build: false
           severity-cutoff: high
 
-      # 12. Upload SBOM and image digest as artifacts
-      - name: Upload SBOM
-        if: success()
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: sbom-files
+          name: security-artifacts
           path: |
-            sbom-syft.json
-            image-digest.txt
+            provenance.att
           retention-days: 5
