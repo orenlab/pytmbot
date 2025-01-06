@@ -74,8 +74,17 @@ jobs:
         run: |
           IMAGE_REF="orenlab/pytmbot:alpine-dev"
           cosign sign --yes $IMAGE_REF
-          cosign generate-attestation $IMAGE_REF > provenance.att
-          cosign attest --yes --predicate provenance.att $IMAGE_REF
+          echo "Generating attestation..."
+          cat <<EOF > provenance.att
+          {
+            "buildType": "docker",
+            "buildConfig": {
+              "context": ".",
+              "dockerfile": "Dockerfile"
+            }
+          }
+          EOF
+          cosign attest --yes --predicate provenance.att --type custom $IMAGE_REF
 
       - uses: anchore/scan-action@v3
         with:
