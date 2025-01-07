@@ -35,7 +35,7 @@ def handle_memory(message: Message, bot: TeleBot):
                 f"Failed at {__name__}: Error occurred while getting memory info"
             )
             return bot.send_message(
-                message.chat.id, text="Some error occurred. Please try again later("
+                message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
         data = button_data(

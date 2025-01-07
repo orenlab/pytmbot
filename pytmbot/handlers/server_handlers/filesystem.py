@@ -28,7 +28,7 @@ def handle_file_system(message: Message, bot: TeleBot):
             logger.error("Failed to handle disk usage")
             return bot.send_message(
                 message.chat.id,
-                text="Failed to handle disk usage. Please try again later.",
+                text="⚠️ Failed to handle disk usage. Please try again later.",
             )
 
         emojis = {

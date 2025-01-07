@@ -37,7 +37,7 @@ def handle_network(message: Message, bot: TeleBot):
             )
             return bot.send_message(
                 message.chat.id,
-                text="An error occurred while getting network statistics",
+                text="⚠️ An error occurred while getting network statistics",
             )
 
         with Compiler(

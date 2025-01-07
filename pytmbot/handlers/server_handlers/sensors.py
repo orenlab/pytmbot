@@ -37,7 +37,7 @@ def handle_sensors(message: Message, bot: TeleBot):
         if sensors_data is None or sensors_data == []:
             return bot.send_message(
                 message.chat.id,
-                text="No sensors were found :(",
+                text="⚠️ No sensors were found :(",
             )
 
         with Compiler(

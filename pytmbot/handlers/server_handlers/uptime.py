@@ -43,7 +43,7 @@ def handle_uptime(message: Message, bot: TeleBot):
                 f"Failed at @{__name__}: Error occurred while getting uptime"
             )
             return bot.send_message(
-                message.chat.id, text="Some error occurred. Please try again later("
+                message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
         with Compiler(
