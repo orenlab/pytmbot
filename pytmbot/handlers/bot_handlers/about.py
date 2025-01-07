@@ -11,6 +11,7 @@ from telebot.types import Message, LinkPreviewOptions
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import __version__
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -44,8 +45,9 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         ) as compiler:
             response = compiler.compile()
 
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=response,
             parse_mode="Markdown",
             link_preview_options=LinkPreviewOptions(is_disabled=True),

@@ -19,7 +19,6 @@ logger = Logger()
 
 
 @logger.session_decorator
-@logger.catch()
 def handle_unauthorized_message(
         query: Union[Message, CallbackQuery], bot: TeleBot
 ) -> None:
@@ -83,7 +82,6 @@ def handle_unauthorized_message(
 
 
 @logger.session_decorator
-@logger.catch()
 def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
     """
     Handles access denied queries from users.

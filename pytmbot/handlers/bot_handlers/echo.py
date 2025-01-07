@@ -10,6 +10,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -45,7 +46,11 @@ def handle_echo(message: Message, bot: TeleBot):
         ) as compiler:
             bot_answer = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=bot_answer)
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
+            text=bot_answer
+        )
 
     except Exception as error:
         bot.send_message(

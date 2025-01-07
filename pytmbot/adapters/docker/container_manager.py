@@ -5,7 +5,7 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.adapters.docker.types import ContainerId, ContainerConfig, DockerResponse, ContainerAction
+from pytmbot.models.docker_models import ContainerId, ContainerConfig, DockerResponse, ContainerAction
 from pytmbot.globals import settings, session_manager
 from pytmbot.logs import Logger
 from pytmbot.utils.utilities import is_new_name_valid

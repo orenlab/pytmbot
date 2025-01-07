@@ -11,6 +11,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -44,8 +45,14 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         ) as compiler:
             response = compiler.compile()
 
-        # Send the bot answer to the user with the main keyboard
-        bot.send_message(message.chat.id, text=response, reply_markup=main_keyboard, parse_mode="HTML")
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
+            text=response,
+            reply_markup=main_keyboard,
+            parse_mode="HTML",
+        )
+
     except Exception as error:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."

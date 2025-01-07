@@ -13,6 +13,7 @@ from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em, button_data
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -52,9 +53,9 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
             else None
         )
 
-        # Send the message to the user
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=containers_info[0],
             reply_markup=inline_keyboard,
             parse_mode="HTML",

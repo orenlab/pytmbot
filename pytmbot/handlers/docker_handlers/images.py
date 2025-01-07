@@ -5,147 +5,23 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import time
-from datetime import datetime
-from functools import wraps
 from typing import Optional
 
 from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
-from telebot.types import Message, InlineKeyboardMarkup
+from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em, button_data
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
 
 
-def with_telegram_context(func):
-    """
-    Decorator to add Telegram-specific context to logging.
-    """
-
-    @wraps(func)
-    def wrapper(message: Message, bot: TeleBot, *args, **kwargs):
-        start_time = time.time()
-
-        # Adding request context
-        request_context = {
-            'telegram_context': {
-                'chat_id': message.chat.id,
-                'user_id': message.from_user.id if message.from_user else None,
-                'chat_type': message.chat.type,
-                'message_id': message.message_id,
-                'command': message.text if message.text else None,
-                'timestamp': datetime.now().isoformat()
-            }
-        }
-
-        try:
-            logger.debug(
-                "Starting Docker images handler",
-                extra=request_context
-            )
-
-            result = func(message, bot, *args, **kwargs)
-
-            # Adding execution details
-            request_context['execution_time'] = f"{time.time() - start_time:.3f}s"
-            request_context['success'] = True
-
-            logger.debug(
-                "Docker images handler completed successfully",
-                extra=request_context
-            )
-
-            return result
-
-        except Exception as e:
-            request_context.update({
-                'execution_time': f"{time.time() - start_time:.3f}s",
-                'success': False,
-                'error': str(e),
-                'error_type': type(e).__name__
-            })
-
-            logger.error(
-                "Docker images handler failed",
-                extra=request_context
-            )
-            raise
-
-    return wrapper
-
-
-def send_telegram_message(
-        bot: TeleBot,
-        chat_id: int,
-        text: str,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
-        parse_mode: str = "HTML"
-) -> bool:
-    """
-    Safely sends a message in Telegram with error handling.
-
-    Args:
-        bot: TeleBot instance
-        chat_id: Chat ID
-        text: Message text
-        reply_markup: Keyboard markup
-        parse_mode: Formatting mode
-
-    Returns:
-        bool: True if the message was sent successfully
-
-    Raises:
-        exceptions.PyTMBotErrorHandlerError: In case of a sending error
-    """
-    try:
-        bot.send_message(
-            chat_id,
-            text=text[:4096],  # Telegram limit
-            reply_markup=reply_markup,
-            parse_mode=parse_mode
-        )
-        return True
-
-    except ApiTelegramException as e:
-        logger.error(
-            f"Telegram API error: {e}",
-            extra={
-                'chat_id': chat_id,
-                'text_length': len(text),
-                'error': str(e)
-            }
-        )
-        raise exceptions.ConnectionException(ErrorContext(
-            message="Telegram API error",
-            error_code="TELEGRAM_001",
-            metadata={"exception": str(e)}
-        ))
-
-    except Exception as e:
-        logger.error(
-            f"Failed to send message: {e}",
-            extra={
-                'chat_id': chat_id,
-                'text_length': len(text),
-                'error': str(e)
-            }
-        )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed to send message",
-            error_code="TELEGRAM_002",
-            metadata={"exception": str(e)}
-        ))
-
-
 @logger.session_decorator
-@with_telegram_context
 def handle_images(message: Message, bot: TeleBot) -> bool:
     """
     Handler for the 'images' command with enhanced error handling and contextual logging.
@@ -160,8 +36,11 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
     Raises:
         exceptions.PyTMBotErrorHandlerError: In case of a command processing error
     """
-    global template_context
+
+    template_context = None
+
     try:
+
         # Send typing action indicator
         bot.send_chat_action(message.chat.id, "typing")
 
@@ -196,9 +75,24 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
             'emojis': {
                 'thought_balloon': em.get_emoji("thought_balloon"),
                 'spouting_whale': em.get_emoji("spouting_whale"),
-                'minus': em.get_emoji("minus")
+                'minus': em.get_emoji("minus"),
+                'package': em.get_emoji("package"),
+                'bookmark_tabs': em.get_emoji("bookmark_tabs"),
+                'gear': em.get_emoji("gear"),
+                'desktop_computer': em.get_emoji("desktop_computer"),
+                'floppy_disk': em.get_emoji("floppy_disk"),
+                'clock': em.get_emoji("clock"),
+                'person_technologist': em.get_emoji("person_technologist"),
+                'wrench': em.get_emoji("wrench"),
+                'label': em.get_emoji("label"),
+                'electric_plug': em.get_emoji("electric_plug"),
+                'key': em.get_emoji("key"),
+                'arrow_right': em.get_emoji("arrow_right"),
+                'computer_mouse': em.get_emoji("computer_mouse")
             }
         }
+
+        print(template_context)
 
         with Compiler(
                 template_name="d_images.jinja2",

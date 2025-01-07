@@ -13,6 +13,7 @@ from telebot.types import Message, ReplyKeyboardMarkup, InlineKeyboardMarkup
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import session_manager, em, keyboards, settings, var_config
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.totp import TwoFactorAuthenticator
@@ -159,8 +160,13 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     ) as compiler:
         response = compiler.compile()
 
-    bot.send_message(
-        message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown"
+    send_telegram_message(
+        bot=bot,
+        chat_id=message.chat.id,
+        message=message,
+        text=response,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
 

@@ -12,6 +12,7 @@ from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -31,9 +32,9 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
 
         reply_keyboard = keyboards.build_reply_keyboard(keyboard_type="docker_keyboard")
 
-        # Send the compiled message to the bot
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=bot_answer,
             reply_markup=reply_keyboard,
             parse_mode="HTML",

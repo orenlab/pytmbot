@@ -11,6 +11,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.plugin_manager import PluginManager
@@ -62,12 +63,12 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         ) as compiler:
             response = compiler.compile()
 
-        # Send the message with the plugin list and keyboard
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=response,
             reply_markup=plugins_keyboard,
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
 
     except Exception as error:
