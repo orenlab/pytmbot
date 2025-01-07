@@ -17,7 +17,9 @@
 <code>RX/TX errors:</code> {{ container_network_stats['rx_errors'] | default('N/A') }}/{{ container_network_stats['tx_errors'] | default('N/A') }}
 
 {{ puzzle_piece }} <b>Container State:</b>
-<code>Status:</code> {% if container_attrs['running'] %}Running{% elif container_attrs['paused'] %}Paused{% elif container_attrs['restarting'] %}Restarting{% elif container_attrs['dead'] %}Dead{% else %}Unknown{% endif %}
+<code>Status:</code> {% if container_attrs['running'] %}Running{% elif container_attrs['paused'] %}Paused{% elif container_attrs['restarting'] %}Restarting{% elif container_attrs['dead'] %}Dead{% else %}Unknown
+{% endif %}
+
 <code>Restart count:</code> {{ container_attrs['restarting_count'] | default('N/A') }}
 <code>Exit code:</code> {{ container_attrs['exit_code'] | default('N/A') }}
 
