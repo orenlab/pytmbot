@@ -63,6 +63,10 @@ class SystemMonitorPlugin(PluginCore):
             "images_count": 0
         }
 
+        # Add sets to track all historically seen containers and images
+        self._known_container_ids: set[str] = set()
+        self._known_image_ids: set[str] = set()
+
         # Initialize InfluxDB and system detection
         self._init_influxdb()
         self.is_docker = is_running_in_docker()
@@ -274,6 +278,9 @@ class SystemMonitorPlugin(PluginCore):
             new_image_hashes = {img["id"]: img for img in new_images}
 
             if self.state.init_mode:
+                # During initialization, add all current containers and images to known sets
+                self._known_container_ids.update(new_container_hashes.keys())
+                self._known_image_ids.update(new_image_hashes.keys())
                 self.state.init_mode = False
                 logger.info(
                     "Docker monitoring initialized",
@@ -283,17 +290,17 @@ class SystemMonitorPlugin(PluginCore):
                     }
                 )
             else:
-                # Check for new containers
-                for container_id in (new_container_hashes.keys()
-                                     - self._previous_container_hashes.keys()):
-                    self._send_container_notification(
-                        new_container_hashes[container_id]
-                    )
+                # Check for genuinely new containers (not seen before)
+                new_container_ids = set(new_container_hashes.keys()) - self._known_container_ids
+                for container_id in new_container_ids:
+                    self._send_container_notification(new_container_hashes[container_id])
+                    self._known_container_ids.add(container_id)
 
-                # Check for new images
-                for image_id in (new_image_hashes.keys()
-                                 - self._previous_image_hashes.keys()):
+                # Check for genuinely new images (not seen before)
+                new_image_ids = set(new_image_hashes.keys()) - self._known_image_ids
+                for image_id in new_image_ids:
                     self._send_image_notification(new_image_hashes[image_id])
+                    self._known_image_ids.add(image_id)
 
             # Update tracking state
             self._previous_container_hashes = new_container_hashes
