@@ -13,6 +13,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, __version__, em, __github_api_url__
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.utilities import is_bot_development
@@ -48,11 +49,12 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
             keyboards.build_inline_keyboard(keyboard_button) if need_inline else None
         )
 
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=bot_answer,
-            parse_mode="HTML",
             reply_markup=inline_button,
+            parse_mode="HTML",
         )
 
     except Exception as error:
