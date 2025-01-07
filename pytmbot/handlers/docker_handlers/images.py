@@ -92,8 +92,6 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
             }
         }
 
-        print(template_context)
-
         with Compiler(
                 template_name="d_images.jinja2",
                 context=template_context
