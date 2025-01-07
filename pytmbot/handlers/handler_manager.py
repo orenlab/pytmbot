@@ -52,7 +52,7 @@ HandlerType: TypeAlias = dict[str, list[HandlerManager]]
 FilterFunc: TypeAlias = Callable[[Any], bool]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class HandlerConfig:
     """Configuration for handler registration."""
     callback: Callable[..., Any]

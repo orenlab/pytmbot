@@ -17,7 +17,8 @@ from pytmbot.utils.utilities import is_running_in_docker
 
 logger = Logger()
 
-@dataclass
+
+@dataclass(slots=True)
 class _PluginInfo:
     """
     Stores metadata for a plugin, including its name, version, description, commands, and index key.
@@ -51,6 +52,12 @@ class PluginManager:
     """
     Manages the discovery, validation, and registration of plugins in the pyTMBot system.
     """
+
+    __slots__ = (
+        '_plugin_base_path',
+        '_plugin_base_for_import',
+        '_plugin_blacklist'
+    )
 
     _instance = None
     _index_keys: Dict[str, str] = {}

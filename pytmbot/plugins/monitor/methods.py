@@ -30,6 +30,14 @@ logger = Logger()
 class SystemMonitorPlugin(PluginCore):
     """Optimized plugin for monitoring system resources."""
 
+    __slots__ = (
+        'bot', 'config', 'monitor_settings', 'event_threshold_duration',
+        'state', 'thresholds', '_previous_container_hashes',
+        '_previous_image_hashes', '_previous_counts', '_known_container_ids',
+        '_known_image_ids', 'influxdb_client', 'is_docker', 'check_interval',
+        'poll_interval', 'docker_counters_update_interval', 'system_metrics'
+    )
+
     def __init__(
             self,
             config: MonitorConfig,

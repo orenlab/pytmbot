@@ -16,6 +16,8 @@ logger = Logger()
 class SystemMetrics:
     """Utility class for collecting system metrics."""
 
+    __slots__ = ('sensors_available',)
+
     EXCLUDED_PARTITIONS: Final = frozenset({
         'loop', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
         'cgroup', 'mqueue', 'hugetlbfs', 'overlay', 'aufs'
@@ -110,6 +112,7 @@ class SystemMetrics:
 
 class EventTracker:
     """Utility class for tracking system events."""
+    __slots__ = ()
 
     @staticmethod
     def create_event(state: MonitoringState, event_type: str, details: dict) -> str:
@@ -153,6 +156,8 @@ class EventTracker:
 
 class SystemInfo:
     """Utility class for system information."""
+
+    __slots__ = ()
 
     @staticmethod
     def get_platform_metadata(is_docker: bool) -> dict:

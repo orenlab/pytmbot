@@ -56,6 +56,8 @@ DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
 
 
 class PyTMBot(BaseComponent):
+    __slots__ = ("args", "log", "bot", "plugin_manager")
+
     def __init__(self) -> None:
         super().__init__("core")
         self.args = parse_cli_args()

@@ -11,16 +11,7 @@ logger = Logger()
 class MonitorPluginConfig(BaseModel):
     """
     Configuration model for the system monitoring plugin.
-
-    This model defines the thresholds for CPU, memory, and disk usage, as well as the
-    maximum number of notifications that can be sent and the interval at which system
-    checks should be performed.
-
-    Attributes:
-        emoji_for_notification (str): The emoji to use for notifications.
-
     """
-
     emoji_for_notification: str = Field(default="🚢🆘🛟🚨📢\n")
 
 
@@ -42,7 +33,7 @@ class ResourceMetrics(TypedDict):
     load_averages: tuple[float, float, float]
 
 
-@dataclass
+@dataclass(slots=True)
 class ResourceThresholds:
     """Data class for storing resource monitoring thresholds."""
     cpu_temp: float
@@ -55,7 +46,7 @@ class ResourceThresholds:
     load: float = 70.0
 
 
-@dataclass
+@dataclass(slots=True)
 class MonitoringState:
     """Data class for storing monitoring state information."""
     is_active: bool = False

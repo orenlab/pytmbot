@@ -27,6 +27,7 @@ if args.health_check != "True":
 
 class HealthStatus:
     """Singleton class to track and manage the health status of the bot."""
+    __slots__ = ('_last_health_check_result',)
     _instance: Optional["HealthStatus"] = None
 
     def __init__(self):
@@ -48,6 +49,8 @@ class HealthStatus:
 
 
 class BotLauncher(logs.BaseComponent):
+    __slots__ = ('bot', 'shutdown_requested', 'health_check_thread', 'start_time')
+
     SHUTDOWN_TIMEOUT: Final[int] = 10
     HEALTH_CHECK_INTERVAL: Final[int] = 60
     MIN_PYTHON_VERSION: Final[float] = 3.10

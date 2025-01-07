@@ -50,6 +50,8 @@ class Logger:
     Singleton logger class with context management and session tracking capabilities.
     Uses WeakValueDictionary for efficient memory management.
     """
+    __slots__ = ("_logger", "__weakref__")
+
     _instance = WeakValueDictionary()
     _initialized: bool = False
 
@@ -164,6 +166,8 @@ class Logger:
 
 class BaseComponent:
     """Base component with integrated logging capabilities."""
+
+    __slots__ = ("_log", "component_name")
 
     def __init__(self, component_name: str = ""):
         self._log = Logger()

@@ -18,6 +18,8 @@ from pytmbot.utils.utilities import generate_secret_token, mask_token_in_message
 
 
 class RateLimit(BaseComponent):
+    __slots__ = ("limit", "period", "ban_threshold", "requests", "banned_ips")
+
     def __init__(self, limit: int, period: int, ban_threshold: int = 50) -> None:
         super().__init__()
 
@@ -83,6 +85,8 @@ from telebot.apihelper import ApiTelegramException
 
 
 class WebhookManager(BaseComponent):
+    __slots__ = ("bot", "url", "port", "secret_token")
+
     def __init__(self, bot: TeleBot, url: str, port: int, secret_token: Optional[str] = None) -> None:
         super().__init__("webhook_manager")
         self.bot = bot
@@ -161,6 +165,12 @@ class WebhookManager(BaseComponent):
 
 
 class WebhookServer(BaseComponent):
+    __slots__ = (
+        "bot", "token", "host", "port", "request_counter", "last_restart",
+        "telegram_ip_validator", "secret_token", "webhook_path",
+        "webhook_manager", "app", "rate_limiter", "rate_limiter_404"
+    )
+
     def __init__(self, bot: TeleBot, token: str, host: str, port: int) -> None:
         super().__init__("webhook_server")
         self.bot = bot
