@@ -22,7 +22,7 @@ class RateLimit(BaseComponent):
         super().__init__()
 
         with self.log_context(limit=limit, period=period, ban_threshold=ban_threshold) as log:
-            log.debug("Initializing rate limit")
+            log.debug("Initializing rate limiter")
             self.limit = limit
             self.period = period
             self.ban_threshold = ban_threshold
@@ -109,7 +109,7 @@ class WebhookManager(BaseComponent):
                 current_webhook = self.bot.get_webhook_info()
                 log.debug(
                     "Current webhook configuration",
-                    webhook_info=current_webhook,
+                    webhook_info=mask_token_in_message(str(current_webhook), self.bot.token),
                     cert_present=bool(cert_path)
                 )
 
@@ -127,8 +127,7 @@ class WebhookManager(BaseComponent):
                 new_webhook = self.bot.get_webhook_info()
                 log.info(
                     "Webhook successfully configured",
-                    old_webhook=current_webhook,
-                    new_webhook=new_webhook
+                    new_webhook=mask_token_in_message(str(new_webhook), self.bot.token)
                 )
 
             except ApiTelegramException as e:
@@ -146,17 +145,7 @@ class WebhookManager(BaseComponent):
     def remove_webhook(self) -> None:
         with self.log_context(action="remove_webhook") as log:
             try:
-                current_webhook = self.bot.get_webhook_info()
-                log.debug("Removing webhook", current_webhook=current_webhook)
-
                 self.bot.remove_webhook()
-
-                new_webhook = self.bot.get_webhook_info()
-                log.debug(
-                    "Webhook removed",
-                    old_webhook=current_webhook,
-                    new_webhook=new_webhook
-                )
 
             except ApiTelegramException as e:
                 error_context = ErrorContext(
@@ -399,7 +388,7 @@ class WebhookServer(BaseComponent):
                     "app": self.app,
                     "host": self.host,
                     "port": self.port,
-                    "log_level": "debug",
+                    "log_level": "critical",
                     "access_log": False,
                     "proxy_headers": True,
                     "forwarded_allow_ips": "*",

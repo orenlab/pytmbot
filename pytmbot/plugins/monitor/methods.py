@@ -104,7 +104,20 @@ class SystemMonitorPlugin(PluginCore):
                         daemon=True
                     )
                     thread.start()
-                    logger.info("Monitoring started successfully")
+                    with logger.context(
+                            context={
+                                "component": "monitoring",
+                                "action": "start",
+                                "attempt": attempt,
+                                "trace hold": self.monitor_settings.tracehold,
+                                "event_threshold_duration": {self.event_threshold_duration},
+                                "check_interval": self.check_interval,
+                                "poll_interval": self.poll_interval,
+                                "docker_counters_update_interval": self.docker_counters_update_interval,
+                                "is_docker": self.is_docker
+                            }
+                    ) as log:
+                        log.info("Monitoring started successfully")
                     return
                 except Exception as e:
                     logger.error(

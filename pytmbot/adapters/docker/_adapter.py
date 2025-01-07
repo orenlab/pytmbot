@@ -140,7 +140,7 @@ class DockerAdapter:
 
             self._log_with_context(
                 "Docker client created successfully",
-                level="info",
+                level="debug",
                 additional_context={'tls_enabled': bool(tls_config)}
             )
 
