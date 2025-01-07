@@ -4,7 +4,8 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from typing import Dict
+from enum import Enum
+from typing import Dict, TypeAlias, TypedDict, Optional
 
 from pydantic import BaseModel
 
@@ -31,6 +32,7 @@ class TagInfo(BaseModel):
 
     name: str
     created_at: str  # ISO 8601 date format
+    digest: Optional[str]
 
 
 class UpdateInfo(BaseModel):
@@ -56,3 +58,25 @@ class UpdateInfo(BaseModel):
             Dict[str, str]: Dictionary representation of the UpdateInfo instance.
         """
         return self.model_dump()  # Convert UpdateInfo to a dictionary
+
+
+ContainerId: TypeAlias = str | int
+DockerResponse: TypeAlias = bool | None
+
+
+class ContainerAction(str, Enum):
+    START = "START"
+    STOP = "STOP"
+    RESTART = "RESTART"
+    RENAME = "RENAME"
+
+    @classmethod
+    def from_str(cls, value: str) -> 'ContainerAction':
+        try:
+            return cls(value.upper())
+        except ValueError:
+            raise ValueError(f"Invalid action: {value}")
+
+
+class ContainerConfig(TypedDict):
+    new_container_name: str | None
