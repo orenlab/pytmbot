@@ -1,13 +1,11 @@
-{# templates/containers.jinja2 #}
+{{ thought_balloon }} <b>Docker Containers:</b>
 
-{{ thought_balloon }}Here is:
-
-{% for value in context %}{{ luggage }} <b>{{ value['name'] }}</b>:
-    {{ minus }} ID: {{ value["id"] }}
-    {{ minus }} Image: {{ value["image"] }}
-    {{ minus }} Created: {{ value["created"] }}
-    {{ minus }} Run at: {{ value["run_at"] }}
-    {{ minus }} Status: <b>{{ value["status"] }}</b>
+{% for value in context %}{{ luggage }} <b>{{ value['name'] }}</b>
+<code>ID:</code> {{ value["id"] }}
+<code>Image:</code> {{ value["image"] }}
+<code>Created:</code> {{ value["created"] }}
+<code>Started:</code> {{ value["run_at"] }}
+<code>Status:</code> <b>{{ value["status"] }}</b>
 
 {% endfor %}
-<b>More details</b>:
+<b>More details:</b>

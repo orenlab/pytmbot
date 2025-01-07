@@ -1,16 +1,12 @@
-<b>{{ thought_balloon }} Here’s the Filesystem Info:</b>
+{{ thought_balloon }} <b>Filesystem Info:</b>
 
 {% for value in context %}
-    <b>{{ floppy_disk }} Device Name:</b> {{ value['device_name'] }}
-    - <b>Filesystem Type:</b> {{ value['fs_type'] }}
-    - <b>Mount Point:</b> {{ value['mnt_point'] }}
-    - <b>Volume Size:</b> {{ value['size'] }}
-    - <b>Used Space:</b> {{ value['used'] }}
-    - <b>Free Space:</b> {{ value['free'] }}
-    - <b>Usage Percent:</b> {{ value['percent'] }}%
-{% endfor %}
+{{ floppy_disk }} <b>{{ value['device_name'] }}</b>
+<code>Type:</code> {{ value['fs_type'] }}
+<code>Mount:</code> {{ value['mnt_point'] }}
+<code>Size:</code> {{ value['size'] }}
+<code>Used:</code> {{ value['used'] }} ({{ value['percent'] }}%)
+<code>Free:</code> {{ value['free'] }}
 
-{% if running_in_docker %}
-    <b>{{ warning }} Note:</b> Since the bot is running inside a Docker container, comprehensive information about
-    system resources is not available.
-{% endif %}
+{% endfor %}
+{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}

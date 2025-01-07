@@ -1,8 +1,12 @@
-{{ thought_balloon }} Here is:{% if context %}
-    {# Output data in key: value format #}
-    {% for key, value in context.items() %}
-        {{ horizontal_traffic_light }} {{ key }}: {{ value }}{% endfor %}
-    {% else %}{{ warning }} No process data available at the moment.{% endif %}
+{{ thought_balloon }} Here is:
 
-{% if running_in_docker %}{{ warning }} Since the bot is running inside a Docker container, it is impossible to provide
-    comprehensive information about system resources.{% endif %}
+<b>System Process Information:</b>{% if context %}
+
+
+{% for key, value in context.items() %}
+{{ horizontal_traffic_light }} <b>{{ key }}</b>: <code>{{ value }}</code>
+{% endfor %}{% else %}
+{{ warning }} <i>No process data available</i>{% endif %}
+
+
+{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}

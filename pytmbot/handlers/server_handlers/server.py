@@ -37,6 +37,13 @@ def handle_server(message: Message, bot: TeleBot) -> None:
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),
+            "battery": em.get_emoji("battery"),
+            "desktop_computer": em.get_emoji("desktop_computer"),
+            "thermometer": em.get_emoji("thermometer"),
+            "rocket": em.get_emoji("rocket"),
+            "hourglass_not_done": em.get_emoji("hourglass_not_done"),
+            "floppy_disk": em.get_emoji("floppy_disk"),
+            "satellite": em.get_emoji("satellite"),
         }
 
         with Compiler(
@@ -48,7 +55,7 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             message.chat.id,
             text=response,
             reply_markup=server_keyboard,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     except Exception as error:
         bot.send_message(

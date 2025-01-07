@@ -1,66 +1,33 @@
-{# templates/containers.jinja2 #}
+{{ thought_balloon }} <b>Container Details:</b>
 
-{{ thought_balloon }} Here is:
+{{ basket }} <b>Name:</b> <code>{{ container_name }}</code>
 
-<b>Container name</b>: <i>{{ basket }} {{ container_name }}</i> {{ backhand_index_pointing_down }}
+{{ flag_in_hole }} <b>CPU Stats:</b>
+<code>Periods:</code> {{ container_cpu_stats['periods'] | default('N/A') }}
+<code>Throttled:</code> {{ container_cpu_stats['throttled_periods'] | default('N/A') }}
+<code>Throttling:</code> {{ container_cpu_stats['throttling_data'] | default('N/A') }}
 
-{{ flag_in_hole }}# <b>CPU:</b>
-<b>Periods:</b> <i>{{ container_cpu_stats['periods'] | default('N/A') }}</i>
-<b>Throttled periods:</b> <i>{{ container_cpu_stats['throttled_periods'] | default('N/A') }}</i>
-<b>Throttling data:</b> <i>{{ container_cpu_stats['throttling_data'] | default('N/A') }}</i>
+{{ railway_car }} <b>Memory Stats:</b>
+<code>Usage:</code> {{ container_memory_stats['mem_usage'] | default('N/A') }} ({{ container_memory_stats['mem_percent'] | default('N/A') }}%)
+<code>Limit:</code> {{ container_memory_stats['mem_limit'] | default('N/A') }}
 
-{{ railway_car }}# <b>Memory:</b>
-<b>Usage:</b> <i>{{ container_memory_stats['mem_usage'] | default('N/A') }}</i> or
-<i>{{ container_memory_stats['mem_percent'] | default('N/A') }}%</i>
-<b>Limit:</b> <i>{{ container_memory_stats['mem_limit'] | default('N/A') }}</i>
+{{ radio }} <b>Network Stats:</b>
+<code>RX/TX bytes:</code> {{ container_network_stats['rx_bytes'] | default('N/A') }}/{{ container_network_stats['tx_bytes'] | default('N/A') }}
+<code>RX/TX dropped:</code> {{ container_network_stats['rx_dropped'] | default('N/A') }}/{{ container_network_stats['tx_dropped'] | default('N/A') }}
+<code>RX/TX errors:</code> {{ container_network_stats['rx_errors'] | default('N/A') }}/{{ container_network_stats['tx_errors'] | default('N/A') }}
 
-{{ radio }}# <b>Networks:</b>
-<b>RX bytes:</b> <i>{{ container_network_stats['rx_bytes'] | default('N/A') }}</i>
-<b>TX bytes:</b> <i>{{ container_network_stats['tx_bytes'] | default('N/A') }}</i>
-<b>RX dropped:</b> <i>{{ container_network_stats['rx_dropped'] | default('N/A') }}</i>
-<b>TX dropped:</b> <i>{{ container_network_stats['tx_dropped'] | default('N/A') }}</i>
-<b>RX errors:</b> <i>{{ container_network_stats['rx_errors'] | default('N/A') }}</i>
-<b>TX errors:</b> <i>{{ container_network_stats['tx_errors'] | default('N/A') }}</i>
+{{ puzzle_piece }} <b>Container State:</b>
+<code>Status:</code> {% if container_attrs['running'] %}Running{% elif container_attrs['paused'] %}Paused{% elif container_attrs['restarting'] %}Restarting{% elif container_attrs['dead'] %}Dead{% else %}Unknown{% endif %}
+<code>Restart count:</code> {{ container_attrs['restarting_count'] | default('N/A') }}
+<code>Exit code:</code> {{ container_attrs['exit_code'] | default('N/A') }}
 
-<b>{{ container_name }}</b> attributes {{ backhand_index_pointing_down }}:
+{{ safety_pin }} <b>Environment:</b>
+<pre>{% if container_attrs['env'] %}{% for value in container_attrs['env'] %}
+{{ value }}{% endfor %}{% else %}No environment variables{% endif %}</pre>
 
-{{ puzzle_piece }}# <b>State:</b>
-<b>Running:</b> <i>{{ container_attrs['running'] | default('N/A') }}</i>
-<b>Paused:</b> <i>{{ container_attrs['paused'] | default('N/A') }}</i>
-<b>Restarting:</b> <i>{{ container_attrs['restarting'] | default('N/A') }}</i>
-<b>Restarting count:</b> <i>{{ container_attrs['restarting_count'] | default('N/A') }}</i>
-<b>Dead:</b> <i>{{ container_attrs['dead'] | default('N/A') }}</i>
+{{ sandwich }} <b>Launch Configuration:</b>
+<pre>{% if container_attrs['command'] and container_attrs['command']|length > 0 %}Command: {% for value in container_attrs['command'] %}{{ value }} {% endfor %}{% else %}No command specified{% endif %}
 
-{{ radioactive }}# <b>Exits:</b>
-<b>Exit code:</b> <i>{{ container_attrs['exit_code'] | default('N/A') }}</i>
+{% if container_attrs['args'] and container_attrs['args']|length > 0 %}Arguments: {% for value in container_attrs['args'] %}{{ value }} {% endfor %}{% else %}No arguments specified{% endif %}</pre>
 
-{{ safety_pin }}# <b>Env variables:</b>
-<pre>
-{% if container_attrs['env'] %}
-    {% for value in container_attrs['env'] %}
-        - <i>{{ value }}</i>
-    {% endfor %}
-{% else %}
-    No environment variables found.
-{% endif %}
-</pre>
-
-{{ sandwich }}# <b>Launch arguments:</b>
-<pre>
-{% if container_attrs['command'] and container_attrs['command']|length > 0 %}
-    {% for value in container_attrs['command'] %} <i>{{ value }}</i>{% endfor %}
-{% else %}
-    No run command available.
-{% endif %}
-</pre>
-
-{{ sandwich }}# <b>Run args:</b>
-<pre>
-{% if container_attrs['args'] and container_attrs['args']|length > 0 %}
-    {% for value in container_attrs['args'] %} <i>{{ value }}</i>{% endfor %}
-{% else %}
-    No run arguments found.
-{% endif %}
-</pre>
-
-It seems to be everything... {{ banjo }} {{ banjo }} {{ banjo }}
+{{ banjo }} <i>End of container details</i>

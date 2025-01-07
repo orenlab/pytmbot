@@ -45,7 +45,7 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
             response = compiler.compile()
 
         # Send the bot answer to the user with the main keyboard
-        bot.send_message(message.chat.id, text=response, reply_markup=main_keyboard)
+        bot.send_message(message.chat.id, text=response, reply_markup=main_keyboard, parse_mode="HTML")
     except Exception as error:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."

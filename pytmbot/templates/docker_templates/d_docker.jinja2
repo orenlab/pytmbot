@@ -1,11 +1,6 @@
-{# templates/docker.jinja2 #}
+{{ thought_balloon }} <b>Docker Overview:</b>
 
-{{ thought_balloon }}This section provides summary information about {{ spouting_whale }} Docker images and containers.
+{{ spouting_whale }} <code>Images:</code> <b>{{ context['images_count'] }}</b>
+{{ package }} <code>Containers:</code> <b>{{ context['containers_count'] }}</b>
 
-At this time, I have managed to gather the following information:
-- Images: <b>{{ context['images_count'] }}</b>
-- Containers: <b>{{ context['containers_count'] }}</b>
-
-<blockquote>Now, I am prepared to provide more detailed information.
-    Please select a specific section that you would like me to elaborate on
-    {{ backhand_index_pointing_down }}{{ backhand_index_pointing_down }}{{ backhand_index_pointing_down }}</blockquote>
+<i>Select an option below for detailed information</i> {{ backhand_index_pointing_down }}

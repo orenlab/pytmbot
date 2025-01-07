@@ -1,19 +1,27 @@
 {# templates/memory.jinja2 #}
-{{ emojis['cross_mark'] }} Attention! {{ emojis['double_exclamation_mark'] }}DANGER zone!
+{% macro format_container_name(name) %}
+{{ emojis['briefcase'] }} <b>{{ name }}</b>
+{% endmacro %}
 
-This section allows you to manage the container {{ emojis['briefcase'] }} <b>{{ container_name }}</b>.
+{{ emojis['cross_mark'] }} <b>Attention!</b> {{ emojis['double_exclamation_mark'] }}<b>DANGER zone!</b>
 
+This section allows you to manage the container {{ format_container_name(container_name) }}
 Current container state: <b>{{ state }}</b>
 
 <b>All your actions are final</b> {{ emojis['anxious_face_with_sweat'] }}
 
+{% set actions = {
+    'Start': 'Start the container using the last set of arguments',
+    'Stop': 'Stop the container completely',
+    'Restart': 'Restart the container using the last startup parameters',
+    'Remove': 'Remove the container'
+} %}
+
 The following options are available, depending on the current state of the container:
 <blockquote expandable>
-    Start: Start the container using the last set of arguments.
-    Stop: Stop the container completely.
-    Restart: Restart the container using the last startup parameters.
-    Remove: Remove the container.
+    {% for action, description in actions.items() %}
+    {{ action }}: {{ description }}
+    {% endfor %}
 </blockquote>
 
-Available options for the container {{ emojis['briefcase'] }} <b>{{ container_name }}</b>:
-
+Available options for the container {{ format_container_name(container_name) }}
