@@ -1,5 +1,3 @@
-import platform
-import socket
 import uuid
 import warnings
 from contextlib import suppress
@@ -61,16 +59,6 @@ class DockerAdapter:
             'timeout': getattr(settings.docker, 'timeout', 30),
         }
 
-    @cached_property
-    def _system_info(self) -> Dict[str, str]:
-        """Get system information for logging context."""
-        return {
-            'hostname': socket.gethostname(),
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'docker_py_version': docker.__version__
-        }
-
     def _get_log_context(self, additional_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Create a context dictionary for logging.
@@ -86,18 +74,6 @@ class DockerAdapter:
             'docker_url': self._docker_url,
             'uptime': (datetime.now() - self._start_time).total_seconds(),
         }
-
-        if self._client:
-            try:
-                with suppress(DockerException):
-                    context['docker_version'] = self._client.version()
-                    context['docker_info'] = {
-                        'containers': len(self._client.containers.list(all=True)),
-                        'images': len(self._client.images.list()),
-                        'swarm_active': self._client.swarm.attrs if self._client.swarm.attrs else False
-                    }
-            except Exception as e:
-                context['docker_client_error'] = str(e)
 
         if additional_context:
             context.update(additional_context)
