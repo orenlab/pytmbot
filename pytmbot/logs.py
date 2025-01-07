@@ -118,25 +118,19 @@ class Logger:
         def decorator(f: Callable[..., T]) -> Callable[..., T]:
             @wraps(f)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                # Лог аргументов для отладки
-                logger.debug(f"Handler {f.__name__} received args: {args}, kwargs: {kwargs}")
-
-                # Поиск Telegram объекта
+                # Search for Telegram object
                 telegram_object = next(
                     (arg for arg in args if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))),
                     None
                 )
 
-                # Лог найденного объекта
                 logger.debug(f"Telegram object in {f.__name__}: {telegram_object}")
 
-                # Базовый контекст
                 context = {
                     "component": f.__name__,
                     "action": f.__name__,
                 }
 
-                # Если объект Telegram найден, добавляем в контекст
                 if telegram_object:
                     context.update(self._extract_update_data(telegram_object))
                 else:
