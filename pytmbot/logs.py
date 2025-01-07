@@ -4,7 +4,8 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
-from functools import wraps
+from functools import wraps, cache
+from time import monotonic_ns
 from typing import Any, Callable, ClassVar, Generator, TypeVar
 from weakref import WeakValueDictionary
 
@@ -64,6 +65,7 @@ class Logger:
             self._configure_logger(parse_cli_args().log_level.upper())
             self.__class__._initialized = True
 
+    @cache
     def _configure_logger(self, log_level: str) -> None:
         """Configure logger with custom settings and levels."""
         self._logger.remove()
@@ -79,11 +81,6 @@ class Logger:
 
         for level_name, (level_no, color) in LogConfig.CUSTOM_LEVELS.items():
             self._logger.level(level_name, no=level_no, color=color)
-
-    @staticmethod
-    def _format_context(**kwargs: Any) -> str:
-        """Cache formatted context strings for better performance."""
-        return " ".join(f"{k}={v}" for k, v in sorted(kwargs.items()) if v is not None)
 
     @staticmethod
     def _extract_update_data(update: Update | Message | CallbackQuery | InlineQuery) -> dict[str, Any]:
@@ -111,42 +108,56 @@ class Logger:
         previous = getattr(self._logger, "_context", {}).copy()
         try:
             self._logger = self._logger.bind(
-                **kwargs,
-                context=self._format_context(**kwargs)
+                **kwargs
             )
             yield self
         finally:
             self._logger = logger.bind(**previous) if previous else logger.bind()
 
     def session_decorator(self, func: Callable[..., T] = None) -> Callable[..., T]:
-        """Decorator for tracking session context in handlers."""
-
         def decorator(f: Callable[..., T]) -> Callable[..., T]:
             @wraps(f)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Лог аргументов для отладки
+                logger.debug(f"Handler {f.__name__} received args: {args}, kwargs: {kwargs}")
+
+                # Поиск Telegram объекта
                 telegram_object = next(
-                    (arg for arg in args if isinstance(arg, (Update, Message, CallbackQuery))),
+                    (arg for arg in args if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))),
                     None
                 )
 
-                if not telegram_object:
-                    raise ValueError(
-                        "No Telegram Update, Message, or CallbackQuery object found in arguments"
-                    )
+                # Лог найденного объекта
+                logger.debug(f"Telegram object in {f.__name__}: {telegram_object}")
 
-                update_data = self._extract_update_data(telegram_object)
+                # Базовый контекст
+                context = {
+                    "component": f.__name__,
+                    "action": f.__name__,
+                }
 
-                with self.context(
-                        component=f.__name__,
-                        action=f.__name__,
-                        **update_data
-                ) as log:
+                # Если объект Telegram найден, добавляем в контекст
+                if telegram_object:
+                    context.update(self._extract_update_data(telegram_object))
+                else:
+                    logger.warning(f"No Telegram object found in handler {f.__name__}")
+
+                with self.context(**context) as log:
+                    start_time = monotonic_ns()
                     try:
                         result = f(*args, **kwargs)
-                        log.success(f"Handler {f.__name__} completed")
+                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        log.success(
+                            f"Handler {f.__name__} completed",
+                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                        )
                         return result
                     except Exception as e:
-                        log.exception(f"Handler {f.__name__} failed: {str(e)}")
+                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        log.exception(
+                            f"Handler {f.__name__} failed after {elapsed_time_ms:.2f}ms: {str(e)}",
+                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                        )
                         raise
 
             return wrapper
