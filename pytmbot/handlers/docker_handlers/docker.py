@@ -81,6 +81,7 @@ def __compile_message():
         "thought_balloon": em.get_emoji("thought_balloon"),
         "spouting_whale": em.get_emoji("spouting_whale"),
         "backhand_index_pointing_down": em.get_emoji("backhand_index_pointing_down"),
+        "package": em.get_emoji("package")
     }
 
     try:
