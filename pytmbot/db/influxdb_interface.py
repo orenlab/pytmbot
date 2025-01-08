@@ -219,7 +219,7 @@ class InfluxDBInterface(BaseComponent):
                 )
 
                 self._write_api.write(bucket=self._config.bucket, record=point)
-                log.success("Data point written successfully")
+                log.debug("Data point written successfully")
 
             except Exception as e:
                 error_context = ErrorContext(
