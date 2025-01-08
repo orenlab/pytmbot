@@ -94,7 +94,7 @@ class SystemMonitorPlugin(PluginCore):
                     token=settings.influxdb.token[0].get_secret_value(),
                     org=settings.influxdb.org[0].get_secret_value(),
                     bucket=settings.influxdb.bucket[0].get_secret_value(),
-                    debug_mode=self.monitor_settings.debug_mode
+                    debug_mode=settings.influxdb.debug_mode
                 )
             )
         except Exception as e:
