@@ -1,230 +1,392 @@
-import re
-import socket
+import ipaddress
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Tuple, Optional
+from functools import lru_cache
+from typing import List, Tuple, Optional, Dict, Any
 from urllib.parse import urlparse
 
 from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-from pytmbot.logs import Logger
-from pytmbot.settings import settings
+from pytmbot.exceptions import (
+    ErrorContext, InfluxDBConfigError, InfluxDBConnectionError, InfluxDBWriteError, InfluxDBQueryError
+)
+from pytmbot.logs import BaseComponent
 
-logger = Logger()
 
-class InfluxDBInterface:
+@dataclass(frozen=True, slots=True)
+class _InfluxDBConfig:
+    """Configuration for InfluxDB connection."""
+    url: str
+    token: str
+    org: str
+    bucket: str
+    debug_mode: bool = False
+
+
+class InfluxDBInterface(BaseComponent):
     """A class for interacting with InfluxDB for storing and retrieving monitoring data."""
 
-    def __init__(self, url: str, token: str, org: str, bucket: str) -> None:
+    def __init__(self, config: _InfluxDBConfig) -> None:
         """
         Initialize the InfluxDB interface.
 
         Args:
-            url (str): The InfluxDB server URL.
-            token (str): Authentication token for InfluxDB.
-            org (str): Organization in InfluxDB.
-            bucket (str): Bucket to store data in.
+            config (InfluxDBConfig): Configuration dataclass containing connection details
+
+        Raises:
+            InfluxDBConfigError: If configuration validation fails
         """
-        self.url = url
-        self.token = token
-        self.org = org
-        self.bucket = bucket
-        self.client = None
-        self.write_api = None
-        self.query_api = None
-        self.debug_mode = settings.influxdb.debug_mode
-        self.warning_showed = False
+        super().__init__("InfluxDBInterface")
+        self._config = config
+        self._client: Optional[InfluxDBClient] = None
+        self._write_api = None
+        self._query_api = None
+        self._warning_shown = False
 
-        if not self.check_url() and not self.warning_showed:
-            self.warning_showed = True
-            logger.warning(
-                f"Using non-local InfluxDB URL: {self.url}. Make sure is it secure."
-            )
+        with self.log_context(action="initialization") as log:
+            try:
+                if not all([config.url, config.token, config.org, config.bucket]):
+                    raise InfluxDBConfigError(ErrorContext(
+                        message="Invalid InfluxDB configuration",
+                        error_code="INVALID_CONFIG",
+                        metadata={
+                            "url": bool(config.url),
+                            "token": bool(config.token),
+                            "org": bool(config.org),
+                            "bucket": bool(config.bucket)
+                        }
+                    ))
 
-        if self.debug_mode:
-            logger.debug(f"InfluxDB client initialized with URL: {self.url}")
+                if not self._is_local_url() and not self._warning_shown:
+                    self._warning_shown = True
+                    log.warning(
+                        "Using non-local InfluxDB URL. Ensure it is secure.",
+                        extra={"url": self._config.url}
+                    )
 
-    def __enter__(self):
-        """Enter the runtime context related to this object."""
-        self.client = InfluxDBClient(url=self.url, token=self.token, org=self.org)
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
-        self.query_api = self.client.query_api()
-        return self
+                if self._config.debug_mode:
+                    log.debug(
+                        "InfluxDB client initialized",
+                        extra={"url": self._config.url, "org": self._config.org, "bucket": self._config.bucket}
+                    )
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"InfluxDB initialization failed: {str(e)}",
+                    error_code="INIT_FAILED",
+                    metadata={"url": self._config.url}
+                )
+                raise InfluxDBConfigError(error_context) from e
+
+    def __enter__(self) -> 'InfluxDBInterface':
+        """Enter the runtime context and initialize the client connection."""
+        with self.log_context(action="connect") as log:
+            try:
+                self._client = InfluxDBClient(
+                    url=self._config.url,
+                    token=self._config.token,
+                    org=self._config.org
+                )
+                self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
+                self._query_api = self._client.query_api()
+                log.debug("InfluxDB connection established")
+                return self
+
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Failed to establish InfluxDB connection: {str(e)}",
+                    error_code="CONNECTION_FAILED",
+                    metadata={
+                        "url": self._config.url,
+                        "org": self._config.org
+                    }
+                )
+                raise InfluxDBConnectionError(error_context) from e
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit the runtime context and ensure proper cleanup."""
+        with self.log_context(action="disconnect") as log:
+            if self._client:
+                try:
+                    self._client.close()
+                    self._client = None
+                    self._write_api = None
+                    self._query_api = None
+                    log.debug("InfluxDB connection closed successfully")
+                except Exception as e:
+                    error_context = ErrorContext(
+                        message=f"Error closing InfluxDB connection: {str(e)}",
+                        error_code="DISCONNECT_FAILED"
+                    )
+                    raise InfluxDBConnectionError(error_context) from e
+
+    @lru_cache(maxsize=128)
+    def _is_local_url(self) -> bool:
         """
-        Exit the runtime context related to this object.
-        Closes the InfluxDB client connection.
-        """
-        if self.client:
-            self.client.close()
-            if self.debug_mode:
-                logger.debug("InfluxDB client successfully closed.")
-
-    def check_url(self) -> bool:
-        """
-        Check if the InfluxDB URL is local.
+        Check if the InfluxDB URL is local using cached results.
 
         Returns:
-            bool: True if the URL is local, False otherwise.
+            bool: True if the URL is local, False otherwise
         """
-        parsed_url = urlparse(self.url)
-        hostname = parsed_url.hostname
+        with self.log_context(action="check_url") as log:
+            parsed_url = urlparse(self._config.url)
+            hostname = parsed_url.hostname
 
-        if hostname in ["localhost", "127.0.0.1"]:
-            return True
+            if hostname in ("localhost", "127.0.0.1"):
+                return True
 
-        # Check if it's a private IP address
-        try:
-            ip = socket.gethostbyname(hostname)
-            logger.debug(f"Resolved IP for {hostname}: {ip}")
+            try:
+                ip_addr = ipaddress.ip_address(hostname)
+                is_private = ip_addr.is_private
+                log.debug(
+                    "IP address checked",
+                    extra={"hostname": hostname, "is_private": is_private}
+                )
+                return is_private
+            except ValueError:
+                try:
+                    ip_str = str(ipaddress.ip_address(self._resolve_hostname(hostname)))
+                    is_private = ipaddress.ip_address(ip_str).is_private
+                    log.debug(
+                        "Hostname resolved and checked",
+                        extra={"hostname": hostname, "ip": ip_str, "is_private": is_private}
+                    )
+                    return is_private
+                except ValueError:
+                    log.warning(
+                        "Failed to resolve hostname",
+                        extra={"hostname": hostname}
+                    )
+                    return False
 
-            # Match private IP ranges
-            private_ip_patterns = [
-                re.compile(r"^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$"),  # 10.x.x.x
-                re.compile(r"^192\.168\.\d{1,3}\.\d{1,3}$"),  # 192.168.x.x
-                re.compile(
-                    r"^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$"
-                ),  # 172.16.x.x - 172.31.x.x
-            ]
+    @staticmethod
+    @lru_cache(maxsize=128)
+    def _resolve_hostname(hostname: str) -> str:
+        """
+        Resolve hostname to IP address with caching.
 
-            for pattern in private_ip_patterns:
-                if pattern.match(ip):
-                    return True
-        except socket.gaierror:
-            logger.warning(f"Failed to resolve hostname: {hostname}")
+        Args:
+            hostname: The hostname to resolve
 
-        return False
+        Returns:
+            str: The resolved IP address
+        """
+        import socket
+        return socket.gethostbyname(hostname)
 
     def write_data(
-        self,
-        measurement: str,
-        fields: dict[str, float],
-        tags: Optional[dict[str, str]] = None,
+            self,
+            measurement: str,
+            fields: Dict[str, float],
+            tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        try:
-            point = Point(measurement)
+        """
+        Write data points to InfluxDB.
 
-            if tags:
-                for key, value in tags.items():
-                    point = point.tag(key, value)
+        Args:
+            measurement: The measurement name
+            fields: Dictionary of field names and values
+            tags: Optional dictionary of tags
 
-            for key, value in fields.items():
-                point = point.field(key, value)
+        Raises:
+            InfluxDBWriteError: If write operation fails
+        """
+        with self.log_context(
+                action="write",
+                measurement=measurement,
+                field_count=len(fields),
+                tag_count=len(tags) if tags else 0
+        ) as log:
+            try:
+                point = (Point(measurement)
+                         .time(datetime.now(timezone.utc)))
 
-            point = point.time(datetime.now(timezone.utc))
-            if self.debug_mode:
-                logger.debug(
-                    f"Writing data to InfluxDB: measurement={measurement}, fields={fields}, tags={tags}"
+                if tags:
+                    for key, value in tags.items():
+                        point = point.tag(key, value)
+
+                for key, value in fields.items():
+                    point = point.field(key, value)
+
+                log.debug(
+                    "Writing data point",
+                    extra={
+                        "measurement": measurement,
+                        "fields": fields,
+                        "tags": tags
+                    }
                 )
-            self.write_api.write(bucket=self.bucket, record=point)
-        except InfluxDBError as e:
-            logger.error(f"Error writing to InfluxDB: {e}")
-            raise
+
+                self._write_api.write(bucket=self._config.bucket, record=point)
+                log.success("Data point written successfully")
+
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Failed to write data point: {str(e)}",
+                    error_code="WRITE_FAILED",
+                    metadata={
+                        "measurement": measurement,
+                        "field_count": len(fields),
+                        "tag_count": len(tags) if tags else 0
+                    }
+                )
+                raise InfluxDBWriteError(error_context) from e
 
     def query_data(
-        self, measurement: str, start: str, stop: str, field: str
+            self,
+            measurement: str,
+            start: str,
+            stop: str,
+            field: str
     ) -> List[Tuple[datetime, float]]:
         """
         Query data from InfluxDB for a specific measurement and time range.
 
         Args:
-            measurement (str): The name of the measurement to query.
-            start (str): Start time in RFC3339 format (e.g., "2023-09-01T00:00:00Z").
-            stop (str): Stop time in RFC3339 format (e.g., "2023-09-01T23:59:59Z").
-            field (str): The field key to query (e.g., "cpu").
+            measurement: The measurement name
+            start: Start time in RFC3339 format
+            stop: Stop time in RFC3339 format
+            field: The field key to query
 
         Returns:
-            List[Tuple[datetime, float]]: List of timestamp and field value tuples.
+            List of timestamp and value tuples
+
+        Raises:
+            InfluxDBQueryError: If query operation fails
         """
-        try:
+        with self.log_context(
+                action="query",
+                measurement=measurement,
+                field=field,
+                time_range={"start": start, "stop": stop}
+        ) as log:
             query = (
-                f'from(bucket: "{self.bucket}") '
+                f'from(bucket: "{self._config.bucket}") '
                 f"|> range(start: {start}, stop: {stop}) "
                 f'|> filter(fn: (r) => r._measurement == "{measurement}") '
                 f'|> filter(fn: (r) => r._field == "{field}") '
                 f'|> yield(name: "mean")'
             )
 
-            if self.debug_mode:
-                logger.debug(f"Running query: {query}")
-            tables = self.query_api.query(query, org=self.org)
-            results = []
+            try:
+                log.debug("Executing query", extra={"query": query})
+                tables = self._query_api.query(query, org=self._config.org)
 
-            for table in tables:
-                for record in table.records:
-                    results.append((record.get_time(), record.get_value()))
+                results = [
+                    (record.get_time(), record.get_value())
+                    for table in tables
+                    for record in table.records
+                ]
 
-            logger.info(f"Query returned {len(results)} records from InfluxDB.")
-            return results
-        except InfluxDBError as e:
-            logger.error(f"Error querying InfluxDB: {e}")
-            return []
+                log.success(
+                    "Query executed successfully",
+                    extra={"record_count": len(results)}
+                )
+                return results
 
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Query execution failed: {str(e)}",
+                    error_code="QUERY_FAILED",
+                    metadata={
+                        "measurement": measurement,
+                        "field": field,
+                        "time_range": {"start": start, "stop": stop}
+                    }
+                )
+                raise InfluxDBQueryError(error_context) from e
+
+    @lru_cache(maxsize=32)
     def get_available_measurements(self) -> List[str]:
         """
-        Retrieve a list of available measurements from InfluxDB.
+        Retrieve available measurements from InfluxDB with caching.
 
         Returns:
-            List[str]: List of measurement names.
+            List of measurement names
+
+        Raises:
+            InfluxDBQueryError: If retrieval fails
         """
-        try:
-            query = f'import "influxdata/influxdb/schema" \
-                    schema.measurements(bucket: "{self.bucket}")'
-
-            if self.debug_mode:
-                logger.debug(f"Running query to get measurements: {query}")
-
-            tables = self.query_api.query(query, org=self.org)
-            measurements = [
-                record.get_value() for table in tables for record in table.records
-            ]
-
-            logger.info(
-                f"Retrieved {len(measurements)} measurements from InfluxDB."
+        with self.log_context(action="list_measurements") as log:
+            query = (
+                'import "influxdata/influxdb/schema"\n'
+                f'schema.measurements(bucket: "{self._config.bucket}")'
             )
-            return measurements
-        except InfluxDBError as e:
-            logger.error(f"Error retrieving measurements from InfluxDB: {e}")
-            return []
 
+            try:
+                log.debug("Fetching measurements", extra={"query": query})
+                tables = self._query_api.query(query, org=self._config.org)
+
+                measurements = [
+                    record.get_value()
+                    for table in tables
+                    for record in table.records
+                ]
+
+                log.success(
+                    "Measurements retrieved successfully",
+                    extra={"count": len(measurements)}
+                )
+                return measurements
+
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Failed to retrieve measurements: {str(e)}",
+                    error_code="LIST_MEASUREMENTS_FAILED"
+                )
+                raise InfluxDBQueryError(error_context) from e
+
+    @lru_cache(maxsize=64)
     def get_available_fields(self, measurement: str) -> List[str]:
         """
-        Retrieve a list of available fields for a specific measurement from InfluxDB.
+        Retrieve available fields for a measurement with caching.
 
         Args:
-            measurement (str): The measurement name.
+            measurement: The measurement name
 
         Returns:
-            List[str]: List of field names.
+            List of field names
+
+        Raises:
+            InfluxDBQueryError: If retrieval fails
         """
-        try:
+        with self.log_context(
+                action="list_fields",
+                measurement=measurement
+        ) as log:
             query = (
-                f'from(bucket: "{self.bucket}") '
-                f"|> range(start: -1h) "
-                f'|> filter(fn: (r) => r._measurement == "{measurement}") '
-                f'|> keep(columns: ["_field"]) '
-                f'|> distinct(column: "_field") '
+                f'from(bucket: "{self._config.bucket}")'
+                f"|> range(start: -1h)"
+                f'|> filter(fn: (r) => r._measurement == "{measurement}")'
+                f'|> keep(columns: ["_field"])'
+                f'|> distinct(column: "_field")'
                 f'|> yield(name: "fields")'
             )
 
-            if self.debug_mode:
-                logger.debug(
-                    f"Running query to get fields for measurement {measurement}: {query}"
+            try:
+                log.debug("Fetching fields", extra={"query": query})
+                tables = self._query_api.query(query, org=self._config.org)
+
+                fields = [
+                    record.get_value()
+                    for table in tables
+                    for record in table.records
+                ]
+
+                log.success(
+                    "Fields retrieved successfully",
+                    extra={
+                        "measurement": measurement,
+                        "field_count": len(fields)
+                    }
                 )
+                return fields
 
-            tables = self.query_api.query(query, org=self.org)
-            fields = [
-                record.get_value() for table in tables for record in table.records
-            ]
-
-            logger.info(
-                f"Retrieved {len(fields)} fields for measurement {measurement}."
-            )
-            return fields
-        except InfluxDBError as e:
-            logger.error(
-                f"Error retrieving fields for measurement {measurement} from InfluxDB: {e}"
-            )
-            return []
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Failed to retrieve fields: {str(e)}",
+                    error_code="LIST_FIELDS_FAILED",
+                    metadata={"measurement": measurement}
+                )
+                raise InfluxDBQueryError(error_context) from e

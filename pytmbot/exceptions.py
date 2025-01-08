@@ -137,8 +137,22 @@ class TelebotExceptionHandler(ExceptionHandler):
 
         return True
 
-# Backwards compatibility aliases
-# PyTMBotError = BaseBotException
-# PyTMBotConnectionError = ServerConnectionError
-# PyTMBotErrorHandlerError = MessageHandlerError
-# PyTMBotErrorTemplateError = TemplateError
+
+class InfluxDBException(BaseBotException):
+    """Base class for InfluxDB related exceptions."""
+
+
+class InfluxDBConnectionError(ConnectionException):
+    """Raised on InfluxDB connection failures."""
+
+
+class InfluxDBConfigError(InfluxDBException):
+    """Raised on InfluxDB configuration issues."""
+
+
+class InfluxDBWriteError(InfluxDBException):
+    """Raised on InfluxDB write operation failures."""
+
+
+class InfluxDBQueryError(InfluxDBException):
+    """Raised on InfluxDB query operation failures."""
