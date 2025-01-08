@@ -37,7 +37,7 @@ class LogConfig:
         "[<level>{level: <8}</level>]"
         "[<magenta>{module: <16}</magenta>] › "
         "<level>{message}</level> › "
-        "<yellow>{extra}</yellow>"
+        "<fg #A9A9A9>{extra}</fg #A9A9A9>"
     )
     CUSTOM_LEVELS: ClassVar[dict[str, tuple[int, str]]] = {
         "DENIED": (39, "<red>"),
