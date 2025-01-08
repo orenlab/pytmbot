@@ -12,7 +12,7 @@ from pytmbot.adapters.docker.containers_info import (
     retrieve_containers_stats,
 )
 from pytmbot.adapters.docker.images_info import fetch_image_details
-from pytmbot.db.influxdb_interface import InfluxDBInterface
+from pytmbot.db.influxdb_interface import InfluxDBInterface, InfluxDBConfig
 from pytmbot.logs import Logger
 from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.plugins.monitor.models import ResourceThresholds
@@ -89,10 +89,13 @@ class SystemMonitorPlugin(PluginCore):
     def _init_influxdb(self) -> None:
         try:
             self.influxdb_client = InfluxDBInterface(
-                url=settings.influxdb.url[0].get_secret_value(),
-                token=settings.influxdb.token[0].get_secret_value(),
-                org=settings.influxdb.org[0].get_secret_value(),
-                bucket=settings.influxdb.bucket[0].get_secret_value()
+                InfluxDBConfig(
+                    url=settings.influxdb.url[0].get_secret_value(),
+                    token=settings.influxdb.token[0].get_secret_value(),
+                    org=settings.influxdb.org[0].get_secret_value(),
+                    bucket=settings.influxdb.bucket[0].get_secret_value(),
+                    debug_mode=self.monitor_settings.debug_mode
+                )
             )
         except Exception as e:
             logger.error("Failed to initialize InfluxDB client", e)

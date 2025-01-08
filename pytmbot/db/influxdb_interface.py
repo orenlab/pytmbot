@@ -15,7 +15,7 @@ from pytmbot.logs import BaseComponent
 
 
 @dataclass(frozen=True, slots=True)
-class _InfluxDBConfig:
+class InfluxDBConfig:
     """Configuration for InfluxDB connection."""
     url: str
     token: str
@@ -27,7 +27,7 @@ class _InfluxDBConfig:
 class InfluxDBInterface(BaseComponent):
     """A class for interacting with InfluxDB for storing and retrieving monitoring data."""
 
-    def __init__(self, config: _InfluxDBConfig) -> None:
+    def __init__(self, config: InfluxDBConfig) -> None:
         """
         Initialize the InfluxDB interface.
 
