@@ -163,7 +163,6 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     send_telegram_message(
         bot=bot,
         chat_id=message.chat.id,
-        message=message,
         text=response,
         reply_markup=keyboard,
         parse_mode="Markdown"
