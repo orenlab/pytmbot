@@ -81,7 +81,7 @@ class PyTMBot(BaseComponent):
         try:
             healthy = self.bot is not None and self.bot.get_me()
             self.log.debug("Health check completed", healthy=bool(healthy), **context)
-            return healthy
+            return True if healthy else False
         except telebot.apihelper.ApiException as e:
             self.log.error("Telegram API connection failed", error=sanitize_exception(e), **context)
             return False

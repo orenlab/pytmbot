@@ -21,31 +21,37 @@ from pytmbot.utils.utilities import parse_cli_args
 
 args = parse_cli_args()
 
-if args.health_check != "True":
+if not args.health_check:
     from pytmbot import pytmbot_instance
 
 
 class HealthStatus:
     """Singleton class to track and manage the health status of the bot."""
-    __slots__ = ('_last_health_check_result',)
+    __slots__ = ('_last_health_check_result', '_last_check_time')
     _instance: Optional["HealthStatus"] = None
 
     def __init__(self):
         self._last_health_check_result = None
+        self._last_check_time = None
 
     def __new__(cls) -> "HealthStatus":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._last_health_check_result = None
+            cls._instance._last_check_time = None
         return cls._instance
 
     @property
     def last_health_check_result(self) -> Optional[bool]:
+        if (self._last_check_time is None or
+                time.time() - self._last_check_time > 2 * BotLauncher.HEALTH_CHECK_INTERVAL):
+            return None
         return self._last_health_check_result
 
     @last_health_check_result.setter
     def last_health_check_result(self, value: Optional[bool]) -> None:
         self._last_health_check_result = value is not None and value
+        self._last_check_time = time.time()
 
 
 class BotLauncher(logs.BaseComponent):
@@ -196,9 +202,8 @@ class BotLauncher(logs.BaseComponent):
 
 
 def main() -> NoReturn:
-    if args.health_check == "True":
-        health_status = HealthStatus()
-        sys.exit(0 if health_status.last_health_check_result else 1)
+    if args.health_check:
+        sys.exit(0 if HealthStatus().last_health_check_result is True else 1)
     else:
         launcher = BotLauncher()
         launcher.run()
