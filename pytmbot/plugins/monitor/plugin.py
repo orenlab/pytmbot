@@ -1,4 +1,3 @@
-from logging import Logger
 from typing import Optional
 
 from telebot import TeleBot
@@ -20,7 +19,6 @@ class MonitoringPlugin(PluginInterface):
 
     Attributes:
         bot (TeleBot): An instance of TeleBot to interact with Telegram API.
-        plugin_logger (Logger): Logger for plugin activities.
     """
 
     __slots__ = ('plugin_logger', 'config', '__weakref__')
@@ -28,7 +26,6 @@ class MonitoringPlugin(PluginInterface):
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
-        self.plugin_logger: Logger = self.plugin_logger
 
     @staticmethod
     def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:
