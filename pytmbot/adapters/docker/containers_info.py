@@ -145,7 +145,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
     container_details = __get_container_attributes(container_id)
     attrs = container_details.attrs
 
-    created_at = datetime.fromisoformat(attrs["Created"].rstrip('Z'))
+    created_at = datetime.fromisoformat(attrs["Created"])
 
     return {
         "id": container_id,
@@ -154,7 +154,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
         "created": created_at.strftime("%Y-%m-%d, %H:%M:%S"),
         "run_at": (
             set_naturaltime(
-                datetime.fromisoformat(attrs["State"].get("StartedAt", "").rstrip('Z'))
+                datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
             )
             if attrs["State"].get("StartedAt")
             else "N/A"
