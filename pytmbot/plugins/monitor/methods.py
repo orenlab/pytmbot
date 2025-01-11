@@ -14,7 +14,6 @@ from pytmbot.adapters.docker.containers_info import (
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.db.influxdb_interface import InfluxDBInterface, InfluxDBConfig
 from pytmbot.logs import Logger
-from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.plugins.monitor.models import ResourceThresholds
 from pytmbot.plugins.monitor.utils import (
     MonitoringState, SystemMetrics,
@@ -31,7 +30,7 @@ class SystemMonitorPlugin(PluginCore):
     """Optimized plugin for monitoring system resources."""
 
     __slots__ = (
-        'bot', 'config', 'monitor_settings', 'event_threshold_duration',
+        'bot', 'monitor_settings', 'event_threshold_duration',
         'state', 'thresholds', '_previous_container_hashes',
         '_previous_image_hashes', '_previous_counts', '_known_container_ids',
         '_known_image_ids', 'influxdb_client', 'is_docker', 'check_interval',
@@ -40,14 +39,12 @@ class SystemMonitorPlugin(PluginCore):
 
     def __init__(
             self,
-            config: MonitorConfig,
             bot: TeleBot,
             event_threshold_duration: float = 20
     ) -> None:
         super().__init__()
 
         self.bot = bot
-        self.config = config
         self.monitor_settings = self.settings.plugins_config.monitor
         self.event_threshold_duration = event_threshold_duration
 

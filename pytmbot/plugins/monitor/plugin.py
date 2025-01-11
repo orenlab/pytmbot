@@ -5,12 +5,10 @@ from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
 from pytmbot.globals import keyboards, em
-from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
 from pytmbot.plugins.plugin_interface import PluginInterface
-from pytmbot.plugins.plugins_core import PluginCore
 
 
 class MonitoringPlugin(PluginInterface):
@@ -30,8 +28,7 @@ class MonitoringPlugin(PluginInterface):
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
-        self.plugin_logger: Logger = PluginCore().logger
-        self.config: MonitorConfig
+        self.plugin_logger: Logger = self.plugin_logger
 
     @staticmethod
     def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:
@@ -75,7 +72,7 @@ class MonitoringPlugin(PluginInterface):
     def register(self) -> None:
         """Register SystemMonitorPlugin and start monitoring."""
         try:
-            monitor_plugin = SystemMonitorPlugin(config=self.config, bot=self.bot)
+            monitor_plugin = SystemMonitorPlugin(bot=self.bot)
             monitor_plugin.start_monitoring()
 
             self.bot.register_message_handler(
