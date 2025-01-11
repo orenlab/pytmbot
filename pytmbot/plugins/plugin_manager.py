@@ -245,6 +245,36 @@ class PluginManager:
             logger.error(f"Failed to add plugin info: {e}")
             return False
 
+    @classmethod
+    def get_merged_index_keys(cls) -> dict[str, str]:
+        """
+        Retrieves the merged index keys for all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of index keys and their descriptions.
+        """
+        return cls._index_keys
+
+    @classmethod
+    def get_plugin_names(cls) -> dict[str, str]:
+        """
+        Retrieves the names and versions of all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of plugin names and their versions.
+        """
+        return cls._plugin_names
+
+    @classmethod
+    def get_plugin_descriptions(cls) -> dict[str, str]:
+        """
+        Retrieves the descriptions of all registered plugins.
+
+        Returns:
+            dict[str, str]: A dictionary of plugin names and their descriptions.
+        """
+        return cls._plugin_descriptions
+
     def _cleanup_plugin(self, plugin_name: str):
         """Performs cleanup operations for a plugin."""
         ref = self._plugin_instances.get(plugin_name)

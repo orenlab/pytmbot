@@ -1,41 +1,20 @@
 {# templates/docker_templates/d_images.jinja2 #}
 
-{#
-Используемые эмодзи:
-- thought_balloon: 💭 для заголовка списка
-- spouting_whale: 🐳 для Image ID
-- package: 📦 для имени образа
-- bookmark_tabs: 📑 для тегов
-- gear: ⚙️ для архитектуры
-- desktop_computer: 🖥️ для целевой ОС
-- floppy_disk: 💾 для размера
-- clock: 🕐 для даты создания
-- person_technologist: 👨‍💻 для автора
-- wrench: 🔧 для версии Docker
-- label: 🏷️ для меток
-- electric_plug: 🔌 для портов
-- key: 🔑 для переменных окружения
-- arrow_right: ➡️ для entrypoint
-- computer_mouse: 🖱️ для команды
-#}
-
 {# Макрос для форматирования поля с значением #}
 {% macro format_field(emoji, label, value, default='N/A', formatter=None) -%}
-    {%- if value or default -%}
-        {{- emoji }} <b>{{ label }}:</b>
-        {%- if formatter == "join" -%}
-            {{ value | default(default) | join(", ") }}
-        {%- elif formatter == "join_space" -%}
-            {{ value | default(default) | join(" ") }}
-        {%- elif formatter == "tojson" -%}
-            {{ value | default(default) | tojson }}
-        {%- else -%}
-            {{ value | default(default) }}
-        {%- endif -%}
-    {%- endif -%}
+{%- if value or default -%}
+{{ emoji }} <b>{{ label }}:</b> {% if formatter == "join" -%}
+{{ value | default(default) | join(", ") }}
+{%- elif formatter == "join_space" -%}
+{{ value | default(default) | join(" ") }}
+{%- elif formatter == "tojson" -%}
+{{ value | default(default) | tojson }}
+{%- else -%}
+{{ value | default(default) }}
+{%- endif %}
+{% endif -%}
 {%- endmacro %}
 
-{# Основные поля, которые всегда отображаются #}
 {% set required_fields = [
     ('spouting_whale', 'Image ID', 'id', None, None),
     ('package', 'Name', 'name', 'N/A', None),
@@ -43,10 +22,9 @@
     ('gear', 'OS Architecture', 'architecture', 'N/A', None),
     ('desktop_computer', 'Target OS', 'os', 'N/A', None),
     ('floppy_disk', 'Size', 'size', 'N/A', None),
-    ('clock', 'Created', 'created', 'N/A', None)
+    ('mantelpiece_clock', 'Created', 'created', 'N/A', None)
 ] %}
 
-{# Опциональные поля #}
 {% set optional_fields = [
     ('person_technologist', 'Author', 'author', None, None),
     ('wrench', 'Docker Version', 'docker_version', None, None),
@@ -57,20 +35,22 @@
     ('computer_mouse', 'Command', 'cmd', None, 'join_space')
 ] %}
 
-{{ emojis.thought_balloon }} Here are the images:
+{{ context.emojis.thought_balloon }} <b>Docker Images:</b>
 
-{% for value in context.images %}
-    {# Вывод обязательных полей #}
-    {% for emoji_key, label, field_key, default_value, formatter in required_fields %}
-        {{ format_field(emojis[emoji_key], label, value.get(field_key), default_value, formatter) }}
-    {% endfor %}
-
-    {# Вывод опциональных полей #}
-    {% for emoji_key, label, field_key, default_value, formatter in optional_fields %}
-        {%- if value.get(field_key) -%}
-            {{ format_field(emojis[emoji_key], label, value[field_key], default_value, formatter) }}
-        {%- endif -%}
-    {% endfor %}
-{% else %}
-    <b>No images available.</b>
+{% for value in context.images -%}
+{% for emoji_key, label, field_key, default_value, formatter in required_fields -%}
+{{ format_field(context.emojis[emoji_key], label, value.get(field_key), default_value, formatter) }}
+{% endfor -%}
+{% for emoji_key, label, field_key, default_value, formatter in optional_fields -%}
+{%- if value.get(field_key) -%}
+{{ format_field(context.emojis[emoji_key], label, value[field_key], default_value, formatter) }}
+{%- endif -%}
 {% endfor %}
+{%- if not loop.last %}
+
+<i>───────────────</i>
+
+{% endif -%}
+{% else %}
+<b>No images available.</b>
+{%- endfor -%}

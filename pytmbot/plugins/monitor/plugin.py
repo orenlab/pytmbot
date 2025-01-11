@@ -5,11 +5,10 @@ from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
 from pytmbot.globals import keyboards, em
+from pytmbot.models.settings_model import MonitorConfig
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
-from pytmbot.plugins.monitor.config import load_config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
-from pytmbot.plugins.monitor.models import MonitorPluginConfig
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
 
@@ -24,7 +23,6 @@ class MonitoringPlugin(PluginInterface):
     Attributes:
         bot (TeleBot): An instance of TeleBot to interact with Telegram API.
         plugin_logger (Logger): Logger for plugin activities.
-        config (Dict[str, Any]): Configuration settings for monitoring.
     """
 
     __slots__ = ('plugin_logger', 'config', '__weakref__')
@@ -33,7 +31,7 @@ class MonitoringPlugin(PluginInterface):
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
         self.plugin_logger: Logger = PluginCore().logger
-        self.config: MonitorPluginConfig = load_config()
+        self.config: MonitorConfig
 
     @staticmethod
     def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:

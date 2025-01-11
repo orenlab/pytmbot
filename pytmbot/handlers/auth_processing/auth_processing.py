@@ -116,9 +116,9 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
 
         if isinstance(query, CallbackQuery):
             bot.delete_message(query.message.chat.id, query.message.message_id)
-            bot.send_message(query.message.chat.id, text=response, reply_markup=keyboard)
+            bot.send_message(query.message.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
         else:
-            bot.send_message(query.chat.id, text=response, reply_markup=keyboard)
+            bot.send_message(query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
     except Exception as error:
         raise exceptions.AuthError(ErrorContext(
             message="Failed handling access denied",

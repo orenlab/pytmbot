@@ -1,18 +1,9 @@
 from dataclasses import dataclass
 from typing import TypedDict, Optional, Any
 
-from pydantic import BaseModel, Field
-
 from pytmbot.logs import Logger
 
 logger = Logger()
-
-
-class MonitorPluginConfig(BaseModel):
-    """
-    Configuration model for the system monitoring plugin.
-    """
-    emoji_for_notification: str = Field(default="🚢🆘🛟🚨📢\n")
 
 
 class EventData(TypedDict):

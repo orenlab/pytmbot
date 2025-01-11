@@ -125,8 +125,13 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
 
             emojis: Final[Dict[str, str]] = {
                 "thought_balloon": em.get_emoji("thought_balloon"),
-                "luggage": em.get_emoji("pushpin"),
-                "minus": em.get_emoji("minus"),
+                "oil_drum": em.get_emoji("oil_drum"),
+                "id": em.get_emoji("ID_button"),
+                "package": em.get_emoji("package"),
+                "mantelpiece_clock": em.get_emoji("mantelpiece_clock"),
+                "rocket": em.get_emoji("rocket"),
+                "antenna_bars": em.get_emoji("antenna_bars"),
+                "magnifying_glass": em.get_emoji("magnifying_glass_tilted_left"),
             }
 
         # Render the template with the context data and emojis

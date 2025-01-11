@@ -81,7 +81,7 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
                 'gear': em.get_emoji("gear"),
                 'desktop_computer': em.get_emoji("desktop_computer"),
                 'floppy_disk': em.get_emoji("floppy_disk"),
-                'clock': em.get_emoji("clock"),
+                'mantelpiece_clock': em.get_emoji("mantelpiece_clock"),
                 'person_technologist': em.get_emoji("person_technologist"),
                 'wrench': em.get_emoji("wrench"),
                 'label': em.get_emoji("label"),

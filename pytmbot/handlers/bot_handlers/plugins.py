@@ -38,6 +38,20 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         # Fetch plugin information
         keys = plugin_manager.get_merged_index_keys()
         plugin_names = plugin_manager.get_plugin_names()
+
+        # Check if there are any plugins available
+        if not plugin_names:
+            first_name: str = message.from_user.first_name
+
+            send_telegram_message(
+                bot=bot,
+                chat_id=message.chat.id,
+                text=f"⚠️ {first_name}, there are no plugins available...",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Continue with normal plugin handling if plugins exist
         plugin_descriptions = plugin_manager.get_plugin_descriptions()
 
         # Create plugin information dictionary
