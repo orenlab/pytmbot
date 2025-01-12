@@ -3,13 +3,21 @@ from datetime import datetime
 
 import psutil
 
-from pytmbot.adapters.psutil.types import LoadAverage, MemoryStats, DiskStats, SwapStats, SensorStats, ProcessStats, \
-    NetworkIOStats, UserInfo, NetworkInterfaceStats, CPUFrequencyStats, CPUUsageStats
+from pytmbot.adapters.psutil.adapter_types import (
+    LoadAverage,
+    MemoryStats,
+    DiskStats,
+    SwapStats,
+    SensorStats,
+    ProcessStats,
+    NetworkIOStats,
+    UserInfo,
+    NetworkInterfaceStats,
+    CPUFrequencyStats,
+    CPUUsageStats, TopProcess
+)
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize
-
-# Type definitions
-
 
 logger = Logger()
 
@@ -230,3 +238,29 @@ class PsutilAdapter:
             "cpu_percent": 0.0,
             "cpu_percent_per_core": []
         })
+
+    def get_top_processes(self, count: int = 10) -> TopProcess:
+        """Get the top processes by CPU and memory usage."""
+
+        def _get_top_processes():
+            processes = []
+            for proc in self._psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+                with suppress(Exception):  # Suppress errors for inaccessible processes
+                    cpu_percent = proc.info['cpu_percent'] or 0.0
+                    memory_percent = proc.info['memory_percent'] or 0.0
+                    processes.append({
+                        "pid": proc.info['pid'],
+                        "name": proc.info['name'],
+                        "cpu_percent": cpu_percent,
+                        "memory_percent": memory_percent
+                    })
+
+            # Sort by CPU and memory usage, then take the top `count` processes
+            sorted_processes = sorted(
+                processes,
+                key=lambda p: (p['cpu_percent'], p['memory_percent']),
+                reverse=True
+            )
+            return sorted_processes[:count]
+
+        return self._safe_execute("top processes", _get_top_processes, [])

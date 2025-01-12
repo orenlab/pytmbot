@@ -9,7 +9,7 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter, running_in_docker
+from pytmbot.globals import em, psutil_adapter, running_in_docker, keyboards, button_data
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -38,6 +38,11 @@ def handle_process(message: Message, bot: TeleBot):
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
+        inline_key = button_data(
+            text="Top 10 processes", callback_data="__process_info__"
+        )
+        keyboard = keyboards.build_inline_keyboard(inline_key)
+
         with Compiler(
                 template_name="b_process.jinja2",
                 context=process_count,
@@ -46,7 +51,7 @@ def handle_process(message: Message, bot: TeleBot):
         ) as compiler:
             message_text = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
+        return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML", reply_markup=keyboard)
 
     except Exception as error:
         bot.send_message(

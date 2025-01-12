@@ -37,6 +37,7 @@ from pytmbot.handlers.docker_handlers.inline.manage_action import (
 )
 from pytmbot.handlers.server_handlers.filesystem import handle_file_system
 from pytmbot.handlers.server_handlers.inline.swap import handle_swap_info
+from pytmbot.handlers.server_handlers.inline.top_process import handle_process_info
 from pytmbot.handlers.server_handlers.load_average import handle_load_average
 from pytmbot.handlers.server_handlers.memory import handle_memory
 from pytmbot.handlers.server_handlers.network import handle_network
@@ -249,6 +250,12 @@ def inline_handler_factory() -> HandlerType:
             HandlerConfig(
                 callback=handle_swap_info,
                 filter_func=lambda call: call.data == "__swap_info__"
+            )
+        ],
+        "process_info": [
+            HandlerConfig(
+                callback=handle_process_info,
+                filter_func=lambda call: call.data == "__process_info__"
             )
         ],
         "update_info": [
