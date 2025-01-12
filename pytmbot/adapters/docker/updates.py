@@ -209,8 +209,7 @@ class DockerImageUpdater(BaseComponent):
                             _url = data.get("next")
 
                 except (aiohttp.ClientError, json.JSONDecodeError) as e:
-                    self._log.error(f"Failed to fetch tags from {_url}: {e}")
-                    return
+                    self._log.warning(f"Unable to fetch tags from {_url}: {e}")
 
             for url in base_urls:
                 await fetch_with_pagination(url)
@@ -308,6 +307,7 @@ class DockerImageUpdater(BaseComponent):
         with self._log.context(action="to_json"):
             result = asyncio.run(self._check_updates())
             return json.dumps(result, indent=4)
+
 
 if __name__ == "__main__":
     updater = DockerImageUpdater()
