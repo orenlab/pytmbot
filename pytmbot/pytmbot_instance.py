@@ -34,7 +34,7 @@ from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils.utilities import parse_cli_args, sanitize_exception, get_environment_state
+from pytmbot.utils import parse_cli_args, sanitize_exception, get_environment_state
 
 MiddlewareType: TypeAlias = tuple[type, dict[str, Any]]
 HandlerDict: TypeAlias = dict[str, list[HandlerManager]]

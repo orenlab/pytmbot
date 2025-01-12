@@ -20,7 +20,7 @@ from pytmbot.handlers.handlers_util.docker import (
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.utilities import split_string_into_octets
+from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 

@@ -13,7 +13,7 @@ from telebot import TeleBot
 from pytmbot.logs import Logger
 from pytmbot.plugins.models import PluginsPermissionsModel
 from pytmbot.plugins.plugin_interface import PluginInterface
-from pytmbot.utils.utilities import is_running_in_docker
+from pytmbot.utils import is_running_in_docker
 
 logger = Logger()
 

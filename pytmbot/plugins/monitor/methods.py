@@ -21,7 +21,7 @@ from pytmbot.plugins.monitor.utils import (
 )
 from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.settings import settings
-from pytmbot.utils.utilities import is_running_in_docker, set_naturalsize
+from pytmbot.utils import is_running_in_docker, set_naturalsize
 
 logger = Logger()
 

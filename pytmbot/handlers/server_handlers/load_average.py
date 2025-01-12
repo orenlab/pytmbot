@@ -12,7 +12,7 @@ from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import psutil_adapter, em
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.utilities import round_up_tuple
+from pytmbot.utils import round_up_tuple
 
 logger = Logger()
 

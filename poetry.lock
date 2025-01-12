@@ -796,18 +796,6 @@ files = [
 ]
 
 [[package]]
-name = "poetry-core"
-version = "2.0.0"
-description = "Poetry PEP 517 Build Backend"
-optional = false
-python-versions = "<4.0,>=3.9"
-groups = ["main"]
-files = [
-    {file = "poetry_core-2.0.0-py3-none-any.whl", hash = "sha256:1da7dd9279c5af8ed63f05c87a743dcadbf048dfe78f21c436710829cfff95fe"},
-    {file = "poetry_core-2.0.0.tar.gz", hash = "sha256:3317a3cc3932011a61114236b2d49883f4fb1403d2f5e97771ac0d077cfa396f"},
-]
-
-[[package]]
 name = "propcache"
 version = "0.2.1"
 description = "Accelerated property cache"
@@ -932,14 +920,14 @@ test = ["pytest", "pytest-xdist", "setuptools"]
 
 [[package]]
 name = "pydantic"
-version = "2.10.4"
+version = "2.10.5"
 description = "Data validation using Python type hints"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "pydantic-2.10.4-py3-none-any.whl", hash = "sha256:597e135ea68be3a37552fb524bc7d0d66dcf93d395acd93a00682f1efcb8ee3d"},
-    {file = "pydantic-2.10.4.tar.gz", hash = "sha256:82f12e9723da6de4fe2ba888b5971157b3be7ad914267dea8f05f82b28254f06"},
+    {file = "pydantic-2.10.5-py3-none-any.whl", hash = "sha256:4dd4e322dbe55472cb7ca7e73f4b63574eecccf2835ffa2af9021ce113c83c53"},
+    {file = "pydantic-2.10.5.tar.gz", hash = "sha256:278b38dbbaec562011d659ee05f63346951b3a248a6f3642e1bc68894ea2b4ff"},
 ]
 
 [package.dependencies]
@@ -1121,24 +1109,6 @@ files = [
 
 [package.extras]
 test = ["coverage", "mypy", "ruff", "wheel"]
-
-[[package]]
-name = "pyoutlineapi"
-version = "0.1.3"
-description = "A Python package to interact with the Outline VPN Server API"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "extra == \"pyoutlineapi\""
-files = [
-    {file = "pyoutlineapi-0.1.3-py3-none-any.whl", hash = "sha256:e5093cbcb1a4e1726f0a5b823290df072344e10ff81ce3581940c4da09be83e0"},
-    {file = "pyoutlineapi-0.1.3.tar.gz", hash = "sha256:10fc29d483bfe81a18f929d71ffd2c3236bbabf4aa93a09044fa34ad7c9a872a"},
-]
-
-[package.dependencies]
-pydantic = ">=2.0.0,<3.0.0"
-requests = ">=2.32.3,<3.0.0"
-requests-toolbelt = ">=1.0.0,<2.0.0"
 
 [[package]]
 name = "pypng"
@@ -1358,31 +1328,15 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
-name = "requests-toolbelt"
-version = "1.0.0"
-description = "A utility belt for advanced users of python-requests"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-groups = ["main"]
-markers = "extra == \"pyoutlineapi\""
-files = [
-    {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
-    {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
-]
-
-[package.dependencies]
-requests = ">=2.0.1,<3.0.0"
-
-[[package]]
 name = "setuptools"
-version = "75.7.0"
+version = "75.8.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "setuptools-75.7.0-py3-none-any.whl", hash = "sha256:84fb203f278ebcf5cd08f97d3fb96d3fbed4b629d500b29ad60d11e00769b183"},
-    {file = "setuptools-75.7.0.tar.gz", hash = "sha256:886ff7b16cd342f1d1defc16fc98c9ce3fde69e087a4e1983d7ab634e5f41f4f"},
+    {file = "setuptools-75.8.0-py3-none-any.whl", hash = "sha256:e3982f444617239225d675215d51f6ba05f845d4eec313da4418fdbb56fb27e3"},
+    {file = "setuptools-75.8.0.tar.gz", hash = "sha256:c5afc8f407c626b8313a86e10311dd3f661c6cd9c09d4bf8c15c0e11f9f2b0e6"},
 ]
 
 [package.extras]
@@ -1620,9 +1574,9 @@ type = ["pytest-mypy"]
 
 [extras]
 click = []
-pyoutlineapi = ["pyoutlineapi"]
+pyoutlineapi = []
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "8aa9fcf14fdb880e0f13bdb055b2ee384a51c716722de3cc42ea2629d2ce8cd0"
+content-hash = "f2089d99be7b3a683bf01d73857f36cbee3572da42bb6d3aaa49f1969dd40283"

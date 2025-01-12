@@ -17,7 +17,7 @@ from pytmbot.exceptions import (
     ShutdownError,
     ErrorContext
 )
-from pytmbot.utils.utilities import parse_cli_args
+from pytmbot.utils import parse_cli_args
 
 args = parse_cli_args()
 

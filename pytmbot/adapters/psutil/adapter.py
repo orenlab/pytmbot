@@ -6,7 +6,7 @@ import psutil
 from pytmbot.adapters.psutil.types import LoadAverage, MemoryStats, DiskStats, SwapStats, SensorStats, ProcessStats, \
     NetworkIOStats, UserInfo, NetworkInterfaceStats, CPUFrequencyStats, CPUUsageStats
 from pytmbot.logs import Logger
-from pytmbot.utils.utilities import set_naturalsize
+from pytmbot.utils import set_naturalsize
 
 # Type definitions
 

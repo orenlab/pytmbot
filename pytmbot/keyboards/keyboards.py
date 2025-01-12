@@ -19,7 +19,7 @@ from telebot.types import (
 
 from pytmbot.logs import Logger
 from pytmbot.settings import keyboard_settings
-from pytmbot.utils.utilities import EmojiConverter, split_string_into_octets
+from pytmbot.utils import EmojiConverter, split_string_into_octets
 
 
 class KeyboardOperation(StrEnum):

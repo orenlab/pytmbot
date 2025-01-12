@@ -8,7 +8,7 @@ from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.models.docker_models import ContainerId, ContainerConfig, DockerResponse, ContainerAction
 from pytmbot.globals import settings, session_manager
 from pytmbot.logs import Logger
-from pytmbot.utils.utilities import is_new_name_valid
+from pytmbot.utils import is_new_name_valid
 
 logger = Logger()
 

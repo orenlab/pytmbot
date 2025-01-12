@@ -18,7 +18,7 @@ from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.exceptions import ContainerNotFoundError, DockerOperationException, ErrorContext
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
-from pytmbot.utils.utilities import set_naturaltime
+from pytmbot.utils import set_naturaltime
 
 logger = Logger()
 

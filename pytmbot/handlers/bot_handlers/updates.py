@@ -16,7 +16,7 @@ from pytmbot.globals import keyboards, __version__, em, __github_api_url__
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.utilities import is_bot_development
+from pytmbot.utils import is_bot_development
 
 logger = Logger()
 

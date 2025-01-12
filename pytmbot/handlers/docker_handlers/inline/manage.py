@@ -15,7 +15,7 @@ from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.utilities import split_string_into_octets
+from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 container_state = ContainersState

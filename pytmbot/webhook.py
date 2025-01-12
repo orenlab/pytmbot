@@ -14,7 +14,7 @@ from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
-from pytmbot.utils.utilities import generate_secret_token, mask_token_in_message
+from pytmbot.utils import generate_secret_token, mask_token_in_message
 
 
 class RateLimit(BaseComponent):

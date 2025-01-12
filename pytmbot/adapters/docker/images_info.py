@@ -16,7 +16,7 @@ from docker.models.images import Image
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.exceptions import ImageOperationError, DockerConnectionError
 from pytmbot.logs import Logger
-from pytmbot.utils.utilities import set_naturalsize, set_naturaltime
+from pytmbot.utils import set_naturalsize, set_naturaltime
 
 logger = Logger()
 

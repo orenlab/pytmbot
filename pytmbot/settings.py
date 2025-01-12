@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from pytmbot.models.settings_model import SettingsModel
 
 
-def get_config_file_path() -> str:
+def _get_config_file_path() -> str:
     """
     Constructs the path to the settings YAML file.
 
@@ -41,7 +41,7 @@ def load_settings_from_yaml() -> SettingsModel:
         FileNotFoundError: If the YAML file is not found.
         yaml.YAMLError: If there is an error parsing the YAML file.
     """
-    config_path = get_config_file_path()
+    config_path = _get_config_file_path()
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             settings_data = yaml.safe_load(f)
@@ -53,11 +53,19 @@ def load_settings_from_yaml() -> SettingsModel:
 
 
 def get_default_main_keyboard() -> Dict[str, str]:
+    """
+    Returns the default main keyboard configuration.
+
+    Returns:
+        Dict[str, str]: A dictionary mapping emoji keys to button labels
+    """
+
     return {
         "rocket": "Server",
         "spouting_whale": "Docker",
         "lollipop": "Plugins",
-        "mushroom": "About me",
+        "mushroom": "About me"
+
     }
 
 

@@ -10,7 +10,7 @@ from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
-from pytmbot.utils.utilities import set_naturalsize
+from pytmbot.utils import set_naturalsize
 
 plugin_methods = PluginMethods()
 plugin = PluginCore()

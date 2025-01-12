@@ -15,7 +15,7 @@ from pytmbot.adapters.docker.containers_info import (
     fetch_full_container_details,
 )
 from pytmbot.globals import em
-from pytmbot.utils.utilities import set_naturalsize, sanitize_logs
+from pytmbot.utils import set_naturalsize, sanitize_logs
 
 
 def show_handler_info(call, text: str, bot: TeleBot):

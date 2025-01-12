@@ -15,7 +15,7 @@ from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
-from pytmbot.utils.utilities import split_string_into_octets, is_new_name_valid
+from pytmbot.utils import split_string_into_octets, is_new_name_valid
 
 logger = Logger()
 container_manager = ContainerManager()

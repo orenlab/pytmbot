@@ -12,7 +12,7 @@ from weakref import WeakValueDictionary
 from loguru import logger
 from telebot.types import Update, Message, CallbackQuery, InlineQuery
 
-from pytmbot.utils.utilities import parse_cli_args
+from pytmbot.utils.cli import parse_cli_args
 
 T = TypeVar('T')
 
