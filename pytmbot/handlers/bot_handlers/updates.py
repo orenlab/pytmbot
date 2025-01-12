@@ -12,7 +12,7 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, __version__, em, __github_api_url__
+from pytmbot.globals import keyboards, __version__, em, __github_api_url__, button_data
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -42,7 +42,7 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         bot_answer, need_inline = _process_message()
 
         keyboard_button = [
-            keyboards.ButtonData(text="How update?", callback_data="__how_update__")
+            button_data(text="How update?", callback_data="__how_update__")
         ]
 
         inline_button = (
