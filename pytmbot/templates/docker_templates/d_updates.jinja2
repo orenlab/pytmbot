@@ -1,19 +1,35 @@
-{% if updates %}
-    🌟 <b>Updates Found</b> 🌟
+{# Display available updates #}
+{%- if updates %}
+🌟 **Updates Found** 🌟
 
-    {% for repo, info in updates.items() %}
-        🔧 <b>{{ repo }}</b>:
+{%- for repo, info in updates.items() %}
 
-        🏷️ Current tag: <b>{{ info.current_tag }}</b> (Created: {{ info.created_at_local | format_timestamp }})
 
-        🔽 <b>Available updates</b>:
-        {% for update in info.updates %}
-            ➡️ Newer tag: <b>{{ update.newer_tag }}</b> (Created:
-            {{ update.created_at_remote | format_timestamp }}{% endfor %}
-    {% endfor %}{% endif %}
-{% if no_updates %}
-    🚫 <b>No Updates Found</b> 🚫
-    {% for repo in no_updates %}
-        🐳 <b>{{ repo }}</b>
-    {% endfor %}
-{% endif %}
+🔧 **{{ repo }}**
+
+🏷️ Current tag: **{{ info.current_tag }}**
+📅 Created: {{ info.created_at_local | format_timestamp }}
+
+🔽 **Available updates:**
+{%- for update in info.updates %}
+➡️ **{{ update.newer_tag }}**
+   📅 Created: {{ update.created_at_remote | format_timestamp }}
+
+{%- endfor %}
+{%- if not loop.last %}
+
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{# Display repositories without updates #}
+{%- if no_updates %}
+🚫 **No Updates Found** 🚫
+
+{%- for repo in no_updates %}
+🐳 **{{ repo }}**
+{%- if not loop.last %}
+
+{%- endif %}
+{%- endfor %}
+{%- endif %}

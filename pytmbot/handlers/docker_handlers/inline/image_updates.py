@@ -46,7 +46,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=formatted_context,
-        parse_mode="HTML",
+        parse_mode="Markdown",
     )
 
 
