@@ -8,7 +8,7 @@ PID   | Process Name  | CPU  | Memory
 -------------------------------------
 {%- for process in context.processes %}
 
-{{ "%-5d"|format(process.pid) }} | {{ "%-13s"|format(process.name[:18] + ('...' if process.name|length > 13 else '')) }} | {{ "%3.1f%%"|format(process.cpu_percent) }} | {{ "%5.1f%%"|format(process.memory_percent) }}
+{{ "%-5d"|format(process.pid) }} | {{ "%-13s"|format(process.name[:18] + ('' if process.name|length > 13 else '')) }} | {{ "%3.1f%%"|format(process.cpu_percent) }} | {{ "%5.1f%%"|format(process.memory_percent) }}
 {%- endfor %}
 </pre>
 
