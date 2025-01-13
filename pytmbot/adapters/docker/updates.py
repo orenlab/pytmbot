@@ -25,7 +25,7 @@ class UpdaterStatus(Enum):
     ERROR = auto()
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class UpdaterResponse:
     status: UpdaterStatus
     message: str
@@ -40,7 +40,7 @@ class TagType(Enum):
     CUSTOM = auto()
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class EnhancedTagInfo:
     tag_info: TagInfo
     tag_type: TagType
@@ -105,7 +105,7 @@ class DockerImageUpdater(BaseComponent):
 
     def __init__(self) -> None:
         super().__init__("DockerImageUpdater")
-        self.local_images: Dict[str, List[Dict[str, Optional[str]]]] = {}
+        self.local_images: LocalImageInfo = {}
         self.tag_cache: Dict[str, List[EnhancedTagInfo]] = {}
         self.analyzer = TagAnalyzer()
 
@@ -293,7 +293,7 @@ class DockerImageUpdater(BaseComponent):
         """Check for updates across all repositories."""
         with self._log.context(action="check_updates"):
             try:
-                async with aiohttp.ClientSession() as session:
+                async with aiohttp.ClientSession(conn_timeout=10) as session:
                     updates = {}
                     for repo, local_tags in self.local_images.items():
                         self._log.info(f"Checking updates for repository: {repo}")
