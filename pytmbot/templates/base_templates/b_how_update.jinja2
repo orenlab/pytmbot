@@ -1,41 +1,32 @@
-{{ thought_balloon }} Here is:
+{{ thought_balloon }} <b>Updating PyTMBot to Latest Version</b>
 
-🏗 **Updating the image**
+Choose your preferred update method:
 
-To update the image to the latest version, please follow these steps:
+<b>A. Using Docker Compose (Recommended)</b>
 
-1. **Stop the running pyTMbot container:**
-```bash
-sudo docker stop pytmbot
-```
+1) Update your docker-compose.yml:
 
-2. **Delete the outdated container:**
-```bash
-sudo docker rm pytmbot
-```
+<code>docker compose pull && docker compose up -d</code>
 
-3. **Delete the outdated image:**
-```bash
-sudo docker rmi pytmbot
-```
+<b>B. Using Docker CLI</b>
 
-4. **Pull the updated image:**
-```bash
-sudo docker pull orenlab/pytmbot:latest
-```
+1) <code>docker stop pytmbot && docker rm pytmbot</code>
 
-5. **Run the container as you would if you had just installed the bot:**
+2) <code>docker pull orenlab/pytmbot:latest</code>
 
-```bash
-sudo docker run -d \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
--v /root/pytmbot.yaml:/opt/pytmbot/pytmbot.yaml:ro \
---env TZ="Asia/Yekaterinburg" \
---restart=always \
---name=pytmbot \
---pid=host \
---security-opt=no-new-privileges \
-orenlab/pytmbot:latest
-```
+3) Run new container:
+<pre>docker run -d \
+  --name pytmbot \
+  --restart on-failure \
+  --env TZ="Asia/Yekaterinburg" \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  --security-opt no-new-privileges \
+  --read-only \
+  --cap-drop ALL \
+  --pid=host \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
+  orenlab/pytmbot:latest --plugins SOME_PLUGINS</pre>
 
-*Note: Please don't forget to adjust the time zone!*
+⚠️ <b>Note</b>: <i>Adjust timezone as needed!</i>

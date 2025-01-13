@@ -64,6 +64,7 @@ def get_default_main_keyboard() -> Dict[str, str]:
         "rocket": "Server",
         "spouting_whale": "Docker",
         "lollipop": "Plugins",
+        "eyes": "Quick view",
         "mushroom": "About me"
 
     }

@@ -39,7 +39,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=bot_answer,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     except Exception as error:
         bot.edit_message_text(

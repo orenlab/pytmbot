@@ -42,6 +42,7 @@ from pytmbot.handlers.server_handlers.load_average import handle_load_average
 from pytmbot.handlers.server_handlers.memory import handle_memory
 from pytmbot.handlers.server_handlers.network import handle_network
 from pytmbot.handlers.server_handlers.process import handle_process
+from pytmbot.handlers.server_handlers.quickview import handle_quick_view
 from pytmbot.handlers.server_handlers.sensors import handle_sensors
 from pytmbot.handlers.server_handlers.server import handle_server
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
@@ -90,6 +91,12 @@ def handler_factory() -> HandlerType:
             HandlerConfig(
                 callback=handle_twofa_message,
                 regexp="Enter 2FA code"
+            )
+        ],
+        "quick_view": [
+            HandlerConfig(
+                callback=handle_quick_view,
+                regexp="Quick view"
             )
         ],
         "code_verification": [
