@@ -38,6 +38,7 @@ and [docker-py](https://github.com/docker/docker-py) libraries to provide robust
 - Process summary and control
 - Uptime information
 - Network and file system information
+- **NEW**: Quick view for system and Docker summary
 
 ### 🔌 Plugin System
 
