@@ -19,6 +19,19 @@ LocalImageInfo: TypeAlias = Dict[str, List[Dict[str, Optional[str]]]]
 UpdateResult: TypeAlias = Dict[str, Dict[str, List[dict]]]
 
 
+class UpdaterStatus(Enum):
+    SUCCESS = auto()
+    RATE_LIMITED = auto()
+    ERROR = auto()
+
+
+@dataclass
+class UpdaterResponse:
+    status: UpdaterStatus
+    message: str
+    data: Optional[Dict] = None
+
+
 class TagType(Enum):
     SEMVER = auto()
     DATE = auto()
@@ -182,37 +195,45 @@ class DockerImageUpdater(BaseComponent):
 
             tags_info: List[EnhancedTagInfo] = []
 
-            async def fetch_with_pagination(_url: str) -> None:
+            async def fetch_first_page(_url: str) -> Optional[bool]:
                 try:
-                    while _url:
-                        async with session.get(_url, timeout=10) as response:
-                            if response.status == 429:
-                                retry_after = int(response.headers.get("Retry-After", "5"))
-                                self._log.warning(f"Rate limit hit, waiting {retry_after} seconds")
-                                await asyncio.sleep(retry_after)
-                                continue
+                    async with session.get(_url, timeout=10) as response:
+                        if response.status == 429:
+                            retry_after = int(response.headers.get("Retry-After", "3600"))
+                            self._log.warning(f"Rate limit exceeded, retry after {retry_after} seconds")
+                            raise aiohttp.ClientResponseError(
+                                request_info=response.request_info,
+                                history=response.history,
+                                status=429,
+                                message=f"Rate limit exceeded, retry after {retry_after} seconds"
+                            )
 
-                            response.raise_for_status()
-                            data = await response.json()
+                        response.raise_for_status()
+                        data = await response.json()
 
-                            new_tags = [
-                                self.analyzer.analyze_tag(TagInfo(
-                                    name=result["name"],
-                                    created_at=result.get("tag_last_pushed", ""),
-                                    digest=result.get("digest")
-                                ))
-                                for result in data.get("results", [])
-                            ]
-                            tags_info.extend(new_tags)
-                            self._log.debug(f"Fetched {len(new_tags)} tags from {_url}")
+                        new_tags = [
+                            self.analyzer.analyze_tag(TagInfo(
+                                name=result["name"],
+                                created_at=result.get("tag_last_pushed", ""),
+                                digest=result.get("digest")
+                            ))
+                            for result in data.get("results", [])
+                        ]
+                        tags_info.extend(new_tags)
+                        self._log.debug(f"Fetched {len(new_tags)} tags from {_url}")
+                        return False  # Indicate successful fetch
 
-                            _url = data.get("next")
-
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 429:
+                        raise
+                    self._log.warning(f"Unable to fetch tags from {_url}: {e}")
+                    return None
                 except (aiohttp.ClientError, json.JSONDecodeError) as e:
                     self._log.warning(f"Unable to fetch tags from {_url}: {e}")
+                    return None
 
             for url in base_urls:
-                await fetch_with_pagination(url)
+                await fetch_first_page(url)
                 if tags_info:
                     self.tag_cache[repo] = tags_info
                     self._log.info(f"Successfully cached {len(tags_info)} tags for {repo}")
@@ -268,45 +289,109 @@ class DockerImageUpdater(BaseComponent):
             self._log.debug(f"Found {len(updates)} compatible updates")
             return updates
 
-    async def _check_updates(self) -> UpdateResult:
+    async def _check_updates(self) -> UpdaterResponse:
         """Check for updates across all repositories."""
         with self._log.context(action="check_updates"):
-            updates: UpdateResult = {}
+            try:
+                async with aiohttp.ClientSession() as session:
+                    updates = {}
+                    for repo, local_tags in self.local_images.items():
+                        self._log.info(f"Checking updates for repository: {repo}")
+                        try:
+                            remote_tags = await self._fetch_remote_tags(session, repo)
+                        except aiohttp.ClientResponseError as e:
+                            if e.status == 429:
+                                return UpdaterResponse(
+                                    status=UpdaterStatus.RATE_LIMITED,
+                                    message="Docker Hub API rate limit exceeded. Please try again later.",
+                                    data={"retry_after": "3600"}
+                                )
+                            raise
 
-            async with aiohttp.ClientSession() as session:
-                for repo, local_tags in self.local_images.items():
-                    self._log.info(f"Checking updates for repository: {repo}")
-                    remote_tags = await self._fetch_remote_tags(session, repo)
+                        repo_updates = []
+                        for local_tag_info in local_tags:
+                            local_enhanced = self.analyzer.analyze_tag(TagInfo(
+                                name=local_tag_info["tag"],
+                                created_at=local_tag_info["created_at"],
+                                digest=local_tag_info["digest"]
+                            ))
 
-                    repo_updates = []
-                    for local_tag_info in local_tags:
-                        local_enhanced = self.analyzer.analyze_tag(TagInfo(
-                            name=local_tag_info["tag"],
-                            created_at=local_tag_info["created_at"],
-                            digest=local_tag_info["digest"]
-                        ))
+                            compatible_updates = await self._find_compatible_updates(
+                                local_enhanced, remote_tags
+                            )
+                            repo_updates.extend(compatible_updates)
 
-                        compatible_updates = await self._find_compatible_updates(
-                            local_enhanced, remote_tags
+                        repo_updates.sort(
+                            key=lambda x: isoparse(x.created_at_remote),
+                            reverse=True
                         )
-                        repo_updates.extend(compatible_updates)
+                        updates[repo] = {
+                            "updates": [update.to_dict() for update in repo_updates[:5]]
+                        }
+                        self._log.info(f"Found {len(repo_updates)} updates for {repo}")
 
-                    repo_updates.sort(
-                        key=lambda x: isoparse(x.created_at_remote),
-                        reverse=True
-                    )
-                    updates[repo] = {
-                        "updates": [update.to_dict() for update in repo_updates[:5]]
-                    }
-                    self._log.info(f"Found {len(repo_updates)} updates for {repo}")
+                return UpdaterResponse(
+                    status=UpdaterStatus.SUCCESS,
+                    message="Successfully checked for updates",
+                    data=updates
+                )
 
-            return updates
+            except Exception as e:
+                self._log.error(f"Error checking for updates: {e}")
+                return UpdaterResponse(
+                    status=UpdaterStatus.ERROR,
+                    message=f"Error checking for updates: {str(e)}"
+                )
 
     def to_json(self) -> str:
-        """Returns the update check result in JSON format."""
+        """
+        Returns the update check result in JSON format.
+
+        Returns:
+            str: JSON string containing the update check results or error information.
+
+        Example successful response:
+        {
+            "status": "SUCCESS",
+            "message": "Successfully checked for updates",
+            "data": {
+                "nginx": {
+                    "updates": [
+                        {
+                            "current_tag": "1.24.0",
+                            "newer_tag": "1.24.1",
+                            "created_at_local": "2023-05-24T12:00:00Z",
+                            "created_at_remote": "2023-06-01T15:30:00Z",
+                            "current_digest": "sha256:abcd..."
+                        }
+                    ]
+                }
+            }
+        }
+
+        Example rate limit response:
+        {
+            "status": "RATE_LIMITED",
+            "message": "Docker Hub API rate limit exceeded. Please try again later.",
+            "data": {
+                "retry_after": "3600"
+            }
+        }
+
+        Example error response:
+        {
+            "status": "ERROR",
+            "message": "Error checking for updates: Connection timeout",
+            "data": null
+        }
+        """
         with self._log.context(action="to_json"):
             result = asyncio.run(self._check_updates())
-            return json.dumps(result, indent=4)
+            return json.dumps({
+                "status": result.status.name,
+                "message": result.message,
+                "data": result.data
+            }, indent=4)
 
 
 if __name__ == "__main__":
