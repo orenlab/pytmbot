@@ -1,30 +1,34 @@
 {# templates/b_quick_view.jinja2 #}
-🖥️ *System Quick View*
+📊 *System Status Overview*
 
-```bash
 {% if context.system %}
-🖥️
-├─ ⏱️ Uptime: {{ "{:>10}".format(context.system.uptime if context.system.uptime else 'N/A') }}
-├─ 📊 Load Average:
-│  ├─ 1 min:    {{ "{:>10.2f}".format(context.system.load_average[0] if context.system.load_average and context.system.load_average[0] is defined else 'N/A') }}
-│  ├─ 5 min:    {{ "{:>10.2f}".format(context.system.load_average[1] if context.system.load_average and context.system.load_average[1] is defined else 'N/A') }}
-│  └─ 15 min:   {{ "{:>10.2f}".format(context.system.load_average[2] if context.system.load_average and context.system.load_average[2] is defined else 'N/A') }}
-├─ 🧠 Memory:
-│  ├─ Used:     {{ "{:>10}".format(context.system.memory.used if context.system.memory and context.system.memory.used else 'N/A') }}
-│  ├─ Free:     {{ "{:>10}".format(context.system.memory.free if context.system.memory and context.system.memory.free else 'N/A') }}
-│  └─ Usage:    {{ "{:>10}".format((context.system.memory.percent | string + '%') if context.system.memory and context.system.memory.percent is not none else 'N/A') }}
-├─ ⚡ CPU Usage:
-│  └─           {{ "{:>10}".format((context.system.cpu.cpu_percent | string + '%') if context.system.cpu and context.system.cpu.cpu_percent is not none else 'N/A') }}
-└─ ⚙️ Processes:
-   ├─ Running:  {{ "{:>10}".format(context.system.processes.running if context.system.processes and context.system.processes.running else 'N/A') }}
-   └─ Total:    {{ "{:>10}".format(context.system.processes.total if context.system.processes and context.system.processes.total else 'N/A') }}
+```bash
+🖥️ System Resources
+├─ ⏱️ Uptime
+│  └─ {{ "{:>12}".format(context.system.uptime if context.system.uptime is not none else 'N/A') }}
+│
+├─ 📈 Load Average
+│  ├─ 1 min:  {{ "{:>8.2f}".format(context.system.load_average[0]) if context.system.load_average and context.system.load_average[0] is not none else '{:>8}'.format('N/A') }}
+│  ├─ 5 min:  {{ "{:>8.2f}".format(context.system.load_average[1]) if context.system.load_average and context.system.load_average[1] is not none else '{:>8}'.format('N/A') }}
+│  └─ 15 min: {{ "{:>8.2f}".format(context.system.load_average[2]) if context.system.load_average and context.system.load_average[2] is not none else '{:>8}'.format('N/A') }}
+│
+├─ 🧠 Memory Usage
+│  ├─ Used:   {{ "{:>8}".format(context.system.memory.used) if context.system.memory and context.system.memory.used is not none else '{:>8}'.format('N/A') }} GB
+│  ├─ Free:   {{ "{:>8}".format(context.system.memory.free) if context.system.memory and context.system.memory.free is not none else '{:>8}'.format('N/A') }} GB
+│  └─ Usage:  {{ "{:>7}%".format(context.system.memory.percent) if context.system.memory and context.system.memory.percent is not none else '{:>8}'.format('N/A') }}
+│
+└─ ⚙️ Process Stats
+   ├─ Running:  {{ "{:>8}".format(context.system.processes.running if context.system.processes and context.system.processes.running is not none else 'N/A') }}
+   ├─ Sleeping: {{ "{:>8}".format(context.system.processes.sleeping if context.system.processes and context.system.processes.sleeping is not none else 'N/A') }}
+   ├─ Idle:     {{ "{:>8}".format(context.system.processes.idle if context.system.processes and context.system.processes.idle is not none else 'N/A') }}
+   └─ Total:    {{ "{:>8}".format(context.system.processes.total if context.system.processes and context.system.processes.total is not none else 'N/A') }}
 {% else %}
-⚠️ System data is not available.
+⚠️ System monitoring data is currently unavailable
 {% endif %}
+
 {% if context.docker %}
-🐳
-└─ 🐳 Docker Status
-    ├─ Containers:  {{ "{:>10}".format(context.docker.containers_count if context.docker.containers_count else 'N/A') }}
-    └─ Images:      {{ "{:>10}".format(context.docker.images_count if context.docker.images_count else 'N/A') }}
+🐳 Docker Environment
+├─ Active Containers: {{ "{:>8}".format(context.docker.containers_count if context.docker.containers_count is not none else 'N/A') }}
+└─ Available Images:  {{ "{:>8}".format(context.docker.images_count if context.docker.images_count is not none else 'N/A') }}
 {% endif %}
 ```

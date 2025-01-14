@@ -56,15 +56,6 @@ def _get_processes() -> Optional[Dict]:
         return None
 
 
-def _get_cpu() -> Optional[Dict]:
-    """Get CPU usage."""
-    try:
-        return psutil_adapter.get_cpu_usage()
-    except Exception as e:
-        logger.error(f"Failed to get CPU usage: {e}")
-        return None
-
-
 def _get_docker() -> Optional[Dict]:
     """Get Docker statistics."""
     try:
@@ -89,11 +80,13 @@ def _collect_metrics() -> Dict[str, Any]:
         'load_average': _get_load,
         'memory': _get_memory,
         'processes': _get_processes,
-        'cpu': _get_cpu,
         'docker': _get_docker
     }
 
-    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+    # Calculate optimal number of workers
+    optimal_workers = min(len(tasks), (psutil_adapter.get_cpu_count() or 2) + 1)
+
+    with ThreadPoolExecutor(max_workers=optimal_workers) as executor:
         # Start all tasks
         future_to_task = {
             executor.submit(func): name

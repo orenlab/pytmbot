@@ -1,16 +1,28 @@
 {# templates/fs.jinja2 #}
 
-{{ thought_balloon }} Here is:
+{{ thought_balloon }} Network stats:
 
+<pre language="bash">
 {% for value in context %}
-    {{ up_left_arrow }} **Bytes sent:** {{ value['bytes_sent'] }}
-    {{ up_right_arrow }} **Bytes received:** {{ value['bytes_recv'] }}
-    {{ up_left_arrow }} **Packets sent:** {{ value['packets_sent'] }}
-    {{ up_right_arrow }} **Packets received:** {{ value['packets_recv'] }}
-    {{ up_right_arrow }} **Input errors:** {{ value['err_in'] }}
-    {{ up_left_arrow }} **Output errors:** {{ value['err_out'] }}
-    {{ up_right_arrow }} **Input dropped packets:** {{ value['drop_in'] }}
-    {{ up_left_arrow }} **Output dropped packets:** {{ value['drop_out'] }}
+{% set sent_bytes = value['bytes_sent'] | string %}
+{% set recv_bytes = value['bytes_recv'] | string %}
+{% set sent_packets = value['packets_sent'] | string %}
+{% set recv_packets = value['packets_recv'] | string %}
+{% set sent_errors = value['err_out'] | string %}
+{% set recv_errors = value['err_in'] | string %}
+{% set sent_dropped = value['drop_out'] | string %}
+{% set recv_dropped = value['drop_in'] | string %}
+
+{% set max_sent_len = [sent_bytes | length, sent_packets | length, sent_errors | length, sent_dropped | length] | max %}
+{% set max_recv_len = [recv_bytes | length, recv_packets | length, recv_errors | length, recv_dropped | length] | max %}
+
+| Parameter  | Sent{{ ' ' * (max_sent_len - 4) }} | Received{{ ' ' * (max_recv_len - 8) }} |
+|------------|{{ '-' * (max_sent_len + 2) }}|{{ '-' * (max_recv_len + 2) }}|
+| Bytes      | {{ "{:>{width}}".format(value['bytes_sent'], width=max_sent_len) }} | {{ "{:>{width}}".format(value['bytes_recv'], width=max_recv_len) }} |
+| Packets    | {{ "{:>{width}}".format(value['packets_sent'], width=max_sent_len) }} | {{ "{:>{width}}".format(value['packets_recv'], width=max_recv_len) }} |
+| Errors     | {{ "{:>{width}}".format(value['err_out'], width=max_sent_len) }} | {{ "{:>{width}}".format(value['err_in'], width=max_recv_len) }} |
+| Dropped    | {{ "{:>{width}}".format(value['drop_out'], width=max_sent_len) }} | {{ "{:>{width}}".format(value['drop_in'], width=max_recv_len) }} |
 {% endfor %}
+</pre>
 
 {{ globe_showing_europe_africa }} Bytes unite us! {{ hugging_face }}

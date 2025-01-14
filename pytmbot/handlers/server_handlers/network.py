@@ -20,8 +20,7 @@ logger = Logger()
 @logger.session_decorator
 def handle_network(message: Message, bot: TeleBot):
     emojis = {
-        "up_left_arrow": em.get_emoji("up-left_arrow"),
-        "up_right_arrow": em.get_emoji("up-right_arrow"),
+        "thought_balloon": em.get_emoji("thought_balloon"),
         "globe_showing_europe_africa": em.get_emoji("globe_showing_Europe-Africa"),
         "hugging_face": em.get_emoji("smiling_face_with_open_hands"),
     }
@@ -46,7 +45,7 @@ def handle_network(message: Message, bot: TeleBot):
             message_text = compiler.compile()
 
         return bot.send_message(
-            message.chat.id, text=message_text, parse_mode="Markdown"
+            message.chat.id, text=message_text, parse_mode="HTML"
         )
 
     except Exception as error:

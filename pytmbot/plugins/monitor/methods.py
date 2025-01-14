@@ -27,7 +27,7 @@ logger = Logger()
 
 
 class SystemMonitorPlugin(PluginCore):
-    """Optimized plugin for monitoring system resources."""
+    """Plugin for monitoring system resources."""
 
     __slots__ = (
         'bot', 'monitor_settings', 'event_threshold_duration',

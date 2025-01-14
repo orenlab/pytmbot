@@ -264,3 +264,7 @@ class PsutilAdapter:
             return sorted_processes[:count]
 
         return self._safe_execute("top processes", _get_top_processes, [])
+
+    def get_cpu_count(self) -> int:
+        """Get the number of CPU cores."""
+        return self._psutil.cpu_count()
