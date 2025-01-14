@@ -132,7 +132,7 @@ class AccessControl(BaseMiddleware):
                 }
             )
         else:
-            logger.info(
+            logger.warning(
                 f"Unauthorized access attempt #{current_attempt} from user {username} (ID: {user_id})",
                 context={
                     **log_extra,
