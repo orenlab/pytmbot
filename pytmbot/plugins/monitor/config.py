@@ -3,7 +3,7 @@ from typing import Final
 from pytmbot.plugins.models import PluginsPermissionsModel
 
 PLUGIN_NAME = "monitor"
-PLUGIN_VERSION = "0.0.5"
+PLUGIN_VERSION = "0.0.6"
 PLUGIN_DESCRIPTION = "System monitoring plugin for pyTMBot"
 PLUGIN_INDEX_KEY: dict[str, str] = {
     "chart_increasing": "Monitoring",

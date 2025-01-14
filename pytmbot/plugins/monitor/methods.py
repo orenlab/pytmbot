@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Dict
+from typing import Dict, Literal
 
 import psutil
 from telebot import TeleBot
@@ -12,6 +12,8 @@ from pytmbot.adapters.docker.containers_info import (
     retrieve_containers_stats,
 )
 from pytmbot.adapters.docker.images_info import fetch_image_details
+from pytmbot.adapters.psutil.adapter import PsutilAdapter
+from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.db.influxdb_interface import InfluxDBInterface, InfluxDBConfig
 from pytmbot.logs import Logger
 from pytmbot.plugins.monitor.models import ResourceThresholds
@@ -400,18 +402,91 @@ class SystemMonitorPlugin(PluginCore):
 
     @staticmethod
     def _format_cpu_alert(event_id: str, usage: float) -> str:
+        """
+        Format CPU alert message with top processes information.
+
+        Args:
+            event_id: Unique identifier for the alert event
+            usage: Current CPU usage percentage
+
+        Returns:
+            Formatted alert message with top processes
+        """
+        adapter = PsutilAdapter()
+        top_processes = adapter.get_top_processes(count=5)
+        process_info = "\n".join(
+            f"  • {proc['name']} (PID: {proc['pid']}) - {proc['cpu_percent']:.1f}% CPU"
+            for proc in sorted(
+                top_processes,
+                key=lambda x: x['cpu_percent'],
+                reverse=True
+            )
+        )
+
         return (
             f"🔥 <b>High CPU Usage Alert!</b> 🔥\n"
             f"Event ID: {event_id}\n"
-            f"Current Usage: {usage:.1f}%"
+            f"Current Usage: {usage:.1f}%\n\n"
+            f"<b>Top CPU Consuming Processes:</b>\n"
+            f"{process_info}"
         )
 
     @staticmethod
     def _format_memory_alert(event_id: str, usage: float) -> str:
+        """
+        Format memory alert message with top processes information.
+
+        Args:
+            event_id: Unique identifier for the alert event
+            usage: Current memory usage percentage
+
+        Returns:
+            Formatted alert message with top processes
+        """
+        adapter = PsutilAdapter()
+        top_processes = adapter.get_top_processes(count=5)
+        process_info = "\n".join(
+            f"  • {proc['name']} (PID: {proc['pid']}) - {proc['memory_percent']:.1f}% MEM"
+            for proc in sorted(
+                top_processes,
+                key=lambda x: x['memory_percent'],
+                reverse=True
+            )
+        )
+
         return (
             f"🧠 <b>High Memory Usage Alert!</b> 🧠\n"
             f"Event ID: {event_id}\n"
-            f"Current Usage: {usage:.1f}%"
+            f"Current Usage: {usage:.1f}%\n\n"
+            f"<b>Top Memory Consuming Processes:</b>\n"
+            f"{process_info}"
+        )
+
+    @staticmethod
+    def _format_process_info(
+            processes: list[TopProcess],
+            resource_key: Literal['cpu_percent', 'memory_percent'],
+            suffix: str = "%"
+    ) -> str:
+        """
+        Format process information for alerts.
+
+        Args:
+            processes: List of process dictionaries with usage information
+            resource_key: Key to sort and display resource usage ('cpu_percent' or 'memory_percent')
+            suffix: Suffix to append to resource values (default: '%')
+
+        Returns:
+            Formatted string with process information
+        """
+        return "\n".join(
+            f"  • {proc['name']} (PID: {proc['pid']}) - "
+            f"{proc[resource_key]:.1f}{suffix}"
+            for proc in sorted(
+                processes,
+                key=lambda x: x[resource_key],
+                reverse=True
+            )
         )
 
     @staticmethod

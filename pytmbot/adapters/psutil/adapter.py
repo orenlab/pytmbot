@@ -239,7 +239,7 @@ class PsutilAdapter:
             "cpu_percent_per_core": []
         })
 
-    def get_top_processes(self, count: int = 10) -> TopProcess:
+    def get_top_processes(self, count: int = 10) -> list[TopProcess]:
         """Get the top processes by CPU and memory usage."""
 
         def _get_top_processes():

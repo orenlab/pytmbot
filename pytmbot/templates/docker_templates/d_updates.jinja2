@@ -30,6 +30,7 @@
 {# Отображение репозиториев без обновлений #}
 {%- if no_updates is defined and no_updates %}
 🚫 **No Updates Found** 🚫
+
 {% for repo in no_updates %}
 🐳 **{{ repo }}**
 {% if not loop.last %}
