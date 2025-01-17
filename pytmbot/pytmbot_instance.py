@@ -27,7 +27,7 @@ from pytmbot.globals import (
 from pytmbot.handlers.handler_manager import (
     handler_factory,
     inline_handler_factory,
-    echo_handler_factory,
+    #echo_handler_factory,
 )
 from pytmbot.logs import Logger, BaseComponent
 from pytmbot.middleware.access_control import AccessControl
@@ -199,7 +199,6 @@ class PyTMBot(BaseComponent):
         handlers_config = [
             (handler_factory, self.bot.register_message_handler),
             (inline_handler_factory, self.bot.register_callback_query_handler),
-            (echo_handler_factory, self.bot.register_message_handler),
         ]
 
         context = {"action": "handlers_registration"}
