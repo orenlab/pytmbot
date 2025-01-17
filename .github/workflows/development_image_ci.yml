@@ -69,7 +69,7 @@ jobs:
           fail-build: false
           severity-cutoff: high
           acs-report-enable: true
-          sarif-file: { { github.workspace } }/results.sarif
+          sarif-file: ${{ github.workspace }}/results.sarif
 
       - name: Upload SARIF (if exists)
         if: success() && ${{ github.workspace }}/results.sarif
