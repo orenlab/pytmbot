@@ -32,10 +32,7 @@ jobs:
             image=moby/buildkit:v0.12.5
 
       - name: Install Cosign
-        run: |
-          curl -Lo cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
-          chmod +x cosign
-          sudo mv cosign /usr/local/bin/cosign
+        uses: sigstore/cosign-installer@v3.3.0
 
       - uses: docker/login-action@v3
         with:
@@ -68,33 +65,15 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Sign image and generate attestation
+      - name: Sign the image with GitHub OIDC Token
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
           IMAGE_REF="orenlab/pytmbot:alpine-dev"
-          cosign sign --yes $IMAGE_REF
-          echo "Generating attestation..."
-          cat <<EOF > provenance.att
-          {
-            "buildType": "docker",
-            "buildConfig": {
-              "context": ".",
-              "dockerfile": "Dockerfile"
-            }
-          }
-          EOF
-          cosign attest --yes --predicate provenance.att --type custom $IMAGE_REF
+          cosign sign --yes "${IMAGE_REF}"
 
       - uses: anchore/scan-action@v3
         with:
           image: orenlab/pytmbot:alpine-dev
           fail-build: false
           severity-cutoff: high
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: security-artifacts
-          path: |
-            provenance.att
-          retention-days: 5
