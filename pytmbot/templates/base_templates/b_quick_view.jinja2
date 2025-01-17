@@ -13,8 +13,8 @@
 │  └─ 15 min: {{ "{:>8.2f}".format(context.system.load_average[2]) if context.system.load_average and context.system.load_average[2] is not none else '{:>8}'.format('N/A') }}
 │
 ├─ 🧠 Memory Usage
-│  ├─ Used:   {{ "{:>8}".format(context.system.memory.used) if context.system.memory and context.system.memory.used is not none else '{:>8}'.format('N/A') }} GB
-│  ├─ Free:   {{ "{:>8}".format(context.system.memory.free) if context.system.memory and context.system.memory.free is not none else '{:>8}'.format('N/A') }} GB
+│  ├─ Used:   {{ "{:>8}".format(context.system.memory.used) if context.system.memory and context.system.memory.used is not none else '{:>8}'.format('N/A') }}
+│  ├─ Free:   {{ "{:>8}".format(context.system.memory.free) if context.system.memory and context.system.memory.free is not none else '{:>8}'.format('N/A') }}
 │  └─ Usage:  {{ "{:>7}%".format(context.system.memory.percent) if context.system.memory and context.system.memory.percent is not none else '{:>8}'.format('N/A') }}
 │
 └─ ⚙️ Process Stats
