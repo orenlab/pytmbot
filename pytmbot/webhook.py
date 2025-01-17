@@ -3,11 +3,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from time import time
 from typing import Dict, Annotated, AsyncGenerator
+from typing import Optional
 
 import telebot
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.responses import JSONResponse
+from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 
 from pytmbot.exceptions import InitializationError, ErrorContext, ShutdownError, BotException
 from pytmbot.globals import settings
@@ -79,11 +82,6 @@ class RateLimit(BaseComponent):
             return False
 
 
-from typing import Optional
-from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
-
-
 class WebhookManager(BaseComponent):
     __slots__ = ("bot", "url", "port", "secret_token")
 
@@ -144,7 +142,7 @@ class WebhookManager(BaseComponent):
                     "Failed to setup webhook",
                     error=error_context.dict()
                 )
-                raise InitializationError(error_context)
+                raise InitializationError(error_context) from e
 
     def remove_webhook(self) -> None:
         with self.log_context(action="remove_webhook") as log:
@@ -161,7 +159,7 @@ class WebhookManager(BaseComponent):
                     "Webhook removal failed",
                     error=error_context.dict()
                 )
-                raise InitializationError(error_context)
+                raise InitializationError(error_context) from e
 
 
 class WebhookServer(BaseComponent):
@@ -227,7 +225,7 @@ class WebhookServer(BaseComponent):
                         metadata={"exception": str(e)}
                     )
                     log.exception("Failed to initialize webhook lifecycle", error=error_context.dict())
-                    raise InitializationError(error_context)
+                    raise InitializationError(error_context) from e
                 finally:
                     try:
                         self.webhook_manager.remove_webhook()
@@ -239,7 +237,7 @@ class WebhookServer(BaseComponent):
                             metadata={"exception": str(e)}
                         )
                         log.exception("Failed to cleanup webhook", error=error_context.dict())
-                        raise ShutdownError(error_context)
+                        raise ShutdownError(error_context) from e
 
         app = FastAPI(
             docs_url=None,
@@ -362,7 +360,7 @@ class WebhookServer(BaseComponent):
                             error=str(e),
                             update_data=update.model_dump()
                         )
-                        raise HTTPException(status_code=400, detail="Invalid update format")
+                        raise HTTPException(status_code=400, detail="Invalid update format") from e
                     except Exception as e:
                         log.error(
                             "Update processing failed",
@@ -370,7 +368,7 @@ class WebhookServer(BaseComponent):
                             error_type=type(e).__name__,
                             update_data=update.model_dump()
                         )
-                        raise HTTPException(status_code=500, detail="Internal server error")
+                        raise HTTPException(status_code=500, detail="Internal server error") from e
 
     def start(self) -> None:
         with self.log_context(
@@ -430,7 +428,7 @@ class WebhookServer(BaseComponent):
                     metadata={"exception": str(e)}
                 )
                 log.exception("SSL files not found", error=error_context.dict())
-                raise InitializationError(error_context)
+                raise InitializationError(error_context) from e
 
             except PermissionError as e:
                 error_context = ErrorContext(
@@ -439,7 +437,7 @@ class WebhookServer(BaseComponent):
                     metadata={"exception": str(e)}
                 )
                 log.exception("Permission error on server start", error=error_context.dict())
-                raise InitializationError(error_context)
+                raise InitializationError(error_context) from e
 
             except OSError as e:
                 error_context = ErrorContext(
@@ -448,7 +446,7 @@ class WebhookServer(BaseComponent):
                     metadata={"exception": str(e)}
                 )
                 log.exception("OS error on server start", error=error_context.dict())
-                raise InitializationError(error_context)
+                raise InitializationError(error_context) from e
 
             except Exception as e:
                 error_context = ErrorContext(
@@ -460,4 +458,4 @@ class WebhookServer(BaseComponent):
                     }
                 )
                 log.exception("Unexpected error on server start", error=error_context.dict())
-                raise BotException(error_context)
+                raise BotException(error_context) from e

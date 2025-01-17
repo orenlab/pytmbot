@@ -125,15 +125,24 @@ class BotLauncher(logs.BaseComponent):
                 self.shutdown_requested.set()
 
                 if hasattr(self.bot, 'bot') and self.bot.bot:
+                    log.info("Stopping bot polling and webhook")
                     self.bot.bot.stop_polling()
                     self.bot.bot.remove_webhook()
 
                 if self.health_check_thread and self.health_check_thread.is_alive():
+                    log.info("Waiting for health check thread to complete")
                     self.health_check_thread.join(timeout=self.SHUTDOWN_TIMEOUT)
 
-                    log.info("Shutdown completed successfully")
+                    if self.health_check_thread.is_alive():
+                        log.warning("Health check thread did not complete within timeout")
+                    else:
+                        log.info("Health check thread completed successfully")
+
+                log.info("Shutdown completed successfully")
 
         except Exception as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("Error during shutdown")
             raise ShutdownError(ErrorContext(
                 message=f"Error during shutdown: {str(e)}",
                 metadata={"exception": str(e)}

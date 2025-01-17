@@ -66,7 +66,7 @@ class MonitoringPlugin(PluginInterface):
         """Handle CPU usage request."""
         raise NotImplementedError("CPU usage handling not implemented")
 
-    def register(self) -> None:
+    def register(self) -> TeleBot:
         """Register SystemMonitorPlugin and start monitoring."""
         try:
             monitor_plugin = SystemMonitorPlugin(bot=self.bot)
@@ -74,13 +74,15 @@ class MonitoringPlugin(PluginInterface):
 
             self.bot.register_message_handler(
                 self.handle_monitoring,
-                regexp="Monitoring",
-                pass_bot=True
+                regexp="Monitoring"
             )
             self.bot.register_message_handler(
                 self.handle_cpu_usage,
                 regexp="CPU usage"
             )
+
+            return self.bot
+
         except Exception as e:
             self.plugin_logger.error(f"Failed to register monitoring plugin: {str(e)}")
             raise

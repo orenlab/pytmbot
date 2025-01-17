@@ -1,18 +1,8 @@
 #!/bin/sh
-set -uef
+set -e
+
 ########################################################################################################################
-#                                                                                                                      #
-#                                               pyTMBot - entrypoint.sh                                                #
-# -------------------------------------------------------------------------------------------------------------------- #
-# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
-# and extending its functionality with plugins.                                                                        #
-#                                                                                                                      #
-# Project:        pyTMBot                                                                                              #
-# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
-# Repository:     https://github.com/orenlab/pytmbot                                                                   #
-# License:        MIT                                                                                                  #
-# Description:    This entrypoint.sh run the main.py script with the specified arguments.                              #
-#                                                                                                                      #
+#                                               pyTMBot - entrypoint.sh                                                   #
 ########################################################################################################################
 
 # Constants
@@ -28,6 +18,35 @@ PLUGINS=""
 WEBHOOK="False"
 SOCKET_HOST="127.0.0.1"
 HEALTH_CHECK="False"
+
+# Variables for process management
+child_pid=""
+
+# Trap signals for proper shutdown
+trap 'handle_exit' TERM INT QUIT HUP
+
+handle_exit() {
+
+    if [ -n "$child_pid" ]; then
+        echo "››››››››››››››››››››››››››››››››››››››››››››››››››› Sending TERM signal to Python process (PID: $child_pid)"
+        kill -TERM "$child_pid" 2>/dev/null || true
+
+        # Wait for the process to finish or timeout after 30 seconds
+        timeout=30
+        while [ $timeout -gt 0 ] && kill -0 "$child_pid" 2>/dev/null; do
+            sleep 1
+            timeout=$((timeout - 1))
+        done
+
+        # Force kill if still running
+        if kill -0 "$child_pid" 2>/dev/null; then
+            echo "Process did not terminate gracefully, forcing shutdown"
+            kill -9 "$child_pid" 2>/dev/null || true
+        fi
+    fi
+
+    exit 0
+}
 
 # Function to validate log level
 validate_log_level() {
@@ -56,14 +75,6 @@ check_dependencies() {
         echo "Error: $MAIN_SCRIPT does not exist or cannot be accessed." >&2
         exit 1
     fi
-}
-
-# Function to perform health check
-perform_health_check() {
-    "$PYTHON_PATH" "$MAIN_SCRIPT" --health_check "True"
-    result=$?
-
-    return $result
 }
 
 # Parse command line arguments
@@ -112,20 +123,13 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Setup logging symlinks if needed
-[ ! -L /dev/stdout ] && ln -sf /proc/self/fd/1 /dev/stdout
-[ ! -L /dev/stderr ] && ln -sf /proc/self/fd/2 /dev/stderr
-
 # Check dependencies
 check_dependencies
 
 # Handle health check
 if [ "$HEALTH_CHECK" = "True" ]; then
-    if perform_health_check; then
-        exit 0
-    else
-        exit 1
-    fi
+    "$PYTHON_PATH" "$MAIN_SCRIPT" --health_check "True"
+    exit $?
 fi
 
 # Run the appropriate script
@@ -134,12 +138,19 @@ if [ "$SALT" = "True" ]; then
         echo "Error: $SALT_SCRIPT does not exist or cannot be accessed." >&2
         exit 1
     fi
-    "$PYTHON_PATH" "$SALT_SCRIPT"
+    # Run salt script
+    $PYTHON_PATH "$SALT_SCRIPT" &
+    child_pid=$!
 else
-    "$PYTHON_PATH" "$MAIN_SCRIPT" \
+    # Run main script
+    $PYTHON_PATH "$MAIN_SCRIPT" \
         --log-level "$LOG_LEVEL" \
         --mode "$MODE" \
         --plugins "$PLUGINS" \
         --webhook "$WEBHOOK" \
-        --socket_host "$SOCKET_HOST"
+        --socket_host "$SOCKET_HOST" &
+    child_pid=$!
 fi
+
+# Wait for the Python process
+wait $child_pid
