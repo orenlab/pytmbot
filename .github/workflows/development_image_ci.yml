@@ -70,10 +70,42 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
         run: |
           IMAGE_REF="orenlab/pytmbot:alpine-dev"
-          cosign sign --yes "${IMAGE_REF}"
+          cosign sign --yes --tuf-root env://SIGSTORE_ROOT --attachment=sbom "${IMAGE_REF}"
 
-      - uses: anchore/scan-action@v3
+      - name: Run Vulnerability Scan
+        uses: anchore/scan-action@v3
+        id: scan
         with:
           image: orenlab/pytmbot:alpine-dev
           fail-build: false
           severity-cutoff: high
+          acs-report-enable: true
+
+      - name: Upload Anchore scan SARIF report
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+      - name: Generate vulnerability report
+        if: always()
+        run: |
+          echo "## Security Scan Results" > vulnerability-report.md
+          echo "Found vulnerabilities at or above HIGH severity level." >> vulnerability-report.md
+          echo "Please review the full report in GitHub Security tab." >> vulnerability-report.md
+          echo "Consider updating base images or packages to resolve these issues." >> vulnerability-report.md
+
+      - name: Create Issue on High Severity
+        if: failure() && steps.scan.outcome == 'failure'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('vulnerability-report.md', 'utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 High Severity Vulnerabilities Detected',
+              body: report,
+              labels: ['security', 'high-priority']
+            });
