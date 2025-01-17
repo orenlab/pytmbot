@@ -15,7 +15,6 @@ from pytmbot.handlers.auth_processing.twofa_processing import (
     handle_totp_code_verification,
 )
 from pytmbot.handlers.bot_handlers.about import handle_about_command
-from pytmbot.handlers.bot_handlers.echo import handle_echo
 from pytmbot.handlers.bot_handlers.inline.update import handle_update_info
 from pytmbot.handlers.bot_handlers.navigation import handle_navigation
 from pytmbot.handlers.bot_handlers.plugins import handle_plugins
@@ -314,23 +313,22 @@ def inline_handler_factory() -> HandlerType:
         for category, handlers in configs.items()
     }
 
+# def echo_handler_factory() -> HandlerType:
+#    """
+#    Returns a dictionary of HandlerManager objects for echo handling.
 
-def echo_handler_factory() -> HandlerType:
-    """
-    Returns a dictionary of HandlerManager objects for echo handling.
+#    This is always the last handler to be registered.
+#    """
+#    configs = {
+#        "echo": [
+#            HandlerConfig(
+#                callback=handle_echo,
+#                filter_func=lambda message: True
+#            )
+#        ]
+#    }
 
-    This is always the last handler to be registered.
-    """
-    configs = {
-        "echo": [
-            HandlerConfig(
-                callback=handle_echo,
-                filter_func=lambda message: True
-            )
-        ]
-    }
-
-    return {
-        category: [config.create_handler() for config in handlers]
-        for category, handlers in configs.items()
-    }
+#    return {
+#        category: [config.create_handler() for config in handlers]
+#        for category, handlers in configs.items()
+#    }
