@@ -119,7 +119,7 @@ class SystemMonitorPlugin(PluginCore):
                                 "component": "monitoring",
                                 "action": "start",
                                 "attempt": attempt,
-                                "trace hold": self.monitor_settings.tracehold,
+                                "tracehold": self.monitor_settings.tracehold,
                                 "event_threshold_duration": {self.event_threshold_duration},
                                 "check_interval": self.check_interval,
                                 "poll_interval": self.poll_interval,
