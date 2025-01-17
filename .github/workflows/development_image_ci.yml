@@ -60,19 +60,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
-
-      - name: Run Vulnerability Scan
-        uses: anchore/scan-action@v3
-        id: scan
-        with:
-          image: orenlab/pytmbot:alpine-dev
-          fail-build: false
-          severity-cutoff: high
-          acs-report-enable: true
-          sarif-file: results.sarif
-
-      - name: Upload SARIF (if exists)
-        if: success() && results.sarif
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
+          sbom: true
