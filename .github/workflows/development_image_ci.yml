@@ -63,14 +63,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
-          sbom: true
 
-      - name: Sign the image with GitHub OIDC Token
+      - name: Get Image Digest
+        id: get-digest
+        run: |
+          IMAGE_REF="orenlab/pytmbot:alpine-dev"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_REF}")
+          echo "IMAGE_DIGEST=${DIGEST}" >> $GITHUB_ENV
+
+      - name: Sign the Image Digest
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
-          IMAGE_REF="orenlab/pytmbot:alpine-dev"
-          cosign sign --yes --attachment=sbom "${IMAGE_REF}"
+          IMAGE_DIGEST=${{ env.IMAGE_DIGEST }}
+          cosign sign --yes "${IMAGE_DIGEST}"
+
+      - name: Create SBOM Attestation
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          IMAGE_DIGEST=${{ env.IMAGE_DIGEST }}
+          cosign attest --predicate sbom.json --type https://spdx.dev/Document "${IMAGE_DIGEST}"
 
       - name: Run Vulnerability Scan
         uses: anchore/scan-action@v3
@@ -87,26 +100,3 @@ jobs:
         if: always()
         with:
           sarif_file: results.sarif
-
-      - name: Generate vulnerability report
-        if: always()
-        run: |
-          echo "## Security Scan Results" > vulnerability-report.md
-          echo "Found vulnerabilities at or above HIGH severity level." >> vulnerability-report.md
-          echo "Please review the full report in GitHub Security tab." >> vulnerability-report.md
-          echo "Consider updating base images or packages to resolve these issues." >> vulnerability-report.md
-
-      - name: Create Issue on High Severity
-        if: always() && steps.scan.outcome == 'failure'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('vulnerability-report.md', 'utf8');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '🚨 High Severity Vulnerabilities Detected',
-              body: report,
-              labels: ['security', 'high-priority']
-            });
