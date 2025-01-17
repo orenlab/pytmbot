@@ -31,9 +31,6 @@ jobs:
           driver-opts: |
             image=moby/buildkit:v0.12.5
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.3.0
-
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -64,27 +61,6 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: mode=max
 
-      - name: Get Image Digest
-        id: get-digest
-        run: |
-          IMAGE_REF="orenlab/pytmbot:alpine-dev"
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_REF}")
-          echo "IMAGE_DIGEST=${DIGEST}" >> $GITHUB_ENV
-
-      - name: Sign the Image Digest
-        env:
-          COSIGN_EXPERIMENTAL: 1
-        run: |
-          IMAGE_DIGEST=${{ env.IMAGE_DIGEST }}
-          cosign sign --yes "${IMAGE_DIGEST}"
-
-      - name: Create SBOM Attestation
-        env:
-          COSIGN_EXPERIMENTAL: 1
-        run: |
-          IMAGE_DIGEST=${{ env.IMAGE_DIGEST }}
-          cosign attest --predicate sbom.json --type https://spdx.dev/Document "${IMAGE_DIGEST}"
-
       - name: Run Vulnerability Scan
         uses: anchore/scan-action@v3
         id: scan
@@ -95,8 +71,8 @@ jobs:
           acs-report-enable: true
           sarif-file: results.sarif
 
-      - name: Upload Anchore scan SARIF report
+      - name: Upload SARIF (if exists)
+        if: success() && exists('results.sarif')
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: results.sarif
