@@ -47,7 +47,7 @@ jobs:
             type=raw,value=alpine-dev
           labels: |
             org.opencontainers.image.title=pyTMbot
-            org.opencontainers.image.description=Telegram bot for Docker monitoring
+            org.opencontainers.image.description=Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system
             org.opencontainers.image.source=https://github.com/orenlab/pytmbot
 
       - uses: docker/build-push-action@v5
@@ -70,7 +70,7 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
         run: |
           IMAGE_REF="orenlab/pytmbot:alpine-dev"
-          cosign sign --yes --tuf-root env://SIGSTORE_ROOT --attachment=sbom "${IMAGE_REF}"
+          cosign sign --yes --attachment=sbom "${IMAGE_REF}"
 
       - name: Run Vulnerability Scan
         uses: anchore/scan-action@v3
@@ -80,9 +80,10 @@ jobs:
           fail-build: false
           severity-cutoff: high
           acs-report-enable: true
+          sarif-file: results.sarif
 
       - name: Upload Anchore scan SARIF report
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: results.sarif
@@ -96,7 +97,7 @@ jobs:
           echo "Consider updating base images or packages to resolve these issues." >> vulnerability-report.md
 
       - name: Create Issue on High Severity
-        if: failure() && steps.scan.outcome == 'failure'
+        if: always() && steps.scan.outcome == 'failure'
         uses: actions/github-script@v6
         with:
           script: |
