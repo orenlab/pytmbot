@@ -27,7 +27,7 @@ from pytmbot.globals import (
 from pytmbot.handlers.handler_manager import (
     handler_factory,
     inline_handler_factory,
-    #echo_handler_factory,
+    # echo_handler_factory,
 )
 from pytmbot.logs import Logger, BaseComponent
 from pytmbot.middleware.access_control import AccessControl
@@ -302,9 +302,7 @@ class PyTMBot(BaseComponent):
         context = {"action": "recovery"}
         try:
             self.bot.get_me()
-            if self.args.webhook == "True":
-                self.bot.remove_webhook()
-            else:
+            if not self.args.webhook == "True":
                 self.bot.stop_polling()
 
             sleep(2)
