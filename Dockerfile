@@ -15,7 +15,7 @@
 ########################################################################################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.13-alpine3.20
+ARG PYTHON_IMAGE=3.13.1-alpine3.21
 ARG ALPINE_IMAGE=3.21
 
 ########################################################################################################################
@@ -63,9 +63,9 @@ ENV PYTHONUNBUFFERED=1 \
     PATH=/venv/bin:$PATH
 
 # Copy necessary Python files and directories from first stage
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
-COPY --from=builder /usr/local/lib/ /usr/local/lib/
-COPY --from=builder /venv /venv
+COPY --link --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --link --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --link --from=builder /venv /venv
 
 # Copy app files in one step to reduce layers
 COPY ./pytmbot ./pytmbot
