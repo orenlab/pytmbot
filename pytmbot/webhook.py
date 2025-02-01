@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
-from pytmbot.exceptions import InitializationError, ErrorContext, ShutdownError, BotException
+from pytmbot.exceptions import InitializationError, ErrorContext, BotException
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.models.telegram_models import TelegramIPValidator
@@ -226,18 +226,6 @@ class WebhookServer(BaseComponent):
                     )
                     log.exception("Failed to initialize webhook lifecycle", error=error_context.dict())
                     raise InitializationError(error_context) from e
-                finally:
-                    try:
-                        self.webhook_manager.remove_webhook()
-                        log.info("Webhook server shutdown completed")
-                    except Exception as e:
-                        error_context = ErrorContext(
-                            message="Error during webhook cleanup",
-                            error_code="WEBHOOK_CLEANUP_ERROR",
-                            metadata={"exception": str(e)}
-                        )
-                        log.exception("Failed to cleanup webhook", error=error_context.dict())
-                        raise ShutdownError(error_context) from e
 
         app = FastAPI(
             docs_url=None,
