@@ -1,7 +1,7 @@
 aiohttp==3.11.10
 docker==7.1.0
 emoji==2.14.0
-fastapi==0.115.6
+fastapi==0.115.8
 humanize==4.11.0
 influxdb-client==1.48.0
 Jinja2==3.1.5
