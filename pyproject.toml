@@ -10,12 +10,12 @@ repository = "https://github.com/orenlab/pytmbot"
 [tool.poetry.dependencies]
 python = "^3.12"
 emoji = "^2.14.1"
-jinja2 = "^3.1.3"
+jinja2 = "^3.1.6"
 pydantic = "^2.10.6"
 pydantic-settings = "^2.5.2"
 docker = "^7.0.0"
 humanize = "^4.9.0"
-psutil = "^6.0.0"
+psutil = "^7.0.0"
 pyotp = "^2.9.0"
 loguru = "^0.7.2"
 pyyaml = "^6.0.2"
@@ -26,15 +26,15 @@ uvicorn = "^0.34.0"
 influxdb-client = "^1.46.0"
 pypng = "^0.20220715.0"
 qrcode = "^8.0"
-aiohttp = "==3.11.11"
-packaging = "==24.2"
+aiohttp = "==3.11.18"
+packaging = "==25.0"
 
 [tool.poetry.group.outline.dependencies]
 pyoutlineapi = "0.1.3"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0.0"
-packaging = "^24.1"
+packaging = "^25.0"
 black = "^24.8.0"
 isort = "^5.0.0"
 
