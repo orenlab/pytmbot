@@ -1,108 +1,184 @@
+from __future__ import annotations
+
 import sys
-from functools import lru_cache, wraps
-from typing import Tuple, Any, Callable, Set
+from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import StrEnum
+from functools import wraps, cache
+from time import monotonic_ns
+from typing import Any, Callable, ClassVar, Generator, TypeVar
+from weakref import WeakValueDictionary
 
-import loguru
 from loguru import logger
+from telebot.types import Update, Message, CallbackQuery, InlineQuery
 
-from pytmbot.settings import LogsSettings
-from pytmbot.utils.utilities import (
-    parse_cli_args,
-    get_inline_message_full_info,
-    get_message_full_info,
-    is_running_in_docker,
-    sanitize_exception,
-)
+from pytmbot.utils.cli import parse_cli_args
+
+T = TypeVar('T')
 
 
-@lru_cache(maxsize=1)
-def get_log_level_map(valid_log_levels: tuple) -> Set[str]:
-    """Returns a set of valid uppercase log levels."""
-    return {level.upper() for level in valid_log_levels}
+class LogLevel(StrEnum):
+    TRACE = "TRACE"
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    SUCCESS = "SUCCESS"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+    DENIED = "DENIED"
+    BLOCKED = "BLOCKED"
 
 
-def build_bot_logger() -> loguru.logger:
-    """
-    Builds a custom logger for the bot with custom levels and configurations.
-
-    Returns:
-        loguru.Logger: Configured logger object.
-    """
-    logger.remove()
-    logs_settings = LogsSettings()
-    cli_args = parse_cli_args()
-
-    log_level = cli_args.log_level.upper()
-    if log_level not in get_log_level_map(tuple(logs_settings.valid_log_levels)):
-        log_level = "INFO"
-
-    logger.add(
-        sys.stdout,
-        format=logs_settings.bot_logger_format,
-        diagnose=True,
-        backtrace=True,
-        colorize=bool(cli_args.colorize_logs),
-        level=log_level,
-        catch=True,
+@dataclass(frozen=True, slots=True)
+class LogConfig:
+    FORMAT: ClassVar[str] = (
+        "<green>{time:YYYY-MM-DD}</green> "
+        "[<cyan>{time:HH:mm:ss}</cyan>]"
+        "[<level>{level: <8}</level>]"
+        "[<magenta>{module: <16}</magenta>] › "
+        "<level>{message}</level> › "
+        "<fg #A9A9A9>{extra}</fg #A9A9A9>"
     )
+    CUSTOM_LEVELS: ClassVar[dict[str, tuple[int, str]]] = {
+        "DENIED": (39, "<red>"),
+        "BLOCKED": (38, "<yellow>")
+    }
 
-    if log_level == "DEBUG":
-        logger.debug(
-            "Logger initialized\n"
-            f"  Log level: {logger.level}\n"
-            f"  Python path: {sys.executable}\n"
-            f"  Python version: {sys.version}\n"
-            f"  Module path: {sys.path}\n"
-            f"  Command args: {sys.argv}\n"
-            f"  Running on: {'Docker' if is_running_in_docker() else 'Host'}"
+
+class Logger:
+    """
+    Singleton logger class with context management and session tracking capabilities.
+    Uses WeakValueDictionary for efficient memory management.
+    """
+    __slots__ = ("_logger", "__weakref__")
+
+    _instance = WeakValueDictionary()
+    _initialized: bool = False
+
+    def __new__(cls) -> Logger:
+        if 'default' not in cls._instance:
+            instance = super().__new__(cls)
+            cls._instance['default'] = instance
+        return cls._instance['default']
+
+    def __init__(self) -> None:
+        if not self._initialized:
+            self._logger = logger
+            self._configure_logger(parse_cli_args().log_level.upper())
+            self.__class__._initialized = True
+
+    @cache
+    def _configure_logger(self, log_level: str) -> None:
+        """Configure logger with custom settings and levels."""
+        self._logger.remove()
+        self._logger.add(
+            sys.stdout,
+            format=LogConfig.FORMAT,
+            level=log_level,
+            colorize=True,
+            backtrace=True,
+            diagnose=True,
+            catch=True,
         )
 
-    # Custom log levels
-    logger.level("DENIED", no=39, color="<red>")
-    logger.level("BLOCKED", no=38, color="<yellow>")
+        for level_name, (level_no, color) in LogConfig.CUSTOM_LEVELS.items():
+            self._logger.level(level_name, no=level_no, color=color)
 
-    return logger
+    @staticmethod
+    def _extract_update_data(update: Update | Message | CallbackQuery | InlineQuery) -> dict[str, Any]:
+        """Extract relevant data from Telegram update objects."""
+        if isinstance(update, Update):
+            obj = update.message or update.callback_query or update.inline_query
+            if not obj:
+                return {"update_type": "unknown", "update_id": update.update_id}
+        else:
+            obj = update
 
+        update_type = type(obj).__name__.lower()
 
-def create_session_logger(is_inline: bool = False):
-    """Factory function for creating session loggers."""
+        return {
+            "update_type": update_type,
+            "update_id": getattr(update, "update_id", None),
+            "chat_id": getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None,
+            "user_id": getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None,
+            "username": getattr(obj.from_user, "username", None) if hasattr(obj, "from_user") else None,
+        }
 
-    def session_decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @wraps(func)
-        def wrapper(*args: Tuple[Any, ...], **kwargs: dict) -> Any:
-            get_info = get_inline_message_full_info if is_inline else get_message_full_info
-            session_type = "inline session" if is_inline else "handling"
-
-            info = get_info(*args, **kwargs)
-            username, user_id = info[0], info[1]
-
-            logger.info(
-                f"Start {session_type} @{func.__name__}: "
-                f"User: {username}, UserID: {user_id}"
+    @contextmanager
+    def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+        """Context manager for temporary logging context."""
+        previous = getattr(self._logger, "_context", {}).copy()
+        try:
+            self._logger = self._logger.bind(
+                **kwargs
             )
-            logger.debug(f"Arguments: {args}, Keyword arguments: {kwargs}")
+            yield self
+        finally:
+            self._logger = logger.bind(**previous) if previous else logger.bind()
 
-            try:
-                result = func(*args, **kwargs)
-                logger.success(
-                    f"Finished {session_type} @{func.__name__} for user: {username}"
+    def session_decorator(self, func: Callable[..., T] = None) -> Callable[..., T]:
+        def decorator(f: Callable[..., T]) -> Callable[..., T]:
+            @wraps(f)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Search for Telegram object
+                telegram_object = next(
+                    (arg for arg in args if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))),
+                    None
                 )
-                return result
-            except Exception as e:
-                logger.exception(
-                    f"Error in {session_type} @{func.__name__} "
-                    f"for user: {username}, exception: {sanitize_exception(e)}"
-                )
-                raise
 
-        return wrapper
+                logger.debug(f"Telegram object in {f.__name__}: {telegram_object}")
 
-    return session_decorator
+                context = {
+                    "component": f.__name__,
+                    "action": f.__name__,
+                }
+
+                if telegram_object:
+                    context.update(self._extract_update_data(telegram_object))
+                else:
+                    logger.warning(f"No Telegram object found in handler {f.__name__}")
+
+                with self.context(**context) as log:
+                    start_time = monotonic_ns()
+                    try:
+                        result = f(*args, **kwargs)
+                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        log.success(
+                            f"Handler {f.__name__} completed",
+                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                        )
+                        return result
+                    except Exception as e:
+                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        log.exception(
+                            f"Handler {f.__name__} failed after {elapsed_time_ms:.2f}ms: {str(e)}",
+                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                        )
+                        raise
+
+            return wrapper
+
+        return decorator(func) if func else decorator
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._logger, name)
 
 
-# Create specific decorators using the factory
-logged_handler_session = create_session_logger(is_inline=False)
-logged_inline_handler_session = create_session_logger(is_inline=True)
+class BaseComponent:
+    """Base component with integrated logging capabilities."""
 
-# Initialize the logger
-bot_logger = build_bot_logger()
+    __slots__ = ("_log", "component_name")
+
+    def __init__(self, component_name: str = ""):
+        self._log = Logger()
+        self.component_name = component_name if component_name else self.__class__.__name__
+        with self._log.context(component=self.component_name) as log:
+            self._log = log
+
+    @contextmanager
+    def log_context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+        with self._log.context(**kwargs) as log:
+            yield log
+
+
+__all__ = ["Logger", "LogLevel", "BaseComponent"]

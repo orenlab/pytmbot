@@ -9,13 +9,16 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
-from pytmbot.globals import psutil_adapter, keyboards, em
-from pytmbot.logs import logged_handler_session, bot_logger
+from pytmbot.exceptions import ErrorContext
+from pytmbot.globals import psutil_adapter, keyboards, em, button_data
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # regexp="Memory load"
-@logged_handler_session
+@logger.session_decorator
 def handle_memory(message: Message, bot: TeleBot):
     """
     Handle the "Memory load" command.
@@ -28,23 +31,23 @@ def handle_memory(message: Message, bot: TeleBot):
         bot.send_chat_action(message.chat.id, "typing")
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
-            bot_logger.error(
+            logger.error(
                 f"Failed at {__name__}: Error occurred while getting memory info"
             )
             return bot.send_message(
-                message.chat.id, text="Some error occurred. Please try again later("
+                message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
-        button_data = keyboards.ButtonData(
+        data = button_data(
             text="Swap info", callback_data="__swap_info__"
         )
-        keyboard = keyboards.build_inline_keyboard(button_data)
+        keyboard = keyboards.build_inline_keyboard(data)
 
         with Compiler(
-            template_name="b_memory.jinja2",
-            context=memory_info,
-            thought_balloon=em.get_emoji("thought_balloon"),
-            abacus=em.get_emoji("abacus"),
+                template_name="b_memory.jinja2",
+                context=memory_info,
+                thought_balloon=em.get_emoji("thought_balloon"),
+                abacus=em.get_emoji("abacus"),
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -52,8 +55,15 @@ def handle_memory(message: Message, bot: TeleBot):
             message.chat.id,
             text=bot_answer,
             reply_markup=keyboard,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling memory command",
+            error_code="HAND_006",
+            metadata={"exception": str(error)}
+        ))

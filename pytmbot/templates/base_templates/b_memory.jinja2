@@ -1,6 +1,12 @@
-{# templates/memory.jinja2 #}
+{{ thought_balloon }} <b>Memory Usage:</b>
 
-{{ thought_balloon }} Here is:
+{{ abacus }} <b>Total Memory:</b> <code>{{ context.total }}</code>
+<code>Used:</code> {{ context.used }} ({{ context.percent }}%)
+<code>Free:</code> {{ context.free }}
+<code>Available:</code> {{ context.available }}
 
-{% for key, value in context.items() %}{{ abacus }} **{{ key }}:** {{ value }}
-{% endfor %}
+<b>Details:</b>
+<code>Active:</code> {{ context.active }}
+<code>Inactive:</code> {{ context.inactive }}
+<code>Cached:</code> {{ context.cached }}
+<code>Shared:</code> {{ context.shared }}

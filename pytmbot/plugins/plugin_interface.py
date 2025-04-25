@@ -13,26 +13,44 @@ class PluginInterface(ABC):
     """
     Abstract base class for all pyTMBot plugins.
 
-    Plugins should inherit from this class and implement the `register` method,
-    which will be used to register the plugin with the bot.
+    This class provides the interface that all plugins must implement to work with the bot.
+    It ensures consistent plugin behavior and proper integration with the bot system.
 
     Attributes:
         bot (TeleBot): The instance of the Telegram bot that the plugin interacts with.
-    """
 
-    def __init__(self, bot: TeleBot):
+    Example:
+        ```python
+        class MyPlugin(PluginInterface):
+            def register(self) -> None:
+                @self.bot.message_handler(commands=['myplugin'])
+                def handle_command(message):
+                    self.bot.reply_to(message, "Plugin response")
+        ```
+
+    Raises:
+        TypeError: If the provided bot instance is not a TeleBot object.
+    """
+    __slots__ = ('bot',)
+
+    def __init__(self, bot: TeleBot) -> None:
+        if not isinstance(bot, TeleBot):
+            raise TypeError("bot must be an instance of TeleBot")
         self.bot = bot
 
     @abstractmethod
-    def register(self):
+    def register(self) -> None:
         """
-        Method that must be implemented in each plugin.
+        Register the plugin with the bot system.
 
-        This method should contain the logic for registering the plugin, such as
-        setting up command handlers, adding to menus, and other actions necessary
-        for the plugin to function.
+        This method must be implemented by all plugin classes. It should set up:
+        - Command handlers
+        - Message handlers
+        - Callback query handlers
+        - Any other necessary bot interactions
 
         Raises:
-            NotImplementedError: If the method is not implemented in a subclass.
+            NotImplementedError: If the method is not implemented by the plugin class.
+            RuntimeError: If registration fails due to bot API issues.
         """
-        pass
+        raise NotImplementedError("Plugin must implement register() method")

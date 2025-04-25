@@ -9,12 +9,16 @@ from telebot import TeleBot
 from telebot.types import Message, LinkPreviewOptions
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import __version__
-from pytmbot.logs import logged_handler_session
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
+logger = Logger()
 
-@logged_handler_session
+
+@logger.session_decorator
 def handle_about_command(message: Message, bot: TeleBot) -> None:
     """
     Handles the 'About' command received by the bot.
@@ -37,16 +41,24 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         template_data = {"username": user_name, "app_version": __version__}
 
         with Compiler(
-            template_name="b_about_bot.jinja2", context=template_data
+                template_name="b_about_bot.jinja2", context=template_data
         ) as compiler:
             response = compiler.compile()
 
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=response,
             parse_mode="Markdown",
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling the about command",
+            error_code="HAND_018",
+            metadata={"exception": str(error)}
+        ))

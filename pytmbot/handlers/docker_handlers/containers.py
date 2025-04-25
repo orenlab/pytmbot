@@ -11,14 +11,18 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
-from pytmbot.globals import keyboards, em
-from pytmbot.logs import bot_logger, logged_handler_session
+from pytmbot.exceptions import ErrorContext
+from pytmbot.globals import keyboards, em, button_data
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # regexp="Containers"
 # commands=["containers"]
-@logged_handler_session
+@logger.session_decorator
 def handle_containers(message: Message, bot: TeleBot) -> None:
     """
     Handle the 'Containers' message by compiling and sending the message to the user or sending an error message.
@@ -38,7 +42,7 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
         inline_keyboard = (
             keyboards.build_inline_keyboard(
                 [
-                    keyboards.ButtonData(
+                    button_data(
                         text=name,
                         callback_data=f"__get_full__:{name.lower()}:{message.from_user.id}",
                     )
@@ -49,16 +53,23 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
             else None
         )
 
-        # Send the message to the user
-        bot.send_message(
-            message.chat.id,
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
             text=containers_info[0],
             reply_markup=inline_keyboard,
             parse_mode="HTML",
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling containers",
+            error_code="HAND_012",
+            metadata={"exception": str(error)}
+        ))
 
 
 def __get_container_data() -> list[dict[str, str]] | dict[None, None] | dict[Any, Any]:
@@ -74,8 +85,11 @@ def __get_container_data() -> list[dict[str, str]] | dict[None, None] | dict[Any
     try:
         return retrieve_containers_stats()
     except Exception as e:
-        bot_logger.error(f"Failed at {__name__}: {e}")
-        return {}
+        raise exceptions.DockerOperationException(ErrorContext(
+            message="Failed to retrieve container data",
+            error_code="DOCKER_001",
+            metadata={"exception": str(e)}
+        ))
 
 
 def __compile_message() -> Tuple[str, Optional[List[str]]]:
@@ -111,20 +125,29 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
 
             emojis: Final[Dict[str, str]] = {
                 "thought_balloon": em.get_emoji("thought_balloon"),
-                "luggage": em.get_emoji("pushpin"),
-                "minus": em.get_emoji("minus"),
+                "oil_drum": em.get_emoji("oil_drum"),
+                "id": em.get_emoji("ID_button"),
+                "package": em.get_emoji("package"),
+                "mantelpiece_clock": em.get_emoji("mantelpiece_clock"),
+                "rocket": em.get_emoji("rocket"),
+                "antenna_bars": em.get_emoji("antenna_bars"),
+                "magnifying_glass": em.get_emoji("magnifying_glass_tilted_left"),
             }
 
         # Render the template with the context data and emojis
         with Compiler(
-            template_name=template_name, context=context, **emojis
+                template_name=template_name, context=context, **emojis
         ) as compiler:
             compiled_data = compiler.compile()
 
         return compiled_data, containers_name
 
     except Exception as e:
-        bot_logger.error(f"Failed at {__name__}: {e}")
+        raise exceptions.TemplateError(ErrorContext(
+            message="Failed to compile message",
+            error_code="TEMPL_001",
+            metadata={"exception": str(e)}
+        ))
 
 
 def get_list_of_containers_again() -> Tuple[str, Optional[List[str]]]:

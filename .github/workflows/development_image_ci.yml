@@ -1,10 +1,15 @@
 name: Push Alpine Dev Image
 
 on:
-  # Trigger the workflow on pushes to the master branch
   push:
     branches:
-      - 'master'
+      - '0.2.2'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  security-events: write
 
 jobs:
   push_dev_image:
@@ -12,43 +17,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Set up QEMU for multi-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - uses: actions/checkout@v4
         with:
-          platforms: all
+          fetch-depth: 0
 
-      # Step 2: Set up Docker Buildx for advanced build capabilities
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - uses: docker/setup-buildx-action@v3
         with:
           install: true
+          driver-opts: |
+            image=moby/buildkit:v0.12.5
 
-      # Step 3: Log in to Docker Hub
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}  # Docker Hub username stored as a secret
-          password: ${{ secrets.DOCKER_PASSWORD }}  # Docker Hub password stored as a secret
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step 4: Build and push the Docker image
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - uses: docker/metadata-action@v5
+        id: meta
         with:
-          # Specify the build target (useful for multi-stage builds)
+          images: orenlab/pytmbot
+          tags: |
+            type=raw,value=alpine-dev
+          labels: |
+            org.opencontainers.image.title=pyTMbot
+            org.opencontainers.image.description=Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system
+            org.opencontainers.image.source=https://github.com/orenlab/pytmbot
+
+      - uses: docker/build-push-action@v5
+        id: build-and-push
+        with:
+          context: .
           target: production
-          # Enable SBOM (Software Bill of Materials) generation for image transparency
-          sbom: true
-          # Enable SLSA provenance for supply chain security
-          provenance: true
-          # Specify the Dockerfile location
           file: Dockerfile
-          # Enable pushing the built image to the Docker registry
           push: true
-          # Specify supported platforms, including Apple Silicon (ARM64)
           platforms: linux/amd64,linux/arm64
-          # Tag the image for easy identification
-          tags: orenlab/pytmbot:alpine-dev
-          # Enable caching to optimize builds
-          cache-from: type=registry,ref=orenlab/pytmbot:alpine-dev
-          cache-to: type=inline,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true

@@ -1,13 +1,42 @@
-{# templates/containers.jinja2 #}
+{# templates/docker_templates/d_containers.jinja2 #}
 
-{{ thought_balloon }}Here is:
+{# Макрос для форматирования поля с значением #}
+{% macro format_field(emoji, label, value, default='N/A') -%}
+{%- if value or default -%}
+{{ emoji }} <b>{{ label }}:</b> {{ value | default(default) }}
+{%- endif -%}
+{%- endmacro %}
 
-{% for value in context %}{{ luggage }} <b>{{ value['name'] }}</b>:
-    {{ minus }} ID: {{ value["id"] }}
-    {{ minus }} Image: {{ value["image"] }}
-    {{ minus }} Created: {{ value["created"] }}
-    {{ minus }} Run at: {{ value["run_at"] }}
-    {{ minus }} Status: <b>{{ value["status"] }}</b>
+{% set container_fields = [
+    (oil_drum, 'Container', 'name', None),
+    (id, 'ID', 'id', None),
+    (package, 'Image', 'image', None),
+    (mantelpiece_clock, 'Created', 'created', None),
+    (rocket, 'Started', 'run_at', None),
+    (antenna_bars, 'Status', 'status', None)
+] %}
 
-{% endfor %}
-<b>More details</b>:
+{{ thought_balloon }} <b>Docker Containers:</b>
+
+{% for value in context -%}
+{% for emoji, label, field_key, default_value in container_fields -%}
+{%- if field_key == 'name' -%}
+{{ emoji }} <b>{{ value[field_key] }}</b>
+{% elif field_key == 'status' -%}
+{{ emoji }} <b>{{ label }}:</b> <code>{{ value[field_key] }}</code>
+{% else -%}
+{{ format_field(emoji, label, value[field_key], default_value) }}
+{% endif -%}
+{% endfor -%}
+{%- if not loop.last %}
+
+<i>───────────────</i>
+
+{% endif -%}
+{% else %}
+<b>No containers available.</b>
+{%- endfor %}
+
+{% if context -%}
+{{ magnifying_glass }} <b>More details:</b>
+{%- endif -%}

@@ -5,13 +5,12 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import keyboards, em
-from pytmbot.logs import logged_handler_session
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
-from pytmbot.utils.utilities import set_naturalsize
+from pytmbot.utils import set_naturalsize
 
 plugin_methods = PluginMethods()
 plugin = PluginCore()
@@ -25,9 +24,9 @@ class OutlinePlugin(PluginInterface):
         :param bot: An instance of TeleBot to interact with Telegram API.
         """
         super().__init__(bot)
-        self.plugin_logger = plugin.bot_logger
+        self.plugin_logger = plugin.logger
 
-    @logged_handler_session
+    @plugin.logger.session_decorator
     def outline_handler(self, message: Message) -> None:
         """
         Handles the '/outline' command by sending a compiled response
@@ -49,7 +48,7 @@ class OutlinePlugin(PluginInterface):
             message.chat.id, response, reply_markup=keyboard, parse_mode="Markdown"
         )
 
-    @logged_handler_session
+    @plugin.logger.session_decorator
     def handle_server_info(self, message: Message) -> Message:
         """
         Handles messages with 'Server info' by sending server information
@@ -83,7 +82,7 @@ class OutlinePlugin(PluginInterface):
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @logged_handler_session
+    @plugin.logger.session_decorator
     def handle_keys(self, message: Message) -> Message:
         """
         Handles messages with 'Keys' by sending key information compiled
@@ -114,7 +113,7 @@ class OutlinePlugin(PluginInterface):
         )
         self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @logged_handler_session
+    @plugin.logger.session_decorator
     def handle_traffic(self, message: Message) -> Message:
         """
         Handles messages with 'Traffic' by sending traffic information
@@ -167,8 +166,8 @@ class OutlinePlugin(PluginInterface):
             )
 
     def _get_action_data(
-        self,
-        action: Literal["key_information", "server_information", "traffic_information"],
+            self,
+            action: Literal["key_information", "server_information", "traffic_information"],
     ) -> Optional[Dict]:
         """
         Retrieves action data from the plugin methods and processes it.
@@ -204,11 +203,11 @@ class OutlinePlugin(PluginInterface):
         return None
 
     def _compile_template(
-        self,
-        template_name: str,
-        first_name: str,
-        context: Optional[Dict] = None,
-        **kwargs: dict[str, Any],
+            self,
+            template_name: str,
+            first_name: str,
+            context: Optional[Dict] = None,
+            **kwargs: dict[str, Any],
     ) -> str:
         """
         Compiles the template with the provided context and first name.
@@ -220,11 +219,11 @@ class OutlinePlugin(PluginInterface):
         :return: The compiled template response as a string.
         """
         with Compiler(
-            template_name=template_name,
-            first_name=first_name,
-            set_naturalsize=set_naturalsize,
-            context=context or {},
-            **kwargs,
+                template_name=template_name,
+                first_name=first_name,
+                set_naturalsize=set_naturalsize,
+                context=context or {},
+                **kwargs,
         ) as compiler:
             response = compiler.compile()
 

@@ -6,18 +6,81 @@ also providing basic information about the status of local servers.
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Dict, List, Union
+from functools import wraps
+from typing import Dict, List, Optional
 
-from docker.errors import APIError, NotFound
+from docker.errors import NotFound
+from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.exceptions import ContainerNotFoundError, DockerOperationException, ErrorContext
 from pytmbot.globals import settings
-from pytmbot.logs import bot_logger
-from pytmbot.utils.utilities import set_naturaltime
+from pytmbot.logs import Logger
+from pytmbot.utils import set_naturaltime
+
+logger = Logger()
 
 
+def with_operation_logging(operation_name: str):
+    """
+    Decorator for logging Docker operations with timing and context.
+
+    Args:
+        operation_name: Name of the Docker operation being performed
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            operation_context = {
+                'operation': operation_name,
+                'args': args,
+                'kwargs': kwargs,
+                'start_time': datetime.now().isoformat()
+            }
+
+            try:
+                result = func(*args, **kwargs)
+                execution_time = time.time() - start_time
+
+                operation_context.update({
+                    'execution_time': f"{execution_time:.3f}s",
+                    'success': True,
+                    'result_type': type(result).__name__
+                })
+
+                if settings.docker.debug_docker_client:
+                    logger.debug(
+                        f"Docker operation completed: {operation_name}",
+                        extra=operation_context
+                    )
+
+                return result
+
+            except Exception as e:
+                execution_time = time.time() - start_time
+                operation_context.update({
+                    'execution_time': f"{execution_time:.3f}s",
+                    'success': False,
+                    'error': str(e),
+                    'error_type': type(e).__name__
+                })
+
+                logger.error(
+                    f"Docker operation failed: {operation_name}",
+                    extra=operation_context
+                )
+                raise
+
+        return wrapper
+
+    return decorator
+
+
+@with_operation_logging("fetch_containers_list")
 def __fetch_containers_list() -> List[str]:
     """
     Retrieves a list of all running containers and returns their short IDs.
@@ -26,139 +89,187 @@ def __fetch_containers_list() -> List[str]:
         List[str]: A list of short IDs of the running containers.
 
     Raises:
-        FileNotFoundError: If the Docker client cannot be created.
-        ConnectionError: If there is an error connecting to the Docker daemon.
+        DockerConnectionError: If there is an error connecting to Docker.
     """
-    try:
-        with DockerAdapter() as adapter:
-            bot_logger.debug("Retrieving list of running containers.")
-            container_list = adapter.containers.list(all=True)
-
+    with DockerAdapter() as adapter:
+        container_list = adapter.containers.list(all=True)
         return [container.short_id for container in container_list]
 
-    except Exception as e:
-        bot_logger.error(f"Failed to list containers: {e}")
 
-
-def __get_container_attributes(container_id: str):
+@with_operation_logging("get_container_attributes")
+def __get_container_attributes(container_id: str) -> Container:
     """
     Retrieve the details of a Docker container.
 
     Args:
-        container_id (str): The ID of the container.
+        container_id: The ID of the container.
 
     Returns:
-        docker.models.containers.Container: The container object.
+        Container: The container object.
 
     Raises:
-        ValueError: If the container ID is invalid.
-        FileNotFoundError: If the Docker executable is not found.
+        ContainerNotFoundError: If the container cannot be found.
+        DockerOperationError: If the operation fails.
     """
     if not container_id:
-        raise ValueError("Invalid container ID")
+        raise ValueError("Container ID cannot be empty")
 
     try:
         with DockerAdapter() as adapter:
-            if settings.docker.debug_docker_client:
-                bot_logger.debug(
-                    f"Retrieving container details for ID: {container_id}."
-                )
             return adapter.containers.get(container_id)
+    except NotFound:
+        raise ContainerNotFoundError(ErrorContext(
+            message="Container not found",
+            error_code="DOCKER_001",
+            metadata={"container_id": container_id}
+        ))
     except Exception as e:
-        bot_logger.error(
-            f"Failed to retrieve container details for ID: {container_id}. Error: {e}"
-        )
+        raise DockerOperationException(ErrorContext(
+            message="Failed to get container attributes",
+            error_code="DOCKER_002",
+            metadata={"container_id": container_id, "exception": str(e)}
+        ))
 
 
-def __aggregate_container_details(container_id: str) -> dict:
+@with_operation_logging("aggregate_container_details")
+def __aggregate_container_details(container_id: str) -> Dict[str, str]:
     """
     Aggregates details of a Docker container into a dictionary.
 
     Args:
-        container_id (str): The ID of the container.
+        container_id: The ID of the container.
 
     Returns:
-        dict: A dictionary containing the container's name, image, creation time,
-              start time, and status.
-
-    Raises:
-        ValueError: If container details retrieval fails.
+        Dict containing container details.
     """
-    try:
-        start_time = time.time()
-        container_details = __get_container_attributes(container_id)
-        attrs = container_details.attrs
+    container_details = __get_container_attributes(container_id)
+    attrs = container_details.attrs
 
-        created_at = datetime.fromisoformat(attrs["Created"])
-        created_day, created_time = created_at.date(), created_at.time().strftime(
-            "%H:%M:%S"
-        )
+    created_at = datetime.fromisoformat(attrs["Created"])
 
-        container_context = {
-            "id": container_id,
-            "name": attrs["Name"].strip("/").title(),
-            "image": attrs.get("Config", {}).get("Image", "N/A"),
-            "created": f"{created_day}, {created_time}",
-            "run_at": (
-                set_naturaltime(
-                    datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
-                )
-                if attrs["State"].get("StartedAt", "")
-                else "N/A"
-            ),
-            "status": attrs.get("State", {}).get("Status", "N/A"),
+    return {
+        "id": container_id,
+        "name": attrs["Name"].strip("/").title(),
+        "image": attrs.get("Config", {}).get("Image", "N/A"),
+        "created": created_at.strftime("%Y-%m-%d, %H:%M:%S"),
+        "run_at": (
+            set_naturaltime(
+                datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
+            )
+            if attrs["State"].get("StartedAt")
+            else "N/A"
+        ),
+        "status": attrs.get("State", {}).get("Status", "N/A"),
+    }
+
+
+@with_operation_logging("retrieve_containers_stats")
+def retrieve_containers_stats() -> List[Dict[str, str]]:
+    """
+    Retrieves and returns details of Docker containers using parallel processing.
+
+    Returns:
+        List of container details dictionaries.
+    """
+    containers_id = __fetch_containers_list()
+    if not containers_id:
+        return []
+
+    container_details = []
+    with ThreadPoolExecutor() as executor:
+        future_to_id = {
+            executor.submit(__aggregate_container_details, cid): cid
+            for cid in containers_id
         }
 
-        if settings.docker.debug_docker_client:
-            bot_logger.debug(
-                f"Time taken to build container details: {time.time() - start_time:.5f} seconds."
-            )
+        for future in as_completed(future_to_id):
+            container_id = future_to_id[future]
+            try:
+                details = future.result()
+                container_details.append(details)
+            except Exception as e:
+                logger.error(
+                    f"Failed to process container {container_id}: {e}",
+                    extra={'container_id': container_id, 'error': str(e)}
+                )
 
-        return container_context
-
-    except Exception as e:
-        bot_logger.error(f"Failed at @{__name__}: {e}")
-        return {}
+    return container_details
 
 
-def retrieve_containers_stats() -> Union[List[Dict[str, str]], Dict[None, None]]:
+@with_operation_logging("fetch_container_logs")
+def fetch_container_logs(container_id: str) -> str:
     """
-    Retrieves and returns details of Docker containers.
+    Fetches and returns the logs of a Docker container.
 
-    This function checks for Docker availability, lists the containers, and retrieves details
-    for each container using parallel processing with a ThreadPool.
+    Args:
+        container_id: The ID of the container.
 
     Returns:
-        Union[List[Dict[str, str]], Dict[None, None]]: A list of container details or an empty dictionary if none found.
+        Container logs as a string.
 
     Raises:
-        ValueError: If an exception occurs during the retrieval process.
+        ContainerNotFoundError: If the container cannot be found.
     """
     try:
-        start_time = time.time()
-
-        containers_id = __fetch_containers_list()
-
-        if not containers_id:
-            bot_logger.warning("No containers found. Returning empty dictionary.")
-            return {}
-
-        with ThreadPoolExecutor() as executor:
-            details = list(executor.map(__aggregate_container_details, containers_id))
-
-        if settings.docker.debug_docker_client:
-            bot_logger.debug(f"Returning container details: {details}.")
-            bot_logger.debug(
-                f"Done retrieving container details in {time.time() - start_time:.5f} seconds."
-            )
-
-        return details
-
+        container = __get_container_attributes(container_id)
+        logs = container.logs(
+            tail=50,
+            stdout=True,
+            stderr=True,
+            timestamps=True
+        )
+        return logs.decode("utf-8", errors="replace")[-3800:]
+    except NotFound:
+        raise ContainerNotFoundError(ErrorContext(
+            message="Container not found",
+            error_code="DOCKER_001",
+            metadata={"container_id": container_id}
+        ))
     except Exception as e:
-        bot_logger.error(f"Failed at {__name__}: {e}")
-        return {}
+        raise DockerOperationException(ErrorContext(
+            message="Failed to get container attributes",
+            error_code="DOCKER_002",
+            metadata={"container_id": container_id, "exception": str(e)}
+        ))
 
 
+@with_operation_logging("fetch_docker_counters")
+def fetch_docker_counters() -> Dict[str, int]:
+    """
+    Fetches Docker image and container counts.
+
+    Returns:
+        Dict with image and container counts.
+    """
+    with DockerAdapter() as adapter:
+        return {
+            "images_count": len(adapter.images.list()),
+            "containers_count": len(adapter.containers.list(all=True))
+        }
+
+
+@with_operation_logging("get_container_state")
+def get_container_state(container_id: str) -> Optional[str]:
+    """
+    Retrieves the status of a Docker container.
+
+    Args:
+        container_id: The ID of the container.
+
+    Returns:
+        Container status string or None if not found.
+    """
+    try:
+        container = __get_container_attributes(container_id)
+        return container.status
+    except ContainerNotFoundError:
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get container state: {e}")
+        return None
+
+
+@with_operation_logging("fetch_full_container_details")
 def fetch_full_container_details(container_id: str):
     """
     Retrieves and returns the full attributes of a Docker container.
@@ -172,67 +283,5 @@ def fetch_full_container_details(container_id: str):
     try:
         return __get_container_attributes(container_id)
     except NotFound:
-        bot_logger.debug(f"Container {container_id} not found.")
+        logger.error(f"Container {container_id} not found.")
         return {}
-
-
-def fetch_container_logs(container_id: str):
-    """
-    Fetches and returns the logs of a Docker container.
-
-    Args:
-        container_id (str): The ID of the container.
-
-    Returns:
-        Union[str, dict]: The logs of the container as a string, or an empty string if none found.
-
-    Raises:
-        NotFound: If the container is not found.
-        APIError: If there is an error with the Docker API.
-    """
-    try:
-        container_details = __get_container_attributes(container_id)
-        logs = container_details.logs(tail=50, stdout=True, stderr=True)
-        cut_logs = logs.decode("utf-8", errors="ignore")[-3800:]
-        return cut_logs if cut_logs else ""
-    except (NotFound, APIError):
-        bot_logger.error(f"Failed to fetch logs for container: {container_id}")
-        return ""
-
-
-def fetch_docker_counters():
-    """
-    Fetches and returns Docker counters containing the number of images and containers.
-
-    Returns:
-        Union[Dict[str, int], None]: A dictionary with 'images_count' and 'containers_count' or None if an error occurs.
-    """
-    try:
-        with DockerAdapter() as adapter:
-            images = adapter.images.list()
-            containers = adapter.containers.list()
-
-        return {"images_count": len(images), "containers_count": len(containers)}
-
-    except (NotFound, APIError) as e:
-        bot_logger.error(f"Failed to fetch Docker counters: {e}")
-        return None
-
-
-def get_container_state(container_id: str):
-    """
-    Retrieves and returns the status of a Docker container.
-
-    Args:
-        container_id (str): The ID of the container.
-
-    Returns:
-        str: The status of the container, or None if an error occurs.
-    """
-    try:
-        with DockerAdapter() as adapter:
-            container = adapter.containers.get(container_id)
-            return container.status
-    except Exception as e:
-        bot_logger.error(f"Failed to get container state: {e}")
-        return None

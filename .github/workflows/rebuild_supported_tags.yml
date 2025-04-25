@@ -1,0 +1,46 @@
+name: CI Rebuild Specific Tags
+
+on:
+  schedule:
+    - cron: '0 12 * * 1' # Every Monday at 12:00 UTC (17:00 Yekaterinburg)
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tag:
+          - 0.2.0
+          - 0.2.1  # This will also be tagged as latest
+        include:
+          - tag: 0.2.0
+            is_latest: false
+            context: https://github.com/orenlab/pytmbot.git#0.2.0
+          - tag: 0.2.1
+            is_latest: true
+            context: https://github.com/orenlab/pytmbot.git#0.2.1
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          sbom: true
+          provenance: true
+          file: Dockerfile
+          push: true
+          target: production
+          tags: |
+            orenlab/pytmbot:${{ matrix.tag }}
+            ${{ matrix.is_latest && 'orenlab/pytmbot:latest' || '' }}

@@ -1,27 +1,38 @@
 {# templates/index.jinja2 #}
 
-Hi *{{ first_name }}*,
+Hello, *{{ first_name }}*! 👋
 
-I'm a bot for server monitoring, here to help you keep an eye on your server. I'm still learning, but today I can provide you with some useful information.
+I’m *pyTMbot*, a versatile Telegram bot designed for Docker management, server monitoring, and extending functionality through plugins. I support both polling and webhook modes and can be deployed on your host machine or inside a Docker container.
 
-Here's what I can tell you:
+Here’s what I can do:
 
-🐳 *A large section on Docker*
+🐳 *Docker Management*
+- Start, stop, restart, and manage containers
+- Monitor real-time status of running/stopped containers
+- Access and search detailed container logs
+- Inspect and manage Docker images (tags, metadata)
+- *NEW*: Check for Docker image updates (compare local tags with Docker Hub)
 
-- Information about containers (even those that have finished work)
-- The ability to view container logs
-- Information about images
-- Management of containers (start, stop, remove, and more)
+🖥️ *Server Monitoring*
+- Load average and system uptime
+- Memory and swap usage
+- Real-time sensor data
+- Process summary and control
+- Network and file system information
+- *NEW*: Quick system and Docker summary
 
-💡 *Features*
+🔌 *Plugin System*
+- Extend my functionality with custom plugins:
+  - *Monitor Plugin*: Track CPU, memory, disk usage, and Docker changes.
+  - *2FA Plugin*: Two-factor authentication via QR codes and TOTP.
+  - *Outline VPN Plugin*: Monitor your Outline VPN server.
 
-- Load average information
-- Summary memory usage information (with swap)
-- Sensors information
-- Summary process information
-- Uptime information
-- File system base information
-- Basic information about the network connection
-- Support for plugins, allowing you to extend my capabilities
+🔖 *Additional Features*
+- Check for bot updates: `/check_bot_updates`
+- Emoji support for better interaction 😎
+- Templated responses powered by Jinja2
+- Extensive logging via Docker log aggregators
 
-My knowledge is still growing, so I recommend checking back periodically to see what I've learned. If there is anything else that I can help you with, please let me know. You can find me on [GitHub](https://github.com/orenlab/pytmbot/)
+I’m constantly improving, so check back often for updates! If you have questions or suggestions, let me know. You can find me on [GitHub](https://github.com/orenlab/pytmbot/).
+
+Happy monitoring! 🚀

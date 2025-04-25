@@ -1,0 +1,26 @@
+{# templates/b_top_processes.jinja2 #}
+{# Template for displaying top CPU and memory consuming processes #}
+
+{{ thought_balloon }} System Resource Usage - Top Processes
+
+<pre language="bash">
+PID   | Process Name  | CPU  | Memory
+-------------------------------------
+{%- for process in context.processes %}
+
+{{ "%-5d"|format(process.pid) }} | {{ "%-13s"|format(process.name[:18] + ('' if process.name|length > 13 else '')) }} | {{ "%3.1f%%"|format(process.cpu_percent) }} | {{ "%5.1f%%"|format(process.memory_percent) }}
+{%- endfor %}
+</pre>
+
+{{ information }} Updated: {{ context.timestamp }}
+
+{%- if context.running_in_docker %}
+
+
+{{ warning }} <i>Limited resource information available in Docker environment</i>
+{%- endif %}
+
+{# Display warning if no processes found #}
+{%- if not context.processes %}
+{{ warning }} No process data available
+{%- endif %}

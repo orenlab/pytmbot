@@ -1,19 +1,40 @@
-{% if updates %}
-    🌟 <b>Updates Found</b> 🌟
+{# Макрос для отображения информации о репозитории #}
+{% macro render_repo(repo, info) %}
+🔧 **{{ repo }}**
+🏷️ Current tag: **{{ info.current_tag | default("Unknown") }}**
+📅 Created: {{ info.created_at_local | default("Unknown") | format_timestamp }}
+{% endmacro %}
 
-    {% for repo, info in updates.items() %}
-        🔧 <b>{{ repo }}</b>:
+{# Отображение доступных обновлений #}
+{%- if updates is defined and updates %}
+🌟 **Updates Found** 🌟
 
-        🏷️ Current tag: <b>{{ info.current_tag }}</b> (Created: {{ info.created_at_local | format_timestamp }})
+{% for repo, info in updates.items() %}
+{{ render_repo(repo, info) }}
+{% if info.updates is defined and info.updates %}
+🔽 **Available updates:**
+{% for update in info.updates %}
+➡️ **{{ update.newer_tag | default("Unknown") }}**
+   📅 Created: {{ update.created_at_remote | default("Unknown") | format_timestamp }}
+{% endfor %}
+{% else %}
+🔽 **No available updates.**
+{% endif %}
 
-        🔽 <b>Available updates</b>:
-        {% for update in info.updates %}
-            ➡️ Newer tag: <b>{{ update.newer_tag }}</b> (Created:
-            {{ update.created_at_remote | format_timestamp }}{% endfor %}
-    {% endfor %}{% endif %}
-{% if no_updates %}
-    🚫 <b>No Updates Found</b> 🚫
-    {% for repo in no_updates %}
-        🐳 <b>{{ repo }}</b>
-    {% endfor %}
+{% if not loop.last %}
+───────────────
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{# Отображение репозиториев без обновлений #}
+{%- if no_updates is defined and no_updates %}
+🚫 **No Updates Found** 🚫
+
+{% for repo in no_updates %}
+🐳 **{{ repo }}**
+{% if not loop.last %}
+───────────────
+{% endif %}
+{% endfor %}
 {% endif %}

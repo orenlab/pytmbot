@@ -1,19 +1,21 @@
 import json
+from typing import Dict, List, Union
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.adapters.docker.updates import DockerImageUpdater
-from pytmbot.logs import logged_inline_handler_session, bot_logger
+from pytmbot.adapters.docker.updates import DockerImageUpdater, UpdaterStatus
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
+logger = Logger()
 
-# func=lambda call: call.data.startswith('__check_updates__')
-@bot_logger.catch()
-@logged_inline_handler_session
+
+@logger.catch()
+@logger.session_decorator
 def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     """
-    Handles the callback for images updates.
+    Handles the callback for Docker image updates.
 
     Args:
         call (CallbackQuery): The callback query object.
@@ -25,17 +27,37 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     updater = DockerImageUpdater()
     updater.initialize()
 
-    context_json = updater.to_json()
-    context = json.loads(context_json)
+    response_json = updater.to_json()
+    response = json.loads(response_json)
 
-    if not context or all(not image_info["updates"] for image_info in context.values()):
+    # Handle rate limit
+    if response["status"] == UpdaterStatus.RATE_LIMITED.name:
+        return bot.answer_callback_query(
+            call.id,
+            text=f"Rate limit exceeded. Please try again in {response['data']['retry_after']} seconds.",
+            show_alert=True,
+        )
+
+    # Handle errors
+    if response["status"] == UpdaterStatus.ERROR.name:
+        return bot.answer_callback_query(
+            call.id,
+            text=f"Error checking updates: {response['message']}",
+            show_alert=True,
+        )
+
+    # Handle success with no updates
+    if not response["data"] or all(
+            not image_info["updates"] for image_info in response["data"].values()
+    ):
         return bot.answer_callback_query(
             call.id,
             text="No updates found for any images.",
             show_alert=True,
         )
 
-    prepared_context = prepare_context_for_render(context)
+    # Process updates
+    prepared_context = prepare_context_for_render(response["data"])
 
     with Compiler(template_name="d_updates.jinja2", **prepared_context) as compiler:
         formatted_context = compiler.compile()
@@ -44,15 +66,57 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=formatted_context,
-        parse_mode="HTML",
+        parse_mode="Markdown",
     )
 
 
-def prepare_context_for_render(context):
+def prepare_context_for_render(
+        data: Dict[str, Dict[str, List[dict]]]
+) -> Dict[str, Union[Dict[str, Dict], List[str]]]:
+    """
+    Prepares the context for template rendering.
+
+    Args:
+        data: Dictionary containing update information for repositories
+
+    Returns:
+        Dictionary with prepared context for rendering
+
+    Example input:
+    {
+        "nginx": {
+            "updates": [
+                {
+                    "current_tag": "1.24.0",
+                    "newer_tag": "1.24.1",
+                    "created_at_local": "2023-05-24T12:00:00Z",
+                    "created_at_remote": "2023-06-01T15:30:00Z"
+                }
+            ]
+        }
+    }
+
+    Example output:
+    {
+        "updates": {
+            "nginx": {
+                "current_tag": "1.24.0",
+                "created_at_local": "2023-05-24T12:00:00Z",
+                "updates": [
+                    {
+                        "newer_tag": "1.24.1",
+                        "created_at_remote": "2023-06-01T15:30:00Z"
+                    }
+                ]
+            }
+        },
+        "no_updates": []
+    }
+    """
     updates = {}
     no_updates = []
 
-    for repo, info in context.items():
+    for repo, info in data.items():
         if not info["updates"]:
             no_updates.append(repo)
             continue

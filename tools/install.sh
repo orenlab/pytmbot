@@ -69,7 +69,7 @@ show_banner() {
     echo -e "${CYAN}${border_style}"
     echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
     echo -e "${CYAN}${border_style}"
-    echo -e "${WHITE}Version: 0.2.1${NC}"
+    echo -e "${WHITE}Version: 0.2.2-dev${NC}"
     echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
     echo -e "${CYAN}${border_style}"
     echo ""
@@ -548,34 +548,67 @@ install_bot_in_docker() {
   show_banner "Installing in Docker..."
 
   log_message "$GREEN" "Starting installation in Docker..."
-  create_pytmbot_user
 
-  # Check if Docker is installed
+  # Проверяем и устанавливаем необходимые пакеты
+  log_message "$YELLOW" "Installing required packages..."
+  (
+    if [ -f /etc/debian_version ]; then
+      apt-get update -y >> "$LOG_FILE" 2>&1
+      apt-get install -y git curl >> "$LOG_FILE" 2>&1
+    elif [ -f /etc/redhat-release ]; then
+      yum install -y git curl >> "$LOG_FILE" 2>&1
+    elif [ -f /etc/arch-release ]; then
+      pacman -Syu --noconfirm git curl >> "$LOG_FILE" 2>&1
+    fi
+  ) & show_spinner $! && log_message "$GREEN" "Done!"
+
+  # Проверяем Docker
   if ! command_exists docker; then
     log_message "$YELLOW" "Docker is not installed. Installing Docker..."
-    install_docker_app >> "$LOG_FILE" 2>&1
+    install_docker_app
+
+    # Проверяем успешность установки
+    if ! command_exists docker; then
+      log_message "$RED" "Failed to install Docker. Please install Docker manually and try again."
+      exit 1
+    fi
   fi
 
+  # Проверяем docker-compose
+  if ! command_exists docker-compose && ! command_exists "docker compose"; then
+    log_message "$YELLOW" "Installing Docker Compose..."
+    (
+      curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      chmod +x /usr/local/bin/docker-compose
+    ) >> "$LOG_FILE" 2>&1 || {
+      log_message "$RED" "Failed to install Docker Compose. Please install it manually."
+      exit 1
+    }
+  fi
+
+  # Создаем пользователя и группу
+  create_pytmbot_user
+
   read -r -p "Do you want to use a pre-built Docker image (1) or build from source (2)? [1/2]: " choice
+
+  # Make sure the directory exists
+  if [ ! -d "/opt/pytmbot" ]; then
+    mkdir -p /opt/pytmbot || {
+      log_message "$RED" "Failed to create directory /opt/pytmbot"
+      exit 1
+    }
+  fi
+
+  # Set ownership
+  chown -R pytmbot:pytmbot /opt/pytmbot
 
   if [[ "$choice" == "1" ]]; then
     log_message "$GREEN" "Using pre-built Docker image..."
 
-    if [ -d "/opt/pytmbot" ]; then
-      log_message "$YELLOW" "Removing old bot files from /opt/pytmbot..."
-      (
-        rm -rf /opt/pytmbot || { log_message "$RED" "Failed to remove old bot files from /opt/pytmbot." | tee -a "$LOG_FILE"; exit 1; }
-      ) & show_spinner $! && log_message "$GREEN" "Done!"
-    fi
-
-    create_pytmbot_user
-
-    log_message "$YELLOW" "Creating bot directory at /opt/pytmbot..."
-    mkdir -p /opt/pytmbot || { log_message "$RED" "Failed to create bot directory at /opt/pytmbot." | tee -a "$LOG_FILE"; exit 1; }
-
+    # Set up bot
     configure_bot
 
-    log_message "$GREEN" "Creating docker-compose.yml file..."
+    # Create docker-compose.yml
     cat << EOF > /opt/pytmbot/docker-compose.yml
 services:
   pytmbot:
@@ -589,52 +622,85 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/opt/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro"
     security_opt:
-      - no-new-privileges
+      - no-new-privileges:true
     read_only: true
     cap_drop:
       - ALL
     logging:
+      driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.exit(0 if open('/proc/1/cmdline').read().find(b'python') > -1 else 1)"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
     pid: host
-    command: --plugins monitor
+    networks:
+      - pytmbot_net
+
+networks:
+  pytmbot_net:
+    name: pytmbot_net
+    driver: bridge
 EOF
 
-    log_message "$GREEN" "docker-compose.yml file created successfully."
+    log_message "$GREEN" "docker-compose.yml created successfully."
 
-    log_message "$GREEN" "Starting Docker container..."
+    # Run Docker container
+    log_message "$YELLOW" "Starting Docker container..."
     (
       cd /opt/pytmbot || exit 1
+      docker compose pull
       docker compose up -d
-    ) >> "$LOG_FILE" 2>&1
+    ) >> "$LOG_FILE" 2>&1 || {
+      log_message "$RED" "Failed to start Docker container. Check logs for details."
+      exit 1
+    }
 
-    # shellcheck disable=SC2181
-    if [[ $? -eq 0 ]]; then
+    # Check if the container is running
+    sleep 5
+    if [ "$(docker ps -q -f name=pytmbot)" ]; then
       log_message "$GREEN" "Docker container started successfully."
     else
-      log_message "$RED" "Failed to start Docker container."
+      log_message "$RED" "Failed to start container. Please check logs: docker logs pytmbot"
       exit 1
     fi
 
   elif [[ "$choice" == "2" ]]; then
     log_message "$GREEN" "Building Docker image from source..."
-    clone_repo
 
-    cd /opt/pytmbot || { log_message "$RED" "Failed to enter directory." | tee -a "$LOG_FILE"; exit 1; }
+    # Cloning the repository
+    clone_repo || {
+      log_message "$RED" "Failed to clone repository."
+      exit 1
+    }
 
+    cd /opt/pytmbot || {
+      log_message "$RED" "Failed to enter directory."
+      exit 1
+    }
+
+    # Set up bot
     configure_bot
 
-    log_message "$GREEN" "Docker image built successfully. Starting Docker container..."
+    # Build and start Docker container
+    log_message "$YELLOW" "Building and starting Docker container..."
     (
+      docker compose build
       docker compose up -d
-    ) >> "$LOG_FILE" 2>&1
+    ) >> "$LOG_FILE" 2>&1 || {
+      log_message "$RED" "Failed to build/start Docker container. Check logs for details."
+      exit 1
+    }
 
-    # shellcheck disable=SC2181
-    if [[ $? -eq 0 ]]; then
+    # Check if the container is running
+    sleep 5
+    if [ "$(docker ps -q -f name=pytmbot)" ]; then
       log_message "$GREEN" "Docker container started successfully."
     else
-      log_message "$RED" "Failed to start Docker container."
+      log_message "$RED" "Failed to start container. Please check logs: docker logs pytmbot"
       exit 1
     fi
 
@@ -642,6 +708,9 @@ EOF
     log_message "$RED" "Invalid choice. Aborting installation."
     exit 1
   fi
+
+  log_message "$GREEN" "Installation completed successfully!"
+  log_message "$GREEN" "You can check the bot status with: docker logs pytmbot"
 }
 
 update_local_pytmbot() {

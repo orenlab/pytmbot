@@ -2,7 +2,7 @@ import unittest
 from argparse import Namespace
 from unittest.mock import patch
 
-from app.utilities.utilities import parse_cli_args
+from pytmbot.utils.utilities import parse_cli_args
 
 
 class TestParseCLIArgs(unittest.TestCase):

@@ -9,15 +9,18 @@ from typing import Union
 from telebot import TeleBot
 from telebot.types import Message, CallbackQuery
 
+from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
-from pytmbot.logs import bot_logger, logged_handler_session
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
+logger = Logger()
 
-@logged_handler_session
-@bot_logger.catch()
+
+@logger.session_decorator
 def handle_unauthorized_message(
-    query: Union[Message, CallbackQuery], bot: TeleBot
+        query: Union[Message, CallbackQuery], bot: TeleBot
 ) -> None:
     """
     Handles unauthorized messages received by the bot.
@@ -35,43 +38,50 @@ def handle_unauthorized_message(
     if not isinstance(query, (Message, CallbackQuery)):
         raise NotImplementedError("Unsupported query type")
 
-    keyboard = keyboards.build_reply_keyboard(keyboard_type="auth_keyboard")
+    try:
 
-    emojis = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-        "desktop_computer": em.get_emoji("desktop_computer"),
-        "fountain_pen": em.get_emoji("fountain_pen"),
-        "first_quarter_moon": em.get_emoji("first_quarter_moon"),
-        "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
-    }
+        keyboard = keyboards.build_reply_keyboard(keyboard_type="auth_keyboard")
 
-    name = (
-        query.from_user.first_name
-        if query.from_user.first_name
-        else query.from_user.username
-    )
+        emojis = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "desktop_computer": em.get_emoji("desktop_computer"),
+            "fountain_pen": em.get_emoji("fountain_pen"),
+            "first_quarter_moon": em.get_emoji("first_quarter_moon"),
+            "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
+        }
 
-    with Compiler(
-        template_name="a_auth_required.jinja2", name=name, **emojis
-    ) as compiler:
-        response = compiler.compile()
-
-    if isinstance(query, CallbackQuery):
-        bot.delete_message(query.message.chat.id, query.message.message_id)
-        bot.send_message(
-            query.message.chat.id,
-            text=response,
-            reply_markup=keyboard,
-            parse_mode="HTML",
-        )
-    else:
-        bot.send_message(
-            query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML"
+        name = (
+            query.from_user.first_name
+            if query.from_user.first_name
+            else query.from_user.username
         )
 
+        with Compiler(
+                template_name="a_auth_required.jinja2", name=name, **emojis
+        ) as compiler:
+            response = compiler.compile()
 
-@logged_handler_session
-@bot_logger.catch()
+        if isinstance(query, CallbackQuery):
+            bot.delete_message(query.message.chat.id, query.message.message_id)
+            bot.send_message(
+                query.message.chat.id,
+                text=response,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        else:
+            bot.send_message(
+                query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML"
+            )
+    except Exception as error:
+        raise exceptions.AuthError(ErrorContext(
+            message="Failed handling unauthorized message",
+            error_code="AUTH_001",
+            metadata={"exception": str(error)}
+        ))
+
+
+@logger.session_decorator
 def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
     """
     Handles access denied queries from users.
@@ -89,21 +99,29 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
     if not isinstance(query, (Message, CallbackQuery)):
         raise NotImplementedError("Unsupported query type")
 
-    user_name = query.from_user.first_name or query.from_user.username
-    keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
-    emojis = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-        "crying_face": em.get_emoji("crying_face"),
-        "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
-    }
+    try:
 
-    with Compiler(
-        template_name="a_access_denied.jinja2", name=user_name, **emojis
-    ) as compiler:
-        response = compiler.compile()
+        user_name = query.from_user.first_name or query.from_user.username
+        keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
+        emojis = {
+            "thought_balloon": em.get_emoji("thought_balloon"),
+            "crying_face": em.get_emoji("crying_face"),
+            "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
+        }
 
-    if isinstance(query, CallbackQuery):
-        bot.delete_message(query.message.chat.id, query.message.message_id)
-        bot.send_message(query.message.chat.id, text=response, reply_markup=keyboard)
-    else:
-        bot.send_message(query.chat.id, text=response, reply_markup=keyboard)
+        with Compiler(
+                template_name="a_access_denied.jinja2", name=user_name, **emojis
+        ) as compiler:
+            response = compiler.compile()
+
+        if isinstance(query, CallbackQuery):
+            bot.delete_message(query.message.chat.id, query.message.message_id)
+            bot.send_message(query.message.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
+        else:
+            bot.send_message(query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
+    except Exception as error:
+        raise exceptions.AuthError(ErrorContext(
+            message="Failed handling access denied",
+            error_code="AUTH_002",
+            metadata={"exception": str(error)}
+        ))

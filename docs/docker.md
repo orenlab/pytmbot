@@ -1,67 +1,133 @@
 # pyTMbot Docker Image
 
-Welcome to the **pyTMbot** Docker Hub page! This guide will walk you through setting up and running pyTMbot
-step-by-step, ensuring a smooth experience from initial configuration to deployment.
+[![Docker Pulls](https://img.shields.io/docker/pulls/orenlab/pytmbot)](https://hub.docker.com/r/orenlab/pytmbot)
+[![Image Size](https://img.shields.io/docker/image-size/orenlab/pytmbot/latest)](https://hub.docker.com/r/orenlab/pytmbot)
+[![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)](https://github.com/orenlab/pytmbot/releases)
 
-## 🐋 Image Overview
+A secure, lightweight Docker container for pyTMbot - your Telegram-based monitoring and management solution.
 
-- **Image Name:** `orenlab/pytmbot`
-- **Tags:**
-    - `latest` - The latest stable release image based on Alpine Linux.
-    - `0.X.X` - Specific stable release versions based on Alpine Linux.
-    - `alpine-dev` - Latest development version based on Alpine Linux.
+## Quick Reference
 
-## 🚀 Step-by-Step Setup
+- **Maintained by**: [OrenLab Team](https://github.com/orenlab)
+- **Where to file issues**: [GitHub Issues](https://github.com/orenlab/pytmbot/issues)
+- **Supported architectures**: `amd64`, `arm64`
+- **Base image**: Alpine Linux
+- **Published image artifact details**:
+    - **Image**: `orenlab/pytmbot`
+    - **Supported tags**:
+        - `latest` - Latest stable release
+        - `X.Y.Z` - Specific version releases (e.g., `1.2.3`)
+        - `alpine-dev` - Development version
 
-### 1️⃣ Preparing for Deployment
+## Security Features
 
-Before we begin, ensure you have Docker and Docker Compose installed on your system. If not, please refer to
-the [Docker documentation](https://docs.docker.com/get-docker/) for installation instructions.
+- Read-only container filesystem
+- Minimal base image (Alpine Linux)
+- Regular security updates
+- Dropped unnecessary capabilities
+- No privilege escalation allowed
 
-### 2️⃣ Generating the Authentication Salt
+## Supply Chain Security
 
-To securely configure the bot, you'll need a unique salt value for Time-Based One-Time Passwords (TOTP). Run the
-following command to generate it:
+pyTMbot follows modern software supply chain security practices, with each release image providing:
 
-```bash
-sudo docker run --rm orenlab/pytmbot:latest --salt
-```
+### Software Bill of Materials (SBOM)
 
-Save the generated salt for later use in the `pytmbot.yaml` configuration.
-
-### 3️⃣ Configuring the Bot
-
-Create a `pytmbot.yaml` file to define your bot's settings. Here’s how:
-
-- **Download the Configuration File:**
-
-```bash
-sudo curl -o /root/pytmbot.yaml https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/pytmbot.yaml.sample
-```
-
-- **Edit the Configuration File:**
+The SBOM provides a complete inventory of all components and dependencies in the image:
 
 ```bash
-nano /root/pytmbot.yaml
+# Get SBOM in SPDX format
+docker buildx imagetools inspect orenlab/pytmbot:latest \
+  --format "{{ json .SBOM.SPDX }}" > sbom.spdx.json
+
+# Get SBOM in CycloneDX format
+docker buildx imagetools inspect orenlab/pytmbot:latest \
+  --format "{{ json .SBOM.CycloneDX }}" > sbom.cyclonedx.json
 ```
 
-Please follow the instructions provided in the sample configuration.
+### SLSA Provenance
 
-### 4️⃣ Creating the `docker-compose.yml` File
+The Provenance attestation contains cryptographically signed build information including:
 
-Now, create a `docker-compose.yml` file to define the container configuration:
+- Source code and its hash
+- Build timestamp and location
+- Tools and versions used
+
+To verify Provenance:
+
+```bash
+# Get Provenance attestation
+docker buildx imagetools inspect orenlab/pytmbot:latest \
+  --format "{{ json .Provenance }}" > provenance.json
+
+# Verify signature using cosign
+cosign verify-attestation orenlab/pytmbot:latest
+```
+
+### Image Verification
+
+Release images are signed using cosign. Verify the signature:
+
+```bash
+# Install cosign if not installed
+brew install cosign  # macOS
+# or
+sudo apt-get install cosign  # Ubuntu
+
+# Verify image signature
+cosign verify orenlab/pytmbot:latest
+```
+
+## Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose v2.0+ (optional)
+- 100MB free disk space
+- Internet connection for initial pull
+
+## Quick Start
+
+```bash
+# 1. Generate authentication salt
+docker run --rm orenlab/pytmbot:latest --salt
+
+# 2. Create config directory
+mkdir -p /etc/pytmbot
+
+# 3. Download sample config
+curl -o /etc/pytmbot/config.yaml \
+  https://raw.githubusercontent.com/orenlab/pytmbot/master/pytmbot.yaml.sample
+
+# 4. Edit configuration
+nano /etc/pytmbot/config.yaml
+
+# 5. Run container
+docker run -d \
+  --name pytmbot \
+  --restart unless-stopped \
+  --env TZ="UTC" \
+  --volume /etc/pytmbot/config.yaml:/opt/app/pytmbot.yaml:ro \
+  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+  --security-opt no-new-privileges \
+  --read-only \
+  --cap-drop ALL \
+  --pid host \
+  orenlab/pytmbot:latest
+```
+
+## Docker Compose Usage
 
 ```yaml
 services:
   pytmbot:
     image: orenlab/pytmbot:latest
     container_name: pytmbot
-    restart: on-failure
+    restart: unless-stopped
     environment:
-      - TZ=Asia/Yekaterinburg
+      - TZ=UTC
     volumes:
+      - /etc/pytmbot/config.yaml:/opt/app/pytmbot.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
     security_opt:
       - no-new-privileges
     read_only: true
@@ -69,82 +135,108 @@ services:
       - ALL
     pid: host
     logging:
+      driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    command: --plugins monitor,outline # if needed
 ```
 
-### 5️⃣ Deploying the Container
+## Configuration
 
-Start the bot using Docker Compose:
+### Environment Variables
+
+| Variable | Description          | Default |
+|----------|----------------------|---------|
+| `TZ`     | Container timezone   | `UTC`   |
+
+### Volume Mounts
+
+| Path                    | Purpose                                |
+|-------------------------|----------------------------------------|
+| `/opt/app/pytmbot.yaml` | Main configuration file                |
+| `/var/run/docker.sock`  | Docker socket for container monitoring |
+
+## Plugin System
+
+pyTMbot supports various plugins to extend functionality:
+
+### Core Plugins
+
+- **Monitor**: System and Docker container monitoring
+- **Outline**: Outline VPN management and monitoring
+
+Enable plugins via command line argument:
 
 ```bash
-docker-compose up -d
+docker run ... orenlab/pytmbot:latest --plugins monitor,outline
 ```
 
-Alternatively, you can launch the container directly with the Docker CLI:
+## Health Checks
+
+The container includes built-in health checks that monitor:
+
+- Configuration file presence
+- Network connectivity
+- Core service status
+
+## Upgrading
 
 ```bash
-docker run -d \
---name pytmbot \
---restart on-failure \
---env TZ="Asia/Yekaterinburg" \
---volume /var/run/docker.sock:/var/run/docker.sock:ro \
---volume /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
---security-opt no-new-privileges \
---read-only \
---cap-drop ALL \
---pid=host \
---log-opt max-size=10m \
---log-opt max-file=3 \
-orenlab/pytmbot:latest --plugins monitor,outline
+# Pull latest version
+docker pull orenlab/pytmbot:latest
+
+# Stop current container
+docker stop pytmbot
+docker rm pytmbot
+
+# Start new container
+docker run ... # (use same run command as above)
 ```
 
-## 🔌 Plugins Configuration
+## Reproducible Builds
 
-pyTMbot supports an extensive plugin system to extend its functionality. Below are examples for commonly used plugins:
+Each release image is built in an isolated GitHub Actions environment with pinned dependency versions. The build process
+is fully automated and reproducible. The GitHub Action source code is available in the repository.
 
-### Monitor Plugin
+## Troubleshooting
 
-The **Monitor Plugin** tracks system metrics and Docker events.
+### Common Issues
 
-### Outline VPN Plugin
-
-To monitor your [Outline VPN](https://getoutline.org/)
-
-For more detailed plugin configurations, visit
-the [plugins documentation](https://github.com/orenlab/pytmbot/blob/master/docs/plugins.md).
-
-## 🛠️ Updating the Image
-
-Keep your pyTMbot image up to date by following these steps:
-
-1. **Stop and Remove the Current Container:**
-
+1. **Configuration errors**:
    ```bash
-   sudo docker stop pytmbot
-   sudo docker rm pytmbot
+   docker logs pytmbot
    ```
 
-2. **Pull the Latest Image:**
+2. **Permission issues**:
+    - Ensure Docker socket has correct permissions
+    - Verify configuration file ownership
 
+3. **Network connectivity**:
    ```bash
-   sudo docker pull orenlab/pytmbot:latest
+   docker exec pytmbot ping -c 1 api.telegram.org
    ```
 
-3. **Restart the Container:**
+## Resource Usage
 
-   ```bash
-   docker-compose up -d
-   ```
+- **Memory**: ~80MB
+- **CPU**: Minimal
+- **Storage**: ~100MB
+- **Network**: Varies based on monitoring interval
 
-## 👾 Support & Resources
+## Development
 
-- **Support:** [GitHub Issues](https://github.com/orenlab/pytmbot/issues)
-- **Source Code:** [GitHub Repository](https://github.com/orenlab/pytmbot/)
-- **Discussions:** [GitHub Discussions](https://github.com/orenlab/pytmbot/discussions)
+See our [Contributing Guidelines](https://github.com/orenlab/pytmbot/blob/master/CONTRIBUTING.md) for information on:
 
-## 📜 License
+- Setting up development environment
+- Code style and guidelines
+- Pull request process
+- Code review requirements
 
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+## Support
+
+- [Documentation](https://github.com/orenlab/pytmbot/docs)
+- [GitHub Discussions](https://github.com/orenlab/pytmbot/discussions)
+
+## License
+
+Released under the [MIT License](https://github.com/orenlab/pytmbot/blob/master/LICENSE).

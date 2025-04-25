@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, em, settings
+from pytmbot.globals import keyboards, em, settings, button_data
 from pytmbot.handlers.handlers_util.docker import (
     get_container_full_details,
     show_handler_info,
@@ -18,14 +18,16 @@ from pytmbot.handlers.handlers_util.docker import (
     parse_container_network_stats,
     parse_container_attrs,
 )
-from pytmbot.logs import logged_inline_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.utilities import split_string_into_octets
+from pytmbot.utils import split_string_into_octets
+
+logger = Logger()
 
 
 # func=lambda call: call.data.startswith('__get_full__'))
-@logged_inline_handler_session
-@bot_logger.catch()
+@logger.catch()
+@logger.session_decorator
 def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     container_name = split_string_into_octets(call.data)
     called_user_id = split_string_into_octets(call.data, octet_index=2)
@@ -42,36 +44,36 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     emojis = get_emojis()
 
     with Compiler(
-        template_name="d_containers_full_info.jinja2",
-        **emojis,
-        container_name=container_name,
-        container_memory_stats=parse_container_memory_stats(container_stats),
-        container_cpu_stats=parse_container_cpu_stats(container_stats),
-        container_network_stats=parse_container_network_stats(container_stats),
-        container_attrs=parse_container_attrs(container_attrs),
+            template_name="d_containers_full_info.jinja2",
+            **emojis,
+            container_name=container_name,
+            container_memory_stats=parse_container_memory_stats(container_stats),
+            container_cpu_stats=parse_container_cpu_stats(container_stats),
+            container_network_stats=parse_container_network_stats(container_stats),
+            container_attrs=parse_container_attrs(container_attrs),
     ) as compiler:
         context = compiler.compile()
 
     keyboard_buttons = [
-        keyboards.ButtonData(
+        button_data(
             text=f"{em.get_emoji('spiral_calendar')} Get logs",
             callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
         ),
-        keyboards.ButtonData(
+        button_data(
             text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
             callback_data="back_to_containers",
         ),
     ]
 
     if call.from_user.id in settings.access_control.allowed_admins_ids and int(
-        call.from_user.id
+            call.from_user.id
     ) == int(called_user_id):
-        bot_logger.debug(
+        logger.debug(
             f"User {call.from_user.id} is an admin. Added '__manage__' button"
         )
         keyboard_buttons.insert(
             1,
-            keyboards.ButtonData(
+            button_data(
                 text=f"{em.get_emoji('bullseye')} Manage",
                 callback_data=f"__manage__:{container_name}:{call.from_user.id}",
             ),

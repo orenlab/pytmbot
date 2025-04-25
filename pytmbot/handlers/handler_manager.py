@@ -1,9 +1,13 @@
-#!/venv/bin/python3
+#!/usr/bin/env python3
 """
 (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, TypeAlias
+
 from pytmbot.globals import settings
 from pytmbot.handlers.auth_processing.qrcode_processing import handle_qr_code_message
 from pytmbot.handlers.auth_processing.twofa_processing import (
@@ -11,7 +15,6 @@ from pytmbot.handlers.auth_processing.twofa_processing import (
     handle_totp_code_verification,
 )
 from pytmbot.handlers.bot_handlers.about import handle_about_command
-from pytmbot.handlers.bot_handlers.echo import handle_echo  # always last
 from pytmbot.handlers.bot_handlers.inline.update import handle_update_info
 from pytmbot.handlers.bot_handlers.navigation import handle_navigation
 from pytmbot.handlers.bot_handlers.plugins import handle_plugins
@@ -33,163 +36,299 @@ from pytmbot.handlers.docker_handlers.inline.manage_action import (
 )
 from pytmbot.handlers.server_handlers.filesystem import handle_file_system
 from pytmbot.handlers.server_handlers.inline.swap import handle_swap_info
+from pytmbot.handlers.server_handlers.inline.top_process import handle_process_info
 from pytmbot.handlers.server_handlers.load_average import handle_load_average
 from pytmbot.handlers.server_handlers.memory import handle_memory
 from pytmbot.handlers.server_handlers.network import handle_network
 from pytmbot.handlers.server_handlers.process import handle_process
+from pytmbot.handlers.server_handlers.quickview import handle_quick_view
 from pytmbot.handlers.server_handlers.sensors import handle_sensors
 from pytmbot.handlers.server_handlers.server import handle_server
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
 from pytmbot.models.handlers_model import HandlerManager
 
+MessageType: TypeAlias = Any
+CallbackQueryType: TypeAlias = Any
+HandlerType: TypeAlias = dict[str, list[HandlerManager]]
+FilterFunc: TypeAlias = Callable[[Any], bool]
 
-def handler_factory() -> dict[str, list[HandlerManager]]:
+
+@dataclass(frozen=True, slots=True)
+class HandlerConfig:
+    """Configuration for handler registration."""
+    callback: Callable[..., Any]
+    commands: list[str] | None = None
+    regexp: str | None = None
+    filter_func: FilterFunc | None = None
+
+    def create_handler(self) -> HandlerManager:
+        """Create a HandlerManager instance from the config."""
+        kwargs = {}
+        if self.commands:
+            kwargs['commands'] = self.commands
+        if self.regexp:
+            kwargs['regexp'] = self.regexp
+        if self.filter_func:
+            kwargs['func'] = self.filter_func
+        return HandlerManager(callback=self.callback, kwargs=kwargs)
+
+
+def create_admin_filter(message: MessageType) -> bool:
+    """Create a filter function for admin-only commands."""
+    return message.from_user.id in settings.access_control.allowed_admins_ids
+
+
+def handler_factory() -> HandlerType:
     """
     Returns a dictionary of HandlerManager objects for command handling.
 
-    The dictionary keys represent command categories, and the values are lists
-    of HandlerManager objects. Each HandlerManager object is initialized with
-    a callback function and optional keyword arguments.
-
-    Returns:
-        dict: A dictionary of HandlerManager objects.
+    The factory uses HandlerConfig for cleaner handler creation and
+    better type safety.
     """
-    return {
+    configs = {
         "authorization": [
-            HandlerManager(callback=handle_twofa_message, regexp="Enter 2FA code")
+            HandlerConfig(
+                callback=handle_twofa_message,
+                regexp="Enter 2FA code"
+            )
+        ],
+        "quick_view": [
+            HandlerConfig(
+                callback=handle_quick_view,
+                regexp="Quick view"
+            )
         ],
         "code_verification": [
-            HandlerManager(callback=handle_totp_code_verification, regexp=r"[0-9]{6}$")
+            HandlerConfig(
+                callback=handle_totp_code_verification,
+                regexp=r"[0-9]{6}$"
+            )
         ],
-        "start": [HandlerManager(callback=handle_start, commands=["help", "start"])],
-        "about": [HandlerManager(callback=handle_about_command, regexp="About me")],
+        "start": [
+            HandlerConfig(
+                callback=handle_start,
+                commands=["help", "start"]
+            )
+        ],
+        "about": [
+            HandlerConfig(
+                callback=handle_about_command,
+                regexp="About me"
+            )
+        ],
         "navigation": [
-            HandlerManager(callback=handle_navigation, regexp="Back to main menu"),
-            HandlerManager(callback=handle_navigation, commands=["back"]),
+            HandlerConfig(
+                callback=handle_navigation,
+                regexp="Back to main menu"
+            ),
+            HandlerConfig(
+                callback=handle_navigation,
+                commands=["back"]
+            )
         ],
         "updates": [
-            HandlerManager(callback=handle_bot_updates, commands=["check_bot_updates"])
+            HandlerConfig(
+                callback=handle_bot_updates,
+                commands=["check_bot_updates"]
+            )
         ],
         "containers": [
-            HandlerManager(callback=handle_containers, commands=["containers"]),
-            HandlerManager(callback=handle_containers, regexp="Containers"),
+            HandlerConfig(
+                callback=handle_containers,
+                commands=["containers"]
+            ),
+            HandlerConfig(
+                callback=handle_containers,
+                regexp="Containers"
+            )
         ],
         "docker": [
-            HandlerManager(callback=handle_docker, commands=["docker"]),
-            HandlerManager(callback=handle_docker, regexp="Docker"),
+            HandlerConfig(
+                callback=handle_docker,
+                commands=["docker"]
+            ),
+            HandlerConfig(
+                callback=handle_docker,
+                regexp="Docker"
+            )
         ],
         "filesystem": [
-            HandlerManager(callback=handle_file_system, regexp="File system")
+            HandlerConfig(
+                callback=handle_file_system,
+                regexp="File system"
+            )
         ],
         "images": [
-            HandlerManager(callback=handle_images, commands=["images"]),
-            HandlerManager(callback=handle_images, regexp="Images"),
+            HandlerConfig(
+                callback=handle_images,
+                commands=["images"]
+            ),
+            HandlerConfig(
+                callback=handle_images,
+                regexp="Images"
+            )
         ],
         "load_average": [
-            HandlerManager(callback=handle_load_average, regexp="Load average")
+            HandlerConfig(
+                callback=handle_load_average,
+                regexp="Load average"
+            )
         ],
-        "memory": [HandlerManager(callback=handle_memory, regexp="Memory")],
-        "network": [HandlerManager(callback=handle_network, regexp="Network")],
-        "process": [HandlerManager(callback=handle_process, regexp="Process")],
-        "sensors": [HandlerManager(callback=handle_sensors, regexp="Sensors")],
-        "uptime": [HandlerManager(callback=handle_uptime, regexp="Uptime")],
+        "memory": [
+            HandlerConfig(
+                callback=handle_memory,
+                regexp="Memory"
+            )
+        ],
+        "network": [
+            HandlerConfig(
+                callback=handle_network,
+                regexp="Network"
+            )
+        ],
+        "process": [
+            HandlerConfig(
+                callback=handle_process,
+                regexp="Process"
+            )
+        ],
+        "sensors": [
+            HandlerConfig(
+                callback=handle_sensors,
+                regexp="Sensors"
+            )
+        ],
+        "uptime": [
+            HandlerConfig(
+                callback=handle_uptime,
+                regexp="Uptime"
+            )
+        ],
         "plugins": [
-            HandlerManager(callback=handle_plugins, commands=["plugins"]),
-            HandlerManager(callback=handle_plugins, regexp="Plugins"),
+            HandlerConfig(
+                callback=handle_plugins,
+                commands=["plugins"]
+            ),
+            HandlerConfig(
+                callback=handle_plugins,
+                regexp="Plugins"
+            )
         ],
         "server": [
-            HandlerManager(callback=handle_server, commands=["server"]),
-            HandlerManager(callback=handle_server, regexp="Server"),
+            HandlerConfig(
+                callback=handle_server,
+                commands=["server"]
+            ),
+            HandlerConfig(
+                callback=handle_server,
+                regexp="Server"
+            )
         ],
         "qrcode": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_qr_code_message,
                 regexp="Get QR-code for 2FA app",
-                func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
+                filter_func=create_admin_filter
             ),
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_qr_code_message,
                 commands=["qrcode"],
-                func=lambda message: message.from_user.id
-                in settings.access_control.allowed_admins_ids,
-            ),
-        ],
+                filter_func=create_admin_filter
+            )
+        ]
+    }
+
+    return {
+        category: [config.create_handler() for config in handlers]
+        for category, handlers in configs.items()
     }
 
 
-def inline_handler_factory() -> dict[str, list[HandlerManager]]:
+def inline_handler_factory() -> HandlerType:
     """
     Returns a dictionary of HandlerManager objects for inline query handling.
 
-    The dictionary keys represent command categories, and the values are lists
-    of HandlerManager objects. Each HandlerManager object is initialized with
-    a callback function and optional keyword arguments.
-
-    Returns:
-        dict: A dictionary of HandlerManager objects.
+    The factory uses HandlerConfig for cleaner handler creation and
+    better type safety.
     """
-    return {
+    configs = {
         "swap": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_swap_info,
-                func=lambda call: call.data == "__swap_info__",
+                filter_func=lambda call: call.data == "__swap_info__"
+            )
+        ],
+        "process_info": [
+            HandlerConfig(
+                callback=handle_process_info,
+                filter_func=lambda call: call.data == "__process_info__"
             )
         ],
         "update_info": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_update_info,
-                func=lambda call: call.data == "__how_update__",
+                filter_func=lambda call: call.data == "__how_update__"
             )
         ],
         "get_logs": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_get_logs,
-                func=lambda call: call.data.startswith("__get_logs__"),
+                filter_func=lambda call: call.data.startswith("__get_logs__")
             )
         ],
         "containers_full_info": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_containers_full_info,
-                func=lambda call: call.data.startswith("__get_full__"),
+                filter_func=lambda call: call.data.startswith("__get_full__")
             )
         ],
         "back_to_containers": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_back_to_containers,
-                func=lambda call: call.data == "back_to_containers",
+                filter_func=lambda call: call.data == "back_to_containers"
             )
         ],
         "manage": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_manage_container,
-                func=lambda call: call.data.startswith("__manage__"),
+                filter_func=lambda call: call.data.startswith("__manage__")
             )
         ],
         "manage_action": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_manage_container_action,
-                func=lambda call: managing_action_fabric(call),
+                filter_func=managing_action_fabric
             )
         ],
         "image_updates": [
-            HandlerManager(
+            HandlerConfig(
                 callback=handle_image_updates,
-                func=lambda call: call.data == "__check_updates__",
+                filter_func=lambda call: call.data == "__check_updates__"
             )
-        ],
+        ]
     }
 
+    return {
+        category: [config.create_handler() for config in handlers]
+        for category, handlers in configs.items()
+    }
 
-def echo_handler_factory() -> dict[str, list[HandlerManager]]:
-    """
-    Returns a dictionary of HandlerManager objects for echo handling.
+# def echo_handler_factory() -> HandlerType:
+#    """
+#    Returns a dictionary of HandlerManager objects for echo handling.
 
-    The dictionary keys represent command categories, and the values are lists
-    of HandlerManager objects. Each HandlerManager object is initialized with
-    a callback function and optional keyword arguments.
+#    This is always the last handler to be registered.
+#    """
+#    configs = {
+#        "echo": [
+#            HandlerConfig(
+#                callback=handle_echo,
+#                filter_func=lambda message: True
+#            )
+#        ]
+#    }
 
-    Returns:
-        dict: A dictionary of HandlerManager objects.
-    """
-    return {"echo": [HandlerManager(callback=handle_echo, func=lambda message: True)]}
+#    return {
+#        category: [config.create_handler() for config in handlers]
+#        for category, handlers in configs.items()
+#    }

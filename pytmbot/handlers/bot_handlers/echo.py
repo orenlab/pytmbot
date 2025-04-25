@@ -8,13 +8,17 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em
-from pytmbot.logs import logged_handler_session
+from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # func=lambda message: True
-@logged_handler_session
+@logger.session_decorator
 def handle_echo(message: Message, bot: TeleBot):
     """
     Handles the 'echo' command.
@@ -36,13 +40,24 @@ def handle_echo(message: Message, bot: TeleBot):
         }
 
         with Compiler(
-            template_name="b_echo.jinja2",
-            first_name=message.from_user.first_name,
-            **emojis,
+                template_name="b_echo.jinja2",
+                first_name=message.from_user.first_name,
+                **emojis,
         ) as compiler:
             bot_answer = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=bot_answer)
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
+            text=bot_answer
+        )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling the echo command",
+            error_code="HAND_017",
+            metadata={"exception": str(error)}
+        ))

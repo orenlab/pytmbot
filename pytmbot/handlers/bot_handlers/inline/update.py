@@ -8,13 +8,16 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em
-from pytmbot.logs import logged_inline_handler_session
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # func=lambda call: call.data == '__how_update__'
-@logged_inline_handler_session
+@logger.session_decorator
 def handle_update_info(call: CallbackQuery, bot: TeleBot):
     """
     Handle the 'check_update_info' command
@@ -36,7 +39,16 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=bot_answer,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="Some error occurred. Please try again later.",
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling update info",
+            error_code="HAND_019",
+            metadata={"exception": str(error)}
+        ))

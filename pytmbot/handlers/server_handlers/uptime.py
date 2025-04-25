@@ -8,13 +8,16 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em, psutil_adapter
-from pytmbot.logs import logged_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # regexp="Uptime"
-@logged_handler_session
+@logger.session_decorator
 def handle_uptime(message: Message, bot: TeleBot):
     """
     Handle uptime message from a user.
@@ -36,15 +39,15 @@ def handle_uptime(message: Message, bot: TeleBot):
         uptime_data = psutil_adapter.get_uptime()
 
         if uptime_data is None:
-            bot_logger.error(
+            logger.error(
                 f"Failed at @{__name__}: Error occurred while getting uptime"
             )
             return bot.send_message(
-                message.chat.id, text="Some error occurred. Please try again later("
+                message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
         with Compiler(
-            template_name="b_uptime.jinja2", context=uptime_data, **emojis
+                template_name="b_uptime.jinja2", context=uptime_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -54,4 +57,11 @@ def handle_uptime(message: Message, bot: TeleBot):
         )
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling uptime",
+            error_code="HAND_001",
+            metadata={"exception": str(error)}
+        ))

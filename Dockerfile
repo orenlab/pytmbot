@@ -9,13 +9,13 @@
 # Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
 # Repository:     https://github.com/orenlab/pytmbot                                                                   #
 # License:        MIT                                                                                                  #
-# Description:    This Dockerfile builds a secure, minimal image based on Alpine Linux with Python 3.12.               #
+# Description:    This Dockerfile builds a secure, minimal image based on Alpine Linux with Python 3.13.               #
 #                 It includes a Docker socket for managing containers without requiring root access for other tasks.   #
 #                                                                                                                      #
 ########################################################################################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.13-alpine3.20
+ARG PYTHON_IMAGE=3.13.3-alpine3.21
 ARG ALPINE_IMAGE=3.21
 
 ########################################################################################################################
@@ -63,9 +63,9 @@ ENV PYTHONUNBUFFERED=1 \
     PATH=/venv/bin:$PATH
 
 # Copy necessary Python files and directories from first stage
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
-COPY --from=builder /usr/local/lib/ /usr/local/lib/
-COPY --from=builder /venv /venv
+COPY --link --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --link --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --link --from=builder /venv /venv
 
 # Copy app files in one step to reduce layers
 COPY ./pytmbot ./pytmbot
@@ -76,6 +76,9 @@ COPY ./entrypoint.sh ./entrypoint.sh
 RUN chmod 700 ./entrypoint.sh && \
     rm -rf /root/.cache/* &&  \
     rm -rf /tmp/*
+
+#HEALTHCHECK --interval=60s --timeout=5s --start-period=65s --retries=3 \
+#  CMD ["./entrypoint.sh", "--health_check"]
 
 ########################################################################################################################
 ######################### TARGETS SETUP ###############################################################################

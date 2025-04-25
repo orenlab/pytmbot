@@ -1,78 +1,120 @@
 #!/bin/sh
-set -uef
+set -e
+
 ########################################################################################################################
-#                                                                                                                      #
-#                                               pyTMBot - entrypoint.sh                                                #
-# -------------------------------------------------------------------------------------------------------------------- #
-# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
-# and extending its functionality with plugins.                                                                        #
-#                                                                                                                      #
-# Project:        pyTMBot                                                                                              #
-# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
-# Repository:     https://github.com/orenlab/pytmbot                                                                   #
-# License:        MIT                                                                                                  #
-# Description:    This entrypoint.sh run the main.py script with the specified arguments.                              #
-#                                                                                                                      #
+#                                               pyTMBot - entrypoint.sh                                                   #
 ########################################################################################################################
 
-# Create symlinks for logging to stdout and stderr if they do not exist
-[ ! -L /dev/stdout ] && ln -sf /dev/stdout /dev/stdout
-[ ! -L /dev/stderr ] && ln -sf /dev/stderr /dev/stderr
+# Constants
+PYTHON_PATH="/venv/bin/python3"
+MAIN_SCRIPT="main.py"
+SALT_SCRIPT="pytmbot/utils/salt.py"
 
-# Function to handle errors
-handle_error() {
-    echo "An unexpected error occurred. Exiting." >&2
-    exit 1
+# Default values
+LOG_LEVEL="INFO"
+MODE="prod"
+SALT="False"
+PLUGINS=""
+WEBHOOK="False"
+SOCKET_HOST="127.0.0.1"
+HEALTH_CHECK="False"
+
+# Variables for process management
+child_pid=""
+
+# Trap signals for proper shutdown
+trap 'handle_exit' TERM INT QUIT HUP
+
+handle_exit() {
+
+    if [ -n "$child_pid" ]; then
+        echo "››››››››››››››››››››››››››››››››››››››››››››››››››› Sending TERM signal to Python process (PID: $child_pid)"
+        kill -TERM "$child_pid" 2>/dev/null || true
+
+        # Wait for the process to finish or timeout after 30 seconds
+        timeout=30
+        while [ $timeout -gt 0 ] && kill -0 "$child_pid" 2>/dev/null; do
+            sleep 1
+            timeout=$((timeout - 1))
+        done
+
+        # Force kill if still running
+        if kill -0 "$child_pid" 2>/dev/null; then
+            echo "Process did not terminate gracefully, forcing shutdown"
+            kill -9 "$child_pid" 2>/dev/null || true
+        fi
+    fi
+
+    exit 0
 }
 
-# Check if required tools are installed
-if ! command -v /venv/bin/python3 >/dev/null 2>&1; then
-    echo >&2 "Python3 is required but it's not installed. Aborting."
-    exit 1
-fi
+# Function to validate log level
+validate_log_level() {
+    case "$1" in
+        DEBUG|INFO|ERROR) return 0 ;;
+        *) echo "Invalid log level: $1" >&2; return 1 ;;
+    esac
+}
 
-# Default values for script arguments
-LOG_LEVEL="INFO"         # Set the default log level
-MODE="prod"              # Set the default mode (prod/dev)
-SALT="false"             # Default value for salt execution
-PLUGINS=""               # Default value for plugins
-WEBHOOK="False"          # Set default value for webhook
-SOCKET_HOST="127.0.0.1" # Default socket host
+# Function to validate mode
+validate_mode() {
+    case "$1" in
+        dev|prod) return 0 ;;
+        *) echo "Invalid mode: $1" >&2; return 1 ;;
+    esac
+}
 
-# Parse command-line arguments using a while loop
+# Function to check dependencies
+check_dependencies() {
+    if ! command -v "$PYTHON_PATH" >/dev/null 2>&1; then
+        echo >&2 "Python3 is required but not installed. Aborting."
+        exit 1
+    fi
+
+    if [ ! -f "$MAIN_SCRIPT" ]; then
+        echo "Error: $MAIN_SCRIPT does not exist or cannot be accessed." >&2
+        exit 1
+    fi
+}
+
+# Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
         --log-level)
-            if [ "$2" != "DEBUG" ] && [ "$2" != "INFO" ] && [ "$2" != "ERROR" ]; then
-                echo "Invalid log level: $2" >&2
+            if validate_log_level "$2"; then
+                LOG_LEVEL="$2"
+            else
                 exit 1
             fi
-            LOG_LEVEL="$2"
             shift 2
             ;;
         --mode)
-            if [ "$2" != "dev" ] && [ "$2" != "prod" ]; then
-                echo "Invalid mode: $2" >&2
+            if validate_mode "$2"; then
+                MODE="$2"
+            else
                 exit 1
             fi
-            MODE="$2"
             shift 2
             ;;
         --salt)
-            SALT="true"  # Enable salt execution
+            SALT="True"
             shift
             ;;
         --plugins)
-            PLUGINS="$2"  # Set plugins to load
+            PLUGINS="$2"
             shift 2
             ;;
         --webhook)
-            WEBHOOK="True"  # Enable webhook mode
+            WEBHOOK="True"
             shift
             ;;
         --socket_host)
-            SOCKET_HOST="$2"  # Set socket host address
+            SOCKET_HOST="$2"
             shift 2
+            ;;
+        --health_check)
+            HEALTH_CHECK="True"
+            shift
             ;;
         *)
             echo "Invalid option: $1" >&2
@@ -81,22 +123,34 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Verify necessary files and permissions
-if [ ! -f "main.py" ]; then
-    echo "Error: main.py does not exist or cannot be accessed." >&2
-    exit 1
+# Check dependencies
+check_dependencies
+
+# Handle health check
+if [ "$HEALTH_CHECK" = "True" ]; then
+    "$PYTHON_PATH" "$MAIN_SCRIPT" --health_check "True"
+    exit $?
 fi
 
-if [ "$SALT" = "true" ]; then
-    if [ ! -f "pytmbot/utils/salt.py" ]; then
-        echo "Error: pytmbot/utils/salt.py does not exist or cannot be accessed." >&2
+# Run the appropriate script
+if [ "$SALT" = "True" ]; then
+    if [ ! -f "$SALT_SCRIPT" ]; then
+        echo "Error: $SALT_SCRIPT does not exist or cannot be accessed." >&2
         exit 1
     fi
-    /venv/bin/python3 pytmbot/utils/salt.py || handle_error
+    # Run salt script
+    $PYTHON_PATH "$SALT_SCRIPT" &
+    child_pid=$!
 else
-    # Execute the main Python script with the specified arguments
-    /venv/bin/python3 main.py --log-level "$LOG_LEVEL" --mode "$MODE" --plugins "$PLUGINS" --webhook "$WEBHOOK" --socket_host "$SOCKET_HOST" || handle_error
+    # Run main script
+    $PYTHON_PATH "$MAIN_SCRIPT" \
+        --log-level "$LOG_LEVEL" \
+        --mode "$MODE" \
+        --plugins "$PLUGINS" \
+        --webhook "$WEBHOOK" \
+        --socket_host "$SOCKET_HOST" &
+    child_pid=$!
 fi
 
-# Exit successfully
-exit 0
+# Wait for the Python process
+wait $child_pid

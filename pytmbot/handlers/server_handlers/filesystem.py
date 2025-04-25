@@ -8,13 +8,16 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import psutil_adapter, em, running_in_docker
-from pytmbot.logs import logged_handler_session, bot_logger
+from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+
+logger = Logger()
 
 
 # regexp="File system"
-@logged_handler_session
+@logger.session_decorator
 def handle_file_system(message: Message, bot: TeleBot):
     try:
         bot.send_chat_action(message.chat.id, "typing")
@@ -22,10 +25,10 @@ def handle_file_system(message: Message, bot: TeleBot):
         disk_usage = psutil_adapter.get_disk_usage()
 
         if disk_usage is None:
-            bot_logger.error("Failed to handle disk usage")
+            logger.error("Failed to handle disk usage")
             return bot.send_message(
                 message.chat.id,
-                text="Failed to handle disk usage. Please try again later.",
+                text="⚠️ Failed to handle disk usage. Please try again later.",
             )
 
         emojis = {
@@ -36,14 +39,21 @@ def handle_file_system(message: Message, bot: TeleBot):
         }
 
         with Compiler(
-            template_name="b_fs.jinja2",
-            context=disk_usage,
-            running_in_docker=running_in_docker,
-            **emojis,
+                template_name="b_fs.jinja2",
+                context=disk_usage,
+                running_in_docker=running_in_docker,
+                **emojis,
         ) as compiler:
             bot_answer = compiler.compile()
 
-        return bot.send_message(message.chat.id, text=bot_answer)
+        return bot.send_message(message.chat.id, text=bot_answer, parse_mode="HTML")
 
     except Exception as error:
-        raise exceptions.PyTMBotErrorHandlerError(f"Failed at {__name__}: {error}")
+        bot.send_message(
+            message.chat.id, "⚠️ An error occurred while processing the command."
+        )
+        raise exceptions.HandlingException(ErrorContext(
+            message="Failed handling disk usage",
+            error_code="HAND_008",
+            metadata={"exception": str(error)}
+        ))

@@ -1,6 +1,6 @@
 import unittest
 
-from app.utilities.utilities import find_in_args
+from pytmbot.utils.utilities import find_in_args
 
 
 class TestFindInArgs(unittest.TestCase):

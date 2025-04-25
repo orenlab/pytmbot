@@ -1,106 +1,210 @@
-from typing import Union, Callable, Any
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum, auto
+from functools import wraps
+from typing import Any, Callable, TypeAlias, TypeGuard, Union, cast, TypeVar
 
 import telebot
-from telebot.types import Message, CallbackQuery
+from telebot.types import Message, CallbackQuery, User
 
 from pytmbot.globals import session_manager, settings
 from pytmbot.handlers.auth_processing.auth_processing import (
     handle_unauthorized_message,
     handle_access_denied,
 )
-from pytmbot.logs import bot_logger
+from pytmbot.logs import Logger, BaseComponent
+
+logger = Logger()
+
+T = TypeVar('T')
+
+# Type aliases for better readability
+TelegramQuery: TypeAlias = Union[Message, CallbackQuery]
+HandlerFunction: TypeAlias = Callable[[TelegramQuery, telebot.TeleBot], Any]
+
+
+class HandlerType(StrEnum):
+    """Enum for different types of handlers."""
+    CALLBACK_QUERY = auto()
+    MESSAGE = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class AuthContext:
+    """Data class to store authentication context."""
+    user_id: int
+    handler_type: HandlerType
+    referer_handler: str
+    username: str
+
+
+class AuthComponent(BaseComponent):
+    """Authentication component with integrated logging."""
+
+    def __init__(self):
+        super().__init__("AuthComponent")
+
+
+auth_component = AuthComponent()
+
+
+def is_valid_query(query: Any) -> TypeGuard[TelegramQuery]:
+    """
+    Type guard to validate if the query is of correct type.
+
+    Args:
+        query: The query to validate
+
+    Returns:
+        bool: True if query is valid Message or CallbackQuery
+    """
+    return isinstance(query, (Message, CallbackQuery))
+
+
+def get_user_from_query(query: TelegramQuery) -> User | None:
+    """
+    Safely extract user information from query.
+
+    Args:
+        query: Telegram query object
+
+    Returns:
+        Optional[User]: User object if available
+    """
+    return getattr(query, "from_user", None)
+
+
+def create_auth_context(query: TelegramQuery) -> AuthContext | None:
+    """
+    Create authentication context from query.
+
+    Args:
+        query: Telegram query object
+
+    Returns:
+        Optional[AuthContext]: Authentication context if user info is available
+    """
+    user = get_user_from_query(query)
+    if not user:
+        return None
+
+    handler_type = (
+        HandlerType.CALLBACK_QUERY
+        if isinstance(query, CallbackQuery)
+        else HandlerType.MESSAGE
+    )
+
+    referer_handler = (
+        query.data if isinstance(query, CallbackQuery) else query.text
+    )
+
+    return AuthContext(
+        user_id=user.id,
+        handler_type=handler_type,
+        referer_handler=str(referer_handler),
+        username=user.username or str(user.id)
+    )
 
 
 def handle_unauthorized_query(
-    query: Union[Message, CallbackQuery], bot: telebot.TeleBot
-) -> bool:
+        query: TelegramQuery,
+        bot: telebot.TeleBot
+) -> None:
     """
     Handle unauthorized queries.
 
     Args:
-        query (Union[Message, CallbackQuery]): The query object.
-        bot (telebot.TeleBot): The bot object.
-
-    Returns:
-        bool: True if the query was handled successfully, False otherwise.
+        query: The query object
+        bot: The bot object
     """
-    if not isinstance(query, (Message, CallbackQuery)):
+    if not is_valid_query(query):
         raise TypeError("Query must be an instance of Message or CallbackQuery")
-    return handle_unauthorized_message(query, bot)
+
+    with auth_component.log_context(action="handle_unauthorized") as log:
+        log.debug("Processing unauthorized query")
+        return handle_unauthorized_message(query, bot)
 
 
 def access_denied_handler(
-    query: Union[Message, CallbackQuery], bot: telebot.TeleBot
+        query: TelegramQuery,
+        bot: telebot.TeleBot
 ) -> bool:
     """
     Handle access denied queries.
 
     Args:
-        query (Union[Message, CallbackQuery]): The query object.
-        bot (telebot.TeleBot): The bot object.
+        query: The query object
+        bot: The bot object
 
     Returns:
-        bool: True if the query was handled successfully, False otherwise.
+        bool: True if handled successfully
     """
-    if not isinstance(query, (Message, CallbackQuery)):
+    if not is_valid_query(query):
         raise TypeError("Query must be an instance of Message or CallbackQuery")
-    return handle_access_denied(query, bot)
+
+    with auth_component.log_context(action="access_denied") as log:
+        log.denied("Access denied for query")
+        return handle_access_denied(query, bot)
 
 
-def two_factor_auth_required(func: Callable[..., Any]) -> Callable[..., Any]:
+def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
     """
-    Decorator that enforces two-factor authentication for the provided function.
+    Decorator that enforces two-factor authentication.
 
     Args:
-        func: The function to be decorated. It must accept `query` and `bot` as arguments.
+        func: The function to be decorated
 
     Returns:
-        Callable[..., Any]: The wrapper function that enforces two-factor authentication.
+        Wrapped function with 2FA check
     """
 
-    def wrapper(query: Union[Message, CallbackQuery], bot: telebot.TeleBot) -> Any:
-        # Pre-check for valid query type
-        if not isinstance(query, (Message, CallbackQuery)):
+    @wraps(func)
+    @logger.session_decorator
+    def wrapper(query: TelegramQuery, bot: telebot.TeleBot) -> Any:
+        if not is_valid_query(query):
             raise TypeError("Query must be an instance of Message or CallbackQuery")
 
-        user = getattr(query, "from_user", None)
-        if user is None:
-            bot_logger.error("Query does not contain valid user information.")
+        auth_context = create_auth_context(query)
+        if not auth_context:
+            with auth_component.log_context(action="auth_check") as log:
+                log.error("Failed to create auth context: invalid user information")
             return access_denied_handler(query, bot)
 
-        user_id = user.id
+        if auth_context.user_id not in settings.access_control.allowed_admins_ids:
+            with auth_component.log_context(
+                    action="auth_check",
+                    user_id=auth_context.user_id,
+                    username=auth_context.username
+            ) as log:
+                log.denied("User is not in allowed admins list")
+            return access_denied_handler(query, bot)
 
-        # Determine if the query is a message or a callback query
-        handler_type, referer_handler = (
-            ("callback_query", query.data)
-            if isinstance(query, CallbackQuery)
-            else ("message", query.text)
-        )
+        is_authenticated = session_manager.is_authenticated(auth_context.user_id)
 
-        if user_id in settings.access_control.allowed_admins_ids:
-            is_authenticated = session_manager.is_authenticated(user_id)
-            bot_logger.debug(
-                f"User {user_id} authentication status: {is_authenticated}"
-            )
+        with auth_component.log_context(
+                action="auth_check",
+                user_id=auth_context.user_id,
+                username=auth_context.username,
+                handler_type=auth_context.handler_type.value
+        ) as log:
+            log.debug(f"Authentication status: {is_authenticated}")
 
             if not is_authenticated:
                 session_manager.set_referer_uri_and_handler_type_for_user(
-                    user_id, handler_type, referer_handler
+                    auth_context.user_id,
+                    auth_context.handler_type.value,
+                    auth_context.referer_handler
                 )
-                bot_logger.error(
-                    f"User {user_id} not authenticated. Redirecting to authorization page."
-                )
+                log.warning("Authentication required")
                 return handle_unauthorized_query(query, bot)
 
-            if session_manager.is_session_expired(user_id):
-                session_manager.set_auth_state(user_id, "unauthenticated")
-                bot_logger.error(f"Session expired for user {user_id}")
+            if session_manager.is_session_expired(auth_context.user_id):
+                session_manager.set_auth_state(auth_context.user_id, "unauthenticated")
+                log.warning("Session expired")
                 return handle_unauthorized_query(query, bot)
 
-            bot_logger.debug(f"Access granted to administrative user {user_id}")
+            log.success("Access granted")
             return func(query, bot)
-        else:
-            bot_logger.error(f"Access denied for user {user_id}. Not an admin.")
-            return access_denied_handler(query, bot)
 
-    return wrapper
+    return cast(HandlerFunction, wrapper)
