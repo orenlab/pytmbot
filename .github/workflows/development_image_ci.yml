@@ -3,7 +3,7 @@ name: Push Alpine Dev Image
 on:
   push:
     branches:
-      - '0.2.2'
+      - 'master'
 
 permissions:
   contents: read
