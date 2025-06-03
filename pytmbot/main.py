@@ -11,7 +11,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import NoReturn, Final, Any, Self
 
-from humanize import naturaltime
+import psutil
+from humanize import naturaltime, naturalsize
 
 from pytmbot import logs
 from pytmbot.exceptions import (
@@ -175,9 +176,25 @@ class BotLauncher(logs.BaseComponent):
                     return
 
     def _log_health_status(self) -> None:
-        """Log current health status."""
+        """Log current health status with resource usage."""
         uptime_display = naturaltime(self.start_time)
-        with self.log_context(uptime=uptime_display, active=bool(self.bot)) as log:
+
+        # Получаем текущий процесс
+        process = psutil.Process()
+
+        # Время работы процесса
+        cpu_percent = process.cpu_percent(interval=0.1)
+        memory_info = process.memory_info()
+        mem_rss = naturalsize(memory_info.rss)  # Resident Set Size
+        mem_vms = naturalsize(memory_info.vms)  # Virtual Memory Size
+
+        with self.log_context(
+                uptime=uptime_display,
+                active=bool(self.bot),
+                cpu=f"{cpu_percent:.1f}%",
+                memory_rss=mem_rss,
+                memory_vms=mem_vms,
+        ) as log:
             log.debug("Health check completed")
 
     @contextmanager
