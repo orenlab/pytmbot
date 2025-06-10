@@ -16,7 +16,7 @@ pyotp==2.9.0
 pyTelegramBotAPI==4.27.0
 PyYAML==6.0.2
 qrcode[pil]==8.2
-requests==2.32.3
+requests==2.32.4
 uvicorn==0.34.3
 python-dateutil>=2.9.0.post0
 urllib3>=2.4.0
