@@ -39,10 +39,6 @@ class LogConfig:
         "<level>{message}</level> › "
         "<fg #A9A9A9>{extra}</fg #A9A9A9>"
     )
-    CUSTOM_LEVELS: ClassVar[dict[str, tuple[int, str]]] = {
-        "DENIED": (39, "<red>"),
-        "BLOCKED": (38, "<yellow>")
-    }
 
 
 class Logger:
@@ -80,9 +76,6 @@ class Logger:
             diagnose=True,
             catch=True,
         )
-
-        for level_name, (level_no, color) in LogConfig.CUSTOM_LEVELS.items():
-            self._logger.level(level_name, no=level_no, color=color)
 
     @staticmethod
     def _extract_update_data(update: Update | Message | CallbackQuery | InlineQuery) -> dict[str, Any]:
