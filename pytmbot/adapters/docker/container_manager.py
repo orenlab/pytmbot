@@ -5,9 +5,9 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.models.docker_models import ContainerId, ContainerConfig, DockerResponse, ContainerAction
 from pytmbot.globals import settings, session_manager
 from pytmbot.logs import Logger
+from pytmbot.models.docker_models import ContainerId, ContainerConfig, DockerResponse, ContainerAction
 from pytmbot.utils import is_new_name_valid
 
 logger = Logger()
@@ -18,7 +18,7 @@ def validate_access(func: Callable) -> Callable:
     def wrapper(self, user_id: int, container_id: ContainerId, *args, **kwargs) -> any:
         if not (user_id in settings.access_control.allowed_admins_ids
                 and session_manager.is_authenticated(user_id)):
-            logger.security_alert(
+            logger.critical(
                 "Unauthorized container access attempt",
                 extra={
                     "user_id": user_id,
@@ -118,7 +118,7 @@ class ContainerManager:
     ) -> DockerResponse:
         """Renames a Docker container with access and input validation."""
         if not is_new_name_valid(new_container_name):
-            logger.security_alert(
+            logger.error(
                 "Invalid container name attempt",
                 extra={
                     "user_id": user_id,
