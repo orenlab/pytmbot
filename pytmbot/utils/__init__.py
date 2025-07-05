@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 def __getattr__(name: str):
     if name == "parse_cli_args":
         from .cli import parse_cli_args
+
         return parse_cli_args
 
     if name in {
@@ -51,6 +52,7 @@ def __getattr__(name: str):
 
     if name == "EmojiConverter":
         from .emoji import EmojiConverter
+
         return EmojiConverter
 
     if name in {"is_running_in_docker", "get_environment_state"}:

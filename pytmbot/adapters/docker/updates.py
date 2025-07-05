@@ -64,9 +64,12 @@ class TagAnalyzer:
     """Analyzes and categorizes Docker image tags."""
 
     SEMVER_PATTERN = re.compile(
-        r'^v?(\d+\.\d+\.\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$')
-    DATE_PATTERN = re.compile(r'^\d{4}(?:[-_.]\d{2}){2}(?:[-_.]?\d{2}(?:[-_.]\d{2}){2})?$')
-    SHA_PATTERN = re.compile(r'^[0-9a-f]{7,40}$')
+        r"^v?(\d+\.\d+\.\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+    )
+    DATE_PATTERN = re.compile(
+        r"^\d{4}(?:[-_.]\d{2}){2}(?:[-_.]?\d{2}(?:[-_.]\d{2}){2})?$"
+    )
+    SHA_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
 
     @classmethod
     def analyze_tag(cls, tag_info: TagInfo) -> EnhancedTagInfo:
@@ -88,11 +91,11 @@ class TagAnalyzer:
 
         if date_match := cls.DATE_PATTERN.match(tag_name):
             try:
-                clean_date = re.sub(r'[-_.]', '', date_match.group(0))
+                clean_date = re.sub(r"[-_.]", "", date_match.group(0))
                 if len(clean_date) == 8:  # YYYYMMDD
-                    date = datetime.strptime(clean_date, '%Y%m%d')
+                    date = datetime.strptime(clean_date, "%Y%m%d")
                 else:  # YYYYMMDDhhmmss
-                    date = datetime.strptime(clean_date, '%Y%m%d%H%M%S')
+                    date = datetime.strptime(clean_date, "%Y%m%d%H%M%S")
                 return EnhancedTagInfo(tag_info, TagType.DATE, date_info=date)
             except ValueError:
                 pass
@@ -140,15 +143,19 @@ class DockerImageUpdater(BaseComponent):
                         continue
 
                     digest = None
-                    if repo_digests := image.attrs.get('RepoDigests'):
+                    if repo_digests := image.attrs.get("RepoDigests"):
                         try:
-                            digest = repo_digests[0].split('@')[1]
+                            digest = repo_digests[0].split("@")[1]
                         except (IndexError, ValueError):
-                            self._log.debug(f"Could not parse RepoDigests for image {image.id[:12]}")
+                            self._log.debug(
+                                f"Could not parse RepoDigests for image {image.id[:12]}"
+                            )
 
                     for tag in repo_tags:
                         try:
-                            repo, tag_version = tag.rsplit(":", 1) if ":" in tag else (tag, "latest")
+                            repo, tag_version = (
+                                tag.rsplit(":", 1) if ":" in tag else (tag, "latest")
+                            )
 
                             created_at = image.attrs.get("Created")
                             if isinstance(created_at, (int, float)):
@@ -156,7 +163,9 @@ class DockerImageUpdater(BaseComponent):
                                     created_at, tz=timezone.utc
                                 ).isoformat()
                             elif not isinstance(created_at, str):
-                                self._log.warning(f"Unexpected created_at format for {tag}: {created_at}")
+                                self._log.warning(
+                                    f"Unexpected created_at format for {tag}: {created_at}"
+                                )
                                 created_at = None
 
                             local_images.setdefault(repo, []).append(
@@ -176,11 +185,12 @@ class DockerImageUpdater(BaseComponent):
             raise
 
         self._log.info(
-            f"Successfully processed {sum(len(tags) for tags in local_images.values())} tags from {len(local_images)} repositories")
+            f"Successfully processed {sum(len(tags) for tags in local_images.values())} tags from {len(local_images)} repositories"
+        )
         return local_images
 
     async def _fetch_remote_tags(
-            self, session: aiohttp.ClientSession, repo: str
+        self, session: aiohttp.ClientSession, repo: str
     ) -> List[EnhancedTagInfo]:
         """Fetches and analyzes available tags from Docker Hub."""
         with self._log.context(action="fetch_remote_tags", repository=repo):
@@ -199,24 +209,30 @@ class DockerImageUpdater(BaseComponent):
                 try:
                     async with session.get(_url, timeout=10) as response:
                         if response.status == 429:
-                            retry_after = int(response.headers.get("Retry-After", "3600"))
-                            self._log.warning(f"Rate limit exceeded, retry after {retry_after} seconds")
+                            retry_after = int(
+                                response.headers.get("Retry-After", "3600")
+                            )
+                            self._log.warning(
+                                f"Rate limit exceeded, retry after {retry_after} seconds"
+                            )
                             raise aiohttp.ClientResponseError(
                                 request_info=response.request_info,
                                 history=response.history,
                                 status=429,
-                                message=f"Rate limit exceeded, retry after {retry_after} seconds"
+                                message=f"Rate limit exceeded, retry after {retry_after} seconds",
                             )
 
                         response.raise_for_status()
                         data = await response.json()
 
                         new_tags = [
-                            self.analyzer.analyze_tag(TagInfo(
-                                name=result["name"],
-                                created_at=result.get("tag_last_pushed", ""),
-                                digest=result.get("digest")
-                            ))
+                            self.analyzer.analyze_tag(
+                                TagInfo(
+                                    name=result["name"],
+                                    created_at=result.get("tag_last_pushed", ""),
+                                    digest=result.get("digest"),
+                                )
+                            )
                             for result in data.get("results", [])
                         ]
                         tags_info.extend(new_tags)
@@ -236,14 +252,16 @@ class DockerImageUpdater(BaseComponent):
                 await fetch_first_page(url)
                 if tags_info:
                     self.tag_cache[repo] = tags_info
-                    self._log.info(f"Successfully cached {len(tags_info)} tags for {repo}")
+                    self._log.info(
+                        f"Successfully cached {len(tags_info)} tags for {repo}"
+                    )
                     break
 
             return tags_info
 
     @staticmethod
     def _compare_versions(
-            local_tag: EnhancedTagInfo, remote_tag: EnhancedTagInfo
+        local_tag: EnhancedTagInfo, remote_tag: EnhancedTagInfo
     ) -> bool:
         """Compare two tags to determine if remote is newer."""
         if local_tag.tag_type != remote_tag.tag_type:
@@ -259,32 +277,36 @@ class DockerImageUpdater(BaseComponent):
         return isoparse(remote_tag.created_at) > isoparse(local_tag.created_at)
 
     async def _find_compatible_updates(
-            self, local_tag: EnhancedTagInfo, remote_tags: List[EnhancedTagInfo]
+        self, local_tag: EnhancedTagInfo, remote_tags: List[EnhancedTagInfo]
     ) -> List[UpdateInfo]:
         """Find compatible updates for a given local tag."""
-        with self._log.context(action="find_updates", tag=local_tag.name, tag_type=local_tag.tag_type.name):
+        with self._log.context(
+            action="find_updates", tag=local_tag.name, tag_type=local_tag.tag_type.name
+        ):
             updates = []
             compatible_tags = [
-                tag for tag in remote_tags
-                if tag.tag_type == local_tag.tag_type
+                tag for tag in remote_tags if tag.tag_type == local_tag.tag_type
             ]
 
             if local_tag.tag_type == TagType.SEMVER:
                 major_version = local_tag.version_info.major
                 compatible_tags = [
-                    tag for tag in compatible_tags
+                    tag
+                    for tag in compatible_tags
                     if tag.version_info.major == major_version
-                       and self._compare_versions(local_tag, tag)
+                    and self._compare_versions(local_tag, tag)
                 ]
 
             for remote_tag in compatible_tags:
-                updates.append(UpdateInfo(
-                    current_tag=local_tag.name,
-                    newer_tag=remote_tag.name,
-                    created_at_local=local_tag.created_at,
-                    created_at_remote=remote_tag.created_at,
-                    current_digest=remote_tag.digest
-                ))
+                updates.append(
+                    UpdateInfo(
+                        current_tag=local_tag.name,
+                        newer_tag=remote_tag.name,
+                        created_at_local=local_tag.created_at,
+                        created_at_remote=remote_tag.created_at,
+                        current_digest=remote_tag.digest,
+                    )
+                )
 
             self._log.debug(f"Found {len(updates)} compatible updates")
             return updates
@@ -304,17 +326,19 @@ class DockerImageUpdater(BaseComponent):
                                 return UpdaterResponse(
                                     status=UpdaterStatus.RATE_LIMITED,
                                     message="Docker Hub API rate limit exceeded. Please try again later.",
-                                    data={"retry_after": "3600"}
+                                    data={"retry_after": "3600"},
                                 )
                             raise
 
                         repo_updates = []
                         for local_tag_info in local_tags:
-                            local_enhanced = self.analyzer.analyze_tag(TagInfo(
-                                name=local_tag_info["tag"],
-                                created_at=local_tag_info["created_at"],
-                                digest=local_tag_info["digest"]
-                            ))
+                            local_enhanced = self.analyzer.analyze_tag(
+                                TagInfo(
+                                    name=local_tag_info["tag"],
+                                    created_at=local_tag_info["created_at"],
+                                    digest=local_tag_info["digest"],
+                                )
+                            )
 
                             compatible_updates = await self._find_compatible_updates(
                                 local_enhanced, remote_tags
@@ -322,8 +346,7 @@ class DockerImageUpdater(BaseComponent):
                             repo_updates.extend(compatible_updates)
 
                         repo_updates.sort(
-                            key=lambda x: isoparse(x.created_at_remote),
-                            reverse=True
+                            key=lambda x: isoparse(x.created_at_remote), reverse=True
                         )
                         updates[repo] = {
                             "updates": [update.to_dict() for update in repo_updates[:5]]
@@ -333,14 +356,14 @@ class DockerImageUpdater(BaseComponent):
                 return UpdaterResponse(
                     status=UpdaterStatus.SUCCESS,
                     message="Successfully checked for updates",
-                    data=updates
+                    data=updates,
                 )
 
             except Exception as e:
                 self._log.error(f"Error checking for updates: {e}")
                 return UpdaterResponse(
                     status=UpdaterStatus.ERROR,
-                    message=f"Error checking for updates: {str(e)}"
+                    message=f"Error checking for updates: {str(e)}",
                 )
 
     def to_json(self) -> str:
@@ -387,11 +410,14 @@ class DockerImageUpdater(BaseComponent):
         """
         with self._log.context(action="to_json"):
             result = asyncio.run(self._check_updates())
-            return json.dumps({
-                "status": result.status.name,
-                "message": result.message,
-                "data": result.data
-            }, indent=4)
+            return json.dumps(
+                {
+                    "status": result.status.name,
+                    "message": result.message,
+                    "data": result.data,
+                },
+                indent=4,
+            )
 
 
 if __name__ == "__main__":

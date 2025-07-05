@@ -27,6 +27,7 @@ class ResourceMetrics(TypedDict):
 @dataclass(slots=True)
 class ResourceThresholds:
     """Data class for storing resource monitoring thresholds."""
+
     cpu_temp: float
     gpu_temp: float
     disk_temp: float
@@ -40,6 +41,7 @@ class ResourceThresholds:
 @dataclass(slots=True)
 class MonitoringState:
     """Data class for storing monitoring state information."""
+
     is_active: bool = False
     notification_count: int = 0
     max_notifications_reached: bool = False

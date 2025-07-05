@@ -49,62 +49,49 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         if images is None:
             logger.error(
                 "Failed to fetch Docker images",
-                extra={
-                    'chat_id': message.chat.id,
-                    'error_type': 'ImagesFetchError'
-                }
+                extra={"chat_id": message.chat.id, "error_type": "ImagesFetchError"},
             )
             return send_telegram_message(
-                bot,
-                message.chat.id,
-                "Failed to fetch images. Please try again later."
+                bot, message.chat.id, "Failed to fetch images. Please try again later."
             )
 
         # Create a button for checking updates
         keyboard_button = [
-            button_data(
-                text="Check updates",
-                callback_data="__check_updates__"
-            )
+            button_data(text="Check updates", callback_data="__check_updates__")
         ]
         inline_button = keyboards.build_inline_keyboard(keyboard_button)
 
         # Compile the template
         template_context = {
-            'images': images,
-            'emojis': {
-                'thought_balloon': em.get_emoji("thought_balloon"),
-                'spouting_whale': em.get_emoji("spouting_whale"),
-                'minus': em.get_emoji("minus"),
-                'package': em.get_emoji("package"),
-                'bookmark_tabs': em.get_emoji("bookmark_tabs"),
-                'gear': em.get_emoji("gear"),
-                'desktop_computer': em.get_emoji("desktop_computer"),
-                'floppy_disk': em.get_emoji("floppy_disk"),
-                'mantelpiece_clock': em.get_emoji("mantelpiece_clock"),
-                'person_technologist': em.get_emoji("person_technologist"),
-                'wrench': em.get_emoji("wrench"),
-                'label': em.get_emoji("label"),
-                'electric_plug': em.get_emoji("electric_plug"),
-                'key': em.get_emoji("key"),
-                'arrow_right': em.get_emoji("arrow_right"),
-                'computer_mouse': em.get_emoji("computer_mouse")
-            }
+            "images": images,
+            "emojis": {
+                "thought_balloon": em.get_emoji("thought_balloon"),
+                "spouting_whale": em.get_emoji("spouting_whale"),
+                "minus": em.get_emoji("minus"),
+                "package": em.get_emoji("package"),
+                "bookmark_tabs": em.get_emoji("bookmark_tabs"),
+                "gear": em.get_emoji("gear"),
+                "desktop_computer": em.get_emoji("desktop_computer"),
+                "floppy_disk": em.get_emoji("floppy_disk"),
+                "mantelpiece_clock": em.get_emoji("mantelpiece_clock"),
+                "person_technologist": em.get_emoji("person_technologist"),
+                "wrench": em.get_emoji("wrench"),
+                "label": em.get_emoji("label"),
+                "electric_plug": em.get_emoji("electric_plug"),
+                "key": em.get_emoji("key"),
+                "arrow_right": em.get_emoji("arrow_right"),
+                "computer_mouse": em.get_emoji("computer_mouse"),
+            },
         }
 
         with Compiler(
-                template_name="d_images.jinja2",
-                context=template_context
+            template_name="d_images.jinja2", context=template_context
         ) as compiler:
             bot_answer = compiler.compile()
 
         # Send the message
         return send_telegram_message(
-            bot,
-            message.chat.id,
-            bot_answer,
-            inline_button,
-            "HTML"
+            bot, message.chat.id, bot_answer, inline_button, "HTML"
         )
 
     except Exception as error:
@@ -114,14 +101,16 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         logger.error(
             f"Images handler error: {error}",
             extra={
-                'template_context': template_context,
-                'chat_id': message.chat.id,
-                'error': str(error),
-                'error_type': type(error).__name__
-            }
+                "template_context": template_context,
+                "chat_id": message.chat.id,
+                "error": str(error),
+                "error_type": type(error).__name__,
+            },
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Images handler error",
-            error_code="HAND_010",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Images handler error",
+                error_code="HAND_010",
+                metadata={"exception": str(error)},
+            )
+        )

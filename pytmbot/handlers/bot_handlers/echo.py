@@ -40,24 +40,22 @@ def handle_echo(message: Message, bot: TeleBot):
         }
 
         with Compiler(
-                template_name="b_echo.jinja2",
-                first_name=message.from_user.first_name,
-                **emojis,
+            template_name="b_echo.jinja2",
+            first_name=message.from_user.first_name,
+            **emojis,
         ) as compiler:
             bot_answer = compiler.compile()
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=bot_answer
-        )
+        send_telegram_message(bot=bot, chat_id=message.chat.id, text=bot_answer)
 
     except Exception as error:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling the echo command",
-            error_code="HAND_017",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling the echo command",
+                error_code="HAND_017",
+                metadata={"exception": str(error)},
+            )
+        )

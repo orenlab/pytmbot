@@ -65,11 +65,13 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling containers",
-            error_code="HAND_012",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling containers",
+                error_code="HAND_012",
+                metadata={"exception": str(error)},
+            )
+        )
 
 
 def __get_container_data() -> list[dict[str, str]] | dict[None, None] | dict[Any, Any]:
@@ -85,11 +87,13 @@ def __get_container_data() -> list[dict[str, str]] | dict[None, None] | dict[Any
     try:
         return retrieve_containers_stats()
     except Exception as e:
-        raise exceptions.DockerOperationException(ErrorContext(
-            message="Failed to retrieve container data",
-            error_code="DOCKER_001",
-            metadata={"exception": str(e)}
-        ))
+        raise exceptions.DockerOperationException(
+            ErrorContext(
+                message="Failed to retrieve container data",
+                error_code="DOCKER_001",
+                metadata={"exception": str(e)},
+            )
+        )
 
 
 def __compile_message() -> Tuple[str, Optional[List[str]]]:
@@ -136,18 +140,20 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
 
         # Render the template with the context data and emojis
         with Compiler(
-                template_name=template_name, context=context, **emojis
+            template_name=template_name, context=context, **emojis
         ) as compiler:
             compiled_data = compiler.compile()
 
         return compiled_data, containers_name
 
     except Exception as e:
-        raise exceptions.TemplateError(ErrorContext(
-            message="Failed to compile message",
-            error_code="TEMPL_001",
-            metadata={"exception": str(e)}
-        ))
+        raise exceptions.TemplateError(
+            ErrorContext(
+                message="Failed to compile message",
+                error_code="TEMPL_001",
+                metadata={"exception": str(e)},
+            )
+        )
 
 
 def get_list_of_containers_again() -> Tuple[str, Optional[List[str]]]:

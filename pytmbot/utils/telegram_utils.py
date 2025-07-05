@@ -28,7 +28,9 @@ def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo
     return None, None, None
 
 
-def sanitize_logs(container_logs: Union[str, Any], callback_query: CallbackQuery, token: str) -> str:
+def sanitize_logs(
+    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+) -> str:
     ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
     container_logs = ansi_escape.sub("", container_logs)
     user_info = [

@@ -27,5 +27,5 @@ def get_environment_state() -> dict[str, Any]:
         "Python version": sys.version,
         "Module path": sys.path,
         "Command args": sys.argv,
-        "Running on": 'Docker' if is_running_in_docker() else 'Bare Metal'
+        "Running on": "Docker" if is_running_in_docker() else "Bare Metal",
     }

@@ -76,11 +76,11 @@ def _collect_metrics() -> Dict[str, Any]:
 
     # Define tasks to run concurrently
     tasks = {
-        'uptime': _get_uptime,
-        'load_average': _get_load,
-        'memory': _get_memory,
-        'processes': _get_processes,
-        'docker': _get_docker
+        "uptime": _get_uptime,
+        "load_average": _get_load,
+        "memory": _get_memory,
+        "processes": _get_processes,
+        "docker": _get_docker,
     }
 
     # Calculate optimal number of workers
@@ -88,10 +88,7 @@ def _collect_metrics() -> Dict[str, Any]:
 
     with ThreadPoolExecutor(max_workers=optimal_workers) as executor:
         # Start all tasks
-        future_to_task = {
-            executor.submit(func): name
-            for name, func in tasks.items()
-        }
+        future_to_task = {executor.submit(func): name for name, func in tasks.items()}
 
         # Collect results as they complete
         for future in as_completed(future_to_task):
@@ -132,44 +129,39 @@ def handle_quick_view(message: Message, bot: TeleBot):
             logger.error("Failed to collect any metrics for quick view")
             return bot.send_message(
                 message.chat.id,
-                text="⚠️ Failed to get system metrics. Please try again later."
+                text="⚠️ Failed to get system metrics. Please try again later.",
             )
 
         # Prepare context for template
         context = {
             "system": {
-                "uptime": metrics.get('uptime', 'N/A'),
-                "load_average": metrics.get('load_average', (0, 0, 0)),
-                "memory": metrics.get('memory', {}),
-                "processes": metrics.get('processes', {}),
-                "cpu": metrics.get('cpu', {})
+                "uptime": metrics.get("uptime", "N/A"),
+                "load_average": metrics.get("load_average", (0, 0, 0)),
+                "memory": metrics.get("memory", {}),
+                "processes": metrics.get("processes", {}),
+                "cpu": metrics.get("cpu", {}),
             }
         }
 
         # Add Docker metrics if available
-        if 'docker' in metrics:
-            context['docker'] = metrics['docker']
+        if "docker" in metrics:
+            context["docker"] = metrics["docker"]
 
         with Compiler(
-                template_name="b_quick_view.jinja2",
-                context=context,
-                **emojis
+            template_name="b_quick_view.jinja2", context=context, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
-        bot.send_message(
-            message.chat.id,
-            text=bot_answer,
-            parse_mode="Markdown"
-        )
+        bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
 
     except Exception as error:
         bot.send_message(
-            message.chat.id,
-            "⚠️ An error occurred while processing the command."
+            message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling quick view command",
-            error_code="HAND_QV1",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling quick view command",
+                error_code="HAND_QV1",
+                metadata={"exception": str(error)},
+            )
+        )

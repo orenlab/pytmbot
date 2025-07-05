@@ -15,44 +15,58 @@
 ########################################################################################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.13.3-alpine3.21
-ARG ALPINE_IMAGE=3.21
+ARG PYTHON_IMAGE=3.13-alpine3.22
+ARG ALPINE_IMAGE=3.22
 
 ########################################################################################################################
-######################### BUILD ALPINE BASED IMAGE #####################################################################
+######################### BUILD ALPINE BASED IMAGE ####################################################################
 ########################################################################################################################
 # First Alpine stage - build Python deps
 FROM python:${PYTHON_IMAGE} AS builder
 
-# Python version (minimal - 3.12)
+# Python version
 ARG PYTHON_VERSION=3.13
 
-# Copy and install dependencies
+# Install build dependencies and create virtual environment
+WORKDIR /build
 COPY requirements.txt .
 
-RUN apk --no-cache add --virtual .build-deps \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache --virtual .build-deps \
         gcc python3-dev musl-dev linux-headers binutils && \
-    python${PYTHON_VERSION} -m venv /venv && \
-    /venv/bin/python -m ensurepip --upgrade && \
+    python -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
     /venv/bin/pip install --no-cache-dir -r requirements.txt && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -name '*.so' -exec strip --strip-unneeded {} + || true && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name 'tests' -exec rm -rf {} + || true && \
-    find /venv/lib/python${PYTHON_VERSION}/site-packages/ -type d -name '__pycache__' -exec rm -rf {} + || true && \
-    apk del .build-deps && \
-    rm -rf /root/.cache
+    # Optimize installed packages
+    find /venv -name '*.pyc' -delete && \
+    find /venv -name '*.pyo' -delete && \
+    find /venv -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /venv -name 'tests' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /venv -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /venv -name '*.so' -exec strip --strip-unneeded {} + 2>/dev/null || true && \
+    apk del .build-deps
 
 ########################################################################################################################
-######################### SETUP FINAL IMAGE ###########################################################################
+######################### SETUP FINAL IMAGE ############################################################################
 ########################################################################################################################
 # Second Alpine stage - setup bot environment
 FROM alpine:${ALPINE_IMAGE} AS release_base
 
-# Python version (minimal - 3.12)
+# Python version
 ARG PYTHON_VERSION=3.13
 
-# Update and install essential packages in a single step
-RUN apk --no-cache upgrade && \
-    apk --no-cache add tzdata
+# Create app user first (simpler approach)
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache \
+        tzdata shadow && \
+    # Create app user with a safe UID
+    adduser -D -u 1001 -s /bin/sh pytmbot && \
+    # Create docker group (we'll handle GID at runtime)
+    addgroup docker && \
+    addgroup pytmbot docker && \
+    # Clean up
+    rm -rf /var/cache/apk/* /tmp/*
 
 # Set workdir and environment variables
 WORKDIR /opt/app/
@@ -60,32 +74,37 @@ WORKDIR /opt/app/
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/app \
-    PATH=/venv/bin:$PATH
+    PATH=/venv/bin:$PATH \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONHASHSEED=random
 
-# Copy necessary Python files and directories from first stage
-COPY --link --from=builder /usr/local/bin/ /usr/local/bin/
-COPY --link --from=builder /usr/local/lib/ /usr/local/lib/
-COPY --link --from=builder /venv /venv
+# Copy virtual environment from builder
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /venv /venv
 
-# Copy app files in one step to reduce layers
+# Copy app files
 COPY ./pytmbot ./pytmbot
-COPY ./main.py ./main.py
 COPY ./entrypoint.sh ./entrypoint.sh
 
-# Set permissions for entrypoint script
-RUN chmod 700 ./entrypoint.sh && \
-    rm -rf /root/.cache/* &&  \
-    rm -rf /tmp/*
+# Set permissions and ownership
+RUN chmod 755 ./entrypoint.sh && \
+    chown -R pytmbot:docker /opt/app && \
+    chown -R pytmbot:docker /venv
 
-#HEALTHCHECK --interval=60s --timeout=5s --start-period=65s --retries=3 \
-#  CMD ["./entrypoint.sh", "--health_check"]
+# Add health check
+#HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+#    CMD ["python", "-c", "import sys; sys.exit(0)"]
 
 ########################################################################################################################
-######################### TARGETS SETUP ###############################################################################
+######################### TARGETS SETUP ################################################################################
 ########################################################################################################################
 
 # Target for CI/CD image
 FROM release_base AS production
+
+# Switch to non-root user
+USER pytmbot
 
 ENTRYPOINT ["./entrypoint.sh"]
 
@@ -94,5 +113,11 @@ FROM release_base AS self_build
 
 # Copy config file with token (prod, dev)
 COPY pytmbot.yaml ./
+
+# Set ownership
+RUN chown pytmbot:docker pytmbot.yaml
+
+# Switch to non-root user
+USER pytmbot
 
 ENTRYPOINT ["./entrypoint.sh"]

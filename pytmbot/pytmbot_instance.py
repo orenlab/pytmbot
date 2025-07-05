@@ -67,8 +67,9 @@ class PyTMBot(BaseComponent):
             "core": {
                 "action": "core_init",
                 "version": __version__,
-                "environment": get_environment_state()
-            }}
+                "environment": get_environment_state(),
+            }
+        }
 
         self.log.info("Initializing PyTMBot", **init_context)
 
@@ -83,10 +84,14 @@ class PyTMBot(BaseComponent):
             self.log.debug("Health check completed", healthy=bool(healthy), **context)
             return True if healthy else False
         except telebot.apihelper.ApiException as e:
-            self.log.error("Telegram API connection failed", error=sanitize_exception(e), **context)
+            self.log.error(
+                "Telegram API connection failed", error=sanitize_exception(e), **context
+            )
             return False
         except Exception as e:
-            self.log.error("Health check failed", error=sanitize_exception(e), **context)
+            self.log.error(
+                "Health check failed", error=sanitize_exception(e), **context
+            )
             return False
 
     def retrieve_bot_token(self) -> str:
@@ -100,25 +105,31 @@ class PyTMBot(BaseComponent):
             self.log.debug("Bot token retrieved", **context)
             return token
         except AttributeError as error:
-            raise InitializationError(ErrorContext(
-                message="Error retrieving bot token",
-                error_code="CORE_001",
-                metadata={"original_error": str(error)}
-            )
+            raise InitializationError(
+                ErrorContext(
+                    message="Error retrieving bot token",
+                    error_code="CORE_001",
+                    metadata={"original_error": str(error)},
+                )
             )
         except FileNotFoundError as error:
-            raise InitializationError(ErrorContext(
-                message="File not found error",
-                error_code="CORE_002",
-                metadata={"original_error": str(error)}
-            )
+            raise InitializationError(
+                ErrorContext(
+                    message="File not found error",
+                    error_code="CORE_002",
+                    metadata={"original_error": str(error)},
+                )
             )
         except ValueError as error:
-            raise InitializationError(ErrorContext(
-                message="Value error",
-                error_code="CORE_003",
-                metadata={"requested_mode": self.args.mode, "original_error": str(error)}
-            )
+            raise InitializationError(
+                ErrorContext(
+                    message="Value error",
+                    error_code="CORE_003",
+                    metadata={
+                        "requested_mode": self.args.mode,
+                        "original_error": str(error),
+                    },
+                )
             )
 
     def initialize_bot_core(self) -> TeleBot:
@@ -130,8 +141,7 @@ class PyTMBot(BaseComponent):
         self.configure_bot_features()
 
         self.log.info(
-            f"Bot initialized successfully: {__version__} ({__repository__})",
-            **context
+            f"Bot initialized successfully: {__version__} ({__repository__})", **context
         )
         return self.bot
 
@@ -149,9 +159,7 @@ class PyTMBot(BaseComponent):
             return bot
         except Exception as e:
             self.log.error(
-                "Bot instance creation failed",
-                error=sanitize_exception(e),
-                **context
+                "Bot instance creation failed", error=sanitize_exception(e), **context
             )
             raise
 
@@ -168,9 +176,7 @@ class PyTMBot(BaseComponent):
             self.log.info("Bot features configured successfully", **context)
         except Exception as e:
             self.log.error(
-                "Features configuration failed",
-                error=sanitize_exception(e),
-                **context
+                "Features configuration failed", error=sanitize_exception(e), **context
             )
             raise
 
@@ -184,15 +190,13 @@ class PyTMBot(BaseComponent):
             self.bot.set_my_commands(commands)
             self.bot.set_my_description(bot_description_settings.bot_description)
             self.log.debug(
-                "Commands and description set",
-                commands_count=len(commands),
-                **context
+                "Commands and description set", commands_count=len(commands), **context
             )
         except ApiTelegramException as error:
             self.log.error(
                 "Failed to set commands/description",
                 error=sanitize_exception(error),
-                **context
+                **context,
             )
 
     def register_handler_chain(self) -> None:
@@ -210,13 +214,15 @@ class PyTMBot(BaseComponent):
                     "Handler registration failed",
                     handler_type=factory.__name__,
                     error=sanitize_exception(e),
-                    **context
+                    **context,
                 )
                 raise
 
     def setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
         context = {"action": "middleware_setup"}
-        for middleware_class, kwargs in sorted(middlewares, key=lambda x: x[1].get("priority", 999)):
+        for middleware_class, kwargs in sorted(
+            middlewares, key=lambda x: x[1].get("priority", 999)
+        ):
             try:
                 middleware_instance = middleware_class(bot=self.bot, **kwargs)
                 self.bot.setup_middleware(middleware_instance)
@@ -224,14 +230,14 @@ class PyTMBot(BaseComponent):
                     "Middleware configured",
                     middleware=middleware_class.__name__,
                     priority=kwargs.get("priority"),
-                    **context
+                    **context,
                 )
             except Exception as error:
                 self.log.critical(
                     "Middleware setup failed",
                     middleware=middleware_class.__name__,
                     error=sanitize_exception(error),
-                    **context
+                    **context,
                 )
                 raise
 
@@ -242,22 +248,16 @@ class PyTMBot(BaseComponent):
         context = {"action": "plugins_load"}
         try:
             self.plugin_manager.register_plugins(self.args.plugins, self.bot)
-            self.log.info(
-                "Plugins loaded",
-                plugins=self.args.plugins,
-                **context
-            )
+            self.log.info("Plugins loaded", plugins=self.args.plugins, **context)
         except Exception as err:
             self.log.error(
-                "Plugin registration failed",
-                error=sanitize_exception(err),
-                **context
+                "Plugin registration failed", error=sanitize_exception(err), **context
             )
 
     def register_handler_group(
-            self,
-            handler_factory_func: Callable[[], HandlerDict],
-            register_method: RegisterMethod
+        self,
+        handler_factory_func: Callable[[], HandlerDict],
+        register_method: RegisterMethod,
     ) -> None:
         context = {"action": "handler_group_registration"}
         try:
@@ -268,14 +268,14 @@ class PyTMBot(BaseComponent):
             self.log.debug(
                 "Handler group registered",
                 factory=handler_factory_func.__name__,
-                **context
+                **context,
             )
         except Exception as err:
             self.log.error(
                 "Handler group registration failed",
                 factory=handler_factory_func.__name__,
                 error=sanitize_exception(err),
-                **context
+                **context,
             )
             raise
 
@@ -292,9 +292,7 @@ class PyTMBot(BaseComponent):
                 self.start_polling_loop(self.bot)
         except Exception as error:
             self.log.error(
-                "Bot launch failed",
-                error=sanitize_exception(error),
-                **context
+                "Bot launch failed", error=sanitize_exception(error), **context
             )
             raise
 
@@ -312,16 +310,14 @@ class PyTMBot(BaseComponent):
 
         except ApiTelegramException as err:
             self.log.error(
-                "Recovery failed: API error",
-                error=sanitize_exception(err),
-                **context
+                "Recovery failed: API error", error=sanitize_exception(err), **context
             )
             return False
         except Exception as err:
             self.log.error(
                 "Recovery failed: critical error",
                 error=sanitize_exception(err),
-                **context
+                **context,
             )
             return False
 
@@ -344,22 +340,18 @@ class PyTMBot(BaseComponent):
                 "Starting webhook server",
                 host=config["host"],
                 port=config["port"],
-                **context
+                **context,
             )
             server.start()
 
         except ImportError as err:
             self.log.error(
-                "FastAPI import failed",
-                error=sanitize_exception(err),
-                **context
+                "FastAPI import failed", error=sanitize_exception(err), **context
             )
             raise
         except Exception as err:
             self.log.error(
-                "Webhook server start failed",
-                error=sanitize_exception(err),
-                **context
+                "Webhook server start failed", error=sanitize_exception(err), **context
             )
             raise
 
@@ -369,7 +361,7 @@ class PyTMBot(BaseComponent):
             "action": "polling",
             "skip_pending": True,
             "timeout": var_config.bot_polling_timeout,
-            "long_polling_timeout": var_config.bot_long_polling_timeout
+            "long_polling_timeout": var_config.bot_long_polling_timeout,
         }
 
         while True:
@@ -384,31 +376,26 @@ class PyTMBot(BaseComponent):
 
             except ssl.SSLError as ssl_error:
                 self.log.critical(
-                    "SSL security error",
-                    error=sanitize_exception(ssl_error),
-                    **context
+                    "SSL security error", error=sanitize_exception(ssl_error), **context
                 )
                 raise
 
             except (
-                    telebot.apihelper.ApiTelegramException,
-                    urllib3.exceptions.ConnectionError,
-                    urllib3.exceptions.ReadTimeoutError,
-                    requests.exceptions.ConnectionError,
-                    requests.exceptions.ConnectTimeout,
-                    urllib3.exceptions.MaxRetryError,
-                    urllib3.exceptions.NameResolutionError,
-                    telebot.apihelper.ApiException,
-                    OSError,
+                telebot.apihelper.ApiTelegramException,
+                urllib3.exceptions.ConnectionError,
+                urllib3.exceptions.ReadTimeoutError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ConnectTimeout,
+                urllib3.exceptions.MaxRetryError,
+                urllib3.exceptions.NameResolutionError,
+                telebot.apihelper.ApiException,
+                OSError,
             ) as error:
                 self.log.error(
                     "Polling connection error",
                     error=sanitize_exception(error),
                     retry_delay=current_sleep_time,
-                    **context
+                    **context,
                 )
                 time.sleep(current_sleep_time)
-                current_sleep_time = min(
-                    current_sleep_time * 2,
-                    DEFAULT_MAX_SLEEP_TIME
-                )
+                current_sleep_time = min(current_sleep_time * 2, DEFAULT_MAX_SLEEP_TIME)

@@ -56,6 +56,7 @@ FilterFunc: TypeAlias = Callable[[Any], bool]
 @dataclass(frozen=True, slots=True)
 class HandlerConfig:
     """Configuration for handler registration."""
+
     callback: Callable[..., Any]
     commands: list[str] | None = None
     regexp: str | None = None
@@ -65,11 +66,11 @@ class HandlerConfig:
         """Create a HandlerManager instance from the config."""
         kwargs = {}
         if self.commands:
-            kwargs['commands'] = self.commands
+            kwargs["commands"] = self.commands
         if self.regexp:
-            kwargs['regexp'] = self.regexp
+            kwargs["regexp"] = self.regexp
         if self.filter_func:
-            kwargs['func'] = self.filter_func
+            kwargs["func"] = self.filter_func
         return HandlerManager(callback=self.callback, kwargs=kwargs)
 
 
@@ -87,155 +88,64 @@ def handler_factory() -> HandlerType:
     """
     configs = {
         "authorization": [
-            HandlerConfig(
-                callback=handle_twofa_message,
-                regexp="Enter 2FA code"
-            )
+            HandlerConfig(callback=handle_twofa_message, regexp="Enter 2FA code")
         ],
-        "quick_view": [
-            HandlerConfig(
-                callback=handle_quick_view,
-                regexp="Quick view"
-            )
-        ],
+        "quick_view": [HandlerConfig(callback=handle_quick_view, regexp="Quick view")],
         "code_verification": [
-            HandlerConfig(
-                callback=handle_totp_code_verification,
-                regexp=r"[0-9]{6}$"
-            )
+            HandlerConfig(callback=handle_totp_code_verification, regexp=r"[0-9]{6}$")
         ],
-        "start": [
-            HandlerConfig(
-                callback=handle_start,
-                commands=["help", "start"]
-            )
-        ],
-        "about": [
-            HandlerConfig(
-                callback=handle_about_command,
-                regexp="About me"
-            )
-        ],
+        "start": [HandlerConfig(callback=handle_start, commands=["help", "start"])],
+        "about": [HandlerConfig(callback=handle_about_command, regexp="About me")],
         "navigation": [
-            HandlerConfig(
-                callback=handle_navigation,
-                regexp="Back to main menu"
-            ),
-            HandlerConfig(
-                callback=handle_navigation,
-                commands=["back"]
-            )
+            HandlerConfig(callback=handle_navigation, regexp="Back to main menu"),
+            HandlerConfig(callback=handle_navigation, commands=["back"]),
         ],
         "updates": [
-            HandlerConfig(
-                callback=handle_bot_updates,
-                commands=["check_bot_updates"]
-            )
+            HandlerConfig(callback=handle_bot_updates, commands=["check_bot_updates"])
         ],
         "containers": [
-            HandlerConfig(
-                callback=handle_containers,
-                commands=["containers"]
-            ),
-            HandlerConfig(
-                callback=handle_containers,
-                regexp="Containers"
-            )
+            HandlerConfig(callback=handle_containers, commands=["containers"]),
+            HandlerConfig(callback=handle_containers, regexp="Containers"),
         ],
         "docker": [
-            HandlerConfig(
-                callback=handle_docker,
-                commands=["docker"]
-            ),
-            HandlerConfig(
-                callback=handle_docker,
-                regexp="Docker"
-            )
+            HandlerConfig(callback=handle_docker, commands=["docker"]),
+            HandlerConfig(callback=handle_docker, regexp="Docker"),
         ],
         "filesystem": [
-            HandlerConfig(
-                callback=handle_file_system,
-                regexp="File system"
-            )
+            HandlerConfig(callback=handle_file_system, regexp="File system")
         ],
         "images": [
-            HandlerConfig(
-                callback=handle_images,
-                commands=["images"]
-            ),
-            HandlerConfig(
-                callback=handle_images,
-                regexp="Images"
-            )
+            HandlerConfig(callback=handle_images, commands=["images"]),
+            HandlerConfig(callback=handle_images, regexp="Images"),
         ],
         "load_average": [
-            HandlerConfig(
-                callback=handle_load_average,
-                regexp="Load average"
-            )
+            HandlerConfig(callback=handle_load_average, regexp="Load average")
         ],
-        "memory": [
-            HandlerConfig(
-                callback=handle_memory,
-                regexp="Memory"
-            )
-        ],
-        "network": [
-            HandlerConfig(
-                callback=handle_network,
-                regexp="Network"
-            )
-        ],
-        "process": [
-            HandlerConfig(
-                callback=handle_process,
-                regexp="Process"
-            )
-        ],
-        "sensors": [
-            HandlerConfig(
-                callback=handle_sensors,
-                regexp="Sensors"
-            )
-        ],
-        "uptime": [
-            HandlerConfig(
-                callback=handle_uptime,
-                regexp="Uptime"
-            )
-        ],
+        "memory": [HandlerConfig(callback=handle_memory, regexp="Memory")],
+        "network": [HandlerConfig(callback=handle_network, regexp="Network")],
+        "process": [HandlerConfig(callback=handle_process, regexp="Process")],
+        "sensors": [HandlerConfig(callback=handle_sensors, regexp="Sensors")],
+        "uptime": [HandlerConfig(callback=handle_uptime, regexp="Uptime")],
         "plugins": [
-            HandlerConfig(
-                callback=handle_plugins,
-                commands=["plugins"]
-            ),
-            HandlerConfig(
-                callback=handle_plugins,
-                regexp="Plugins"
-            )
+            HandlerConfig(callback=handle_plugins, commands=["plugins"]),
+            HandlerConfig(callback=handle_plugins, regexp="Plugins"),
         ],
         "server": [
-            HandlerConfig(
-                callback=handle_server,
-                commands=["server"]
-            ),
-            HandlerConfig(
-                callback=handle_server,
-                regexp="Server"
-            )
+            HandlerConfig(callback=handle_server, commands=["server"]),
+            HandlerConfig(callback=handle_server, regexp="Server"),
         ],
         "qrcode": [
             HandlerConfig(
                 callback=handle_qr_code_message,
                 regexp="Get QR-code for 2FA app",
-                filter_func=create_admin_filter
+                filter_func=create_admin_filter,
             ),
             HandlerConfig(
                 callback=handle_qr_code_message,
                 commands=["qrcode"],
-                filter_func=create_admin_filter
-            )
-        ]
+                filter_func=create_admin_filter,
+            ),
+        ],
     }
 
     return {
@@ -255,63 +165,64 @@ def inline_handler_factory() -> HandlerType:
         "swap": [
             HandlerConfig(
                 callback=handle_swap_info,
-                filter_func=lambda call: call.data == "__swap_info__"
+                filter_func=lambda call: call.data == "__swap_info__",
             )
         ],
         "process_info": [
             HandlerConfig(
                 callback=handle_process_info,
-                filter_func=lambda call: call.data == "__process_info__"
+                filter_func=lambda call: call.data == "__process_info__",
             )
         ],
         "update_info": [
             HandlerConfig(
                 callback=handle_update_info,
-                filter_func=lambda call: call.data == "__how_update__"
+                filter_func=lambda call: call.data == "__how_update__",
             )
         ],
         "get_logs": [
             HandlerConfig(
                 callback=handle_get_logs,
-                filter_func=lambda call: call.data.startswith("__get_logs__")
+                filter_func=lambda call: call.data.startswith("__get_logs__"),
             )
         ],
         "containers_full_info": [
             HandlerConfig(
                 callback=handle_containers_full_info,
-                filter_func=lambda call: call.data.startswith("__get_full__")
+                filter_func=lambda call: call.data.startswith("__get_full__"),
             )
         ],
         "back_to_containers": [
             HandlerConfig(
                 callback=handle_back_to_containers,
-                filter_func=lambda call: call.data == "back_to_containers"
+                filter_func=lambda call: call.data == "back_to_containers",
             )
         ],
         "manage": [
             HandlerConfig(
                 callback=handle_manage_container,
-                filter_func=lambda call: call.data.startswith("__manage__")
+                filter_func=lambda call: call.data.startswith("__manage__"),
             )
         ],
         "manage_action": [
             HandlerConfig(
                 callback=handle_manage_container_action,
-                filter_func=managing_action_fabric
+                filter_func=managing_action_fabric,
             )
         ],
         "image_updates": [
             HandlerConfig(
                 callback=handle_image_updates,
-                filter_func=lambda call: call.data == "__check_updates__"
+                filter_func=lambda call: call.data == "__check_updates__",
             )
-        ]
+        ],
     }
 
     return {
         category: [config.create_handler() for config in handlers]
         for category, handlers in configs.items()
     }
+
 
 # def echo_handler_factory() -> HandlerType:
 #    """

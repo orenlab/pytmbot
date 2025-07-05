@@ -16,12 +16,22 @@ logger = Logger()
 class SystemMetrics:
     """Utility class for collecting system metrics."""
 
-    __slots__ = ('sensors_available',)
+    __slots__ = ("sensors_available",)
 
-    EXCLUDED_PARTITIONS: Final = frozenset({
-        'loop', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
-        'cgroup', 'mqueue', 'hugetlbfs', 'overlay', 'aufs'
-    })
+    EXCLUDED_PARTITIONS: Final = frozenset(
+        {
+            "loop",
+            "tmpfs",
+            "devtmpfs",
+            "proc",
+            "sysfs",
+            "cgroup",
+            "mqueue",
+            "hugetlbfs",
+            "overlay",
+            "aufs",
+        }
+    )
 
     def __init__(self):
         self.sensors_available = True
@@ -29,12 +39,12 @@ class SystemMetrics:
     def collect_metrics(self) -> ResourceMetrics:
         """Collect all system metrics efficiently."""
         return {
-            'cpu_usage': self._check_cpu_usage(),
-            'memory_usage': self._check_memory_usage(),
-            'disk_usage': self._get_disk_usage(),
-            'temperatures': self._check_temperatures(),
-            'fan_speeds': self._get_fan_speeds(),
-            'load_averages': self._check_load_average()
+            "cpu_usage": self._check_cpu_usage(),
+            "memory_usage": self._check_memory_usage(),
+            "disk_usage": self._get_disk_usage(),
+            "temperatures": self._check_temperatures(),
+            "fan_speeds": self._get_fan_speeds(),
+            "load_averages": self._check_load_average(),
         }
 
     @staticmethod
@@ -59,8 +69,10 @@ class SystemMetrics:
             return {
                 partition.device: psutil.disk_usage(partition.mountpoint).percent
                 for partition in psutil.disk_partitions(all=False)
-                if not any(excluded in partition.device
-                           for excluded in SystemMetrics.EXCLUDED_PARTITIONS)
+                if not any(
+                    excluded in partition.device
+                    for excluded in SystemMetrics.EXCLUDED_PARTITIONS
+                )
             }
         except Exception as e:
             logger.error(f"Disk usage check failed: {e}", exc_info=True)
@@ -78,7 +90,7 @@ class SystemMetrics:
                 f"{name}_{entry.label or 'default'}": {
                     "current": entry.current,
                     "high": entry.high,
-                    "critical": entry.critical
+                    "critical": entry.critical,
                 }
                 for name, entries in temps.items()
                 for entry in entries
@@ -102,7 +114,7 @@ class SystemMetrics:
     @staticmethod
     def _check_load_average() -> Tuple[float, float, float]:
         try:
-            if hasattr(psutil, 'getloadavg'):
+            if hasattr(psutil, "getloadavg"):
                 return psutil.getloadavg()
             return 0.0, 0.0, 0.0
         except Exception as e:
@@ -112,6 +124,7 @@ class SystemMetrics:
 
 class EventTracker:
     """Utility class for tracking system events."""
+
     __slots__ = ()
 
     @staticmethod
@@ -124,12 +137,12 @@ class EventTracker:
             "last_notification": time.time(),
             "type": event_type,
             "details": details,
-            "resolved": False
+            "resolved": False,
         }
-        logger.info(f"New event created: {event_type}", extra={
-            "event_id": event_id,
-            "details": details
-        })
+        logger.info(
+            f"New event created: {event_type}",
+            extra={"event_id": event_id, "details": details},
+        )
         return event_id
 
     @staticmethod
@@ -145,11 +158,14 @@ class EventTracker:
         duration = time.time() - event["start_time"]
         event["resolved"] = True
 
-        logger.info(f"Event resolved: {event['type']}", extra={
-            "event_id": event_id,
-            "duration": duration,
-            "details": event["details"]
-        })
+        logger.info(
+            f"Event resolved: {event['type']}",
+            extra={
+                "event_id": event_id,
+                "duration": duration,
+                "details": event["details"],
+            },
+        )
 
         return duration
 
@@ -168,7 +184,7 @@ class SystemInfo:
                 "hostname": uname.node,
                 "platform": uname.system,
                 "architecture": uname.machine,
-                "python_version": platform.python_version()
+                "python_version": platform.python_version(),
             }
         except Exception as e:
             logger.error(f"Failed to get platform metadata: {e}", exc_info=True)

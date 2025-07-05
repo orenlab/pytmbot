@@ -54,7 +54,7 @@ def parse_cli_args() -> argparse.Namespace:
         "--health_check",
         type=bool,
         default=False,
-        help="Enable or disable health check"
+        help="Enable or disable health check",
     )
 
     args = parser.parse_args()

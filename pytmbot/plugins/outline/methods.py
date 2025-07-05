@@ -58,8 +58,8 @@ class PluginMethods(PluginCore):
         return self.client.get_access_keys()
 
     def outline_action_manager(
-            self,
-            action: Literal["server_information", "traffic_information", "key_information"],
+        self,
+        action: Literal["server_information", "traffic_information", "key_information"],
     ) -> Union[OutlineServer, Metrics, List[OutlineKey]]:
         """
         Manages actions based on the provided action string and returns the appropriate data.

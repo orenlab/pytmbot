@@ -47,7 +47,7 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
                 photo=qr_code,
                 reply_markup=keyboard,
                 caption="The QR code is ready. Click on the image and scan it in your 2FA app. "
-                        "After 60 seconds it will be deleted for security reasons.",
+                "After 60 seconds it will be deleted for security reasons.",
                 protect_content=True,
                 has_spoiler=True,
                 show_caption_above_media=True,
@@ -75,9 +75,9 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
             }
 
             with Compiler(
-                    template_name="b_none.jinja2",
-                    context="Failed to generate QR code... I apologize!",
-                    **emojis,
+                template_name="b_none.jinja2",
+                context="Failed to generate QR code... I apologize!",
+                **emojis,
             ) as compiler:
                 response = compiler.compile()
 
@@ -87,8 +87,10 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling QR code",
-            error_code="HAND_021",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling QR code",
+                error_code="HAND_021",
+                metadata={"exception": str(error)},
+            )
+        )

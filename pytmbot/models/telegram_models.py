@@ -44,7 +44,11 @@ class TelegramIPValidator:
 
         try:
             ip = ipaddress.ip_address(ip_str)
-            ranges = self.ipv4_ranges if isinstance(ip, ipaddress.IPv4Address) else self.ipv6_ranges
+            ranges = (
+                self.ipv4_ranges
+                if isinstance(ip, ipaddress.IPv4Address)
+                else self.ipv6_ranges
+            )
 
             for network in ranges:
                 if ip in network:

@@ -8,6 +8,9 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.plugins_core import PluginCore
+
+plugin = PluginCore()
 
 
 class MonitoringPlugin(PluginInterface):
@@ -21,11 +24,12 @@ class MonitoringPlugin(PluginInterface):
         bot (TeleBot): An instance of TeleBot to interact with Telegram API.
     """
 
-    __slots__ = ('plugin_logger', 'config', '__weakref__')
+    __slots__ = ("plugin_logger", "config", "__weakref__")
 
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
+        self.plugin_logger = plugin.logger
 
     @staticmethod
     def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:
@@ -48,18 +52,15 @@ class MonitoringPlugin(PluginInterface):
         }
 
         with Compiler(
-                template_name="plugin_monitor_index.jinja2",
-                first_name=message.from_user.first_name,
-                available_periods=available_periods,
-                **emojis
+            template_name="plugin_monitor_index.jinja2",
+            first_name=message.from_user.first_name,
+            available_periods=available_periods,
+            **emojis,
         ) as compiler:
             response = compiler.compile()
 
         return self.bot.send_message(
-            message.chat.id,
-            text=response,
-            reply_markup=keyboard,
-            parse_mode="Markdown"
+            message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown"
         )
 
     def handle_cpu_usage(self, message: Message) -> Message:
@@ -73,13 +74,9 @@ class MonitoringPlugin(PluginInterface):
             monitor_plugin.start_monitoring()
 
             self.bot.register_message_handler(
-                self.handle_monitoring,
-                regexp="Monitoring"
+                self.handle_monitoring, regexp="Monitoring"
             )
-            self.bot.register_message_handler(
-                self.handle_cpu_usage,
-                regexp="CPU usage"
-            )
+            self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
 
             return self.bot
 

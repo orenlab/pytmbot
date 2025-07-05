@@ -42,9 +42,9 @@ class _PluginInfo:
     def __post_init__(self):
         if self.resource_limits is None:
             self.resource_limits = {
-                'max_memory_mb': 100,
-                'max_cpu_percent': 50,
-                'execution_timeout_sec': 30
+                "max_memory_mb": 100,
+                "max_cpu_percent": 50,
+                "execution_timeout_sec": 30,
             }
 
 
@@ -53,11 +53,7 @@ class PluginManager:
     Manages the discovery, validation, and registration of plugins in the pyTMBot system.
     """
 
-    __slots__ = (
-        '_plugin_base_path',
-        '_plugin_base_for_import',
-        '_plugin_blacklist'
-    )
+    __slots__ = ("_plugin_base_path", "_plugin_base_for_import", "_plugin_blacklist")
 
     _instance = None
     _index_keys: Dict[str, str] = {}
@@ -67,10 +63,10 @@ class PluginManager:
     _loaded_plugins: Set[str] = set()
 
     _plugin_resources = {
-        'default_limits': {
-            'max_memory_mb': 100,
-            'max_cpu_percent': 50,
-            'execution_timeout_sec': 30
+        "default_limits": {
+            "max_memory_mb": 100,
+            "max_cpu_percent": 50,
+            "execution_timeout_sec": 30,
         }
     }
 
@@ -94,12 +90,12 @@ class PluginManager:
     def _load_blacklist(self):
         """Load blacklisted plugin patterns and names."""
         self._plugin_blacklist = {
-            'patterns': [
-                r'.*\/.*',  # Prevent directory traversal
-                r'^\..*',  # Prevent hidden files
-                r'.*\.py$'  # Prevent direct Python file loading
+            "patterns": [
+                r".*\/.*",  # Prevent directory traversal
+                r"^\..*",  # Prevent hidden files
+                r".*\.py$",  # Prevent direct Python file loading
             ],
-            'names': {'__pycache__', 'tests', 'examples'}
+            "names": {"__pycache__", "tests", "examples"},
         }
 
     @staticmethod
@@ -114,10 +110,10 @@ class PluginManager:
             return False
 
         security_patterns = [
-            r'\.\.',  # Path traversal
-            r'[\/\\]',  # Directory separators
-            r'[;&|]',  # Command injection chars
-            r'\s',  # Whitespace
+            r"\.\.",  # Path traversal
+            r"[\/\\]",  # Directory separators
+            r"[;&|]",  # Command injection chars
+            r"\s",  # Whitespace
         ]
 
         return not any(re.search(pattern, plugin_name) for pattern in security_patterns)
@@ -152,7 +148,9 @@ class PluginManager:
     def _import_module_config(self, plugin_name: str):
         """Safely imports the plugin configuration module."""
         if not self._validate_plugin_path(plugin_name):
-            raise ImportError(f"Plugin config path validation failed for '{plugin_name}'")
+            raise ImportError(
+                f"Plugin config path validation failed for '{plugin_name}'"
+            )
 
         module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
         try:
@@ -168,9 +166,9 @@ class PluginManager:
         for attribute_name in dir(module):
             attr = getattr(module, attribute_name)
             if (
-                    inspect.isclass(attr)
-                    and issubclass(attr, PluginInterface)
-                    and attr is not PluginInterface
+                inspect.isclass(attr)
+                and issubclass(attr, PluginInterface)
+                and attr is not PluginInterface
             ):
                 plugin_classes.append(attr)
         return plugin_classes
@@ -182,9 +180,11 @@ class PluginManager:
 
         if not isinstance(permissions, PluginsPermissionsModel):
             logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
-            raise ValueError(f"Invalid permissions model for plugin '{module.__name__}'")
+            raise ValueError(
+                f"Invalid permissions model for plugin '{module.__name__}'"
+            )
 
-        if not hasattr(permissions, 'base_permission'):
+        if not hasattr(permissions, "base_permission"):
             raise ValueError("Missing base_permission in plugin permissions")
 
         return permissions
@@ -192,7 +192,7 @@ class PluginManager:
     def _extract_plugin_info(self, module) -> Optional[_PluginInfo]:
         """Extracts and validates plugin configuration details."""
         try:
-            required_attrs = ['PLUGIN_NAME', 'PLUGIN_VERSION', 'PLUGIN_DESCRIPTION']
+            required_attrs = ["PLUGIN_NAME", "PLUGIN_VERSION", "PLUGIN_DESCRIPTION"]
             for attr in required_attrs:
                 if not hasattr(module, attr):
                     raise AttributeError(f"Missing required attribute: {attr}")
@@ -206,7 +206,7 @@ class PluginManager:
             resource_limits = getattr(
                 module,
                 "PLUGIN_RESOURCE_LIMITS",
-                self._plugin_resources['default_limits'].copy()
+                self._plugin_resources["default_limits"].copy(),
             )
 
             permissions = self._extract_plugin_permissions(module)
@@ -223,7 +223,7 @@ class PluginManager:
                 description=description,
                 commands=commands,
                 index_key=index_key,
-                resource_limits=resource_limits
+                resource_limits=resource_limits,
             )
         except AttributeError as e:
             logger.error(f"Plugin config error: missing required attributes - {e}")
@@ -280,7 +280,7 @@ class PluginManager:
         ref = self._plugin_instances.get(plugin_name)
         if ref:
             instance = ref()
-            if instance and hasattr(instance, 'cleanup'):
+            if instance and hasattr(instance, "cleanup"):
                 try:
                     instance.cleanup()
                 except Exception as e:
@@ -359,12 +359,18 @@ class PluginManager:
     def register_plugins(self, plugin_names: List[str], bot: Optional[TeleBot] = None):
         """Registers multiple plugins with enhanced error handling."""
         plugins_to_register = [
-            name.strip() for plugin in plugin_names for name in plugin.split(",")
+            name.strip()
+            for plugin in plugin_names
+            for name in plugin.split(",")
             if name.strip() and self._validate_plugin_name(name.strip())
         ]
 
         for plugin_name in plugins_to_register:
             self._register_plugin(plugin_name, bot)
+
+    @classmethod
+    def is_plugin_loaded(cls, plugin_name: str) -> bool:
+        return plugin_name in cls._loaded_plugins
 
     def cleanup_all_plugins(self):
         """Cleanly shuts down all registered plugins."""

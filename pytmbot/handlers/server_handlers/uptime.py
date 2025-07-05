@@ -39,15 +39,13 @@ def handle_uptime(message: Message, bot: TeleBot):
         uptime_data = psutil_adapter.get_uptime()
 
         if uptime_data is None:
-            logger.error(
-                f"Failed at @{__name__}: Error occurred while getting uptime"
-            )
+            logger.error(f"Failed at @{__name__}: Error occurred while getting uptime")
             return bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
         with Compiler(
-                template_name="b_uptime.jinja2", context=uptime_data, **emojis
+            template_name="b_uptime.jinja2", context=uptime_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -60,8 +58,10 @@ def handle_uptime(message: Message, bot: TeleBot):
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling uptime",
-            error_code="HAND_001",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling uptime",
+                error_code="HAND_001",
+                metadata={"exception": str(error)},
+            )
+        )

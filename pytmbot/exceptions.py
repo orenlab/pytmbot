@@ -4,7 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from telebot import ExceptionHandler
@@ -19,23 +19,32 @@ logger = Logger()
 class ErrorContext:
     message: str
     error_code: str | None = None
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def sanitized(self) -> 'ErrorContext':
+    def sanitized(self) -> "ErrorContext":
         return ErrorContext(
             message=sanitize_exception(Exception(self.message)),
             error_code=self.error_code,
-            metadata={k: sanitize_exception(Exception(str(v)))
-                      for k, v in (self.metadata or {}).items()}
+            metadata={
+                k: sanitize_exception(Exception(str(v)))
+                for k, v in (self.metadata or {}).items()
+            },
         )
 
-    def dict(self):
-        return self.__dict__
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "message": self.message,
+            "error_code": self.error_code,
+            "metadata": self.metadata,
+        }
 
 
 class BaseBotException(Exception):
     def __init__(self, context: ErrorContext | str) -> None:
-        self.context = context if isinstance(context, ErrorContext) else ErrorContext(str(context))
+        self.context = (
+            context if isinstance(context, ErrorContext) else ErrorContext(str(context))
+        )
         super().__init__(str(self.context.message))
 
     def sanitized_message(self) -> str:
@@ -114,10 +123,10 @@ class QRCodeError(BaseBotException):
 
 
 class TelebotExceptionHandler(ExceptionHandler):
-    """Custom exception handler for Telebot with structured logging."""
+    """Custom exception handler for Telebot with structured logging and token sanitization."""
 
     def handle(self, exception: Exception) -> bool:
-        """Handle and log Telebot exceptions with appropriate detail level."""
+        """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
 
         if isinstance(exception, BaseBotException):
@@ -130,10 +139,17 @@ class TelebotExceptionHandler(ExceptionHandler):
         else:
             log_msg = sanitize_exception(exception)
 
-        logger.opt(exception=exception).log(
-            "DEBUG" if log_level == "DEBUG" else "ERROR",
-            f"Exception in @Telebot: {log_msg}"
-        )
+        if log_level == "DEBUG":
+            if isinstance(exception, BaseBotException):
+                logger.opt(exception=exception).debug(
+                    f"Exception in @Telebot: {log_msg}"
+                )
+            else:
+                logger.opt(exception=exception, diagnose=False).debug(
+                    f"Exception in @Telebot: {log_msg}"
+                )
+        else:
+            logger.error(f"Exception in @Telebot: {log_msg}")
 
         return True
 
@@ -156,3 +172,7 @@ class InfluxDBWriteError(InfluxDBException):
 
 class InfluxDBQueryError(InfluxDBException):
     """Raised on InfluxDB query operation failures."""
+
+
+class CallbackValidationError(BaseBotException):
+    """Raised on Callback data validation error"""

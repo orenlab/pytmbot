@@ -49,7 +49,7 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     }
 
     with Compiler(
-            "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
+        "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
     ) as compiler:
         context = compiler.compile()
 

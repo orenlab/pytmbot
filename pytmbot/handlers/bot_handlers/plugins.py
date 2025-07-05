@@ -47,7 +47,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
                 bot=bot,
                 chat_id=message.chat.id,
                 text=f"⚠️ {first_name}, there are no plugins available...",
-                parse_mode="Markdown"
+                parse_mode="Markdown",
             )
             return
 
@@ -70,10 +70,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Compile the response using the template
         with Compiler(
-                template_name="b_plugins.jinja2",
-                first_name=first_name,
-                plugins=plugins,
-                **emojis,
+            template_name="b_plugins.jinja2",
+            first_name=first_name,
+            plugins=plugins,
+            **emojis,
         ) as compiler:
             response = compiler.compile()
 
@@ -82,15 +82,17 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
             chat_id=message.chat.id,
             text=response,
             reply_markup=plugins_keyboard,
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
 
     except Exception as error:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling plugins",
-            error_code="HAND_015",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling plugins",
+                error_code="HAND_015",
+                metadata={"exception": str(error)},
+            )
+        )

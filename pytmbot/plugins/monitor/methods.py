@@ -18,8 +18,10 @@ from pytmbot.db.influxdb_interface import InfluxDBInterface, InfluxDBConfig
 from pytmbot.logs import Logger
 from pytmbot.plugins.monitor.models import ResourceThresholds
 from pytmbot.plugins.monitor.utils import (
-    MonitoringState, SystemMetrics,
-    EventTracker, SystemInfo
+    MonitoringState,
+    SystemMetrics,
+    EventTracker,
+    SystemInfo,
 )
 from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.settings import settings
@@ -32,18 +34,25 @@ class SystemMonitorPlugin(PluginCore):
     """Plugin for monitoring system resources."""
 
     __slots__ = (
-        'bot', 'monitor_settings', 'event_threshold_duration',
-        'state', 'thresholds', '_previous_container_hashes',
-        '_previous_image_hashes', '_previous_counts', '_known_container_ids',
-        '_known_image_ids', 'influxdb_client', 'is_docker', 'check_interval',
-        'poll_interval', 'docker_counters_update_interval', 'system_metrics'
+        "bot",
+        "monitor_settings",
+        "event_threshold_duration",
+        "state",
+        "thresholds",
+        "_previous_container_hashes",
+        "_previous_image_hashes",
+        "_previous_counts",
+        "_known_container_ids",
+        "_known_image_ids",
+        "influxdb_client",
+        "is_docker",
+        "check_interval",
+        "poll_interval",
+        "docker_counters_update_interval",
+        "system_metrics",
     )
 
-    def __init__(
-            self,
-            bot: TeleBot,
-            event_threshold_duration: float = 20
-    ) -> None:
+    def __init__(self, bot: TeleBot, event_threshold_duration: float = 20) -> None:
         super().__init__()
 
         self.bot = bot
@@ -59,7 +68,7 @@ class SystemMonitorPlugin(PluginCore):
             pch_temp=self.monitor_settings.tracehold.cpu_temperature_threshold[0],
             cpu_usage=self.monitor_settings.tracehold.cpu_usage_threshold[0],
             memory_usage=self.monitor_settings.tracehold.memory_usage_threshold[0],
-            disk_usage=self.monitor_settings.tracehold.disk_usage_threshold[0]
+            disk_usage=self.monitor_settings.tracehold.disk_usage_threshold[0],
         )
 
         # Docker monitoring state
@@ -67,7 +76,7 @@ class SystemMonitorPlugin(PluginCore):
         self._previous_image_hashes: Dict[str, dict] = {}
         self._previous_counts: Dict[str, int] = {
             "containers_count": 0,
-            "images_count": 0
+            "images_count": 0,
         }
 
         # Add sets to track all historically seen containers and images
@@ -93,7 +102,7 @@ class SystemMonitorPlugin(PluginCore):
                     token=settings.influxdb.token[0].get_secret_value(),
                     org=settings.influxdb.org[0].get_secret_value(),
                     bucket=settings.influxdb.bucket[0].get_secret_value(),
-                    debug_mode=settings.influxdb.debug_mode
+                    debug_mode=settings.influxdb.debug_mode,
                 )
             )
         except Exception as e:
@@ -111,29 +120,26 @@ class SystemMonitorPlugin(PluginCore):
                     thread = threading.Thread(
                         target=self._monitor_system,
                         name="SystemMonitorThread",
-                        daemon=True
+                        daemon=True,
                     )
                     thread.start()
                     with logger.context(
-                            context={
-                                "component": "monitoring",
-                                "action": "start",
-                                "attempt": attempt,
-                                "tracehold": self.monitor_settings.tracehold,
-                                "event_threshold_duration": {self.event_threshold_duration},
-                                "check_interval": self.check_interval,
-                                "poll_interval": self.poll_interval,
-                                "docker_counters_update_interval": self.docker_counters_update_interval,
-                                "is_docker": self.is_docker
-                            }
+                        context={
+                            "component": "monitoring",
+                            "action": "start",
+                            "attempt": attempt,
+                            "tracehold": self.monitor_settings.tracehold,
+                            "event_threshold_duration": {self.event_threshold_duration},
+                            "check_interval": self.check_interval,
+                            "poll_interval": self.poll_interval,
+                            "docker_counters_update_interval": self.docker_counters_update_interval,
+                            "is_docker": self.is_docker,
+                        }
                     ) as log:
                         log.info("Monitoring started successfully")
                     return
                 except Exception as e:
-                    logger.error(
-                        f"Monitoring start attempt {attempt + 1} failed",
-                        e
-                    )
+                    logger.error(f"Monitoring start attempt {attempt + 1} failed", e)
                     if attempt < retry_attempts - 1:
                         time.sleep(retry_interval)
                     else:
@@ -163,117 +169,122 @@ class SystemMonitorPlugin(PluginCore):
                 time.sleep(max(1, self.check_interval // 2))
 
     def _process_alerts(self, metrics: dict) -> None:
-        self._check_cpu_alert(metrics['cpu_usage'])
-        self._check_memory_alert(metrics['memory_usage'])
-        self._check_temperature_alerts(metrics['temperatures'])
-        self._check_disk_alerts(metrics['disk_usage'])
+        self._check_cpu_alert(metrics["cpu_usage"])
+        self._check_memory_alert(metrics["memory_usage"])
+        self._check_temperature_alerts(metrics["temperatures"])
+        self._check_disk_alerts(metrics["disk_usage"])
 
     def _check_cpu_alert(self, usage: float) -> None:
         if usage > self.thresholds.cpu_usage:
             event_id = next(
-                (eid for eid, event in self.state.active_events.items()
-                 if event['type'] == 'cpu_usage' and not event['resolved']),
-                None
+                (
+                    eid
+                    for eid, event in self.state.active_events.items()
+                    if event["type"] == "cpu_usage" and not event["resolved"]
+                ),
+                None,
             )
 
             if not event_id:
                 event_id = EventTracker.create_event(
-                    self.state,
-                    'cpu_usage',
-                    {'usage': usage}
+                    self.state, "cpu_usage", {"usage": usage}
                 )
                 self._send_notification(self._format_cpu_alert(event_id, usage))
         else:
             for eid, event in list(self.state.active_events.items()):
-                if event['type'] == 'cpu_usage' and not event['resolved']:
+                if event["type"] == "cpu_usage" and not event["resolved"]:
                     duration = EventTracker.resolve_event(self.state, eid)
                     if duration:
-                        self._send_resolution_notification('CPU usage', duration)
+                        self._send_resolution_notification("CPU usage", duration)
 
     def _check_memory_alert(self, usage: float) -> None:
         if usage > self.thresholds.memory_usage:
             event_id = next(
-                (eid for eid, event in self.state.active_events.items()
-                 if event['type'] == 'memory_usage' and not event['resolved']),
-                None
+                (
+                    eid
+                    for eid, event in self.state.active_events.items()
+                    if event["type"] == "memory_usage" and not event["resolved"]
+                ),
+                None,
             )
 
             if not event_id:
                 event_id = EventTracker.create_event(
-                    self.state,
-                    'memory_usage',
-                    {'usage': usage}
+                    self.state, "memory_usage", {"usage": usage}
                 )
                 self._send_notification(self._format_memory_alert(event_id, usage))
         else:
             for eid, event in list(self.state.active_events.items()):
-                if event['type'] == 'memory_usage' and not event['resolved']:
+                if event["type"] == "memory_usage" and not event["resolved"]:
                     duration = EventTracker.resolve_event(self.state, eid)
                     if duration:
-                        self._send_resolution_notification('Memory usage', duration)
+                        self._send_resolution_notification("Memory usage", duration)
 
     def _check_temperature_alerts(self, temperatures: dict) -> None:
         for sensor, data in temperatures.items():
             threshold = getattr(self.thresholds, f"{sensor}_temp", 80.0)
-            if data['current'] > threshold:
+            if data["current"] > threshold:
                 event_id = next(
-                    (eid for eid, event in self.state.active_events.items()
-                     if event['type'] == f'temp_{sensor}' and not event['resolved']),
-                    None
+                    (
+                        eid
+                        for eid, event in self.state.active_events.items()
+                        if event["type"] == f"temp_{sensor}" and not event["resolved"]
+                    ),
+                    None,
                 )
 
                 if not event_id:
                     event_id = EventTracker.create_event(
                         self.state,
-                        f'temp_{sensor}',
-                        {'temperature': data['current'], 'sensor': sensor}
+                        f"temp_{sensor}",
+                        {"temperature": data["current"], "sensor": sensor},
                     )
                     self._send_notification(
                         self._format_temperature_alert(event_id, sensor, data)
                     )
             else:
                 for eid, event in list(self.state.active_events.items()):
-                    if (event['type'] == f'temp_{sensor}' and
-                            not event['resolved']):
+                    if event["type"] == f"temp_{sensor}" and not event["resolved"]:
                         duration = EventTracker.resolve_event(self.state, eid)
                         if duration:
                             self._send_resolution_notification(
-                                f'Temperature ({sensor})',
-                                duration
+                                f"Temperature ({sensor})", duration
                             )
 
     def _check_disk_alerts(self, disk_usage: Dict[str, float]) -> None:
         for disk, usage in disk_usage.items():
             if usage > self.thresholds.disk_usage:
                 event_id = next(
-                    (eid for eid, event in self.state.active_events.items()
-                     if event['type'] == f'disk_{disk}' and not event['resolved']),
-                    None
+                    (
+                        eid
+                        for eid, event in self.state.active_events.items()
+                        if event["type"] == f"disk_{disk}" and not event["resolved"]
+                    ),
+                    None,
                 )
 
                 if not event_id:
                     event_id = EventTracker.create_event(
-                        self.state,
-                        f'disk_{disk}',
-                        {'usage': usage, 'disk': disk}
+                        self.state, f"disk_{disk}", {"usage": usage, "disk": disk}
                     )
                     self._send_notification(
                         self._format_disk_alert(event_id, disk, usage)
                     )
             else:
                 for eid, event in list(self.state.active_events.items()):
-                    if event['type'] == f'disk_{disk}' and not event['resolved']:
+                    if event["type"] == f"disk_{disk}" and not event["resolved"]:
                         duration = EventTracker.resolve_event(self.state, eid)
                         if duration:
                             self._send_resolution_notification(
-                                f'Disk usage ({disk})',
-                                duration
+                                f"Disk usage ({disk})", duration
                             )
 
     def _process_docker_metrics(self, metrics: dict) -> None:
         current_time = time.time()
-        if (current_time - self.state.docker_counters_last_updated
-                >= self.docker_counters_update_interval):
+        if (
+            current_time - self.state.docker_counters_last_updated
+            >= self.docker_counters_update_interval
+        ):
             try:
                 new_counts = fetch_docker_counters()
                 new_containers = retrieve_containers_stats()
@@ -282,19 +293,15 @@ class SystemMonitorPlugin(PluginCore):
                 self._detect_docker_changes(new_counts, new_containers, new_images)
                 self.state.docker_counters_last_updated = current_time
 
-                metrics.update({
-                    f"docker_{key}": value
-                    for key, value in new_counts.items()
-                })
+                metrics.update(
+                    {f"docker_{key}": value for key, value in new_counts.items()}
+                )
 
             except Exception as e:
                 logger.error("Docker metrics processing failed", e)
 
     def _detect_docker_changes(
-            self,
-            new_counts: dict,
-            new_containers: list,
-            new_images: list
+        self, new_counts: dict, new_containers: list, new_images: list
     ) -> None:
         try:
             new_container_hashes = {cont["id"]: cont for cont in new_containers}
@@ -309,14 +316,18 @@ class SystemMonitorPlugin(PluginCore):
                     "Docker monitoring initialized",
                     extra={
                         "containers": len(new_container_hashes),
-                        "images": len(new_image_hashes)
-                    }
+                        "images": len(new_image_hashes),
+                    },
                 )
             else:
                 # Check for genuinely new containers (not seen before)
-                new_container_ids = set(new_container_hashes.keys()) - self._known_container_ids
+                new_container_ids = (
+                    set(new_container_hashes.keys()) - self._known_container_ids
+                )
                 for container_id in new_container_ids:
-                    self._send_container_notification(new_container_hashes[container_id])
+                    self._send_container_notification(
+                        new_container_hashes[container_id]
+                    )
                     self._known_container_ids.add(container_id)
 
                 # Check for genuinely new images (not seen before)
@@ -354,26 +365,41 @@ class SystemMonitorPlugin(PluginCore):
                 continue
 
             if isinstance(value, dict):
-                sanitized_fields.update({
-                    f"{key}_{sub_key}": sub_value
+                sanitized_fields.update(
+                    {
+                        f"{key}_{sub_key}": sub_value
+                        for sub_key, sub_value in value.items()
+                        if isinstance(sub_value, (int, float))
+                    }
+                )
+                unsupported = {
+                    sub_key: sub_value
                     for sub_key, sub_value in value.items()
-                    if isinstance(sub_value, (int, float))
-                })
-                unsupported = {sub_key: sub_value for sub_key, sub_value in value.items() if
-                               not isinstance(sub_value, (int, float))}
+                    if not isinstance(sub_value, (int, float))
+                }
                 for sub_key, sub_value in unsupported.items():
-                    logger.warning(f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}")
+                    logger.warning(
+                        f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}"
+                    )
                 continue
 
             if isinstance(value, tuple):
-                sanitized_fields.update({
-                    f"{key}_{i + 1}m": item
+                sanitized_fields.update(
+                    {
+                        f"{key}_{i + 1}m": item
+                        for i, item in enumerate(value)
+                        if isinstance(item, (int, float))
+                    }
+                )
+                unsupported = [
+                    (i, item)
                     for i, item in enumerate(value)
-                    if isinstance(item, (int, float))
-                })
-                unsupported = [(i, item) for i, item in enumerate(value) if not isinstance(item, (int, float))]
+                    if not isinstance(item, (int, float))
+                ]
                 for i, item in unsupported:
-                    logger.warning(f"Unsupported type for tuple element '{key}_{i}': {type(item)}")
+                    logger.warning(
+                        f"Unsupported type for tuple element '{key}_{i}': {type(item)}"
+                    )
                 continue
 
             logger.warning(f"Unsupported type for field '{key}': {type(value)}")
@@ -388,9 +414,7 @@ class SystemMonitorPlugin(PluginCore):
 
         try:
             self.bot.send_message(
-                self.settings.chat_id.global_chat_id[0],
-                message,
-                parse_mode="HTML"
+                self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML"
             )
             logger.info("Notification sent", extra={"message": str(message)})
 
@@ -417,9 +441,7 @@ class SystemMonitorPlugin(PluginCore):
         process_info = "\n".join(
             f"  • {proc['name']} (PID: {proc['pid']}) - {proc['cpu_percent']:.1f}% CPU"
             for proc in sorted(
-                top_processes,
-                key=lambda x: x['cpu_percent'],
-                reverse=True
+                top_processes, key=lambda x: x["cpu_percent"], reverse=True
             )
         )
 
@@ -448,9 +470,7 @@ class SystemMonitorPlugin(PluginCore):
         process_info = "\n".join(
             f"  • {proc['name']} (PID: {proc['pid']}) - {proc['memory_percent']:.1f}% MEM"
             for proc in sorted(
-                top_processes,
-                key=lambda x: x['memory_percent'],
-                reverse=True
+                top_processes, key=lambda x: x["memory_percent"], reverse=True
             )
         )
 
@@ -464,9 +484,9 @@ class SystemMonitorPlugin(PluginCore):
 
     @staticmethod
     def _format_process_info(
-            processes: list[TopProcess],
-            resource_key: Literal['cpu_percent', 'memory_percent'],
-            suffix: str = "%"
+        processes: list[TopProcess],
+        resource_key: Literal["cpu_percent", "memory_percent"],
+        suffix: str = "%",
     ) -> str:
         """
         Format process information for alerts.
@@ -482,19 +502,11 @@ class SystemMonitorPlugin(PluginCore):
         return "\n".join(
             f"  • {proc['name']} (PID: {proc['pid']}) - "
             f"{proc[resource_key]:.1f}{suffix}"
-            for proc in sorted(
-                processes,
-                key=lambda x: x[resource_key],
-                reverse=True
-            )
+            for proc in sorted(processes, key=lambda x: x[resource_key], reverse=True)
         )
 
     @staticmethod
-    def _format_temperature_alert(
-            event_id: str,
-            sensor: str,
-            data: dict
-    ) -> str:
+    def _format_temperature_alert(event_id: str, sensor: str, data: dict) -> str:
         return (
             f"🌡️ <b>High Temperature Alert - {sensor}</b>\n"
             f"Event ID: {event_id}\n"
@@ -502,11 +514,7 @@ class SystemMonitorPlugin(PluginCore):
         )
 
     @staticmethod
-    def _format_disk_alert(
-            event_id: str,
-            disk: str,
-            usage: float
-    ) -> str:
+    def _format_disk_alert(event_id: str, disk: str, usage: float) -> str:
         return (
             f"💽 <b>High Disk Usage Alert - {disk}</b>\n"
             f"Event ID: {event_id}\n"
@@ -540,11 +548,7 @@ class SystemMonitorPlugin(PluginCore):
         )
         self._send_notification(message)
 
-    def _send_resolution_notification(
-            self,
-            event_type: str,
-            duration: float
-    ) -> None:
+    def _send_resolution_notification(self, event_type: str, duration: float) -> None:
         message = (
             f"✅ <b>{event_type} has normalized</b>\n"
             f"Duration: {int(duration)} seconds"
@@ -554,8 +558,7 @@ class SystemMonitorPlugin(PluginCore):
     def _schedule_notification_reset(self) -> None:
         try:
             reset_thread = threading.Timer(
-                300,  # 5 minutes
-                self._reset_notification_count
+                300, self._reset_notification_count  # 5 minutes
             )
             reset_thread.daemon = True
             reset_thread.start()
@@ -576,10 +579,7 @@ class SystemMonitorPlugin(PluginCore):
                     self.check_interval = new_interval
                     logger.info(
                         "Check interval adjusted",
-                        extra={
-                            "cpu_load": cpu_load,
-                            "new_interval": new_interval
-                        }
+                        extra={"cpu_load": cpu_load, "new_interval": new_interval},
                     )
             else:
                 self.check_interval = self.monitor_settings.check_interval[0]

@@ -39,10 +39,10 @@ def handle_file_system(message: Message, bot: TeleBot):
         }
 
         with Compiler(
-                template_name="b_fs.jinja2",
-                context=disk_usage,
-                running_in_docker=running_in_docker,
-                **emojis,
+            template_name="b_fs.jinja2",
+            context=disk_usage,
+            running_in_docker=running_in_docker,
+            **emojis,
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -52,8 +52,10 @@ def handle_file_system(message: Message, bot: TeleBot):
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling disk usage",
-            error_code="HAND_008",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling disk usage",
+                error_code="HAND_008",
+                metadata={"exception": str(error)},
+            )
+        )

@@ -40,20 +40,20 @@ def handle_network(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_net_io.jinja2", context=network_statistics, **emojis
+            template_name="b_net_io.jinja2", context=network_statistics, **emojis
         ) as compiler:
             message_text = compiler.compile()
 
-        return bot.send_message(
-            message.chat.id, text=message_text, parse_mode="HTML"
-        )
+        return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
 
     except Exception as error:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling network statistics",
-            error_code="HAND_005",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling network statistics",
+                error_code="HAND_005",
+                metadata={"exception": str(error)},
+            )
+        )

@@ -41,7 +41,7 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         }
 
         with Compiler(
-                template_name="b_back.jinja2", first_name=first_name, **emojis
+            template_name="b_back.jinja2", first_name=first_name, **emojis
         ) as compiler:
             response = compiler.compile()
 
@@ -57,8 +57,10 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling the navigation command",
-            error_code="HAND_016",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling the navigation command",
+                error_code="HAND_016",
+                metadata={"exception": str(error)},
+            )
+        )

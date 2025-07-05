@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'master'
+      - 'improve-dockerfile'
 
 permissions:
   contents: read

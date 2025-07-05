@@ -39,7 +39,7 @@ def handle_load_average(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_load_average.jinja2", context=load_average, **emojis
+            template_name="b_load_average.jinja2", context=load_average, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -49,8 +49,10 @@ def handle_load_average(message: Message, bot: TeleBot):
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling load average",
-            error_code="HAND_007",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling load average",
+                error_code="HAND_007",
+                metadata={"exception": str(error)},
+            )
+        )

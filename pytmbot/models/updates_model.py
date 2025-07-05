@@ -54,7 +54,7 @@ class Message(BaseModel):
     message_id: int
     date: int
     chat: Chat
-    from_user: Optional[User] = Field(None, alias='from')
+    from_user: Optional[User] = Field(None, alias="from")
     text: Optional[str] = None
     entities: Optional[List[MessageEntity]] = None
     reply_markup: Optional[InlineKeyboardMarkup] = None
@@ -63,7 +63,7 @@ class Message(BaseModel):
 
 class CallbackQuery(BaseModel):
     id: str
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     message: Optional[Message] = None
     inline_message_id: Optional[str] = None
     chat_instance: str
@@ -74,7 +74,7 @@ class CallbackQuery(BaseModel):
 
 class InlineQuery(BaseModel):
     id: str
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     query: str
     offset: str
     chat_type: Optional[str] = None
@@ -83,7 +83,7 @@ class InlineQuery(BaseModel):
 
 class ChosenInlineResult(BaseModel):
     result_id: str
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     query: str
     inline_message_id: Optional[str] = None
     model_config = ConfigDict(extra="allow")
@@ -91,7 +91,7 @@ class ChosenInlineResult(BaseModel):
 
 class ShippingQuery(BaseModel):
     id: str
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     invoice_payload: str
     shipping_address: Dict[str, Any]
     model_config = ConfigDict(extra="allow")
@@ -99,7 +99,7 @@ class ShippingQuery(BaseModel):
 
 class PreCheckoutQuery(BaseModel):
     id: str
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     currency: str
     total_amount: int
     invoice_payload: str
@@ -132,7 +132,7 @@ class ChatMember(BaseModel):
 
 class ChatMemberUpdated(BaseModel):
     chat: Chat
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     date: int
     old_chat_member: ChatMember
     new_chat_member: ChatMember
@@ -142,7 +142,7 @@ class ChatMemberUpdated(BaseModel):
 
 class ChatJoinRequest(BaseModel):
     chat: Chat
-    from_user: User = Field(..., alias='from')
+    from_user: User = Field(..., alias="from")
     user_chat_id: int
     date: int
     bio: Optional[str] = None
@@ -168,7 +168,5 @@ class UpdateModel(BaseModel):
     chat_join_request: Optional[ChatJoinRequest] = None
 
     model_config = ConfigDict(
-        extra="allow",
-        populate_by_name=True,
-        arbitrary_types_allowed=True
+        extra="allow", populate_by_name=True, arbitrary_types_allowed=True
     )

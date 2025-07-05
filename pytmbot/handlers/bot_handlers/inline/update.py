@@ -47,8 +47,10 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
             message_id=call.message.message_id,
             text="Some error occurred. Please try again later.",
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling update info",
-            error_code="HAND_019",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling update info",
+                error_code="HAND_019",
+                metadata={"exception": str(error)},
+            )
+        )

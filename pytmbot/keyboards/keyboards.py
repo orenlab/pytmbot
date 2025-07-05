@@ -33,6 +33,7 @@ class KeyboardOperation(StrEnum):
 @dataclass(frozen=True, slots=True)
 class ButtonData:
     """Immutable data class for storing button information with memory optimization."""
+
     text: str
     callback_data: str
 
@@ -42,13 +43,16 @@ class Keyboards:
     A class for managing keyboard layouts and generation in the Telegram bot.
     Thread-safe implementation with immutable state.
     """
+
     logger = Logger()
 
     def __init__(self) -> None:
         """Initialize the Keyboards class with an EmojiConverter instance."""
         self._emojis: EmojiConverter = EmojiConverter()
 
-    def build_referer_main_keyboard(self, main_keyboard_data: str) -> ReplyKeyboardMarkup:
+    def build_referer_main_keyboard(
+        self, main_keyboard_data: str
+    ) -> ReplyKeyboardMarkup:
         """
         Construct a ReplyKeyboardMarkup object for the main keyboard.
 
@@ -65,13 +69,10 @@ class Keyboards:
             raise ValueError("Invalid main keyboard data")
 
         with self.logger.context(
-                operation=KeyboardOperation.BUILD_MAIN,
-                data=main_keyboard_data
+            operation=KeyboardOperation.BUILD_MAIN, data=main_keyboard_data
         ):
             keyboard = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                one_time_keyboard=True,
-                selective=True
+                resize_keyboard=True, one_time_keyboard=True, selective=True
             )
             keyboard.add(main_keyboard_data)
             self.logger.debug("Main keyboard constructed successfully")
@@ -94,15 +95,14 @@ class Keyboards:
             raise ValueError("Invalid inline keyboard data")
 
         with self.logger.context(
-                operation=KeyboardOperation.BUILD_INLINE,
-                data=data
+            operation=KeyboardOperation.BUILD_INLINE, data=data
         ) as log:
             button_text = split_string_into_octets(data)
             log.debug(f"Formatted button text: {button_text}")
 
             button = InlineKeyboardButton(
                 text=f"🦈 Return to {button_text}",
-                callback_data=data[:64]  # Telegram limit
+                callback_data=data[:64],  # Telegram limit
             )
 
             keyboard = InlineKeyboardMarkup()
@@ -110,9 +110,9 @@ class Keyboards:
             return keyboard
 
     def build_reply_keyboard(
-            self,
-            keyboard_type: Optional[str] = None,
-            plugin_keyboard_data: Optional[Dict[str, str]] = None,
+        self,
+        keyboard_type: Optional[str] = None,
+        plugin_keyboard_data: Optional[Dict[str, str]] = None,
     ) -> ReplyKeyboardMarkup:
         """
         Construct a ReplyKeyboardMarkup object with the specified keyboard settings.
@@ -128,9 +128,9 @@ class Keyboards:
             ValueError: If keyboard configuration is invalid.
         """
         with self.logger.context(
-                operation=KeyboardOperation.BUILD_REPLY,
-                keyboard_type=keyboard_type,
-                has_plugin_data=bool(plugin_keyboard_data)
+            operation=KeyboardOperation.BUILD_REPLY,
+            keyboard_type=keyboard_type,
+            has_plugin_data=bool(plugin_keyboard_data),
         ) as log:
             keyboard_data = (
                 plugin_keyboard_data
@@ -146,17 +146,16 @@ class Keyboards:
             if keyboard_type and keyboard_type != "back_keyboard":
                 keyboard_buttons.append("⬅️ Back to main menu")
 
-            reply_keyboard = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                row_width=3
-            )
+            reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
 
             # Group buttons into pairs for better layout
             for i in range(0, len(keyboard_buttons), 3):
-                buttons_row = keyboard_buttons[i:i + 3]
+                buttons_row = keyboard_buttons[i : i + 3]
                 reply_keyboard.row(*buttons_row)
 
-            log.debug(f"Reply keyboard constructed with {len(keyboard_buttons)} buttons")
+            log.debug(
+                f"Reply keyboard constructed with {len(keyboard_buttons)} buttons"
+            )
             return reply_keyboard
 
     @staticmethod
@@ -176,14 +175,14 @@ class Keyboards:
         """
         logger = Logger()
         with logger.context(
-                operation=KeyboardOperation.GET_DATA,
-                keyboard_type=keyboard_type or "main"
+            operation=KeyboardOperation.GET_DATA, keyboard_type=keyboard_type or "main"
         ) as log:
             if keyboard_type is None:
                 return keyboard_settings.main_keyboard
 
             valid_keyboards = {
-                attr for attr in dir(keyboard_settings)
+                attr
+                for attr in dir(keyboard_settings)
                 if attr.endswith("_keyboard") and not attr.startswith("_")
             }
 
@@ -210,8 +209,7 @@ class Keyboards:
             raise ValueError("Invalid keyboard data format")
 
         with self.logger.context(
-                operation=KeyboardOperation.CONSTRUCT,
-                button_count=len(keyboard_data)
+            operation=KeyboardOperation.CONSTRUCT, button_count=len(keyboard_data)
         ) as log:
             buttons = [
                 f"{self._emojis.get_emoji(emoji)} {title}"
@@ -221,8 +219,7 @@ class Keyboards:
             return buttons
 
     def build_inline_keyboard(
-            self,
-            buttons_data: Union[List[ButtonData], ButtonData]
+        self, buttons_data: Union[List[ButtonData], ButtonData]
     ) -> InlineKeyboardMarkup:
         """
         Construct an InlineKeyboardMarkup with the provided button data.
@@ -237,8 +234,10 @@ class Keyboards:
             ValueError: If button data is invalid.
         """
         with self.logger.context(
-                operation=KeyboardOperation.BUILD_INLINE,
-                buttons_count=1 if isinstance(buttons_data, ButtonData) else len(buttons_data)
+            operation=KeyboardOperation.BUILD_INLINE,
+            buttons_count=(
+                1 if isinstance(buttons_data, ButtonData) else len(buttons_data)
+            ),
         ) as log:
             if isinstance(buttons_data, ButtonData):
                 buttons_data = [buttons_data]
@@ -250,8 +249,7 @@ class Keyboards:
             keyboard = InlineKeyboardMarkup(row_width=2)
             buttons = [
                 InlineKeyboardButton(
-                    text=btn.text,
-                    callback_data=btn.callback_data[:64]
+                    text=btn.text, callback_data=btn.callback_data[:64]
                 )
                 for btn in buttons_data
             ]

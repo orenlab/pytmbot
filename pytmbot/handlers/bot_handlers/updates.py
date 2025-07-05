@@ -58,11 +58,13 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         )
 
     except Exception as error:
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling bot updates",
-            error_code="HAND_013",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling bot updates",
+                error_code="HAND_013",
+                metadata={"exception": str(error)},
+            )
+        )
 
 
 def _process_message() -> tuple[str, bool]:
@@ -167,11 +169,11 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
     }
 
     with Compiler(
-            template_name="b_bot_update.jinja2",
-            current_version=current_version,
-            release_date=release_date,
-            release_notes=release_notes,
-            **emojis,
+        template_name="b_bot_update.jinja2",
+        current_version=current_version,
+        release_date=release_date,
+        release_notes=release_notes,
+        **emojis,
     ) as compiler:
         return compiler.compile()
 

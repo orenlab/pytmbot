@@ -44,11 +44,13 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed to handle Docker command",
-            error_code="HAND_011",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed to handle Docker command",
+                error_code="HAND_011",
+                metadata={"exception": str(error)},
+            )
+        )
 
 
 def __fetch_counters():
@@ -81,18 +83,20 @@ def __compile_message():
         "thought_balloon": em.get_emoji("thought_balloon"),
         "spouting_whale": em.get_emoji("spouting_whale"),
         "backhand_index_pointing_down": em.get_emoji("backhand_index_pointing_down"),
-        "package": em.get_emoji("package")
+        "package": em.get_emoji("package"),
     }
 
     try:
         with Compiler(
-                template_name="d_docker.jinja2", context=docker_counters, **emojis
+            template_name="d_docker.jinja2", context=docker_counters, **emojis
         ) as compiler:
             return compiler.compile()
     except Exception as error:
 
-        raise exceptions.TemplateError(ErrorContext(
-            message="Failed to compile Docker template",
-            error_code="TEMPL_001",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.TemplateError(
+            ErrorContext(
+                message="Failed to compile Docker template",
+                error_code="TEMPL_001",
+                metadata={"exception": str(error)},
+            )
+        )

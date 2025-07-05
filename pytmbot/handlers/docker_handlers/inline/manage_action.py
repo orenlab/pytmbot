@@ -59,9 +59,7 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
         None
     """
     if int(call.from_user.id) != int(called_user_id):
-        logger.log(
-            "DENIED", f"User {call.from_user.id}: Denied '__manage__' function"
-        )
+        logger.log("DENIED", f"User {call.from_user.id}: Denied '__manage__' function")
         return show_handler_info(
             call=call, text=f"Starting {container_name}: Access denied", bot=bot
         )
@@ -109,10 +107,10 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-                container_manager.managing_container(
-                    call.from_user.id, container_name, action="start"
-                )
-                is None
+            container_manager.managing_container(
+                call.from_user.id, container_name, action="start"
+            )
+            is None
         ):
             return show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
@@ -142,10 +140,10 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     """
     try:
         if (
-                container_manager.managing_container(
-                    call.from_user.id, container_name, action="stop"
-                )
-                is None
+            container_manager.managing_container(
+                call.from_user.id, container_name, action="stop"
+            )
+            is None
         ):
             return show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
@@ -208,14 +206,12 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             )
 
     except Exception as e:
-        logger.log(
-            "ERROR", f"Error occurred while restarting {container_name}: {e}"
-        )
+        logger.log("ERROR", f"Error occurred while restarting {container_name}: {e}")
         return
 
 
 def __rename_container(
-        call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
+    call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
 ):
     """
     Renames a Docker container based on the provided parameters.
@@ -232,10 +228,10 @@ def __rename_container(
     if is_new_name_valid(new_container_name):
         try:
             if container_manager.managing_container(
-                    call.from_user.id,
-                    container_name,
-                    action="rename",
-                    new_container_name=new_container_name,
+                call.from_user.id,
+                container_name,
+                action="rename",
+                new_container_name=new_container_name,
             ):
                 return show_handler_info(
                     call=call, text=f"Renaming {container_name}: Success", bot=bot
@@ -247,9 +243,7 @@ def __rename_container(
                     bot=bot,
                 )
         except Exception as e:
-            logger.log(
-                "ERROR", f"Error occurred while renaming {container_name}: {e}"
-            )
+            logger.log("ERROR", f"Error occurred while renaming {container_name}: {e}")
             return
     else:
         return show_handler_info(
