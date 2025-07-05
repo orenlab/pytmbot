@@ -45,6 +45,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     find /venv -name 'tests' -type d -exec rm -rf {} + 2>/dev/null || true && \
     find /venv -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
     find /venv -name '*.so' -exec strip --strip-unneeded {} + 2>/dev/null || true && \
+    find /venv -name '*.a' -delete && \
+    find /venv -name '*.h' -delete && \
+    find /venv -name '*.egg-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
     apk del .build-deps
 
 ########################################################################################################################
@@ -59,7 +62,7 @@ ARG PYTHON_VERSION=3.13
 # Create app user first (simpler approach)
 RUN --mount=type=cache,target=/var/cache/apk \
     apk add --no-cache \
-        tzdata shadow && \
+        tzdata && \
     # Create app user with a safe UID
     adduser -D -u 1001 -s /bin/sh pytmbot && \
     # Create docker group (we'll handle GID at runtime)
@@ -76,7 +79,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/opt/app \
     PATH=/venv/bin:$PATH \
     PYTHONFAULTHANDLER=1 \
-    PYTHONHASHSEED=random
+    PYTHONHASHSEED=random \
+    PYTHONOPTIMIZE=2
 
 # Copy virtual environment from builder
 COPY --from=builder /usr/local/bin/ /usr/local/bin/

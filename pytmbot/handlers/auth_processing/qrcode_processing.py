@@ -40,7 +40,6 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
     qr_code = authenticator.generate_totp_qr_code()
 
     try:
-
         if qr_code:
             msg = bot.send_photo(
                 message.chat.id,

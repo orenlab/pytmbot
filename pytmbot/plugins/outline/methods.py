@@ -7,6 +7,7 @@ Outline VPN plugin for pyTMBot
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 from typing import List, Literal, Union
 
 from pyoutlineapi.client import PyOutlineWrapper
@@ -17,7 +18,6 @@ from pytmbot.plugins.plugins_core import PluginCore
 
 
 class PluginMethods(PluginCore):
-
     def __init__(self):
         """
         Initializes the PluginMethods class and sets up the Outline API client.

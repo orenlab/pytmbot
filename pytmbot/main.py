@@ -199,37 +199,64 @@ class BotLauncher(logs.BaseComponent):
             "session_overview": self._session_manager.get_session_stats(),
         }
 
-        if not self._is_monitor_plugin_loaded():
-            process_stats = self._psutil_adapter.get_current_process_health_summary()
-
-            if process_stats:
-                log_context.update(process_stats)
-
-                if "memory_rss" in process_stats and "memory_percent" in process_stats:
-                    memory_percent_value = float(
-                        process_stats["memory_percent"].rstrip("%")
-                    )
-                    if memory_percent_value > 80:
-                        log_context["memory_warning"] = True
-
-                if "cpu" in process_stats:
-                    cpu_percent_value = float(process_stats["cpu"].rstrip("%"))
-                    if cpu_percent_value > 90:
-                        log_context["cpu_warning"] = True
-            else:
-                log_context.update(
-                    {
-                        "cpu": "N/A",
-                        "memory_rss": "N/A",
-                        "memory_percent": "N/A",
-                        "status": "unknown",
-                    }
-                )
-        else:
+        if self._is_monitor_plugin_loaded():
             log_context["monitor_plugin_active"] = True
+        else:
+            self._add_process_stats_to_context(log_context)
+
+        self._log_with_warnings(log_context)
+
+    def _add_process_stats_to_context(self, log_context: dict) -> None:
+        """Add process statistics to log context and check for warnings."""
+        process_stats = self._psutil_adapter.get_current_process_health_summary()
+
+        if process_stats:
+            log_context.update(process_stats)
+            self._check_resource_warnings(log_context, process_stats)
+        else:
+            log_context.update(
+                {
+                    "cpu": "N/A",
+                    "memory_rss": "N/A",
+                    "memory_percent": "N/A",
+                    "status": "unknown",
+                }
+            )
+
+    def _check_resource_warnings(self, log_context: dict, process_stats: dict) -> None:
+        """Check for resource usage warnings and update log context."""
+        if self._is_memory_warning(process_stats):
+            log_context["memory_warning"] = True
+
+        if self._is_cpu_warning(process_stats):
+            log_context["cpu_warning"] = True
+
+    @staticmethod
+    def _is_memory_warning(process_stats: dict) -> bool:
+        """Check if memory usage exceeds warning threshold."""
+        if "memory_rss" not in process_stats or "memory_percent" not in process_stats:
+            return False
+
+        memory_percent_value = float(process_stats["memory_percent"].rstrip("%"))
+        return memory_percent_value > 80
+
+    @staticmethod
+    def _is_cpu_warning(process_stats: dict) -> bool:
+        """Check if CPU usage exceeds warning threshold."""
+        if "cpu" not in process_stats:
+            return False
+
+        cpu_percent_value = float(process_stats["cpu"].rstrip("%"))
+        return cpu_percent_value > 90
+
+    def _log_with_warnings(self, log_context: dict) -> None:
+        """Log health status with appropriate level based on warnings."""
+        has_warnings = log_context.get("memory_warning") or log_context.get(
+            "cpu_warning"
+        )
 
         with self.log_context(**log_context) as log:
-            if log_context.get("memory_warning") or log_context.get("cpu_warning"):
+            if has_warnings:
                 log.warning("Health check completed with resource warnings")
             else:
                 log.debug("Health check completed")

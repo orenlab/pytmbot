@@ -7,6 +7,7 @@ Outline VPN plugin for pyTMBot
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 from typing import Optional
 
 from pydantic import SecretStr

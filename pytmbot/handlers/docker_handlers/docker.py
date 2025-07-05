@@ -92,7 +92,6 @@ def __compile_message():
         ) as compiler:
             return compiler.compile()
     except Exception as error:
-
         raise exceptions.TemplateError(
             ErrorContext(
                 message="Failed to compile Docker template",

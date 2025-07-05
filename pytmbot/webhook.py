@@ -19,6 +19,8 @@ from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils import generate_secret_token, mask_token_in_message
 
+RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
+
 
 class RateLimit(BaseComponent):
     __slots__ = ("limit", "period", "ban_threshold", "requests", "banned_ips")
@@ -77,7 +79,7 @@ class RateLimit(BaseComponent):
 
             if len(request_times) >= self.limit:
                 with self.log_context(action="rate_limit", ip=client_ip) as log:
-                    log.warning("Rate limit exceeded")
+                    log.warning(RATELIMIT_EXCEEDED_MESSAGE)
                 return True
 
             request_times.append(current_time)
@@ -335,9 +337,7 @@ class WebhookServer(BaseComponent):
                     try:
                         # Rate limiting check
                         if self.rate_limiter.is_rate_limited(client_ip):
-                            _log.warning(
-                                "Rate limit exceeded",
-                            )
+                            _log.warning(RATELIMIT_EXCEEDED_MESSAGE)
                             raise HTTPException(
                                 status_code=429, detail="Rate limit exceeded"
                             )
@@ -463,7 +463,7 @@ class WebhookServer(BaseComponent):
                     error_code="FILE_NOT_FOUND_ERROR",
                     metadata={"exception": str(e)},
                 )
-                log.exception("SSL files not found", error=error_context.dict())
+                log.exception("SSL files not found", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
             except PermissionError as e:
@@ -473,7 +473,7 @@ class WebhookServer(BaseComponent):
                     metadata={"exception": str(e)},
                 )
                 log.exception(
-                    "Permission error on server start", error=error_context.dict()
+                    "Permission error on server start", error=error_context.to_dict()
                 )
                 raise InitializationError(error_context) from e
 
@@ -483,7 +483,7 @@ class WebhookServer(BaseComponent):
                     error_code="OS_ERROR",
                     metadata={"exception": str(e)},
                 )
-                log.exception("OS error on server start", error=error_context.dict())
+                log.exception("OS error on server start", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
             except Exception as e:
@@ -493,6 +493,6 @@ class WebhookServer(BaseComponent):
                     metadata={"error_class": e.__class__.__name__, "exception": str(e)},
                 )
                 log.exception(
-                    "Unexpected error on server start", error=error_context.dict()
+                    "Unexpected error on server start", error=error_context.to_dict()
                 )
                 raise BotException(error_context) from e

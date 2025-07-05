@@ -40,7 +40,6 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
     template_context = None
 
     try:
-
         # Send typing action indicator
         bot.send_chat_action(message.chat.id, "typing")
 

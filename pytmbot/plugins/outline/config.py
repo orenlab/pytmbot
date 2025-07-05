@@ -9,6 +9,7 @@ also providing basic information about the status of local servers.
 
 This plugin provides commands and templates for interacting with Outline VPN.
 """
+
 from typing import Final
 
 from pytmbot.plugins.models import PluginsPermissionsModel

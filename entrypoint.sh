@@ -224,19 +224,6 @@ while [ $# -gt 0 ]; do
             check_docker_access
             exit 0
             ;;
-        --debug-groups)
-            log "INFO" "entrypoint" "=== Debug Groups Information ===" "{}"
-            log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g)\"}"
-            log "INFO" "entrypoint" "All groups" "{\"groups\": \"$(groups)\", \"group_ids\": \"$(id -G)\", \"group_names\": \"$(id -Gn)\"}"
-            if [ -f /etc/group ]; then
-                log "INFO" "entrypoint" "Docker group info" "{\"docker_group\": \"$(grep '^docker:' /etc/group || echo 'not found')\"}"
-            fi
-            if [ -S /var/run/docker.sock ]; then
-                log "INFO" "entrypoint" "Docker socket info" "{\"socket_perms\": \"$(ls -la /var/run/docker.sock)\", \"socket_gid\": \"$(stat -c %g /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
-            fi
-            log "INFO" "entrypoint" "=== End Debug Groups Information ===" "{}"
-            exit 0
-            ;;
         *)
             log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker, --debug-groups\"}"
             exit 1

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
         generate_secret_token,
         mask_token_in_message,
         mask_username,
-        mask_user_id
+        mask_user_id,
     )
     from .telegram_utils import (
         get_message_full_info,
@@ -66,7 +66,7 @@ def __getattr__(name: str):
         "generate_secret_token",
         "mask_token_in_message",
         "mask_username",
-        "mask_user_id"
+        "mask_user_id",
     }:
         module = importlib.import_module(".security", __name__)
         return getattr(module, name)

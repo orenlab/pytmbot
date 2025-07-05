@@ -4,6 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 from functools import lru_cache
 from typing import Dict, Any, Union
 
@@ -99,7 +100,7 @@ def get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> 
 
 
 def parse_container_memory_stats(
-    container_stats: Dict[str, Any]
+    container_stats: Dict[str, Any],
 ) -> Dict[str, Union[str, float]]:
     """
     Parse the memory statistics of a container.

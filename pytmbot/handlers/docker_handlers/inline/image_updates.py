@@ -71,7 +71,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
 
 
 def prepare_context_for_render(
-    data: Dict[str, Dict[str, List[dict]]]
+    data: Dict[str, Dict[str, List[dict]]],
 ) -> Dict[str, Union[Dict[str, Dict], List[str]]]:
     """
     Prepares the context for template rendering.

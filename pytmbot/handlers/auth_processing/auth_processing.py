@@ -4,6 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 from typing import Union
 
 from telebot import TeleBot
@@ -39,7 +40,6 @@ def handle_unauthorized_message(
         raise NotImplementedError("Unsupported query type")
 
     try:
-
         keyboard = keyboards.build_reply_keyboard(keyboard_type="auth_keyboard")
 
         emojis = {
@@ -102,7 +102,6 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
         raise NotImplementedError("Unsupported query type")
 
     try:
-
         user_name = query.from_user.first_name or query.from_user.username
         keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
         emojis = {
