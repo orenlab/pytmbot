@@ -23,17 +23,15 @@ class _StateFabric:
     @classmethod
     def valid_states(cls) -> frozenset[str]:
         """Return a frozenset of valid states for immutability."""
-        return frozenset({
-            cls.AUTHENTICATED,
-            cls.PROCESSING,
-            cls.BLOCKED,
-            cls.UNAUTHENTICATED
-        })
+        return frozenset(
+            {cls.AUTHENTICATED, cls.PROCESSING, cls.BLOCKED, cls.UNAUTHENTICATED}
+        )
 
 
 @dataclass
 class _UserSession:
     """Represents a user session with type safety."""
+
     auth_state: str = _StateFabric.UNAUTHENTICATED
     totp_attempts: int = 0
     blocked_time: Optional[datetime] = None
@@ -62,7 +60,9 @@ class SessionManager(BaseComponent):
     """
 
     # Class variables with proper typing
-    _instances: ClassVar[WeakValueDictionary[str, SessionManager]] = WeakValueDictionary()
+    _instances: ClassVar[WeakValueDictionary[str, SessionManager]] = (
+        WeakValueDictionary()
+    )
     _lock: ClassVar[threading.RLock] = threading.RLock()
 
     # Instance configuration
@@ -75,7 +75,9 @@ class SessionManager(BaseComponent):
     # Private fields
     _user_sessions: dict[int, _UserSession] = field(default_factory=dict, init=False)
     _cleanup_thread: Optional[threading.Thread] = field(default=None, init=False)
-    _shutdown_event: threading.Event = field(default_factory=threading.Event, init=False)
+    _shutdown_event: threading.Event = field(
+        default_factory=threading.Event, init=False
+    )
 
     def __new__(cls, instance_name: str = "default") -> Self:
         """
@@ -92,18 +94,21 @@ class SessionManager(BaseComponent):
         super().__init__("SessionManager")
 
         # Prevent re-initialization
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
 
         self._initialized = True
         self._start_cleanup_thread()
 
         with self.log_context(action="initialize") as log:
-            log.info("Session manager initialized", context={
-                "cleanup_interval": self.cleanup_interval,
-                "session_timeout": self.session_timeout,
-                "max_totp_attempts": self.max_totp_attempts
-            })
+            log.info(
+                "Session manager initialized",
+                context={
+                    "cleanup_interval": self.cleanup_interval,
+                    "session_timeout": self.session_timeout,
+                    "max_totp_attempts": self.max_totp_attempts,
+                },
+            )
 
     def _start_cleanup_thread(self) -> None:
         """Start background cleanup thread with proper error handling."""
@@ -118,7 +123,9 @@ class SessionManager(BaseComponent):
                     try:
                         self.clear_expired_sessions()
                     except Exception as e:
-                        log.exception("Error during session cleanup", context={"error": str(e)})
+                        log.exception(
+                            "Error during session cleanup", context={"error": str(e)}
+                        )
 
                     # Use shutdown event for interruptible sleep
                     if self._shutdown_event.wait(timeout=self.cleanup_interval):
@@ -127,9 +134,7 @@ class SessionManager(BaseComponent):
                 log.debug("Cleanup worker thread stopped")
 
         self._cleanup_thread = threading.Thread(
-            target=cleanup_worker,
-            name="SessionManager-Cleanup",
-            daemon=True
+            target=cleanup_worker, name="SessionManager-Cleanup", daemon=True
         )
         self._cleanup_thread.start()
 
@@ -155,17 +160,19 @@ class SessionManager(BaseComponent):
     def set_auth_state(self, user_id: int, state: str) -> None:
         """Set authentication state with validation."""
         if state not in self.state_fabric.valid_states():
-            raise ValueError(f"Invalid state: {state}. Valid states: {self.state_fabric.valid_states()}")
+            raise ValueError(
+                f"Invalid state: {state}. Valid states: {self.state_fabric.valid_states()}"
+            )
 
         with self.session_context(user_id) as session:
             old_state = session.auth_state
             session.auth_state = state
 
             with self.log_context(user_id=user_id, action="set_auth_state") as log:
-                log.info("Authentication state changed", context={
-                    "old_state": old_state,
-                    "new_state": state
-                })
+                log.info(
+                    "Authentication state changed",
+                    context={"old_state": old_state, "new_state": state},
+                )
 
     def get_auth_state(self, user_id: int) -> str:
         """Get authentication state."""
@@ -178,11 +185,16 @@ class SessionManager(BaseComponent):
         with self.session_context(user_id) as session:
             session.totp_attempts += 1
 
-            with self.log_context(user_id=user_id, action="increment_totp_attempts") as log:
-                log.warning("TOTP attempt recorded", context={
-                    "attempts": session.totp_attempts,
-                    "max_attempts": self.max_totp_attempts
-                })
+            with self.log_context(
+                user_id=user_id, action="increment_totp_attempts"
+            ) as log:
+                log.warning(
+                    "TOTP attempt recorded",
+                    context={
+                        "attempts": session.totp_attempts,
+                        "max_attempts": self.max_totp_attempts,
+                    },
+                )
 
                 # Auto-block if max attempts reached
                 if session.totp_attempts >= self.max_totp_attempts:
@@ -210,7 +222,9 @@ class SessionManager(BaseComponent):
         session.blocked_time = datetime.now() + timedelta(minutes=self.block_duration)
         session.auth_state = self.state_fabric.BLOCKED
 
-    def set_blocked_time(self, user_id: int, duration_minutes: Optional[int] = None) -> None:
+    def set_blocked_time(
+        self, user_id: int, duration_minutes: Optional[int] = None
+    ) -> None:
         """Block user for specified duration."""
         duration = duration_minutes or self.block_duration
 
@@ -219,10 +233,13 @@ class SessionManager(BaseComponent):
             session.auth_state = self.state_fabric.BLOCKED
 
             with self.log_context(user_id=user_id, action="block_user") as log:
-                log.warning("User blocked", context={
-                    "duration_minutes": duration,
-                    "blocked_until": session.blocked_time.isoformat()
-                })
+                log.warning(
+                    "User blocked",
+                    context={
+                        "duration_minutes": duration,
+                        "blocked_until": session.blocked_time.isoformat(),
+                    },
+                )
 
     def get_blocked_time(self, user_id: int) -> Optional[datetime]:
         """Get user's blocked time."""
@@ -267,10 +284,17 @@ class SessionManager(BaseComponent):
 
             if expired:
                 with self.log_context(user_id=user_id, action="session_expired") as log:
-                    log.warning("Session expired", context={
-                        "login_time": session.login_time.isoformat() if session.login_time else None,
-                        "timeout_minutes": self.session_timeout
-                    })
+                    log.warning(
+                        "Session expired",
+                        context={
+                            "login_time": (
+                                session.login_time.isoformat()
+                                if session.login_time
+                                else None
+                            ),
+                            "timeout_minutes": self.session_timeout,
+                        },
+                    )
 
             return expired
 
@@ -278,33 +302,38 @@ class SessionManager(BaseComponent):
         """Check if user is fully authenticated and session is valid."""
         with self.session_context(user_id) as session:
             is_auth = (
-                    session.auth_state == self.state_fabric.AUTHENTICATED
-                    and not self.is_blocked(user_id)
-                    and not session.is_expired(self.session_timeout)
+                session.auth_state == self.state_fabric.AUTHENTICATED
+                and not self.is_blocked(user_id)
+                and not session.is_expired(self.session_timeout)
             )
 
             with self.log_context(user_id=user_id, action="auth_check") as log:
-                log.debug("Authentication check", context={
-                    "is_authenticated": is_auth,
-                    "auth_state": session.auth_state,
-                    "is_blocked": self.is_blocked(user_id),
-                    "is_expired": session.is_expired(self.session_timeout)
-                })
+                log.debug(
+                    "Authentication check",
+                    context={
+                        "is_authenticated": is_auth,
+                        "auth_state": session.auth_state,
+                        "is_blocked": self.is_blocked(user_id),
+                        "is_expired": session.is_expired(self.session_timeout),
+                    },
+                )
 
             return is_auth
 
     # Referer and handler management
-    def set_referer_data(self, user_id: int, handler_type: str, referer_uri: str) -> None:
+    def set_referer_data(
+        self, user_id: int, handler_type: str, referer_uri: str
+    ) -> None:
         """Set referer URI and handler type."""
         with self.session_context(user_id) as session:
             session.referer_uri = referer_uri
             session.handler_type = handler_type
 
             with self.log_context(user_id=user_id, action="set_referer_data") as log:
-                log.debug("Referer data set", context={
-                    "handler_type": handler_type,
-                    "referer_uri": referer_uri
-                })
+                log.debug(
+                    "Referer data set",
+                    context={"handler_type": handler_type, "referer_uri": referer_uri},
+                )
 
     def get_referer_uri(self, user_id: int) -> Optional[str]:
         """Get referer URI for user."""
@@ -339,7 +368,8 @@ class SessionManager(BaseComponent):
         """Clear all expired sessions."""
         with self._lock:
             expired_users = [
-                user_id for user_id, session in self._user_sessions.items()
+                user_id
+                for user_id, session in self._user_sessions.items()
                 if session.is_expired(self.session_timeout)
             ]
 
@@ -348,10 +378,13 @@ class SessionManager(BaseComponent):
                     del self._user_sessions[user_id]
 
                 with self.log_context(action="cleanup_expired_sessions") as log:
-                    log.info("Expired sessions cleared", context={
-                        "cleared_count": len(expired_users),
-                        "expired_users": expired_users
-                    })
+                    log.info(
+                        "Expired sessions cleared",
+                        context={
+                            "cleared_count": len(expired_users),
+                            "expired_users": expired_users,
+                        },
+                    )
 
     # Statistics and monitoring
     def get_active_sessions_count(self) -> int:
@@ -367,7 +400,7 @@ class SessionManager(BaseComponent):
                 "authenticated_sessions": 0,
                 "blocked_sessions": 0,
                 "expired_sessions": 0,
-                "processing_sessions": 0
+                "processing_sessions": 0,
             }
 
             for session in self._user_sessions.values():
@@ -403,6 +436,18 @@ class SessionManager(BaseComponent):
     def __del__(self) -> None:
         """Cleanup on object destruction."""
         try:
-            self.shutdown()
-        except Exception:
-            pass  # Avoid exceptions during garbage collection
+            if hasattr(self, "_initialized") and hasattr(self, "_shutdown_event"):
+                if not self._shutdown_event.is_set():
+                    self.shutdown()
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        except Exception as e:
+            # Log unexpected errors if logging is still available
+            try:
+                if hasattr(self, "log_context"):
+                    with self.log_context(action="destructor_error") as log:
+                        log.debug(
+                            "Unexpected error during cleanup", context={"error": str(e)}
+                        )
+            except Exception:
+                pass

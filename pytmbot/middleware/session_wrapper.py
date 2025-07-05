@@ -17,7 +17,7 @@ from pytmbot.logs import Logger, BaseComponent
 
 logger = Logger()
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 # Type aliases for better readability
 TelegramQuery: TypeAlias = Union[Message, CallbackQuery]
@@ -26,6 +26,7 @@ HandlerFunction: TypeAlias = Callable[[TelegramQuery, telebot.TeleBot], Any]
 
 class HandlerType(StrEnum):
     """Enum for different types of handlers."""
+
     CALLBACK_QUERY = auto()
     MESSAGE = auto()
 
@@ -33,6 +34,7 @@ class HandlerType(StrEnum):
 @dataclass(frozen=True, slots=True)
 class AuthContext:
     """Data class to store authentication context."""
+
     user_id: int
     handler_type: HandlerType
     referer_handler: str
@@ -95,22 +97,17 @@ def create_auth_context(query: TelegramQuery) -> AuthContext | None:
         else HandlerType.MESSAGE
     )
 
-    referer_handler = (
-        query.data if isinstance(query, CallbackQuery) else query.text
-    )
+    referer_handler = query.data if isinstance(query, CallbackQuery) else query.text
 
     return AuthContext(
         user_id=user.id,
         handler_type=handler_type,
         referer_handler=str(referer_handler),
-        username=user.username or str(user.id)
+        username=user.username or str(user.id),
     )
 
 
-def handle_unauthorized_query(
-        query: TelegramQuery,
-        bot: telebot.TeleBot
-) -> None:
+def handle_unauthorized_query(query: TelegramQuery, bot: telebot.TeleBot) -> None:
     """
     Handle unauthorized queries.
 
@@ -126,10 +123,7 @@ def handle_unauthorized_query(
         return handle_unauthorized_message(query, bot)
 
 
-def access_denied_handler(
-        query: TelegramQuery,
-        bot: telebot.TeleBot
-) -> bool:
+def access_denied_handler(query: TelegramQuery, bot: telebot.TeleBot) -> bool:
     """
     Handle access denied queries.
 
@@ -173,9 +167,9 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
 
         if auth_context.user_id not in settings.access_control.allowed_admins_ids:
             with auth_component.log_context(
-                    action="auth_check",
-                    user_id=auth_context.user_id,
-                    username=auth_context.username
+                action="auth_check",
+                user_id=auth_context.user_id,
+                username=auth_context.username,
             ) as log:
                 log.denied("User is not in allowed admins list")
             return access_denied_handler(query, bot)
@@ -183,10 +177,10 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
         is_authenticated = session_manager.is_authenticated(auth_context.user_id)
 
         with auth_component.log_context(
-                action="auth_check",
-                user_id=auth_context.user_id,
-                username=auth_context.username,
-                handler_type=auth_context.handler_type.value
+            action="auth_check",
+            user_id=auth_context.user_id,
+            username=auth_context.username,
+            handler_type=auth_context.handler_type.value,
         ) as log:
             log.debug(f"Authentication status: {is_authenticated}")
 
@@ -194,7 +188,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
                 session_manager.set_referer_data(
                     auth_context.user_id,
                     auth_context.handler_type.value,
-                    auth_context.referer_handler
+                    auth_context.referer_handler,
                 )
                 log.warning("Authentication required")
                 return handle_unauthorized_query(query, bot)

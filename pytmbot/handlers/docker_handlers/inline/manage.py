@@ -51,9 +51,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         )
 
     is_authenticated = session_manager.is_authenticated(call.from_user.id)
-    logger.debug(
-        f"User {call.from_user.id} authenticated status: {is_authenticated}"
-    )
+    logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
 
     if not is_authenticated:
         logger.log(
@@ -122,10 +120,10 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     }
 
     with Compiler(
-            "d_managing_containers.jinja2",
-            emojis=emojis,
-            state=state,
-            container_name=container_name,
+        "d_managing_containers.jinja2",
+        emojis=emojis,
+        state=state,
+        container_name=container_name,
     ) as compiler:
         context = compiler.compile()
 

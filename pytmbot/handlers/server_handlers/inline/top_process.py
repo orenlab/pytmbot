@@ -46,9 +46,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
         }
 
         with Compiler(
-                template_name="b_top_processes.jinja2",
-                context=context,
-                **emojis
+            template_name="b_top_processes.jinja2", context=context, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -56,17 +54,19 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=bot_answer,
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
 
     except Exception as error:
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text="Sorry, but I can't get process information. Please try again later."
+            text="Sorry, but I can't get process information. Please try again later.",
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling inline process info",
-            error_code="HAND_010",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling inline process info",
+                error_code="HAND_010",
+                metadata={"exception": str(error)},
+            )
+        )

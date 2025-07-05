@@ -29,7 +29,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
         first_name = message.from_user.first_name
 
         with Compiler(
-                template_name="b_index.jinja2", first_name=first_name
+            template_name="b_index.jinja2", first_name=first_name
         ) as compiler:
             answer = compiler.compile()
 
@@ -46,8 +46,10 @@ def handle_start(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling the start command",
-            error_code="HAND_014",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling the start command",
+                error_code="HAND_014",
+                metadata={"exception": str(error)},
+            )
+        )

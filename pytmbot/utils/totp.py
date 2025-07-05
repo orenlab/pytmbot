@@ -85,11 +85,13 @@ class TwoFactorAuthenticator:
                 )
                 return img_bytes.getvalue()
         except Exception as e:
-            raise QRCodeError(ErrorContext(
-                message="QR code generation failed.",
-                error_code="QR_CODE_GENERATION_ERROR",
-                metadata={"original_error": str(e)}
-            ))
+            raise QRCodeError(
+                ErrorContext(
+                    message="QR code generation failed.",
+                    error_code="QR_CODE_GENERATION_ERROR",
+                    metadata={"original_error": str(e)},
+                )
+            )
 
     def verify_totp_code(self, code: str) -> bool:
         """
@@ -111,9 +113,7 @@ class TwoFactorAuthenticator:
         logger.info(f"Verifying TOTP code for user {self.username}...")
 
         if totp.verify(code):
-            logger.info(
-                f"TOTP code successfully verified for user {self.username}."
-            )
+            logger.info(f"TOTP code successfully verified for user {self.username}.")
             return True
 
         logger.error(f"Failed to verify TOTP code for user {self.username}.")

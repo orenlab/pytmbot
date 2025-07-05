@@ -14,7 +14,7 @@ from telebot.types import Update, Message, CallbackQuery, InlineQuery
 
 from pytmbot.utils.cli import parse_cli_args
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class LogLevel(StrEnum):
@@ -46,16 +46,17 @@ class Logger:
     Singleton logger class with context management and session tracking capabilities.
     Uses WeakValueDictionary for efficient memory management.
     """
+
     __slots__ = ("_logger", "__weakref__")
 
     _instance = WeakValueDictionary()
     _initialized: bool = False
 
     def __new__(cls) -> Logger:
-        if 'default' not in cls._instance:
+        if "default" not in cls._instance:
             instance = super().__new__(cls)
-            cls._instance['default'] = instance
-        return cls._instance['default']
+            cls._instance["default"] = instance
+        return cls._instance["default"]
 
     def __init__(self) -> None:
         if not self._initialized:
@@ -78,7 +79,9 @@ class Logger:
         )
 
     @staticmethod
-    def _extract_update_data(update: Update | Message | CallbackQuery | InlineQuery) -> dict[str, Any]:
+    def _extract_update_data(
+        update: Update | Message | CallbackQuery | InlineQuery,
+    ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects."""
         if isinstance(update, Update):
             obj = update.message or update.callback_query or update.inline_query
@@ -93,8 +96,16 @@ class Logger:
             "update_type": update_type,
             "update_id": getattr(update, "update_id", None),
             "chat_id": getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None,
-            "user_id": getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None,
-            "username": getattr(obj.from_user, "username", None) if hasattr(obj, "from_user") else None,
+            "user_id": (
+                getattr(obj.from_user, "id", None)
+                if hasattr(obj, "from_user")
+                else None
+            ),
+            "username": (
+                getattr(obj.from_user, "username", None)
+                if hasattr(obj, "from_user")
+                else None
+            ),
         }
 
     @contextmanager
@@ -102,9 +113,7 @@ class Logger:
         """Context manager for temporary logging context."""
         previous = getattr(self._logger, "_context", {}).copy()
         try:
-            self._logger = self._logger.bind(
-                **kwargs
-            )
+            self._logger = self._logger.bind(**kwargs)
             yield self
         finally:
             self._logger = logger.bind(**previous) if previous else logger.bind()
@@ -115,8 +124,14 @@ class Logger:
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Search for Telegram object
                 telegram_object = next(
-                    (arg for arg in args if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))),
-                    None
+                    (
+                        arg
+                        for arg in args
+                        if isinstance(
+                            arg, (Message, Update, CallbackQuery, InlineQuery)
+                        )
+                    ),
+                    None,
                 )
 
                 logger.debug(f"Telegram object in {f.__name__}: {telegram_object}")
@@ -164,7 +179,9 @@ class BaseComponent:
 
     def __init__(self, component_name: str = ""):
         self._log = Logger()
-        self.component_name = component_name if component_name else self.__class__.__name__
+        self.component_name = (
+            component_name if component_name else self.__class__.__name__
+        )
         with self._log.context(component=self.component_name) as log:
             self._log = log
 

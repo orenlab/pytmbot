@@ -20,7 +20,7 @@ def log_execution(func: CallbackType) -> CallbackType:
     """Decorator to log function execution with its arguments."""
 
     @wraps(func)
-    def wrapper(self: 'HandlerManager', **kwargs: Any) -> Any:
+    def wrapper(self: "HandlerManager", **kwargs: Any) -> Any:
         logger.debug(
             f"Executing callback {self.callback.__name__} with arguments: {kwargs}"
         )
@@ -38,6 +38,7 @@ class HandlerManager:
         callback (CallbackType): The callback function to be stored
         kwargs (dict[str, Any]): Keyword arguments to be stored with the callback
     """
+
     callback: CallbackType
     kwargs: dict[str, Any] = field(default_factory=dict)
 

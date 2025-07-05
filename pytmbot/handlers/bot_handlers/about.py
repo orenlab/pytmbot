@@ -41,7 +41,7 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         template_data = {"username": user_name, "app_version": __version__}
 
         with Compiler(
-                template_name="b_about_bot.jinja2", context=template_data
+            template_name="b_about_bot.jinja2", context=template_data
         ) as compiler:
             response = compiler.compile()
 
@@ -57,8 +57,10 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the plugins command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling the about command",
-            error_code="HAND_018",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling the about command",
+                error_code="HAND_018",
+                metadata={"exception": str(error)},
+            )
+        )

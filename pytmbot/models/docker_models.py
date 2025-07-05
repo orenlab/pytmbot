@@ -71,7 +71,7 @@ class ContainerAction(str, Enum):
     RENAME = "RENAME"
 
     @classmethod
-    def from_str(cls, value: str) -> 'ContainerAction':
+    def from_str(cls, value: str) -> "ContainerAction":
         try:
             return cls(value.upper())
         except ValueError:

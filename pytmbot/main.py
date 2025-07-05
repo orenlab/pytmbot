@@ -15,11 +15,7 @@ from humanize import naturaltime
 
 from pytmbot import logs
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
-from pytmbot.exceptions import (
-    InitializationError,
-    ShutdownError,
-    ErrorContext
-)
+from pytmbot.exceptions import InitializationError, ShutdownError, ErrorContext
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 
@@ -50,8 +46,11 @@ class HealthStatus:
     @property
     def last_health_check_result(self) -> bool | None:
         with self._instance_lock:
-            if (self._last_check_time is None or
-                    time.time() - self._last_check_time > 2 * BotLauncher.HEALTH_CHECK_INTERVAL):
+            if (
+                self._last_check_time is None
+                or time.time() - self._last_check_time
+                > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
+            ):
                 return None
             return self._last_health_check_result
 
@@ -95,7 +94,7 @@ class BotLauncher(logs.BaseComponent):
 
     def _shutdown_bot_silently(self, *, silent: bool) -> None:
         """Stop polling and remove webhook with optional error handling."""
-        if not self.bot or not hasattr(self.bot, 'bot') or not self.bot.bot:
+        if not self.bot or not hasattr(self.bot, "bot") or not self.bot.bot:
             return
 
         try:
@@ -122,10 +121,14 @@ class BotLauncher(logs.BaseComponent):
 
             if self._sigint_count == 1:
                 with self.log_context(signal=sig_name, pid=os.getpid()) as log:
-                    log.warning("Received SIGINT - initiating graceful shutdown (Ctrl+C again to force)")
+                    log.warning(
+                        "Received SIGINT - initiating graceful shutdown (Ctrl+C again to force)"
+                    )
                 self.shutdown_requested.set()
             elif self._sigint_count >= 2:
-                with self.log_context(signal=sig_name, pid=os.getpid(), force=True) as log:
+                with self.log_context(
+                    signal=sig_name, pid=os.getpid(), force=True
+                ) as log:
                     log.warning("Received multiple SIGINT - forcing immediate shutdown")
                 self._emergency_cleanup()
                 # Restore default handler and re-raise signal
@@ -182,17 +185,18 @@ class BotLauncher(logs.BaseComponent):
     @staticmethod
     def _is_monitor_plugin_loaded() -> bool:
         from pytmbot.plugins.plugin_manager import PluginManager
-        return PluginManager.is_plugin_loaded('monitor')
+
+        return PluginManager.is_plugin_loaded("monitor")
 
     def _log_health_status(self) -> None:
         """Log current health status with comprehensive process statistics."""
         uptime_display = naturaltime(self.start_time)
 
         log_context = {
-            'uptime': uptime_display,
-            'active': bool(self.bot),
-            'pid': os.getpid(),
-            'session_overview': self._session_manager.get_session_stats()
+            "uptime": uptime_display,
+            "active": bool(self.bot),
+            "pid": os.getpid(),
+            "session_overview": self._session_manager.get_session_stats(),
         }
 
         if not self._is_monitor_plugin_loaded():
@@ -201,27 +205,31 @@ class BotLauncher(logs.BaseComponent):
             if process_stats:
                 log_context.update(process_stats)
 
-                if 'memory_rss' in process_stats and 'memory_percent' in process_stats:
-                    memory_percent_value = float(process_stats['memory_percent'].rstrip('%'))
+                if "memory_rss" in process_stats and "memory_percent" in process_stats:
+                    memory_percent_value = float(
+                        process_stats["memory_percent"].rstrip("%")
+                    )
                     if memory_percent_value > 80:
-                        log_context['memory_warning'] = True
+                        log_context["memory_warning"] = True
 
-                if 'cpu' in process_stats:
-                    cpu_percent_value = float(process_stats['cpu'].rstrip('%'))
+                if "cpu" in process_stats:
+                    cpu_percent_value = float(process_stats["cpu"].rstrip("%"))
                     if cpu_percent_value > 90:
-                        log_context['cpu_warning'] = True
+                        log_context["cpu_warning"] = True
             else:
-                log_context.update({
-                    'cpu': 'N/A',
-                    'memory_rss': 'N/A',
-                    'memory_percent': 'N/A',
-                    'status': 'unknown'
-                })
+                log_context.update(
+                    {
+                        "cpu": "N/A",
+                        "memory_rss": "N/A",
+                        "memory_percent": "N/A",
+                        "status": "unknown",
+                    }
+                )
         else:
-            log_context['monitor_plugin_active'] = True
+            log_context["monitor_plugin_active"] = True
 
         with self.log_context(**log_context) as log:
-            if log_context.get('memory_warning') or log_context.get('cpu_warning'):
+            if log_context.get("memory_warning") or log_context.get("cpu_warning"):
                 log.warning("Health check completed with resource warnings")
             else:
                 log.debug("Health check completed")
@@ -293,39 +301,45 @@ class BotLauncher(logs.BaseComponent):
 
                 error_metadata: dict[str, Any] = {
                     "exception": str(e),
-                    "type": type(e).__name__
+                    "type": type(e).__name__,
                 }
-                raise ShutdownError(ErrorContext(
-                    message=f"Shutdown failed: {e}",
-                    error_code="SHUTDOWN_001",
-                    metadata=error_metadata
-                ))
+                raise ShutdownError(
+                    ErrorContext(
+                        message=f"Shutdown failed: {e}",
+                        error_code="SHUTDOWN_001",
+                        metadata=error_metadata,
+                    )
+                )
 
     def validate_environment(self) -> None:
         """Validate runtime environment."""
         try:
             current_version = sys.version_info[:2]
             if current_version < self.MIN_PYTHON_VERSION:
-                raise InitializationError(ErrorContext(
-                    message=f"Python {'.'.join(map(str, self.MIN_PYTHON_VERSION))}+ required, "
-                            f"running {platform.python_version()}",
-                    error_code="INIT_001",
-                    metadata={"current_version": platform.python_version()}
-                ))
+                raise InitializationError(
+                    ErrorContext(
+                        message=f"Python {'.'.join(map(str, self.MIN_PYTHON_VERSION))}+ required, "
+                        f"running {platform.python_version()}",
+                        error_code="INIT_001",
+                        metadata={"current_version": platform.python_version()},
+                    )
+                )
 
             with self.log_context(
-                    python_version=platform.python_version(),
-                    system=platform.system(),
-                    platform=platform.platform()
+                python_version=platform.python_version(),
+                system=platform.system(),
+                platform=platform.platform(),
             ) as log:
                 log.info("Environment validated")
 
         except Exception as e:
-            raise InitializationError(ErrorContext(
-                message=f"Environment validation failed: {e}",
-                error_code="INIT_002",
-                metadata={"error": str(e), "type": type(e).__name__}
-            ))
+            raise InitializationError(
+                ErrorContext(
+                    message=f"Environment validation failed: {e}",
+                    error_code="INIT_002",
+                    metadata={"error": str(e), "type": type(e).__name__},
+                )
+            )
 
     def _register_signal_handler(self, sig: signal.Signals) -> None:
         """Register handler for a single signal."""
@@ -344,21 +358,21 @@ class BotLauncher(logs.BaseComponent):
 
         # Handle other termination signals
         signals_to_handle = [signal.SIGTERM]
-        if hasattr(signal, 'SIGHUP'):
+        if hasattr(signal, "SIGHUP"):
             signals_to_handle.append(signal.SIGHUP)
 
         for sig in signals_to_handle:
             self._register_signal_handler(sig)
 
         with self.log_context() as log:
-            log.debug("Signal handlers registered (SIGINT: graceful->forced, others: immediate)")
+            log.debug(
+                "Signal handlers registered (SIGINT: graceful->forced, others: immediate)"
+            )
 
     def _start_health_monitoring(self) -> None:
         """Start health check monitoring thread."""
         self.health_check_thread = threading.Thread(
-            target=self._health_check_loop,
-            name="HealthMonitor",
-            daemon=True
+            target=self._health_check_loop, name="HealthMonitor", daemon=True
         )
         self.health_check_thread.start()
 
@@ -387,17 +401,17 @@ class BotLauncher(logs.BaseComponent):
         health_status = HealthStatus()
 
         return {
-            'exception_type': type(error).__name__,
-            'exception_value': str(error),
-            'traceback': traceback.format_exc(),
-            'shutdown_requested': self.shutdown_requested.is_set(),
-            'last_health_check': health_status.last_health_check_result,
-            'uptime': naturaltime(self.start_time),
-            'active': bool(self.bot),
-            'pid': os.getpid(),
-            'python_version': platform.python_version(),
-            'system': platform.system(),
-            'platform': platform.platform()
+            "exception_type": type(error).__name__,
+            "exception_value": str(error),
+            "traceback": traceback.format_exc(),
+            "shutdown_requested": self.shutdown_requested.is_set(),
+            "last_health_check": health_status.last_health_check_result,
+            "uptime": naturaltime(self.start_time),
+            "active": bool(self.bot),
+            "pid": os.getpid(),
+            "python_version": platform.python_version(),
+            "system": platform.system(),
+            "platform": platform.platform(),
         }
 
     def _handle_keyboard_interrupt(self) -> NoReturn:

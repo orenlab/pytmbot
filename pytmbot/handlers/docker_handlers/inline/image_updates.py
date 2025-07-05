@@ -48,7 +48,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
 
     # Handle success with no updates
     if not response["data"] or all(
-            not image_info["updates"] for image_info in response["data"].values()
+        not image_info["updates"] for image_info in response["data"].values()
     ):
         return bot.answer_callback_query(
             call.id,
@@ -71,7 +71,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
 
 
 def prepare_context_for_render(
-        data: Dict[str, Dict[str, List[dict]]]
+    data: Dict[str, Dict[str, List[dict]]]
 ) -> Dict[str, Union[Dict[str, Dict], List[str]]]:
     """
     Prepares the context for template rendering.

@@ -65,8 +65,7 @@ def get_default_main_keyboard() -> Dict[str, str]:
         "spouting_whale": "Docker",
         "lollipop": "Plugins",
         "eyes": "Quick view",
-        "mushroom": "About me"
-
+        "mushroom": "About me",
     }
 
 
@@ -135,6 +134,7 @@ class KeyboardSettings(BaseModel):
         auth_processing_keyboard (Dict[str, str]): The keyboard used during authentication.
         back_keyboard (Dict[str, str]): The back navigation keyboard settings.
     """
+
     main_keyboard: Dict[str, str]
     server_keyboard: Dict[str, str]
     docker_keyboard: Dict[str, str]
@@ -151,7 +151,7 @@ class KeyboardSettings(BaseModel):
             "auth_keyboard": get_default_auth_keyboard(),
             "auth_processing_keyboard": get_default_auth_processing_keyboard(),
             "back_keyboard": get_default_back_keyboard(),
-        }
+        },
     }
 
 
@@ -162,13 +162,12 @@ class BotCommandSettings(BaseModel):
     Attributes:
         bot_commands (Dict[str, str]): The bot commands with descriptions.
     """
+
     bot_commands: Dict[str, str]
 
     model_config = {
         "frozen": True,
-        "json_schema_extra": {
-            "bot_commands": get_default_bot_commands()
-        }
+        "json_schema_extra": {"bot_commands": get_default_bot_commands()},
     }
 
 
@@ -179,14 +178,13 @@ class BotDescriptionSettings(BaseModel):
     Attributes:
         bot_description (str): The description of the bot.
     """
+
     bot_description: ClassVar[str] = (
         "pyTMBot - A simple Telegram bot designed to gather basic information "
         "about the status of your local servers"
     )
 
-    model_config = {
-        "frozen": True
-    }
+    model_config = {"frozen": True}
 
 
 class VarConfig(BaseModel):
@@ -199,14 +197,13 @@ class VarConfig(BaseModel):
         bot_polling_timeout (int): Timeout for bot polling.
         bot_long_polling_timeout (int): Timeout for long polling.
     """
+
     template_path: ClassVar[str] = os.path.join(os.path.dirname(__file__), "templates")
     totp_max_attempts: ClassVar[int] = 3
     bot_polling_timeout: ClassVar[int] = 30
     bot_long_polling_timeout: ClassVar[int] = 60
 
-    model_config = {
-        "frozen": True
-    }
+    model_config = {"frozen": True}
 
 
 class LogsSettings(BaseModel):
@@ -217,6 +214,7 @@ class LogsSettings(BaseModel):
         valid_log_levels (FrozenSet[str]): Set of valid log levels.
         bot_logger_format (str): Format of the bot logger output.
     """
+
     valid_log_levels: FrozenSet[str]
     bot_logger_format: ClassVar[str] = (
         "<green>{time:YYYY-MM-DD}</green> "
@@ -228,9 +226,7 @@ class LogsSettings(BaseModel):
 
     model_config = {
         "frozen": True,
-        "json_schema_extra": {
-            "valid_log_levels": get_default_log_levels()
-        }
+        "json_schema_extra": {"valid_log_levels": get_default_log_levels()},
     }
 
 
@@ -243,7 +239,7 @@ keyboard_settings = KeyboardSettings(
     docker_keyboard=get_default_docker_keyboard(),
     auth_keyboard=get_default_auth_keyboard(),
     auth_processing_keyboard=get_default_auth_processing_keyboard(),
-    back_keyboard=get_default_back_keyboard()
+    back_keyboard=get_default_back_keyboard(),
 )
 bot_command_settings = BotCommandSettings(bot_commands=get_default_bot_commands())
 bot_description_settings = BotDescriptionSettings()

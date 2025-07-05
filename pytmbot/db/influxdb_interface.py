@@ -9,7 +9,11 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 from pytmbot.exceptions import (
-    ErrorContext, InfluxDBConfigError, InfluxDBConnectionError, InfluxDBWriteError, InfluxDBQueryError
+    ErrorContext,
+    InfluxDBConfigError,
+    InfluxDBConnectionError,
+    InfluxDBWriteError,
+    InfluxDBQueryError,
 )
 from pytmbot.logs import BaseComponent
 
@@ -17,6 +21,7 @@ from pytmbot.logs import BaseComponent
 @dataclass(frozen=True, slots=True)
 class InfluxDBConfig:
     """Configuration for InfluxDB connection."""
+
     url: str
     token: str
     org: str
@@ -47,46 +52,50 @@ class InfluxDBInterface(BaseComponent):
         with self.log_context(action="initialization") as log:
             try:
                 if not all([config.url, config.token, config.org, config.bucket]):
-                    raise InfluxDBConfigError(ErrorContext(
-                        message="Invalid InfluxDB configuration",
-                        error_code="INVALID_CONFIG",
-                        metadata={
-                            "url": bool(config.url),
-                            "token": bool(config.token),
-                            "org": bool(config.org),
-                            "bucket": bool(config.bucket)
-                        }
-                    ))
+                    raise InfluxDBConfigError(
+                        ErrorContext(
+                            message="Invalid InfluxDB configuration",
+                            error_code="INVALID_CONFIG",
+                            metadata={
+                                "url": bool(config.url),
+                                "token": bool(config.token),
+                                "org": bool(config.org),
+                                "bucket": bool(config.bucket),
+                            },
+                        )
+                    )
 
                 if not self._is_local_url() and not self._warning_shown:
                     self._warning_shown = True
                     log.warning(
                         "Using non-local InfluxDB URL. Ensure it is secure.",
-                        extra={"url": self._config.url}
+                        extra={"url": self._config.url},
                     )
 
                 if self._config.debug_mode:
                     log.debug(
                         "InfluxDB client initialized",
-                        extra={"url": self._config.url, "org": self._config.org, "bucket": self._config.bucket}
+                        extra={
+                            "url": self._config.url,
+                            "org": self._config.org,
+                            "bucket": self._config.bucket,
+                        },
                     )
 
             except Exception as e:
                 error_context = ErrorContext(
                     message=f"InfluxDB initialization failed: {str(e)}",
                     error_code="INIT_FAILED",
-                    metadata={"url": self._config.url}
+                    metadata={"url": self._config.url},
                 )
                 raise InfluxDBConfigError(error_context) from e
 
-    def __enter__(self) -> 'InfluxDBInterface':
+    def __enter__(self) -> "InfluxDBInterface":
         """Enter the runtime context and initialize the client connection."""
         with self.log_context(action="connect") as log:
             try:
                 self._client = InfluxDBClient(
-                    url=self._config.url,
-                    token=self._config.token,
-                    org=self._config.org
+                    url=self._config.url, token=self._config.token, org=self._config.org
                 )
                 self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
                 self._query_api = self._client.query_api()
@@ -97,10 +106,7 @@ class InfluxDBInterface(BaseComponent):
                 error_context = ErrorContext(
                     message=f"Failed to establish InfluxDB connection: {str(e)}",
                     error_code="CONNECTION_FAILED",
-                    metadata={
-                        "url": self._config.url,
-                        "org": self._config.org
-                    }
+                    metadata={"url": self._config.url, "org": self._config.org},
                 )
                 raise InfluxDBConnectionError(error_context) from e
 
@@ -117,7 +123,7 @@ class InfluxDBInterface(BaseComponent):
                 except Exception as e:
                     error_context = ErrorContext(
                         message=f"Error closing InfluxDB connection: {str(e)}",
-                        error_code="DISCONNECT_FAILED"
+                        error_code="DISCONNECT_FAILED",
                     )
                     raise InfluxDBConnectionError(error_context) from e
 
@@ -141,7 +147,7 @@ class InfluxDBInterface(BaseComponent):
                 is_private = ip_addr.is_private
                 log.debug(
                     "IP address checked",
-                    extra={"hostname": hostname, "is_private": is_private}
+                    extra={"hostname": hostname, "is_private": is_private},
                 )
                 return is_private
             except ValueError:
@@ -150,13 +156,16 @@ class InfluxDBInterface(BaseComponent):
                     is_private = ipaddress.ip_address(ip_str).is_private
                     log.debug(
                         "Hostname resolved and checked",
-                        extra={"hostname": hostname, "ip": ip_str, "is_private": is_private}
+                        extra={
+                            "hostname": hostname,
+                            "ip": ip_str,
+                            "is_private": is_private,
+                        },
                     )
                     return is_private
                 except ValueError:
                     log.warning(
-                        "Failed to resolve hostname",
-                        extra={"hostname": hostname}
+                        "Failed to resolve hostname", extra={"hostname": hostname}
                     )
                     return False
 
@@ -173,13 +182,14 @@ class InfluxDBInterface(BaseComponent):
             str: The resolved IP address
         """
         import socket
+
         return socket.gethostbyname(hostname)
 
     def write_data(
-            self,
-            measurement: str,
-            fields: Dict[str, float],
-            tags: Optional[Dict[str, str]] = None,
+        self,
+        measurement: str,
+        fields: Dict[str, float],
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Write data points to InfluxDB.
@@ -193,14 +203,13 @@ class InfluxDBInterface(BaseComponent):
             InfluxDBWriteError: If write operation fails
         """
         with self.log_context(
-                action="write",
-                measurement=measurement,
-                field_count=len(fields),
-                tag_count=len(tags) if tags else 0
+            action="write",
+            measurement=measurement,
+            field_count=len(fields),
+            tag_count=len(tags) if tags else 0,
         ) as log:
             try:
-                point = (Point(measurement)
-                         .time(datetime.now(timezone.utc)))
+                point = Point(measurement).time(datetime.now(timezone.utc))
 
                 if tags:
                     for key, value in tags.items():
@@ -211,11 +220,7 @@ class InfluxDBInterface(BaseComponent):
 
                 log.debug(
                     "Writing data point",
-                    extra={
-                        "measurement": measurement,
-                        "fields": fields,
-                        "tags": tags
-                    }
+                    extra={"measurement": measurement, "fields": fields, "tags": tags},
                 )
 
                 self._write_api.write(bucket=self._config.bucket, record=point)
@@ -228,17 +233,13 @@ class InfluxDBInterface(BaseComponent):
                     metadata={
                         "measurement": measurement,
                         "field_count": len(fields),
-                        "tag_count": len(tags) if tags else 0
-                    }
+                        "tag_count": len(tags) if tags else 0,
+                    },
                 )
                 raise InfluxDBWriteError(error_context) from e
 
     def query_data(
-            self,
-            measurement: str,
-            start: str,
-            stop: str,
-            field: str
+        self, measurement: str, start: str, stop: str, field: str
     ) -> List[Tuple[datetime, float]]:
         """
         Query data from InfluxDB for a specific measurement and time range.
@@ -256,10 +257,10 @@ class InfluxDBInterface(BaseComponent):
             InfluxDBQueryError: If query operation fails
         """
         with self.log_context(
-                action="query",
-                measurement=measurement,
-                field=field,
-                time_range={"start": start, "stop": stop}
+            action="query",
+            measurement=measurement,
+            field=field,
+            time_range={"start": start, "stop": stop},
         ) as log:
             query = (
                 f'from(bucket: "{self._config.bucket}") '
@@ -280,8 +281,7 @@ class InfluxDBInterface(BaseComponent):
                 ]
 
                 log.success(
-                    "Query executed successfully",
-                    extra={"record_count": len(results)}
+                    "Query executed successfully", extra={"record_count": len(results)}
                 )
                 return results
 
@@ -292,8 +292,8 @@ class InfluxDBInterface(BaseComponent):
                     metadata={
                         "measurement": measurement,
                         "field": field,
-                        "time_range": {"start": start, "stop": stop}
-                    }
+                        "time_range": {"start": start, "stop": stop},
+                    },
                 )
                 raise InfluxDBQueryError(error_context) from e
 
@@ -319,21 +319,19 @@ class InfluxDBInterface(BaseComponent):
                 tables = self._query_api.query(query, org=self._config.org)
 
                 measurements = [
-                    record.get_value()
-                    for table in tables
-                    for record in table.records
+                    record.get_value() for table in tables for record in table.records
                 ]
 
                 log.success(
                     "Measurements retrieved successfully",
-                    extra={"count": len(measurements)}
+                    extra={"count": len(measurements)},
                 )
                 return measurements
 
             except Exception as e:
                 error_context = ErrorContext(
                     message=f"Failed to retrieve measurements: {str(e)}",
-                    error_code="LIST_MEASUREMENTS_FAILED"
+                    error_code="LIST_MEASUREMENTS_FAILED",
                 )
                 raise InfluxDBQueryError(error_context) from e
 
@@ -351,10 +349,7 @@ class InfluxDBInterface(BaseComponent):
         Raises:
             InfluxDBQueryError: If retrieval fails
         """
-        with self.log_context(
-                action="list_fields",
-                measurement=measurement
-        ) as log:
+        with self.log_context(action="list_fields", measurement=measurement) as log:
             query = (
                 f'from(bucket: "{self._config.bucket}")'
                 f"|> range(start: -1h)"
@@ -369,17 +364,12 @@ class InfluxDBInterface(BaseComponent):
                 tables = self._query_api.query(query, org=self._config.org)
 
                 fields = [
-                    record.get_value()
-                    for table in tables
-                    for record in table.records
+                    record.get_value() for table in tables for record in table.records
                 ]
 
                 log.success(
                     "Fields retrieved successfully",
-                    extra={
-                        "measurement": measurement,
-                        "field_count": len(fields)
-                    }
+                    extra={"measurement": measurement, "field_count": len(fields)},
                 )
                 return fields
 
@@ -387,6 +377,6 @@ class InfluxDBInterface(BaseComponent):
                 error_context = ErrorContext(
                     message=f"Failed to retrieve fields: {str(e)}",
                     error_code="LIST_FIELDS_FAILED",
-                    metadata={"measurement": measurement}
+                    metadata={"measurement": measurement},
                 )
                 raise InfluxDBQueryError(error_context) from e

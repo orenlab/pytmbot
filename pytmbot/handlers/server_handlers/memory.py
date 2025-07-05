@@ -38,16 +38,14 @@ def handle_memory(message: Message, bot: TeleBot):
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
-        data = button_data(
-            text="Swap info", callback_data="__swap_info__"
-        )
+        data = button_data(text="Swap info", callback_data="__swap_info__")
         keyboard = keyboards.build_inline_keyboard(data)
 
         with Compiler(
-                template_name="b_memory.jinja2",
-                context=memory_info,
-                thought_balloon=em.get_emoji("thought_balloon"),
-                abacus=em.get_emoji("abacus"),
+            template_name="b_memory.jinja2",
+            context=memory_info,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            abacus=em.get_emoji("abacus"),
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -62,8 +60,10 @@ def handle_memory(message: Message, bot: TeleBot):
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling memory command",
-            error_code="HAND_006",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling memory command",
+                error_code="HAND_006",
+                metadata={"exception": str(error)},
+            )
+        )

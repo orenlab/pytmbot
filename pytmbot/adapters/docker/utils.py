@@ -18,7 +18,7 @@ class ContainerState(str, Enum):
     STOPPED = "stopped"
 
     @classmethod
-    def from_str(cls, value: str) -> 'ContainerState':
+    def from_str(cls, value: str) -> "ContainerState":
         try:
             return cls(value.lower())
         except ValueError:
@@ -33,9 +33,9 @@ class StateCheckConfig:
 
 
 def check_container_state(
-        container_name: ContainerName,
-        target_state: str = ContainerState.RUNNING,
-        config: StateCheckConfig = StateCheckConfig()
+    container_name: ContainerName,
+    target_state: str = ContainerState.RUNNING,
+    config: StateCheckConfig = StateCheckConfig(),
 ) -> ContainerState | None:
     """
     Checks if container reaches target state within configured attempts.
@@ -63,12 +63,12 @@ def check_container_state(
                 "container": container_name,
                 "target": target.value,
                 "attempt": attempt,
-                "max_attempts": config.max_attempts
+                "max_attempts": config.max_attempts,
             }
 
             logger.info(
                 f"Checking state (attempt {attempt}/{config.max_attempts})",
-                extra=log_context
+                extra=log_context,
             )
 
             try:
@@ -83,14 +83,18 @@ def check_container_state(
 
                 logger.warning(
                     f"State mismatch: {current_state.value}, retrying in {config.interval}s",
-                    extra=log_context
+                    extra=log_context,
                 )
                 sleep(config.interval)
 
             except Exception as e:
                 logger.error(
                     "State check failed",
-                    extra={**log_context, "error": str(e), "error_type": type(e).__name__}
+                    extra={
+                        **log_context,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
                 )
                 return None
 
@@ -99,14 +103,14 @@ def check_container_state(
             extra={
                 "container": container_name,
                 "target": target.value,
-                "attempts": config.max_attempts
-            }
+                "attempts": config.max_attempts,
+            },
         )
         return current_state
 
     except ValueError as e:
         logger.error(
             "Invalid target state",
-            extra={"container": container_name, "state": target_state, "error": str(e)}
+            extra={"container": container_name, "state": target_state, "error": str(e)},
         )
         raise

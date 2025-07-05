@@ -34,40 +34,45 @@ def with_image_logging(operation_name: str):
         def wrapper(*args, **kwargs):
             start_time = time.time()
             operation_context = {
-                'operation': operation_name,
-                'function': func.__name__,
-                'start_time': datetime.now().isoformat()
+                "operation": operation_name,
+                "function": func.__name__,
+                "start_time": datetime.now().isoformat(),
             }
 
             try:
                 result = func(*args, **kwargs)
                 execution_time = time.time() - start_time
 
-                operation_context.update({
-                    'execution_time': f"{execution_time:.3f}s",
-                    'success': True,
-                    'images_processed': len(result) if isinstance(result, list) else 0
-                })
+                operation_context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": True,
+                        "images_processed": (
+                            len(result) if isinstance(result, list) else 0
+                        ),
+                    }
+                )
 
                 logger.debug(
                     f"Image operation completed: {operation_name}",
-                    extra=operation_context
+                    extra=operation_context,
                 )
 
                 return result
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                operation_context.update({
-                    'execution_time': f"{execution_time:.3f}s",
-                    'success': False,
-                    'error': str(e),
-                    'error_type': type(e).__name__
-                })
+                operation_context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": False,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    }
+                )
 
                 logger.error(
-                    f"Image operation failed: {operation_name}",
-                    extra=operation_context
+                    f"Image operation failed: {operation_name}", extra=operation_context
                 )
                 raise ImageOperationError(f"Failed during {operation_name}: {e}") from e
 
@@ -88,16 +93,16 @@ def process_image_attrs(image: Image) -> Dict[str, Any]:
     """
     try:
         created_raw = image.attrs.get("Created", "")
-        created_clean = created_raw.split('.')[0].rstrip('Z')
+        created_clean = created_raw.split(".")[0].rstrip("Z")
 
         created_time = datetime.fromisoformat(created_clean) if created_clean else None
 
         # Safely handle RepoTags - if empty or None, use first tag from image.tags or "N/A"
         repo_tags = image.attrs.get("RepoTags", [])
         primary_name = (
-            repo_tags[0] if repo_tags
-            else (image.tags[0] if image.tags
-                  else "<none>:<none>")
+            repo_tags[0]
+            if repo_tags
+            else (image.tags[0] if image.tags else "<none>:<none>")
         )
 
         return {
@@ -112,22 +117,20 @@ def process_image_attrs(image: Image) -> Dict[str, Any]:
             "docker_version": image.attrs.get("DockerVersion", "N/A"),
             "labels": image.attrs.get("ContainerConfig", {}).get("Labels", {}),
             "exposed_ports": list(
-                image.attrs.get("ContainerConfig", {})
-                .get("ExposedPorts", {})
-                .keys()
+                image.attrs.get("ContainerConfig", {}).get("ExposedPorts", {}).keys()
             ),
             "env_variables": image.attrs.get("ContainerConfig", {}).get("Env", []),
             "entrypoint": image.attrs.get("ContainerConfig", {}).get("Entrypoint", []),
-            "cmd": image.attrs.get("ContainerConfig", {}).get("Cmd", [])
+            "cmd": image.attrs.get("ContainerConfig", {}).get("Cmd", []),
         }
     except Exception as e:
         logger.error(
             f"Failed to process image attributes for {image.short_id}: {e}",
-            extra={'image_id': image.short_id, 'error': str(e)}
+            extra={"image_id": image.short_id, "error": str(e)},
         )
         return {
             "id": image.short_id,
-            "error": f"Failed to process image attributes: {e}"
+            "error": f"Failed to process image attributes: {e}",
         }
 
 
@@ -185,7 +188,7 @@ def get_image_history(image_id: str) -> List[Dict[str, Any]]:
                     "created_by": layer.get("CreatedBy", "N/A"),
                     "size": set_naturalsize(layer.get("Size", 0)),
                     "comment": layer.get("Comment", ""),
-                    "tags": layer.get("Tags", [])
+                    "tags": layer.get("Tags", []),
                 }
                 for layer in history
             ]
@@ -220,7 +223,7 @@ def get_image_stats() -> Dict[str, Any]:
                 "operating_systems": list(os_types),
                 "architectures": list(architectures),
                 "tagged_images": sum(1 for image in images if image.tags),
-                "untagged_images": sum(1 for image in images if not image.tags)
+                "untagged_images": sum(1 for image in images if not image.tags),
             }
 
     except Exception as e:

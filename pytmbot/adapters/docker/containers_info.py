@@ -15,7 +15,11 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.exceptions import ContainerNotFoundError, DockerOperationException, ErrorContext
+from pytmbot.exceptions import (
+    ContainerNotFoundError,
+    DockerOperationException,
+    ErrorContext,
+)
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturaltime
@@ -36,42 +40,46 @@ def with_operation_logging(operation_name: str):
         def wrapper(*args, **kwargs):
             start_time = time.time()
             operation_context = {
-                'operation': operation_name,
-                'args': args,
-                'kwargs': kwargs,
-                'start_time': datetime.now().isoformat()
+                "operation": operation_name,
+                "args": args,
+                "kwargs": kwargs,
+                "start_time": datetime.now().isoformat(),
             }
 
             try:
                 result = func(*args, **kwargs)
                 execution_time = time.time() - start_time
 
-                operation_context.update({
-                    'execution_time': f"{execution_time:.3f}s",
-                    'success': True,
-                    'result_type': type(result).__name__
-                })
+                operation_context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": True,
+                        "result_type": type(result).__name__,
+                    }
+                )
 
                 if settings.docker.debug_docker_client:
                     logger.debug(
                         f"Docker operation completed: {operation_name}",
-                        extra=operation_context
+                        extra=operation_context,
                     )
 
                 return result
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                operation_context.update({
-                    'execution_time': f"{execution_time:.3f}s",
-                    'success': False,
-                    'error': str(e),
-                    'error_type': type(e).__name__
-                })
+                operation_context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": False,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    }
+                )
 
                 logger.error(
                     f"Docker operation failed: {operation_name}",
-                    extra=operation_context
+                    extra=operation_context,
                 )
                 raise
 
@@ -118,17 +126,21 @@ def __get_container_attributes(container_id: str) -> Container:
         with DockerAdapter() as adapter:
             return adapter.containers.get(container_id)
     except NotFound:
-        raise ContainerNotFoundError(ErrorContext(
-            message="Container not found",
-            error_code="DOCKER_001",
-            metadata={"container_id": container_id}
-        ))
+        raise ContainerNotFoundError(
+            ErrorContext(
+                message="Container not found",
+                error_code="DOCKER_001",
+                metadata={"container_id": container_id},
+            )
+        )
     except Exception as e:
-        raise DockerOperationException(ErrorContext(
-            message="Failed to get container attributes",
-            error_code="DOCKER_002",
-            metadata={"container_id": container_id, "exception": str(e)}
-        ))
+        raise DockerOperationException(
+            ErrorContext(
+                message="Failed to get container attributes",
+                error_code="DOCKER_002",
+                metadata={"container_id": container_id, "exception": str(e)},
+            )
+        )
 
 
 @with_operation_logging("aggregate_container_details")
@@ -153,9 +165,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
         "image": attrs.get("Config", {}).get("Image", "N/A"),
         "created": created_at.strftime("%Y-%m-%d, %H:%M:%S"),
         "run_at": (
-            set_naturaltime(
-                datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
-            )
+            set_naturaltime(datetime.fromisoformat(attrs["State"].get("StartedAt", "")))
             if attrs["State"].get("StartedAt")
             else "N/A"
         ),
@@ -190,7 +200,7 @@ def retrieve_containers_stats() -> List[Dict[str, str]]:
             except Exception as e:
                 logger.error(
                     f"Failed to process container {container_id}: {e}",
-                    extra={'container_id': container_id, 'error': str(e)}
+                    extra={"container_id": container_id, "error": str(e)},
                 )
 
     return container_details
@@ -212,25 +222,24 @@ def fetch_container_logs(container_id: str) -> str:
     """
     try:
         container = __get_container_attributes(container_id)
-        logs = container.logs(
-            tail=50,
-            stdout=True,
-            stderr=True,
-            timestamps=True
-        )
+        logs = container.logs(tail=50, stdout=True, stderr=True, timestamps=True)
         return logs.decode("utf-8", errors="replace")[-3800:]
     except NotFound:
-        raise ContainerNotFoundError(ErrorContext(
-            message="Container not found",
-            error_code="DOCKER_001",
-            metadata={"container_id": container_id}
-        ))
+        raise ContainerNotFoundError(
+            ErrorContext(
+                message="Container not found",
+                error_code="DOCKER_001",
+                metadata={"container_id": container_id},
+            )
+        )
     except Exception as e:
-        raise DockerOperationException(ErrorContext(
-            message="Failed to get container attributes",
-            error_code="DOCKER_002",
-            metadata={"container_id": container_id, "exception": str(e)}
-        ))
+        raise DockerOperationException(
+            ErrorContext(
+                message="Failed to get container attributes",
+                error_code="DOCKER_002",
+                metadata={"container_id": container_id, "exception": str(e)},
+            )
+        )
 
 
 @with_operation_logging("fetch_docker_counters")
@@ -244,7 +253,7 @@ def fetch_docker_counters() -> Dict[str, int]:
     with DockerAdapter() as adapter:
         return {
             "images_count": len(adapter.images.list()),
-            "containers_count": len(adapter.containers.list(all=True))
+            "containers_count": len(adapter.containers.list(all=True)),
         }
 
 

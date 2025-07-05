@@ -31,7 +31,8 @@ class PluginInterface(ABC):
     Raises:
         TypeError: If the provided bot instance is not a TeleBot object.
     """
-    __slots__ = ('bot',)
+
+    __slots__ = ("bot",)
 
     def __init__(self, bot: TeleBot) -> None:
         if not isinstance(bot, TeleBot):

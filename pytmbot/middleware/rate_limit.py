@@ -18,6 +18,7 @@ UserID: TypeAlias = int
 
 class RateLimitConfig(TypedDict):
     """Type definition for rate limit configuration."""
+
     limit: int
     period: timedelta
 
@@ -31,7 +32,9 @@ class RateLimit(BaseMiddleware):
     """
 
     SUPPORTED_UPDATES: Final[list[str]] = ["message"]
-    WARNING_MESSAGE: Final[str] = "⚠️ You're sending messages too quickly. 🕒 Please slow down."
+    WARNING_MESSAGE: Final[str] = (
+        "⚠️ You're sending messages too quickly. 🕒 Please slow down."
+    )
 
     def __init__(self, bot: TeleBot, *, limit: int, period: timedelta) -> None:
         """
@@ -83,15 +86,12 @@ class RateLimit(BaseMiddleware):
                 "user_id": user.id,
                 "username": user.username or "unknown",
                 "limit": self.limit,
-                "period": str(self.period)
-            }
+                "period": str(self.period),
+            },
         )
 
         with suppress(Exception):
-            self.bot.send_message(
-                chat_id=message.chat.id,
-                text=self.WARNING_MESSAGE
-            )
+            self.bot.send_message(chat_id=message.chat.id, text=self.WARNING_MESSAGE)
 
         return CancelUpdate()
 
@@ -122,7 +122,8 @@ class RateLimit(BaseMiddleware):
         self._user_requests[user.id].append(current_time)
         return None
 
-    def post_process(self, message: Message, data: Any,
-                     exception: Optional[Exception]) -> None:
+    def post_process(
+        self, message: Message, data: Any, exception: Optional[Exception]
+    ) -> None:
         """Post-process message after main middleware execution."""
         pass  # Currently unused but kept for interface compliance

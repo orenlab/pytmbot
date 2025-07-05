@@ -25,6 +25,8 @@ def generate_secret_token(secret_length: int = 32) -> str:
 
 def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> str:
     if len(token) <= visible_chars * 2:
-        return message.replace(token, '*' * len(token))
-    return message.replace(token,
-                           f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}")
+        return message.replace(token, "*" * len(token))
+    return message.replace(
+        token,
+        f"{token[:visible_chars]}{'*' * (len(token) - visible_chars * 2)}{token[-visible_chars:]}",
+    )

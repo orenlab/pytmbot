@@ -17,15 +17,16 @@ from pytmbot.logs import Logger, BaseComponent
 from pytmbot.parsers.filters import format_timestamp
 
 TEMPLATE_SUBDIRECTORIES: Final[Dict[str, str]] = {
-    'a': 'auth_templates',
-    'b': 'base_templates',
-    'd': 'docker_templates',
+    "a": "auth_templates",
+    "b": "base_templates",
+    "d": "docker_templates",
 }
 
 
 @dataclass(frozen=True)
 class TemplateMetadata:
     """Metadata for template caching and identification."""
+
     name: str
     subdirectory: str
 
@@ -49,7 +50,9 @@ class Jinja2Renderer(BaseComponent):
         super().__init__("template_renderer")
 
         with self.log_context(action="init", cache_type="WeakValueDictionary") as log:
-            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = WeakValueDictionary()
+            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = (
+                WeakValueDictionary()
+            )
             log.info("Initialized Jinja2Renderer instance")
 
     @classmethod
@@ -64,7 +67,9 @@ class Jinja2Renderer(BaseComponent):
         """
         if cls._instance is None:
             logger = Logger()
-            with logger.context(component="template_renderer", action="create_singleton") as log:
+            with logger.context(
+                component="template_renderer", action="create_singleton"
+            ) as log:
                 log.info("Creating new Jinja2Renderer singleton instance")
                 cls._instance = cls._initialize_instance()
                 log.success("Jinja2Renderer singleton instance created successfully")
@@ -98,34 +103,34 @@ class Jinja2Renderer(BaseComponent):
         logger = Logger()
 
         with logger.context(
-                component="template_renderer",
-                action="create_environment",
-                template_path=str(template_path)
+            component="template_renderer",
+            action="create_environment",
+            template_path=str(template_path),
         ) as log:
             env = SandboxedEnvironment(
                 loader=FileSystemLoader(template_path),
                 autoescape=select_autoescape(
-                    enabled_extensions=('html', 'txt', 'jinja2'),
-                    default_for_string=True
+                    enabled_extensions=("html", "txt", "jinja2"),
+                    default_for_string=True,
                 ),
                 trim_blocks=True,
                 lstrip_blocks=True,
             )
 
             # Register custom filters
-            env.filters['format_timestamp'] = format_timestamp
+            env.filters["format_timestamp"] = format_timestamp
 
             log.success(
                 "Jinja2 environment created successfully",
-                filters=list(env.filters.keys())
+                filters=list(env.filters.keys()),
             )
             return env
 
     def render_template(
-            self,
-            template_name: str,
-            emojis: Optional[Dict[str, str]] = None,
-            **kwargs: Any,
+        self,
+        template_name: str,
+        emojis: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Render a Jinja2 template with the given context.
@@ -144,9 +149,7 @@ class Jinja2Renderer(BaseComponent):
         Security: All template rendering is done in a sandboxed environment
         """
         with self.log_context(
-                action="render",
-                template=template_name,
-                context_keys=list(kwargs.keys())
+            action="render", template=template_name, context_keys=list(kwargs.keys())
         ) as log:
             try:
                 template_subdir = self._get_template_subdirectory(template_name)
@@ -157,21 +160,19 @@ class Jinja2Renderer(BaseComponent):
                 rendered = template.render(emojis=emojis or {}, **kwargs)
 
                 log.success(
-                    "Template rendered successfully",
-                    output_length=len(rendered)
+                    "Template rendered successfully", output_length=len(rendered)
                 )
                 return rendered
 
             except TemplateError as error:
-                log.error(
-                    "Template rendering failed",
-                    error=str(error)
+                log.error("Template rendering failed", error=str(error))
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message="Template rendering failed",
+                        error_code="TEMPLATE_001",
+                        metadata={"template": template_name, "error": str(error)},
+                    )
                 )
-                raise exceptions.TemplateError(ErrorContext(
-                    message="Template rendering failed",
-                    error_code="TEMPLATE_001",
-                    metadata={"template": template_name, "error": str(error)}
-                ))
 
     @lru_cache(maxsize=128)
     def _get_template_subdirectory(self, template_name: str) -> str:
@@ -195,15 +196,14 @@ class Jinja2Renderer(BaseComponent):
             try:
                 return TEMPLATE_SUBDIRECTORIES[template_name[0]]
             except (IndexError, KeyError) as error:
-                log.error(
-                    "Invalid template name",
-                    error=str(error)
+                log.error("Invalid template name", error=str(error))
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message="Invalid template name",
+                        error_code="TEMPLATE_002",
+                        metadata={"template": template_name, "error": str(error)},
+                    )
                 )
-                raise exceptions.TemplateError(ErrorContext(
-                    message="Invalid template name",
-                    error_code="TEMPLATE_002",
-                    metadata={"template": template_name, "error": str(error)}
-                ))
 
     def _get_template(self, metadata: TemplateMetadata) -> Template:
         """
@@ -219,9 +219,9 @@ class Jinja2Renderer(BaseComponent):
             PyTMBotErrorTemplateError: If template cannot be loaded
         """
         with self.log_context(
-                action="get_template",
-                template=metadata.name,
-                subdirectory=metadata.subdirectory
+            action="get_template",
+            template=metadata.name,
+            subdirectory=metadata.subdirectory,
         ) as log:
             if template := self._template_cache.get(metadata):
                 log.debug("Template found in cache")
@@ -236,17 +236,16 @@ class Jinja2Renderer(BaseComponent):
 
                 log.success(
                     "Template loaded and cached successfully",
-                    template_path=str(template_path)
+                    template_path=str(template_path),
                 )
                 return template
 
             except TemplateError as error:
-                log.error(
-                    "Failed to load template",
-                    error=str(error)
+                log.error("Failed to load template", error=str(error))
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message="Failed to load template",
+                        error_code="TEMPLATE_003",
+                        metadata={"template": metadata.name, "error": str(error)},
+                    )
                 )
-                raise exceptions.TemplateError(ErrorContext(
-                    message="Failed to load template",
-                    error_code="TEMPLATE_003",
-                    metadata={"template": metadata.name, "error": str(error)}
-                ))

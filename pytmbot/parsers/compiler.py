@@ -11,6 +11,7 @@ from pytmbot.parsers._parser import Jinja2Renderer
 
 class TemplateType(StrEnum):
     """Supported template types."""
+
     AUTH = "auth"
     BASE = "base"
     DOCKER = "docker"
@@ -20,6 +21,7 @@ class TemplateType(StrEnum):
 @dataclass(frozen=True)
 class CompilerConfig:
     """Template compiler configuration."""
+
     TEMPLATE_EXTENSIONS: ClassVar[tuple[str, ...]] = (".jinja2",)
     DEFAULT_ENCODING: ClassVar[str] = "utf-8"
 
@@ -52,14 +54,10 @@ class Compiler(BaseComponent):
         "a_": TemplateType.AUTH,
         "b_": TemplateType.BASE,
         "d_": TemplateType.DOCKER,
-        "plugin_": TemplateType.PLUGIN
+        "plugin_": TemplateType.PLUGIN,
     }
 
-    def __init__(
-            self,
-            template_name: str,
-            **context: Any
-    ) -> None:
+    def __init__(self, template_name: str, **context: Any) -> None:
         """
         Initialize the compiler with template details.
 
@@ -77,9 +75,7 @@ class Compiler(BaseComponent):
         self._renderer = Jinja2Renderer.instance()
 
         with self.log_context(
-                action="init",
-                template=template_name,
-                context_keys=list(context.keys())
+            action="init", template=template_name, context_keys=list(context.keys())
         ) as log:
             log.info("Template compiler initialized")
 
@@ -107,15 +103,16 @@ class Compiler(BaseComponent):
                 return template_type
 
         with self.log_context(
-                action="template_type",
-                template_name=self._template_name
+            action="template_type", template_name=self._template_name
         ) as log:
             log.error("Unknown template prefix")
-            raise TemplateError(ErrorContext(
-                message="Unknown template prefix",
-                error_code="UNKNOWN_TEMPLATE_PREFIX",
-                metadata={"template_name": self._template_name}
-            ))
+            raise TemplateError(
+                ErrorContext(
+                    message="Unknown template prefix",
+                    error_code="UNKNOWN_TEMPLATE_PREFIX",
+                    metadata={"template_name": self._template_name},
+                )
+            )
 
     def compile(self) -> str:
         """
@@ -129,15 +126,14 @@ class Compiler(BaseComponent):
         """
         try:
             with self.log_context(
-                    action="compile",
-                    template=self._template_name,
-                    type=self.template_type.value
+                action="compile",
+                template=self._template_name,
+                type=self.template_type.value,
             ) as log:
                 log.info("Starting template compilation")
 
                 compiled_content = self._renderer.render_template(
-                    template_name=self._template_name,
-                    **self._context
+                    template_name=self._template_name, **self._context
                 )
 
                 log.success("Template compilation completed successfully")
@@ -145,19 +141,16 @@ class Compiler(BaseComponent):
 
         except Exception as e:
             with self.log_context(
-                    action="compile",
-                    template=self._template_name,
-                    error=str(e)
+                action="compile", template=self._template_name, error=str(e)
             ) as log:
                 log.error("Template compilation failed")
-                raise TemplateError(ErrorContext(
-                    message="Template compilation failed",
-                    error_code="TEMPLATE_COMPILATION_ERROR",
-                    metadata={
-                        "template": self._template_name,
-                        "error": str(e)
-                    }
-                ))
+                raise TemplateError(
+                    ErrorContext(
+                        message="Template compilation failed",
+                        error_code="TEMPLATE_COMPILATION_ERROR",
+                        metadata={"template": self._template_name, "error": str(e)},
+                    )
+                )
 
 
 __all__ = ["Compiler", "TemplateType"]

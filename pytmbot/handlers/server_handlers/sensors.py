@@ -41,12 +41,12 @@ def handle_sensors(message: Message, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_sensors.jinja2",
-                context=sensors_data,
-                thought_balloon=em.get_emoji("thought_balloon"),
-                thermometer=em.get_emoji("thermometer"),
-                exclamation=em.get_emoji("red_exclamation_mark"),
-                melting_face=em.get_emoji("melting_face"),
+            template_name="b_sensors.jinja2",
+            context=sensors_data,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            thermometer=em.get_emoji("thermometer"),
+            exclamation=em.get_emoji("red_exclamation_mark"),
+            melting_face=em.get_emoji("melting_face"),
         ) as compiler:
             sensors_message = compiler.compile()
 
@@ -56,8 +56,10 @@ def handle_sensors(message: Message, bot: TeleBot):
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling sensors",
-            error_code="HAND_003",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling sensors",
+                error_code="HAND_003",
+                metadata={"exception": str(error)},
+            )
+        )

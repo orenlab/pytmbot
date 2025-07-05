@@ -17,7 +17,7 @@ from pytmbot.adapters.psutil.adapter_types import (
     NetworkInterfaceStats,
     CPUFrequencyStats,
     CPUUsageStats,
-    TopProcess
+    TopProcess,
 )
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize
@@ -39,7 +39,7 @@ class PsutilAdapter:
             result = func()
             logger.debug(
                 f"Successfully retrieved {operation}",
-                extra={"result": result, **log_context}
+                extra={"result": result, **log_context},
             )
             return result
         except Exception as e:
@@ -49,8 +49,8 @@ class PsutilAdapter:
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "operation": operation,
-                    **log_context
-                }
+                    **log_context,
+                },
             )
             return fallback
 
@@ -78,82 +78,109 @@ class PsutilAdapter:
 
             # Basic process info
             with suppress(Exception):
-                stats.update({
-                    'pid': process.pid,
-                    'name': process.name(),
-                    'status': process.status(),
-                    'create_time': process.create_time(),
-                })
+                stats.update(
+                    {
+                        "pid": process.pid,
+                        "name": process.name(),
+                        "status": process.status(),
+                        "create_time": process.create_time(),
+                    }
+                )
 
             # CPU usage (with interval for accuracy)
             with suppress(Exception):
                 cpu_percent = process.cpu_percent(interval=0.1)
-                stats.update({
-                    'cpu_percent': f"{cpu_percent:.1f}%",
-                    'cpu_times': process.cpu_times()._asdict(),
-                    'cpu_num': getattr(process, 'cpu_num', lambda: None)(),
-                })
+                stats.update(
+                    {
+                        "cpu_percent": f"{cpu_percent:.1f}%",
+                        "cpu_times": process.cpu_times()._asdict(),
+                        "cpu_num": getattr(process, "cpu_num", lambda: None)(),
+                    }
+                )
 
             # Memory usage
             with suppress(Exception):
                 memory_info = process.memory_info()
                 memory_percent = process.memory_percent()
-                stats.update({
-                    'memory_rss': set_naturalsize(memory_info.rss),
-                    'memory_vms': set_naturalsize(memory_info.vms),
-                    'memory_percent': f"{memory_percent:.1f}%",
-                })
+                stats.update(
+                    {
+                        "memory_rss": set_naturalsize(memory_info.rss),
+                        "memory_vms": set_naturalsize(memory_info.vms),
+                        "memory_percent": f"{memory_percent:.1f}%",
+                    }
+                )
 
                 # Extended memory info if available
-                if hasattr(process, 'memory_full_info'):
+                if hasattr(process, "memory_full_info"):
                     try:
                         full_memory = process.memory_full_info()
-                        stats.update({
-                            'memory_uss': set_naturalsize(full_memory.uss),  # Unique Set Size
-                            'memory_pss': set_naturalsize(full_memory.pss),  # Proportional Set Size
-                        })
+                        stats.update(
+                            {
+                                "memory_uss": set_naturalsize(
+                                    full_memory.uss
+                                ),  # Unique Set Size
+                                "memory_pss": set_naturalsize(
+                                    full_memory.pss
+                                ),  # Proportional Set Size
+                            }
+                        )
                     except (AttributeError, psutil.AccessDenied):
                         pass
 
             # IO statistics
             with suppress(Exception):
                 io_counters = process.io_counters()
-                stats.update({
-                    'io_read_count': io_counters.read_count,
-                    'io_write_count': io_counters.write_count,
-                    'io_read_bytes': set_naturalsize(io_counters.read_bytes),
-                    'io_write_bytes': set_naturalsize(io_counters.write_bytes),
-                })
+                stats.update(
+                    {
+                        "io_read_count": io_counters.read_count,
+                        "io_write_count": io_counters.write_count,
+                        "io_read_bytes": set_naturalsize(io_counters.read_bytes),
+                        "io_write_bytes": set_naturalsize(io_counters.write_bytes),
+                    }
+                )
 
             # File descriptors and connections
             with suppress(Exception):
-                stats.update({
-                    'num_fds': process.num_fds() if hasattr(process, 'num_fds') else 'N/A',
-                    'num_threads': process.num_threads(),
-                })
+                stats.update(
+                    {
+                        "num_fds": (
+                            process.num_fds() if hasattr(process, "num_fds") else "N/A"
+                        ),
+                        "num_threads": process.num_threads(),
+                    }
+                )
 
             # Network connections count
             with suppress(Exception):
                 connections = process.net_connections()
-                stats.update({
-                    'num_connections': len(connections),
-                    'connections_by_status': self._count_connections_by_status(connections),
-                })
+                stats.update(
+                    {
+                        "num_connections": len(connections),
+                        "connections_by_status": self._count_connections_by_status(
+                            connections
+                        ),
+                    }
+                )
 
             # Context switches
             with suppress(Exception):
                 ctx_switches = process.num_ctx_switches()
-                stats.update({
-                    'ctx_switches_voluntary': ctx_switches.voluntary,
-                    'ctx_switches_involuntary': ctx_switches.involuntary,
-                })
+                stats.update(
+                    {
+                        "ctx_switches_voluntary": ctx_switches.voluntary,
+                        "ctx_switches_involuntary": ctx_switches.involuntary,
+                    }
+                )
 
             # Working directory and command line
             with suppress(Exception):
-                stats.update({
-                    'cwd': process.cwd(),
-                    'cmdline': ' '.join(process.cmdline()[:3]) + ('...' if len(process.cmdline()) > 3 else ''),
-                })
+                stats.update(
+                    {
+                        "cwd": process.cwd(),
+                        "cmdline": " ".join(process.cmdline()[:3])
+                        + ("..." if len(process.cmdline()) > 3 else ""),
+                    }
+                )
 
             return stats
 
@@ -161,7 +188,7 @@ class PsutilAdapter:
             f"process stats (PID: {pid or os.getpid()})",
             _get_process_info,
             {},
-            pid=pid or os.getpid()
+            pid=pid or os.getpid(),
         )
 
     @staticmethod
@@ -169,7 +196,7 @@ class PsutilAdapter:
         """Count network connections by their status."""
         status_counts = {}
         for conn in connections:
-            status = conn.status if hasattr(conn, 'status') else 'UNKNOWN'
+            status = conn.status if hasattr(conn, "status") else "UNKNOWN"
             status_counts[status] = status_counts.get(status, 0) + 1
         return status_counts
 
@@ -192,52 +219,60 @@ class PsutilAdapter:
             # Essential metrics with error handling
             with suppress(Exception):
                 cpu_percent = process.cpu_percent(interval=0.1)
-                summary['cpu'] = f"{cpu_percent:.1f}%"
+                summary["cpu"] = f"{cpu_percent:.1f}%"
 
             with suppress(Exception):
                 memory_info = process.memory_info()
                 memory_percent = process.memory_percent()
-                summary.update({
-                    'memory_rss': set_naturalsize(memory_info.rss),
-                    'memory_percent': f"{memory_percent:.1f}%",
-                })
+                summary.update(
+                    {
+                        "memory_rss": set_naturalsize(memory_info.rss),
+                        "memory_percent": f"{memory_percent:.1f}%",
+                    }
+                )
 
             with suppress(Exception):
-                summary.update({
-                    'threads': process.num_threads(),
-                    'status': process.status(),
-                })
+                summary.update(
+                    {
+                        "threads": process.num_threads(),
+                        "status": process.status(),
+                    }
+                )
 
             # IO activity indicator
             with suppress(Exception):
                 io_counters = process.io_counters()
-                summary.update({
-                    'io_reads': io_counters.read_count,
-                    'io_writes': io_counters.write_count,
-                })
+                summary.update(
+                    {
+                        "io_reads": io_counters.read_count,
+                        "io_writes": io_counters.write_count,
+                    }
+                )
 
             return summary
 
         return self._safe_execute(
-            "health summary",
-            _get_health_summary,
-            {},
-            operation_type="health_check"
+            "health summary", _get_health_summary, {}, operation_type="health_check"
         )
 
     def get_load_average(self) -> LoadAverage:
         """Get system load averages."""
         return self._safe_execute(
-            "load averages",
-            self._psutil.getloadavg,
-            (0.0, 0.0, 0.0)
+            "load averages", self._psutil.getloadavg, (0.0, 0.0, 0.0)
         )
 
     def get_memory(self) -> MemoryStats:
         """Get memory statistics with natural size formatting."""
         memory_attrs = [
-            "total", "available", "percent", "used", "free",
-            "active", "inactive", "cached", "shared"
+            "total",
+            "available",
+            "percent",
+            "used",
+            "free",
+            "active",
+            "inactive",
+            "cached",
+            "shared",
         ]
 
         def _get_memory():
@@ -245,7 +280,8 @@ class PsutilAdapter:
             return {
                 attr: (
                     set_naturalsize(getattr(stats, attr))
-                    if attr != "percent" else getattr(stats, attr)
+                    if attr != "percent"
+                    else getattr(stats, attr)
                 )
                 for attr in memory_attrs
                 if hasattr(stats, attr)
@@ -261,15 +297,17 @@ class PsutilAdapter:
             for fs in self._psutil.disk_partitions(all=False):
                 with suppress(Exception):
                     usage = self._psutil.disk_usage(fs.mountpoint)
-                    stats.append({
-                        "device_name": fs.device,
-                        "fs_type": fs.fstype,
-                        "mnt_point": fs.mountpoint.replace("\u00A0", " "),
-                        "size": set_naturalsize(usage.total),
-                        "used": set_naturalsize(usage.used),
-                        "free": set_naturalsize(usage.free),
-                        "percent": usage.percent
-                    })
+                    stats.append(
+                        {
+                            "device_name": fs.device,
+                            "fs_type": fs.fstype,
+                            "mnt_point": fs.mountpoint.replace("\u00A0", " "),
+                            "size": set_naturalsize(usage.total),
+                            "used": set_naturalsize(usage.used),
+                            "free": set_naturalsize(usage.free),
+                            "percent": usage.percent,
+                        }
+                    )
             return stats
 
         return self._safe_execute("disk usage", _get_disk_stats, [])
@@ -283,7 +321,7 @@ class PsutilAdapter:
                 "total": set_naturalsize(swap.total),
                 "used": set_naturalsize(swap.used),
                 "free": set_naturalsize(swap.free),
-                "percent": swap.percent
+                "percent": swap.percent,
             }
 
         return self._safe_execute("swap memory", _get_swap, {})
@@ -299,10 +337,7 @@ class PsutilAdapter:
 
             for name, stats in temps.items():
                 if stats and len(stats) > 0:
-                    sensors.append({
-                        "sensor_name": name,
-                        "sensor_value": stats[0][1]
-                    })
+                    sensors.append({"sensor_name": name, "sensor_value": stats[0][1]})
             return sensors
 
         return self._safe_execute("sensor temperatures", _get_temps, [])
@@ -322,11 +357,14 @@ class PsutilAdapter:
 
         def _get_counts():
             counts = {
-                status: sum(1 for proc in self._psutil.process_iter(['status'])
-                            if proc.info['status'] == status)
-                for status in ('running', 'sleeping', 'idle')
+                status: sum(
+                    1
+                    for proc in self._psutil.process_iter(["status"])
+                    if proc.info["status"] == status
+                )
+                for status in ("running", "sleeping", "idle")
             }
-            counts['total'] = sum(counts.values())
+            counts["total"] = sum(counts.values())
             return counts
 
         return self._safe_execute("process counts", _get_counts, {})
@@ -336,16 +374,18 @@ class PsutilAdapter:
 
         def _get_net_io():
             stats = self._psutil.net_io_counters()
-            return [{
-                "bytes_sent": set_naturalsize(stats.bytes_sent),
-                "bytes_recv": set_naturalsize(stats.bytes_recv),
-                "packets_sent": stats.packets_sent,
-                "packets_recv": stats.packets_recv,
-                "err_in": stats.errin,
-                "err_out": stats.errout,
-                "drop_in": stats.dropin,
-                "drop_out": stats.dropout
-            }]
+            return [
+                {
+                    "bytes_sent": set_naturalsize(stats.bytes_sent),
+                    "bytes_recv": set_naturalsize(stats.bytes_recv),
+                    "packets_sent": stats.packets_sent,
+                    "packets_recv": stats.packets_recv,
+                    "err_in": stats.errin,
+                    "err_out": stats.errout,
+                    "drop_in": stats.dropin,
+                    "drop_out": stats.dropout,
+                }
+            ]
 
         return self._safe_execute("network I/O", _get_net_io, [])
 
@@ -353,12 +393,15 @@ class PsutilAdapter:
         """Get information about logged-in users."""
 
         def _get_users():
-            return [{
-                "username": user.name,
-                "terminal": user.terminal,
-                "host": user.host,
-                "started": user.started
-            } for user in self._psutil.users()]
+            return [
+                {
+                    "username": user.name,
+                    "terminal": user.terminal,
+                    "host": user.host,
+                    "started": user.started,
+                }
+                for user in self._psutil.users()
+            ]
 
         return self._safe_execute("users info", _get_users, [])
 
@@ -379,7 +422,7 @@ class PsutilAdapter:
                         if_addrs[interface][0].address
                         if interface in if_addrs and if_addrs[interface]
                         else "N/A"
-                    )
+                    ),
                 }
                 for interface, stats in if_stats.items()
             }
@@ -394,7 +437,7 @@ class PsutilAdapter:
             return {
                 "current_freq": freq.current,
                 "min_freq": freq.min,
-                "max_freq": freq.max
+                "max_freq": freq.max,
             }
 
         return self._safe_execute("CPU frequency", _get_cpu_freq, {})
@@ -405,13 +448,16 @@ class PsutilAdapter:
         def _get_cpu_usage():
             return {
                 "cpu_percent": self._psutil.cpu_percent(interval=1),
-                "cpu_percent_per_core": self._psutil.cpu_percent(interval=1, percpu=True)
+                "cpu_percent_per_core": self._psutil.cpu_percent(
+                    interval=1, percpu=True
+                ),
             }
 
-        return self._safe_execute("CPU usage", _get_cpu_usage, {
-            "cpu_percent": 0.0,
-            "cpu_percent_per_core": []
-        })
+        return self._safe_execute(
+            "CPU usage",
+            _get_cpu_usage,
+            {"cpu_percent": 0.0, "cpu_percent_per_core": []},
+        )
 
     def get_top_processes(self, count: int = 10) -> list[TopProcess]:
         """Get the top processes by CPU and memory usage."""
@@ -421,22 +467,26 @@ class PsutilAdapter:
 
         def _get_top_processes():
             processes = []
-            for proc in self._psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+            for proc in self._psutil.process_iter(
+                ["pid", "name", "cpu_percent", "memory_percent"]
+            ):
                 with suppress(Exception):  # Suppress errors for inaccessible processes
-                    cpu_percent = proc.info['cpu_percent'] or 0.0
-                    memory_percent = proc.info['memory_percent'] or 0.0
-                    processes.append({
-                        "pid": proc.info['pid'],
-                        "name": proc.info['name'],
-                        "cpu_percent": cpu_percent,
-                        "memory_percent": memory_percent
-                    })
+                    cpu_percent = proc.info["cpu_percent"] or 0.0
+                    memory_percent = proc.info["memory_percent"] or 0.0
+                    processes.append(
+                        {
+                            "pid": proc.info["pid"],
+                            "name": proc.info["name"],
+                            "cpu_percent": cpu_percent,
+                            "memory_percent": memory_percent,
+                        }
+                    )
 
             # Sort by CPU and memory usage, then take the top `count` processes
             sorted_processes = sorted(
                 processes,
-                key=lambda p: (p['cpu_percent'], p['memory_percent']),
-                reverse=True
+                key=lambda p: (p["cpu_percent"], p["memory_percent"]),
+                reverse=True,
             )
             return sorted_processes[:count]
 

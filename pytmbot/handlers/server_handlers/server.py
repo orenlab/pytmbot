@@ -31,7 +31,9 @@ def handle_server(message: Message, bot: TeleBot) -> None:
     """
     try:
         bot.send_chat_action(message.chat.id, "typing")
-        server_keyboard = keyboards.build_reply_keyboard(keyboard_type="server_keyboard")
+        server_keyboard = keyboards.build_reply_keyboard(
+            keyboard_type="server_keyboard"
+        )
 
         first_name: str = message.from_user.first_name
 
@@ -47,7 +49,7 @@ def handle_server(message: Message, bot: TeleBot) -> None:
         }
 
         with Compiler(
-                template_name="b_server.jinja2", first_name=first_name, **emojis
+            template_name="b_server.jinja2", first_name=first_name, **emojis
         ) as compiler:
             response = compiler.compile()
 
@@ -61,8 +63,10 @@ def handle_server(message: Message, bot: TeleBot) -> None:
         bot.send_message(
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling server command",
-            error_code="HAND_002",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling server command",
+                error_code="HAND_002",
+                metadata={"exception": str(error)},
+            )
+        )

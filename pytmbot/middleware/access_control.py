@@ -31,7 +31,9 @@ class AccessControl(BaseMiddleware):
         super().__init__()
         self.bot = bot
         self.update_types: List[str] = ["message"]
-        self.allowed_user_ids: frozenset = frozenset(settings.access_control.allowed_user_ids)
+        self.allowed_user_ids: frozenset = frozenset(
+            settings.access_control.allowed_user_ids
+        )
 
         # Thread-safe collections
         self._attempt_count = defaultdict(int)
@@ -39,15 +41,13 @@ class AccessControl(BaseMiddleware):
 
         # Start cleanup thread
         cleanup_thread = threading.Thread(
-            target=self._periodic_cleanup,
-            daemon=True,
-            name="access_control_cleanup"
+            target=self._periodic_cleanup, daemon=True, name="access_control_cleanup"
         )
         cleanup_thread.start()
 
         logger.info(
             f"AccessControl middleware initialized successfully",
-            context={"component": "middleware", "action": "init"}
+            context={"component": "middleware", "action": "init"},
         )
 
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
@@ -58,8 +58,8 @@ class AccessControl(BaseMiddleware):
                 context={
                     "message_id": message.message_id,
                     "chat_id": message.chat.id,
-                    "component": "middleware"
-                }
+                    "component": "middleware",
+                },
             )
             return CancelUpdate()
 
@@ -67,8 +67,8 @@ class AccessControl(BaseMiddleware):
             f"Pre-process check for user {user.id}",
             context={
                 "allowed_ids": list(self.allowed_user_ids),
-                "is_blocked": self._should_block_request(user.id)
-            }
+                "is_blocked": self._should_block_request(user.id),
+            },
         )
 
         log_extra = {
@@ -76,7 +76,7 @@ class AccessControl(BaseMiddleware):
             "chat_id": message.chat.id,
             "user_id": user.id,
             "username": user.username or "unknown",
-            "component": "middleware"
+            "component": "middleware",
         }
 
         if self._should_block_request(user.id):
@@ -86,17 +86,19 @@ class AccessControl(BaseMiddleware):
                 context={
                     **log_extra,
                     "block_expires": block_time.isoformat(),
-                    "action": "block_check"
-                }
+                    "action": "block_check",
+                },
             )
             return CancelUpdate()
 
         if user.id not in self.allowed_user_ids:
-            return self._handle_unauthorized_access(user.id, user.username or "unknown", message.chat.id)
+            return self._handle_unauthorized_access(
+                user.id, user.username or "unknown", message.chat.id
+            )
 
         logger.debug(
             f"Access granted to user {user.id}",
-            context={**log_extra, "action": "access_granted"}
+            context={**log_extra, "action": "access_granted"},
         )
         return None
 
@@ -105,7 +107,9 @@ class AccessControl(BaseMiddleware):
         block_until = self._blocked_until[user_id]
         return datetime.now() < block_until
 
-    def _handle_unauthorized_access(self, user_id: int, username: str, chat_id: int) -> CancelUpdate:
+    def _handle_unauthorized_access(
+        self, user_id: int, username: str, chat_id: int
+    ) -> CancelUpdate:
         """Handle unauthorized access attempts with progressive blocking."""
         self._attempt_count[user_id] += 1
         current_attempt = self._attempt_count[user_id]
@@ -116,7 +120,7 @@ class AccessControl(BaseMiddleware):
             "chat_id": chat_id,
             "attempt_number": current_attempt,
             "component": "middleware",
-            "action": "unauthorized_access"
+            "action": "unauthorized_access",
         }
 
         if current_attempt >= self.MAX_ATTEMPTS:
@@ -128,16 +132,16 @@ class AccessControl(BaseMiddleware):
                 context={
                     **log_extra,
                     "block_duration": self.BLOCK_DURATION,
-                    "block_until": block_until.isoformat()
-                }
+                    "block_until": block_until.isoformat(),
+                },
             )
         else:
             logger.warning(
                 f"Unauthorized access attempt #{current_attempt} from user {username} (ID: {user_id})",
                 context={
                     **log_extra,
-                    "attempts_remaining": self.MAX_ATTEMPTS - current_attempt
-                }
+                    "attempts_remaining": self.MAX_ATTEMPTS - current_attempt,
+                },
             )
 
         message = self._get_message_text(current_attempt)
@@ -152,7 +156,8 @@ class AccessControl(BaseMiddleware):
                 now = datetime.now()
 
                 expired_blocks = [
-                    user_id for user_id, block_time in self._blocked_until.items()
+                    user_id
+                    for user_id, block_time in self._blocked_until.items()
                     if now >= block_time
                 ]
 
@@ -167,8 +172,8 @@ class AccessControl(BaseMiddleware):
                             "component": "middleware",
                             "action": "cleanup",
                             "expired_count": len(expired_blocks),
-                            "expired_users": expired_blocks
-                        }
+                            "expired_users": expired_blocks,
+                        },
                     )
 
             except Exception as e:
@@ -177,8 +182,8 @@ class AccessControl(BaseMiddleware):
                     context={
                         "component": "middleware",
                         "action": "cleanup_error",
-                        "error_type": type(e).__name__
-                    }
+                        "error_type": type(e).__name__,
+                    },
                 )
 
     @staticmethod
@@ -193,7 +198,9 @@ class AccessControl(BaseMiddleware):
         ]
         return messages[min(count - 1, len(messages) - 1)]
 
-    def post_process(self, message: Message, data: dict, exception: Optional[Exception]) -> None:
+    def post_process(
+        self, message: Message, data: dict, exception: Optional[Exception]
+    ) -> None:
         """
         Post-process messages and handle any exceptions that occurred.
         """
@@ -205,16 +212,15 @@ class AccessControl(BaseMiddleware):
             "chat_id": message.chat.id,
             "middleware": "access_control",
             "error_type": type(exception).__name__,
-            "error_details": str(exception)
+            "error_details": str(exception),
         }
 
         if message.from_user:
-            ctx.update({
-                "user_id": message.from_user.id,
-                "username": message.from_user.username or "unknown"
-            })
+            ctx.update(
+                {
+                    "user_id": message.from_user.id,
+                    "username": message.from_user.username or "unknown",
+                }
+            )
 
-        logger.error(
-            "Error occurred during message processing",
-            **ctx
-        )
+        logger.error("Error occurred during message processing", **ctx)

@@ -20,7 +20,7 @@ logger = Logger()
 
 @logger.session_decorator
 def handle_unauthorized_message(
-        query: Union[Message, CallbackQuery], bot: TeleBot
+    query: Union[Message, CallbackQuery], bot: TeleBot
 ) -> None:
     """
     Handles unauthorized messages received by the bot.
@@ -57,7 +57,7 @@ def handle_unauthorized_message(
         )
 
         with Compiler(
-                template_name="a_auth_required.jinja2", name=name, **emojis
+            template_name="a_auth_required.jinja2", name=name, **emojis
         ) as compiler:
             response = compiler.compile()
 
@@ -74,11 +74,13 @@ def handle_unauthorized_message(
                 query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML"
             )
     except Exception as error:
-        raise exceptions.AuthError(ErrorContext(
-            message="Failed handling unauthorized message",
-            error_code="AUTH_001",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.AuthError(
+            ErrorContext(
+                message="Failed handling unauthorized message",
+                error_code="AUTH_001",
+                metadata={"exception": str(error)},
+            )
+        )
 
 
 @logger.session_decorator
@@ -110,18 +112,27 @@ def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
         }
 
         with Compiler(
-                template_name="a_access_denied.jinja2", name=user_name, **emojis
+            template_name="a_access_denied.jinja2", name=user_name, **emojis
         ) as compiler:
             response = compiler.compile()
 
         if isinstance(query, CallbackQuery):
             bot.delete_message(query.message.chat.id, query.message.message_id)
-            bot.send_message(query.message.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
+            bot.send_message(
+                query.message.chat.id,
+                text=response,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
         else:
-            bot.send_message(query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML")
+            bot.send_message(
+                query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML"
+            )
     except Exception as error:
-        raise exceptions.AuthError(ErrorContext(
-            message="Failed handling access denied",
-            error_code="AUTH_002",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.AuthError(
+            ErrorContext(
+                message="Failed handling access denied",
+                error_code="AUTH_002",
+                metadata={"exception": str(error)},
+            )
+        )

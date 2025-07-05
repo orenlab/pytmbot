@@ -80,6 +80,7 @@ class CPUUsageStats(TypedDict):
     cpu_percent: float
     cpu_percent_per_core: list[float]
 
+
 class TopProcess(TypedDict):
     pid: int
     name: str

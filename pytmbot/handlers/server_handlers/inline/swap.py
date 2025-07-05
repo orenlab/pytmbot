@@ -38,7 +38,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
             )
 
         with Compiler(
-                template_name="b_swap.jinja2", context=swap_data, **emojis
+            template_name="b_swap.jinja2", context=swap_data, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
@@ -51,10 +51,12 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text="Sorry, but i can't get swap memory values. Please try again later."
+            text="Sorry, but i can't get swap memory values. Please try again later.",
         )
-        raise exceptions.HandlingException(ErrorContext(
-            message="Failed handling inline swap info",
-            error_code="HAND_009",
-            metadata={"exception": str(error)}
-        ))
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling inline swap info",
+                error_code="HAND_009",
+                metadata={"exception": str(error)},
+            )
+        )

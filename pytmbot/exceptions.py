@@ -21,21 +21,30 @@ class ErrorContext:
     error_code: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def sanitized(self) -> 'ErrorContext':
+    def sanitized(self) -> "ErrorContext":
         return ErrorContext(
             message=sanitize_exception(Exception(self.message)),
             error_code=self.error_code,
-            metadata={k: sanitize_exception(Exception(str(v)))
-                      for k, v in (self.metadata or {}).items()}
+            metadata={
+                k: sanitize_exception(Exception(str(v)))
+                for k, v in (self.metadata or {}).items()
+            },
         )
 
-    def dict(self):
-        return self.__dict__
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "message": self.message,
+            "error_code": self.error_code,
+            "metadata": self.metadata,
+        }
 
 
 class BaseBotException(Exception):
     def __init__(self, context: ErrorContext | str) -> None:
-        self.context = context if isinstance(context, ErrorContext) else ErrorContext(str(context))
+        self.context = (
+            context if isinstance(context, ErrorContext) else ErrorContext(str(context))
+        )
         super().__init__(str(self.context.message))
 
     def sanitized_message(self) -> str:
@@ -132,9 +141,13 @@ class TelebotExceptionHandler(ExceptionHandler):
 
         if log_level == "DEBUG":
             if isinstance(exception, BaseBotException):
-                logger.opt(exception=exception).debug(f"Exception in @Telebot: {log_msg}")
+                logger.opt(exception=exception).debug(
+                    f"Exception in @Telebot: {log_msg}"
+                )
             else:
-                logger.opt(exception=exception, diagnose=False).debug(f"Exception in @Telebot: {log_msg}")
+                logger.opt(exception=exception, diagnose=False).debug(
+                    f"Exception in @Telebot: {log_msg}"
+                )
         else:
             logger.error(f"Exception in @Telebot: {log_msg}")
 
