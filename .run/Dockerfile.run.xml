@@ -5,7 +5,7 @@
         <option name="imageTag" value="latest" />
         <option name="command" value="--log-level DEBUG --mode dev" />
         <option name="containerName" value="pytmbot" />
-        <option name="commandLineOptions" value="--user 1000 --group-add 0 --security-opt no-new-privileges:true" />
+        <option name="commandLineOptions" value="--security-opt no-new-privileges:true --group-add 0" />
         <option name="sourceFilePath" value="Dockerfile" />
         <option name="volumeBindings">
           <list>

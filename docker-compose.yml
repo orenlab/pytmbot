@@ -1,35 +1,44 @@
 services:
-
   pytmbot:
-    # Lightweight Alpine-based image with dev environment for pyTMbot
     image: orenlab/pytmbot:alpine-dev
     container_name: pytmbot
-    # Restart the container only on failure for reliability
     restart: on-failure
-    # Set timezone for proper timestamp handling
     environment:
       - TZ=Asia/Yekaterinburg
     volumes:
-      # Read-only access to Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Read-only bot configuration file to prevent modifications
       - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
-    # Prevent the process in the container from gaining additional privileges
     security_opt:
       - no-new-privileges
-    # Make the container's filesystem read-only to reduce risks of modification or attack
     read_only: true
-    # Drop all capabilities to minimize potential attacks
     cap_drop:
       - ALL
-    pid: host  # Use the host's PID namespace for monitoring processes (use with caution)
-    # Webhook Mode
-    ports:
-      - "127.0.0.1:5001:5001"  # Expose Webhook port only on localhost to prevent external access
-    # Logging
+    pid: host
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpu_shares: 512
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    networks:
+      - pytmbot_network
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=100m
+      - /var/tmp:noexec,nosuid,nodev,size=50m
     logging:
       options:
         max-size: "10m"
         max-file: "3"
-    # Run command
-    command: --plugins monitor,outline --log-level DEBUG --socket_host 172.18.0.3 --webhook  # Bot start parameters: webhook mode, logging, and plugins
+    command: --log-level INFO
+
+networks:
+  pytmbot_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
