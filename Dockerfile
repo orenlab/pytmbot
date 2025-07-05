@@ -56,16 +56,15 @@ FROM alpine:${ALPINE_IMAGE} AS release_base
 # Python version
 ARG PYTHON_VERSION=3.13
 
-# Create non-root user for Docker socket access
+# Create app user first (simpler approach)
 RUN --mount=type=cache,target=/var/cache/apk \
     apk add --no-cache \
-        tzdata && \
-    # Create or use existing docker group (try different GIDs)
-    (addgroup -g 998 docker 2>/dev/null || addgroup -g 997 docker 2>/dev/null || addgroup docker) && \
-    DOCKER_GID=$(getent group docker | cut -d: -f3) && \
-    echo "Docker group created with GID: $DOCKER_GID" && \
-    # Create app user and add to docker group
-    adduser -D -u 1000 -G docker -s /bin/sh pytmbot && \
+        tzdata shadow && \
+    # Create app user with a safe UID
+    adduser -D -u 1001 -s /bin/sh pytmbot && \
+    # Create docker group (we'll handle GID at runtime)
+    addgroup docker && \
+    addgroup pytmbot docker && \
     # Clean up
     rm -rf /var/cache/apk/* /tmp/*
 
@@ -80,18 +79,18 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONHASHSEED=random
 
 # Copy virtual environment from builder
-COPY --from=builder --chown=1000:999 /usr/local/bin/ /usr/local/bin/
-COPY --from=builder --chown=1000:999 /usr/local/lib/ /usr/local/lib/
-COPY --from=builder --chown=1000:999 /venv /venv
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /venv /venv
 
-# Copy app files with proper ownership
-COPY --chown=1000:999 ./pytmbot ./pytmbot
-COPY --chown=1000:999 ./entrypoint.sh ./entrypoint.sh
+# Copy app files
+COPY ./pytmbot ./pytmbot
+COPY ./entrypoint.sh ./entrypoint.sh
 
-# Set permissions for entrypoint script
+# Set permissions and ownership
 RUN chmod 755 ./entrypoint.sh && \
-    # Ensure app user owns everything in /opt/app
-    chown -R pytmbot:docker /opt/app
+    chown -R pytmbot:docker /opt/app && \
+    chown -R pytmbot:docker /venv
 
 # Add health check
 #HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
@@ -104,7 +103,7 @@ RUN chmod 755 ./entrypoint.sh && \
 # Target for CI/CD image
 FROM release_base AS production
 
-# Switch to non-root user but allow Docker socket access
+# Switch to non-root user
 USER pytmbot
 
 ENTRYPOINT ["./entrypoint.sh"]
@@ -113,9 +112,12 @@ ENTRYPOINT ["./entrypoint.sh"]
 FROM release_base AS self_build
 
 # Copy config file with token (prod, dev)
-COPY --chown=1000:999 pytmbot.yaml ./
+COPY pytmbot.yaml ./
 
-# Switch to non-root user but allow Docker socket access
+# Set ownership
+RUN chown pytmbot:docker pytmbot.yaml
+
+# Switch to non-root user
 USER pytmbot
 
 ENTRYPOINT ["./entrypoint.sh"]

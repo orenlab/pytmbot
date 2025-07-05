@@ -4,7 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from telebot import ExceptionHandler
@@ -19,7 +19,7 @@ logger = Logger()
 class ErrorContext:
     message: str
     error_code: str | None = None
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def sanitized(self) -> 'ErrorContext':
         return ErrorContext(
@@ -156,3 +156,7 @@ class InfluxDBWriteError(InfluxDBException):
 
 class InfluxDBQueryError(InfluxDBException):
     """Raised on InfluxDB query operation failures."""
+
+
+class CallbackValidationError(BaseBotException):
+    """Raised on Callback data validation error"""

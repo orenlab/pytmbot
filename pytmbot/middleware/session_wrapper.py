@@ -191,7 +191,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
             log.debug(f"Authentication status: {is_authenticated}")
 
             if not is_authenticated:
-                session_manager.set_referer_uri_and_handler_type_for_user(
+                session_manager.set_referer_data(
                     auth_context.user_id,
                     auth_context.handler_type.value,
                     auth_context.referer_handler

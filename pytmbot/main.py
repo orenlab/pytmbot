@@ -11,15 +11,16 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import NoReturn, Final, Any, Self
 
-import psutil
-from humanize import naturaltime, naturalsize
+from humanize import naturaltime
 
 from pytmbot import logs
+from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.exceptions import (
     InitializationError,
     ShutdownError,
     ErrorContext
 )
+from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 
 args = parse_cli_args()
@@ -83,6 +84,8 @@ class BotLauncher(logs.BaseComponent):
         self._cleanup_registered = False
         self._sigint_count = 0
         self._sigint_lock = threading.Lock()
+        self._psutil_adapter = PsutilAdapter()
+        self._session_manager = SessionManager()
 
     def _register_cleanup(self) -> None:
         """Register cleanup handler to ensure proper shutdown on exit."""
@@ -98,6 +101,7 @@ class BotLauncher(logs.BaseComponent):
         try:
             self.bot.bot.stop_polling()
             self.bot.bot.remove_webhook()
+            self._session_manager.shutdown()
         except Exception as e:
             if not silent:
                 with self.log_context(error=str(e)) as log:
@@ -175,27 +179,52 @@ class BotLauncher(logs.BaseComponent):
                 if self.shutdown_requested.wait(timeout=1):
                     return
 
+    @staticmethod
+    def _is_monitor_plugin_loaded() -> bool:
+        from pytmbot.plugins.plugin_manager import PluginManager
+        return PluginManager.is_plugin_loaded('monitor')
+
     def _log_health_status(self) -> None:
-        """Log current health status with resource usage."""
+        """Log current health status with comprehensive process statistics."""
         uptime_display = naturaltime(self.start_time)
 
-        # Получаем текущий процесс
-        process = psutil.Process()
+        log_context = {
+            'uptime': uptime_display,
+            'active': bool(self.bot),
+            'pid': os.getpid(),
+            'session_overview': self._session_manager.get_session_stats()
+        }
 
-        # Время работы процесса
-        cpu_percent = process.cpu_percent(interval=0.1)
-        memory_info = process.memory_info()
-        mem_rss = naturalsize(memory_info.rss)  # Resident Set Size
-        mem_vms = naturalsize(memory_info.vms)  # Virtual Memory Size
+        if not self._is_monitor_plugin_loaded():
+            process_stats = self._psutil_adapter.get_current_process_health_summary()
 
-        with self.log_context(
-                uptime=uptime_display,
-                active=bool(self.bot),
-                cpu=f"{cpu_percent:.1f}%",
-                memory_rss=mem_rss,
-                memory_vms=mem_vms,
-        ) as log:
-            log.debug("Health check completed")
+            if process_stats:
+                log_context.update(process_stats)
+
+                if 'memory_rss' in process_stats and 'memory_percent' in process_stats:
+                    memory_percent_value = float(process_stats['memory_percent'].rstrip('%'))
+                    if memory_percent_value > 80:
+                        log_context['memory_warning'] = True
+
+                if 'cpu' in process_stats:
+                    cpu_percent_value = float(process_stats['cpu'].rstrip('%'))
+                    if cpu_percent_value > 90:
+                        log_context['cpu_warning'] = True
+            else:
+                log_context.update({
+                    'cpu': 'N/A',
+                    'memory_rss': 'N/A',
+                    'memory_percent': 'N/A',
+                    'status': 'unknown'
+                })
+        else:
+            log_context['monitor_plugin_active'] = True
+
+        with self.log_context(**log_context) as log:
+            if log_context.get('memory_warning') or log_context.get('cpu_warning'):
+                log.warning("Health check completed with resource warnings")
+            else:
+                log.debug("Health check completed")
 
     @contextmanager
     def _managed_bot(self) -> Generator[Any, None, None]:
@@ -401,8 +430,8 @@ class BotLauncher(logs.BaseComponent):
             # Setup
             self._register_cleanup()
             self._setup_signal_handlers()
-            self.validate_environment()
             self._start_health_monitoring()
+            self.validate_environment()
 
             with self.log_context(pid=os.getpid()) as log:
                 log.info("Starting PyTMBot")

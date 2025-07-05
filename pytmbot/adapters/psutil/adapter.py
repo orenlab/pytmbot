@@ -1,5 +1,7 @@
+import os
 from contextlib import suppress
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 import psutil
 
@@ -14,7 +16,8 @@ from pytmbot.adapters.psutil.adapter_types import (
     UserInfo,
     NetworkInterfaceStats,
     CPUFrequencyStats,
-    CPUUsageStats, TopProcess
+    CPUUsageStats,
+    TopProcess
 )
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize
@@ -50,6 +53,177 @@ class PsutilAdapter:
                 }
             )
             return fallback
+
+    def get_process_stats(self, pid: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Get comprehensive statistics for a specific process.
+
+        Args:
+            pid: Process ID. If None, uses current process.
+
+        Returns:
+            Dictionary with process statistics including CPU, memory, IO, etc.
+        """
+
+        if pid is not None and (not isinstance(pid, int) or pid <= 0):
+            raise ValueError("PID must be a positive integer")
+
+        def _get_process_info():
+            try:
+                process = self._psutil.Process(pid) if pid else self._psutil.Process()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                return {}
+
+            stats = {}
+
+            # Basic process info
+            with suppress(Exception):
+                stats.update({
+                    'pid': process.pid,
+                    'name': process.name(),
+                    'status': process.status(),
+                    'create_time': process.create_time(),
+                })
+
+            # CPU usage (with interval for accuracy)
+            with suppress(Exception):
+                cpu_percent = process.cpu_percent(interval=0.1)
+                stats.update({
+                    'cpu_percent': f"{cpu_percent:.1f}%",
+                    'cpu_times': process.cpu_times()._asdict(),
+                    'cpu_num': getattr(process, 'cpu_num', lambda: None)(),
+                })
+
+            # Memory usage
+            with suppress(Exception):
+                memory_info = process.memory_info()
+                memory_percent = process.memory_percent()
+                stats.update({
+                    'memory_rss': set_naturalsize(memory_info.rss),
+                    'memory_vms': set_naturalsize(memory_info.vms),
+                    'memory_percent': f"{memory_percent:.1f}%",
+                })
+
+                # Extended memory info if available
+                if hasattr(process, 'memory_full_info'):
+                    try:
+                        full_memory = process.memory_full_info()
+                        stats.update({
+                            'memory_uss': set_naturalsize(full_memory.uss),  # Unique Set Size
+                            'memory_pss': set_naturalsize(full_memory.pss),  # Proportional Set Size
+                        })
+                    except (AttributeError, psutil.AccessDenied):
+                        pass
+
+            # IO statistics
+            with suppress(Exception):
+                io_counters = process.io_counters()
+                stats.update({
+                    'io_read_count': io_counters.read_count,
+                    'io_write_count': io_counters.write_count,
+                    'io_read_bytes': set_naturalsize(io_counters.read_bytes),
+                    'io_write_bytes': set_naturalsize(io_counters.write_bytes),
+                })
+
+            # File descriptors and connections
+            with suppress(Exception):
+                stats.update({
+                    'num_fds': process.num_fds() if hasattr(process, 'num_fds') else 'N/A',
+                    'num_threads': process.num_threads(),
+                })
+
+            # Network connections count
+            with suppress(Exception):
+                connections = process.net_connections()
+                stats.update({
+                    'num_connections': len(connections),
+                    'connections_by_status': self._count_connections_by_status(connections),
+                })
+
+            # Context switches
+            with suppress(Exception):
+                ctx_switches = process.num_ctx_switches()
+                stats.update({
+                    'ctx_switches_voluntary': ctx_switches.voluntary,
+                    'ctx_switches_involuntary': ctx_switches.involuntary,
+                })
+
+            # Working directory and command line
+            with suppress(Exception):
+                stats.update({
+                    'cwd': process.cwd(),
+                    'cmdline': ' '.join(process.cmdline()[:3]) + ('...' if len(process.cmdline()) > 3 else ''),
+                })
+
+            return stats
+
+        return self._safe_execute(
+            f"process stats (PID: {pid or os.getpid()})",
+            _get_process_info,
+            {},
+            pid=pid or os.getpid()
+        )
+
+    @staticmethod
+    def _count_connections_by_status(connections) -> Dict[str, int]:
+        """Count network connections by their status."""
+        status_counts = {}
+        for conn in connections:
+            status = conn.status if hasattr(conn, 'status') else 'UNKNOWN'
+            status_counts[status] = status_counts.get(status, 0) + 1
+        return status_counts
+
+    def get_current_process_health_summary(self) -> Dict[str, Any]:
+        """
+        Get a compact health summary for the current process suitable for logging.
+
+        Returns:
+            Dictionary with key health metrics for logging.
+        """
+
+        def _get_health_summary():
+            try:
+                process = self._psutil.Process()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                return {}
+
+            summary = {}
+
+            # Essential metrics with error handling
+            with suppress(Exception):
+                cpu_percent = process.cpu_percent(interval=0.1)
+                summary['cpu'] = f"{cpu_percent:.1f}%"
+
+            with suppress(Exception):
+                memory_info = process.memory_info()
+                memory_percent = process.memory_percent()
+                summary.update({
+                    'memory_rss': set_naturalsize(memory_info.rss),
+                    'memory_percent': f"{memory_percent:.1f}%",
+                })
+
+            with suppress(Exception):
+                summary.update({
+                    'threads': process.num_threads(),
+                    'status': process.status(),
+                })
+
+            # IO activity indicator
+            with suppress(Exception):
+                io_counters = process.io_counters()
+                summary.update({
+                    'io_reads': io_counters.read_count,
+                    'io_writes': io_counters.write_count,
+                })
+
+            return summary
+
+        return self._safe_execute(
+            "health summary",
+            _get_health_summary,
+            {},
+            operation_type="health_check"
+        )
 
     def get_load_average(self) -> LoadAverage:
         """Get system load averages."""
@@ -241,6 +415,9 @@ class PsutilAdapter:
 
     def get_top_processes(self, count: int = 10) -> list[TopProcess]:
         """Get the top processes by CPU and memory usage."""
+
+        if count <= 0 or count > 20:
+            raise ValueError("Count must be between 1 and 20")
 
         def _get_top_processes():
             processes = []

@@ -16,8 +16,8 @@ from pytmbot.globals import session_manager, em, keyboards, settings, var_config
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.totp import TwoFactorAuthenticator
 from pytmbot.utils import is_valid_totp_code
+from pytmbot.utils.totp import TwoFactorAuthenticator
 
 logger = Logger()
 allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
@@ -42,7 +42,7 @@ def handle_twofa_message(message: Message, bot: TeleBot):
             _handle_blocked_user(message, bot)
             return
 
-        session_manager.set_auth_state(user_id, session_manager.state_fabric.processing)
+        session_manager.set_auth_state(user_id, session_manager.state_fabric.PROCESSING)
 
         _send_totp_code_message(message, bot)
 
@@ -92,7 +92,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     if authenticator.verify_totp_code(totp_code):
         bot.send_chat_action(message.chat.id, "typing")
         session_manager.set_auth_state(
-            user_id, session_manager.state_fabric.authenticated
+            user_id, session_manager.state_fabric.AUTHENTICATED
         )
         session_manager.set_login_time(user_id)
 
@@ -109,7 +109,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
 
         bot.reply_to(message, text=response, reply_markup=keyboard)
     else:
-        session_manager.set_totp_attempts(user_id=user_id)
+        session_manager.increment_totp_attempts(user_id=user_id)
         logger.error(f"Invalid TOTP code: {totp_code}")
         bot.reply_to(message, "Invalid TOTP code. Please try again.")
 
@@ -218,7 +218,7 @@ def _block_user(user_id: int) -> None:
     Returns:
         None
     """
-    session_manager.set_auth_state(user_id, session_manager.state_fabric.blocked)
+    session_manager.set_auth_state(user_id, session_manager.state_fabric.BLOCKED)
 
     session_manager.reset_totp_attempts(user_id)
 
@@ -239,8 +239,8 @@ def __create_referer_keyboard(
     Returns:
         Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]: The created referer keyboard.
     """
-    handler_type = session_manager.get_handler_type_for_user(user_id)
-    referer_uri = session_manager.get_referer_uri_for_user(user_id)
+    handler_type = session_manager.get_handler_type(user_id)
+    referer_uri = session_manager.get_referer_uri(user_id)
 
     try:
         if handler_type == "message":
@@ -259,4 +259,4 @@ def __create_referer_keyboard(
             metadata={"exception": str(error)}
         ))
     finally:
-        session_manager.reset_referer_uri_and_handler_type_for_user(user_id)
+        session_manager.reset_referer_data(user_id)

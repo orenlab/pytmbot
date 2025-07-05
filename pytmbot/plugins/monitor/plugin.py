@@ -8,6 +8,9 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.plugins_core import PluginCore
+
+plugin = PluginCore()
 
 
 class MonitoringPlugin(PluginInterface):
@@ -26,6 +29,7 @@ class MonitoringPlugin(PluginInterface):
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
+        self.plugin_logger = plugin.logger
 
     @staticmethod
     def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:

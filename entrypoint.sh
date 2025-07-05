@@ -24,11 +24,9 @@ child_pid=""
 
 # Function to format logs like the application
 log() {
-    # Get current date and time in the same format as the application
     _log_timestamp=$(date "+%Y-%m-%d")
     _log_time=$(date "+%H:%M:%S")
 
-    # Format level to be 8 characters with padding
     case "$1" in
         "DEBUG")   _log_formatted_level="DEBUG   " ;;
         "INFO")    _log_formatted_level="INFO    " ;;
@@ -37,10 +35,7 @@ log() {
         *)         _log_formatted_level="INFO    " ;;
     esac
 
-    # Format component to be 16 characters with padding
     _log_formatted_component=$(printf "%-16s" "$2")
-
-    # Default extra data if not provided
     _log_extra_data="$4"
     if [ -z "$_log_extra_data" ]; then
         _log_extra_data="{}"
@@ -57,57 +52,80 @@ handle_exit() {
         log "INFO" "entrypoint" "Sending TERM signal to Python process" "{\"pid\": $child_pid}"
         kill -TERM "$child_pid" 2>/dev/null || true
 
-        # Wait for the process to finish or timeout after 30 seconds
         timeout=30
         while [ $timeout -gt 0 ] && kill -0 "$child_pid" 2>/dev/null; do
             sleep 1
             timeout=$((timeout - 1))
         done
 
-        # Force kill if still running
         if kill -0 "$child_pid" 2>/dev/null; then
             log "WARNING" "entrypoint" "Process did not terminate gracefully, forcing shutdown" "{\"pid\": $child_pid}"
             kill -9 "$child_pid" 2>/dev/null || true
         fi
     fi
-
     exit 0
 }
 
-# Function to check Docker socket permissions and setup access
-check_docker_socket() {
+# Function to fix Docker group GID at runtime
+fix_docker_group_runtime() {
     if [ -S /var/run/docker.sock ]; then
-        # Use different stat command based on OS
+        # Get Docker socket GID
         if stat -c %g /var/run/docker.sock >/dev/null 2>&1; then
             DOCKER_SOCKET_GID=$(stat -c %g /var/run/docker.sock)
         elif stat -f %g /var/run/docker.sock >/dev/null 2>&1; then
             DOCKER_SOCKET_GID=$(stat -f %g /var/run/docker.sock)
         else
-            log "WARNING" "entrypoint" "Cannot determine Docker socket group ID" "{}"
-            return
+            log "WARNING" "entrypoint" "Cannot determine Docker socket GID" "{}"
+            return 1
         fi
 
-        log "INFO" "entrypoint" "Docker socket found" "{\"group_id\": $DOCKER_SOCKET_GID}"
+        # Get current container docker group GID
+        CURRENT_DOCKER_GID=$(getent group docker | cut -d: -f3 2>/dev/null || echo "")
 
-        # Check if current user can access docker socket
-        if ! [ -r /var/run/docker.sock ] || ! [ -w /var/run/docker.sock ]; then
-            log "WARNING" "entrypoint" "Current user cannot access Docker socket" "{\"suggestion\": \"docker run --group-add $DOCKER_SOCKET_GID ...\"}"
-        else
-            log "INFO" "entrypoint" "Docker socket access OK" "{}"
-        fi
+        log "INFO" "entrypoint" "Docker socket analysis" "{\"socket_gid\": $DOCKER_SOCKET_GID, \"container_gid\": \"$CURRENT_DOCKER_GID\"}"
 
-        # Test Docker connectivity
-        if command -v docker >/dev/null 2>&1; then
-            if docker version >/dev/null 2>&1; then
-                log "INFO" "entrypoint" "Docker client connectivity OK" "{}"
+        # If GIDs don't match, we need to adjust
+        if [ "$DOCKER_SOCKET_GID" != "$CURRENT_DOCKER_GID" ]; then
+            log "INFO" "entrypoint" "Adjusting Docker group GID for socket access" "{\"from\": \"$CURRENT_DOCKER_GID\", \"to\": $DOCKER_SOCKET_GID}"
+
+            # Check if we can modify groups (running as root during startup)
+            if [ "$(id -u)" -eq 0 ]; then
+                # We're running as root, can modify groups
+                if getent group "$DOCKER_SOCKET_GID" >/dev/null 2>&1; then
+                    # Target GID exists, add user to that group
+                    EXISTING_GROUP=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1)
+                    log "INFO" "entrypoint" "Adding user to existing group" "{\"group\": \"$EXISTING_GROUP\", \"gid\": $DOCKER_SOCKET_GID}"
+                    addgroup pytmbot "$EXISTING_GROUP" 2>/dev/null || true
+                else
+                    # Change docker group GID
+                    log "INFO" "entrypoint" "Changing docker group GID" "{\"new_gid\": $DOCKER_SOCKET_GID}"
+                    groupmod -g "$DOCKER_SOCKET_GID" docker 2>/dev/null || true
+                fi
             else
-                log "WARNING" "entrypoint" "Docker client cannot connect to daemon" "{}"
+                # Running as non-root, just inform about the issue
+                log "WARNING" "entrypoint" "Cannot modify groups (not running as root)" "{\"suggestion\": \"Use --group-add $DOCKER_SOCKET_GID or rebuild with correct GID\"}"
             fi
         else
-            log "INFO" "entrypoint" "Docker client not installed in container (using socket directly)" "{}"
+            log "INFO" "entrypoint" "Docker group GID matches socket GID" "{\"gid\": $DOCKER_SOCKET_GID}"
         fi
     else
-        log "WARNING" "entrypoint" "Docker socket not found" "{\"path\": \"/var/run/docker.sock\"}"
+        log "INFO" "entrypoint" "Docker socket not mounted" "{\"path\": \"/var/run/docker.sock\"}"
+    fi
+}
+
+# Function to check Docker access after setup
+check_docker_access() {
+    if [ -S /var/run/docker.sock ]; then
+        if [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
+            log "INFO" "entrypoint" "Docker socket access OK" "{\"user\": \"$(id -un)\", \"groups\": \"$(groups)\"}"
+            return 0
+        else
+            log "WARNING" "entrypoint" "Docker socket access denied" "{\"user\": \"$(id -un)\", \"groups\": \"$(groups)\", \"socket_perms\": \"$(ls -la /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
+            return 1
+        fi
+    else
+        log "INFO" "entrypoint" "Docker socket not available" "{}"
+        return 1
     fi
 }
 
@@ -146,20 +164,17 @@ check_dependencies() {
 health_check() {
     log "INFO" "entrypoint" "Performing comprehensive health check" "{}"
 
-    # Check main script accessibility
     if [ ! -f "$MAIN_SCRIPT" ]; then
         log "ERROR" "entrypoint" "Health check failed: Main script not found" "{\"script\": \"$MAIN_SCRIPT\"}"
         exit 1
     fi
 
-    # Check Docker socket if mounted
-    if [ -S /var/run/docker.sock ]; then
-        if [ -r /var/run/docker.sock ]; then
-            log "INFO" "entrypoint" "Docker socket accessible" "{}"
-        else
-            log "WARNING" "entrypoint" "Docker socket found but not accessible" "{}"
-        fi
+    if ! "$PYTHON_PATH" -c "import sys; print('Python OK')" >/dev/null 2>&1; then
+        log "ERROR" "entrypoint" "Health check failed: Python not working" "{\"python_path\": \"$PYTHON_PATH\"}"
+        exit 1
     fi
+
+    check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
     log "INFO" "entrypoint" "Health check passed" "{}"
     return 0
@@ -205,11 +220,25 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --check-docker)
-            check_docker_socket
+            fix_docker_group_runtime
+            check_docker_access
+            exit 0
+            ;;
+        --debug-groups)
+            log "INFO" "entrypoint" "=== Debug Groups Information ===" "{}"
+            log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g)\"}"
+            log "INFO" "entrypoint" "All groups" "{\"groups\": \"$(groups)\", \"group_ids\": \"$(id -G)\", \"group_names\": \"$(id -Gn)\"}"
+            if [ -f /etc/group ]; then
+                log "INFO" "entrypoint" "Docker group info" "{\"docker_group\": \"$(grep '^docker:' /etc/group || echo 'not found')\"}"
+            fi
+            if [ -S /var/run/docker.sock ]; then
+                log "INFO" "entrypoint" "Docker socket info" "{\"socket_perms\": \"$(ls -la /var/run/docker.sock)\", \"socket_gid\": \"$(stat -c %g /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
+            fi
+            log "INFO" "entrypoint" "=== End Debug Groups Information ===" "{}"
             exit 0
             ;;
         *)
-            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
+            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker, --debug-groups\"}"
             exit 1
             ;;
     esac
@@ -223,8 +252,9 @@ log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\"
 # Check dependencies
 check_dependencies
 
-# Check Docker socket access
-check_docker_socket
+# Fix Docker group if needed and check access
+fix_docker_group_runtime
+check_docker_access
 
 # Handle health check
 if [ "$HEALTH_CHECK" = "True" ]; then
@@ -239,12 +269,10 @@ if [ "$SALT" = "True" ]; then
         exit 1
     fi
     log "INFO" "entrypoint" "Starting salt script" "{\"script\": \"$SALT_SCRIPT\"}"
-    # Run salt script
     $PYTHON_PATH "$SALT_SCRIPT" &
     child_pid=$!
 else
     log "INFO" "entrypoint" "Starting main application" "{\"script\": \"$MAIN_SCRIPT\"}"
-    # Run main script
     $PYTHON_PATH "$MAIN_SCRIPT" \
         --log-level "$LOG_LEVEL" \
         --mode "$MODE" \
