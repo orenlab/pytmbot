@@ -15,14 +15,14 @@ from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
-from pytmbot.utils import split_string_into_octets, is_new_name_valid
+from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 container_manager = ContainerManager()
 containers_state = ContainersState()
 
 
-def managing_action_fabric(call: CallbackQuery):
+def managing_action_fabric(call: CallbackQuery) -> bool:
     """
     Checks if a callback query data starts with a specific action.
 
@@ -45,9 +45,6 @@ def managing_action_fabric(call: CallbackQuery):
 @two_factor_auth_required
 @logger.session_decorator
 def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
-    container_name, called_user_id = split_string_into_octets(
-        call.data
-    ), split_string_into_octets(call.data, octet_index=2)
     """
     Handles the callback query for managing a container.
 
@@ -58,16 +55,18 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
     Returns:
         None
     """
+    container_name = split_string_into_octets(call.data)
+    called_user_id = split_string_into_octets(call.data, octet_index=2)
+
     if int(call.from_user.id) != int(called_user_id):
-        logger.log("DENIED", f"User {call.from_user.id}: Denied '__manage__' function")
+        logger.warning(f"User {call.from_user.id}: Denied '__manage__' function")
         return show_handler_info(
-            call=call, text=f"Starting {container_name}: Access denied", bot=bot
+            call=call, text=f"Managing {container_name}: Access denied", bot=bot
         )
 
     if not session_manager.is_authenticated(call.from_user.id):
-        logger.log(
-            "DENIED",
-            f"User {call.from_user.id}: Not authenticated. Denied '__start__' function",
+        logger.warning(
+            f"User {call.from_user.id}: Not authenticated. Denied '__manage__' function"
         )
         return show_handler_info(
             call=call,
@@ -86,11 +85,12 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
         managing_actions[managing_action](
             call=call, container_name=container_name, bot=bot
         )
+        return None
     else:
-        logger.log(
-            "ERROR",
-            f"Error occurred while managing {container_name}: Unknown action {managing_action}",
+        logger.error(
+            f"Error occurred while managing {container_name}: Unknown action {managing_action}"
         )
+        return None
 
 
 def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
@@ -106,24 +106,33 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
         None
     """
     try:
-        if (
-            container_manager.managing_container(
-                call.from_user.id, container_name, action="start"
+        result = container_manager.managing_container(
+            call.from_user.id, container_name, action="start"
+        )
+
+        if result is None:
+            logger.info(
+                f"Starting {container_name} for user {call.from_user.id}: Success"
             )
-            is None
-        ):
             return show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
             )
         else:
+            logger.error(
+                f"Starting {container_name} for user {call.from_user.id}: Error occurred"
+            )
             return show_handler_info(
                 call=call,
                 text=f"Starting {container_name}: Error occurred. See logs",
                 bot=bot,
             )
     except Exception as e:
-        logger.log("ERROR", f"Error occurred while starting {container_name}: {e}")
-        return
+        logger.error(f"Error occurred while starting {container_name}: {e}")
+        return show_handler_info(
+            call=call,
+            text=f"Starting {container_name}: Unexpected error occurred",
+            bot=bot,
+        )
 
 
 def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
@@ -139,24 +148,33 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
         None
     """
     try:
-        if (
-            container_manager.managing_container(
-                call.from_user.id, container_name, action="stop"
+        result = container_manager.managing_container(
+            call.from_user.id, container_name, action="stop"
+        )
+
+        if result is None:
+            logger.info(
+                f"Stopping {container_name} for user {call.from_user.id}: Success"
             )
-            is None
-        ):
             return show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
             )
         else:
+            logger.error(
+                f"Stopping {container_name} for user {call.from_user.id}: Error occurred"
+            )
             return show_handler_info(
                 call=call,
                 text=f"Stopping {container_name}: Error occurred. See logs",
                 bot=bot,
             )
     except Exception as e:
-        logger.log("ERROR", f"Error occurred while stopping {container_name}: {e}")
-        return
+        logger.error(f"Error occurred while stopping {container_name}: {e}")
+        return show_handler_info(
+            call=call,
+            text=f"Stopping {container_name}: Unexpected error occurred",
+            bot=bot,
+        )
 
 
 def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
@@ -178,7 +196,6 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
         container_state = check_container_state(container_name)
 
         if container_state == containers_state.running:
-
             logger.info(
                 f"Restarting {container_name} for user {call.from_user.id}: Success. State: {container_state}"
             )
@@ -198,7 +215,6 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             logger.error(
                 f"Error occurred while restarting {container_name}: State: {container_state}"
             )
-
             return show_handler_info(
                 call=call,
                 text=f"Restarting {container_name}: Error occurred. See logs",
@@ -206,46 +222,9 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             )
 
     except Exception as e:
-        logger.log("ERROR", f"Error occurred while restarting {container_name}: {e}")
-        return
-
-
-def __rename_container(
-    call: CallbackQuery, container_name: str, new_container_name: str, bot: TeleBot
-):
-    """
-    Renames a Docker container based on the provided parameters.
-
-    Args:
-        call (CallbackQuery): The callback query object containing user information.
-        container_name (str): The name of the Docker container to rename.
-        new_container_name (str): The new name for the container.
-        bot (TeleBot): The Telegram bot object.
-
-    Returns:
-        None
-    """
-    if is_new_name_valid(new_container_name):
-        try:
-            if container_manager.managing_container(
-                call.from_user.id,
-                container_name,
-                action="rename",
-                new_container_name=new_container_name,
-            ):
-                return show_handler_info(
-                    call=call, text=f"Renaming {container_name}: Success", bot=bot
-                )
-            else:
-                return show_handler_info(
-                    call=call,
-                    text=f"Renaming {container_name}: Error occurred. See logs",
-                    bot=bot,
-                )
-        except Exception as e:
-            logger.log("ERROR", f"Error occurred while renaming {container_name}: {e}")
-            return
-    else:
+        logger.error(f"Error occurred while restarting {container_name}: {e}")
         return show_handler_info(
-            call=call, text=f"Renaming {container_name}: Invalid new name", bot=bot
+            call=call,
+            text=f"Restarting {container_name}: Unexpected error occurred",
+            bot=bot,
         )

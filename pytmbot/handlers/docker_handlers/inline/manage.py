@@ -42,9 +42,8 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
 
     # Check if the user is an admin
     if int(call.from_user.id) != int(called_user_id):
-        logger.log(
-            "DENIED",
-            f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function",
+        logger.warning(
+            f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function"
         )
         return show_handler_info(
             call=call, text=f"Managing {container_name}: Access denied", bot=bot
@@ -54,10 +53,9 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
 
     if not is_authenticated:
-        logger.log(
-            "DENIED",
+        logger.warning(
             f"User {call.from_user.id} NOT authenticated. "
-            f"Denied '__manage__' function for container {container_name}",
+            f"Denied '__manage__' function for container {container_name}"
         )
         return show_handler_info(
             call=call,
@@ -65,35 +63,27 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
             bot=bot,
         )
 
-    # Create the keyboard buttons
-    keyboard_buttons = [
-        button_data(
-            text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
-            callback_data=f"__get_full__:{container_name}:{call.from_user.id}",
-        ),
-    ]
-
+    # Get container state
     state = get_container_state(container_name)
-
     logger.info(f"Container {container_name} state: {state}")
 
-    if state == container_state.running:
-        logger.debug(f"Added '__stop__' button for {container_name}")
-        keyboard_buttons.insert(
-            0,
-            button_data(
-                text=f"{em.get_emoji('no_entry')} Stop",
-                callback_data=f"__stop__:{container_name}:{call.from_user.id}",
-            ),
-        )
+    # Build keyboard buttons
+    keyboard_buttons = []
 
-        logger.debug(f"Added '__restart__' button for {container_name}")
-        keyboard_buttons.insert(
-            1,
-            button_data(
-                text=f"{em.get_emoji('recycling_symbol')} Restart",
-                callback_data=f"__restart__:{container_name}:{call.from_user.id}",
-            ),
+    # Add action buttons based on container state
+    if state == container_state.running:
+        logger.debug(f"Adding stop and restart buttons for {container_name}")
+        keyboard_buttons.extend(
+            [
+                button_data(
+                    text=f"{em.get_emoji('no_entry')} Stop",
+                    callback_data=f"__stop__:{container_name}:{call.from_user.id}",
+                ),
+                button_data(
+                    text=f"{em.get_emoji('recycling_symbol')} Restart",
+                    callback_data=f"__restart__:{container_name}:{call.from_user.id}",
+                ),
+            ]
         )
 
     elif state in [
@@ -101,14 +91,21 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         container_state.stopped,
         container_state.dead,
     ]:
-        logger.debug(f"Added '__start__' button for {container_name}")
-        keyboard_buttons.insert(
-            0,
+        logger.debug(f"Adding start button for {container_name}")
+        keyboard_buttons.append(
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
                 callback_data=f"__start__:{container_name}:{call.from_user.id}",
-            ),
+            )
         )
+
+    # Always add back button
+    keyboard_buttons.append(
+        button_data(
+            text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
+            callback_data=f"__get_full__:{container_name}:{call.from_user.id}",
+        )
+    )
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 

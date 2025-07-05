@@ -54,28 +54,32 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     ) as compiler:
         context = compiler.compile()
 
-    keyboard_buttons = [
-        button_data(
-            text=f"{em.get_emoji('spiral_calendar')} Get logs",
-            callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
-        ),
-        button_data(
-            text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
-            callback_data="back_to_containers",
-        ),
-    ]
+    keyboard_buttons = []
 
     if call.from_user.id in settings.access_control.allowed_admins_ids and int(
         call.from_user.id
     ) == int(called_user_id):
-        logger.debug(f"User {call.from_user.id} is an admin. Added '__manage__' button")
-        keyboard_buttons.insert(
-            1,
-            button_data(
-                text=f"{em.get_emoji('bullseye')} Manage",
-                callback_data=f"__manage__:{container_name}:{call.from_user.id}",
-            ),
+        logger.debug(f"User {call.from_user.id} is an admin. Adding admin buttons")
+
+        keyboard_buttons.extend(
+            [
+                button_data(
+                    text=f"{em.get_emoji('spiral_calendar')} Get logs",
+                    callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
+                ),
+                button_data(
+                    text=f"{em.get_emoji('bullseye')} Manage",
+                    callback_data=f"__manage__:{container_name}:{call.from_user.id}",
+                ),
+            ]
         )
+
+    keyboard_buttons.append(
+        button_data(
+            text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
+            callback_data="back_to_containers",
+        )
+    )
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
