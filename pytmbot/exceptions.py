@@ -114,10 +114,10 @@ class QRCodeError(BaseBotException):
 
 
 class TelebotExceptionHandler(ExceptionHandler):
-    """Custom exception handler for Telebot with structured logging."""
+    """Custom exception handler for Telebot with structured logging and token sanitization."""
 
     def handle(self, exception: Exception) -> bool:
-        """Handle and log Telebot exceptions with appropriate detail level."""
+        """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
 
         if isinstance(exception, BaseBotException):
@@ -130,10 +130,13 @@ class TelebotExceptionHandler(ExceptionHandler):
         else:
             log_msg = sanitize_exception(exception)
 
-        logger.opt(exception=exception).log(
-            "DEBUG" if log_level == "DEBUG" else "ERROR",
-            f"Exception in @Telebot: {log_msg}"
-        )
+        if log_level == "DEBUG":
+            if isinstance(exception, BaseBotException):
+                logger.opt(exception=exception).debug(f"Exception in @Telebot: {log_msg}")
+            else:
+                logger.opt(exception=exception, diagnose=False).debug(f"Exception in @Telebot: {log_msg}")
+        else:
+            logger.error(f"Exception in @Telebot: {log_msg}")
 
         return True
 
