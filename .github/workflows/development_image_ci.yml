@@ -3,8 +3,7 @@ name: Push Alpine Dev Image
 on:
   push:
     branches:
-      - 'master'
-      - 'improve-dockerfile'
+      - '**'  # слушаем все ветки
 
 permissions:
   contents: read
@@ -14,6 +13,10 @@ permissions:
 
 jobs:
   push_dev_image:
+    if: |
+      startsWith(github.ref, 'refs/heads/fix/') ||
+      startsWith(github.ref, 'refs/heads/feat/') ||
+      startsWith(github.ref, 'refs/heads/master/') ||
     name: Build and Push Dev Image
     runs-on: ubuntu-latest
 

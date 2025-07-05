@@ -81,37 +81,6 @@ def prepare_context_for_render(
 
     Returns:
         Dictionary with prepared context for rendering
-
-    Example input:
-    {
-        "nginx": {
-            "updates": [
-                {
-                    "current_tag": "1.24.0",
-                    "newer_tag": "1.24.1",
-                    "created_at_local": "2023-05-24T12:00:00Z",
-                    "created_at_remote": "2023-06-01T15:30:00Z"
-                }
-            ]
-        }
-    }
-
-    Example output:
-    {
-        "updates": {
-            "nginx": {
-                "current_tag": "1.24.0",
-                "created_at_local": "2023-05-24T12:00:00Z",
-                "updates": [
-                    {
-                        "newer_tag": "1.24.1",
-                        "created_at_remote": "2023-06-01T15:30:00Z"
-                    }
-                ]
-            }
-        },
-        "no_updates": []
-    }
     """
     updates = {}
     no_updates = []

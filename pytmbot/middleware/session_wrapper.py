@@ -138,7 +138,7 @@ def access_denied_handler(query: TelegramQuery, bot: telebot.TeleBot) -> bool:
         raise TypeError("Query must be an instance of Message or CallbackQuery")
 
     with auth_component.log_context(action="access_denied") as log:
-        log.denied("Access denied for query")
+        log.warning("Access denied for query")
         return handle_access_denied(query, bot)
 
 
@@ -171,7 +171,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
                 user_id=auth_context.user_id,
                 username=auth_context.username,
             ) as log:
-                log.denied("User is not in allowed admins list")
+                log.warning("User is not in allowed admins list")
             return access_denied_handler(query, bot)
 
         is_authenticated = session_manager.is_authenticated(auth_context.user_id)
