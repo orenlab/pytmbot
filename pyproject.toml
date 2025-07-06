@@ -60,7 +60,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-select = [
+lint.select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
     "F",  # pyflakes
@@ -70,7 +70,7 @@ select = [
     "UP", # pyupgrade
     "N",  # pep8-naming
 ]
-ignore = [
+lint.ignore = [
     "E501", # line too long (если используете formatter)
 ]
 exclude = [
@@ -85,10 +85,6 @@ exclude = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-skip-string-normalization = false
-
-[tool.ruff.lint.isort]
-known-first-party = ["pytmbot"]
 
 [tool.mypy]
 python_version = "3.12"
