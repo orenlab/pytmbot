@@ -10,7 +10,6 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 CYAN='\033[1;36m'
 WHITE='\033[1;37m'
-GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # Config file and sample file paths
@@ -69,7 +68,7 @@ show_banner() {
     echo -e "${CYAN}${border_style}"
     echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
     echo -e "${CYAN}${border_style}"
-    echo -e "${WHITE}Version: 0.2.2${NC}"
+    echo -e "${WHITE}Version: 0.2.2-dev${NC}"
     echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
     echo -e "${CYAN}${border_style}"
     echo ""
