@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -19,15 +19,6 @@ class PluginInterface(ABC):
 
     Attributes:
         bot (TeleBot): The instance of the Telegram bot that the plugin interacts with.
-
-    Example:
-        ```python
-        class MyPlugin(PluginInterface):
-            def register(self) -> None:
-                @self.bot.message_handler(commands=['myplugin'])
-                def handle_command(message):
-                    self.bot.reply_to(message, "Plugin response")
-        ```
 
     Raises:
         TypeError: If the provided bot instance is not a TeleBot object.

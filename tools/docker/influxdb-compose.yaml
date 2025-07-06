@@ -2,7 +2,7 @@ services:
   influxdb:
     # Using lightweight Alpine image to optimize size
     # See https://hub.docker.com/r/influxdb/influxdb/tags
-    image: influxdb:2.7.10-alpine
+    image: influxdb:3-core
     # Prevent the container from gaining additional privileges for security
     security_opt:
       - no-new-privileges
@@ -13,13 +13,7 @@ services:
     # Expose InfluxDB port only on localhost for increased security.
     # Use Nginx proxy if you want to expose the port to the internet
     ports:
-      - "127.0.0.1:8086:8086"
-    # Store InfluxDB data in a host volume to ensure data persistence
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
+      - "8086:8086"
+
     # Restart the container only on failure for reliability
     restart: on-failure
-
-volumes:
-  influxdb_data:
-    driver: local  # Local volume for InfluxDB data to persist between container restarts

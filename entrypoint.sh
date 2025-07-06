@@ -2,7 +2,17 @@
 set -e
 
 ########################################################################################################################
-#                                               pyTMBot - entrypoint.sh                                               #
+#                                                                                                                      #
+#                                               pyTMBot - Entrypoint                                                   #
+# -------------------------------------------------------------------------------------------------------------------- #
+# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
+# and extending its functionality with plugins.                                                                        #
+#                                                                                                                      #
+# Project:        pyTMBot                                                                                              #
+# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
+# Repository:     https://github.com/orenlab/pytmbot                                                                   #
+# License:        MIT                                                                                                  #
+#                                                                                                                      #
 ########################################################################################################################
 
 # Constants
@@ -233,7 +243,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Show startup info
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
 log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\"}"

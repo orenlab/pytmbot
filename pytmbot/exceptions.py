@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -146,7 +146,9 @@ class TelebotExceptionHandler(ExceptionHandler):
                     f"Exception in @Telebot: {log_msg}"
                 )
             else:
-                logger.bind(sensitive_exception=True).debug(f"Exception in @Telebot: {log_msg}")
+                logger.bind(sensitive_exception=True).debug(
+                    f"Exception in @Telebot: {log_msg}"
+                )
         else:
             logger.error(f"Exception in @Telebot: {log_msg}")
 
