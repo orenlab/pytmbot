@@ -176,6 +176,8 @@ health_check() {
 
     check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
+    $PYTHON_PATH "$MAIN_SCRIPT" --health_check || log "WARNING" "entrypoint" "Bot unhealthy!" "{}"
+
     log "INFO" "entrypoint" "Health check passed" "{}"
     return 0
 }

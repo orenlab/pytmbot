@@ -137,8 +137,8 @@ COPY --chown=pytmbot:docker --chmod=755 ./entrypoint.sh ./entrypoint.sh
 COPY --chown=pytmbot:docker ./pytmbot ./pytmbot
 
 # Health check
-HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["python", "-c", "import sys; sys.exit(0)"]
+HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
+    CMD ["./entrypoint.sh", "--health_check"]
 
 ########################################################################################################################
 ######################### TARGETS ######################################################################################
