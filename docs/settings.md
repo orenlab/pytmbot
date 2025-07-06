@@ -1,97 +1,93 @@
-# 🤖 PyTMBot Configuration Guide
+# pyTMbot Configuration Guide 🤖
 
-Complete guide for configuring PyTMBot with detailed explanations and configuration examples.
+A comprehensive guide for setting up and configuring pyTMbot - your secure Telegram-based monitoring and management
+solution.
 
-## 🚀 Quick Start
+## 📋 Quick Start
 
-### Minimum requirements to run:
+### 1. Create Telegram Bot
 
-1. Bot token from @BotFather
-2. Your Telegram User ID
-3. Chat ID for notifications
-4. Secret key for TOTP authentication
+1. Find [@BotFather](https://t.me/BotFather) on Telegram
+2. Send `/newbot` command
+3. Follow instructions and get bot token
+4. Save the token - you'll need it for configuration
 
-### Getting required data:
+### 2. Get Required IDs
 
-#### 1. Getting bot token:
+**Get User ID:**
 
-- Message @BotFather on Telegram
-- Create a new bot with `/newbot` command
-- Copy the token (format: `1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk`)
+- Method 1: Send any message to [@userinfobot](https://t.me/userinfobot)
+- Method 2: Start your bot and send any message - check logs for user ID
 
-#### 2. Getting your User ID:
+**Get Chat ID:**
 
-- **Method 1**: Send a message to @userinfobot
-- **Method 2**: Start your bot and send any message, check logs for user ID
+- For private chat: use your user ID (positive number)
+- For group chat: add [@userinfobot](https://t.me/userinfobot) to group and send any message
 
-#### 3. Getting Chat ID:
-
-- **For private messages**: use your User ID (positive number)
-- **For groups**: add @userinfobot to the group and send a message (negative number)
-- **Through logs**: start your bot and send a message, check logs for chat ID
-
-#### 4. Generating secret key:
+### 3. Generate Authentication Salt
 
 ```bash
-# Using Docker
+# Generate salt for TOTP authentication
 docker run --rm orenlab/pytmbot:latest --salt
-
-# Using OpenSSL
-openssl rand -hex 32
-
-# Or any random string of 32+ characters
 ```
 
-## ⚙️ Complete Configuration
+### 4. Create Configuration File
 
-### 🔧 General Bot Settings
-
-#### Bot Token Configuration
+Create `pytmbot.yaml` configuration file:
 
 ```yaml
+################################################################
+# General Bot Settings
+################################################################
+# Bot Token Configuration
 bot_token:
   # Production bot token (REQUIRED)
+  # Get your bot token from @BotFather on Telegram
   prod_token:
     - 'YOUR_PROD_BOT_TOKEN'  # Example: '1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk'
 
   # Development bot token (OPTIONAL)
   # Use separate bot for testing to avoid conflicts
   dev_bot_token:
-    - 'YOUR_DEV_BOT_TOKEN'   # Example: '9876543210:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqp'
-```
+    - 'YOUR_DEV_BOT_TOKEN'    # Example: '9876543210:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqp'
 
-#### Access Control Settings
-
-```yaml
+# Access Control Settings (REQUIRED)
 access_control:
   # User IDs allowed to access the bot (REQUIRED)
+  # To get your user ID:
+  #   Method 1: Send a message to @userinfobot on Telegram
+  #   Method 2: Start your bot and send any message - check logs for user ID
   allowed_user_ids:
-    - 123456789    # Replace with actual Telegram user ID
+    - 123456789    # Replace with actual Telegram user ID (number only)
     - 987654321    # You can add multiple user IDs
 
   # Admin IDs with elevated permissions (REQUIRED)
+  # Admins can access sensitive commands
   allowed_admins_ids:
     - 123456789    # Replace with actual admin Telegram user ID
 
-  # Salt for TOTP generation (REQUIRED)
+  # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
   # Generate with: docker run --rm orenlab/pytmbot:latest --salt
+  # Or use: openssl rand -hex 32
+  # Or use any random 32+ character string
   auth_salt:
     - 'your-secret-random-32-char-salt-here-replace-this-value'
-```
 
-#### Chat ID Configuration
-
-```yaml
+# Chat ID Configuration (REQUIRED)
 chat_id:
   # Global chat ID for notifications (REQUIRED)
+  # For private chat: use your user ID (positive number)
+  # For group chat: use group ID (negative number, starts with -)
+  # To get chat ID:
+  #   Method 1: For groups - add @userinfobot to group and send any message
+  #   Method 2: Start your bot and send message - check logs for chat ID
   global_chat_id:
     - -1001234567890  # Example: group chat ID (negative number)
     # - 123456789     # Alternative: private chat ID (positive number)
-```
 
-### 🐳 Docker Settings
-
-```yaml
+################################################################
+# Docker Settings (REQUIRED)
+################################################################
 docker:
   # Docker socket path (REQUIRED)
   # Default for Linux: unix:///var/run/docker.sock
@@ -102,331 +98,502 @@ docker:
   # Enable Docker client debug logging (OPTIONAL)
   # WARNING: Produces many logs when monitor plugin is enabled
   debug_docker_client: false  # true or false
-```
 
-### 🌐 Webhook Configuration (Advanced)
-
-**Note**: Bot automatically generates random webhook paths and secret tokens for enhanced security.
-
-```yaml
+################################################################
+# Webhook Configuration (OPTIONAL)
+################################################################
+# Only needed if you want to use webhooks instead of polling
+# SECURITY: Bot automatically generates random webhook paths and secret tokens
+# for enhanced security against unauthorized access
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
-  # Must be accessible from the internet with valid SSL
-  # Bot automatically appends secure random path
+  # Must be accessible from the internet and have valid SSL
+  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/BOT_TOKEN/
   url:
     - 'your-domain.com'  # Replace with your domain (without https:// and path)
 
   # External webhook port (REQUIRED if using webhooks)
   webhook_port:
     - 8443  # Standard HTTPS port (recommended)
-    # - 443   # Alternative port (allowed by Telegram)
+    # - 8443  # Alternative port (allowed by Telegram)
 
   # Local application port (REQUIRED if using webhooks)
+  # Must be >= 1024 (non-privileged port)
   local_port:
-    - 5001  # Internal port for the bot application (must be >= 1024)
+    - 5001  # Internal port for the bot application
 
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
   cert:
-    - '/path/to/your/certificate.pem'
+    - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
   cert_key:
-    - '/path/to/your/private.key'
+    - '/path/to/your/private.key'      # Replace with actual private key path
+
+################################################################
+# Plugins Configuration (OPTIONAL)
+################################################################
+plugins_config:
+  # System Monitoring Plugin Configuration
+  monitor:
+    # Resource usage thresholds (all values in percentage or Celsius)
+    tracehold:
+      # CPU usage threshold (0-100%)
+      cpu_usage_threshold:
+        - 80  # Alert when CPU usage exceeds 80%
+
+      # Memory usage threshold (0-100%)
+      memory_usage_threshold:
+        - 80  # Alert when memory usage exceeds 80%
+
+      # Disk usage threshold (0-100%)
+      disk_usage_threshold:
+        - 80  # Alert when disk usage exceeds 80%
+
+      # CPU temperature threshold (Celsius)
+      cpu_temperature_threshold:
+        - 85  # Alert when CPU temperature exceeds 85°C
+
+      # GPU temperature threshold (Celsius)
+      gpu_temperature_threshold:
+        - 90  # Alert when GPU temperature exceeds 90°C
+
+      # Disk temperature threshold (Celsius)
+      disk_temperature_threshold:
+        - 60  # Alert when disk temperature exceeds 60°C
+
+    # Maximum notifications before stopping alerts
+    max_notifications:
+      - 3  # Stop sending alerts after 3 notifications for same issue
+
+    # Check interval in seconds
+    check_interval:
+      - 5  # Check system status every 5 seconds
+
+    # Reset notification count after X minutes
+    reset_notification_count:
+      - 5  # Reset notification counter after 5 minutes
+
+    # Retry attempts for failed monitoring
+    retry_attempts:
+      - 3  # Try 3 times before giving up
+
+    # Interval between retry attempts in seconds
+    retry_interval:
+      - 10  # Wait 10 seconds between retries
+
+    # Monitor Docker containers and images
+    monitor_docker: true  # true = monitor Docker, false = don't monitor
+
+  # Outline VPN Plugin Configuration
+  outline:
+    # Outline VPN API URL (REQUIRED if using Outline plugin)
+    # Get this from your Outline VPN server management interface
+    api_url:
+      - 'https://your-outline-server.com:12345/api'  # Replace with your API URL
+
+    # Certificate fingerprint (REQUIRED if using Outline plugin)
+    # Get this from your Outline VPN server
+    cert:
+      - 'YOUR_OUTLINE_CERT_FINGERPRINT'  # Replace with actual certificate fingerprint
+
+################################################################
+# InfluxDB Settings (OPTIONAL)
+################################################################
+# Only needed if you want to store monitoring data in InfluxDB
+influxdb:
+  # InfluxDB server URL (REQUIRED if using InfluxDB)
+  url:
+    - 'http://localhost:8086'  # Replace with your InfluxDB server URL
+
+  # InfluxDB access token (REQUIRED if using InfluxDB)
+  # Generate in InfluxDB web interface: Data > Tokens > Generate Token
+  token:
+    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token
+
+  # InfluxDB organization name (REQUIRED if using InfluxDB)
+  org:
+    - 'YOUR_INFLUXDB_ORG'  # Replace with your organization name
+
+  # InfluxDB bucket name (REQUIRED if using InfluxDB)
+  bucket:
+    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your bucket name
+
+  # InfluxDB debug mode (OPTIONAL)
+  debug_mode: false  # true = enable debug logs, false = normal logging
 ```
 
-### 🔌 Plugins Configuration
+## 🐳 Docker Deployment
 
-#### System Monitoring Plugin
+### Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose v2.0+ (recommended)
+- 256MB RAM for optimal performance
+- 100MB free disk space
+- Internet connection for initial pull
+
+### Docker Compose (Recommended)
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  pytmbot:
+    image: orenlab/pytmbot:latest
+    container_name: pytmbot
+    restart: on-failure
+    environment:
+      - TZ=UTC  # Set your timezone
+    volumes:
+      # Read-only access to Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read-only bot configuration file to prevent modifications
+      - ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+    security_opt:
+      - no-new-privileges
+    read_only: true  # Make the container's filesystem read-only to reduce risks
+    cap_drop:
+      - ALL  # Drop all capabilities to minimize attack surfaces
+    pid: host  # Use the host's PID namespace for monitoring processes (use with caution)
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpu_shares: 512
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    networks:
+      - pytmbot_network
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=100m
+      - /var/tmp:noexec,nosuid,nodev,size=50m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Bot start parameters: mode, logging level, and plugins
+    command: --mode prod --log-level INFO --plugins monitor,outline
+
+networks:
+  pytmbot_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+```
+
+### Start the Container
+
+```bash
+# Create and start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f pytmbot
+
+# Stop
+docker-compose down
+```
+
+## 🔐 Security Features
+
+### Automatic Security Measures
+
+- **Random webhook paths**: automatic generation of secure URLs
+- **Rate limiting**: 10 requests/10 seconds, 5 for 404 errors
+- **IP validation**: only Telegram servers allowed
+- **Secret token verification**: for webhook requests
+- **Automatic IP banning**: after 50 excessive requests
+- **Read-only filesystem**: container security
+- **Dropped capabilities**: minimal attack surface
+
+### Manual Security Setup
+
+**Generate TOTP Salt:**
+
+```bash
+# Generate salt
+docker run --rm orenlab/pytmbot:latest --salt
+
+# Alternative method
+openssl rand -hex 32
+```
+
+**Check Docker Access:**
+
+```bash
+# Verify Docker socket access
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --check-docker
+```
+
+## 🔧 Command Line Arguments
+
+| Argument         | Type   | Default     | Choices                  | Description                                                                                    |
+|------------------|--------|-------------|--------------------------|------------------------------------------------------------------------------------------------|
+| `--mode`         | `str`  | `prod`      | `dev`, `prod`            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
+| `--log-level`    | `str`  | `INFO`      | `DEBUG`, `INFO`, `ERROR` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
+| `--webhook`      | `str`  | `False`     | `True`, `False`          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                |
+| `--socket_host`  | `str`  | `127.0.0.1` | N/A                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
+| `--plugins`      | `list` | `[]`        | N/A                      | Specify a comma-separated list of plugins to load. Available: monitor, outline                 |
+| `--salt`         | `str`  | `False`     | N/A                      | Generate unique salt for using it in TOTP authentication                                       |
+| `--health_check` | `str`  | `False`     | `True`, `False`          | Perform comprehensive health check and exit                                                    |
+| `--check-docker` | N/A    | N/A         | N/A                      | Check Docker socket access and group configuration, then exit                                  |
+
+## 📊 Plugin System
+
+### Available Plugins
+
+#### Monitor Plugin 📈
+
+**Features:**
+
+- CPU, memory, disk usage monitoring
+- Temperature monitoring (Linux)
+- Docker container monitoring
+- Threshold-based alerts
+- InfluxDB integration
+
+**Configuration Requirements:**
+
+- **InfluxDB**: Required for Monitor Plugin functionality
+- **Thresholds**: Configure alert thresholds
+- **Intervals**: Set monitoring intervals
+
+**Example Configuration:**
 
 ```yaml
 plugins_config:
   monitor:
-    # Resource usage thresholds
     tracehold:
-      cpu_usage_threshold:
-        - 80  # Alert when CPU usage exceeds 80%
-      memory_usage_threshold:
-        - 80  # Alert when memory usage exceeds 80%
-      disk_usage_threshold:
-        - 80  # Alert when disk usage exceeds 80%
-      cpu_temperature_threshold:
-        - 85  # Alert when CPU temperature exceeds 85°C
-      gpu_temperature_threshold:
-        - 90  # Alert when GPU temperature exceeds 90°C
-      disk_temperature_threshold:
-        - 60  # Alert when disk temperature exceeds 60°C
+      cpu_usage_threshold: [ 80 ]      # CPU threshold (%)
+      memory_usage_threshold: [ 80 ]   # Memory threshold (%)
+      disk_usage_threshold: [ 80 ]     # Disk threshold (%)
+      cpu_temperature_threshold: [ 85 ]    # CPU temperature (°C)
+      gpu_temperature_threshold: [ 90 ]    # GPU temperature (°C)
+      disk_temperature_threshold: [ 60 ]   # Disk temperature (°C)
+    max_notifications: [ 3 ]        # Max notifications per issue
+    check_interval: [ 5 ]           # Check interval (seconds)
+    reset_notification_count: [ 5 ] # Reset counter (minutes)
+    retry_attempts: [ 3 ]           # Retry attempts
+    retry_interval: [ 10 ]          # Retry interval (seconds)
+    monitor_docker: true          # Monitor Docker containers
 
-    # Notification settings
-    max_notifications:
-      - 3  # Stop sending alerts after 3 notifications for same issue
-    check_interval:
-      - 5  # Check system status every 5 seconds
-    reset_notification_count:
-      - 5  # Reset notification counter after 5 minutes
-
-    # Retry settings
-    retry_attempts:
-      - 3  # Try 3 times before giving up
-    retry_interval:
-      - 10  # Wait 10 seconds between retries
-
-    # Docker monitoring
-    monitor_docker: true  # Monitor Docker containers and images
-```
-
-#### Outline VPN Plugin
-
-```yaml
-outline:
-  # Outline VPN API URL (REQUIRED if using Outline plugin)
-  api_url:
-    - 'https://your-outline-server.com:12345/api'
-
-  # Certificate fingerprint (REQUIRED if using Outline plugin)
-  cert:
-    - 'YOUR_OUTLINE_CERT_FINGERPRINT'
-```
-
-### 📊 InfluxDB Integration (Optional)
-
-```yaml
+# InfluxDB configuration (required for Monitor plugin)
 influxdb:
-  # InfluxDB server URL
-  url:
-    - 'http://localhost:8086'
-
-  # InfluxDB access token
-  # Generate in InfluxDB web interface: Data > Tokens > Generate Token
-  token:
-    - 'YOUR_INFLUXDB_TOKEN'
-
-  # InfluxDB organization name
-  org:
-    - 'YOUR_INFLUXDB_ORG'
-
-  # InfluxDB bucket name
-  bucket:
-    - 'YOUR_INFLUXDB_BUCKET'
-
-  # Debug mode
-  debug_mode: false  # Enable debug logs
+  url: [ 'http://localhost:8086' ]
+  token: [ 'YOUR_INFLUXDB_TOKEN' ]
+  org: [ 'YOUR_INFLUXDB_ORG' ]
+  bucket: [ 'YOUR_INFLUXDB_BUCKET' ]
 ```
 
-## 🐳 Docker Usage
+#### Outline Plugin 🔒
 
-### Basic Docker Commands
+**Features:**
 
-#### Run with polling (default):
+- VPN access key management
+- Server statistics retrieval
+- Server configuration updates
+- Traffic usage monitoring
+
+**Configuration Requirements:**
+
+```yaml
+plugins_config:
+  outline:
+    api_url: [ 'https://your-outline-server.com:12345/api' ]
+    cert: [ 'YOUR_OUTLINE_CERT_FINGERPRINT' ]
+```
+
+### Plugin Usage Examples
+
+**Enable Multiple Plugins:**
+
+```bash
+docker run ... orenlab/pytmbot:latest --plugins monitor,outline
+```
+
+**Enable Single Plugin:**
+
+```bash
+docker run ... orenlab/pytmbot:latest --plugins monitor
+```
+
+**Development Mode:**
+
+```bash
+docker run ... orenlab/pytmbot:latest --mode dev --log-level DEBUG --plugins monitor
+```
+
+## 🌐 Webhook Configuration
+
+### Standard Deployment
 
 ```bash
 docker run -d \
   --name pytmbot \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /path/to/config.yaml:/app/config.yaml \
-  orenlab/pytmbot:latest
+  --restart on-failure \
+  --env TZ="UTC" \
+  --volume ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+  --security-opt no-new-privileges \
+  --read-only \
+  --cap-drop ALL \
+  --pid host \
+  --memory 256m \
+  --cpu-shares 512 \
+  orenlab/pytmbot:latest --mode prod --log-level INFO
 ```
 
-#### Run with webhooks:
+### Webhook Mode with Reverse Proxy
 
 ```bash
 docker run -d \
   --name pytmbot \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /path/to/config.yaml:/app/config.yaml \
-  -p 8443:8443 \
-  orenlab/pytmbot:latest --webhook
+  --restart on-failure \
+  --env TZ="UTC" \
+  --volume ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+  --security-opt no-new-privileges \
+  --read-only \
+  --cap-drop ALL \
+  --pid host \
+  --memory 256m \
+  --cpu-shares 512 \
+  orenlab/pytmbot:latest --mode prod --webhook True --socket_host 0.0.0.0
 ```
 
-#### Run with specific plugins:
+**Important:** Bot cannot run on port 80 for security reasons. Use reverse proxy (Nginx, Nginx Proxy Manager, or
+Traefik).
+
+## 🔍 Diagnostics and Troubleshooting
+
+### Health Checks
+
+**Container Health Check:**
 
 ```bash
-docker run -d \
-  --name pytmbot \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /path/to/config.yaml:/app/config.yaml \
-  orenlab/pytmbot:latest --plugins monitor,outline
-```
-
-### Command Line Options
-
-| Option           | Description                        | Default   |
-|------------------|------------------------------------|-----------|
-| `--log-level`    | Set log level (DEBUG, INFO, ERROR) | INFO      |
-| `--mode`         | Set mode (dev, prod)               | prod      |
-| `--salt`         | Generate salt for TOTP             | False     |
-| `--plugins`      | Comma-separated list of plugins    | ""        |
-| `--webhook`      | Enable webhook mode                | False     |
-| `--socket_host`  | Socket host for webhook            | 127.0.0.1 |
-| `--health_check` | Perform health check               | False     |
-| `--check-docker` | Check Docker access and exit       | -         |
-
-### Examples
-
-#### Generate salt:
-
-```bash
-docker run --rm orenlab/pytmbot:latest --salt
-```
-
-#### Check Docker access:
-
-```bash
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  orenlab/pytmbot:latest --check-docker
-```
-
-#### Run in development mode:
-
-```bash
-docker run -d \
-  --name pytmbot-dev \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /path/to/config.yaml:/app/config.yaml \
-  orenlab/pytmbot:latest --mode dev --log-level DEBUG
-```
-
-## 🔒 Security Features
-
-### Automatic Security Enhancements:
-
-- **Random webhook paths**: Bot generates secure random paths for webhooks
-- **Rate limiting**: 10 requests per 10 seconds, 5 for 404 errors
-- **IP validation**: Only Telegram servers are allowed
-- **Secret token verification**: Webhook requests are verified
-- **Automatic IP banning**: After 50 excessive requests
-- **Docker group management**: Automatic Docker socket access configuration
-
-### Manual Security Recommendations:
-
-- Use separate bot tokens for development and production
-- Restrict `allowed_user_ids` to trusted users only
-- Use strong, unique `auth_salt` values
-- Enable HTTPS for webhook configurations
-- Regularly rotate bot tokens and secrets
-- Monitor logs for suspicious activity
-
-## 🩺 Health Checks & Monitoring
-
-### Health Check Command:
-
-```bash
-docker run --rm \
-  -v /path/to/config.yaml:/app/config.yaml \
+docker run --rm -v ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   orenlab/pytmbot:latest --health_check
 ```
 
-### Docker Health Check:
-
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python3 pytmbot/main.py --health_check
-```
-
-### Monitoring Logs:
+**Docker Access Check:**
 
 ```bash
-# View logs
-docker logs pytmbot
-
-# Follow logs
-docker logs -f pytmbot
-
-# View logs with timestamps
-docker logs -t pytmbot
-```
-
-## 🛠️ Troubleshooting
-
-### Common Issues:
-
-#### 1. Docker socket permission denied:
-
-```bash
-# Check Docker socket permissions
-ls -la /var/run/docker.sock
-
-# Fix with Docker group
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
   orenlab/pytmbot:latest --check-docker
-
-# Or use group-add
-docker run --group-add $(stat -c %g /var/run/docker.sock) ...
 ```
 
-#### 2. Bot not responding:
-
-- Check bot token validity
-- Verify user IDs in `allowed_user_ids`
-- Check network connectivity
-- Review logs for errors
-
-#### 3. Webhook issues:
-
-- Ensure domain is accessible from internet
-- Verify SSL certificate validity
-- Check firewall settings
-- Confirm webhook URL format
-
-#### 4. Configuration errors:
-
-- Validate YAML syntax
-- Check file permissions
-- Verify all required fields are filled
-- Test with minimal configuration first
-
-### Debug Mode:
+### Log Analysis
 
 ```bash
-docker run -d \
-  --name pytmbot-debug \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /path/to/config.yaml:/app/config.yaml \
-  orenlab/pytmbot:latest --log-level DEBUG
+# View container logs
+docker logs pytmbot
+    
+# Follow logs in real-time
+docker logs -f pytmbot
+    
+# Last 100 lines
+docker logs --tail 100 pytmbot
 ```
 
-## 📋 Configuration Templates
+### Common Issues and Solutions
 
-### Minimal Configuration:
+**1. Configuration Errors:**
+
+```bash
+# Check configuration file syntax
+docker run --rm -v ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  orenlab/pytmbot:latest --health_check
+```
+
+**2. Permission Issues:**
+
+```bash
+# Check file permissions
+ls -la pytmbot.yaml
+chmod 644 pytmbot.yaml
+
+# Verify Docker socket access
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --check-docker
+```
+
+**3. Bot Not Responding:**
+
+- Verify bot token is correct
+- Check User ID in allowed_user_ids
+- Ensure bot has proper permissions
+- Check logs for authentication errors
+
+**4. Memory Issues:**
+
+```bash
+# Monitor memory usage
+docker stats pytmbot
+
+# Check memory limits
+docker inspect pytmbot | grep -i memory
+```
+
+**5. High CPU Usage:**
+
+- Check log level (reduce from DEBUG to INFO)
+- Verify monitoring intervals in config
+- Review plugin configurations
+
+## 📝 Minimal Configuration Example
 
 ```yaml
+# Minimal working configuration
 bot_token:
   prod_token:
     - 'YOUR_BOT_TOKEN'
 
 access_control:
   allowed_user_ids:
-    - YOUR_USER_ID
+    - 123456789
   allowed_admins_ids:
-    - YOUR_USER_ID
+    - 123456789
   auth_salt:
-    - 'YOUR_GENERATED_SALT'
+    - 'your-generated-salt-here'
 
 chat_id:
   global_chat_id:
-    - YOUR_CHAT_ID
+    - 123456789  # Your user ID for private chat
 
 docker:
   host:
     - 'unix:///var/run/docker.sock'
 ```
 
-## 🎯 Best Practices
+## 🚀 Production Best Practices
 
-1. **Start Simple**: Begin with minimal configuration and add features gradually
-2. **Test Thoroughly**: Test each configuration change in development mode
-3. **Monitor Logs**: Regularly check logs for errors and security issues
-4. **Backup Configuration**: Keep backups of working configurations
-5. **Update Regularly**: Keep PyTMBot updated to latest version
-6. **Security First**: Follow security recommendations and best practices
-7. **Document Changes**: Keep track of configuration changes and their purposes
+### Resource Management
 
-## 📞 Support
+- **Memory**: Set `mem_limit: 256m` (typical usage ~80MB)
+- **CPU**: Use `cpu_shares: 512` for fair scheduling
+- **Storage**: Container requires ~100MB disk space
+- **Network**: Varies based on monitoring interval
 
-- **Documentation**: Check the PyTMBot documentation for detailed information
-- **Issues**: Report bugs and feature requests on the project repository
-- **Community**: Join the community discussions for help and tips
-- **Logs**: Always include relevant logs when seeking help
+### Security Hardening
 
-Happy Botting! 🤖✨
+- Use `restart: on-failure` instead of `unless-stopped`
+- Implement proper network isolation
+- Enable log rotation to prevent disk space issues
+- Use tmpfs mounts for temporary data
+- Regular container updates
+
+### Monitoring
+
+- Enable health checks
+- Monitor resource usage
+- Set appropriate log levels
+- Configure log rotation
+- Use InfluxDB for metrics storage
