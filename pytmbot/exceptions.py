@@ -146,9 +146,7 @@ class TelebotExceptionHandler(ExceptionHandler):
                     f"Exception in @Telebot: {log_msg}"
                 )
             else:
-                logger.opt(exception=exception, diagnose=False).debug(
-                    f"Exception in @Telebot: {log_msg}"
-                )
+                logger.bind(sensitive_exception=True).debug(f"Exception in @Telebot: {log_msg}")
         else:
             logger.error(f"Exception in @Telebot: {log_msg}")
 

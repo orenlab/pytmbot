@@ -78,6 +78,17 @@ class Logger:
             catch=True,
         )
 
+        self._logger.add(
+            sys.stdout,
+            format=LogConfig.FORMAT,
+            level=log_level,
+            colorize=True,
+            backtrace=False,
+            diagnose=False,
+            catch=True,
+            filter=lambda record: "sensitive_exception" in record["extra"]
+        )
+
     @staticmethod
     def _extract_update_data(
         update: Update | Message | CallbackQuery | InlineQuery,
