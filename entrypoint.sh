@@ -6,7 +6,7 @@ set -e
 ########################################################################################################################
 
 # Constants
-PYTHON_PATH="/venv/bin/python3"
+PYTHON_PATH="/usr/local/bin/python3"
 MAIN_SCRIPT="pytmbot/main.py"
 SALT_SCRIPT="pytmbot/utils/salt.py"
 
