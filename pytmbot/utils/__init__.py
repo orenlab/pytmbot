@@ -111,6 +111,8 @@ __all__ = [
     "sanitize_exception",
     "generate_secret_token",
     "mask_token_in_message",
+    "mask_username",
+    "mask_user_id",
     "get_message_full_info",
     "get_inline_message_full_info",
     "sanitize_logs",
