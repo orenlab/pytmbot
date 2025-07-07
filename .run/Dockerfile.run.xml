@@ -3,7 +3,7 @@
     <deployment type="dockerfile">
       <settings>
         <option name="imageTag" value="latest" />
-        <option name="command" value="--log-level DEBUG --mode dev --plugins monitor" />
+        <option name="command" value="--log-level DEBUG --mode dev" />
         <option name="containerName" value="pytmbot" />
         <option name="commandLineOptions" value="--group-add 0 --security-opt no-new-privileges:true" />
         <option name="sourceFilePath" value="Dockerfile" />
