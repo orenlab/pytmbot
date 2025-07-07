@@ -1,3 +1,10 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
 import threading
 import time
 from collections import defaultdict
@@ -35,7 +42,9 @@ class AccessControl(BaseMiddleware):
         self.allowed_user_ids = frozenset(settings.access_control.allowed_user_ids)
 
         self._attempt_count: defaultdict[int, int] = defaultdict(int)
-        self._blocked_until: defaultdict[int, datetime] = defaultdict(lambda: datetime.min)
+        self._blocked_until: defaultdict[int, datetime] = defaultdict(
+            lambda: datetime.min
+        )
         self._last_admin_notify: dict[int, datetime] = {}
 
         threading.Thread(
@@ -78,7 +87,11 @@ class AccessControl(BaseMiddleware):
             block_time = self._blocked_until[user_id]
             logger.warning(
                 f"Blocked access from user {user_id}",
-                context={**log_extra, "block_expires": block_time.isoformat(), "action": "block_check"},
+                context={
+                    **log_extra,
+                    "block_expires": block_time.isoformat(),
+                    "action": "block_check",
+                },
             )
             return CancelUpdate()
 
@@ -95,7 +108,7 @@ class AccessControl(BaseMiddleware):
         return datetime.now() < self._blocked_until[user_id]
 
     def _handle_unauthorized_access(
-            self, user_id: int, username: str, chat_id: int
+        self, user_id: int, username: str, chat_id: int
     ) -> CancelUpdate:
         self._attempt_count[user_id] += 1
         current_attempt = self._attempt_count[user_id]
@@ -120,7 +133,10 @@ class AccessControl(BaseMiddleware):
         else:
             logger.warning(
                 f"Unauthorized access attempt #{current_attempt} from {username}",
-                context={**log_extra, "attempts_remaining": self.MAX_ATTEMPTS - current_attempt},
+                context={
+                    **log_extra,
+                    "attempts_remaining": self.MAX_ATTEMPTS - current_attempt,
+                },
             )
 
         self._notify_admin(user_id, username, chat_id, current_attempt)
@@ -130,7 +146,7 @@ class AccessControl(BaseMiddleware):
         return CancelUpdate()
 
     def _notify_admin(
-            self, user_id: int, username: str, chat_id: int, attempt: int
+        self, user_id: int, username: str, chat_id: int, attempt: int
     ) -> None:
         now = datetime.now()
         last_notified = self._last_admin_notify.get(user_id, datetime.min)
@@ -229,7 +245,7 @@ class AccessControl(BaseMiddleware):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-            self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
     ) -> None:
         if not exception or isinstance(exception, CancelUpdate):
             return

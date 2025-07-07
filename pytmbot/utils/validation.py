@@ -1,3 +1,11 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
+
 def is_new_name_valid(new_name: str) -> bool:
     if len(new_name) not in (1, 64):
         return False

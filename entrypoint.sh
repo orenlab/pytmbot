@@ -2,11 +2,21 @@
 set -e
 
 ########################################################################################################################
-#                                               pyTMBot - entrypoint.sh                                               #
+#                                                                                                                      #
+#                                               pyTMBot - Entrypoint                                                   #
+# -------------------------------------------------------------------------------------------------------------------- #
+# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
+# and extending its functionality with plugins.                                                                        #
+#                                                                                                                      #
+# Project:        pyTMBot                                                                                              #
+# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
+# Repository:     https://github.com/orenlab/pytmbot                                                                   #
+# License:        MIT                                                                                                  #
+#                                                                                                                      #
 ########################################################################################################################
 
 # Constants
-PYTHON_PATH="/venv/bin/python3"
+PYTHON_PATH="/usr/local/bin/python3"
 MAIN_SCRIPT="pytmbot/main.py"
 SALT_SCRIPT="pytmbot/utils/salt.py"
 
@@ -176,6 +186,8 @@ health_check() {
 
     check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
+    $PYTHON_PATH "$MAIN_SCRIPT" --health_check || log "WARNING" "entrypoint" "Bot unhealthy!" "{}"
+
     log "INFO" "entrypoint" "Health check passed" "{}"
     return 0
 }
@@ -224,19 +236,6 @@ while [ $# -gt 0 ]; do
             check_docker_access
             exit 0
             ;;
-        --debug-groups)
-            log "INFO" "entrypoint" "=== Debug Groups Information ===" "{}"
-            log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g)\"}"
-            log "INFO" "entrypoint" "All groups" "{\"groups\": \"$(groups)\", \"group_ids\": \"$(id -G)\", \"group_names\": \"$(id -Gn)\"}"
-            if [ -f /etc/group ]; then
-                log "INFO" "entrypoint" "Docker group info" "{\"docker_group\": \"$(grep '^docker:' /etc/group || echo 'not found')\"}"
-            fi
-            if [ -S /var/run/docker.sock ]; then
-                log "INFO" "entrypoint" "Docker socket info" "{\"socket_perms\": \"$(ls -la /var/run/docker.sock)\", \"socket_gid\": \"$(stat -c %g /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
-            fi
-            log "INFO" "entrypoint" "=== End Debug Groups Information ===" "{}"
-            exit 0
-            ;;
         *)
             log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker, --debug-groups\"}"
             exit 1
@@ -244,7 +243,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Show startup info
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
 log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\"}"

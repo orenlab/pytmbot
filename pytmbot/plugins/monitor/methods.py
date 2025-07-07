@@ -1,3 +1,10 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -550,15 +557,15 @@ class SystemMonitorPlugin(PluginCore):
 
     def _send_resolution_notification(self, event_type: str, duration: float) -> None:
         message = (
-            f"✅ <b>{event_type} has normalized</b>\n"
-            f"Duration: {int(duration)} seconds"
+            f"✅ <b>{event_type} has normalized</b>\nDuration: {int(duration)} seconds"
         )
         self._send_notification(message)
 
     def _schedule_notification_reset(self) -> None:
         try:
             reset_thread = threading.Timer(
-                300, self._reset_notification_count  # 5 minutes
+                300,
+                self._reset_notification_count,  # 5 minutes
             )
             reset_thread.daemon = True
             reset_thread.start()

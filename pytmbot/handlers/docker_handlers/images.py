@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -40,7 +40,6 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
     template_context = None
 
     try:
-
         # Send typing action indicator
         bot.send_chat_action(message.chat.id, "typing")
 

@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -19,7 +19,7 @@ from pytmbot.utils import EmojiConverter, is_running_in_docker
 # pyTMBot globals initialization
 
 # Global namespace information
-__version__ = "0.2.2-dev"
+__version__ = "0.2.2"
 __author__ = "Denis Rozhnovskiy <pytelemonbot@mail.ru>"
 __license__ = "MIT"
 __repository__ = "https://github.com/orenlab/pytmbot"

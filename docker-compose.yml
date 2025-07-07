@@ -1,10 +1,10 @@
 services:
   pytmbot:
-    image: orenlab/pytmbot:alpine-dev
+    image: orenlab/pytmbot:latest
     container_name: pytmbot
     restart: on-failure
     environment:
-      - TZ=Asia/Yekaterinburg
+      - TZ=UTC
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
@@ -36,8 +36,12 @@ services:
 networks:
   pytmbot_network:
     driver: bridge
+    # If the bot starts without plug-ins, then we disable network interaction:
     driver_opts:
       com.docker.network.bridge.enable_icc: "false"
+    # The case when the bot is running with the Monitor plugin enabled:
+    #driver_opts:
+    #  com.docker.network.bridge.enable_icc: "true"
     ipam:
       driver: default
       config:

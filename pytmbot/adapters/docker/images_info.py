@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -99,11 +99,12 @@ def process_image_attrs(image: Image) -> Dict[str, Any]:
 
         # Safely handle RepoTags - if empty or None, use first tag from image.tags or "N/A"
         repo_tags = image.attrs.get("RepoTags", [])
-        primary_name = (
-            repo_tags[0]
-            if repo_tags
-            else (image.tags[0] if image.tags else "<none>:<none>")
-        )
+        if repo_tags:
+            primary_name = repo_tags[0]
+        elif image.tags:
+            primary_name = image.tags[0]
+        else:
+            primary_name = "<none>:<none>"
 
         return {
             "id": image.short_id,
@@ -212,10 +213,10 @@ def get_image_stats() -> Dict[str, Any]:
             images = adapter.images.list(all=True)
 
             total_size = sum(image.attrs.get("Size", 0) for image in images)
-            os_types = set(image.attrs.get("Os", "unknown") for image in images)
-            architectures = set(
+            os_types = {image.attrs.get("Os", "unknown") for image in images}
+            architectures = {
                 image.attrs.get("Architecture", "unknown") for image in images
-            )
+            }
 
             return {
                 "total_images": len(images),

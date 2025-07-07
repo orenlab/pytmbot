@@ -3,126 +3,213 @@
 ################################################################
 # Bot Token Configuration
 bot_token:
-  # Production bot token.
+  # Production bot token (REQUIRED)
+  # Get your bot token from @BotFather on Telegram
   prod_token:
-    - 'YOUR_PROD_BOT_TOKEN'  # Replace with your actual production bot token.
-  # Development bot token. Optional for production bot.
+    - 'YOUR_PROD_BOT_TOKEN'  # Example: '1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk'
+
+  # Development bot token (OPTIONAL)
+  # Use separate bot for testing to avoid conflicts
   dev_bot_token:
-    - 'YOUR_DEV_BOT_TOKEN'    # Replace with your development bot token (if needed).
+    - 'YOUR_DEV_BOT_TOKEN'    # Example: '9876543210:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqp'
 
-# Chat ID Configuration
-chat_id:
-  # Global chat ID. Used for all notifications from the plugin.
-  global_chat_id:
-    - 'YOUR_CHAT_ID'  # Replace with your actual chat ID for notifications.
-
-# Access Control Settings
+# Access Control Settings (REQUIRED)
 access_control:
-  # User IDs allowed to access the bot.
+  # User IDs allowed to access the bot (REQUIRED)
+  # To get your user ID:
+  #   Method 1: Send a message to @userinfobot on Telegram
+  #   Method 2: Start your bot and send any message - check logs for user ID
   allowed_user_ids:
+    - 123456789    # Replace with actual Telegram user ID (number only)
+    - 987654321    # You can add multiple user IDs
 
-  # Admin IDs allowed to access the bot.
+  # Admin IDs with elevated permissions (REQUIRED)
+  # Admins can access sensitive commands
   allowed_admins_ids:
+    - 123456789    # Replace with actual admin Telegram user ID
 
-  # Salt used for generating TOTP (Time-Based One-Time Password) secrets and verifying TOTP codes.
+  # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
+  # Generate with: docker run --rm orenlab/pytmbot:latest --salt
+  # Or use: openssl rand -hex 32
+  # Or use any random 32+ character string
   auth_salt:
-    - 'YOUR_AUTH_SALT'  # Replace with the salt for TOTP.
+    - 'your-secret-random-32-char-salt-here-replace-this-value'
+
+# Chat ID Configuration (REQUIRED)
+chat_id:
+  # Global chat ID for notifications (REQUIRED)
+  # For private chat: use your user ID (positive number)
+  # For group chat: use group ID (negative number, starts with -)
+  # To get chat ID:
+  #   Method 1: For groups - add @userinfobot to group and send any message
+  #   Method 2: Start your bot and send message - check logs for chat ID
+  global_chat_id:
+    - -1001234567890  # Example: group chat ID (negative number)
+    # - 123456789     # Alternative: private chat ID (positive number)
 
 ################################################################
-# Docker Settings
+# Docker Settings (REQUIRED)
 ################################################################
 docker:
-  # Docker socket. Usually: unix:///var/run/docker.sock.
+  # Docker socket path (REQUIRED)
+  # Default for Linux: unix:///var/run/docker.sock
+  # For Windows: npipe:////./pipe/docker_engine
   host:
-    - 'unix:///var/run/docker.sock'  # Path to the Docker socket.
-  # Debug Docker client (to many logs in debug mode with enabled Monitor plugin and Docker containers count monitoring)
-  debug_docker_client: false
+    - 'unix:///var/run/docker.sock'
+
+  # Enable Docker client debug logging (OPTIONAL)
+  # WARNING: Produces many logs when monitor plugin is enabled
+  debug_docker_client: false  # true or false
 
 ################################################################
-# Webhook Configuration
+# Webhook Configuration (OPTIONAL)
 ################################################################
+# Only needed if you want to use webhooks instead of polling
+# SECURITY: Bot automatically generates random webhook paths and secret tokens
+# for enhanced security against unauthorized access
 webhook_config:
-  # Webhook URL
+  # Webhook URL (REQUIRED if using webhooks)
+  # Must be accessible from the internet and have valid SSL
+  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/BOT_TOKEN/
   url:
-    - 'YOUR_WEBHOOK_URL'  # Replace with your actual webhook URL.
-  # Webhook port
+    - 'your-domain.com'  # Replace with your domain (without https:// and path)
+
+  # External webhook port (REQUIRED if using webhooks)
   webhook_port:
-    - 443  # Port for external webhook requests.
+    - 8443  # Standard HTTPS port (recommended)
+    # - 8443  # Alternative port (allowed by Telegram)
+
+  # Local application port (REQUIRED if using webhooks)
+  # Must be >= 1024 (non-privileged port)
   local_port:
-    - 5001  # Local port for internal requests.
+    - 5001  # Internal port for the bot application
+
+  # SSL certificate path (OPTIONAL for HTTPS webhooks)
   cert:
-    - 'YOUR_CERTIFICATE'  # Path to the SSL certificate (if using HTTPS).
+    - '/path/to/your/certificate.pem'  # Replace with actual certificate path
+
+  # SSL private key path (OPTIONAL for HTTPS webhooks)
   cert_key:
-    - 'YOUR_CERTIFICATE_KEY'  # Path to the SSL certificate's private key (if using HTTPS).
+    - '/path/to/your/private.key'      # Replace with actual private key path
 
 ################################################################
-# Plugins Configuration
+# Plugins Configuration (OPTIONAL)
 ################################################################
 plugins_config:
-  # Configuration for the Monitor plugin
+  # System Monitoring Plugin Configuration
   monitor:
-    # Threshold settings
+    # Resource usage thresholds (all values in percentage or Celsius)
     tracehold:
-      # CPU usage thresholds in percentage
+      # CPU usage threshold (0-100%)
       cpu_usage_threshold:
-        - 80  # Threshold for CPU usage.
-      # Memory usage thresholds in percentage
+        - 80  # Alert when CPU usage exceeds 80%
+
+      # Memory usage threshold (0-100%)
       memory_usage_threshold:
-        - 80  # Threshold for memory usage.
-      # Disk usage thresholds in percentage
+        - 80  # Alert when memory usage exceeds 80%
+
+      # Disk usage threshold (0-100%)
       disk_usage_threshold:
-        - 80  # Threshold for disk usage.
-      # CPU temperature thresholds in degrees Celsius
+        - 80  # Alert when disk usage exceeds 80%
+
+      # CPU temperature threshold (Celsius)
       cpu_temperature_threshold:
-        - 85  # Threshold for CPU temperature.
-      # GPU temperature thresholds in degrees Celsius
+        - 85  # Alert when CPU temperature exceeds 85°C
+
+      # GPU temperature threshold (Celsius)
       gpu_temperature_threshold:
-        - 90  # Threshold for GPU temperature.
-      # Disk temperature thresholds in degrees Celsius
+        - 90  # Alert when GPU temperature exceeds 90°C
+
+      # Disk temperature threshold (Celsius)
       disk_temperature_threshold:
-        - 60  # Threshold for disk temperature.
-    # Maximum number of notifications for each type of overload
+        - 60  # Alert when disk temperature exceeds 60°C
+
+    # Maximum notifications before stopping alerts
     max_notifications:
-      - 3  # Maximum number of notifications sent for a single event.
+      - 3  # Stop sending alerts after 3 notifications for same issue
+
     # Check interval in seconds
     check_interval:
-      - 5  # Interval for system status checks.
+      - 5  # Check system status every 5 seconds
+
     # Reset notification count after X minutes
     reset_notification_count:
-      - 5  # Time in minutes to reset the notification count.
-    # Number of attempts to retry monitoring startup in case of failure
+      - 5  # Reset notification counter after 5 minutes
+
+    # Retry attempts for failed monitoring
     retry_attempts:
-      - 3  # Number of retry attempts.
-    # Interval (in seconds) between retry attempts
+      - 3  # Try 3 times before giving up
+
+    # Interval between retry attempts in seconds
     retry_interval:
-      - 10  # Interval between retry attempts.
-    # Monitor Docker images and containers
-    monitor_docker: True  # True - Monitor Docker images and containers. False - Do not monitor Docker.
+      - 10  # Wait 10 seconds between retries
 
-  # Configuration for the Outline plugin
+    # Monitor Docker containers and images
+    monitor_docker: true  # true = monitor Docker, false = don't monitor
+
+  # Outline VPN Plugin Configuration
   outline:
-    # Outline API settings
+    # Outline VPN API URL (REQUIRED if using Outline plugin)
+    # Get this from your Outline VPN server management interface
     api_url:
-      - 'YOUR_OUTLINE_API_URL'  # Replace with your actual Outline API URL.
-    # Certificate fingerprint
+      - 'https://your-outline-server.com:12345/api'  # Replace with your API URL
+
+    # Certificate fingerprint (REQUIRED if using Outline plugin)
+    # Get this from your Outline VPN server
     cert:
-      - 'YOUR_OUTLINE_CERT'  # Replace with the actual path to your certificate.
+      - 'YOUR_OUTLINE_CERT_FINGERPRINT'  # Replace with actual certificate fingerprint
 
 ################################################################
-# InfluxDB Settings
+# InfluxDB Settings (OPTIONAL)
 ################################################################
+# Only needed if you want to store monitoring data in InfluxDB
 influxdb:
-  # InfluxDB host
+  # InfluxDB server URL (REQUIRED if using InfluxDB)
   url:
-    - 'YOUR_INFLUXDB_URL'  # URL of your InfluxDB server.
-  # InfluxDB token
+    - 'http://localhost:8086'  # Replace with your InfluxDB server URL
+
+  # InfluxDB access token (REQUIRED if using InfluxDB)
+  # Generate in InfluxDB web interface: Data > Tokens > Generate Token
   token:
-    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token.
-  # InfluxDB organization name
+    - 'YOUR_INFLUXDB_TOKEN'  # Replace with your actual InfluxDB token
+
+  # InfluxDB organization name (REQUIRED if using InfluxDB)
   org:
-    - 'YOUR_INFLUXDB_ORG'  # Replace with your actual organization name in InfluxDB.
-  # InfluxDB bucket name
+    - 'YOUR_INFLUXDB_ORG'  # Replace with your organization name
+
+  # InfluxDB bucket name (REQUIRED if using InfluxDB)
   bucket:
-    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your actual bucket name in InfluxDB.
-  # InfluxDB debug mode
-  debug_mode: YOUR_INFLUXDB_DEBUG_MODE  # Set to true to enable debug mode.
+    - 'YOUR_INFLUXDB_BUCKET'  # Replace with your bucket name
+
+  # InfluxDB debug mode (OPTIONAL)
+  debug_mode: false  # true = enable debug logs, false = normal logging
+
+################################################################
+# QUICK START GUIDE:
+################################################################
+# 1. REQUIRED steps to get started:
+#    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
+#    - Get your user ID: send message to bot and check logs, or use @userinfobot
+#    - Replace 123456789 with your actual Telegram user ID
+#    - Replace -1001234567890 with your chat ID for notifications
+#    - Generate auth_salt: docker run --rm orenlab/pytmbot:latest --salt
+#
+# 2. OPTIONAL steps for advanced features:
+#    - Configure webhook_config if you don't want to use polling
+#      Note: Bot automatically generates secure random webhook paths
+#    - Configure plugins_config for monitoring and VPN features
+#    - Configure influxdb for data storage and analytics
+#
+# 3. Security features (automatic):
+#    - Webhook URLs include random tokens for security
+#    - Rate limiting (10 requests/10 seconds, 5 for 404s)
+#    - IP validation (only Telegram servers allowed)
+#    - Secret token verification for webhook requests
+#    - Automatic IP banning after 50 excessive requests
+#
+# 4. Test your configuration:
+#    - Start with minimal config (only required fields)
+#    - Add optional features one by one
+#    - Check logs for any configuration errors
+#    - Use docker logs to monitor webhook requests
+################################################################

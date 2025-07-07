@@ -1,12 +1,10 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-
-Outline VPN plugin for pyTMBot
-
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 from typing import List, Literal, Union
 
 from pyoutlineapi.client import PyOutlineWrapper
@@ -17,7 +15,6 @@ from pytmbot.plugins.plugins_core import PluginCore
 
 
 class PluginMethods(PluginCore):
-
     def __init__(self):
         """
         Initializes the PluginMethods class and sets up the Outline API client.

@@ -1,7 +1,16 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
+import concurrent
+import concurrent.futures
 import os
 from contextlib import suppress
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 import psutil
 
@@ -74,115 +83,19 @@ class PsutilAdapter:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 return {}
 
-            stats = {}
+            # Collect stats using concurrent execution for better performance
+            stats_collectors = [
+                ("basic_info", lambda: self._get_basic_process_info(process)),
+                ("cpu_stats", lambda: self._get_process_cpu_stats(process)),
+                ("memory_stats", lambda: self._get_process_memory_stats(process)),
+                ("io_stats", lambda: self._get_process_io_stats(process)),
+                ("file_stats", lambda: self._get_process_file_stats(process)),
+                ("network_stats", lambda: self._get_process_network_stats(process)),
+                ("context_stats", lambda: self._get_process_context_stats(process)),
+                ("path_stats", lambda: self._get_process_path_stats(process)),
+            ]
 
-            # Basic process info
-            with suppress(Exception):
-                stats.update(
-                    {
-                        "pid": process.pid,
-                        "name": process.name(),
-                        "status": process.status(),
-                        "create_time": process.create_time(),
-                    }
-                )
-
-            # CPU usage (with interval for accuracy)
-            with suppress(Exception):
-                cpu_percent = process.cpu_percent(interval=0.1)
-                stats.update(
-                    {
-                        "cpu_percent": f"{cpu_percent:.1f}%",
-                        "cpu_times": process.cpu_times()._asdict(),
-                        "cpu_num": getattr(process, "cpu_num", lambda: None)(),
-                    }
-                )
-
-            # Memory usage
-            with suppress(Exception):
-                memory_info = process.memory_info()
-                memory_percent = process.memory_percent()
-                stats.update(
-                    {
-                        "memory_rss": set_naturalsize(memory_info.rss),
-                        "memory_vms": set_naturalsize(memory_info.vms),
-                        "memory_percent": f"{memory_percent:.1f}%",
-                    }
-                )
-
-                # Extended memory info if available
-                if hasattr(process, "memory_full_info"):
-                    try:
-                        full_memory = process.memory_full_info()
-                        stats.update(
-                            {
-                                "memory_uss": set_naturalsize(
-                                    full_memory.uss
-                                ),  # Unique Set Size
-                                "memory_pss": set_naturalsize(
-                                    full_memory.pss
-                                ),  # Proportional Set Size
-                            }
-                        )
-                    except (AttributeError, psutil.AccessDenied):
-                        pass
-
-            # IO statistics
-            with suppress(Exception):
-                io_counters = process.io_counters()
-                stats.update(
-                    {
-                        "io_read_count": io_counters.read_count,
-                        "io_write_count": io_counters.write_count,
-                        "io_read_bytes": set_naturalsize(io_counters.read_bytes),
-                        "io_write_bytes": set_naturalsize(io_counters.write_bytes),
-                    }
-                )
-
-            # File descriptors and connections
-            with suppress(Exception):
-                stats.update(
-                    {
-                        "num_fds": (
-                            process.num_fds() if hasattr(process, "num_fds") else "N/A"
-                        ),
-                        "num_threads": process.num_threads(),
-                    }
-                )
-
-            # Network connections count
-            with suppress(Exception):
-                connections = process.net_connections()
-                stats.update(
-                    {
-                        "num_connections": len(connections),
-                        "connections_by_status": self._count_connections_by_status(
-                            connections
-                        ),
-                    }
-                )
-
-            # Context switches
-            with suppress(Exception):
-                ctx_switches = process.num_ctx_switches()
-                stats.update(
-                    {
-                        "ctx_switches_voluntary": ctx_switches.voluntary,
-                        "ctx_switches_involuntary": ctx_switches.involuntary,
-                    }
-                )
-
-            # Working directory and command line
-            with suppress(Exception):
-                stats.update(
-                    {
-                        "cwd": process.cwd(),
-                        "cmdline": " ".join(process.cmdline()[:3])
-                        + ("..." if len(process.cmdline()) > 3 else ""),
-                    }
-                )
-
-            return stats
+            return self._collect_stats_concurrently(stats_collectors)
 
         return self._safe_execute(
             f"process stats (PID: {pid or os.getpid()})",
@@ -190,6 +103,161 @@ class PsutilAdapter:
             {},
             pid=pid or os.getpid(),
         )
+
+    @staticmethod
+    def _collect_stats_concurrently(
+        collectors: list[tuple[str, Callable]],
+    ) -> Dict[str, Any]:
+        """
+        Collect statistics concurrently using ThreadPoolExecutor.
+
+        Args:
+            collectors: List of (name, collector_function) tuples
+
+        Returns:
+            Merged dictionary of all collected statistics
+        """
+        final_stats = {}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            # Submit all tasks
+            future_to_name = {
+                executor.submit(collector): name for name, collector in collectors
+            }
+
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(future_to_name):
+                name = future_to_name[future]
+                try:
+                    stats = future.result(timeout=2.0)  # 2 second timeout per operation
+                    if stats:  # Only update if we got valid stats
+                        final_stats.update(stats)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to collect {name} stats",
+                        extra={"error": str(e), "collector": name},
+                    )
+
+        return final_stats
+
+    def _get_basic_process_info(self, process) -> Dict[str, Any]:
+        """Get basic process information with safe execution."""
+        return self._safe_execute(
+            "basic process info",
+            lambda: {
+                "pid": process.pid,
+                "name": process.name(),
+                "status": process.status(),
+                "create_time": process.create_time(),
+            },
+            {},
+        )
+
+    def _get_process_cpu_stats(self, process) -> Dict[str, Any]:
+        """Get CPU-related process statistics with safe execution."""
+
+        def _collect_cpu_stats():
+            cpu_percent = process.cpu_percent(interval=0.1)
+            return {
+                "cpu_percent": f"{cpu_percent:.1f}%",
+                "cpu_times": process.cpu_times()._asdict(),
+                "cpu_num": getattr(process, "cpu_num", lambda: None)(),
+            }
+
+        return self._safe_execute("CPU stats", _collect_cpu_stats, {})
+
+    def _get_process_memory_stats(self, process) -> Dict[str, Any]:
+        """Get memory-related process statistics with safe execution."""
+
+        def _collect_memory_stats():
+            memory_info = process.memory_info()
+            memory_percent = process.memory_percent()
+
+            stats = {
+                "memory_rss": set_naturalsize(memory_info.rss),
+                "memory_vms": set_naturalsize(memory_info.vms),
+                "memory_percent": f"{memory_percent:.1f}%",
+            }
+
+            # Extended memory info if available
+            if hasattr(process, "memory_full_info"):
+                try:
+                    full_memory = process.memory_full_info()
+                    stats.update(
+                        {
+                            "memory_uss": set_naturalsize(full_memory.uss),
+                            "memory_pss": set_naturalsize(full_memory.pss),
+                        }
+                    )
+                except (AttributeError, psutil.AccessDenied):
+                    pass
+
+            return stats
+
+        return self._safe_execute("memory stats", _collect_memory_stats, {})
+
+    def _get_process_io_stats(self, process) -> Dict[str, Any]:
+        """Get I/O statistics for the process with safe execution."""
+
+        def _collect_io_stats():
+            io_counters = process.io_counters()
+            return {
+                "io_read_count": io_counters.read_count,
+                "io_write_count": io_counters.write_count,
+                "io_read_bytes": set_naturalsize(io_counters.read_bytes),
+                "io_write_bytes": set_naturalsize(io_counters.write_bytes),
+            }
+
+        return self._safe_execute("I/O stats", _collect_io_stats, {})
+
+    def _get_process_file_stats(self, process) -> Dict[str, Any]:
+        """Get file descriptor and thread statistics with safe execution."""
+
+        def _collect_file_stats():
+            return {
+                "num_fds": (
+                    process.num_fds() if hasattr(process, "num_fds") else "N/A"
+                ),
+                "num_threads": process.num_threads(),
+            }
+
+        return self._safe_execute("file stats", _collect_file_stats, {})
+
+    def _get_process_network_stats(self, process) -> Dict[str, Any]:
+        """Get network connection statistics with safe execution."""
+
+        def _collect_network_stats():
+            connections = process.net_connections()
+            return {
+                "num_connections": len(connections),
+                "connections_by_status": self._count_connections_by_status(connections),
+            }
+
+        return self._safe_execute("network stats", _collect_network_stats, {})
+
+    def _get_process_context_stats(self, process) -> Dict[str, Any]:
+        """Get context switch statistics with safe execution."""
+
+        def _collect_context_stats():
+            ctx_switches = process.num_ctx_switches()
+            return {
+                "ctx_switches_voluntary": ctx_switches.voluntary,
+                "ctx_switches_involuntary": ctx_switches.involuntary,
+            }
+
+        return self._safe_execute("context stats", _collect_context_stats, {})
+
+    def _get_process_path_stats(self, process) -> Dict[str, Any]:
+        """Get working directory and command line information with safe execution."""
+
+        def _collect_path_stats():
+            cmdline = process.cmdline()
+            return {
+                "cwd": process.cwd(),
+                "cmdline": " ".join(cmdline[:3]) + ("..." if len(cmdline) > 3 else ""),
+            }
+
+        return self._safe_execute("path stats", _collect_path_stats, {})
 
     @staticmethod
     def _count_connections_by_status(connections) -> Dict[str, int]:
@@ -301,7 +369,7 @@ class PsutilAdapter:
                         {
                             "device_name": fs.device,
                             "fs_type": fs.fstype,
-                            "mnt_point": fs.mountpoint.replace("\u00A0", " "),
+                            "mnt_point": fs.mountpoint.replace("\u00a0", " "),
                             "size": set_naturalsize(usage.total),
                             "used": set_naturalsize(usage.used),
                             "free": set_naturalsize(usage.free),

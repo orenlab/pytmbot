@@ -1,5 +1,5 @@
 #!/bin/bash
-# (c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+# (c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 # pyTMBot - A simple Telegram bot to handle Docker containers and images,
 # also providing basic information about the status of local servers.
 set -euo pipefail
@@ -10,7 +10,6 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 CYAN='\033[1;36m'
 WHITE='\033[1;37m'
-GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # Config file and sample file paths
@@ -69,7 +68,7 @@ show_banner() {
     echo -e "${CYAN}${border_style}"
     echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
     echo -e "${CYAN}${border_style}"
-    echo -e "${WHITE}Version: 0.2.2-dev${NC}"
+    echo -e "${WHITE}Version: 0.2.2${NC}"
     echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
     echo -e "${CYAN}${border_style}"
     echo ""
@@ -194,7 +193,7 @@ install_python_user() {
           add-apt-repository ppa:deadsnakes/ppa -y >> "$LOG_FILE" 2>&1
         fi
         apt-get update -y >> "$LOG_FILE" 2>&1
-        apt-get install -y python3.12 python3.12-venv python3.12-dev >> "$LOG_FILE" 2>&1
+        apt-get install -y python3.12 python3.12-venv python3.12-dev python3-virtualenv >> "$LOG_FILE" 2>&1
         ;;
       centos|rhel|fedora)
         dnf install -y python3.12 >> "$LOG_FILE" 2>&1
@@ -306,7 +305,7 @@ Requires=docker.service
 User=pytmbot
 Group=docker
 WorkingDirectory=/opt/pytmbot
-ExecStart=/usr/bin/env PYTHONUNBUFFERED=1 PYTHONPATH=/opt/pytmbot /opt/pytmbot/venv/bin/python3.12 /opt/pytmbot/main.py${plugins:+ --plugins $plugins} --log-level $log_level
+ExecStart=/usr/bin/env PYTHONUNBUFFERED=1 PYTHONPATH=/opt/pytmbot /opt/pytmbot/venv/bin/python3.12 /opt/pytmbot/pytmbot/main.py${plugins:+ --plugins $plugins} --log-level $log_level
 Restart=on-failure
 RestartSec=5
 Environment=PATH=/opt/pytmbot/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

@@ -12,14 +12,18 @@ jobs:
       matrix:
         tag:
           - 0.2.0
-          - 0.2.1  # This will also be tagged as latest
+          - 0.2.1
+          - 0.2.2 # This will also be tagged as latest
         include:
           - tag: 0.2.0
             is_latest: false
             context: https://github.com/orenlab/pytmbot.git#0.2.0
           - tag: 0.2.1
-            is_latest: true
+            is_latest: false
             context: https://github.com/orenlab/pytmbot.git#0.2.1
+          - tag: 0.2.2
+            is_latest: true
+            context: https://github.com/orenlab/pytmbot.git#0.2.2
 
     steps:
       - name: Set up Docker Buildx

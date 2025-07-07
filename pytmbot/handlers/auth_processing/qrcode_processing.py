@@ -1,6 +1,6 @@
-#!/venv/bin/python3
+#!/usr/local/bin/python3
 """
-(c) Copyright 2024, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
@@ -40,7 +40,6 @@ def handle_qr_code_message(message: Message, bot: TeleBot) -> Optional[Message]:
     qr_code = authenticator.generate_totp_qr_code()
 
     try:
-
         if qr_code:
             msg = bot.send_photo(
                 message.chat.id,

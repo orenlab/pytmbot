@@ -1,3 +1,10 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
 import importlib
 from typing import TYPE_CHECKING
 
@@ -21,7 +28,7 @@ if TYPE_CHECKING:
         generate_secret_token,
         mask_token_in_message,
         mask_username,
-        mask_user_id
+        mask_user_id,
     )
     from .telegram_utils import (
         get_message_full_info,
@@ -66,7 +73,7 @@ def __getattr__(name: str):
         "generate_secret_token",
         "mask_token_in_message",
         "mask_username",
-        "mask_user_id"
+        "mask_user_id",
     }:
         module = importlib.import_module(".security", __name__)
         return getattr(module, name)
@@ -104,6 +111,8 @@ __all__ = [
     "sanitize_exception",
     "generate_secret_token",
     "mask_token_in_message",
+    "mask_username",
+    "mask_user_id",
     "get_message_full_info",
     "get_inline_message_full_info",
     "sanitize_logs",

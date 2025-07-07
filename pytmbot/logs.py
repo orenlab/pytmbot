@@ -1,3 +1,10 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
 from __future__ import annotations
 
 import sys
@@ -76,6 +83,17 @@ class Logger:
             backtrace=True,
             diagnose=True,
             catch=True,
+        )
+
+        self._logger.add(
+            sys.stdout,
+            format=LogConfig.FORMAT,
+            level=log_level,
+            colorize=True,
+            backtrace=False,
+            diagnose=False,
+            catch=True,
+            filter=lambda record: "sensitive_exception" in record["extra"],
         )
 
     @staticmethod
