@@ -111,8 +111,12 @@ services:
 networks:
   pytmbot_network:
     driver: bridge
+    # If the bot starts without plug-ins, then we disable network interaction:
     driver_opts:
       com.docker.network.bridge.enable_icc: "false"
+    # The case when the bot is running with the Monitor plugin enabled:
+    #driver_opts:
+    #  com.docker.network.bridge.enable_icc: "true"
     ipam:
       driver: default
       config:

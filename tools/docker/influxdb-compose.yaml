@@ -1,19 +1,21 @@
 services:
   influxdb:
-    # Using lightweight Alpine image to optimize size
-    # See https://hub.docker.com/r/influxdb/influxdb/tags
-    image: influxdb:3-core
-    # Prevent the container from gaining additional privileges for security
+    image: influxdb:2-alpine
     security_opt:
       - no-new-privileges
-    # Drop all capabilities to ensure the container runs with minimal privileges
-    cap_drop:
-      - ALL
     container_name: influxdb
-    # Expose InfluxDB port only on localhost for increased security.
-    # Use Nginx proxy if you want to expose the port to the internet
     ports:
-      - "8086:8086"
-
-    # Restart the container only on failure for reliability
+      - "127.0.0.1:8086:8086"
     restart: on-failure
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      # Optional variables for initial configuration
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
+      - DOCKER_INFLUXDB_INIT_ORG=myorg
+      - DOCKER_INFLUXDB_INIT_BUCKET=mybucket
+
+volumes:
+  influxdb_data:

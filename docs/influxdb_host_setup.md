@@ -213,11 +213,9 @@ sudo systemctl reload nginx
 For isolated or home servers, use this secure docker-compose configuration:
 
 ```yaml
-version: '3.8'
-
 services:
   influxdb:
-    image: influxdb:2.7-alpine  # Use specific version and alpine for security
+    image: influxdb:2-alpine  # Use specific version and alpine for security
     container_name: influxdb
     restart: unless-stopped
     
