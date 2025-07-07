@@ -193,7 +193,7 @@ install_python_user() {
           add-apt-repository ppa:deadsnakes/ppa -y >> "$LOG_FILE" 2>&1
         fi
         apt-get update -y >> "$LOG_FILE" 2>&1
-        apt-get install -y python3.12 python3.12-venv python3.12-dev >> "$LOG_FILE" 2>&1
+        apt-get install -y python3.12 python3.12-venv python3.12-dev python3-virtualenv >> "$LOG_FILE" 2>&1
         ;;
       centos|rhel|fedora)
         dnf install -y python3.12 >> "$LOG_FILE" 2>&1
