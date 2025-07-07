@@ -68,7 +68,7 @@ show_banner() {
     echo -e "${CYAN}${border_style}"
     echo -e "${WHITE}Starting the ${YELLOW}$(echo "${action}" | tr '[:lower:]' '[:upper:]')${WHITE} process...${NC}"
     echo -e "${CYAN}${border_style}"
-    echo -e "${WHITE}Version: 0.2.2-dev${NC}"
+    echo -e "${WHITE}Version: 0.2.2${NC}"
     echo -e "${WHITE}Follow us on GitHub: https://github.com/orenlab/pytmbot${NC}"
     echo -e "${CYAN}${border_style}"
     echo ""
@@ -305,7 +305,7 @@ Requires=docker.service
 User=pytmbot
 Group=docker
 WorkingDirectory=/opt/pytmbot
-ExecStart=/usr/bin/env PYTHONUNBUFFERED=1 PYTHONPATH=/opt/pytmbot /opt/pytmbot/venv/bin/python3.12 /opt/pytmbot/main.py${plugins:+ --plugins $plugins} --log-level $log_level
+ExecStart=/usr/bin/env PYTHONUNBUFFERED=1 PYTHONPATH=/opt/pytmbot /opt/pytmbot/venv/bin/python3.12 /opt/pytmbot/pytmbot/main.py${plugins:+ --plugins $plugins} --log-level $log_level
 Restart=on-failure
 RestartSec=5
 Environment=PATH=/opt/pytmbot/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
