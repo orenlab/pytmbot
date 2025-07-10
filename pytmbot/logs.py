@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import sys
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
@@ -55,7 +56,6 @@ class Logger:
     """
 
     __slots__ = ("_logger", "__weakref__")
-
     _instance = WeakValueDictionary()
     _initialized: bool = False
 
@@ -73,7 +73,6 @@ class Logger:
 
     @cache
     def _configure_logger(self, log_level: str) -> None:
-        """Configure logger with custom settings and levels."""
         self._logger.remove()
         self._logger.add(
             sys.stdout,
@@ -84,7 +83,6 @@ class Logger:
             diagnose=True,
             catch=True,
         )
-
         self._logger.add(
             sys.stdout,
             format=LogConfig.FORMAT,
@@ -98,21 +96,21 @@ class Logger:
 
     @staticmethod
     def _extract_update_data(
-        update: Update | Message | CallbackQuery | InlineQuery,
+            update: Update | Message | CallbackQuery | InlineQuery,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects."""
-        if isinstance(update, Update):
-            obj = update.message or update.callback_query or update.inline_query
-            if not obj:
-                return {"update_type": "unknown", "update_id": update.update_id}
-        else:
-            obj = update
+        update_id = None
+        obj = update
 
-        update_type = type(obj).__name__.lower()
+        if isinstance(update, Update):
+            update_id = update.update_id
+            obj = update.message or update.callback_query or update.inline_query
+
+        update_type = type(obj).__name__.lower() if obj else "unknown"
 
         return {
             "update_type": update_type,
-            "update_id": getattr(update, "update_id", None),
+            "update_id": update_id,
             "chat_id": getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None,
             "user_id": (
                 getattr(obj.from_user, "id", None)
@@ -128,7 +126,6 @@ class Logger:
 
     @contextmanager
     def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
-        """Context manager for temporary logging context."""
         previous = getattr(self._logger, "_context", {}).copy()
         try:
             self._logger = self._logger.bind(**kwargs)
@@ -140,19 +137,16 @@ class Logger:
         def decorator(f: Callable[..., T]) -> Callable[..., T]:
             @wraps(f)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                # Search for Telegram object
                 telegram_object = next(
                     (
                         arg
                         for arg in args
                         if isinstance(
-                            arg, (Message, Update, CallbackQuery, InlineQuery)
-                        )
+                        arg, (Message, Update, CallbackQuery, InlineQuery)
+                    )
                     ),
                     None,
                 )
-
-                logger.debug(f"Telegram object in {f.__name__}: {telegram_object}")
 
                 context = {
                     "component": f.__name__,
@@ -161,24 +155,32 @@ class Logger:
 
                 if telegram_object:
                     context.update(self._extract_update_data(telegram_object))
+                    update_id = context.get("update_id")
+
+                    job_id = f"u-{update_id}" if update_id is not None else f"job-{uuid.uuid4()}"
+                    context["job_id"] = job_id
                 else:
                     logger.warning(f"No Telegram object found in handler {f.__name__}")
+                    job_id = str(uuid.uuid4())
+
+                context["job_id"] = job_id
 
                 with self.context(**context) as log:
+                    log.info(f"Handler {f.__name__} started")
                     start_time = monotonic_ns()
                     try:
                         result = f(*args, **kwargs)
-                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        elapsed_time = (monotonic_ns() - start_time) / 1_000_000
                         log.success(
                             f"Handler {f.__name__} completed",
-                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                            context={"execution_time": f"{elapsed_time:.2f}ms"},
                         )
                         return result
                     except Exception as e:
-                        elapsed_time_ms = (monotonic_ns() - start_time) / 1_000_000
+                        elapsed_time = (monotonic_ns() - start_time) / 1_000_000
                         log.exception(
-                            f"Handler {f.__name__} failed after {elapsed_time_ms:.2f}ms: {str(e)}",
-                            context={"execution_time": f"{elapsed_time_ms:.2f}ms"},
+                            f"Handler {f.__name__} failed after {elapsed_time:.2f}ms: {e}",
+                            context={"execution_time": f"{elapsed_time:.2f}ms"},
                         )
                         raise
 
@@ -196,16 +198,14 @@ class BaseComponent:
     __slots__ = ("_log", "component_name")
 
     def __init__(self, component_name: str = ""):
-        self._log = Logger()
         self.component_name = (
             component_name if component_name else self.__class__.__name__
         )
-        with self._log.context(component=self.component_name) as log:
-            self._log = log
+        self._log = Logger()
 
     @contextmanager
     def log_context(self, **kwargs: Any) -> Generator[Logger, None, None]:
-        with self._log.context(**kwargs) as log:
+        with self._log.context(component=self.component_name, **kwargs) as log:
             yield log
 
 

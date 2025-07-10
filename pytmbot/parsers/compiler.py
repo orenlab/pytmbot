@@ -18,7 +18,6 @@ from pytmbot.parsers._parser import Jinja2Renderer
 
 class TemplateType(StrEnum):
     """Supported template types."""
-
     AUTH = "auth"
     BASE = "base"
     DOCKER = "docker"
@@ -28,7 +27,6 @@ class TemplateType(StrEnum):
 @dataclass(frozen=True)
 class CompilerConfig:
     """Template compiler configuration."""
-
     TEMPLATE_EXTENSIONS: ClassVar[tuple[str, ...]] = (".jinja2",)
     DEFAULT_ENCODING: ClassVar[str] = "utf-8"
 
@@ -41,20 +39,8 @@ class Compiler(BaseComponent):
     proper resource management and error handling.
 
     Example:
-        template_context = {
-            'images': images,
-            'emojis': {
-                'thought_balloon': em.get_emoji("thought_balloon"),
-                'spouting_whale': em.get_emoji("spouting_whale"),
-                'minus': em.get_emoji("minus")
-            }
-        }
-
-        with Compiler(
-                template_name="d_images.jinja2",
-                context=template_context
-        ) as compiler:
-            bot_answer = compiler.compile()
+        with Compiler("d_images.jinja2", images=imgs, emojis=emoji_map) as c:
+            output = c.compile()
     """
 
     _TEMPLATE_TYPE_PREFIXES: Final[Dict[str, TemplateType]] = {
@@ -65,16 +51,7 @@ class Compiler(BaseComponent):
     }
 
     def __init__(self, template_name: str, **context: Any) -> None:
-        """
-        Initialize the compiler with template details.
-
-        Args:
-            template_name: Name of the template to compile
-            context: Template context data
-
-        Raises:
-            PyTMBotErrorTemplateError: If template name is invalid
-        """
+        """Initialize the compiler with template details."""
         super().__init__("template_compiler")
         self._template_name = template_name
         self._context = context
@@ -82,9 +59,9 @@ class Compiler(BaseComponent):
         self._renderer = Jinja2Renderer.instance()
 
         with self.log_context(
-            action="init", template=template_name, context_keys=list(context.keys())
+                action="init", template=template_name, context_keys=list(context.keys())
         ) as log:
-            log.info("Template compiler initialized")
+            log.debug("Compiler initialized")
 
     def __enter__(self) -> Compiler:
         """Context manager entry point."""
@@ -110,9 +87,12 @@ class Compiler(BaseComponent):
                 return template_type
 
         with self.log_context(
-            action="template_type", template_name=self._template_name
+                action="template_type", template_name=self._template_name
         ) as log:
-            log.error("Unknown template prefix")
+            log.error(
+                "Unknown template prefix",
+                code="UNKNOWN_TEMPLATE_PREFIX",
+            )
             raise TemplateError(
                 ErrorContext(
                     message="Unknown template prefix",
@@ -133,24 +113,22 @@ class Compiler(BaseComponent):
         """
         try:
             with self.log_context(
-                action="compile",
-                template=self._template_name,
-                type=self.template_type.value,
+                    action="compile",
+                    template=self._template_name,
+                    type=self.template_type.value,
             ) as log:
-                log.info("Starting template compilation")
-
+                log.debug("Compiling template")
                 compiled_content = self._renderer.render_template(
                     template_name=self._template_name, **self._context
                 )
-
-                log.success("Template compilation completed successfully")
+                log.debug("Template compilation completed")
                 return compiled_content
 
         except Exception as e:
             with self.log_context(
-                action="compile", template=self._template_name, error=str(e)
+                    action="compile", template=self._template_name, error=str(e)
             ) as log:
-                log.error("Template compilation failed")
+                log.error("Template compilation failed", code="TEMPLATE_COMPILATION_ERROR")
                 raise TemplateError(
                     ErrorContext(
                         message="Template compilation failed",
