@@ -55,14 +55,14 @@ class AccessControl(BaseMiddleware):
 
         logger.info(
             "AccessControl middleware initialized",
-            context={"component": "middleware", "action": "init"},
+            context={"component": "middleware"},
         )
 
     def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
         user = message.from_user
         if not user:
             logger.error(
-                "Message received without user info",
+                "Message without user info",
                 context={
                     "message_id": message.message_id,
                     "chat_id": message.chat.id,
@@ -75,7 +75,7 @@ class AccessControl(BaseMiddleware):
         username = user.username or "unknown"
         chat_id = message.chat.id
 
-        log_extra = {
+        base_context = {
             "message_id": message.message_id,
             "chat_id": chat_id,
             "user_id": user_id,
@@ -84,13 +84,11 @@ class AccessControl(BaseMiddleware):
         }
 
         if self._should_block_request(user_id):
-            block_time = self._blocked_until[user_id]
             logger.warning(
-                f"Blocked access from user {user_id}",
+                "Access blocked",
                 context={
-                    **log_extra,
-                    "block_expires": block_time.isoformat(),
-                    "action": "block_check",
+                    **base_context,
+                    "block_expires": self._blocked_until[user_id].isoformat(),
                 },
             )
             return CancelUpdate()
@@ -99,8 +97,8 @@ class AccessControl(BaseMiddleware):
             return self._handle_unauthorized_access(user_id, username, chat_id)
 
         logger.debug(
-            f"Access granted to user {user_id}",
-            context={**log_extra, "action": "access_granted"},
+            "Access granted",
+            context=base_context,
         )
         return None
 
@@ -108,18 +106,17 @@ class AccessControl(BaseMiddleware):
         return datetime.now() < self._blocked_until[user_id]
 
     def _handle_unauthorized_access(
-        self, user_id: int, username: str, chat_id: int
+            self, user_id: int, username: str, chat_id: int
     ) -> CancelUpdate:
         self._attempt_count[user_id] += 1
         current_attempt = self._attempt_count[user_id]
 
-        log_extra = {
+        base_context = {
             "user_id": user_id,
             "username": username,
             "chat_id": chat_id,
             "attempt_number": current_attempt,
             "component": "middleware",
-            "action": "unauthorized_access",
         }
 
         if current_attempt >= self.MAX_ATTEMPTS:
@@ -127,14 +124,17 @@ class AccessControl(BaseMiddleware):
             self._blocked_until[user_id] = block_until
 
             logger.warning(
-                f"User {username} blocked after {current_attempt} failed attempts",
-                context={**log_extra, "block_until": block_until.isoformat()},
+                "User blocked after max attempts",
+                context={
+                    **base_context,
+                    "block_until": block_until.isoformat(),
+                },
             )
         else:
             logger.warning(
-                f"Unauthorized access attempt #{current_attempt} from {username}",
+                "Unauthorized access attempt",
                 context={
-                    **log_extra,
+                    **base_context,
                     "attempts_remaining": self.MAX_ATTEMPTS - current_attempt,
                 },
             )
@@ -146,7 +146,7 @@ class AccessControl(BaseMiddleware):
         return CancelUpdate()
 
     def _notify_admin(
-        self, user_id: int, username: str, chat_id: int, attempt: int
+            self, user_id: int, username: str, chat_id: int, attempt: int
     ) -> None:
         now = datetime.now()
         last_notified = self._last_admin_notify.get(user_id, datetime.min)
@@ -168,15 +168,15 @@ class AccessControl(BaseMiddleware):
 
             if self._should_block_request(user_id):
                 block_until = self._blocked_until[user_id].strftime("%Y-%m-%d %H:%M:%S")
-                msg += f"⛔ User has been *blocked* until `{block_until}`.\n"
+                msg += f"⛔ User blocked until `{block_until}`\n"
             else:
                 remaining = self.MAX_ATTEMPTS - attempt
-                msg += f"❗ Remaining attempts before block: `{remaining}`\n"
+                msg += f"❗ Remaining attempts: `{remaining}`\n"
 
             msg += (
-                "\nℹ️ *This is an informational alert.* Access to the bot was *not granted*.\n"
-                "🔍 If this was unexpected, please verify your bot token.\n"
-                "🛡️ Consider regenerating the token if you suspect a leak."
+                "\nℹ️ *Informational alert* - access denied.\n"
+                "🔍 Verify bot token if unexpected.\n"
+                "🛡️ Consider token regeneration if compromised."
             )
 
             self.bot.send_message(
@@ -185,11 +185,10 @@ class AccessControl(BaseMiddleware):
                 parse_mode="Markdown",
             )
         except Exception as e:
-            logger.exception(
-                "Failed to notify admin",
+            logger.error(
+                "Admin notification failed",
                 context={
                     "component": "middleware",
-                    "action": "notify_admin",
                     "user_id": user_id,
                     "username": username,
                     "error": str(e),
@@ -216,20 +215,17 @@ class AccessControl(BaseMiddleware):
 
                 if expired:
                     logger.debug(
-                        "Expired blocks cleaned up",
+                        "Expired blocks cleaned",
                         context={
                             "component": "middleware",
-                            "action": "cleanup",
-                            "expired_users": expired,
+                            "expired_count": len(expired),
                         },
                     )
             except Exception as e:
-                logger.exception(
-                    "Cleanup process failed",
+                logger.error(
+                    "Cleanup failed",
                     context={
                         "component": "middleware",
-                        "action": "cleanup_error",
-                        "error_type": type(e).__name__,
                         "error": str(e),
                     },
                 )
@@ -245,25 +241,22 @@ class AccessControl(BaseMiddleware):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+            self, message: Message, data: dict[str, Any], exception: Optional[Exception]
     ) -> None:
         if not exception or isinstance(exception, CancelUpdate):
             return
 
-        ctx = {
+        context = {
             "message_id": message.message_id,
             "chat_id": message.chat.id,
-            "middleware": "access_control",
-            "error_type": type(exception).__name__,
-            "error_details": str(exception),
+            "component": "middleware",
+            "error": str(exception),
         }
 
         if message.from_user:
-            ctx.update(
-                {
-                    "user_id": message.from_user.id,
-                    "username": message.from_user.username or "unknown",
-                }
-            )
+            context.update({
+                "user_id": message.from_user.id,
+                "username": message.from_user.username or "unknown",
+            })
 
-        logger.error("Error occurred during message processing", **ctx)
+        logger.error("Message processing failed", context=context)
