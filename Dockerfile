@@ -105,15 +105,13 @@ FROM alpine:${ALPINE_IMAGE} AS runtime
 
 ARG PYTHON_VERSION=3.13
 
-# Install minimal runtime dependencies
-RUN apk add --no-cache \
-        libssl3 libcrypto3 libffi zlib readline sqlite-libs tzdata && \
+# Install minimal runtime dependencies and update packages
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache libssl3 libcrypto3 libffi zlib readline sqlite-libs tzdata && \
     adduser -D -u 1001 -s /bin/sh pytmbot && \
-    addgroup docker && \
-    adduser pytmbot docker && \
-    mkdir -p /opt/app && \
-    chown -R pytmbot:docker /opt/app && \
-    rm -rf /var/cache/apk/* /tmp/*
+    addgroup docker && adduser pytmbot docker && \
+    mkdir -p /opt/app && chown -R pytmbot:docker /opt/app && \
+    rm -rf /var/cache/apk/* /var/lib/apk/lists/* /tmp/* /root/.cache /usr/share/man /usr/share/doc
 
 WORKDIR /opt/app
 
