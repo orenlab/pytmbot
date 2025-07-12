@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
 from pytmbot.globals import settings
 from pytmbot.handlers.auth_processing.qrcode_processing import handle_qr_code_message
@@ -48,10 +48,10 @@ from pytmbot.handlers.server_handlers.server import handle_server
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
 from pytmbot.models.handlers_model import HandlerManager
 
-MessageType: TypeAlias = Any
-CallbackQueryType: TypeAlias = Any
-HandlerType: TypeAlias = dict[str, list[HandlerManager]]
-FilterFunc: TypeAlias = Callable[[Any], bool]
+type MessageType = Any
+type CallbackQueryType = Any
+type HandlerType = dict[str, list[HandlerManager]]
+type FilterFunc = Callable[[Any], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,14 +80,9 @@ def create_admin_filter(message: MessageType) -> bool:
     return message.from_user.id in settings.access_control.allowed_admins_ids
 
 
-def handler_factory() -> HandlerType:
-    """
-    Returns a dictionary of HandlerManager objects for command handling.
-
-    The factory uses HandlerConfig for cleaner handler creation and
-    better type safety.
-    """
-    configs = {
+def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
+    """Build handler configurations dictionary."""
+    return {
         "authorization": [
             HandlerConfig(callback=handle_twofa_message, regexp="Enter 2FA code")
         ],
@@ -149,20 +144,10 @@ def handler_factory() -> HandlerType:
         ],
     }
 
+
+def _build_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
+    """Build inline handler configurations dictionary."""
     return {
-        category: [config.create_handler() for config in handlers]
-        for category, handlers in configs.items()
-    }
-
-
-def inline_handler_factory() -> HandlerType:
-    """
-    Returns a dictionary of HandlerManager objects for inline query handling.
-
-    The factory uses HandlerConfig for cleaner handler creation and
-    better type safety.
-    """
-    configs = {
         "swap": [
             HandlerConfig(
                 callback=handle_swap_info,
@@ -219,11 +204,37 @@ def inline_handler_factory() -> HandlerType:
         ],
     }
 
+
+def _create_handlers_from_configs(
+        configs: dict[str, list[HandlerConfig]]
+) -> HandlerType:
+    """Create handlers from configuration dictionary."""
     return {
         category: [config.create_handler() for config in handlers]
         for category, handlers in configs.items()
     }
 
+
+def handler_factory() -> HandlerType:
+    """
+    Returns a dictionary of HandlerManager objects for command handling.
+
+    The factory uses HandlerConfig for cleaner handler creation and
+    better type safety.
+    """
+    configs = _build_handler_configs()
+    return _create_handlers_from_configs(configs)
+
+
+def inline_handler_factory() -> HandlerType:
+    """
+    Returns a dictionary of HandlerManager objects for inline query handling.
+
+    The factory uses HandlerConfig for cleaner handler creation and
+    better type safety.
+    """
+    configs = _build_inline_handler_configs()
+    return _create_handlers_from_configs(configs)
 
 # def echo_handler_factory() -> HandlerType:
 #    """
@@ -240,7 +251,4 @@ def inline_handler_factory() -> HandlerType:
 #        ]
 #    }
 
-#    return {
-#        category: [config.create_handler() for config in handlers]
-#        for category, handlers in configs.items()
-#    }
+#    return _create_handlers_from_configs(configs)
