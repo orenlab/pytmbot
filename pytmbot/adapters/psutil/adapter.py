@@ -44,22 +44,16 @@ class PsutilAdapter:
     def _safe_execute(operation: str, func, fallback, **log_context) -> any:
         """Execute operations safely with proper logging and error handling."""
         try:
-            logger.debug(f"Retrieving {operation}", extra=log_context)
+            logger.debug(f"Executing {operation}", **log_context)
             result = func()
-            logger.debug(
-                f"Successfully retrieved {operation}",
-                extra={"result": result, **log_context},
-            )
+            logger.debug(f"Operation completed: {operation}", **log_context)
             return result
         except Exception as e:
             logger.error(
-                f"Failed to retrieve {operation}",
-                extra={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "operation": operation,
-                    **log_context,
-                },
+                f"Operation failed: {operation}",
+                error=str(e),
+                error_type=type(e).__name__,
+                **log_context,
             )
             return fallback
 
@@ -73,14 +67,21 @@ class PsutilAdapter:
         Returns:
             Dictionary with process statistics including CPU, memory, IO, etc.
         """
+        target_pid = pid or os.getpid()
+        context = {"action": "process_stats", "pid": target_pid}
 
         if pid is not None and (not isinstance(pid, int) or pid <= 0):
             raise ValueError("PID must be a positive integer")
 
+        logger.info("Retrieving process statistics", **context)
+
         def _get_process_info():
             try:
                 process = self._psutil.Process(pid) if pid else self._psutil.Process()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.warning(
+                    "Process access denied or not found", error=str(e), **context
+                )
                 return {}
 
             # Collect stats using concurrent execution for better performance
@@ -95,13 +96,24 @@ class PsutilAdapter:
                 ("path_stats", lambda: self._get_process_path_stats(process)),
             ]
 
-            return self._collect_stats_concurrently(stats_collectors)
+            stats = self._collect_stats_concurrently(stats_collectors)
+
+            if stats:
+                logger.info(
+                    "Process statistics retrieved successfully",
+                    stats_count=len(stats),
+                    **context,
+                )
+            else:
+                logger.warning("No process statistics retrieved", **context)
+
+            return stats
 
         return self._safe_execute(
-            f"process stats (PID: {pid or os.getpid()})",
+            f"process stats collection",
             _get_process_info,
             {},
-            pid=pid or os.getpid(),
+            **context,
         )
 
     @staticmethod
@@ -118,6 +130,7 @@ class PsutilAdapter:
             Merged dictionary of all collected statistics
         """
         final_stats = {}
+        context = {"action": "concurrent_stats_collection"}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             # Submit all tasks
@@ -132,12 +145,20 @@ class PsutilAdapter:
                     stats = future.result(timeout=2.0)  # 2 second timeout per operation
                     if stats:  # Only update if we got valid stats
                         final_stats.update(stats)
+                        logger.debug(f"Collected {name} stats", **context)
                 except Exception as e:
                     logger.warning(
                         f"Failed to collect {name} stats",
-                        extra={"error": str(e), "collector": name},
+                        error=str(e),
+                        collector=name,
+                        **context,
                     )
 
+        logger.debug(
+            "Concurrent stats collection completed",
+            collected_stats=len(final_stats),
+            **context,
+        )
         return final_stats
 
     def _get_basic_process_info(self, process) -> Dict[str, Any]:
@@ -275,6 +296,8 @@ class PsutilAdapter:
         Returns:
             Dictionary with key health metrics for logging.
         """
+        context = {"action": "health_summary"}
+        logger.debug("Retrieving current process health summary", **context)
 
         def _get_health_summary():
             try:
@@ -317,20 +340,44 @@ class PsutilAdapter:
                     }
                 )
 
+            if summary:
+                logger.debug(
+                    "Health summary retrieved",
+                    cpu=summary.get("cpu"),
+                    memory=summary.get("memory_percent"),
+                    threads=summary.get("threads"),
+                    **context,
+                )
+
             return summary
 
-        return self._safe_execute(
-            "health summary", _get_health_summary, {}, operation_type="health_check"
-        )
+        return self._safe_execute("health summary", _get_health_summary, {}, **context)
 
     def get_load_average(self) -> LoadAverage:
         """Get system load averages."""
-        return self._safe_execute(
-            "load averages", self._psutil.getloadavg, (0.0, 0.0, 0.0)
+        context = {"action": "load_average"}
+        logger.debug("Retrieving system load averages", **context)
+
+        result = self._safe_execute(
+            "load averages", self._psutil.getloadavg, (0.0, 0.0, 0.0), **context
         )
+
+        if result != (0.0, 0.0, 0.0):
+            logger.info(
+                "Load averages retrieved",
+                load_1m=result[0],
+                load_5m=result[1],
+                load_15m=result[2],
+                **context,
+            )
+
+        return result
 
     def get_memory(self) -> MemoryStats:
         """Get memory statistics with natural size formatting."""
+        context = {"action": "memory_stats"}
+        logger.info("Retrieving system memory statistics", **context)
+
         memory_attrs = [
             "total",
             "available",
@@ -345,7 +392,7 @@ class PsutilAdapter:
 
         def _get_memory():
             stats = self._psutil.virtual_memory()
-            return {
+            result = {
                 attr: (
                     set_naturalsize(getattr(stats, attr))
                     if attr != "percent"
@@ -355,14 +402,29 @@ class PsutilAdapter:
                 if hasattr(stats, attr)
             }
 
-        return self._safe_execute("memory stats", _get_memory, {})
+            if result:
+                logger.info(
+                    "Memory statistics retrieved",
+                    total=result.get("total"),
+                    available=result.get("available"),
+                    percent=result.get("percent"),
+                    **context,
+                )
+
+            return result
+
+        return self._safe_execute("memory stats", _get_memory, {}, **context)
 
     def get_disk_usage(self) -> list[DiskStats]:
         """Get disk usage statistics for all mounted partitions."""
+        context = {"action": "disk_usage"}
+        logger.info("Retrieving disk usage statistics", **context)
 
         def _get_disk_stats():
             stats = []
-            for fs in self._psutil.disk_partitions(all=False):
+            partitions = self._psutil.disk_partitions(all=False)
+
+            for fs in partitions:
                 with suppress(Exception):
                     usage = self._psutil.disk_usage(fs.mountpoint)
                     stats.append(
@@ -376,26 +438,49 @@ class PsutilAdapter:
                             "percent": usage.percent,
                         }
                     )
+
+            if stats:
+                logger.info(
+                    "Disk usage statistics retrieved",
+                    partitions_count=len(stats),
+                    **context,
+                )
+
             return stats
 
-        return self._safe_execute("disk usage", _get_disk_stats, [])
+        return self._safe_execute("disk usage", _get_disk_stats, [], **context)
 
     def get_swap_memory(self) -> SwapStats:
         """Get swap memory usage statistics."""
+        context = {"action": "swap_memory"}
+        logger.debug("Retrieving swap memory statistics", **context)
 
         def _get_swap():
             swap = self._psutil.swap_memory()
-            return {
+            result = {
                 "total": set_naturalsize(swap.total),
                 "used": set_naturalsize(swap.used),
                 "free": set_naturalsize(swap.free),
                 "percent": swap.percent,
             }
 
-        return self._safe_execute("swap memory", _get_swap, {})
+            if swap.total > 0:
+                logger.info(
+                    "Swap memory statistics retrieved",
+                    total=result["total"],
+                    used=result["used"],
+                    percent=result["percent"],
+                    **context,
+                )
+
+            return result
+
+        return self._safe_execute("swap memory", _get_swap, {}, **context)
 
     def get_sensors_temperatures(self) -> list[SensorStats]:
         """Get sensor temperatures."""
+        context = {"action": "sensors_temperatures"}
+        logger.debug("Retrieving sensor temperatures", **context)
 
         def _get_temps():
             sensors = []
@@ -406,22 +491,35 @@ class PsutilAdapter:
             for name, stats in temps.items():
                 if stats and len(stats) > 0:
                     sensors.append({"sensor_name": name, "sensor_value": stats[0][1]})
+
+            if sensors:
+                logger.info(
+                    "Sensor temperatures retrieved",
+                    sensors_count=len(sensors),
+                    **context,
+                )
+
             return sensors
 
-        return self._safe_execute("sensor temperatures", _get_temps, [])
+        return self._safe_execute("sensor temperatures", _get_temps, [], **context)
 
     @staticmethod
     def get_uptime() -> str:
         """Get system uptime as a formatted string."""
+        context = {"action": "uptime"}
         try:
             uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
-            return str(uptime).split(".")[0]
+            uptime_str = str(uptime).split(".")[0]
+            logger.info("System uptime retrieved", uptime=uptime_str, **context)
+            return uptime_str
         except Exception as e:
-            logger.error("Failed to get uptime", extra={"error": str(e)})
+            logger.error("Failed to get uptime", error=str(e), **context)
             return "unknown"
 
     def get_process_counts(self) -> ProcessStats:
         """Get process counts by status."""
+        context = {"action": "process_counts"}
+        logger.info("Retrieving process counts by status", **context)
 
         def _get_counts():
             counts = {
@@ -433,16 +531,27 @@ class PsutilAdapter:
                 for status in ("running", "sleeping", "idle")
             }
             counts["total"] = sum(counts.values())
+
+            logger.info(
+                "Process counts retrieved",
+                total=counts["total"],
+                running=counts["running"],
+                sleeping=counts["sleeping"],
+                **context,
+            )
+
             return counts
 
-        return self._safe_execute("process counts", _get_counts, {})
+        return self._safe_execute("process counts", _get_counts, {}, **context)
 
     def get_net_io_counters(self) -> list[NetworkIOStats]:
         """Get network I/O statistics."""
+        context = {"action": "network_io"}
+        logger.info("Retrieving network I/O statistics", **context)
 
         def _get_net_io():
             stats = self._psutil.net_io_counters()
-            return [
+            result = [
                 {
                     "bytes_sent": set_naturalsize(stats.bytes_sent),
                     "bytes_recv": set_naturalsize(stats.bytes_recv),
@@ -455,13 +564,25 @@ class PsutilAdapter:
                 }
             ]
 
-        return self._safe_execute("network I/O", _get_net_io, [])
+            if result:
+                logger.info(
+                    "Network I/O statistics retrieved",
+                    bytes_sent=result[0]["bytes_sent"],
+                    bytes_recv=result[0]["bytes_recv"],
+                    **context,
+                )
+
+            return result
+
+        return self._safe_execute("network I/O", _get_net_io, [], **context)
 
     def get_users_info(self) -> list[UserInfo]:
         """Get information about logged-in users."""
+        context = {"action": "users_info"}
+        logger.debug("Retrieving users information", **context)
 
         def _get_users():
-            return [
+            users = [
                 {
                     "username": user.name,
                     "terminal": user.terminal,
@@ -471,16 +592,25 @@ class PsutilAdapter:
                 for user in self._psutil.users()
             ]
 
-        return self._safe_execute("users info", _get_users, [])
+            if users:
+                logger.info(
+                    "Users information retrieved", users_count=len(users), **context
+                )
+
+            return users
+
+        return self._safe_execute("users info", _get_users, [], **context)
 
     def get_net_interface_stats(self) -> dict[str, NetworkInterfaceStats]:
         """Get network interface statistics."""
+        context = {"action": "network_interfaces"}
+        logger.info("Retrieving network interface statistics", **context)
 
         def _get_net_stats():
             if_stats = self._psutil.net_if_stats()
             if_addrs = self._psutil.net_if_addrs()
 
-            return {
+            result = {
                 interface: {
                     "is_up": stats.isup,
                     "speed": stats.speed,
@@ -495,43 +625,83 @@ class PsutilAdapter:
                 for interface, stats in if_stats.items()
             }
 
-        return self._safe_execute("network interface stats", _get_net_stats, {})
+            active_interfaces = sum(1 for stats in result.values() if stats["is_up"])
+            logger.info(
+                "Network interface statistics retrieved",
+                total_interfaces=len(result),
+                active_interfaces=active_interfaces,
+                **context,
+            )
+
+            return result
+
+        return self._safe_execute(
+            "network interface stats", _get_net_stats, {}, **context
+        )
 
     def get_cpu_frequency(self) -> CPUFrequencyStats:
         """Get CPU frequency information."""
+        context = {"action": "cpu_frequency"}
+        logger.debug("Retrieving CPU frequency information", **context)
 
         def _get_cpu_freq():
             freq = self._psutil.cpu_freq()
-            return {
+            result = {
                 "current_freq": freq.current,
                 "min_freq": freq.min,
                 "max_freq": freq.max,
             }
 
-        return self._safe_execute("CPU frequency", _get_cpu_freq, {})
+            logger.info(
+                "CPU frequency retrieved",
+                current=result["current_freq"],
+                min=result["min_freq"],
+                max=result["max_freq"],
+                **context,
+            )
+
+            return result
+
+        return self._safe_execute("CPU frequency", _get_cpu_freq, {}, **context)
 
     def get_cpu_usage(self) -> CPUUsageStats:
         """Get CPU usage statistics."""
+        context = {"action": "cpu_usage"}
+        logger.info("Retrieving CPU usage statistics", **context)
 
         def _get_cpu_usage():
-            return {
-                "cpu_percent": self._psutil.cpu_percent(interval=1),
-                "cpu_percent_per_core": self._psutil.cpu_percent(
-                    interval=1, percpu=True
-                ),
+            cpu_percent = self._psutil.cpu_percent(interval=1)
+            cpu_per_core = self._psutil.cpu_percent(interval=1, percpu=True)
+
+            result = {
+                "cpu_percent": cpu_percent,
+                "cpu_percent_per_core": cpu_per_core,
             }
+
+            logger.info(
+                "CPU usage statistics retrieved",
+                overall_cpu=f"{cpu_percent:.1f}%",
+                cores_count=len(cpu_per_core),
+                **context,
+            )
+
+            return result
 
         return self._safe_execute(
             "CPU usage",
             _get_cpu_usage,
             {"cpu_percent": 0.0, "cpu_percent_per_core": []},
+            **context,
         )
 
     def get_top_processes(self, count: int = 10) -> list[TopProcess]:
         """Get the top processes by CPU and memory usage."""
+        context = {"action": "top_processes", "count": count}
 
         if count <= 0 or count > 20:
             raise ValueError("Count must be between 1 and 20")
+
+        logger.info("Retrieving top processes", **context)
 
         def _get_top_processes():
             processes = []
@@ -556,10 +726,26 @@ class PsutilAdapter:
                 key=lambda p: (p["cpu_percent"], p["memory_percent"]),
                 reverse=True,
             )
-            return sorted_processes[:count]
 
-        return self._safe_execute("top processes", _get_top_processes, [])
+            top_processes = sorted_processes[:count]
+
+            if top_processes:
+                logger.info(
+                    "Top processes retrieved",
+                    processes_analyzed=len(processes),
+                    top_count=len(top_processes),
+                    top_cpu=f"{top_processes[0]['cpu_percent']:.1f}%",
+                    top_memory=f"{top_processes[0]['memory_percent']:.1f}%",
+                    **context,
+                )
+
+            return top_processes
+
+        return self._safe_execute("top processes", _get_top_processes, [], **context)
 
     def get_cpu_count(self) -> int:
         """Get the number of CPU cores."""
-        return self._psutil.cpu_count()
+        context = {"action": "cpu_count"}
+        cpu_count = self._psutil.cpu_count()
+        logger.info("CPU count retrieved", cpu_cores=cpu_count, **context)
+        return cpu_count

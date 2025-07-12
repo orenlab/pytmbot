@@ -206,7 +206,7 @@ def _build_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
 
 
 def _create_handlers_from_configs(
-        configs: dict[str, list[HandlerConfig]]
+    configs: dict[str, list[HandlerConfig]],
 ) -> HandlerType:
     """Create handlers from configuration dictionary."""
     return {
@@ -235,6 +235,7 @@ def inline_handler_factory() -> HandlerType:
     """
     configs = _build_inline_handler_configs()
     return _create_handlers_from_configs(configs)
+
 
 # def echo_handler_factory() -> HandlerType:
 #    """

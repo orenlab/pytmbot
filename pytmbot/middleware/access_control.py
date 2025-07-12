@@ -106,7 +106,7 @@ class AccessControl(BaseMiddleware):
         return datetime.now() < self._blocked_until[user_id]
 
     def _handle_unauthorized_access(
-            self, user_id: int, username: str, chat_id: int
+        self, user_id: int, username: str, chat_id: int
     ) -> CancelUpdate:
         self._attempt_count[user_id] += 1
         current_attempt = self._attempt_count[user_id]
@@ -146,7 +146,7 @@ class AccessControl(BaseMiddleware):
         return CancelUpdate()
 
     def _notify_admin(
-            self, user_id: int, username: str, chat_id: int, attempt: int
+        self, user_id: int, username: str, chat_id: int, attempt: int
     ) -> None:
         now = datetime.now()
         last_notified = self._last_admin_notify.get(user_id, datetime.min)
@@ -241,7 +241,7 @@ class AccessControl(BaseMiddleware):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-            self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
     ) -> None:
         if not exception or isinstance(exception, CancelUpdate):
             return
@@ -254,9 +254,11 @@ class AccessControl(BaseMiddleware):
         }
 
         if message.from_user:
-            context.update({
-                "user_id": message.from_user.id,
-                "username": message.from_user.username or "unknown",
-            })
+            context.update(
+                {
+                    "user_id": message.from_user.id,
+                    "username": message.from_user.username or "unknown",
+                }
+            )
 
         logger.error("Message processing failed", context=context)

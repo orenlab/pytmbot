@@ -54,9 +54,9 @@ class HealthStatus:
     def last_health_check_result(self) -> bool | None:
         with self._instance_lock:
             if (
-                    self._last_check_time is None
-                    or time.time() - self._last_check_time
-                    > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
+                self._last_check_time is None
+                or time.time() - self._last_check_time
+                > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
             ):
                 return None
             return self._last_health_check_result
@@ -111,7 +111,7 @@ class BotLauncher(logs.BaseComponent):
         except Exception as e:
             if not silent:
                 with self.log_context(error=str(e)) as log:
-                    log.warning("Failed to stop bot operations cleanly")
+                    log.warning("Bot shutdown encountered issues")
 
     def _emergency_cleanup(self) -> None:
         """Emergency cleanup for atexit - minimal operations only."""
@@ -179,22 +179,17 @@ class BotLauncher(logs.BaseComponent):
             is_healthy = self._perform_health_check()
             health_status.update_health(is_healthy)
 
-            # Only log health status periodically or when there are issues
-            if not is_healthy or self._should_log_health_status():
-                self._log_health_status()
+            self._log_health_status()
 
             # Wait with early exit on shutdown
             for _ in range(self.HEALTH_CHECK_INTERVAL):
                 if self.shutdown_requested.wait(timeout=1):
                     return
 
-    def _should_log_health_status(self) -> bool:
-        """Determine if health status should be logged (every 10 cycles)."""
-        return int(time.time()) % (self.HEALTH_CHECK_INTERVAL * 10) == 0
-
     @staticmethod
     def _is_monitor_plugin_loaded() -> bool:
         from pytmbot.plugins.plugin_manager import PluginManager
+
         return PluginManager.is_plugin_loaded("monitor")
 
     def _log_health_status(self) -> None:
@@ -204,7 +199,7 @@ class BotLauncher(logs.BaseComponent):
         log_context = {
             "uptime": uptime_display,
             "active": bool(self.bot),
-            "sessions": self._session_manager.get_session_stats(),
+            "admin_sessions": self._session_manager.get_session_stats(),
         }
 
         if not self._is_monitor_plugin_loaded():
@@ -229,7 +224,7 @@ class BotLauncher(logs.BaseComponent):
             elif not log_context.get("active", False):
                 log.error("Bot is not active")
             else:
-                log.debug("Health check completed")
+                log.info("Health check completed")
 
     @staticmethod
     def _check_memory_warning(log_context: dict) -> bool:
@@ -327,7 +322,7 @@ class BotLauncher(logs.BaseComponent):
                 raise InitializationError(
                     ErrorContext(
                         message=f"Python {'.'.join(map(str, self.MIN_PYTHON_VERSION))}+ required, "
-                                f"running {platform.python_version()}",
+                        f"running {platform.python_version()}",
                         error_code="INIT_001",
                         metadata={"current_version": platform.python_version()},
                     )
@@ -335,8 +330,8 @@ class BotLauncher(logs.BaseComponent):
 
             # Only log environment info in debug mode
             with self.log_context(
-                    python_version=platform.python_version(),
-                    system=platform.system(),
+                python_version=platform.python_version(),
+                system=platform.system(),
             ) as log:
                 log.debug("Environment validation completed")
 
@@ -374,6 +369,11 @@ class BotLauncher(logs.BaseComponent):
             target=self._health_check_loop, name="HealthMonitor", daemon=True
         )
         self.health_check_thread.start()
+
+        with self.log_context(interval=self.HEALTH_CHECK_INTERVAL) as log:
+            log.debug(
+                f"Health monitoring started (interval: {self.HEALTH_CHECK_INTERVAL}s)"
+            )
 
     def _run_main_loop(self) -> None:
         """Main execution loop with interruption handling."""
@@ -437,7 +437,7 @@ class BotLauncher(logs.BaseComponent):
             self.validate_environment()
 
             with self.log_context() as log:
-                log.info("PyTMBot startup initiated")
+                log.info("PyTMBot launcher initialization completed")
 
             # Main execution
             self._run_main_loop()
@@ -460,13 +460,10 @@ def check_health() -> NoReturn:
 
     match health_result:
         case True:
-            print("Bot is healthy")
             sys.exit(0)
         case False:
-            print("Bot is unhealthy")
             sys.exit(1)
         case None:
-            print("Health status unknown")
             sys.exit(2)
 
 

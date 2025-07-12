@@ -18,6 +18,7 @@ from pytmbot.parsers._parser import Jinja2Renderer
 
 class TemplateType(StrEnum):
     """Supported template types."""
+
     AUTH = "auth"
     BASE = "base"
     DOCKER = "docker"
@@ -27,6 +28,7 @@ class TemplateType(StrEnum):
 @dataclass(frozen=True)
 class CompilerConfig:
     """Template compiler configuration."""
+
     TEMPLATE_EXTENSIONS: ClassVar[tuple[str, ...]] = (".jinja2",)
     DEFAULT_ENCODING: ClassVar[str] = "utf-8"
 
@@ -59,7 +61,7 @@ class Compiler(BaseComponent):
         self._renderer = Jinja2Renderer.instance()
 
         with self.log_context(
-                action="init", template=template_name, context_keys=list(context.keys())
+            action="init", template=template_name, context_keys=list(context.keys())
         ) as log:
             log.debug("Compiler initialized")
 
@@ -87,7 +89,7 @@ class Compiler(BaseComponent):
                 return template_type
 
         with self.log_context(
-                action="template_type", template_name=self._template_name
+            action="template_type", template_name=self._template_name
         ) as log:
             log.error(
                 "Unknown template prefix",
@@ -113,9 +115,9 @@ class Compiler(BaseComponent):
         """
         try:
             with self.log_context(
-                    action="compile",
-                    template=self._template_name,
-                    type=self.template_type.value,
+                action="compile",
+                template=self._template_name,
+                type=self.template_type.value,
             ) as log:
                 log.debug("Compiling template")
                 compiled_content = self._renderer.render_template(
@@ -126,9 +128,11 @@ class Compiler(BaseComponent):
 
         except Exception as e:
             with self.log_context(
-                    action="compile", template=self._template_name, error=str(e)
+                action="compile", template=self._template_name, error=str(e)
             ) as log:
-                log.error("Template compilation failed", code="TEMPLATE_COMPILATION_ERROR")
+                log.error(
+                    "Template compilation failed", code="TEMPLATE_COMPILATION_ERROR"
+                )
                 raise TemplateError(
                     ErrorContext(
                         message="Template compilation failed",

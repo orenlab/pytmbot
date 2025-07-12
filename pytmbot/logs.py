@@ -96,7 +96,7 @@ class Logger:
 
     @staticmethod
     def _extract_update_data(
-            update: Update | Message | CallbackQuery | InlineQuery,
+        update: Update | Message | CallbackQuery | InlineQuery,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects."""
         update_id = None
@@ -142,8 +142,8 @@ class Logger:
                         arg
                         for arg in args
                         if isinstance(
-                        arg, (Message, Update, CallbackQuery, InlineQuery)
-                    )
+                            arg, (Message, Update, CallbackQuery, InlineQuery)
+                        )
                     ),
                     None,
                 )
@@ -157,7 +157,11 @@ class Logger:
                     context.update(self._extract_update_data(telegram_object))
                     update_id = context.get("update_id")
 
-                    job_id = f"u-{update_id}" if update_id is not None else f"job-{uuid.uuid4()}"
+                    job_id = (
+                        f"u-{update_id}"
+                        if update_id is not None
+                        else f"job-{uuid.uuid4()}"
+                    )
                     context["job_id"] = job_id
                 else:
                     logger.warning(f"No Telegram object found in handler {f.__name__}")

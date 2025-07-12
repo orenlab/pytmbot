@@ -34,6 +34,7 @@ TEMPLATE_SUBDIRECTORIES: Final[Dict[str, str]] = {
 @dataclass(frozen=True)
 class TemplateMetadata:
     """Metadata for template caching and identification."""
+
     name: str
     subdirectory: str
 
@@ -56,7 +57,9 @@ class Jinja2Renderer(BaseComponent):
         """Initialize the renderer with a weak reference cache for templates."""
         super().__init__("template_renderer")
         with self.log_context(action="init") as log:
-            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = WeakValueDictionary()
+            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = (
+                WeakValueDictionary()
+            )
             log.debug("Renderer initialized", cache_type="WeakValueDictionary")
 
     @classmethod
@@ -64,7 +67,9 @@ class Jinja2Renderer(BaseComponent):
         """Get or create the singleton instance of Jinja2Renderer."""
         if cls._instance is None:
             logger = Logger()
-            with logger.context(component="template_renderer", action="create_singleton") as log:
+            with logger.context(
+                component="template_renderer", action="create_singleton"
+            ) as log:
                 log.debug("Creating Jinja2Renderer singleton instance")
                 cls._instance = cls._initialize_instance()
         return cls._instance
@@ -84,9 +89,9 @@ class Jinja2Renderer(BaseComponent):
         template_path = Path(var_config.template_path)
         logger = Logger()
         with logger.context(
-                component="template_renderer",
-                action="create_environment",
-                template_path=str(template_path),
+            component="template_renderer",
+            action="create_environment",
+            template_path=str(template_path),
         ) as log:
             env = SandboxedEnvironment(
                 loader=FileSystemLoader(template_path),
@@ -102,10 +107,10 @@ class Jinja2Renderer(BaseComponent):
             return env
 
     def render_template(
-            self,
-            template_name: str,
-            emojis: Optional[Dict[str, str]] = None,
-            **kwargs: Any,
+        self,
+        template_name: str,
+        emojis: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Render a Jinja2 template with the given context.
@@ -120,9 +125,9 @@ class Jinja2Renderer(BaseComponent):
         """
         start = time.perf_counter()
         with self.log_context(
-                action="render",
-                template=template_name,
-                context_keys=list(kwargs.keys()),
+            action="render",
+            template=template_name,
+            context_keys=list(kwargs.keys()),
         ) as log:
             try:
                 template_subdir = self._get_template_subdirectory(template_name)
@@ -177,9 +182,9 @@ class Jinja2Renderer(BaseComponent):
         """Get a template from cache or load it from filesystem."""
         start = time.perf_counter()
         with self.log_context(
-                action="get_template",
-                template=metadata.name,
-                subdirectory=metadata.subdirectory,
+            action="get_template",
+            template=metadata.name,
+            subdirectory=metadata.subdirectory,
         ) as log:
             if template := self._template_cache.get(metadata):
                 log.debug(
@@ -189,7 +194,9 @@ class Jinja2Renderer(BaseComponent):
                 )
                 return template
             try:
-                log.debug("Cache miss, loading template from filesystem", cache_hit=False)
+                log.debug(
+                    "Cache miss, loading template from filesystem", cache_hit=False
+                )
                 template_path = Path(metadata.subdirectory) / metadata.name
                 template = self._jinja_env.get_template(str(template_path))
                 self._template_cache[metadata] = template

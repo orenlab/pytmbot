@@ -1,17 +1,10 @@
-#!/usr/local/bin/python3
-"""
-(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
-pyTMBot - A simple Telegram bot to handle Docker containers and images,
-also providing basic information about the status of local servers.
-"""
-
 import uuid
 import warnings
 from contextlib import suppress
 from datetime import datetime
 from functools import cached_property
-from tracemalloc import Traceback
-from typing import Optional, Type, Any, Dict
+from types import TracebackType
+from typing import Any, Dict, Optional, Type
 
 import docker
 from docker import DockerClient
@@ -20,26 +13,15 @@ from docker.errors import DockerException
 from pytmbot.exceptions import DockerConnectionError
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
-
-logger = Logger()
+from pytmbot.utils import sanitize_exception
 
 
 class DockerAdapter:
     """
-    Class to handle Docker API interactions with enhanced security and error handling.
-
-    Implements context manager protocol for safe resource management.
-    Uses cached properties and strong typing for better performance and safety.
+    Docker interaction wrapper with secure defaults and contextual logging.
     """
 
     def __init__(self) -> None:
-        """
-        Initialize the DockerAdapter with configuration validation.
-
-        Raises:
-            ValueError: If Docker URL is not properly configured
-            warnings.Warning: If using potentially unsafe Docker configuration
-        """
         if not hasattr(settings, "docker") or not settings.docker.host:
             raise ValueError("Docker configuration is missing or invalid")
 
@@ -47,86 +29,53 @@ class DockerAdapter:
         self._client: Optional[DockerClient] = None
         self._session_id: str = str(uuid.uuid4())
         self._start_time: datetime = datetime.now()
+        self._log = Logger()
 
-        # Security check for non-TLS connections
+        # Initialize base context for all operations
+        self._base_context = {
+            "action": "docker_adapter",
+            "session_id": self._session_id,
+            "docker_url": self._docker_url,
+        }
+
+        # Security warning for HTTP connections
         if self._docker_url.startswith("http://"):
             warnings.warn(
-                "Using unencrypted HTTP connection to Docker daemon. "
-                "This is potentially unsafe. Consider using HTTPS.",
+                "Using unencrypted HTTP connection to Docker daemon.",
                 RuntimeWarning,
             )
+            self._log.warning(
+                "Insecure Docker connection detected",
+                docker_url=self._docker_url,
+                **self._base_context,
+            )
 
-        # Log initialization with context
-        self._log_with_context("Docker adapter initialized", level="debug")
+        self._log.debug("DockerAdapter initialized", **self._base_context)
 
     @cached_property
     def _timeout_config(self) -> dict[str, int]:
-        """Get timeout configuration with safe defaults."""
-        return {
-            "timeout": getattr(settings.docker, "timeout", 30),
-        }
+        """Get timeout configuration for Docker client."""
+        return {"timeout": getattr(settings.docker, "timeout", 30)}
 
-    def _get_log_context(
-        self, additional_context: Optional[Dict[str, Any]] = None
+    def _get_context(
+        self, action: str, extra: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Create a context dictionary for logging.
-
-        Args:
-            additional_context: Additional context to include in the log
-
-        Returns:
-            Dict containing all context information
-        """
+        """Build context dictionary for logging with consistent structure."""
         context = {
-            "session_id": self._session_id,
-            "docker_url": self._docker_url,
-            "uptime": (datetime.now() - self._start_time).total_seconds(),
+            **self._base_context,
+            "action": action,
+            "uptime": f"{(datetime.now() - self._start_time).total_seconds():.2f}s",
         }
 
-        if additional_context:
-            context.update(additional_context)
+        if extra:
+            context.update(extra)
 
         return context
 
-    def _log_with_context(
-        self,
-        message: str,
-        level: str = "debug",
-        additional_context: Optional[Dict[str, Any]] = None,
-        error: Optional[Exception] = None,
-    ) -> None:
-        """
-        Log a message with context information.
-
-        Args:
-            message: The log message
-            level: Logging level (debug, info, warning, error, critical)
-            additional_context: Additional context to include
-            error: Exception object if logging an error
-        """
-        context = self._get_log_context(additional_context)
-
-        if error:
-            context["error"] = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "traceback": getattr(error, "__traceback__", None),
-            }
-
-        log_func = getattr(logger, level)
-        log_func(message, context=context)
-
     def _create_client(self) -> DockerClient:
-        """
-        Create a new Docker client with proper security configurations.
+        """Create and configure Docker client with appropriate security settings."""
+        context = self._get_context("client_creation")
 
-        Returns:
-            DockerClient: Configured Docker client instance
-
-        Raises:
-            DockerConnectionError: If client creation fails
-        """
         try:
             tls_config = None
             if self._docker_url.startswith("https://"):
@@ -142,78 +91,104 @@ class DockerAdapter:
                 base_url=self._docker_url, tls=tls_config, **self._timeout_config
             )
 
-            # Verify connection
+            # Test connection
             client.ping()
 
-            self._log_with_context(
+            self._log.debug(
                 "Docker client created successfully",
-                level="debug",
-                additional_context={"tls_enabled": bool(tls_config)},
+                tls_enabled=bool(tls_config),
+                timeout=self._timeout_config.get("timeout"),
+                **context,
             )
 
             return client
 
         except DockerException as e:
-            self._log_with_context(
-                "Failed to create Docker client", level="error", error=e
+            self._log.error(
+                "Docker client creation failed", error=sanitize_exception(e), **context
             )
             raise DockerConnectionError(f"Failed to create Docker client: {e}") from e
 
     def __enter__(self) -> DockerClient:
-        """
-        Enter the context manager with enhanced error handling.
+        """Enter Docker context manager - create and return client."""
+        context = self._get_context("context_enter")
 
-        Returns:
-            DockerClient: Initialized Docker client
-
-        Raises:
-            DockerConnectionError: If client initialization fails
-        """
         try:
             self._client = self._create_client()
-
-            self._log_with_context("Entered Docker client context", level="debug")
-
+            # Only log at debug level - context entry is routine
+            self._log.debug("Docker context entered", **context)
             return self._client
 
         except Exception as e:
-            self._log_with_context(
-                "Failed to initialize Docker client in context manager",
-                level="error",
-                error=e,
+            self._log.error(
+                "Failed to enter Docker context", error=sanitize_exception(e), **context
             )
-            raise DockerConnectionError(
-                f"Docker client initialization failed: {e}"
-            ) from e
+            raise DockerConnectionError(f"Docker client init failed: {e}") from e
 
     def __exit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[Traceback],
+        exc_tb: Optional[TracebackType],
     ) -> None:
-        """
-        Exit the context manager with graceful cleanup.
+        """Exit Docker context manager - cleanup client connection."""
+        context = self._get_context("context_exit")
 
-        Args:
-            exc_type: Exception type if an error occurred
-            exc_val: Exception instance if an error occurred
-            exc_tb: Traceback if an error occurred
-        """
+        # Clean up client connection
         if self._client is not None:
-            context = {
-                "had_exception": exc_type is not None,
-                "exception_type": exc_type.__name__ if exc_type else None,
-                "exception_value": str(exc_val) if exc_val else None,
-            }
-
             with suppress(DockerException):
                 self._client.close()
-
             self._client = None
 
-            self._log_with_context(
-                "Exited Docker client context",
-                level="debug",
-                additional_context=context,
+        # Log exceptions at appropriate level
+        if exc_type:
+            # Only log at info level if it's an actual error, not routine cleanup
+            if issubclass(exc_type, (DockerException, DockerConnectionError)):
+                self._log.error(
+                    "Docker context exited with Docker-related exception",
+                    exception_type=exc_type.__name__,
+                    exception_message=str(exc_val),
+                    **context,
+                )
+            else:
+                # Other exceptions might be less critical - log at debug
+                self._log.debug(
+                    "Docker context exited with exception",
+                    exception_type=exc_type.__name__,
+                    exception_message=str(exc_val),
+                    **context,
+                )
+        else:
+            # Normal exit - only debug level to reduce noise
+            self._log.debug("Docker context exited normally", **context)
+
+    def health_check(self) -> bool:
+        """Perform health check on Docker connection."""
+        context = self._get_context("health_check")
+
+        try:
+            with self:
+                # Connection is tested in _create_client via ping()
+                self._log.debug("Docker health check passed", **context)
+                return True
+
+        except DockerConnectionError:
+            self._log.warning("Docker health check failed", **context)
+            return False
+        except Exception as e:
+            self._log.error(
+                "Docker health check encountered unexpected error",
+                error=sanitize_exception(e),
+                **context,
             )
+            return False
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current Docker adapter status information."""
+        return {
+            "session_id": self._session_id,
+            "docker_url": self._docker_url,
+            "uptime": f"{(datetime.now() - self._start_time).total_seconds():.2f}s",
+            "client_active": self._client is not None,
+            "secure_connection": self._docker_url.startswith("https://"),
+        }

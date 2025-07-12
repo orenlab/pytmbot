@@ -22,7 +22,7 @@ from pytmbot.exceptions import (
 )
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
-from pytmbot.utils import set_naturaltime
+from pytmbot.utils import set_naturaltime, sanitize_exception
 
 logger = Logger()
 
@@ -39,18 +39,40 @@ def with_operation_logging(operation_name: str):
         @wraps(func)
         def wrapper(*args, **kwargs):
             start_time = time.time()
-            operation_context = {
+
+            # Build base context
+            context = {
+                "action": f"docker_{operation_name}",
                 "operation": operation_name,
-                "args": args,
-                "kwargs": kwargs,
                 "start_time": datetime.now().isoformat(),
             }
+
+            # Add function arguments context (sanitized)
+            if args:
+                context["args_count"] = len(args)
+                # Add first argument if it's a string (usually container_id)
+                if args and isinstance(args[0], str):
+                    context["container_id"] = args[0]
+
+            if kwargs:
+                # Sanitize kwargs to avoid logging sensitive data
+                safe_kwargs = {
+                    k: v
+                    for k, v in kwargs.items()
+                    if not any(
+                        sensitive in k.lower()
+                        for sensitive in ["password", "token", "secret", "key"]
+                    )
+                }
+                if safe_kwargs:
+                    context["params"] = safe_kwargs
 
             try:
                 result = func(*args, **kwargs)
                 execution_time = time.time() - start_time
 
-                operation_context.update(
+                # Update context with success metrics
+                context.update(
                     {
                         "execution_time": f"{execution_time:.3f}s",
                         "success": True,
@@ -58,29 +80,36 @@ def with_operation_logging(operation_name: str):
                     }
                 )
 
-                if settings.docker.debug_docker_client:
+                # Add result size context for collections
+                if isinstance(result, (list, dict)):
+                    context["result_size"] = len(result)
+
+                # Log based on execution time and settings
+                if execution_time > 1.0:
+                    # Slow operations should be logged at info level
+                    logger.info(
+                        f"Docker operation completed (slow): {operation_name}",
+                        **context,
+                    )
+                elif settings.docker.debug_docker_client:
+                    # Debug mode: log all operations
                     logger.debug(
-                        f"Docker operation completed: {operation_name}",
-                        extra=operation_context,
+                        f"Docker operation completed: {operation_name}", **context
                     )
 
                 return result
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                operation_context.update(
+                context.update(
                     {
                         "execution_time": f"{execution_time:.3f}s",
                         "success": False,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
+                        "error": sanitize_exception(e),
                     }
                 )
 
-                logger.error(
-                    f"Docker operation failed: {operation_name}",
-                    extra=operation_context,
-                )
+                logger.error(f"Docker operation failed: {operation_name}", **context)
                 raise
 
         return wrapper
@@ -119,13 +148,23 @@ def __get_container_attributes(container_id: str) -> Container:
         ContainerNotFoundError: If the container cannot be found.
         DockerOperationError: If the operation fails.
     """
+    context = {
+        "action": "container_attributes",
+        "container_id": container_id,
+    }
+
     if not container_id:
+        logger.warning("Empty container ID provided", **context)
         raise ValueError("Container ID cannot be empty")
 
     try:
         with DockerAdapter() as adapter:
-            return adapter.containers.get(container_id)
+            container = adapter.containers.get(container_id)
+            logger.debug("Container attributes retrieved", **context)
+            return container
+
     except NotFound:
+        logger.warning("Container not found", **context)
         raise ContainerNotFoundError(
             ErrorContext(
                 message="Container not found",
@@ -134,6 +173,9 @@ def __get_container_attributes(container_id: str) -> Container:
             )
         )
     except Exception as e:
+        logger.error(
+            "Failed to get container attributes", error=sanitize_exception(e), **context
+        )
         raise DockerOperationException(
             ErrorContext(
                 message="Failed to get container attributes",
@@ -154,23 +196,44 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
     Returns:
         Dict containing container details.
     """
-    container_details = __get_container_attributes(container_id)
-    attrs = container_details.attrs
-
-    created_at = datetime.fromisoformat(attrs["Created"])
-
-    return {
-        "id": container_id,
-        "name": attrs["Name"].strip("/").title(),
-        "image": attrs.get("Config", {}).get("Image", "N/A"),
-        "created": created_at.strftime("%Y-%m-%d, %H:%M:%S"),
-        "run_at": (
-            set_naturaltime(datetime.fromisoformat(attrs["State"].get("StartedAt", "")))
-            if attrs["State"].get("StartedAt")
-            else "N/A"
-        ),
-        "status": attrs.get("State", {}).get("Status", "N/A"),
+    context = {
+        "action": "container_details_aggregation",
+        "container_id": container_id,
     }
+
+    try:
+        container_details = __get_container_attributes(container_id)
+        attrs = container_details.attrs
+
+        created_at = datetime.fromisoformat(attrs["Created"])
+
+        details = {
+            "id": container_id,
+            "name": attrs["Name"].strip("/").title(),
+            "image": attrs.get("Config", {}).get("Image", "N/A"),
+            "created": created_at.strftime("%Y-%m-%d, %H:%M:%S"),
+            "run_at": (
+                set_naturaltime(
+                    datetime.fromisoformat(attrs["State"].get("StartedAt", ""))
+                )
+                if attrs["State"].get("StartedAt")
+                else "N/A"
+            ),
+            "status": attrs.get("State", {}).get("Status", "N/A"),
+        }
+
+        logger.debug(
+            "Container details aggregated", status=details["status"], **context
+        )
+        return details
+
+    except Exception as e:
+        logger.error(
+            "Container details aggregation failed",
+            error=sanitize_exception(e),
+            **context,
+        )
+        raise
 
 
 @with_operation_logging("retrieve_containers_stats")
@@ -181,11 +244,22 @@ def retrieve_containers_stats() -> List[Dict[str, str]]:
     Returns:
         List of container details dictionaries.
     """
+    context = {"action": "containers_stats_retrieval"}
+
     containers_id = __fetch_containers_list()
     if not containers_id:
+        logger.debug("No containers found", **context)
         return []
 
+    logger.info(
+        "Starting parallel container stats retrieval",
+        containers_count=len(containers_id),
+        **context,
+    )
+
     container_details = []
+    failed_containers = []
+
     with ThreadPoolExecutor() as executor:
         future_to_id = {
             executor.submit(__aggregate_container_details, cid): cid
@@ -197,11 +271,30 @@ def retrieve_containers_stats() -> List[Dict[str, str]]:
             try:
                 details = future.result()
                 container_details.append(details)
+
             except Exception as e:
+                failed_containers.append(container_id)
                 logger.error(
-                    f"Failed to process container {container_id}: {e}",
-                    extra={"container_id": container_id, "error": str(e)},
+                    "Failed to process container in parallel execution",
+                    container_id=container_id,
+                    error=sanitize_exception(e),
+                    **context,
                 )
+
+    # Log summary
+    logger.info(
+        "Container stats retrieval completed",
+        successful_count=len(container_details),
+        failed_count=len(failed_containers),
+        **context,
+    )
+
+    if failed_containers:
+        logger.warning(
+            "Some containers failed to process",
+            failed_containers=failed_containers,
+            **context,
+        )
 
     return container_details
 
@@ -220,11 +313,22 @@ def fetch_container_logs(container_id: str) -> str:
     Raises:
         ContainerNotFoundError: If the container cannot be found.
     """
+    context = {
+        "action": "container_logs_fetch",
+        "container_id": container_id,
+    }
+
     try:
         container = __get_container_attributes(container_id)
         logs = container.logs(tail=50, stdout=True, stderr=True, timestamps=True)
-        return logs.decode("utf-8", errors="replace")[-3800:]
+        log_content = logs.decode("utf-8", errors="replace")[-3800:]
+
+        logger.debug("Container logs fetched", log_size=len(log_content), **context)
+
+        return log_content
+
     except NotFound:
+        logger.warning("Container not found for logs fetch", **context)
         raise ContainerNotFoundError(
             ErrorContext(
                 message="Container not found",
@@ -233,9 +337,12 @@ def fetch_container_logs(container_id: str) -> str:
             )
         )
     except Exception as e:
+        logger.error(
+            "Failed to fetch container logs", error=sanitize_exception(e), **context
+        )
         raise DockerOperationException(
             ErrorContext(
-                message="Failed to get container attributes",
+                message="Failed to fetch container logs",
                 error_code="DOCKER_002",
                 metadata={"container_id": container_id, "exception": str(e)},
             )
@@ -250,11 +357,17 @@ def fetch_docker_counters() -> Dict[str, int]:
     Returns:
         Dict with image and container counts.
     """
+    context = {"action": "docker_counters_fetch"}
+
     with DockerAdapter() as adapter:
-        return {
+        counters = {
             "images_count": len(adapter.images.list()),
             "containers_count": len(adapter.containers.list(all=True)),
         }
+
+        logger.debug("Docker counters fetched", **counters, **context)
+
+        return counters
 
 
 @with_operation_logging("get_container_state")
@@ -268,13 +381,27 @@ def get_container_state(container_id: str) -> Optional[str]:
     Returns:
         Container status string or None if not found.
     """
+    context = {
+        "action": "container_state_check",
+        "container_id": container_id,
+    }
+
     try:
         container = __get_container_attributes(container_id)
-        return container.status
+        status = container.status
+
+        logger.debug("Container state retrieved", status=status, **context)
+
+        return status
+
     except ContainerNotFoundError:
+        logger.debug("Container not found for state check", **context)
         return None
+
     except Exception as e:
-        logger.error(f"Failed to get container state: {e}")
+        logger.error(
+            "Failed to get container state", error=sanitize_exception(e), **context
+        )
         return None
 
 
@@ -289,8 +416,24 @@ def fetch_full_container_details(container_id: str):
     Returns:
         dict: A dictionary containing the full attributes of the Docker container.
     """
+    context = {
+        "action": "full_container_details",
+        "container_id": container_id,
+    }
+
     try:
-        return __get_container_attributes(container_id)
+        container = __get_container_attributes(container_id)
+        logger.debug("Full container details retrieved", **context)
+        return container
+
     except NotFound:
-        logger.error(f"Container {container_id} not found.")
+        logger.warning("Container not found for full details", **context)
+        return {}
+
+    except Exception as e:
+        logger.error(
+            "Failed to fetch full container details",
+            error=sanitize_exception(e),
+            **context,
+        )
         return {}
