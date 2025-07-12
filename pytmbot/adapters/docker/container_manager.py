@@ -8,10 +8,12 @@ also providing basic information about the status of local servers.
 from functools import wraps
 from typing import Callable, Dict, Any
 
-from docker.errors import NotFound
-from docker.models.containers import Container
-
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.utils import (
+    get_container_safely,
+    sanitize_kwargs_for_logging,
+    build_container_context,
+    get_container_basic_info,
+)
 from pytmbot.globals import settings, session_manager
 from pytmbot.logs import Logger
 from pytmbot.models.docker_models import (
@@ -20,7 +22,7 @@ from pytmbot.models.docker_models import (
     DockerResponse,
     ContainerAction,
 )
-from pytmbot.utils import is_new_name_valid, sanitize_exception
+from pytmbot.utils import sanitize_exception, is_new_name_valid
 
 logger = Logger()
 
@@ -30,12 +32,12 @@ def validate_access(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self, user_id: int, container_id: ContainerId, *args, **kwargs) -> any:
-        context = {
-            "action": "access_validation",
-            "user_id": user_id,
-            "container_id": container_id,
-            "operation": func.__name__,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="access_validation",
+            user_id=user_id,
+            operation=func.__name__,
+        )
 
         # Check authorization
         if not (
@@ -55,42 +57,19 @@ def validate_access(func: Callable) -> Callable:
 class ContainerManager:
     """Securely manages Docker containers with strict access control."""
 
-    @staticmethod
-    def __get_container(container_id: ContainerId) -> Container:
-        """Safely retrieves a container reference."""
-        context = {
-            "action": "container_retrieval",
-            "container_id": container_id,
-        }
-
-        try:
-            with DockerAdapter() as adapter:
-                container = adapter.containers.get(container_id)
-                logger.debug("Container retrieved successfully", **context)
-                return container
-
-        except NotFound:
-            logger.error("Container not found", **context)
-            raise
-        except Exception as e:
-            logger.error(
-                "Container retrieval failed", error=sanitize_exception(e), **context
-            )
-            raise
-
     @validate_access
     def __start_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Starts a Docker container with access validation."""
-        context = {
-            "action": "container_start",
-            "container_id": container_id,
-            "user_id": user_id,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="container_start",
+            user_id=user_id,
+        )
 
         try:
-            container = self.__get_container(container_id)
+            container = get_container_safely(container_id)
 
             # Business logic operation - log at info level
             logger.info("Starting container", **context)
@@ -112,14 +91,14 @@ class ContainerManager:
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Stops a Docker container with access validation."""
-        context = {
-            "action": "container_stop",
-            "container_id": container_id,
-            "user_id": user_id,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="container_stop",
+            user_id=user_id,
+        )
 
         try:
-            container = self.__get_container(container_id)
+            container = get_container_safely(container_id)
 
             # Business logic operation - log at info level
             logger.info("Stopping container", **context)
@@ -141,14 +120,14 @@ class ContainerManager:
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Restarts a Docker container with access validation."""
-        context = {
-            "action": "container_restart",
-            "container_id": container_id,
-            "user_id": user_id,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="container_restart",
+            user_id=user_id,
+        )
 
         try:
-            container = self.__get_container(container_id)
+            container = get_container_safely(container_id)
 
             # Business logic operation - log at info level
             logger.info("Restarting container", **context)
@@ -170,12 +149,12 @@ class ContainerManager:
         self, user_id: int, container_id: ContainerId, new_container_name: str
     ) -> DockerResponse:
         """Renames a Docker container with access and input validation."""
-        context = {
-            "action": "container_rename",
-            "container_id": container_id,
-            "user_id": user_id,
-            "new_name": new_container_name,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="container_rename",
+            user_id=user_id,
+            new_name=new_container_name,
+        )
 
         # Validate new name
         if not is_new_name_valid(new_container_name):
@@ -187,7 +166,7 @@ class ContainerManager:
             raise ValueError(f"Invalid container name: {new_container_name}")
 
         try:
-            container = self.__get_container(container_id)
+            container = get_container_safely(container_id)
 
             # Business logic operation - log at info level
             logger.info("Renaming container", **context)
@@ -212,17 +191,16 @@ class ContainerManager:
         **kwargs: ContainerConfig,
     ) -> DockerResponse:
         """Manages container operations with comprehensive validation."""
-        context = {
-            "action": "container_management",
-            "user_id": user_id,
-            "container_id": container_id,
-            "operation": action,
-        }
-
         # Sanitize kwargs for logging - remove sensitive data
-        safe_kwargs = self._sanitize_kwargs(kwargs)
-        if safe_kwargs:
-            context["params"] = safe_kwargs
+        safe_kwargs = sanitize_kwargs_for_logging(kwargs)
+
+        context = build_container_context(
+            container_id=container_id,
+            action="container_management",
+            user_id=user_id,
+            operation=action,
+            params=safe_kwargs if safe_kwargs else None,
+        )
 
         try:
             container_action = ContainerAction.from_str(action)
@@ -266,51 +244,26 @@ class ContainerManager:
             )
             raise
 
-    def _sanitize_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        """Sanitize kwargs for safe logging, removing sensitive information."""
-        # Define sensitive keys that should not be logged
-        sensitive_keys = {
-            "password",
-            "token",
-            "secret",
-            "key",
-            "auth",
-            "credential",
-            "private_key",
-            "cert",
-            "certificate",
-        }
-
-        safe_kwargs = {}
-        for key, value in kwargs.items():
-            if any(sensitive in key.lower() for sensitive in sensitive_keys):
-                safe_kwargs[key] = "[REDACTED]"
-            elif isinstance(value, str) and len(value) > 100:
-                # Truncate very long strings
-                safe_kwargs[key] = f"{value[:50]}...[TRUNCATED]"
-            else:
-                safe_kwargs[key] = value
-
-        return safe_kwargs
-
-    def get_container_status(self, container_id: ContainerId) -> Dict[str, Any]:
+    @staticmethod
+    def get_container_status(container_id: ContainerId) -> Dict[str, Any]:
         """Get container status information for monitoring."""
-        context = {
-            "action": "container_status",
-            "container_id": container_id,
-        }
+        context = build_container_context(
+            container_id=container_id,
+            action="container_status",
+        )
 
         try:
-            container = self.__get_container(container_id)
+            container = get_container_safely(container_id)
 
-            # Get container status
-            status = {
-                "id": container.id,
-                "name": container.name,
-                "status": container.status,
-                "image": container.image.tags[0] if container.image.tags else "unknown",
-                "created": container.attrs.get("Created", "unknown"),
-            }
+            # Get basic container info using utility
+            status = get_container_basic_info(container)
+
+            # Add additional status information
+            status.update(
+                {
+                    "created": container.attrs.get("Created", "unknown"),
+                }
+            )
 
             logger.debug(
                 "Container status retrieved", status=status["status"], **context
