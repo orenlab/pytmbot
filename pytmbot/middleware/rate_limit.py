@@ -76,7 +76,7 @@ class RateLimit(BaseMiddleware):
         # Initialize logging only once
         self._initialized = False
         if not self._initialized:
-            logger.debug(
+            logger.info(
                 "Rate limit middleware initialized",
                 extra={
                     "limit": self.limit,
