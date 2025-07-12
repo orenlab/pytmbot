@@ -247,7 +247,7 @@ class PyTMBot(BaseComponent):
                 middleware_chain=middleware_names,
                 details=middleware_details if self.args.mode == "dev" else None,
         ) as log:
-            log.info("🔧 Middleware chain configured")
+            log.info("Middleware chain configured")
 
     def get_middleware_stats(self, middleware_name: str) -> dict[str, Any] | None:
         """Get statistics from specific middleware."""

@@ -54,9 +54,9 @@ class HealthStatus:
     def last_health_check_result(self) -> bool | None:
         with self._instance_lock:
             if (
-                self._last_check_time is None
-                or time.time() - self._last_check_time
-                > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
+                    self._last_check_time is None
+                    or time.time() - self._last_check_time
+                    > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
             ):
                 return None
             return self._last_health_check_result
@@ -79,6 +79,7 @@ class BotLauncher(logs.BaseComponent):
     HEALTH_CHECK_INTERVAL: Final[int] = 60
     MIN_PYTHON_VERSION: Final[tuple[int, int]] = (3, 10)
     MAIN_LOOP_TIMEOUT: Final[float] = 0.5
+    STARTUP_GRACE_PERIOD: Final[int] = 30
 
     def __init__(self) -> None:
         super().__init__("bot_launcher")
@@ -92,6 +93,7 @@ class BotLauncher(logs.BaseComponent):
         self._sigint_lock = threading.Lock()
         self._psutil_adapter = PsutilAdapter()
         self._session_manager = SessionManager()
+        self._bot_fully_started = False
 
     def _register_cleanup(self) -> None:
         """Register cleanup handler to ensure proper shutdown on exit."""
@@ -192,6 +194,11 @@ class BotLauncher(logs.BaseComponent):
 
         return PluginManager.is_plugin_loaded("monitor")
 
+    def _is_within_startup_grace_period(self) -> bool:
+        """Check if we're still within the startup grace period."""
+        uptime_seconds = (datetime.now() - self.start_time).total_seconds()
+        return uptime_seconds < self.STARTUP_GRACE_PERIOD
+
     def _log_health_status(self) -> None:
         """Log current health status with comprehensive process statistics."""
         uptime_display = naturaltime(self.start_time)
@@ -217,12 +224,24 @@ class BotLauncher(logs.BaseComponent):
         """Log health status with appropriate level based on resource usage."""
         memory_warning = self._check_memory_warning(log_context)
         cpu_warning = self._check_cpu_warning(log_context)
+        bot_active = log_context.get("active", False)
+
+        within_grace_period = self._is_within_startup_grace_period()
+
+        if bot_active and not self._bot_fully_started:
+            self._bot_fully_started = True
+            with self.log_context(**log_context) as log:
+                log.info("Bot successfully started and is now active")
+            return
 
         with self.log_context(**log_context) as log:
             if memory_warning or cpu_warning:
                 log.warning("High resource usage detected")
-            elif not log_context.get("active", False):
-                log.error("Bot is not active")
+            elif not bot_active:
+                if within_grace_period:
+                    log.debug("Bot is starting up, not yet active")
+                else:
+                    log.error("Bot is not active")
             else:
                 log.info("Health check completed")
 
@@ -322,7 +341,7 @@ class BotLauncher(logs.BaseComponent):
                 raise InitializationError(
                     ErrorContext(
                         message=f"Python {'.'.join(map(str, self.MIN_PYTHON_VERSION))}+ required, "
-                        f"running {platform.python_version()}",
+                                f"running {platform.python_version()}",
                         error_code="INIT_001",
                         metadata={"current_version": platform.python_version()},
                     )
@@ -330,8 +349,8 @@ class BotLauncher(logs.BaseComponent):
 
             # Only log environment info in debug mode
             with self.log_context(
-                python_version=platform.python_version(),
-                system=platform.system(),
+                    python_version=platform.python_version(),
+                    system=platform.system(),
             ) as log:
                 log.debug("Environment validation completed")
 
@@ -409,8 +428,13 @@ class BotLauncher(logs.BaseComponent):
             log.info("Keyboard interrupt received, shutting down")
         try:
             self.shutdown()
-        except Exception:
-            pass
+        except ShutdownError as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("Shutdown failed during keyboard interrupt handling")
+        except Exception as e:
+            with self.log_context(error=str(e), error_type=type(e).__name__) as log:
+                log.warning("Unexpected error during keyboard interrupt shutdown")
+
         sys.exit(0)
 
     def _handle_fatal_error(self, error: Exception) -> NoReturn:
@@ -422,8 +446,12 @@ class BotLauncher(logs.BaseComponent):
 
         try:
             self.shutdown()
-        except Exception:
-            pass
+        except ShutdownError as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("Shutdown failed during fatal error handling")
+        except Exception as e:
+            with self.log_context(error=str(e), error_type=type(e).__name__) as log:
+                log.warning("Unexpected error during emergency shutdown")
 
         sys.exit(1)
 
