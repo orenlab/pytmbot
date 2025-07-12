@@ -366,7 +366,7 @@ See our [Contributing Guidelines](https://github.com/orenlab/pytmbot/blob/master
 
 ## Support
 
-- [Documentation](https://github.com/orenlab/pytmbot/docs)
+- [Documentation](https://github.com/orenlab/pytmbot/tree/master/docs)
 - [GitHub Discussions](https://github.com/orenlab/pytmbot/discussions)
 
 ## License
