@@ -54,9 +54,9 @@ class HealthStatus:
     def last_health_check_result(self) -> bool | None:
         with self._instance_lock:
             if (
-                    self._last_check_time is None
-                    or time.time() - self._last_check_time
-                    > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
+                self._last_check_time is None
+                or time.time() - self._last_check_time
+                > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
             ):
                 return None
             return self._last_health_check_result
@@ -341,7 +341,7 @@ class BotLauncher(logs.BaseComponent):
                 raise InitializationError(
                     ErrorContext(
                         message=f"Python {'.'.join(map(str, self.MIN_PYTHON_VERSION))}+ required, "
-                                f"running {platform.python_version()}",
+                        f"running {platform.python_version()}",
                         error_code="INIT_001",
                         metadata={"current_version": platform.python_version()},
                     )
@@ -349,8 +349,8 @@ class BotLauncher(logs.BaseComponent):
 
             # Only log environment info in debug mode
             with self.log_context(
-                    python_version=platform.python_version(),
-                    system=platform.system(),
+                python_version=platform.python_version(),
+                system=platform.system(),
             ) as log:
                 log.debug("Environment validation completed")
 
