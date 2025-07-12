@@ -11,6 +11,7 @@ import ssl
 import time
 from collections.abc import Callable
 from datetime import timedelta
+from functools import wraps
 from time import sleep
 from typing import Any, Final, TypedDict
 
@@ -72,10 +73,21 @@ DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
 ]
 
 
-class BotStats(TypedDict):
-    """Type definition for bot statistics."""
+def bot_required(func: Callable) -> Callable:
+    """
+    Decorator to ensure bot instance is initialized before method execution.
 
-    rate_limit: dict[str, Any]
+    Raises:
+        RuntimeError: If bot instance is not initialized (None).
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not isinstance(self.bot, TeleBot):
+            raise RuntimeError("Bot instance not initialized")
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class PyTMBot(BaseComponent):
@@ -97,13 +109,13 @@ class PyTMBot(BaseComponent):
 
         # Single comprehensive initialization log
         with self.log_context(
-            version=__version__,
-            mode=self.args.mode,
-            webhook_mode=self.args.webhook == "True",
-            plugins_enabled=bool(
-                self.args.plugins and any(p.strip() for p in self.args.plugins)
-            ),
-            environment=get_environment_state(),
+                version=__version__,
+                mode=self.args.mode,
+                webhook_mode=self.args.webhook == "True",
+                plugins_enabled=bool(
+                    self.args.plugins and any(p.strip() for p in self.args.plugins)
+                ),
+                environment=get_environment_state(),
         ) as log:
             log.info("PyTMBot initialization started")
 
@@ -167,11 +179,9 @@ class PyTMBot(BaseComponent):
                 log.error("Failed to create bot instance")
             raise
 
+    @bot_required
     def _setup_commands_and_description(self) -> None:
         """Setup bot commands and description."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not initialized")
-
         try:
             commands = [
                 BotCommand(command, desc)
@@ -192,16 +202,14 @@ class PyTMBot(BaseComponent):
             with self.log_context(error=sanitize_exception(error)) as log:
                 log.warning("Failed to set bot commands or description")
 
+    @bot_required
     def _setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
         """Setup middleware chain with statistics collection."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not initialized")
-
         middleware_names = []
         middleware_details = []
 
         for middleware_class, kwargs in sorted(
-            middlewares, key=lambda x: x[1].get("priority", 999)
+                middlewares, key=lambda x: x[1].get("priority", 999)
         ):
             try:
                 middleware_instance = middleware_class(bot=self.bot, **kwargs)
@@ -227,17 +235,17 @@ class PyTMBot(BaseComponent):
 
             except Exception as error:
                 with self.log_context(
-                    middleware=middleware_class.__name__,
-                    error=sanitize_exception(error),
+                        middleware=middleware_class.__name__,
+                        error=sanitize_exception(error),
                 ) as log:
                     log.error("Middleware setup failed")
                 raise
 
         # Single comprehensive log for all middleware
         with self.log_context(
-            middleware_count=len(middleware_names),
-            middleware_chain=middleware_names,
-            details=middleware_details if self.args.mode == "dev" else None,
+                middleware_count=len(middleware_names),
+                middleware_chain=middleware_names,
+                details=middleware_details if self.args.mode == "dev" else None,
         ) as log:
             log.info("🔧 Middleware chain configured")
 
@@ -259,7 +267,7 @@ class PyTMBot(BaseComponent):
             return middleware_instance.get_stats()
         except Exception as error:
             with self.log_context(
-                middleware=middleware_name, error=sanitize_exception(error)
+                    middleware=middleware_name, error=sanitize_exception(error)
             ) as log:
                 log.error("Failed to get middleware statistics")
             return None
@@ -268,10 +276,11 @@ class PyTMBot(BaseComponent):
         """Get rate limiting statistics."""
         return self.get_middleware_stats("RateLimit")
 
+    @bot_required
     def _register_handler_group(
-        self,
-        handler_factory_func: Callable[[], HandlerDict],
-        register_method: RegisterMethod,
+            self,
+            handler_factory_func: Callable[[], HandlerDict],
+            register_method: RegisterMethod,
     ) -> None:
         """Register a group of handlers."""
         try:
@@ -291,17 +300,18 @@ class PyTMBot(BaseComponent):
             )
 
             with self.log_context(
-                handler_type=handler_type, count=handler_count
+                    handler_type=handler_type, count=handler_count
             ) as log:
                 log.debug(f"Registered {handler_count} {handler_type} handlers")
 
         except Exception as err:
             with self.log_context(
-                factory=handler_factory_func.__name__, error=sanitize_exception(err)
+                    factory=handler_factory_func.__name__, error=sanitize_exception(err)
             ) as log:
                 log.error("Handler group registration failed")
             raise
 
+    @bot_required
     def _register_handler_chain(self) -> None:
         """Register all bot handlers."""
         handlers_config = [
@@ -336,17 +346,18 @@ class PyTMBot(BaseComponent):
 
             except Exception as e:
                 with self.log_context(
-                    handler_type=handler_type, error=sanitize_exception(e)
+                        handler_type=handler_type, error=sanitize_exception(e)
                 ) as log:
                     log.error(f"{handler_type.title()} handler registration failed")
                 raise
 
         # Single comprehensive log for all handlers
         with self.log_context(
-            total_handlers=total_handlers, breakdown=handler_summary
+                total_handlers=total_handlers, breakdown=handler_summary
         ) as log:
             log.info(f"Handlers registered: {', '.join(handler_summary)}")
 
+    @bot_required
     def _load_plugins(self) -> None:
         """Load plugins if specified."""
         if not self.args.plugins:
@@ -360,21 +371,19 @@ class PyTMBot(BaseComponent):
         try:
             self.plugin_manager.register_plugins(self.args.plugins, self.bot)
             with self.log_context(
-                plugin_count=len(actual_plugins), plugins=actual_plugins
+                    plugin_count=len(actual_plugins), plugins=actual_plugins
             ) as log:
                 log.info(f"🔌 Loaded {len(actual_plugins)} plugins")
         except Exception as err:
             with self.log_context(
-                plugins=actual_plugins, error=sanitize_exception(err)
+                    plugins=actual_plugins, error=sanitize_exception(err)
             ) as log:
                 log.error("Plugin loading failed")
             raise
 
+    @bot_required
     def _configure_bot_features(self) -> None:
         """Configure bot features including commands, middleware, and handlers."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not initialized")
-
         try:
             # Group related operations with progress indicators
             self._setup_commands_and_description()
@@ -397,9 +406,9 @@ class PyTMBot(BaseComponent):
 
             # Single comprehensive success log
             with self.log_context(
-                version=__version__,
-                mode=self.args.mode,
-                webhook_enabled=self.args.webhook == "True",
+                    version=__version__,
+                    mode=self.args.mode,
+                    webhook_enabled=self.args.webhook == "True",
             ) as log:
                 log.info("Bot core initialization completed")
 
@@ -409,11 +418,9 @@ class PyTMBot(BaseComponent):
                 log.error("Bot core initialization failed")
             raise
 
+    @bot_required
     def _start_webhook_server(self) -> None:
         """Start webhook server."""
-        if not isinstance(self.bot, TeleBot):
-            raise RuntimeError("Bot instance not initialized")
-
         try:
             from pytmbot.webhook import WebhookServer
 
@@ -441,12 +448,12 @@ class PyTMBot(BaseComponent):
             raise
 
     def _handle_polling_error(
-        self, error: Exception, consecutive_errors: int, current_sleep_time: int
+            self, error: Exception, consecutive_errors: int, current_sleep_time: int
     ) -> tuple[int, int]:
         """Handle polling errors and return updated error count and sleep time."""
         if isinstance(error, ssl.SSLError):
             with self.log_context(
-                error=sanitize_exception(error), consecutive_errors=consecutive_errors
+                    error=sanitize_exception(error), consecutive_errors=consecutive_errors
             ) as log:
                 log.critical("SSL security error - terminating bot")
             raise
@@ -457,14 +464,14 @@ class PyTMBot(BaseComponent):
             # Less verbose logging for common connection errors
             if consecutive_errors == 1:
                 with self.log_context(
-                    error_type=type(error).__name__, retry_delay=current_sleep_time
+                        error_type=type(error).__name__, retry_delay=current_sleep_time
                 ) as log:
                     log.warning(f"Connection error - retrying in {current_sleep_time}s")
             elif consecutive_errors % 5 == 0:  # Log every 5th consecutive error
                 with self.log_context(
-                    error_type=type(error).__name__,
-                    consecutive_errors=consecutive_errors,
-                    retry_delay=current_sleep_time,
+                        error_type=type(error).__name__,
+                        consecutive_errors=consecutive_errors,
+                        retry_delay=current_sleep_time,
                 ) as log:
                     log.error(
                         f"Persistent connection issues ({consecutive_errors} errors)"
@@ -476,7 +483,7 @@ class PyTMBot(BaseComponent):
 
         # Unexpected error
         with self.log_context(
-            error=sanitize_exception(error), consecutive_errors=consecutive_errors
+                error=sanitize_exception(error), consecutive_errors=consecutive_errors
         ) as log:
             log.critical("Unexpected polling error - terminating bot")
         raise
@@ -487,8 +494,8 @@ class PyTMBot(BaseComponent):
         consecutive_errors = 0
 
         with self.log_context(
-            timeout=var_config.bot_polling_timeout,
-            long_polling_timeout=var_config.bot_long_polling_timeout,
+                timeout=var_config.bot_polling_timeout,
+                long_polling_timeout=var_config.bot_long_polling_timeout,
         ) as log:
             log.info("Starting polling loop")
 
@@ -520,7 +527,7 @@ class PyTMBot(BaseComponent):
         webhook_enabled = self.args.webhook == "True"
 
         with self.log_context(
-            webhook_enabled=webhook_enabled, mode=self.args.mode
+                webhook_enabled=webhook_enabled, mode=self.args.mode
         ) as log:
             launch_method = "webhook" if webhook_enabled else "polling"
             log.info(f"Launching bot with {launch_method} mode")
@@ -592,9 +599,9 @@ class PyTMBot(BaseComponent):
         self._load_plugins()
 
     def register_handler_group(
-        self,
-        handler_factory_func: Callable[[], HandlerDict],
-        register_method: RegisterMethod,
+            self,
+            handler_factory_func: Callable[[], HandlerDict],
+            register_method: RegisterMethod,
     ) -> None:
         """Register a group of handlers. (Deprecated: use _register_handler_group)"""
         self._register_handler_group(handler_factory_func, register_method)
