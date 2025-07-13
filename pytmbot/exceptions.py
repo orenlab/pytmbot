@@ -181,3 +181,7 @@ class CallbackValidationError(BaseBotException):
 
 class KeyboardError(Exception):
     """Custom exception for keyboard-related errors."""
+
+
+class TOTPError(Exception):
+    """Custom exception for TOTP-related errors."""

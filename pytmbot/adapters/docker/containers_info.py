@@ -12,7 +12,8 @@ from typing import Dict, List
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import (
     get_container_safely,
-    build_container_context, with_operation_logging,
+    build_container_context,
+    with_operation_logging,
 )
 from pytmbot.exceptions import (
     ContainerNotFoundError,

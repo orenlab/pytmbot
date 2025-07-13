@@ -4,6 +4,7 @@
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
+
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -53,9 +54,9 @@ class StateCheckConfig:
 
 
 def check_container_state(
-        container_name: ContainerName,
-        target_state: str = ContainerState.RUNNING,
-        config: StateCheckConfig = StateCheckConfig(),
+    container_name: ContainerName,
+    target_state: str = ContainerState.RUNNING,
+    config: StateCheckConfig = StateCheckConfig(),
 ) -> ContainerState | None:
     """
     Checks if container reaches target state within configured attempts.
@@ -344,7 +345,7 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_container_context(
-        container_id: str, action: str, **extra_context
+    container_id: str, action: str, **extra_context
 ) -> Dict[str, Any]:
     """
     Creates a standard context for logging container operations.

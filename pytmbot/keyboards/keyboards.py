@@ -47,7 +47,6 @@ class ButtonData:
             raise ValueError("Callback data must be a non-empty string")
 
 
-
 class Keyboards:
     """A class for managing keyboard layouts and generation in the Telegram bot."""
 
@@ -59,7 +58,7 @@ class Keyboards:
     BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
     RETURN_BUTTON_EMOJI: Final[str] = "🦈"
 
-    __slots__ = ('_emojis', '_logger')
+    __slots__ = ("_emojis", "_logger")
 
     def __init__(self) -> None:
         """Initialize the Keyboards class with an EmojiConverter instance."""
@@ -67,7 +66,7 @@ class Keyboards:
         self._logger: Logger = Logger()
 
     def build_referer_main_keyboard(
-            self, main_keyboard_data: str
+        self, main_keyboard_data: str
     ) -> ReplyKeyboardMarkup:
         """Construct a ReplyKeyboardMarkup object for the main keyboard.
 
@@ -84,12 +83,10 @@ class Keyboards:
             raise KeyboardError("Main keyboard data must be a non-empty string")
 
         with self._logger.context(
-                operation=KeyboardOperation.BUILD_MAIN, data=main_keyboard_data
+            operation=KeyboardOperation.BUILD_MAIN, data=main_keyboard_data
         ):
             keyboard = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                one_time_keyboard=True,
-                selective=True
+                resize_keyboard=True, one_time_keyboard=True, selective=True
             )
             keyboard.add(main_keyboard_data)
             return keyboard
@@ -110,14 +107,14 @@ class Keyboards:
             raise KeyboardError("Inline keyboard data must be a non-empty string")
 
         with self._logger.context(
-                operation=KeyboardOperation.BUILD_INLINE, data=data
+            operation=KeyboardOperation.BUILD_INLINE, data=data
         ) as log:
             button_text = split_string_into_octets(data)
             log.debug("Split string into octets", result=button_text)
 
             button = InlineKeyboardButton(
                 text=f"{self.RETURN_BUTTON_EMOJI} Return to {button_text}",
-                callback_data=data[:self.MAX_CALLBACK_DATA_LENGTH],
+                callback_data=data[: self.MAX_CALLBACK_DATA_LENGTH],
             )
 
             keyboard = InlineKeyboardMarkup()
@@ -125,9 +122,9 @@ class Keyboards:
             return keyboard
 
     def build_reply_keyboard(
-            self,
-            keyboard_type: str | None = None,
-            plugin_keyboard_data: dict[str, str] | None = None,
+        self,
+        keyboard_type: str | None = None,
+        plugin_keyboard_data: dict[str, str] | None = None,
     ) -> ReplyKeyboardMarkup:
         """Construct a ReplyKeyboardMarkup object with the specified keyboard settings.
 
@@ -142,9 +139,9 @@ class Keyboards:
             KeyboardError: If keyboard configuration is invalid
         """
         with self._logger.context(
-                operation=KeyboardOperation.BUILD_REPLY,
-                keyboard_type=keyboard_type,
-                has_plugin_data=bool(plugin_keyboard_data),
+            operation=KeyboardOperation.BUILD_REPLY,
+            keyboard_type=keyboard_type,
+            has_plugin_data=bool(plugin_keyboard_data),
         ) as log:
             keyboard_data = (
                 plugin_keyboard_data
@@ -161,13 +158,12 @@ class Keyboards:
                 keyboard_buttons.append(self.BACK_BUTTON_TEXT)
 
             reply_keyboard = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                row_width=self.DEFAULT_ROW_WIDTH
+                resize_keyboard=True, row_width=self.DEFAULT_ROW_WIDTH
             )
 
             # Build rows with proper chunking
             for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
-                reply_keyboard.row(*keyboard_buttons[i: i + self.DEFAULT_ROW_WIDTH])
+                reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
 
             log.debug("Reply keyboard constructed", total_buttons=len(keyboard_buttons))
             return reply_keyboard
@@ -188,15 +184,15 @@ class Keyboards:
         """
         logger = Logger()
         with logger.context(
-                operation=KeyboardOperation.GET_DATA,
-                keyboard_type=keyboard_type or "main"
+            operation=KeyboardOperation.GET_DATA, keyboard_type=keyboard_type or "main"
         ) as log:
             if keyboard_type is None:
                 return keyboard_settings.main_keyboard
 
             # Get valid keyboard types more efficiently
             valid_keyboards = {
-                attr for attr in dir(keyboard_settings)
+                attr
+                for attr in dir(keyboard_settings)
                 if attr.endswith("_keyboard") and not attr.startswith("_")
             }
 
@@ -205,7 +201,7 @@ class Keyboards:
                     "Invalid keyboard type requested",
                     code="KEYBOARD_INVALID_TYPE",
                     requested_type=keyboard_type,
-                    valid_types=list(valid_keyboards)
+                    valid_types=list(valid_keyboards),
                 )
                 raise KeyboardError(
                     f"Invalid keyboard type '{keyboard_type}'. "
@@ -233,8 +229,7 @@ class Keyboards:
             raise KeyboardError("Keyboard data cannot be empty")
 
         with self._logger.context(
-                operation=KeyboardOperation.CONSTRUCT,
-                button_count=len(keyboard_data)
+            operation=KeyboardOperation.CONSTRUCT, button_count=len(keyboard_data)
         ) as log:
             buttons = [
                 f"{self._emojis.get_emoji(emoji)} {title}"
@@ -246,7 +241,7 @@ class Keyboards:
             return buttons
 
     def build_inline_keyboard(
-            self, buttons_data: list[ButtonData] | ButtonData
+        self, buttons_data: list[ButtonData] | ButtonData
     ) -> InlineKeyboardMarkup:
         """Construct an InlineKeyboardMarkup with the provided button data.
 
@@ -267,8 +262,8 @@ class Keyboards:
             raise KeyboardError("Button data cannot be empty")
 
         with self._logger.context(
-                operation=KeyboardOperation.BUILD_INLINE,
-                buttons_count=len(buttons_data),
+            operation=KeyboardOperation.BUILD_INLINE,
+            buttons_count=len(buttons_data),
         ) as log:
             # Validate all buttons are ButtonData instances
             if not all(isinstance(btn, ButtonData) for btn in buttons_data):
@@ -279,7 +274,7 @@ class Keyboards:
             buttons = [
                 InlineKeyboardButton(
                     text=btn.text,
-                    callback_data=btn.callback_data[:self.MAX_CALLBACK_DATA_LENGTH]
+                    callback_data=btn.callback_data[: self.MAX_CALLBACK_DATA_LENGTH],
                 )
                 for btn in buttons_data
             ]
