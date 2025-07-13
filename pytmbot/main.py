@@ -154,6 +154,19 @@ class BotLauncher(logs.BaseComponent):
             self.shutdown_requested.set()
             self._stop_bot_operations()
 
+    @contextmanager
+    def _managed_bot(self) -> Generator[Any, None, None]:
+        """Context manager for bot lifecycle."""
+        try:
+            self.bot = pytmbot_instance.PyTMBot()
+            yield self.bot
+        except Exception as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("Bot creation failed")
+            raise
+        finally:
+            self._cleanup_bot()
+
     def _perform_health_check(self) -> bool:
         """Perform a single health check with error handling."""
         if not self.bot:
@@ -203,10 +216,15 @@ class BotLauncher(logs.BaseComponent):
         """Log current health status with comprehensive process statistics."""
         uptime_display = naturaltime(self.start_time)
 
+        rate_limit_stats = None
+        if self.bot and hasattr(self.bot, 'get_rate_limit_stats'):
+            rate_limit_stats = self.bot.get_rate_limit_stats()
+
         log_context = {
             "uptime": uptime_display,
             "active": bool(self.bot),
             "admin_sessions": self._session_manager.get_session_stats(),
+            "rate_limit_middleware_metrics": rate_limit_stats
         }
 
         if not self._is_monitor_plugin_loaded():
@@ -267,18 +285,6 @@ class BotLauncher(logs.BaseComponent):
                 pass
         return False
 
-    @contextmanager
-    def _managed_bot(self) -> Generator[Any, None, None]:
-        """Context manager for bot lifecycle."""
-        try:
-            self.bot = pytmbot_instance.PyTMBot()
-            yield self.bot
-        except Exception as e:
-            with self.log_context(error=str(e)) as log:
-                log.error("Bot creation failed")
-            raise
-        finally:
-            self._cleanup_bot()
 
     def _cleanup_bot(self) -> None:
         """Clean up bot resources."""
