@@ -16,12 +16,14 @@ from typing import Final
 
 class BotMode(StrEnum):
     """Bot operation modes."""
+
     DEV = "dev"
     PROD = "prod"
 
 
 class LogLevel(StrEnum):
     """Available log levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     ERROR = "ERROR"
@@ -29,11 +31,13 @@ class LogLevel(StrEnum):
 
 class CLIError(Exception):
     """Custom exception for CLI-related errors."""
+
     pass
 
 
 class CLIDefaults:
     """Default values for CLI arguments."""
+
     MODE: Final[BotMode] = BotMode.PROD
     LOG_LEVEL: Final[LogLevel] = LogLevel.INFO
     COLORIZE_LOGS: Final[bool] = True
@@ -79,8 +83,10 @@ def _validate_socket_host(host: str) -> str:
         raise CLIError("Socket host must be a non-empty string")
 
     # Basic validation for common cases
-    if not (host.replace(".", "").replace(":", "").replace("-", "").isalnum() or
-            host in ("localhost", "0.0.0.0")):
+    if not (
+        host.replace(".", "").replace(":", "").replace("-", "").isalnum()
+        or host in ("localhost", "0.0.0.0")
+    ):
         raise CLIError(f"Invalid socket host format: {host}")
 
     return host
