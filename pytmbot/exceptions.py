@@ -177,3 +177,7 @@ class InfluxDBQueryError(InfluxDBException):
 
 class CallbackValidationError(BaseBotException):
     """Raised on Callback data validation error"""
+
+
+class KeyboardError(Exception):
+    """Custom exception for keyboard-related errors."""
