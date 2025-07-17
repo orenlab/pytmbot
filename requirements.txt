@@ -1,4 +1,4 @@
-aiohttp==3.12.13
+aiohttp==3.12.14
 docker==7.1.0
 emoji==2.14.1
 fastapi==0.115.14
