@@ -67,6 +67,7 @@ class LogConfig:
 @dataclass(slots=True)
 class MaskingConfig:
     """Configuration for data masking."""
+
     visible_chars: int = 4
     visible_username_chars: int = 2
     visible_id_chars: int = 2
@@ -218,7 +219,7 @@ class DataMasker:
         username = username.strip()
 
         # Remove @ symbol if present
-        if username.startswith('@'):
+        if username.startswith("@"):
             username = username[1:]
 
         visible = self._config.visible_username_chars
@@ -258,7 +259,9 @@ class DataMasker:
             return "[MASKED_ID]"
 
         mask_len = id_len - safe_visible * 2
-        return f"{user_id_str[:safe_visible]}{'*' * mask_len}{user_id_str[-safe_visible:]}"
+        return (
+            f"{user_id_str[:safe_visible]}{'*' * mask_len}{user_id_str[-safe_visible:]}"
+        )
 
     @lru_cache(maxsize=256)
     def mask_chat_id(self, chat_id: int) -> str:
@@ -283,7 +286,9 @@ class DataMasker:
             return "[MASKED_CHAT]"
 
         mask_len = id_len - safe_visible * 2
-        masked = f"{chat_id_str[:safe_visible]}{'*' * mask_len}{chat_id_str[-safe_visible:]}"
+        masked = (
+            f"{chat_id_str[:safe_visible]}{'*' * mask_len}{chat_id_str[-safe_visible:]}"
+        )
 
         return f"-{masked}" if is_negative else masked
 
@@ -331,25 +336,32 @@ class DataMasker:
                 patterns = [username, f"@{username}"]
                 for pattern in patterns:
                     if pattern in sanitized:
-                        sanitized = sanitized.replace(pattern, self.mask_username(username))
+                        sanitized = sanitized.replace(
+                            pattern, self.mask_username(username)
+                        )
 
         # Mask known user IDs
         if self._known_user_ids:
             for user_id in self._known_user_ids:
                 user_id_str = str(user_id)
                 if user_id_str in sanitized:
-                    sanitized = sanitized.replace(user_id_str, self.mask_user_id(user_id))
+                    sanitized = sanitized.replace(
+                        user_id_str, self.mask_user_id(user_id)
+                    )
 
         # Mask known chat IDs
         if self._known_chat_ids:
             for chat_id in self._known_chat_ids:
                 chat_id_str = str(chat_id)
                 if chat_id_str in sanitized:
-                    sanitized = sanitized.replace(chat_id_str, self.mask_chat_id(chat_id))
+                    sanitized = sanitized.replace(
+                        chat_id_str, self.mask_chat_id(chat_id)
+                    )
 
         # Apply pattern-based masking for unknown secrets
         if not self._should_exclude_from_masking(sanitized):
             for pattern in self._SECRET_PATTERNS:
+
                 def replacement(match) -> str:
                     matched_text = match.group(0)
                     # Double-check exclusion for each match
@@ -362,11 +374,17 @@ class DataMasker:
 
                     if "user" in pattern_str and groups and groups[0]:
                         if groups[0].isdigit():
-                            return match.group(0).replace(groups[0], self.mask_user_id(int(groups[0])))
+                            return match.group(0).replace(
+                                groups[0], self.mask_user_id(int(groups[0]))
+                            )
                         else:
-                            return match.group(0).replace(groups[0], self.mask_username(groups[0]))
+                            return match.group(0).replace(
+                                groups[0], self.mask_username(groups[0])
+                            )
                     elif "chat" in pattern_str and groups and groups[0]:
-                        return match.group(0).replace(groups[0], self.mask_chat_id(int(groups[0])))
+                        return match.group(0).replace(
+                            groups[0], self.mask_chat_id(int(groups[0]))
+                        )
                     elif matched_text.isdigit() and len(matched_text) >= 9:
                         # Long numeric ID - probably a user ID
                         return self.mask_user_id(int(matched_text))
@@ -384,7 +402,7 @@ class DataMasker:
         return sanitized
 
     def extract_and_mask_from_telegram_object(
-            self, obj: Union[Update, Message, CallbackQuery, InlineQuery]
+        self, obj: Union[Update, Message, CallbackQuery, InlineQuery]
     ) -> None:
         """Extracts sensitive data from Telegram objects and adds to masking lists."""
         if isinstance(obj, Update):
@@ -481,6 +499,7 @@ class Logger:
                     # Lazy initialization of configuration
                     try:
                         from pytmbot.utils.cli import parse_cli_args
+
                         self._configure_logger(parse_cli_args().log_level.upper())
                     except ImportError:
                         self._configure_logger("INFO")
@@ -513,7 +532,8 @@ class Logger:
             diagnose=False,
             catch=True,
             filter=lambda record: (
-                    "sensitive_exception" in record.get("extra", {}) and self._filter(record)
+                "sensitive_exception" in record.get("extra", {})
+                and self._filter(record)
             ),
         )
 
@@ -555,12 +575,12 @@ class Logger:
 
     @lru_cache(maxsize=512)
     def _extract_update_data(
-            self,
-            update_id: Optional[int],
-            update_type: str,
-            chat_id: Optional[int],
-            user_id: Optional[int],
-            username: Optional[str],
+        self,
+        update_id: Optional[int],
+        update_type: str,
+        chat_id: Optional[int],
+        user_id: Optional[int],
+        username: Optional[str],
     ) -> dict[str, Any]:
         """Extracts relevant data from Telegram update objects (cached version)."""
         return {
@@ -572,8 +592,8 @@ class Logger:
         }
 
     def _get_update_data(
-            self,
-            update: Update | Message | CallbackQuery | InlineQuery,
+        self,
+        update: Update | Message | CallbackQuery | InlineQuery,
     ) -> dict[str, Any]:
         """Extracts relevant data from Telegram update objects."""
         update_id = None
@@ -619,7 +639,9 @@ class Logger:
                     (
                         arg
                         for arg in args
-                        if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))
+                        if isinstance(
+                            arg, (Message, Update, CallbackQuery, InlineQuery)
+                        )
                     ),
                     None,
                 )
@@ -645,7 +667,9 @@ class Logger:
                     )
                     context["job_id"] = job_id
                 else:
-                    self._logger.warning(f"No Telegram object found in handler {f.__name__}")
+                    self._logger.warning(
+                        f"No Telegram object found in handler {f.__name__}"
+                    )
                     job_id = str(uuid.uuid4())
                     context["job_id"] = job_id
 

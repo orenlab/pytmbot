@@ -79,7 +79,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "period_seconds": self.period.total_seconds(),
             "period_str": str(self.period),
             "supported_updates": self.SUPPORTED_UPDATES,
-            "warning_message": self.WARNING_MESSAGE
+            "warning_message": self.WARNING_MESSAGE,
         }
 
         with self.log_context(**context) as logger:
@@ -103,7 +103,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "cleaned_requests": cleaned_count,
             "remaining_requests": len(requests),
             "cutoff_time": cutoff_time.isoformat(),
-            "current_time": current_time.isoformat()
+            "current_time": current_time.isoformat(),
         }
 
         # Clean up empty user entries
@@ -115,10 +115,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
                     del self._violation_count[user_id]
                     del self._last_violation_log[user_id]
 
-                context.update({
-                    "user_cleaned": True,
-                    "violation_data_cleaned": True
-                })
+                context.update({"user_cleaned": True, "violation_data_cleaned": True})
 
         if cleaned_count > 0:
             with self.log_context(**context) as logger:
@@ -136,7 +133,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "current_requests": current_requests,
             "limit": self.limit,
             "is_rate_limited": is_limited,
-            "requests_until_limit": max(0, self.limit - current_requests)
+            "requests_until_limit": max(0, self.limit - current_requests),
         }
 
         with self.log_context(**context) as logger:
@@ -180,7 +177,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "current_time": current_time.isoformat(),
             "backoff_interval_seconds": backoff_interval.total_seconds(),
             "time_since_last_log": (current_time - last_log_time).total_seconds(),
-            "should_log": should_log
+            "should_log": should_log,
         }
 
         with self.log_context(**context) as logger:
@@ -209,24 +206,23 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "chat_type": message.chat.type,
             "message_id": message.message_id,
             "message_date": message.date,
-            "current_time": current_time.isoformat()
+            "current_time": current_time.isoformat(),
         }
 
         # Log violation only if necessary (to avoid log spam)
         if self._should_log_violation(user_id, current_time):
             self._last_violation_log[user_id] = current_time
-            context.update({
-                "violation_logged": True,
-                "last_violation_log": current_time.isoformat()
-            })
+            context.update(
+                {
+                    "violation_logged": True,
+                    "last_violation_log": current_time.isoformat(),
+                }
+            )
 
             with self.log_context(**context) as logger:
                 logger.warning("Rate limit exceeded")
         else:
-            context.update({
-                "violation_logged": False,
-                "log_suppressed": True
-            })
+            context.update({"violation_logged": False, "log_suppressed": True})
 
             with self.log_context(**context) as logger:
                 logger.debug("Rate limit exceeded (logging suppressed)")
@@ -242,7 +238,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
                 "operation": "warning_message_send",
                 "message_sent": False,
                 "error": str(e),
-                "error_type": type(e).__name__
+                "error_type": type(e).__name__,
             }
 
             with self.log_context(**message_context) as logger:
@@ -253,7 +249,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
                 **context,
                 "operation": "warning_message_send",
                 "message_sent": True,
-                "warning_message": self.WARNING_MESSAGE
+                "warning_message": self.WARNING_MESSAGE,
             }
 
             with self.log_context(**message_context) as logger:
@@ -283,7 +279,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
                 "chat_id": message.chat.id,
                 "chat_type": message.chat.type,
                 "message_date": message.date,
-                "message_content_type": message.content_type
+                "message_content_type": message.content_type,
             }
 
             with self.log_context(**context) as logger:
@@ -303,14 +299,14 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "message_id": message.message_id,
             "message_date": message.date,
             "message_content_type": message.content_type,
-            "current_time": current_time.isoformat()
+            "current_time": current_time.isoformat(),
         }
 
         if self._is_rate_limited(user_id, current_time):
             context = {
                 **base_context,
                 "operation": "rate_limit_triggered",
-                "rate_limited": True
+                "rate_limited": True,
             }
 
             with self.log_context(**context) as logger:
@@ -334,7 +330,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "current_requests": current_requests,
             "limit": self.limit,
             "violation_count_reset": violation_reset,
-            "requests_until_limit": max(0, self.limit - current_requests)
+            "requests_until_limit": max(0, self.limit - current_requests),
         }
 
         with self.log_context(**context) as logger:
@@ -343,7 +339,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
         return None
 
     def post_process(
-            self, message: Message, data: Any, exception: Optional[Exception]
+        self, message: Message, data: Any, exception: Optional[Exception]
     ) -> None:
         """Post-process message after main middleware execution."""
         if not exception:
@@ -358,15 +354,17 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "chat_id": message.chat.id,
             "chat_type": message.chat.type,
             "has_data": bool(data),
-            "data_keys": list(data.keys()) if data else []
+            "data_keys": list(data.keys()) if data else [],
         }
 
         if message.from_user:
-            context.update({
-                "user_id": mask_user_id(message.from_user.id),
-                "username": mask_username(message.from_user.username) or "unknown",
-                "user_is_bot": message.from_user.is_bot
-            })
+            context.update(
+                {
+                    "user_id": mask_user_id(message.from_user.id),
+                    "username": mask_username(message.from_user.username) or "unknown",
+                    "user_is_bot": message.from_user.is_bot,
+                }
+            )
 
         with self.log_context(**context) as logger:
             logger.error("Exception in rate limit post-process")
@@ -383,12 +381,18 @@ class RateLimit(BaseMiddleware, BaseComponent):
         total_violations = sum(self._violation_count.values())
 
         # Calculate additional metrics
-        active_violations = sum(1 for count in self._violation_count.values() if count > 0)
-        max_violations = max(self._violation_count.values()) if self._violation_count else 0
+        active_violations = sum(
+            1 for count in self._violation_count.values() if count > 0
+        )
+        max_violations = (
+            max(self._violation_count.values()) if self._violation_count else 0
+        )
 
         # Calculate current request distribution
         request_counts = [len(requests) for requests in self._user_requests.values()]
-        avg_requests = sum(request_counts) / len(request_counts) if request_counts else 0
+        avg_requests = (
+            sum(request_counts) / len(request_counts) if request_counts else 0
+        )
 
         stats = {
             "active_users": active_users,
@@ -402,14 +406,11 @@ class RateLimit(BaseMiddleware, BaseComponent):
             "request_distribution": {
                 "min": min(request_counts) if request_counts else 0,
                 "max": max(request_counts) if request_counts else 0,
-                "total": sum(request_counts)
-            }
+                "total": sum(request_counts),
+            },
         }
 
-        context = {
-            "operation": "get_stats",
-            **stats
-        }
+        context = {"operation": "get_stats", **stats}
 
         with self.log_context(**context) as logger:
             logger.debug("Rate limit statistics generated")

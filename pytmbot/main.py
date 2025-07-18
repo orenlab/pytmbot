@@ -217,14 +217,14 @@ class BotLauncher(logs.BaseComponent):
         uptime_display = naturaltime(self.start_time)
 
         rate_limit_stats = None
-        if self.bot and hasattr(self.bot, 'get_rate_limit_stats'):
+        if self.bot and hasattr(self.bot, "get_rate_limit_stats"):
             rate_limit_stats = self.bot.get_rate_limit_stats()
 
         log_context = {
             "uptime": uptime_display,
             "active": bool(self.bot),
             "admin_sessions": self._session_manager.get_session_stats(),
-            "rate_limit_middleware_metrics": rate_limit_stats
+            "rate_limit_middleware_metrics": rate_limit_stats,
         }
 
         if not self._is_monitor_plugin_loaded():
@@ -284,7 +284,6 @@ class BotLauncher(logs.BaseComponent):
             except ValueError:
                 pass
         return False
-
 
     def _cleanup_bot(self) -> None:
         """Clean up bot resources."""
