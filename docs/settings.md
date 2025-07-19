@@ -14,15 +14,20 @@ solution.
 
 ### 2. Get Required IDs
 
-**Get User ID:**
+**The Easy Way - Using Bot's Built-in Handler:**
 
-- Method 1: Send any message to [@userinfobot](https://t.me/userinfobot)
-- Method 2: Start your bot and send any message - check logs for user ID
+1. Start your bot with minimal configuration (see section below)
+2. Send `/getmyid` command to your bot
+3. The bot will display all necessary IDs in a formatted message:
+    - Your User ID for `allowed_user_ids` and `allowed_admins_ids`
+    - Chat ID for `global_chat_id` configuration
+    - Authorization status and other useful information
+4. Copy the displayed IDs to your configuration file
 
-**Get Chat ID:**
+**Alternative Methods:**
 
-- For private chat: use your user ID (positive number)
-- For group chat: add [@userinfobot](https://t.me/userinfobot) to group and send any message
+- **Get User ID**: Send any message to [@userinfobot](https://t.me/userinfobot)
+- **Get Chat ID**: For groups, add [@userinfobot](https://t.me/userinfobot) to group and send any message
 
 ### 3. Generate Authentication Salt
 
@@ -54,17 +59,17 @@ bot_token:
 # Access Control Settings (REQUIRED)
 access_control:
   # User IDs allowed to access the bot (REQUIRED)
-  # To get your user ID:
-  #   Method 1: Send a message to @userinfobot on Telegram
-  #   Method 2: Start your bot and send any message - check logs for user ID
+  # Get your User ID by sending /getmyid to your bot
+  # Or use @userinfobot on Telegram as alternative
   allowed_user_ids:
-    - 123456789    # Replace with actual Telegram user ID (number only)
+    - 123456789    # Replace with actual Telegram user ID from /getmyid command
     - 987654321    # You can add multiple user IDs
 
   # Admin IDs with elevated permissions (REQUIRED)
   # Admins can access sensitive commands
+  # Use the same User ID from /getmyid command
   allowed_admins_ids:
-    - 123456789    # Replace with actual admin Telegram user ID
+    - 123456789    # Replace with actual admin Telegram user ID from /getmyid
 
   # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
   # Generate with: docker run --rm orenlab/pytmbot:latest --salt
@@ -76,14 +81,12 @@ access_control:
 # Chat ID Configuration (REQUIRED)
 chat_id:
   # Global chat ID for notifications (REQUIRED)
+  # Get Chat ID by sending /getmyid to your bot
   # For private chat: use your user ID (positive number)
   # For group chat: use group ID (negative number, starts with -)
-  # To get chat ID:
-  #   Method 1: For groups - add @userinfobot to group and send any message
-  #   Method 2: Start your bot and send message - check logs for chat ID
   global_chat_id:
-    - -1001234567890  # Example: group chat ID (negative number)
-    # - 123456789     # Alternative: private chat ID (positive number)
+    - -1001234567890  # Example: group chat ID (negative number from /getmyid)
+    # - 123456789     # Alternative: private chat ID (positive number from /getmyid)
 
 ################################################################
 # Docker Settings (REQUIRED)
@@ -222,6 +225,102 @@ influxdb:
   # InfluxDB debug mode (OPTIONAL)
   debug_mode: false  # true = enable debug logs, false = normal logging
 ```
+
+## 🚀 Initial Setup Workflow
+
+### Step-by-Step Setup Process
+
+**1. Create Minimal Configuration:**
+
+First, create a minimal `pytmbot.yaml` with just the bot token to get the necessary IDs:
+
+```yaml
+# Minimal configuration for initial setup
+bot_token:
+  prod_token:
+    - 'YOUR_BOT_TOKEN'  # Replace with your actual bot token
+
+access_control:
+  allowed_user_ids:
+    - 123456789  # Temporary - will be replaced after /getmyid
+  allowed_admins_ids:
+    - 123456789  # Temporary - will be replaced after /getmyid
+  auth_salt:
+    - 'temporary-salt-replace-after-setup'  # Generate proper salt later
+
+chat_id:
+  global_chat_id:
+    - 123456789  # Temporary - will be replaced after /getmyid
+
+docker:
+  host:
+    - 'unix:///var/run/docker.sock'
+```
+
+**2. Start Bot with Minimal Config:**
+
+```bash
+docker run -d \
+  --name pytmbot-setup \
+  --volume ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --mode prod --log-level INFO
+```
+
+**3. Get Your IDs:**
+
+- Send `/getmyid` command to your bot
+- The bot will respond with a formatted message containing:
+    - Your User ID (for `allowed_user_ids` and `allowed_admins_ids`)
+    - Chat ID (for `global_chat_id`)
+    - Authorization status
+    - Configuration notes
+
+**Example Bot Response:**
+
+```
+🆔 ID Information
+
+Hello, John Doe!
+
+⚠️ You are not currently authorized to use this bot.
+
+———————————————————
+
+👤 User Information:
+• User ID: 123456789
+• First Name: John
+• Last Name: Doe
+• Username: @johndoe
+• Status: Bot Administrator ⭐
+
+💬 Chat Information:
+• Chat ID: 123456789
+• Chat Type: private
+
+🔧 Command Information:
+• Command: /getmyid
+
+———————————————————
+
+📋 Configuration Notes:
+• Use User ID to set up admin privileges
+• Use Chat ID to configure allowed chats
+• Copy these values to your bot configuration file
+
+💡 Pro Tip: Save this message for future reference during bot setup!
+```
+
+**4. Update Configuration:**
+
+- Stop the temporary container: `docker stop pytmbot-setup && docker rm pytmbot-setup`
+- Update your `pytmbot.yaml` with the correct IDs from the `/getmyid` response
+- Generate a proper auth salt: `docker run --rm orenlab/pytmbot:latest --salt`
+- Replace the temporary values in your configuration
+
+**5. Final Deployment:**
+
+Start your bot with the complete configuration using Docker Compose (see section below).
 
 ## 🐳 Docker Deployment
 
@@ -532,7 +631,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
 **3. Bot Not Responding:**
 
 - Verify bot token is correct
-- Check User ID in allowed_user_ids
+- Check User ID in allowed_user_ids using `/getmyid` command
 - Ensure bot has proper permissions
 - Check logs for authentication errors
 
@@ -552,25 +651,35 @@ docker inspect pytmbot | grep -i memory
 - Verify monitoring intervals in config
 - Review plugin configurations
 
+**6. Getting IDs Issues:**
+
+If `/getmyid` command doesn't work:
+
+- Ensure bot is running with minimal configuration
+- Check that your User ID is in the `allowed_user_ids` list
+- Verify bot token is correct
+- Use alternative method with @userinfobot
+
 ## 📝 Minimal Configuration Example
 
 ```yaml
 # Minimal working configuration
+# Use this template and update IDs after running /getmyid command
 bot_token:
   prod_token:
     - 'YOUR_BOT_TOKEN'
 
 access_control:
   allowed_user_ids:
-    - 123456789
+    - 123456789    # Replace with User ID from /getmyid command
   allowed_admins_ids:
-    - 123456789
+    - 123456789    # Replace with User ID from /getmyid command
   auth_salt:
     - 'your-generated-salt-here'
 
 chat_id:
   global_chat_id:
-    - 123456789  # Your user ID for private chat
+    - 123456789    # Replace with Chat ID from /getmyid command
 
 docker:
   host:
@@ -601,3 +710,26 @@ docker:
 - Set appropriate log levels
 - Configure log rotation
 - Use InfluxDB for metrics storage
+
+## 💡 Pro Tips
+
+### Configuration Tips
+
+1. **ID Discovery**: Always use `/getmyid` command first - it's the most reliable way to get correct IDs
+2. **Salt Generation**: Generate a new salt for each installation for better security
+3. **Backup Configuration**: Keep a backup of your working configuration file
+4. **Test First**: Use minimal configuration for initial testing before adding plugins
+
+### Troubleshooting Tips
+
+1. **Check Logs First**: Most issues are visible in container logs
+2. **Use Health Check**: Run health check before deploying to production
+3. **Verify IDs**: Double-check User IDs and Chat IDs using `/getmyid`
+4. **Test Permissions**: Ensure Docker socket access is working correctly
+
+### Security Tips
+
+1. **Rotate Salts**: Change auth salt periodically for better security
+2. **Limit Access**: Only add necessary User IDs to allowed_user_ids
+3. **Monitor Usage**: Keep track of who has access to your bot
+4. **Regular Updates**: Keep the bot container updated

@@ -3,8 +3,9 @@
 ## 🔍 Overview
 
 The access control mechanism in **pyTMBot** ensures that only authorized users can access certain functionalities. This
-process involves several key components working together: **AccessControl middleware**, **SessionManager**, user
-identification, authentication, authorization, and comprehensive security monitoring with real-time admin alerts.
+process involves several key components working together: **AccessControl middleware** with **unrestricted commands
+support**, **SessionManager**, user identification, authentication, authorization, and comprehensive security monitoring
+with real-time admin alerts.
 
 ## 🏗️ Architecture Components
 
@@ -14,6 +15,7 @@ identification, authentication, authorization, and comprehensive security monito
 - Implements automatic blocking system
 - Provides real-time admin notifications
 - Manages attempt tracking and cleanup
+- **NEW**: Supports unrestricted commands for initial setup
 
 ### 2. **SessionManager** 🔐
 
@@ -22,6 +24,13 @@ identification, authentication, authorization, and comprehensive security monito
 - Manages TOTP (Two-Factor Authentication) attempts
 - Implements session expiration and cleanup
 - Provides comprehensive session statistics
+
+### 3. **Unrestricted Commands System** 🔓
+
+- Allows specific commands without authorization for initial setup
+- Currently supports: `/getmyid`
+- Provides safe access to essential bot configuration information
+- Maintains security logging and admin notifications
 
 ## 🔧 Session Management
 
@@ -62,6 +71,7 @@ The SessionManager implements several advanced features:
     - Immediate alerts sent to admin via `global_chat_id`
     - Detailed information with masked user data for privacy
     - Smart suppression (300 seconds per user) to prevent spam
+    - **NEW**: Specialized notifications for unrestricted command usage
 
 2. **Automatic Blocking System**:
     - Users blocked after 3 failed attempts (`MAX_ATTEMPTS`)
@@ -72,11 +82,44 @@ The SessionManager implements several advanced features:
     - Token leak detection hints
     - Proactive security recommendations
     - Comprehensive audit trail with timestamps
+    - **NEW**: Unrestricted command usage monitoring
 
 4. **Data Privacy Protection**:
     - Username masking via `mask_username()` function
     - User ID masking via `mask_user_id()` function
     - Automatic sensitive data protection in communications
+
+## 📋 Unrestricted Commands Configuration
+
+### **Available Unrestricted Commands**
+
+```python
+UNRESTRICTED_COMMANDS: Final[Set[str]] = {
+    '/getmyid',
+}
+```
+
+### **Unrestricted Command Features**
+
+- **Safe Access**: Commands available without authentication
+- **Setup Support**: Essential for initial bot configuration
+- **Security Monitoring**: All usage is logged and monitored
+- **Admin Notifications**: Unauthorized users get special notifications
+- **Privacy Compliant**: All data masking applies
+
+### **Admin Notification for Unrestricted Commands**
+
+When unauthorized users access unrestricted commands, admins receive informational notifications:
+
+```
+ℹ️ Unrestricted command used by unauthorized user
+👤 User: `u***r` (ID: `1***9`)
+💬 Chat ID: `123456789`
+🔧 Command: `/getmyid`
+
+💡 This is normal for initial bot setup.
+🔐 Add user ID to config if access should be granted.
+```
 
 ## 📊 Updated Comprehensive Workflow Diagram
 
@@ -84,7 +127,16 @@ The SessionManager implements several advanced features:
 graph TD
     UserRequest[👤 User Request] --> AccessMiddleware[🛡️ Access Control Middleware]
     
-    AccessMiddleware --> CheckBlocked{🚫 User Blocked?}
+    AccessMiddleware --> CheckUnrestricted{🔓 Unrestricted Command?}
+    CheckUnrestricted -->|Yes| AllowUnrestricted[✅ Allow Unrestricted]
+    CheckUnrestricted -->|No| CheckBlocked{🚫 User Blocked?}
+    
+    AllowUnrestricted --> CheckAuthorized{👤 User Authorized?}
+    CheckAuthorized -->|No| NotifyUnrestricted[📢 Notify Admin - Unrestricted]
+    CheckAuthorized -->|Yes| LogUnrestricted[📝 Log Unrestricted Access]
+    NotifyUnrestricted --> ProcessUnrestricted[⚙️ Process Unrestricted Command]
+    LogUnrestricted --> ProcessUnrestricted
+    
     CheckBlocked -->|Yes| BlockResponse[⛔ Block Response]
     CheckBlocked -->|No| CheckAllowed{✅ User Allowed?}
     
@@ -137,6 +189,7 @@ graph TD
     HandleRequest --> LogAccess[📝 Log Access]
     LogAccess --> ProcessRequest[⚙️ Process Request]
     ProcessRequest --> Done[✅ Done]
+    ProcessUnrestricted --> Done
     
     DenyAccess --> Done
     BlockResponse --> Done
@@ -150,15 +203,19 @@ graph TD
     AdminDashboard[📊 Admin Dashboard] --> SessionStats[📈 Session Statistics]
     AdminDashboard --> SecurityAlerts[🚨 Security Alerts]
     AdminDashboard --> AuditTrail[📋 Audit Trail]
+    AdminDashboard --> UnrestrictedUsage[🔓 Unrestricted Usage Monitor]
     
     style UserRequest fill:#e1f5fe
     style AccessMiddleware fill:#f3e5f5
     style SessionManager fill:#e8f5e8
     style HandleRequest fill:#e8f5e8
+    style ProcessUnrestricted fill:#e8f5e8
     style SecurityAlert fill:#ffebee
     style BlockUser fill:#ffebee
     style CleanupThread fill:#fff3e0
     style AdminDashboard fill:#f1f8e9
+    style AllowUnrestricted fill:#e8f5e8
+    style NotifyUnrestricted fill:#fff9c4
 ```
 
 ## 📱 Enhanced Access Control Process
@@ -166,6 +223,13 @@ graph TD
 ### 1. **User Request Processing** 📲
 
 When a user initiates a request, it passes through multiple security layers:
+
+#### **Unrestricted Command Check** 🔓
+
+- **Command Recognition**: Identifies unrestricted commands (e.g., `/getmyid`)
+- **Immediate Access**: Grants access without authentication requirements
+- **Security Logging**: All unrestricted command usage is logged
+- **Admin Notification**: Unauthorized users trigger informational alerts
 
 #### **Access Control Middleware Layer**
 
@@ -189,23 +253,55 @@ When a user initiates a request, it passes through multiple security layers:
 MAX_ATTEMPTS = 3  # Maximum failed attempts
 BLOCK_DURATION = 3600  # 1 hour block duration
 ADMIN_NOTIFY_SUPPRESSION = 300  # 5 minutes notification suppression
+UNRESTRICTED_COMMANDS = {'/getmyid'}  # Commands allowed without auth
 ```
 
 **Process Flow:**
 
-1. **Attempt Tracking**: Increment unauthorized access counter
-2. **Threshold Check**: Evaluate against `MAX_ATTEMPTS`
-3. **Auto-Blocking**: Apply temporary block if threshold exceeded
-4. **Admin Notification**: Send masked security alert to admin
-5. **Audit Logging**: Record detailed security event
+1. **Command Classification**: Check if command is unrestricted
+2. **Attempt Tracking**: Increment unauthorized access counter (if restricted)
+3. **Threshold Check**: Evaluate against `MAX_ATTEMPTS`
+4. **Auto-Blocking**: Apply temporary block if threshold exceeded
+5. **Admin Notification**: Send masked security alert to admin
+6. **Audit Logging**: Record detailed security event
 
 #### **Privacy-Compliant Notifications**
 
 - **User Identity Protection**: All user data masked in admin alerts
 - **Structured Messaging**: Consistent alert format with actionable information
 - **Spam Prevention**: Intelligent suppression to prevent notification flooding
+- **Unrestricted Command Alerts**: Special handling for setup commands
 
-### 3. **Session State Management** 🔐
+### 3. **GetMyID Command Implementation** 🆔
+
+#### **Template Processing**
+
+The `/getmyid` command uses HTML-formatted templates to provide setup information:
+
+```html
+🆔 <b>ID Information</b>
+
+Hello, <b>{{ first_name }}{% if last_name %} {{ last_name }}{% endif %}</b>!
+
+{% if is_bot_admin %}✅ You are authorized to use this bot.
+{% else %}⚠️ You are not currently authorized to use this bot.
+{% endif %}
+```
+
+#### **Key Features**
+
+- **User Information**: Complete user profile details
+- **Chat Information**: Chat ID and type for configuration
+- **Authorization Status**: Clear indication of access level
+- **Setup Guidance**: Configuration instructions for administrators
+
+#### **Security Considerations**
+
+- **Data Masking**: Admin notifications mask sensitive user data
+- **Logging**: All usage is comprehensively logged
+- **Access Monitoring**: Unauthorized usage generates admin alerts
+
+### 4. **Session State Management** 🔐
 
 #### **Authentication States**
 
@@ -225,7 +321,7 @@ class _StateFabric:
 4. **Expiration**: Automatic cleanup after timeout
 5. **Cleanup**: Background thread removes expired sessions
 
-### 4. **Two-Factor Authentication (2FA)** 🔐
+### 5. **Two-Factor Authentication (2FA)** 🔐
 
 #### **TOTP Management**
 
@@ -240,7 +336,7 @@ class _StateFabric:
 - **Attempt Reset**: Successful auth resets attempt counter
 - **Block Integration**: TOTP failures contribute to blocking system
 
-### 5. **Background Maintenance** 🧹
+### 6. **Background Maintenance** 🧹
 
 #### **Cleanup Operations**
 
@@ -258,7 +354,8 @@ class _StateFabric:
     "authenticated_sessions": int,
     "blocked_sessions": int,
     "expired_sessions": int,
-    "processing_sessions": int
+    "processing_sessions": int,
+    "unrestricted_command_usage": int  # NEW
 }
 ```
 
@@ -271,6 +368,7 @@ MAX_ATTEMPTS = 3  # Failed attempts before blocking
 BLOCK_DURATION = 3600  # Block duration in seconds
 CLEANUP_INTERVAL = 3600  # Cleanup interval in seconds
 ADMIN_NOTIFY_SUPPRESSION = 300  # Admin notification suppression
+UNRESTRICTED_COMMANDS = {'/getmyid'}  # Commands allowed without auth
 ```
 
 ### **SessionManager Settings**
@@ -297,6 +395,7 @@ block_duration = 10  # Block duration in minutes
 - **Security Events**: Detailed audit trail
 - **Performance Monitoring**: Session statistics and metrics
 - **Privacy Compliance**: Automatic data masking
+- **Unrestricted Command Tracking**: Special logging for setup commands
 
 ### **Admin Security Dashboard**
 
@@ -304,6 +403,24 @@ block_duration = 10  # Block duration in minutes
 - **Session Statistics**: Comprehensive session monitoring
 - **Audit Trail**: Complete security event history
 - **Proactive Recommendations**: Security best practices guidance
+- **Setup Monitoring**: Tracking of unrestricted command usage
+
+## 🔧 Initial Bot Setup Process
+
+### **Step-by-Step Setup Guide**
+
+1. **Deploy Bot**: Deploy bot with initial configuration
+2. **Use GetMyID**: Run `/getmyid` command to get user information
+3. **Configure Access**: Add user ID to `allowed_user_ids` in configuration
+4. **Restart Bot**: Restart bot to apply new configuration
+5. **Verify Access**: Test full bot functionality with authenticated user
+
+### **Security During Setup**
+
+- **Unrestricted Access**: `/getmyid` works without authentication
+- **Admin Notifications**: Setup usage generates informational alerts
+- **Audit Trail**: All setup activities are logged
+- **Privacy Protection**: User data remains masked in logs
 
 ## 🚀 Best Practices
 
@@ -312,6 +429,7 @@ block_duration = 10  # Block duration in minutes
 3. **Configuration Tuning**: Adjust timeouts and attempt limits based on usage
 4. **Audit Reviews**: Regular security event analysis
 5. **Update Management**: Keep security settings current
+6. **Setup Security**: Use `/getmyid` only during initial setup phases
 
 ## 📊 Monitoring and Diagnostics
 
@@ -321,6 +439,7 @@ block_duration = 10  # Block duration in minutes
 - Authentication state distribution
 - Block and expiration tracking
 - Performance metrics collection
+- Unrestricted command usage statistics
 
 ### **Security Metrics**
 
@@ -328,15 +447,17 @@ block_duration = 10  # Block duration in minutes
 - Blocking effectiveness analysis
 - Admin notification patterns
 - System performance impact
+- Setup command usage patterns
 
 ## 📬 Conclusion
 
 This comprehensive access control system provides enterprise-grade security through multi-layered protection,
-intelligent monitoring, and automated threat response. The combination of AccessControl middleware and SessionManager
-ensures robust security while maintaining usability and performance.
+intelligent monitoring, and automated threat response. The addition of unrestricted commands support enables safe
+initial setup while maintaining strict security standards.
 
-The system balances security with user experience through intelligent blocking, session management, and
-privacy-compliant monitoring, making it suitable for production environments requiring strict access control.
+The system balances security with user experience through intelligent blocking, session management, unrestricted setup
+commands, and privacy-compliant monitoring, making it suitable for production environments requiring strict access
+control with user-friendly setup processes.
 
 For further information or to report issues, please refer to
 our [GitHub repository](https://github.com/orenlab/pytmbot/issues) or [contact support](mailto:pytelemonbot@mail.ru).

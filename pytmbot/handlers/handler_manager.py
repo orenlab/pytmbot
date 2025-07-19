@@ -47,6 +47,7 @@ from pytmbot.handlers.server_handlers.sensors import handle_sensors
 from pytmbot.handlers.server_handlers.server import handle_server
 from pytmbot.handlers.server_handlers.uptime import handle_uptime
 from pytmbot.models.handlers_model import HandlerManager
+from .bot_handlers.getmyid import handle_getmyid
 
 type MessageType = Any
 type CallbackQueryType = Any
@@ -92,6 +93,7 @@ def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
         ],
         "start": [HandlerConfig(callback=handle_start, commands=["help", "start"])],
         "about": [HandlerConfig(callback=handle_about_command, regexp="About me")],
+        "getmyid": [HandlerConfig(callback=handle_getmyid, commands=["getmyid"])],
         "navigation": [
             HandlerConfig(callback=handle_navigation, regexp="Back to main menu"),
             HandlerConfig(callback=handle_navigation, commands=["back"]),
