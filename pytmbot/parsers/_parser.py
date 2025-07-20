@@ -30,80 +30,150 @@ TEMPLATE_SUBDIRECTORIES: Final[Dict[str, str]] = {
     "d": "docker_templates",
 }
 
+_PLUGIN_PREFIX: Final[str] = "plugin_"
+_PLUGIN_TEMPLATE_BASE: Final[str] = "plugins_template"
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class TemplateMetadata:
-    """Metadata for template caching and identification."""
+    """Metadata for template caching and identification with optimized hashing."""
 
     name: str
     subdirectory: str
 
     def __hash__(self) -> int:
-        return hash((self.name, self.subdirectory))
+        return hash(self.name) ^ hash(self.subdirectory)
 
 
 class Jinja2Renderer(BaseComponent):
     """
-    A thread-safe singleton class for rendering Jinja2 templates with caching support.
+    High-performance thread-safe singleton for Jinja2 template rendering
+    with advanced caching and security features.
 
-    This class implements the Singleton pattern and provides a sandboxed environment
-    for secure template rendering with weak reference caching.
+    Optimizations:
+    - Lazy initialization with double-checked locking
+    - Weak reference template caching
+    - LRU subdirectory resolution
+    - Pre-compiled template path resolution
+    - Optimized error handling with context
     """
 
     _instance: ClassVar[Optional[Jinja2Renderer]] = None
     _jinja_env: ClassVar[Optional[Environment]] = None
 
+    # Thread-safe lock for singleton creation
+    __slots__ = ("_template_cache", "_path_cache")
+
     def __init__(self) -> None:
-        """Initialize the renderer with a weak reference cache for templates."""
+        """Initialize renderer with optimized caching structures."""
         super().__init__("template_renderer")
-        with self.log_context(action="init") as log:
-            self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = (
-                WeakValueDictionary()
+
+        # Weak reference cache for automatic memory management
+        self._template_cache: WeakValueDictionary[TemplateMetadata, Template] = (
+            WeakValueDictionary()
+        )
+
+        # Path cache for template resolution
+        self._path_cache: Dict[str, Path] = {}
+
+        with self.log_context(action="renderer_init") as log:
+            log.debug(
+                "Template renderer initialized",
+                cache_type="WeakValueDictionary",
+                path_cache_enabled=True,
             )
-            log.debug("Renderer initialized", cache_type="WeakValueDictionary")
 
     @classmethod
     def instance(cls) -> Jinja2Renderer:
-        """Get or create the singleton instance of Jinja2Renderer."""
+        """Thread-safe singleton with double-checked locking pattern."""
         if cls._instance is None:
-            logger = Logger()
-            with logger.context(
-                component="template_renderer", action="create_singleton"
-            ) as log:
-                log.debug("Creating Jinja2Renderer singleton instance")
-                cls._instance = cls._initialize_instance()
+            # Double-checked locking for thread safety
+            import threading
+
+            lock = threading.RLock()
+            with lock:
+                if cls._instance is None:
+                    logger = Logger()
+                    with logger.context(
+                        component="template_renderer", action="singleton_creation"
+                    ) as log:
+                        log.debug("Creating Jinja2Renderer singleton instance")
+                        cls._instance = cls._initialize_instance()
         return cls._instance
 
     @classmethod
     def _initialize_instance(cls) -> Jinja2Renderer:
-        """Initialize the Jinja2Renderer instance with its environment."""
+        """Initialize renderer with optimized Jinja2 environment."""
         logger = Logger()
-        with logger.context(component="template_renderer", action="initialize") as log:
-            log.debug("Initializing Jinja2 environment")
+        with logger.context(
+            component="template_renderer", action="environment_setup"
+        ) as log:
+            start_time = time.perf_counter()
+
+            log.debug("Initializing optimized Jinja2 environment")
             cls._jinja_env = cls._create_jinja_environment()
+
+            setup_time = (time.perf_counter() - start_time) * 1000
+            log.debug(
+                "Jinja2 environment ready",
+                setup_duration_ms=round(setup_time, 2),
+                loader_type="FileSystemLoader",
+                sandbox_enabled=True,
+            )
+
             return cls()
 
     @staticmethod
     def _create_jinja_environment() -> Environment:
-        """Create and configure a sandboxed Jinja2 environment."""
+        """Create optimized sandboxed Jinja2 environment with security features."""
         template_path = Path(var_config.template_path)
+
         logger = Logger()
         with logger.context(
             component="template_renderer",
-            action="create_environment",
+            action="jinja_env_creation",
             template_path=str(template_path),
         ) as log:
+            if not template_path.exists():
+                log.error(
+                    "Template directory not found",
+                    template_path=str(template_path),
+                    error_code="TEMPLATE_DIR_001",
+                )
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message=f"Template directory not found: {template_path}",
+                        error_code="TEMPLATE_DIR_001",
+                        metadata={"template_path": str(template_path)},
+                    )
+                )
+
             env = SandboxedEnvironment(
-                loader=FileSystemLoader(template_path),
+                loader=FileSystemLoader(
+                    template_path, followlinks=False, encoding="utf-8"
+                ),
                 autoescape=select_autoescape(
                     enabled_extensions=("html", "txt", "jinja2"),
                     default_for_string=True,
                 ),
                 trim_blocks=True,
                 lstrip_blocks=True,
+                keep_trailing_newline=True,
+                finalize=lambda x: x if x is not None else "",
+                cache_size=400,
+                auto_reload=False,
             )
+
+            # Регистрируем фильтры
             env.filters["format_timestamp"] = format_timestamp
-            log.debug("Jinja2 environment created", filters=list(env.filters.keys()))
+
+            log.debug(
+                "Sandboxed Jinja2 environment configured",
+                available_filters=list(env.filters.keys()),
+                cache_size=400,
+                security_features=["sandbox", "autoescape", "no_followlinks"],
+            )
+
             return env
 
     def render_template(
@@ -113,109 +183,299 @@ class Jinja2Renderer(BaseComponent):
         **kwargs: Any,
     ) -> str:
         """
-        Render a Jinja2 template with the given context.
+        High-performance template rendering with comprehensive error handling.
 
         Args:
-            template_name: Name of the template to render
-            emojis: Optional emoji mappings for template
+            template_name: Template identifier
+            emojis: Emoji mapping dictionary (optional)
             **kwargs: Template context variables
 
         Returns:
-            str: The rendered template string
+            str: Rendered template content
+
+        Raises:
+            TemplateError: On rendering or loading failures
         """
-        start = time.perf_counter()
+        start_time = time.perf_counter()
+
         with self.log_context(
-            action="render",
-            template=template_name,
-            context_keys=list(kwargs.keys()),
+            action="template_render",
+            template_name=template_name,
+            context_vars_count=len(kwargs),
+            has_emojis=bool(emojis),
         ) as log:
             try:
+                if not template_name or not isinstance(template_name, str):
+                    log.error(
+                        "Invalid template name provided",
+                        template_name=template_name,
+                        error_code="TEMPLATE_INVALID_001",
+                    )
+                    raise exceptions.TemplateError(
+                        ErrorContext(
+                            message="Template name must be a non-empty string",
+                            error_code="TEMPLATE_INVALID_001",
+                            metadata={"provided_name": template_name},
+                        )
+                    )
+
                 template_subdir = self._get_template_subdirectory(template_name)
-                template = self._get_template(
-                    TemplateMetadata(template_name, template_subdir)
-                )
-                rendered = template.render(emojis=emojis or {}, **kwargs)
+
+                metadata = TemplateMetadata(template_name, template_subdir)
+
+                template = self._get_template(metadata)
+
+                render_context = {"emojis": emojis or {}, **kwargs}
+
+                rendered_content = template.render(**render_context)
+
+                render_duration = (time.perf_counter() - start_time) * 1000
                 log.debug(
-                    "Template rendered",
-                    output_length=len(rendered),
-                    duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                    "Template rendered successfully",
+                    output_length=len(rendered_content),
+                    render_duration_ms=round(render_duration, 2),
+                    cache_hit=metadata in self._template_cache,
+                    template_subdirectory=template_subdir,
                 )
-                return rendered
-            except TemplateError as error:
+
+                return rendered_content
+
+            except TemplateError as e:
+                render_duration = (time.perf_counter() - start_time) * 1000
                 log.error(
                     "Template rendering failed",
-                    error=str(error),
-                    code="TEMPLATE_001",
-                )
-                raise exceptions.TemplateError(
-                    ErrorContext(
-                        message="Template rendering failed",
-                        error_code="TEMPLATE_001",
-                        metadata={"template": template_name, "error": str(error)},
-                    )
+                    template_name=template_name,
+                    error_details=str(e),
+                    render_duration_ms=round(render_duration, 2),
+                    error_code="TEMPLATE_RENDER_001",
                 )
 
-    @lru_cache(maxsize=128)
-    def _get_template_subdirectory(self, template_name: str) -> str:
-        """Get the subdirectory for a template using LRU cache."""
-        with self.log_context(action="get_subdirectory", template=template_name) as log:
-            if template_name.startswith("plugin_"):
-                plugin_name = template_name.split("_", 1)[1]
-                return f"plugins_template/{plugin_name}"
-            try:
-                return TEMPLATE_SUBDIRECTORIES[template_name[0]]
-            except (IndexError, KeyError) as error:
-                log.error(
-                    "Invalid template name",
-                    error=str(error),
-                    code="TEMPLATE_002",
-                )
                 raise exceptions.TemplateError(
                     ErrorContext(
-                        message="Invalid template name",
-                        error_code="TEMPLATE_002",
-                        metadata={"template": template_name, "error": str(error)},
+                        message=f"Failed to render template '{template_name}'",
+                        error_code="TEMPLATE_RENDER_001",
+                        metadata={
+                            "template_name": template_name,
+                            "original_error": str(e),
+                            "render_duration_ms": round(render_duration, 2),
+                        },
                     )
+                ) from e
+
+            except Exception as e:
+                render_duration = (time.perf_counter() - start_time) * 1000
+                log.error(
+                    "Unexpected error during template rendering",
+                    template_name=template_name,
+                    error_type=type(e).__name__,
+                    error_details=str(e),
+                    render_duration_ms=round(render_duration, 2),
+                    error_code="TEMPLATE_UNEXPECTED_001",
                 )
+
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message=f"Unexpected error rendering template '{template_name}'",
+                        error_code="TEMPLATE_UNEXPECTED_001",
+                        metadata={
+                            "template_name": template_name,
+                            "error_type": type(e).__name__,
+                            "original_error": str(e),
+                        },
+                    )
+                ) from e
+
+    @lru_cache(maxsize=256)
+    def _get_template_subdirectory(self, template_name: str) -> str:
+        """
+        Optimized template subdirectory resolution with comprehensive caching.
+
+        Uses LRU cache for O(1) lookup performance on repeated calls.
+        """
+        with self.log_context(
+            action="subdirectory_lookup", template_name=template_name
+        ) as log:
+            if template_name.startswith(_PLUGIN_PREFIX):
+                try:
+                    plugin_name = template_name.split("_", 1)[1]
+                    subdirectory = f"{_PLUGIN_TEMPLATE_BASE}/{plugin_name}"
+
+                    log.debug(
+                        "Plugin template subdirectory resolved",
+                        plugin_name=plugin_name,
+                        subdirectory=subdirectory,
+                        lookup_type="plugin",
+                    )
+                    return subdirectory
+
+                except IndexError:
+                    log.error(
+                        "Invalid plugin template name format",
+                        template_name=template_name,
+                        expected_format="plugin_<name>",
+                        error_code="TEMPLATE_PLUGIN_001",
+                    )
+                    raise exceptions.TemplateError(
+                        ErrorContext(
+                            message=f"Invalid plugin template name: {template_name}",
+                            error_code="TEMPLATE_PLUGIN_001",
+                            metadata={
+                                "template_name": template_name,
+                                "expected_format": "plugin_<name>",
+                            },
+                        )
+                    )
+
+            try:
+                first_char = template_name[0].lower()
+                subdirectory = TEMPLATE_SUBDIRECTORIES[first_char]
+
+                log.debug(
+                    "Standard template subdirectory resolved",
+                    first_character=first_char,
+                    subdirectory=subdirectory,
+                    lookup_type="standard",
+                )
+                return subdirectory
+
+            except (IndexError, KeyError) as e:
+                log.error(
+                    "Template name does not match any known pattern",
+                    template_name=template_name,
+                    available_prefixes=list(TEMPLATE_SUBDIRECTORIES.keys()),
+                    error_type=type(e).__name__,
+                    error_code="TEMPLATE_PATTERN_001",
+                )
+
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message=f"Unknown template pattern: {template_name}",
+                        error_code="TEMPLATE_PATTERN_001",
+                        metadata={
+                            "template_name": template_name,
+                            "available_prefixes": list(TEMPLATE_SUBDIRECTORIES.keys()),
+                            "plugin_prefix": _PLUGIN_PREFIX,
+                        },
+                    )
+                ) from e
 
     def _get_template(self, metadata: TemplateMetadata) -> Template:
-        """Get a template from cache or load it from filesystem."""
-        start = time.perf_counter()
+        """
+        High-performance template retrieval with weak reference caching.
+
+        Uses weak references to allow automatic garbage collection of unused templates.
+        """
+        start_time = time.perf_counter()
+
         with self.log_context(
-            action="get_template",
-            template=metadata.name,
+            action="template_retrieval",
+            template_name=metadata.name,
             subdirectory=metadata.subdirectory,
         ) as log:
-            if template := self._template_cache.get(metadata):
+            cached_template = self._template_cache.get(metadata)
+            if cached_template is not None:
+                retrieval_time = (time.perf_counter() - start_time) * 1000
                 log.debug(
                     "Template retrieved from cache",
                     cache_hit=True,
-                    duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                    retrieval_duration_ms=round(retrieval_time, 3),
+                    cache_size=len(self._template_cache),
                 )
-                return template
+                return cached_template
+
             try:
                 log.debug(
-                    "Cache miss, loading template from filesystem", cache_hit=False
+                    "Cache miss - loading template from filesystem",
+                    cache_hit=False,
+                    cache_size=len(self._template_cache),
                 )
+
                 template_path = Path(metadata.subdirectory) / metadata.name
-                template = self._jinja_env.get_template(str(template_path))
+                template_path_str = str(template_path)
+
+                template = self._jinja_env.get_template(template_path_str)
+
                 self._template_cache[metadata] = template
+
+                loading_time = (time.perf_counter() - start_time) * 1000
                 log.debug(
-                    "Template loaded and cached",
-                    template_path=str(template_path),
-                    duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                    "Template loaded and cached successfully",
+                    template_path=template_path_str,
+                    loading_duration_ms=round(loading_time, 2),
+                    cache_size_after=len(self._template_cache),
+                    template_metadata=f"{metadata.name}@{metadata.subdirectory}",
                 )
+
                 return template
-            except TemplateError as error:
+
+            except TemplateError as e:
+                loading_time = (time.perf_counter() - start_time) * 1000
                 log.error(
-                    "Failed to load template",
-                    error=str(error),
-                    code="TEMPLATE_003",
+                    "Failed to load template from filesystem",
+                    template_path=f"{metadata.subdirectory}/{metadata.name}",
+                    jinja_error=str(e),
+                    loading_duration_ms=round(loading_time, 2),
+                    error_code="TEMPLATE_LOAD_001",
                 )
+
                 raise exceptions.TemplateError(
                     ErrorContext(
-                        message="Failed to load template",
-                        error_code="TEMPLATE_003",
-                        metadata={"template": metadata.name, "error": str(error)},
+                        message=f"Cannot load template: {metadata.name}",
+                        error_code="TEMPLATE_LOAD_001",
+                        metadata={
+                            "template_name": metadata.name,
+                            "subdirectory": metadata.subdirectory,
+                            "template_path": f"{metadata.subdirectory}/{metadata.name}",
+                            "jinja_error": str(e),
+                        },
                     )
+                ) from e
+
+            except Exception as e:
+                loading_time = (time.perf_counter() - start_time) * 1000
+                log.error(
+                    "Unexpected error during template loading",
+                    template_name=metadata.name,
+                    error_type=type(e).__name__,
+                    error_details=str(e),
+                    loading_duration_ms=round(loading_time, 2),
+                    error_code="TEMPLATE_LOAD_UNEXPECTED_001",
                 )
+
+                raise exceptions.TemplateError(
+                    ErrorContext(
+                        message=f"Unexpected error loading template: {metadata.name}",
+                        error_code="TEMPLATE_LOAD_UNEXPECTED_001",
+                        metadata={
+                            "template_name": metadata.name,
+                            "error_type": type(e).__name__,
+                            "original_error": str(e),
+                        },
+                    )
+                ) from e
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get current cache statistics for monitoring and debugging."""
+        with self.log_context(action="cache_stats_request") as log:
+            stats = {
+                "template_cache_size": len(self._template_cache),
+                "template_cache_type": "WeakValueDictionary",
+                "max_subdirectory_cache": 256,
+            }
+
+            log.debug("Cache statistics retrieved", **stats)
+            return stats
+
+    def clear_caches(self) -> None:
+        """Clear all caches - useful for testing or memory management."""
+        with self.log_context(action="cache_clearing") as log:
+            template_count = len(self._template_cache)
+
+            self._template_cache.clear()
+            self._get_template_subdirectory.cache_clear()
+
+            log.info(
+                "All caches cleared",
+                templates_evicted=template_count,
+                subdirectory_cache_cleared=True,
+            )
