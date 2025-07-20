@@ -396,7 +396,7 @@ class BotLauncher(logs.BaseComponent):
 
         with self.log_context(interval=self.HEALTH_CHECK_INTERVAL) as log:
             log.debug(
-                f"Health monitoring started (interval: {self.HEALTH_CHECK_INTERVAL}s)"
+                f"Health monitoring started"
             )
 
     def _run_main_loop(self) -> None:

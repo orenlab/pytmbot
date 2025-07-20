@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         is_valid_totp_code,
         is_bot_development,
     )
+    from .message_deletion import deletion_manager
 
 
 def __getattr__(name: str):
@@ -93,6 +94,11 @@ def __getattr__(name: str):
     }:
         module = importlib.import_module(".validation", __name__)
         return getattr(module, name)
+
+    if name == "deletion_manager":
+        from message_deletion import deletion_manager
+
+        return deletion_manager
 
     raise AttributeError(f"Module {__name__} has no attribute {name}")
 

@@ -38,7 +38,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
     # Commands that unauthorized users can use within their attempt limit
     SETUP_COMMANDS: Final[Set[str]] = {
-        '/getmyid',
+        "/getmyid",
     }
 
     def __init__(self, bot: TeleBot) -> None:
@@ -83,8 +83,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
         command = message.text.strip().split()[0].lower()
 
         # Remove bot username if present (e.g., /getmyid@botname -> /getmyid)
-        if '@' in command:
-            command = command.split('@')[0]
+        if "@" in command:
+            command = command.split("@")[0]
 
         return command in self.SETUP_COMMANDS
 
@@ -152,12 +152,12 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return datetime.now() < self._blocked_until[user_id]
 
     def _handle_unauthorized_access(
-            self,
-            user_id: int,
-            username: str,
-            chat_id: int,
-            message: Message,
-            base_context: dict
+        self,
+        user_id: int,
+        username: str,
+        chat_id: int,
+        message: Message,
+        base_context: dict,
     ) -> Optional[CancelUpdate]:
         """Handle access for unauthorized users with attempt limits."""
 
@@ -181,12 +181,14 @@ class AccessControl(BaseMiddleware, BaseComponent):
             block_until = datetime.now() + timedelta(seconds=self.BLOCK_DURATION)
             self._blocked_until[user_id] = block_until
 
-            context.update({
-                "operation": "user_blocked",
-                "block_until": block_until.isoformat(),
-                "block_duration": self.BLOCK_DURATION,
-                "block_reason": "max_attempts_exceeded",
-            })
+            context.update(
+                {
+                    "operation": "user_blocked",
+                    "block_until": block_until.isoformat(),
+                    "block_duration": self.BLOCK_DURATION,
+                    "block_reason": "max_attempts_exceeded",
+                }
+            )
 
             with self.log_context(**context) as logger:
                 logger.warning("User blocked after max attempts - silent cancel")
@@ -199,14 +201,18 @@ class AccessControl(BaseMiddleware, BaseComponent):
             logger.warning("Unauthorized access attempt")
 
         # Notify admin about the attempt
-        self._notify_admin(user_id, username, chat_id, current_attempt, is_setup_command)
+        self._notify_admin(
+            user_id, username, chat_id, current_attempt, is_setup_command
+        )
 
         # Allow setup commands within attempt limit
         if is_setup_command:
-            context.update({
-                "operation": "setup_command_allowed",
-                "access_status": "setup_command_granted",
-            })
+            context.update(
+                {
+                    "operation": "setup_command_allowed",
+                    "access_status": "setup_command_granted",
+                }
+            )
 
             with self.log_context(**context) as logger:
                 logger.info("Setup command allowed within attempt limit")
@@ -219,12 +225,12 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return CancelUpdate()
 
     def _notify_admin(
-            self,
-            user_id: int,
-            username: str,
-            chat_id: int,
-            attempt: int,
-            is_setup_command: bool = False
+        self,
+        user_id: int,
+        username: str,
+        chat_id: int,
+        attempt: int,
+        is_setup_command: bool = False,
     ) -> None:
         """Notify admin about unauthorized access attempts."""
         now = datetime.now()
@@ -315,11 +321,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
                 logger.info("Admin notification sent")
 
         except Exception as e:
-            context.update({
-                "notification_status": "failed",
-                "error": str(e),
-                "error_type": type(e).__name__,
-            })
+            context.update(
+                {
+                    "notification_status": "failed",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                }
+            )
 
             with self.log_context(**context) as logger:
                 logger.error("Admin notification failed")
@@ -329,6 +337,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         # Ensure logging is available in thread context
         if not hasattr(self, "_log") or self._log is None:
             import logging
+
             logging.warning(
                 "AccessControl: _log not available in cleanup thread, skipping detailed logging"
             )
@@ -345,6 +354,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         except AttributeError:
             # Fallback to basic logging if context logging fails
             import logging
+
             logging.info("AccessControl: Periodic cleanup started")
 
         while True:
@@ -379,6 +389,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
                             logger.info("Expired blocks cleaned")
                     except AttributeError:
                         import logging
+
                         logging.info(
                             f"AccessControl: Expired blocks cleaned, count: {len(expired)}"
                         )
@@ -388,6 +399,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
                             logger.debug("No expired blocks to clean")
                     except AttributeError:
                         import logging
+
                         logging.debug("AccessControl: No expired blocks to clean")
 
             except Exception as e:
@@ -403,6 +415,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
                         logger.error("Cleanup failed")
                 except AttributeError:
                     import logging
+
                     logging.error(f"AccessControl: Cleanup failed: {e}")
 
     @staticmethod
@@ -430,7 +443,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-            self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
     ) -> None:
         """Post-process message handling."""
         if not exception or isinstance(exception, CancelUpdate):
@@ -448,11 +461,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
         }
 
         if message.from_user:
-            context.update({
-                "user_id": mask_user_id(message.from_user.id),
-                "username": mask_username(message.from_user.username or "unknown"),
-                "user_is_bot": message.from_user.is_bot,
-            })
+            context.update(
+                {
+                    "user_id": mask_user_id(message.from_user.id),
+                    "username": mask_username(message.from_user.username or "unknown"),
+                    "user_is_bot": message.from_user.is_bot,
+                }
+            )
 
         with self.log_context(**context) as logger:
             logger.error("Message processing failed")

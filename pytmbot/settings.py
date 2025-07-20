@@ -115,7 +115,7 @@ def get_default_bot_commands() -> Dict[str, str]:
         "/qrcode": "Get TOTP QR code for 2FA app",
         "/back": "Back to main menu",
         "/check_bot_updates": "Check for software updates",
-        "getmyid" : "Check user and current chat credential"
+        "getmyid": "Check user and current chat credential",
     }
 
 
