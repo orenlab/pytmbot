@@ -395,9 +395,7 @@ class BotLauncher(logs.BaseComponent):
         self.health_check_thread.start()
 
         with self.log_context(interval=self.HEALTH_CHECK_INTERVAL) as log:
-            log.debug(
-                f"Health monitoring started"
-            )
+            log.debug(f"Health monitoring started")
 
     def _run_main_loop(self) -> None:
         """Main execution loop with interruption handling."""

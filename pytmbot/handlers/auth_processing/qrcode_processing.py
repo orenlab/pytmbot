@@ -15,7 +15,11 @@ from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import keyboards, em
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils.message_deletion import deletion_manager, DeletionResult, DeletionStatus
+from pytmbot.utils.message_deletion import (
+    deletion_manager,
+    DeletionResult,
+    DeletionStatus,
+)
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
 logger = Logger()
@@ -29,7 +33,9 @@ def _qr_deletion_callback(result: DeletionResult) -> None:
         result: Result of the deletion operation
     """
     if result.status == DeletionStatus.SUCCESS:
-        logger.info(f"QR code message {result.message_id} successfully deleted for user {result.user_id}")
+        logger.info(
+            f"QR code message {result.message_id} successfully deleted for user {result.user_id}"
+        )
     elif result.status == DeletionStatus.FAILED:
         logger.warning(
             f"Failed to delete QR code message {result.message_id} for user {result.user_id}: "
@@ -38,7 +44,9 @@ def _qr_deletion_callback(result: DeletionResult) -> None:
 
 
 @logger.session_decorator
-def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: int = 60) -> Optional[Message]:
+def handle_qr_code_message(
+    message: Message, bot: TeleBot, auto_delete_delay: int = 60
+) -> Optional[Message]:
     """
     Handles the QR code message by generating a TOTP QR code and sending it as a photo to the user.
 
@@ -76,7 +84,7 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
                 photo=qr_code,
                 reply_markup=keyboard,
                 caption=f"🔐 The QR code is ready. Click on the image and scan it in your 2FA app. "
-                        f"This message will be automatically deleted in {auto_delete_delay} seconds for security.",
+                f"This message will be automatically deleted in {auto_delete_delay} seconds for security.",
                 protect_content=True,
                 has_spoiler=True,
                 show_caption_above_media=True,
@@ -89,7 +97,7 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
                 message_id=sent_message.message_id,
                 user_id=message.from_user.id,
                 delay_seconds=auto_delete_delay,
-                callback=_qr_deletion_callback
+                callback=_qr_deletion_callback,
             )
 
             # Handle different deletion scheduling outcomes
@@ -105,7 +113,7 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
                     chat_id=message.chat.id,
                     text=warning_msg,
                     parse_mode="HTML",
-                    reply_to_message_id=sent_message.message_id
+                    reply_to_message_id=sent_message.message_id,
                 )
 
                 logger.warning(
@@ -120,7 +128,9 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
 
             else:
                 # Fallback for any other unexpected status
-                logger.error(f"Unexpected deletion result status for QR code: {deletion_result.status}")
+                logger.error(
+                    f"Unexpected deletion result status for QR code: {deletion_result.status}"
+                )
 
             return sent_message
 
@@ -132,9 +142,9 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
             }
 
             with Compiler(
-                    template_name="b_none.jinja2",
-                    context="Failed to generate QR code... I apologize!",
-                    **emojis,
+                template_name="b_none.jinja2",
+                context="Failed to generate QR code... I apologize!",
+                **emojis,
             ) as compiler:
                 response = compiler.compile()
 
@@ -147,13 +157,13 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
                 message_id=error_message.message_id,
                 user_id=message.from_user.id,
                 delay_seconds=15,  # Delete error messages faster
-                callback=_qr_deletion_callback
+                callback=_qr_deletion_callback,
             )
 
-            logger.error("Failed to generate QR code for user", extra={
-                "user_id": message.from_user.id,
-                "chat_id": message.chat.id
-            })
+            logger.error(
+                "Failed to generate QR code for user",
+                extra={"user_id": message.from_user.id, "chat_id": message.chat.id},
+            )
 
             return None
 
@@ -170,10 +180,12 @@ def handle_qr_code_message(message: Message, bot: TeleBot, auto_delete_delay: in
                 message_id=error_message.message_id,
                 user_id=message.from_user.id,
                 delay_seconds=15,
-                callback=_qr_deletion_callback
+                callback=_qr_deletion_callback,
             )
         except Exception as deletion_error:
-            logger.error(f"Failed to schedule deletion for error message: {deletion_error}")
+            logger.error(
+                f"Failed to schedule deletion for error message: {deletion_error}"
+            )
 
         # Log detailed error information and raise custom exception
         error_context = ErrorContext(
