@@ -245,5 +245,5 @@ keyboard_settings = KeyboardSettings(
 )
 bot_command_settings = BotCommandSettings(bot_commands=get_default_bot_commands())
 bot_description_settings = BotDescriptionSettings()
-CONTAINER_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$')
+CONTAINER_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 MAX_CONTAINER_NAME_LENGTH = 253
