@@ -220,11 +220,13 @@ class _MessageDeletionManager(BaseComponent):
 
             if cleaned_count > 0 or empty_users:
                 with self.log_context(
-                        action="cleanup_stale_references",
-                        cleaned_tasks=cleaned_count,
-                        empty_users_cleaned=len(empty_users)
+                    action="cleanup_stale_references",
+                    cleaned_tasks=cleaned_count,
+                    empty_users_cleaned=len(empty_users),
                 ) as log:
-                    log.debug(f"Cleaned up {cleaned_count} stale references and {len(empty_users)} empty user entries")
+                    log.debug(
+                        f"Cleaned up {cleaned_count} stale references and {len(empty_users)} empty user entries"
+                    )
 
     @contextmanager
     def _update_stats(self, stat_name: str):
@@ -256,21 +258,20 @@ class _MessageDeletionManager(BaseComponent):
             self._max_pending_per_user = max_pending_per_user
 
         with self.log_context(
-                action="configure",
-                old_limit=old_limit,
-                new_limit=max_pending_per_user
+            action="configure", old_limit=old_limit, new_limit=max_pending_per_user
         ) as log:
             log.info(
-                f"MessageDeletionManager configured: max_pending_per_user changed from {old_limit} to {max_pending_per_user}")
+                f"MessageDeletionManager configured: max_pending_per_user changed from {old_limit} to {max_pending_per_user}"
+            )
 
     def schedule_deletion(
-            self,
-            bot: TeleBot,
-            chat_id: _ChatID,
-            message_id: _MessageID,
-            user_id: _UserID,
-            delay_seconds: int = 30,
-            callback: Callable[[_DeletionResult], None] | None = None,
+        self,
+        bot: TeleBot,
+        chat_id: _ChatID,
+        message_id: _MessageID,
+        user_id: _UserID,
+        delay_seconds: int = 30,
+        callback: Callable[[_DeletionResult], None] | None = None,
     ) -> _DeletionResult:
         """
         Schedule a message for automatic deletion after a specified delay.
@@ -292,7 +293,7 @@ class _MessageDeletionManager(BaseComponent):
         """
         # Input validation
         if not isinstance(delay_seconds, int) or not (
-                self._MIN_DELAY_SECONDS <= delay_seconds <= self._MAX_DELAY_SECONDS
+            self._MIN_DELAY_SECONDS <= delay_seconds <= self._MAX_DELAY_SECONDS
         ):
             raise ValueError(
                 f"delay_seconds must be between {self._MIN_DELAY_SECONDS} and {self._MAX_DELAY_SECONDS}"
@@ -302,11 +303,11 @@ class _MessageDeletionManager(BaseComponent):
             raise TypeError("chat_id, message_id, and user_id must be integers")
 
         with self.log_context(
-                action="schedule_deletion",
-                user_id=user_id,
-                chat_id=chat_id,
-                message_id=message_id,
-                delay_seconds=delay_seconds
+            action="schedule_deletion",
+            user_id=user_id,
+            chat_id=chat_id,
+            message_id=message_id,
+            delay_seconds=delay_seconds,
         ) as log:
             with self._deletion_lock:
                 current_pending = len(self._user_pending_deletions[user_id])
@@ -393,15 +394,17 @@ class _MessageDeletionManager(BaseComponent):
         result: _DeletionResult | None = None
 
         with self.log_context(
-                action="execute_deletion",
-                user_id=task.user_id,
-                chat_id=task.chat_id,
-                message_id=task.message_id,
-                delay_seconds=task.delay_seconds,
-                task_age_seconds=int(time.time() - task.created_at)
+            action="execute_deletion",
+            user_id=task.user_id,
+            chat_id=task.chat_id,
+            message_id=task.message_id,
+            delay_seconds=task.delay_seconds,
+            task_age_seconds=int(time.time() - task.created_at),
         ) as log:
             try:
-                log.debug(f"Starting deletion countdown - waiting {task.delay_seconds}s")
+                log.debug(
+                    f"Starting deletion countdown - waiting {task.delay_seconds}s"
+                )
 
                 # Wait for the specified delay
                 time.sleep(task.delay_seconds)
@@ -476,9 +479,7 @@ class _MessageDeletionManager(BaseComponent):
             count = len(self._user_pending_deletions[user_id])
 
         with self.log_context(
-                action="get_pending_count",
-                user_id=user_id,
-                pending_count=count
+            action="get_pending_count", user_id=user_id, pending_count=count
         ) as log:
             log.debug(f"Retrieved pending count for user: {count}")
 
@@ -494,10 +495,7 @@ class _MessageDeletionManager(BaseComponent):
         Returns:
             Number of deletions that were cancelled
         """
-        with self.log_context(
-                action="cancel_user_deletions",
-                user_id=user_id
-        ) as log:
+        with self.log_context(action="cancel_user_deletions", user_id=user_id) as log:
             with self._deletion_lock:
                 message_ids = self._user_pending_deletions[user_id].copy()
                 cancelled_count = 0
@@ -527,10 +525,7 @@ class _MessageDeletionManager(BaseComponent):
         with self._stats_lock:
             stats = self._stats.copy()
 
-        with self.log_context(
-                action="get_statistics",
-                stats=stats
-        ) as log:
+        with self.log_context(action="get_statistics", stats=stats) as log:
             log.debug("Statistics retrieved")
 
         return stats
@@ -559,12 +554,10 @@ class _MessageDeletionManager(BaseComponent):
             "statistics": self.get_statistics(),
         }
 
-        with self.log_context(
-                action="get_system_status",
-                **status
-        ) as log:
+        with self.log_context(action="get_system_status", **status) as log:
             log.debug(
-                f"System status retrieved - {total_pending} pending deletions, {users_with_pending} users affected")
+                f"System status retrieved - {total_pending} pending deletions, {users_with_pending} users affected"
+            )
 
         return status
 
