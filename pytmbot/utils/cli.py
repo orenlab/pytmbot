@@ -44,7 +44,9 @@ class CLIDefaults:
     WEBHOOK: Final[bool] = False
     SOCKET_HOST: Final[str] = "127.0.0.1"
     PLUGINS: Final[list[str]] = []
-    HEALTH_CHECK: Final[bool] = True
+    HEALTH_CHECK: Final[bool] = (
+        False  # Изменено на False, так как это флаг для запуска health check
+    )
 
 
 def _str_to_bool(value: str) -> bool:
@@ -84,8 +86,8 @@ def _validate_socket_host(host: str) -> str:
 
     # Basic validation for common cases
     if not (
-            host.replace(".", "").replace(":", "").replace("-", "").isalnum()
-            or host in ("localhost", "0.0.0.0")
+        host.replace(".", "").replace(":", "").replace("-", "").isalnum()
+        or host in ("localhost", "0.0.0.0")
     ):
         raise CLIError(f"Invalid socket host format: {host}")
 
@@ -195,12 +197,12 @@ Examples:
         help="List of plugins to load (default: none)",
     )
 
-    # Health check
+    # Health check - исправлено: убран type и исправлен default
     parser.add_argument(
         "--health_check",
-        type=_str_to_bool,
         action="store_true",
-        help=f"Enable health check endpoint (default: {CLIDefaults.HEALTH_CHECK})",
+        default=CLIDefaults.HEALTH_CHECK,
+        help="Run health check and exit",
     )
 
     # Debug flag for development
