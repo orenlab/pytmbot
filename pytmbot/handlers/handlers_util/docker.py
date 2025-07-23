@@ -3,8 +3,6 @@
 (c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
-
-Enhanced Docker utilities with comprehensive container data parsing.
 """
 
 import re
