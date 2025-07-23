@@ -432,7 +432,7 @@ class PyTMBot(BaseComponent):
 
             with self.log_context(host=config["host"], port=config["port"]) as log:
                 log.info(
-                    f"🌐 Starting webhook server on {config['host']}:{config['port']}"
+                    f"Starting webhook server on {config['host']}:{config['port']}"
                 )
 
             server = WebhookServer(self.bot, **config)
@@ -516,6 +516,13 @@ class PyTMBot(BaseComponent):
                 consecutive_errors = 0
 
             except Exception as error:
+                try:
+                    if bot_instance.polling:
+                        bot_instance.stop_polling()
+                        time.sleep(current_sleep_time)
+                except Exception as stop_err:
+                    with self.log_context(error=sanitize_exception(stop_err)) as log:
+                        log.warning("Failed to stop polling before retry")
                 consecutive_errors, current_sleep_time = self._handle_polling_error(
                     error, consecutive_errors, current_sleep_time
                 )
@@ -557,7 +564,9 @@ class PyTMBot(BaseComponent):
 
             # Stop current operations
             if self.args.webhook != "True":
-                self.bot.stop_polling()
+                if self.bot.polling():
+                    self.bot.stop_polling()
+                    time.sleep(DEFAULT_BASE_SLEEP_TIME)
 
             sleep(2)
 
