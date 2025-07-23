@@ -3,20 +3,18 @@
 (c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
+
+Final secure handler using enhanced docker utilities.
 """
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, em, settings, button_data
+from pytmbot.globals import keyboards, settings, button_data
 from pytmbot.handlers.handlers_util.docker import (
-    get_container_full_details,
     show_handler_info,
     get_emojis,
-    parse_container_memory_stats,
-    parse_container_cpu_stats,
-    parse_container_network_stats,
-    parse_container_attrs,
+    get_comprehensive_container_details,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -27,6 +25,7 @@ logger = Logger()
 
 
 def validate_container_name(name: str) -> bool:
+    """Validate container name for security."""
     if not name or not isinstance(name, str):
         return False
 
@@ -51,20 +50,21 @@ def validate_container_name(name: str) -> bool:
         "\0",
     ]
 
-    for pattern in dangerous_patterns:
-        if pattern in name:
-            return False
-
-    return True
+    return not any(pattern in name for pattern in dangerous_patterns)
 
 
 @logger.catch()
 @logger.session_decorator
 def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
+    """
+    Handle request for comprehensive container information using enhanced utilities.
+    """
     try:
+        # Parse callback data
         container_name = split_string_into_octets(call.data, octet_index=1)
         called_user_id = split_string_into_octets(call.data, octet_index=2)
 
+        # Validate container name
         if not validate_container_name(container_name):
             logger.warning(
                 f"Invalid container name attempted: '{container_name}' by user {call.from_user.id}"
@@ -73,7 +73,8 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 call, text="Invalid container name format", bot=bot
             )
 
-        container_details = get_container_full_details(container_name)
+        # Get comprehensive container details using enhanced utilities
+        container_details = get_comprehensive_container_details(container_name)
 
         if not container_details:
             logger.info(
@@ -83,23 +84,30 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 call, text=f"{container_name}: Container not found", bot=bot
             )
 
-        container_stats = container_details.stats(decode=None, stream=False)
-        container_attrs = container_details.attrs
+        # Get emojis for template
         emojis = get_emojis()
 
+        # Compile template with all container data
         with Compiler(
             template_name="d_containers_full_info.jinja2",
-            **emojis,
-            container_name=container_name,
-            container_memory_stats=parse_container_memory_stats(container_stats),
-            container_cpu_stats=parse_container_cpu_stats(container_stats),
-            container_network_stats=parse_container_network_stats(container_stats),
-            container_attrs=parse_container_attrs(container_attrs),
+            # Basic template emojis
+            thought_balloon=emojis.get("thought_balloon", "💭"),
+            container_emoji=emojis.get("package", "📦"),
+            cpu_emoji=emojis.get("gear", "⚙️"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            network_emoji=emojis.get("globe_with_meridians", "🌐"),
+            gear_emoji=emojis.get("gear", "⚙️"),
+            env_emoji=emojis.get("herb", "🌿"),
+            banjo=emojis.get("banjo", "🪕"),
+            # Spread all container details
+            **container_details,
         ) as compiler:
             context = compiler.compile()
 
+        # Build keyboard
         keyboard_buttons = []
 
+        # Add admin buttons if user has permissions
         if call.from_user.id in settings.access_control.allowed_admins_ids and int(
             call.from_user.id
         ) == int(called_user_id):
@@ -108,25 +116,27 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
             keyboard_buttons.extend(
                 [
                     button_data(
-                        text=f"{em.get_emoji('spiral_calendar')} Get logs",
+                        text=f"{emojis.get('spiral_calendar', '📅')} Get logs",
                         callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
                     ),
                     button_data(
-                        text=f"{em.get_emoji('bullseye')} Manage",
+                        text=f"{emojis.get('bullseye', '🎯')} Manage",
                         callback_data=f"__manage__:{container_name}:{call.from_user.id}",
                     ),
                 ]
             )
 
+        # Back button
         keyboard_buttons.append(
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
+                text=f"{emojis.get('BACK_arrow', '⬅️')} Back to all containers",
                 callback_data="back_to_containers",
             )
         )
 
         inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
+        # Send response
         return bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
