@@ -33,21 +33,38 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
     try:
         processes_data = psutil_adapter.get_top_processes(count=10)
 
-        if processes_data is None:
+        if not processes_data:
             return bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text="Sorry, but I can't get process information. Please try again later.",
             )
 
+        # Format table as fixed-width string
+        def format_process_table(processes: list[dict], max_name_len: int = 18) -> str:
+            from textwrap import shorten
+
+            header = f"{'PID':<6} | {'Process Name':<{max_name_len}} | {'CPU':>5} | {'MEM':>5}"
+            separator = "-" * len(header)
+            lines = [header, separator]
+
+            for proc in processes:
+                pid = str(proc.get("pid", "-"))[:6]
+                name = shorten(proc.get("name") or "", width=max_name_len, placeholder="…")
+                cpu = f"{proc.get('cpu_percent', 0):>4.1f}%"
+                mem = f"{proc.get('memory_percent', 0):>4.1f}%"
+                lines.append(f"{pid:<6} | {name:<{max_name_len}} | {cpu:>5} | {mem:>5}")
+
+            return "\n".join(lines)
+
         context = {
-            "processes": processes_data,
+            "process_table": format_process_table(processes_data),
             "running_in_docker": running_in_docker,
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
         with Compiler(
-            template_name="b_top_processes.jinja2", context=context, **emojis
+                template_name="b_top_processes.jinja2", context=context, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 
