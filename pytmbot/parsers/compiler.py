@@ -141,5 +141,9 @@ class Compiler(BaseComponent):
                     )
                 )
 
+    @property
+    def get_compiler_stats(self):
+        return self._renderer.get_cache_stats()
+
 
 __all__ = ["Compiler", "TemplateType"]

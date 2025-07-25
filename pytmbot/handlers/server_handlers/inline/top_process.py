@@ -50,7 +50,9 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
 
             for proc in processes:
                 pid = str(proc.get("pid", "-"))[:6]
-                name = shorten(proc.get("name") or "", width=max_name_len, placeholder="…")
+                name = shorten(
+                    proc.get("name") or "", width=max_name_len, placeholder="…"
+                )
                 cpu = f"{proc.get('cpu_percent', 0):>4.1f}%"
                 mem = f"{proc.get('memory_percent', 0):>4.1f}%"
                 lines.append(f"{pid:<6} | {name:<{max_name_len}} | {cpu:>5} | {mem:>5}")
@@ -64,7 +66,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
         }
 
         with Compiler(
-                template_name="b_top_processes.jinja2", context=context, **emojis
+            template_name="b_top_processes.jinja2", context=context, **emojis
         ) as compiler:
             bot_answer = compiler.compile()
 

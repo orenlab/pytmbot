@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import ssl
 import time
+import uuid
 from collections.abc import Callable
-from datetime import timedelta
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
 from functools import wraps
 from time import sleep
 from typing import Any, Final, TypedDict
@@ -42,9 +46,64 @@ from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils import parse_cli_args, sanitize_exception, get_environment_state
 
+
+class BotState(Enum):
+    """Bot operational states."""
+
+    UNINITIALIZED = "uninitialized"
+    INITIALIZING = "initializing"
+    RUNNING = "running"
+    RECOVERING = "recovering"
+    SHUTTING_DOWN = "shutting_down"
+    SHUTDOWN = "shutdown"
+    ERROR = "error"
+
+
+class ConflictResolutionStrategy(Enum):
+    """Strategies for handling bot conflicts."""
+
+    GRACEFUL_SHUTDOWN = "graceful"
+    FORCE_TAKEOVER = "force"
+    ABORT = "abort"
+
+
+@dataclass(frozen=True)
+class BotSession:
+    """Immutable bot session information."""
+
+    session_id: str
+    start_time: datetime
+    mode: str
+    webhook_enabled: bool
+
+    @classmethod
+    def create(cls, mode: str, webhook_enabled: bool) -> BotSession:
+        return cls(
+            session_id=str(uuid.uuid4())[:8],
+            start_time=datetime.now(),
+            mode=mode,
+            webhook_enabled=webhook_enabled,
+        )
+
+
+@dataclass
+class RecoveryAttempt:
+    """Recovery attempt tracking."""
+
+    timestamp: datetime
+    error_type: str
+    success: bool
+
+    @classmethod
+    def create(cls, error_type: str, success: bool) -> RecoveryAttempt:
+        return cls(datetime.now(), error_type, success)
+
+
 type MiddlewareType = tuple[type, dict[str, Any]]
 type HandlerDict = dict[str, list[HandlerManager]]
 type RegisterMethod = Callable[..., Any]
+
+# Enhanced exception types for better categorization
 PollingExceptionTypes: tuple[type[BaseException], ...] = (
     telebot.apihelper.ApiTelegramException,
     urllib3.exceptions.ConnectionError,
@@ -57,6 +116,13 @@ PollingExceptionTypes: tuple[type[BaseException], ...] = (
     OSError,
 )
 
+CriticalExceptionTypes: tuple[type[BaseException], ...] = (
+    ssl.SSLError,
+    MemoryError,
+    SystemExit,
+    KeyboardInterrupt,
+)
+
 
 class WebhookConfig(TypedDict):
     host: str
@@ -67,10 +133,19 @@ class WebhookConfig(TypedDict):
 # Constants with better organization
 DEFAULT_BASE_SLEEP_TIME: Final[int] = 10
 DEFAULT_MAX_SLEEP_TIME: Final[int] = 300
+MAX_RECOVERY_ATTEMPTS: Final[int] = 3
+RECOVERY_ATTEMPT_WINDOW: Final[timedelta] = timedelta(minutes=5)
+POLLING_STOP_TIMEOUT: Final[int] = 30
+HEALTH_CHECK_TIMEOUT: Final[int] = 10
+
 DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
     (AccessControl, {}),
     (RateLimit, {"limit": 8, "period": timedelta(seconds=10)}),
 ]
+
+CONFLICT_RESOLUTION_STRATEGY: Final[ConflictResolutionStrategy] = (
+    ConflictResolutionStrategy.GRACEFUL_SHUTDOWN
+)
 
 
 def bot_required(func: Callable) -> Callable:
@@ -95,10 +170,21 @@ class PyTMBot(BaseComponent):
     Main bot class handling initialization, configuration, and runtime management.
 
     This class follows the single responsibility principle and provides
-    clear separation of concerns for different bot operations.
+    clear separation of concerns for different bot operations with enhanced
+    error handling and conflict resolution.
     """
 
-    __slots__ = ("args", "log", "bot", "_middlewares", "plugin_manager")
+    __slots__ = (
+        "args",
+        "log",
+        "bot",
+        "_middlewares",
+        "plugin_manager",
+        "_state",
+        "_session",
+        "_recovery_attempts",
+        "_shutdown_timeout_occurred",
+    )
 
     def __init__(self) -> None:
         super().__init__("core")
@@ -106,37 +192,334 @@ class PyTMBot(BaseComponent):
         self.log = Logger()
 
         self._middlewares: dict[str, Any] = {}
+        self._state = BotState.UNINITIALIZED
+        self._session: BotSession | None = None
+        self._recovery_attempts: list[RecoveryAttempt] = []
+        self._shutdown_timeout_occurred = False
+
+        # Initialize session
+        self._session = BotSession.create(
+            mode=self.args.mode, webhook_enabled=self.args.webhook == "True"
+        )
 
         # Single comprehensive initialization log
         with self.log_context(
-                version=__version__,
-                mode=self.args.mode,
-                webhook_mode=self.args.webhook == "True",
-                plugins_enabled=bool(
-                    self.args.plugins and any(p.strip() for p in self.args.plugins)
-                ),
-                environment=get_environment_state(),
+            session_id=self._session.session_id,
+            version=__version__,
+            mode=self.args.mode,
+            webhook_mode=self.args.webhook == "True",
+            plugins_enabled=bool(
+                self.args.plugins and any(p.strip() for p in self.args.plugins)
+            ),
+            environment=get_environment_state(),
         ) as log:
             log.info("PyTMBot initialization started")
 
         self.bot: TeleBot | None = None
         self.plugin_manager = PluginManager()
+        self._state = BotState.INITIALIZING
+
+    @property
+    def state(self) -> BotState:
+        """Current bot state."""
+        return self._state
+
+    @property
+    def session_info(self) -> BotSession | None:
+        """Current session information."""
+        return self._session
+
+    def _change_state(self, new_state: BotState, reason: str = "") -> None:
+        """Change bot state with logging."""
+        old_state = self._state
+        self._state = new_state
+
+        with self.log_context(
+            session_id=self._session.session_id if self._session else "unknown",
+            old_state=old_state.value,
+            new_state=new_state.value,
+            reason=reason,
+        ) as log:
+            log.debug(f"State transition: {old_state.value} -> {new_state.value}")
+
+    @staticmethod
+    def _is_bot_conflict_error(error: Exception) -> bool:
+        """Check if error indicates bot conflict (409 Conflict)."""
+        return isinstance(error, ApiTelegramException) and error.error_code == 409
+
+    @staticmethod
+    def _is_critical_api_error(error: Exception) -> tuple[bool, str]:
+        """
+        Check if error is critical API error requiring special handling.
+
+        Returns:
+            tuple: (is_critical, error_type)
+        """
+        if not isinstance(error, ApiTelegramException):
+            return False, ""
+
+        critical_codes = {
+            401: "unauthorized",  # Bot token invalid/revoked
+            403: "forbidden",  # Bot blocked/restricted
+            404: "not_found",  # Bot not found (deleted)
+            409: "conflict",  # Multiple bot instances
+            429: "rate_limited",  # Too many requests
+            502: "bad_gateway",  # Telegram server issues
+            503: "service_unavailable",  # Telegram maintenance
+        }
+
+        error_type = critical_codes.get(error.error_code)
+        return error_type is not None, error_type or "unknown"
+
+    @staticmethod
+    def _is_critical_error(error: Exception) -> bool:
+        """Check if error is critical and requires immediate shutdown."""
+        return isinstance(error, CriticalExceptionTypes)
+
+    def _handle_bot_conflict(self, strategy: ConflictResolutionStrategy = None) -> bool:
+        """
+        Handle bot conflict based on resolution strategy.
+
+        Returns:
+            bool: True if conflict was resolved, False otherwise.
+        """
+        if strategy is None:
+            strategy = CONFLICT_RESOLUTION_STRATEGY
+
+        with self.log_context(
+            session_id=self._session.session_id if self._session else "unknown",
+            strategy=strategy.value,
+        ) as log:
+            log.warning(f"Bot conflict detected, applying {strategy.value} strategy")
+
+        match strategy:
+            case ConflictResolutionStrategy.GRACEFUL_SHUTDOWN:
+                return self._graceful_conflict_resolution()
+            case ConflictResolutionStrategy.FORCE_TAKEOVER:
+                return self._force_takeover()
+            case ConflictResolutionStrategy.ABORT:
+                return self._abort_on_conflict()
+            case _:
+                return False
+
+    def _handle_critical_api_error(self, error: Exception, error_type: str) -> bool:
+        """
+        Handle critical API errors based on error type.
+
+        Returns:
+            bool: True if error was handled and recovery is possible, False otherwise.
+        """
+        with self.log_context(
+            session_id=self._session.session_id if self._session else "unknown",
+            error_code=getattr(error, "error_code", "unknown"),
+            error_type=error_type,
+            error_message=str(error),
+        ) as log:
+            log.error(f"Critical API error detected: {error_type}")
+
+        match error_type:
+            case "unauthorized":
+                with self.log_context() as log:
+                    log.critical(
+                        "Bot token is invalid or revoked - manual intervention required"
+                    )
+                return False  # Cannot recover from invalid token
+
+            case "forbidden":
+                with self.log_context() as log:
+                    log.critical("Bot is blocked or restricted - check bot permissions")
+                return False  # Cannot recover from bot restrictions
+
+            case "not_found":
+                with self.log_context() as log:
+                    log.critical("Bot not found - may have been deleted")
+                return False  # Cannot recover from deleted bot
+
+            case "conflict":
+                # Handle bot conflicts with existing strategy
+                return self._handle_bot_conflict()
+
+            case "rate_limited":
+                # Extract retry_after if available
+                retry_after = getattr(error, "retry_after", 60)
+                with self.log_context(retry_after=retry_after) as log:
+                    log.warning(f"Rate limited - waiting {retry_after} seconds")
+                time.sleep(min(retry_after, 300))  # Cap at 5 minutes
+                return True  # Can recover after waiting
+
+            case "bad_gateway" | "service_unavailable":
+                with self.log_context() as log:
+                    log.warning("Telegram server issues - will retry with backoff")
+                return True  # Can recover with retry
+
+            case _:
+                with self.log_context() as log:
+                    log.error(f"Unknown critical API error: {error_type}")
+                return False  # Unknown error, cannot guarantee recovery
+
+    def _graceful_conflict_resolution(self) -> bool:
+        """Gracefully handle bot conflict by backing off."""
+        try:
+            if self.bot and hasattr(self.bot, "stop_polling"):
+                self._safe_stop_polling()
+
+            # Wait before attempting to restart
+            sleep(DEFAULT_BASE_SLEEP_TIME * 2)
+            return True
+
+        except Exception as e:
+            with self.log_context(error=sanitize_exception(e)) as log:
+                log.error("Graceful conflict resolution failed")
+            return False
+
+    def _force_takeover(self) -> bool:
+        """Force takeover by removing webhook and starting fresh."""
+        try:
+            if self.bot:
+                self.bot.remove_webhook()
+                sleep(5)  # Give other instance time to detect webhook removal
+            return True
+        except Exception as e:
+            with self.log_context(error=sanitize_exception(e)) as log:
+                log.error("Force takeover failed")
+            return False
+
+    def _abort_on_conflict(self) -> bool:
+        """Abort operation on conflict."""
+        with self.log_context() as log:
+            log.error("Aborting due to bot conflict")
+        return False
+
+    @contextmanager
+    def _polling_safety_context(self):
+        """Context manager for safe polling operations."""
+        polling_was_active = False
+        try:
+            if self.bot and hasattr(self.bot, "polling") and self.bot.polling:
+                polling_was_active = True
+            yield
+        except Exception as e:
+            # Handle polling-specific errors
+            if self._is_bot_conflict_error(e):
+                if not self._handle_bot_conflict():
+                    raise
+            else:
+                raise
+        finally:
+            # Ensure polling is properly stopped if it was active
+            if polling_was_active and self.bot:
+                self._safe_stop_polling()
+
+    def _safe_stop_polling(self, timeout: int = POLLING_STOP_TIMEOUT) -> bool:
+        """
+        Safely stop polling with timeout.
+
+        Returns:
+            bool: True if stopped successfully, False if timeout occurred.
+        """
+        if not self.bot or not hasattr(self.bot, "polling"):
+            return True
+
+        try:
+            # Check if actually polling
+            if not getattr(self.bot, "polling", False):
+                return True
+
+            with self.log_context(timeout=timeout) as log:
+                log.debug("Stopping polling with timeout")
+
+            # Use threading to implement timeout
+            import threading
+            import concurrent.futures
+
+            def stop_polling_task():
+                try:
+                    self.bot.stop_polling()
+                    return True
+                except Exception as e:
+                    with self.log_context(error=sanitize_exception(e)) as log:
+                        log.warning("Error during polling stop")
+                    return False
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(stop_polling_task)
+                try:
+                    result = future.result(timeout=timeout)
+                    return result
+                except concurrent.futures.TimeoutError:
+                    with self.log_context() as log:
+                        log.warning("Polling stop timeout occurred")
+                    self._shutdown_timeout_occurred = True
+                    return False
+
+        except Exception as e:
+            with self.log_context(error=sanitize_exception(e)) as log:
+                log.error("Failed to stop polling safely")
+            return False
+
+    def _comprehensive_health_check(self) -> tuple[bool, str]:
+        """
+        Comprehensive health check with detailed status.
+
+        Returns:
+            tuple: (is_healthy, status_message)
+        """
+        if self.bot is None:
+            return False, "Bot instance not initialized"
+
+        try:
+            # Test basic API connectivity
+            bot_info = self.bot.get_me()
+            if not bot_info:
+                return False, "Failed to get bot information"
+
+            # Check polling state if not using webhook
+            if self._session and not self._session.webhook_enabled:
+                polling_active = getattr(self.bot, "polling", False)
+                if not polling_active and self._state == BotState.RUNNING:
+                    return False, "Polling should be active but isn't"
+
+            # Check if we're in a valid state
+            if self._state in [BotState.ERROR, BotState.SHUTDOWN]:
+                return False, f"Bot in invalid state: {self._state.value}"
+
+            return True, "Bot is healthy"
+
+        except ApiTelegramException as e:
+            is_critical_api, error_type = self._is_critical_api_error(e)
+            if is_critical_api:
+                return False, f"Critical API error: {error_type} ({e.error_code})"
+            return False, f"Telegram API error: {e.error_code}"
+        except Exception as e:
+            return False, f"Health check failed: {sanitize_exception(e)}"
 
     def is_healthy(self) -> bool:
         """Check if bot is healthy and responsive."""
-        if self.bot is None:
-            return False
+        is_healthy, status = self._comprehensive_health_check()
 
-        try:
-            return bool(self.bot.get_me())
-        except telebot.apihelper.ApiException as e:
-            with self.log_context(error=sanitize_exception(e)) as log:
-                log.error("Bot health check failed - Telegram API error")
-            return False
-        except Exception as e:
-            with self.log_context(error=sanitize_exception(e)) as log:
-                log.error("Bot health check failed - unexpected error")
-            return False
+        if not is_healthy:
+            with self.log_context(
+                session_id=self._session.session_id if self._session else "unknown",
+                status=status,
+                state=self._state.value,
+            ) as log:
+                log.warning(f"Health check failed: {status}")
+
+        return is_healthy
+
+    def _get_recent_recovery_attempts(self) -> list[RecoveryAttempt]:
+        """Get recovery attempts within the window."""
+        cutoff_time = datetime.now() - RECOVERY_ATTEMPT_WINDOW
+        return [
+            attempt
+            for attempt in self._recovery_attempts
+            if attempt.timestamp > cutoff_time
+        ]
+
+    def _can_attempt_recovery(self) -> bool:
+        """Check if recovery can be attempted based on recent history."""
+        recent_attempts = self._get_recent_recovery_attempts()
+        return len(recent_attempts) < MAX_RECOVERY_ATTEMPTS
 
     def retrieve_bot_token(self) -> str:
         """Retrieve bot token based on mode."""
@@ -152,7 +535,13 @@ class PyTMBot(BaseComponent):
                 ErrorContext(
                     message="Bot token not found in configuration",
                     error_code="CORE_001",
-                    metadata={"mode": self.args.mode, "error": str(error)},
+                    metadata={
+                        "mode": self.args.mode,
+                        "error": str(error),
+                        "session_id": self._session.session_id
+                        if self._session
+                        else None,
+                    },
                 )
             ) from error
         except (FileNotFoundError, ValueError) as error:
@@ -160,7 +549,13 @@ class PyTMBot(BaseComponent):
                 ErrorContext(
                     message="Bot token configuration error",
                     error_code="CORE_002",
-                    metadata={"mode": self.args.mode, "error": str(error)},
+                    metadata={
+                        "mode": self.args.mode,
+                        "error": str(error),
+                        "session_id": self._session.session_id
+                        if self._session
+                        else None,
+                    },
                 )
             ) from error
 
@@ -175,7 +570,10 @@ class PyTMBot(BaseComponent):
                 skip_pending=True,
             )
         except Exception as e:
-            with self.log_context(error=sanitize_exception(e)) as log:
+            with self.log_context(
+                error=sanitize_exception(e),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Failed to create bot instance")
             raise
 
@@ -192,14 +590,20 @@ class PyTMBot(BaseComponent):
 
             # Only log in debug mode or if there are actually commands
             if self.args.mode == "dev" or commands:
-                with self.log_context(commands_count=len(commands)) as log:
+                with self.log_context(
+                    commands_count=len(commands),
+                    session_id=self._session.session_id if self._session else "unknown",
+                ) as log:
                     log.debug(
                         "Bot commands configured",
                         commands=[cmd.command for cmd in commands],
                     )
 
         except ApiTelegramException as error:
-            with self.log_context(error=sanitize_exception(error)) as log:
+            with self.log_context(
+                error=sanitize_exception(error),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.warning("Failed to set bot commands or description")
 
     @bot_required
@@ -209,7 +613,7 @@ class PyTMBot(BaseComponent):
         middleware_details = []
 
         for middleware_class, kwargs in sorted(
-                middlewares, key=lambda x: x[1].get("priority", 999)
+            middlewares, key=lambda x: x[1].get("priority", 999)
         ):
             try:
                 middleware_instance = middleware_class(bot=self.bot, **kwargs)
@@ -235,17 +639,19 @@ class PyTMBot(BaseComponent):
 
             except Exception as error:
                 with self.log_context(
-                        middleware=middleware_class.__name__,
-                        error=sanitize_exception(error),
+                    middleware=middleware_class.__name__,
+                    error=sanitize_exception(error),
+                    session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.error("Middleware setup failed")
                 raise
 
         # Single comprehensive log for all middleware
         with self.log_context(
-                middleware_count=len(middleware_names),
-                middleware_chain=middleware_names,
-                details=middleware_details if self.args.mode == "dev" else None,
+            middleware_count=len(middleware_names),
+            middleware_chain=middleware_names,
+            details=middleware_details if self.args.mode == "dev" else None,
+            session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             log.info("Middleware chain configured")
 
@@ -254,7 +660,6 @@ class PyTMBot(BaseComponent):
         middleware_key = middleware_name.lower()
 
         if middleware_key not in self._middlewares:
-            # Don't log - this is expected behavior for non-existent middleware
             return None
 
         middleware_instance = self._middlewares[middleware_key]
@@ -267,7 +672,9 @@ class PyTMBot(BaseComponent):
             return middleware_instance.get_stats()
         except Exception as error:
             with self.log_context(
-                    middleware=middleware_name, error=sanitize_exception(error)
+                middleware=middleware_name,
+                error=sanitize_exception(error),
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.error("Failed to get middleware statistics")
             return None
@@ -278,9 +685,9 @@ class PyTMBot(BaseComponent):
 
     @bot_required
     def _register_handler_group(
-            self,
-            handler_factory_func: Callable[[], HandlerDict],
-            register_method: RegisterMethod,
+        self,
+        handler_factory_func: Callable[[], HandlerDict],
+        register_method: RegisterMethod,
     ) -> None:
         """Register a group of handlers."""
         try:
@@ -300,13 +707,17 @@ class PyTMBot(BaseComponent):
             )
 
             with self.log_context(
-                    handler_type=handler_type, count=handler_count
+                handler_type=handler_type,
+                count=handler_count,
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.debug(f"Registered {handler_count} {handler_type} handlers")
 
         except Exception as err:
             with self.log_context(
-                    factory=handler_factory_func.__name__, error=sanitize_exception(err)
+                factory=handler_factory_func.__name__,
+                error=sanitize_exception(err),
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.error("Handler group registration failed")
             raise
@@ -346,14 +757,18 @@ class PyTMBot(BaseComponent):
 
             except Exception as e:
                 with self.log_context(
-                        handler_type=handler_type, error=sanitize_exception(e)
+                    handler_type=handler_type,
+                    error=sanitize_exception(e),
+                    session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.error(f"{handler_type.title()} handler registration failed")
                 raise
 
         # Single comprehensive log for all handlers
         with self.log_context(
-                total_handlers=total_handlers, breakdown=handler_summary
+            total_handlers=total_handlers,
+            breakdown=handler_summary,
+            session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             log.info(f"Handlers registered: {', '.join(handler_summary)}")
 
@@ -371,12 +786,16 @@ class PyTMBot(BaseComponent):
         try:
             self.plugin_manager.register_plugins(self.args.plugins, self.bot)
             with self.log_context(
-                    plugin_count=len(actual_plugins), plugins=actual_plugins
+                plugin_count=len(actual_plugins),
+                plugins=actual_plugins,
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.info(f"🔌 Loaded {len(actual_plugins)} plugins")
         except Exception as err:
             with self.log_context(
-                    plugins=actual_plugins, error=sanitize_exception(err)
+                plugins=actual_plugins,
+                error=sanitize_exception(err),
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.error("Plugin loading failed")
             raise
@@ -391,30 +810,41 @@ class PyTMBot(BaseComponent):
             self._register_handler_chain()
             self._load_plugins()
 
-            # Don't log success here - it's logged in initialize_bot_core
         except Exception as e:
-            with self.log_context(error=sanitize_exception(e)) as log:
+            with self.log_context(
+                error=sanitize_exception(e),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Bot configuration failed")
             raise
 
     def initialize_bot_core(self) -> TeleBot:
         """Initialize bot core components."""
         try:
+            self._change_state(BotState.INITIALIZING, "Starting core initialization")
+
             bot_token = self.retrieve_bot_token()
             self.bot = self._create_base_bot(bot_token)
             self._configure_bot_features()
 
+            self._change_state(BotState.RUNNING, "Core initialization completed")
+
             # Single comprehensive success log
             with self.log_context(
-                    version=__version__,
-                    mode=self.args.mode,
-                    webhook_enabled=self.args.webhook == "True",
+                version=__version__,
+                mode=self.args.mode,
+                webhook_enabled=self.args.webhook == "True",
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.info("Bot core initialization completed")
 
             return self.bot
         except Exception as e:
-            with self.log_context(error=sanitize_exception(e)) as log:
+            self._change_state(BotState.ERROR, f"Initialization failed: {e}")
+            with self.log_context(
+                error=sanitize_exception(e),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Bot core initialization failed")
             raise
 
@@ -430,7 +860,11 @@ class PyTMBot(BaseComponent):
                 token=self.bot.token,
             )
 
-            with self.log_context(host=config["host"], port=config["port"]) as log:
+            with self.log_context(
+                host=config["host"],
+                port=config["port"],
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.info(
                     f"Starting webhook server on {config['host']}:{config['port']}"
                 )
@@ -439,24 +873,41 @@ class PyTMBot(BaseComponent):
             server.start()
 
         except ImportError as err:
-            with self.log_context(error=sanitize_exception(err)) as log:
+            with self.log_context(
+                error=sanitize_exception(err),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Webhook server failed - FastAPI not available")
             raise
         except Exception as err:
-            with self.log_context(error=sanitize_exception(err)) as log:
+            with self.log_context(
+                error=sanitize_exception(err),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Webhook server failed to start")
             raise
 
     def _handle_polling_error(
-            self, error: Exception, consecutive_errors: int, current_sleep_time: int
+        self, error: Exception, consecutive_errors: int, current_sleep_time: int
     ) -> tuple[int, int]:
         """Handle polling errors and return updated error count and sleep time."""
-        if isinstance(error, ssl.SSLError):
+        # Check for critical errors first
+        if self._is_critical_error(error):
             with self.log_context(
-                    error=sanitize_exception(error), consecutive_errors=consecutive_errors
+                error=sanitize_exception(error),
+                consecutive_errors=consecutive_errors,
+                session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.critical("SSL security error - terminating bot")
+                log.critical("Critical error - terminating bot")
             raise
+
+        # Handle critical API errors first
+        is_critical_api, error_type = self._is_critical_api_error(error)
+        if is_critical_api:
+            if not self._handle_critical_api_error(error, error_type):
+                # Cannot recover from this error type
+                raise
+            # If we can recover, continue with normal error handling
 
         if isinstance(error, PollingExceptionTypes):
             consecutive_errors += 1
@@ -464,14 +915,17 @@ class PyTMBot(BaseComponent):
             # Less verbose logging for common connection errors
             if consecutive_errors == 1:
                 with self.log_context(
-                        error_type=type(error).__name__, retry_delay=current_sleep_time
+                    error_type=type(error).__name__,
+                    retry_delay=current_sleep_time,
+                    session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.warning(f"Connection error - retrying in {current_sleep_time}s")
             elif consecutive_errors % 5 == 0:  # Log every 5th consecutive error
                 with self.log_context(
-                        error_type=type(error).__name__,
-                        consecutive_errors=consecutive_errors,
-                        retry_delay=current_sleep_time,
+                    error_type=type(error).__name__,
+                    consecutive_errors=consecutive_errors,
+                    retry_delay=current_sleep_time,
+                    session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.error(
                         f"Persistent connection issues ({consecutive_errors} errors)"
@@ -483,7 +937,9 @@ class PyTMBot(BaseComponent):
 
         # Unexpected error
         with self.log_context(
-                error=sanitize_exception(error), consecutive_errors=consecutive_errors
+            error=sanitize_exception(error),
+            consecutive_errors=consecutive_errors,
+            session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             log.critical("Unexpected polling error - terminating bot")
         raise
@@ -494,38 +950,51 @@ class PyTMBot(BaseComponent):
         consecutive_errors = 0
 
         with self.log_context(
-                timeout=var_config.bot_polling_timeout,
-                long_polling_timeout=var_config.bot_long_polling_timeout,
+            timeout=var_config.bot_polling_timeout,
+            long_polling_timeout=var_config.bot_long_polling_timeout,
+            session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             log.info("Starting polling loop")
 
-        while True:
-            try:
-                bot_instance.infinity_polling(
-                    skip_pending=True,
-                    timeout=var_config.bot_polling_timeout,
-                    long_polling_timeout=var_config.bot_long_polling_timeout,
-                )
-
-                # Reset backoff on successful polling
-                if consecutive_errors > 0:
-                    with self.log_context(previous_errors=consecutive_errors) as log:
-                        log.info("Polling connection restored")
-
-                current_sleep_time = DEFAULT_BASE_SLEEP_TIME
-                consecutive_errors = 0
-
-            except Exception as error:
+        with self._polling_safety_context():
+            while True:
                 try:
-                    if bot_instance.polling:
-                        bot_instance.stop_polling()
-                        time.sleep(current_sleep_time)
-                except Exception as stop_err:
-                    with self.log_context(error=sanitize_exception(stop_err)) as log:
-                        log.warning("Failed to stop polling before retry")
-                consecutive_errors, current_sleep_time = self._handle_polling_error(
-                    error, consecutive_errors, current_sleep_time
-                )
+                    bot_instance.infinity_polling(
+                        skip_pending=True,
+                        timeout=var_config.bot_polling_timeout,
+                        long_polling_timeout=var_config.bot_long_polling_timeout,
+                    )
+
+                    # Reset backoff on successful polling
+                    if consecutive_errors > 0:
+                        with self.log_context(
+                            previous_errors=consecutive_errors,
+                            session_id=self._session.session_id
+                            if self._session
+                            else "unknown",
+                        ) as log:
+                            log.info("Polling connection restored")
+
+                    current_sleep_time = DEFAULT_BASE_SLEEP_TIME
+                    consecutive_errors = 0
+
+                except Exception as error:
+                    try:
+                        if bot_instance.polling:
+                            self._safe_stop_polling()
+                            time.sleep(current_sleep_time)
+                    except Exception as stop_err:
+                        with self.log_context(
+                            error=sanitize_exception(stop_err),
+                            session_id=self._session.session_id
+                            if self._session
+                            else "unknown",
+                        ) as log:
+                            log.warning("Failed to stop polling before retry")
+
+                    consecutive_errors, current_sleep_time = self._handle_polling_error(
+                        error, consecutive_errors, current_sleep_time
+                    )
 
     def launch_bot(self) -> None:
         """Launch the bot with appropriate method (webhook or polling)."""
@@ -534,7 +1003,9 @@ class PyTMBot(BaseComponent):
         webhook_enabled = self.args.webhook == "True"
 
         with self.log_context(
-                webhook_enabled=webhook_enabled, mode=self.args.mode
+            webhook_enabled=webhook_enabled,
+            mode=self.args.mode,
+            session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             launch_method = "webhook" if webhook_enabled else "polling"
             log.info(f"Launching bot with {launch_method} mode")
@@ -546,79 +1017,214 @@ class PyTMBot(BaseComponent):
             else:
                 self._start_polling_loop(self.bot)
         except Exception as error:
-            with self.log_context(error=sanitize_exception(error)) as log:
+            self._change_state(BotState.ERROR, f"Launch failed: {error}")
+            with self.log_context(
+                error=sanitize_exception(error),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
                 log.error("Bot launch failed")
             raise
 
     def recovery(self) -> bool:
-        """Attempt to recover from errors."""
+        """Attempt to recover from errors with improved logic."""
         if not isinstance(self.bot, TeleBot):
             return False
 
-        with self.log_context() as log:
-            log.warning("Attempting bot recovery")
-
-        try:
-            # Test connection
-            self.bot.get_me()
-
-            # Stop current operations
-            if self.args.webhook != "True":
-                if self.bot.polling():
-                    self.bot.stop_polling()
-                    time.sleep(DEFAULT_BASE_SLEEP_TIME)
-
-            sleep(2)
-
-            # Restart
-            self.launch_bot()
-
-            with self.log_context() as log:
-                log.info("Bot recovery successful")
-            return True
-
-        except (ApiTelegramException, Exception) as err:
-            with self.log_context(error=sanitize_exception(err)) as log:
-                log.error("Bot recovery failed")
+        # Check if recovery is allowed
+        if not self._can_attempt_recovery():
+            with self.log_context(
+                session_id=self._session.session_id if self._session else "unknown"
+            ) as log:
+                log.warning("Recovery attempt limit reached")
             return False
 
-    # Backward compatibility - keeping old method names as public API
-    def create_base_bot(self, bot_token: str) -> TeleBot:
-        """Create base TeleBot instance. (Deprecated: use _create_base_bot)"""
-        return self._create_base_bot(bot_token)
+        self._change_state(BotState.RECOVERING, "Starting recovery attempt")
 
-    def configure_bot_features(self) -> None:
-        """Configure bot features. (Deprecated: use _configure_bot_features)"""
-        self._configure_bot_features()
+        with self.log_context(
+            session_id=self._session.session_id if self._session else "unknown"
+        ) as log:
+            log.warning("Attempting bot recovery")
 
-    def setup_commands_and_description(self) -> None:
-        """Setup bot commands and description. (Deprecated: use _setup_commands_and_description)"""
-        self._setup_commands_and_description()
+        recovery_success = False
+        error_type = "unknown"
 
-    def register_handler_chain(self) -> None:
-        """Register all bot handlers. (Deprecated: use _register_handler_chain)"""
-        self._register_handler_chain()
+        try:
+            # Comprehensive health check first
+            is_healthy, status = self._comprehensive_health_check()
 
-    def setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
-        """Setup middleware chain. (Deprecated: use _setup_middleware_chain)"""
-        self._setup_middleware_chain(middlewares)
+            if is_healthy:
+                with self.log_context(
+                    session_id=self._session.session_id if self._session else "unknown"
+                ) as log:
+                    log.info("Bot is already healthy, no recovery needed")
+                self._change_state(BotState.RUNNING, "Recovery not needed")
+                return True
 
-    def load_plugins(self) -> None:
-        """Load plugins if specified. (Deprecated: use _load_plugins)"""
-        self._load_plugins()
+            error_type = status
 
-    def register_handler_group(
-            self,
-            handler_factory_func: Callable[[], HandlerDict],
-            register_method: RegisterMethod,
-    ) -> None:
-        """Register a group of handlers. (Deprecated: use _register_handler_group)"""
-        self._register_handler_group(handler_factory_func, register_method)
+            # Test basic API connection
+            try:
+                self.bot.get_me()
+            except ApiTelegramException as api_err:
+                is_critical_api, api_error_type = self._is_critical_api_error(api_err)
+                if is_critical_api:
+                    error_type = api_error_type
+                    if not self._handle_critical_api_error(api_err, api_error_type):
+                        raise
+                else:
+                    error_type = f"api_error_{api_err.error_code}"
+                    raise
 
-    def start_webhook_server(self) -> None:
-        """Start webhook server. (Deprecated: use _start_webhook_server)"""
-        self._start_webhook_server()
+            # Stop current operations safely
+            if self.args.webhook != "True":
+                if hasattr(self.bot, "polling") and self.bot.polling:
+                    if not self._safe_stop_polling():
+                        with self.log_context(
+                            session_id=self._session.session_id
+                            if self._session
+                            else "unknown"
+                        ) as log:
+                            log.warning("Polling stop timeout during recovery")
 
-    def start_polling_loop(self, bot_instance: TeleBot) -> None:
-        """Start polling loop. (Deprecated: use _start_polling_loop)"""
-        self._start_polling_loop(bot_instance)
+            # Brief pause before restart
+            sleep(DEFAULT_BASE_SLEEP_TIME)
+
+            # Restart bot operations
+            self.launch_bot()
+
+            # Verify recovery
+            is_healthy, _ = self._comprehensive_health_check()
+            recovery_success = is_healthy
+
+            if recovery_success:
+                self._change_state(BotState.RUNNING, "Recovery completed successfully")
+                with self.log_context(
+                    session_id=self._session.session_id if self._session else "unknown"
+                ) as log:
+                    log.info("Bot recovery successful")
+            else:
+                self._change_state(BotState.ERROR, "Recovery verification failed")
+
+        except Exception as err:
+            error_type = type(err).__name__
+            self._change_state(BotState.ERROR, f"Recovery failed: {err}")
+            with self.log_context(
+                error=sanitize_exception(err),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
+                log.error("Bot recovery failed")
+
+        finally:
+            # Record recovery attempt
+            attempt = RecoveryAttempt.create(error_type, recovery_success)
+            self._recovery_attempts.append(attempt)
+
+            # Clean up old attempts to prevent memory leak
+            self._recovery_attempts = self._get_recent_recovery_attempts()
+
+        return recovery_success
+
+    def graceful_shutdown(self, timeout: int = POLLING_STOP_TIMEOUT) -> bool:
+        """
+        Perform graceful shutdown with timeout.
+
+        Returns:
+            bool: True if shutdown completed within timeout, False otherwise.
+        """
+        self._change_state(BotState.SHUTTING_DOWN, "Graceful shutdown initiated")
+
+        with self.log_context(
+            timeout=timeout,
+            session_id=self._session.session_id if self._session else "unknown",
+        ) as log:
+            log.info("Starting graceful shutdown")
+
+        shutdown_success = True
+
+        try:
+            if self.bot:
+                # Remove webhook first if applicable
+                if self._session and self._session.webhook_enabled:
+                    try:
+                        self.bot.remove_webhook()
+                    except Exception as e:
+                        with self.log_context(
+                            error=sanitize_exception(e),
+                            session_id=self._session.session_id
+                            if self._session
+                            else "unknown",
+                        ) as log:
+                            log.warning("Failed to remove webhook during shutdown")
+
+                # Stop polling if active
+                if not self._safe_stop_polling(timeout):
+                    shutdown_success = False
+
+                # Clean up middleware
+                for middleware_name, middleware_instance in self._middlewares.items():
+                    try:
+                        if hasattr(middleware_instance, "cleanup"):
+                            middleware_instance.cleanup()
+                    except Exception as e:
+                        with self.log_context(
+                            middleware=middleware_name,
+                            error=sanitize_exception(e),
+                            session_id=self._session.session_id
+                            if self._session
+                            else "unknown",
+                        ) as log:
+                            log.warning("Middleware cleanup failed")
+
+        except Exception as e:
+            shutdown_success = False
+            with self.log_context(
+                error=sanitize_exception(e),
+                session_id=self._session.session_id if self._session else "unknown",
+            ) as log:
+                log.error("Graceful shutdown encountered errors")
+
+        finally:
+            self._change_state(BotState.SHUTDOWN, "Shutdown completed")
+            self.bot = None
+
+        return shutdown_success
+
+    def get_bot_session_statistics(self) -> dict[str, Any]:
+        """Get comprehensive session statistics."""
+        if not self._session:
+            return {}
+
+        uptime = datetime.now() - self._session.start_time
+        recent_recovery_attempts = self._get_recent_recovery_attempts()
+
+        stats: dict[str, Any] = {
+            "session_id": self._session.session_id,
+            "start_time": self._session.start_time.isoformat(),
+            "uptime_seconds": int(uptime.total_seconds()),
+            "uptime_human": str(uptime),
+            "mode": self._session.mode,
+            "webhook_enabled": self._session.webhook_enabled,
+            "current_state": self._state.value,
+            "recovery_attempts_recent": len(recent_recovery_attempts),
+            "recovery_attempts_successful": len(
+                [a for a in recent_recovery_attempts if a.success]
+            ),
+            "shutdown_timeout_occurred": self._shutdown_timeout_occurred,
+        }
+
+        # Add bot-specific stats if available
+        if self.bot:
+            is_healthy, health_status = self._comprehensive_health_check()
+            stats.update(
+                {
+                    "bot_healthy": is_healthy,
+                    "health_status": health_status,
+                }
+            )
+
+            # Add middleware stats
+            rate_limit_stats = self.get_rate_limit_stats()
+            if rate_limit_stats:
+                stats["rate_limit_stats"] = rate_limit_stats
+
+        return stats

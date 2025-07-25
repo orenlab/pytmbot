@@ -216,15 +216,16 @@ class BotLauncher(logs.BaseComponent):
         """Log current health status with comprehensive process statistics."""
         uptime_display = naturaltime(self.start_time)
 
-        rate_limit_stats = None
-        if self.bot and hasattr(self.bot, "get_rate_limit_stats"):
-            rate_limit_stats = self.bot.get_rate_limit_stats()
+        bot_session_metrics = None
+
+        if self.bot and hasattr(self.bot, "get_bot_session_statistics"):
+            bot_session_metrics = self.bot.get_bot_session_statistics()
 
         log_context = {
+            "bot_session_metrics": bot_session_metrics,
             "uptime": uptime_display,
             "active": bool(self.bot),
-            "admin_sessions": self._session_manager.get_session_stats(),
-            "rate_limit_middleware_metrics": rate_limit_stats,
+            "admin_sessions_metrics": self._session_manager.get_session_stats(),
         }
 
         if not self._is_monitor_plugin_loaded():
