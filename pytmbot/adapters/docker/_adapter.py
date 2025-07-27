@@ -1,4 +1,3 @@
-import uuid
 import warnings
 from contextlib import suppress
 from datetime import datetime
@@ -27,14 +26,12 @@ class DockerAdapter:
 
         self._docker_url: str = str(settings.docker.host[0])
         self._client: Optional[DockerClient] = None
-        self._session_id: str = str(uuid.uuid4())
         self._start_time: datetime = datetime.now()
         self._log = Logger()
 
         # Initialize base context for all operations
         self._base_context = {
             "action": "docker_adapter",
-            "session_id": self._session_id,
             "docker_url": self._docker_url,
         }
 
@@ -186,7 +183,6 @@ class DockerAdapter:
     def get_status(self) -> Dict[str, Any]:
         """Get current Docker adapter status information."""
         return {
-            "session_id": self._session_id,
             "docker_url": self._docker_url,
             "uptime": f"{(datetime.now() - self._start_time).total_seconds():.2f}s",
             "client_active": self._client is not None,

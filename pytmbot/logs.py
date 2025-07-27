@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 import sys
-import uuid
 from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -658,20 +657,10 @@ class Logger:
                     # Get update data (will be masked in the filter)
                     update_data = self._get_update_data(telegram_object)
                     context.update(update_data)
-
-                    update_id = context.get("update_id")
-                    job_id = (
-                        f"u-{update_id}"
-                        if update_id is not None
-                        else f"job-{uuid.uuid4()}"
-                    )
-                    context["job_id"] = job_id
                 else:
                     self._logger.warning(
                         f"No Telegram object found in handler {f.__name__}"
                     )
-                    job_id = str(uuid.uuid4())
-                    context["job_id"] = job_id
 
                 with self.context(**context) as log:
                     log.info(f"Handler {f.__name__} started")
