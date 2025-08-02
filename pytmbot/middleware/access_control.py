@@ -107,6 +107,24 @@ class AccessControl(BaseMiddleware, BaseComponent):
         username = user.username or "unknown"
         chat_id = message.chat.id
 
+        if message.text:
+            debug_context = {
+                "operation": "incoming_message_debug",
+                "user_id": mask_user_id(user_id),
+                "username": mask_username(username),
+                "chat_id": chat_id,
+                "message_text": message.text,
+                "message_text_repr": repr(message.text),
+                "message_text_bytes": message.text.encode('utf-8').hex(),
+                "message_length": len(message.text),
+                "user_language_code": user.language_code,
+                "user_client": "iOS" if user.language_code and "ios" in str(user.language_code).lower() else "unknown",
+            }
+
+            with self.log_context(**debug_context) as logger:
+                logger.info(
+                    f"📱 INCOMING MESSAGE: '{message.text}' | Bytes: {message.text.encode('utf-8').hex()} | User: {mask_user_id(user_id)} | Lang: {user.language_code}")
+
         base_context = {
             "operation": "pre_process",
             "message_id": message.message_id,
@@ -152,12 +170,12 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return datetime.now() < self._blocked_until[user_id]
 
     def _handle_unauthorized_access(
-        self,
-        user_id: int,
-        username: str,
-        chat_id: int,
-        message: Message,
-        base_context: dict,
+            self,
+            user_id: int,
+            username: str,
+            chat_id: int,
+            message: Message,
+            base_context: dict,
     ) -> Optional[CancelUpdate]:
         """Handle access for unauthorized users with attempt limits."""
 
@@ -225,12 +243,12 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return CancelUpdate()
 
     def _notify_admin(
-        self,
-        user_id: int,
-        username: str,
-        chat_id: int,
-        attempt: int,
-        is_setup_command: bool = False,
+            self,
+            user_id: int,
+            username: str,
+            chat_id: int,
+            attempt: int,
+            is_setup_command: bool = False,
     ) -> None:
         """Notify admin about unauthorized access attempts."""
         now = datetime.now()
@@ -443,7 +461,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+            self, message: Message, data: dict[str, Any], exception: Optional[Exception]
     ) -> None:
         """Post-process message handling."""
         if not exception or isinstance(exception, CancelUpdate):
