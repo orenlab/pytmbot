@@ -79,6 +79,7 @@ def get_default_server_keyboard() -> Dict[str, str]:
         "flying_saucer": "Uptime",
         "floppy_disk": "File system",
         "satellite": "Network",
+        "penguin": "Services",
     }
 
 

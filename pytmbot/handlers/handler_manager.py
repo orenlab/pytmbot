@@ -10,44 +10,45 @@ from dataclasses import dataclass
 from typing import Any
 
 from pytmbot.globals import settings
-from pytmbot.handlers.auth_processing.qrcode_processing import handle_qr_code_message
-from pytmbot.handlers.auth_processing.twofa_processing import (
+from pytmbot.models.handlers_model import HandlerManager
+from .auth_processing.qrcode_processing import handle_qr_code_message
+from .auth_processing.twofa_processing import (
     handle_twofa_message,
     handle_totp_code_verification,
 )
-from pytmbot.handlers.bot_handlers.about import handle_about_command
-from pytmbot.handlers.bot_handlers.inline.update import handle_update_info
-from pytmbot.handlers.bot_handlers.navigation import handle_navigation
-from pytmbot.handlers.bot_handlers.plugins import handle_plugins
-from pytmbot.handlers.bot_handlers.start import handle_start
-from pytmbot.handlers.bot_handlers.updates import handle_bot_updates
-from pytmbot.handlers.docker_handlers.containers import handle_containers
-from pytmbot.handlers.docker_handlers.docker import handle_docker
-from pytmbot.handlers.docker_handlers.images import handle_images
-from pytmbot.handlers.docker_handlers.inline.back import handle_back_to_containers
-from pytmbot.handlers.docker_handlers.inline.container_info import (
+from .bot_handlers.about import handle_about_command
+from .bot_handlers.getmyid import handle_getmyid
+from .bot_handlers.inline.update import handle_update_info
+from .bot_handlers.navigation import handle_navigation
+from .bot_handlers.plugins import handle_plugins
+from .bot_handlers.start import handle_start
+from .bot_handlers.updates import handle_bot_updates
+from .docker_handlers.containers import handle_containers
+from .docker_handlers.docker import handle_docker
+from .docker_handlers.images import handle_images
+from .docker_handlers.inline.back import handle_back_to_containers
+from .docker_handlers.inline.container_info import (
     handle_containers_full_info,
 )
-from pytmbot.handlers.docker_handlers.inline.image_updates import handle_image_updates
-from pytmbot.handlers.docker_handlers.inline.logs import handle_get_logs
-from pytmbot.handlers.docker_handlers.inline.manage import handle_manage_container
-from pytmbot.handlers.docker_handlers.inline.manage_action import (
+from .docker_handlers.inline.image_updates import handle_image_updates
+from .docker_handlers.inline.logs import handle_get_logs
+from .docker_handlers.inline.manage import handle_manage_container
+from .docker_handlers.inline.manage_action import (
     handle_manage_container_action,
     managing_action_fabric,
 )
-from pytmbot.handlers.server_handlers.filesystem import handle_file_system
-from pytmbot.handlers.server_handlers.inline.swap import handle_swap_info
-from pytmbot.handlers.server_handlers.inline.top_process import handle_process_info
-from pytmbot.handlers.server_handlers.load_average import handle_load_average
-from pytmbot.handlers.server_handlers.memory import handle_memory
-from pytmbot.handlers.server_handlers.network import handle_network
-from pytmbot.handlers.server_handlers.process import handle_process
-from pytmbot.handlers.server_handlers.quickview import handle_quick_view
-from pytmbot.handlers.server_handlers.sensors import handle_sensors
-from pytmbot.handlers.server_handlers.server import handle_server
-from pytmbot.handlers.server_handlers.uptime import handle_uptime
-from pytmbot.models.handlers_model import HandlerManager
-from .bot_handlers.getmyid import handle_getmyid
+from .server_handlers.filesystem import handle_file_system
+from .server_handlers.inline.swap import handle_swap_info
+from .server_handlers.inline.top_process import handle_process_info
+from .server_handlers.load_average import handle_load_average
+from .server_handlers.memory import handle_memory
+from .server_handlers.network import handle_network
+from .server_handlers.process import handle_process
+from .server_handlers.quickview import handle_quick_view
+from .server_handlers.sensors import handle_sensors
+from .server_handlers.server import handle_server
+from .server_handlers.services import handle_services_status
+from .server_handlers.uptime import handle_uptime
 
 type MessageType = Any
 type CallbackQueryType = Any
@@ -132,6 +133,7 @@ def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(callback=handle_server, commands=["server"]),
             HandlerConfig(callback=handle_server, regexp="Server"),
         ],
+        "services": [HandlerConfig(callback=handle_services_status, regexp="Services")],
         "qrcode": [
             HandlerConfig(
                 callback=handle_qr_code_message,
