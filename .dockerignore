@@ -75,7 +75,7 @@ Dockerfile
 # Exclude application-specific files and directories
 cli
 docs
-README.md
+# README.md
 SECURITY.md
 tests
 tools
@@ -83,8 +83,8 @@ tools
 #######################################
 # Poetry
 # Exclude Poetry configuration files
-poetry.lock
-pyproject.toml
+# poetry.lock
+# pyproject.toml
 
 #######################################
 # Logs and Temporary Files
