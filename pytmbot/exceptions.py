@@ -179,9 +179,10 @@ class CallbackValidationError(BaseBotException):
     """Raised on Callback data validation error"""
 
 
-class KeyboardError(Exception):
+class KeyboardError(BaseBotException):
     """Custom exception for keyboard-related errors."""
 
 
-class TOTPError(Exception):
+class TOTPError(BaseBotException):
     """Custom exception for TOTP-related errors."""
+

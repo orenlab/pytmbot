@@ -3,13 +3,36 @@
 (c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
+
+Enhanced with configuration versioning and validation.
 """
 
-from typing import Optional
+import warnings
+from functools import cache
+from typing import Optional, Any
 
-from pydantic import BaseModel, SecretStr, conlist
+from packaging import version
+from pydantic import BaseModel, SecretStr, conlist, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
+from pytmbot import logs
+
+@cache
+def get_app_version() -> str:
+    """Get application version with lazy import to avoid circular dependencies."""
+    try:
+        from pytmbot.globals import __version__ as app_version
+        return app_version
+    except ImportError as e:
+        raise RuntimeError(
+            "Critical application module 'pytmbot.globals' is missing or corrupted. "
+            "Application integrity compromised."
+        ) from e
+
+class ConfigVersionError(Exception):
+    """Custom exception for configuration version errors."""
+
+    pass
 
 class BotTokenModel(BaseModel):
     """
@@ -45,6 +68,7 @@ class DockerHostModel(BaseModel):
 
     Attributes:
         host (List[str]): List of Docker host URLs or IP addresses.
+        debug_docker_client (bool): Enable debug logging for Docker client.
     """
 
     host: conlist(str, min_length=1)
@@ -60,6 +84,7 @@ class InfluxDBModel(BaseModel):
         token (List[SecretStr]): List of InfluxDB tokens.
         org (List[str]): List of InfluxDB organizations.
         bucket (List[str]): List of InfluxDB buckets.
+        debug_mode (bool): Enable debug mode for InfluxDB.
     """
 
     url: Optional[conlist(SecretStr, min_length=1)]
@@ -83,14 +108,6 @@ class ChatIdModel(BaseModel):
 class TraceholdSettings(BaseModel):
     """
     Model to define threshold settings for CPU, memory, and disk usage monitoring.
-
-    Attributes:
-        cpu_usage_threshold (List[int]): Threshold for CPU usage in percentage.
-        memory_usage_threshold (List[int]): Threshold for memory usage in percentage.
-        disk_usage_threshold (List[int]): Threshold for disk usage in percentage.
-        cpu_temperature_threshold (List[int]): Threshold for CPU temperature in Celsius.
-        gpu_temperature_threshold (List[int]): Threshold for GPU temperature in Celsius.
-        disk_temperature_threshold (List[int]): Threshold for disk temperature in Celsius.
     """
 
     cpu_usage_threshold: conlist(int, min_length=1, max_length=1)
@@ -104,14 +121,6 @@ class TraceholdSettings(BaseModel):
 class MonitorConfig(BaseModel):
     """
     Model to configure monitoring settings for the bot.
-
-    Attributes:
-        tracehold (TraceholdSettings): Threshold settings for resource usage.
-        max_notifications (List[int]): Maximum number of notifications before stopping alerts.
-        check_interval (List[int]): Interval in minutes between status checks.
-        reset_notification_count (List[int]): Time period in minutes to reset the notification count.
-        retry_attempts (List[int]): Number of retry attempts for failed status checks.
-        retry_interval (List[int]): Interval in minutes between retry attempts.
     """
 
     tracehold: TraceholdSettings
@@ -126,10 +135,6 @@ class MonitorConfig(BaseModel):
 class OutlineVPN(BaseModel):
     """
     Model to store Outline VPN settings.
-
-    Attributes:
-        api_url (List[SecretStr]): List of API URLs for Outline VPN.
-        cert (List[SecretStr]): List of certificates required for VPN connections.
     """
 
     api_url: conlist(SecretStr)
@@ -139,47 +144,346 @@ class OutlineVPN(BaseModel):
 class PluginsConfig(BaseModel):
     """
     Model to configure additional plugins for the bot, such as monitoring and Outline VPN.
-
-    Attributes:
-        monitor (MonitorConfig): Monitoring configuration settings.
-        outline (OutlineVPN): Outline VPN configuration settings.
     """
 
-    monitor: MonitorConfig
-    outline: OutlineVPN
+    monitor: Optional[MonitorConfig] = None
+    outline: Optional[OutlineVPN] = None
 
 
 class WebhookConfig(BaseModel):
     """
     Model to configure webhook settings for the bot.
-
-    Attributes:
-        url (List[SecretStr]): List of webhook URLs.
     """
 
     url: conlist(SecretStr)
     webhook_port: conlist(int)
     local_port: conlist(int)
-    cert: conlist(SecretStr)
-    cert_key: conlist(SecretStr)
+    cert: Optional[conlist(SecretStr)] = None
+    cert_key: Optional[conlist(SecretStr)] = None
+
+
+class ConfigMigrator(logs.BaseComponent):
+    """
+    Handles configuration migrations between versions.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("config_migrator")
+        self.app_version = get_app_version()
+
+    @staticmethod
+    def get_supported_versions() -> list[str]:
+        """Get list of supported configuration versions."""
+        return ["0.2.2", "0.3.0-dev", "0.3.0"]
+
+    @staticmethod
+    def get_compatibility_matrix() -> dict[str, dict[str, str]]:
+        """
+        Returns compatibility matrix for config versions with app versions.
+        Config version should match app version exactly.
+
+        Returns:
+            Dict mapping config versions to compatibility info.
+        """
+        return {
+            "0.2.2": {
+                "min_app": "0.2.2",
+                "max_app": "0.2.2",
+                "description": "Legacy version (minimum supported)",
+            },
+            "0.3.0-dev": {
+                "min_app": "0.3.0-dev",
+                "max_app": "0.3.0-dev",
+                "description": "Development version with config versioning",
+            },
+            "0.3.0": {
+                "min_app": "0.3.0",
+                "max_app": "0.3.0",
+                "description": "Stable release with config versioning",
+            },
+        }
+
+    @classmethod
+    def validate_compatibility(
+        cls, config_version: Optional[str], app_version: str
+    ) -> None:
+        """
+        Validate compatibility between config and app versions.
+        Config version should match app version exactly.
+
+        Args:
+            config_version: Version of the configuration (None for legacy configs)
+            app_version: Version of the application
+
+        Raises:
+            ConfigVersionError: If versions are incompatible
+        """
+        # Handle special case: no config version means legacy (0.2.2 compatibility)
+        if config_version is None:
+            app_ver_clean = app_version.replace("-dev", "")
+            if version.parse(app_ver_clean) < version.parse("0.2.2"):
+                raise ConfigVersionError(
+                    f"App version '{app_version}' is End-of-Life (< 0.2.2). "
+                    f"Minimum supported version is 0.2.2"
+                )
+            return  # Legacy configs are allowed for 0.2.2+
+
+        # Check for EOL versions FIRST, before checking compatibility matrix
+        config_ver_clean = config_version.replace("-dev", "")
+        if version.parse(config_ver_clean) < version.parse("0.2.2"):
+            raise ConfigVersionError(
+                f"Configuration version '{config_version}' is End-of-Life (< 0.2.2). "
+                f"Minimum supported version is 0.2.2. "
+                f"Current app version: {app_version}"
+            )
+
+        matrix = cls.get_compatibility_matrix()
+
+        if config_version not in matrix:
+            supported = list(matrix.keys())
+            raise ConfigVersionError(
+                f"Unsupported config version '{config_version}'. "
+                f"Supported versions: {supported}"
+            )
+
+        # Config version should match app version exactly
+        if config_version != app_version:
+            raise ConfigVersionError(
+                f"Config version '{config_version}' does not match "
+                f"app version '{app_version}'. They should be identical."
+            )
+
+    @classmethod
+    def check_deprecation(cls, config_version: Optional[str], app_version: str) -> None:
+        """
+        Check if config version is deprecated and issue warnings.
+
+        Args:
+            config_version: Version to check (None for legacy configs)
+            app_version: Current app version
+        """
+        # Check for legacy configs without version
+        if config_version is None:
+            warnings.warn(
+                f"Configuration without version field detected. "
+                f"This is legacy 0.2.2 compatibility mode. "
+                f"Consider adding 'config_version: \"{app_version}\"' to your config.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            return
+
+        # Version 0.2.2 is considered legacy
+        if config_version == "0.2.2":
+            warnings.warn(
+                f"Configuration version '{config_version}' is legacy. "
+                f"Consider upgrading to version {app_version} for new features.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+    def migrate_config(self, config_data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Migrate configuration to current app version.
+
+        Args:
+            config_data: Raw configuration data
+
+        Returns:
+            Migrated configuration data
+        """
+        current_version = config_data.get("config_version")
+
+        # If no version, this is legacy 0.2.2 config - add current app version
+        if current_version is None:
+            with self.log_context(legacy_config=True, app_version=self.app_version) as log:
+                log.info("Adding config_version field to legacy config")
+            config_data["config_version"] = self.app_version
+            return config_data
+
+        # If version doesn't match current app version, update it
+        if current_version != self.app_version:
+            with self.log_context(
+                old_version=current_version, new_version=self.app_version
+            ) as log:
+                log.info("Updating config version to match app version")
+            config_data["config_version"] = self.app_version
+
+        return config_data
 
 
 class SettingsModel(BaseSettings):
     """
-    Main settings model for configuring the bot.
+    Main settings model for configuring the bot with version management.
 
     Attributes:
+        config_version (Optional[str]): Version of the configuration schema.
         bot_token (BotTokenModel): Bot token settings for both production and development.
         access_control (AccessControlModel): Access control settings for users and admins.
         docker (DockerHostModel): Docker host settings.
-        chat_id (ChatIdModel): Optional chat ID settings for global notifications.
-        plugins_config (Optional[PluginsConfig]): Optional plugin configurations (monitoring, VPN).
+        chat_id (ChatIdModel): Chat ID settings for global notifications.
+        influxdb (Optional[InfluxDBModel]): Optional InfluxDB configuration.
+        plugins_config (Optional[PluginsConfig]): Optional plugin configurations.
+        webhook_config (Optional[WebhookConfig]): Optional webhook configuration.
     """
 
+    # Configuration version - should match app version
+    # Default to None for backward compatibility with 0.2.2 configs
+    config_version: Optional[str] = None
+
+    # Core configuration
     bot_token: BotTokenModel
     access_control: AccessControlModel
     docker: DockerHostModel
     chat_id: ChatIdModel
-    influxdb: Optional[InfluxDBModel]
-    plugins_config: Optional[PluginsConfig]
-    webhook_config: Optional[WebhookConfig]
+
+    # Optional configurations
+    influxdb: Optional[InfluxDBModel] = None
+    plugins_config: Optional[PluginsConfig] = None
+    webhook_config: Optional[WebhookConfig] = None
+
+    @classmethod
+    @field_validator("config_version")
+    def validate_config_version(cls, v: Optional[str]) -> Optional[str]:
+        """
+        Validate configuration version against application compatibility.
+
+        Args:
+            v: Configuration version string (can be None for legacy configs)
+
+        Returns:
+            Validated version string
+
+        Raises:
+            ConfigVersionError: If version is incompatible
+        """
+        try:
+            # Check for EOL versions and validate compatibility
+            ConfigMigrator.validate_compatibility(v, cls.app_version)
+
+            # Check for deprecation warnings
+            ConfigMigrator.check_deprecation(v, cls.app_version)
+
+            return v
+
+        except ConfigVersionError as e:
+            # Re-raise ConfigVersionError as ValueError for Pydantic
+            raise ValueError(f"Configuration version validation failed: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Configuration version validation failed: {str(e)}")
+
+    @classmethod
+    @model_validator(mode="before")
+    def migrate_config_if_needed(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """
+        Automatically add or update config_version field.
+        Handle configs without version field (0.2.2 compatibility).
+
+        Args:
+            values: Raw configuration values
+
+        Returns:
+            Updated configuration values
+        """
+        config_version = values.get("config_version")
+
+        # Create migrator instance for logging
+        migrator = ConfigMigrator()
+
+        # Handle legacy configs or version mismatches
+        match config_version:
+            case None:
+                with migrator.log_context(
+                    legacy_config=True, app_version=cls.app_version
+                ) as log:
+                    log.debug(
+                        "No config_version field detected - adding current version"
+                    )
+                values["config_version"] = cls.app_version
+            case version if version != cls.app_version:
+                with migrator.log_context(
+                    old_version=config_version,
+                    new_version=cls.app_version,
+                    migration_required=True,
+                ) as log:
+                    log.info("Config version mismatch detected - performing migration")
+                values = migrator.migrate_config(values)
+
+        return values
+
+    def get_version_info(self) -> dict[str, Any]:
+        """
+        Get detailed version information.
+
+        Returns:
+            Dictionary with version details
+        """
+        matrix = ConfigMigrator.get_compatibility_matrix()
+        config_info = matrix.get(self.config_version or "legacy", {})
+
+        return {
+            "config_version": self.config_version or "legacy (None)",
+            "app_version": self.app_version,
+            "description": config_info.get("description", "Legacy 0.2.2 compatibility"),
+            "is_deprecated": self.config_version
+            in [None, "0.2.2"],  # Legacy compatibility
+            "is_legacy": self.config_version is None,
+            "versions_match": self.config_version == self.app_version,
+        }
+
+    def validate_full_compatibility(self) -> bool:
+        """
+        Perform full compatibility validation.
+
+        Returns:
+            True if configuration is fully compatible
+
+        Raises:
+            ConfigVersionError: If configuration is incompatible
+        """
+        try:
+            ConfigMigrator.validate_compatibility(self.config_version, self.app_version)
+            return True
+        except ConfigVersionError:
+            raise
+
+
+# Utility functions for configuration management
+def load_config_with_migration(config_path: str) -> SettingsModel:
+    """
+    Load configuration with automatic migration support.
+
+    Args:
+        config_path: Path to configuration file
+
+    Returns:
+        Loaded and validated settings
+    """
+    import yaml
+
+    # Create logger for config loading
+    class ConfigLoader(logs.BaseComponent):
+        def __init__(self) -> None:
+            super().__init__("config_loader")
+
+    loader = ConfigLoader()
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+
+        # Create settings (migration happens automatically in model_validator)
+        settings = SettingsModel(**config_data)
+
+        version_info = settings.get_version_info()
+        with loader.log_context(config_path=config_path, **version_info) as log:
+            log.info("Configuration loaded successfully")
+
+        return settings
+
+    except Exception as e:
+        with loader.log_context(
+            config_path=config_path, error=str(e), error_type=type(e).__name__
+        ) as log:
+            log.error("Failed to load configuration")
+        raise

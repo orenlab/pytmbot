@@ -1,4 +1,16 @@
 ################################################################
+# pyTMBot Configuration File
+# Version: 0.3.0-dev
+# Compatible with app version: 0.3.0-dev (exact match required)
+################################################################
+
+# Configuration Schema Version (REQUIRED for 0.3.0+)
+# This field should match your pytmbot version exactly
+# Supported versions: 0.2.2, 0.3.0-dev, 0.3.0
+# For legacy 0.2.2 configs: this field can be omitted
+config_version: '0.3.0-dev'
+
+################################################################
 # General Bot Settings
 ################################################################
 # Bot Token Configuration
@@ -85,18 +97,20 @@ webhook_config:
     - 5001  # Internal port for the bot application
 
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
-  cert:
-    - '/path/to/your/certificate.pem'  # Replace with actual certificate path
+  # Set to null or omit if not using SSL certificates
+  cert: null
+    # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
-  cert_key:
-    - '/path/to/your/private.key'      # Replace with actual private key path
+  # Set to null or omit if not using SSL certificates
+  cert_key: null
+    # - '/path/to/your/private.key'      # Replace with actual private key path
 
 ################################################################
 # Plugins Configuration (OPTIONAL)
 ################################################################
 plugins_config:
-  # System Monitoring Plugin Configuration
+  # System Monitoring Plugin Configuration (OPTIONAL)
   monitor:
     # Resource usage thresholds (all values in percentage or Celsius)
     tracehold:
@@ -147,7 +161,8 @@ plugins_config:
     # Monitor Docker containers and images
     monitor_docker: true  # true = monitor Docker, false = don't monitor
 
-  # Outline VPN Plugin Configuration
+  # Outline VPN Plugin Configuration (OPTIONAL)
+  # Remove this section entirely if not using Outline VPN
   outline:
     # Outline VPN API URL (REQUIRED if using Outline plugin)
     # Get this from your Outline VPN server management interface
@@ -163,6 +178,7 @@ plugins_config:
 # InfluxDB Settings (OPTIONAL)
 ################################################################
 # Only needed if you want to store monitoring data in InfluxDB
+# Remove this section entirely if not using InfluxDB
 influxdb:
   # InfluxDB server URL (REQUIRED if using InfluxDB)
   url:
@@ -185,9 +201,35 @@ influxdb:
   debug_mode: false  # true = enable debug logs, false = normal logging
 
 ################################################################
+# MIGRATION AND VERSIONING GUIDE:
+################################################################
+# Version Schema:
+# - Config version MUST match app version exactly
+# - config_version: '0.2.2' works with pytmbot 0.2.2
+# - config_version: '0.3.0-dev' works with pytmbot 0.3.0-dev
+# - config_version: '0.3.0' works with pytmbot 0.3.0
+#
+# Legacy Support:
+# - Configs without config_version field are treated as 0.2.2 legacy
+# - pytmbot 0.2.2 and above can read legacy configs
+# - App versions below 0.2.2 are End-of-Life (not supported)
+#
+# Migration Notes:
+# - Legacy configs will automatically get config_version field added
+# - Version mismatches will be auto-corrected to current app version
+# - Deprecation warnings shown for legacy configs and 0.2.2
+#
+# Example for different versions:
+# - For pytmbot 0.2.2: config_version: '0.2.2' (or omit for legacy)
+# - For pytmbot 0.3.0-dev: config_version: '0.3.0-dev'
+# - For pytmbot 0.3.0: config_version: '0.3.0'
+#
+################################################################
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
+#    - Set config_version to match your pytmbot version (e.g., '0.3.0-dev')
+#    - For pytmbot 0.2.2: you can omit config_version or set to '0.2.2'
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
 #    - Get your user ID: send message to bot and check logs, or use @userinfobot
 #    - Replace 123456789 with your actual Telegram user ID
@@ -200,16 +242,23 @@ influxdb:
 #    - Configure plugins_config for monitoring and VPN features
 #    - Configure influxdb for data storage and analytics
 #
-# 3. Security features (automatic):
+# 3. Version Management:
+#    - Always match config_version with your pytmbot version
+#    - Check for deprecation warnings in logs
+#    - Upgrade configs when upgrading pytmbot
+#    - Legacy 0.2.2 configs continue to work without config_version
+#
+# 4. Security features (automatic):
 #    - Webhook URLs include random tokens for security
 #    - Rate limiting (10 requests/10 seconds, 5 for 404s)
 #    - IP validation (only Telegram servers allowed)
 #    - Secret token verification for webhook requests
 #    - Automatic IP banning after 50 excessive requests
 #
-# 4. Test your configuration:
+# 5. Test your configuration:
 #    - Start with minimal config (only required fields)
 #    - Add optional features one by one
 #    - Check logs for any configuration errors
 #    - Use docker logs to monitor webhook requests
+#    - Verify version compatibility on startup
 ################################################################
