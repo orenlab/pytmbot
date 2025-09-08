@@ -1,48 +1,91 @@
 services:
   pytmbot:
-    image: orenlab/pytmbot:latest
+    image: orenlab/pytmbot:alpine-dev
     container_name: pytmbot
     restart: on-failure
+
+    # Environment variables
     environment:
-      - TZ=UTC
+      TZ: Asia/Yekaterinburg
+
+    # Volumes
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+
+    # Security settings
     security_opt:
-      - no-new-privileges
+      - no-new-privileges:true
     read_only: true
     cap_drop:
       - ALL
+
+    # Process settings
     pid: host
-    mem_limit: 256m
-    memswap_limit: 256m
-    cpu_shares: 512
+
+    # Resource limits (совместимый синтаксис)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 64M
+
+    # Process limits (отдельно от deploy)
+    pids_limit: 100
+
+    # Process limits
     ulimits:
       nproc: 65535
       nofile:
         soft: 20000
         hard: 40000
+
+    # Networks
     networks:
       - pytmbot_network
+
+    # Temporary filesystems
     tmpfs:
-      - /tmp:noexec,nosuid,nodev,size=100m
-      - /var/tmp:noexec,nosuid,nodev,size=50m
+      - /tmp:noexec,nosuid,nodev,size=100m,uid=1001,gid=1001
+      - /var/tmp:noexec,nosuid,nodev,size=50m,uid=1001,gid=1001
+
+    # Logging configuration
     logging:
+      driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    command: --log-level INFO
+        labels: "service,environment"
 
+    # Health check
+    healthcheck:
+      test: ["CMD", "./entrypoint.sh", "--health_check"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Labels for better management
+    labels:
+      - "service.name=pytmbot"
+      - "service.environment=development"
+      - "service.version=alpine-dev"
+
+    # Command
+    command: ["--log-level", "INFO"]
+
+# Networks configuration
 networks:
   pytmbot_network:
+    name: pytmbot_dev_network
     driver: bridge
-    # If the bot starts without plug-ins, then we disable network interaction:
     driver_opts:
       com.docker.network.bridge.enable_icc: "false"
-    # The case when the bot is running with the Monitor plugin enabled:
-    #driver_opts:
-    #  com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
     ipam:
       driver: default
       config:
         - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
