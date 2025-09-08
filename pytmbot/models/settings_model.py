@@ -17,11 +17,13 @@ from pydantic_settings import BaseSettings
 
 from pytmbot import logs
 
+
 @cache
 def get_app_version() -> str:
     """Get application version with lazy import to avoid circular dependencies."""
     try:
         from pytmbot.globals import __version__ as app_version
+
         return app_version
     except ImportError as e:
         raise RuntimeError(
@@ -29,10 +31,12 @@ def get_app_version() -> str:
             "Application integrity compromised."
         ) from e
 
+
 class ConfigVersionError(Exception):
     """Custom exception for configuration version errors."""
 
     pass
+
 
 class BotTokenModel(BaseModel):
     """
@@ -296,7 +300,9 @@ class ConfigMigrator(logs.BaseComponent):
 
         # If no version, this is legacy 0.2.2 config - add current app version
         if current_version is None:
-            with self.log_context(legacy_config=True, app_version=self.app_version) as log:
+            with self.log_context(
+                legacy_config=True, app_version=self.app_version
+            ) as log:
                 log.info("Adding config_version field to legacy config")
             config_data["config_version"] = self.app_version
             return config_data

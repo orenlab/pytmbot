@@ -185,4 +185,3 @@ class KeyboardError(BaseBotException):
 
 class TOTPError(BaseBotException):
     """Custom exception for TOTP-related errors."""
-
