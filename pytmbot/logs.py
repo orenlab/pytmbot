@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import sys
 from collections import OrderedDict
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
@@ -20,14 +21,12 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Generator,
     TypeVar,
-    Dict,
-    Set,
-    Optional,
-    Union,
     Final,
     TYPE_CHECKING,
+    TypeAlias,
+    Protocol,
+    runtime_checkable,
 )
 
 from loguru import logger
@@ -37,9 +36,12 @@ if TYPE_CHECKING:
     from pytmbot.utils.cli import parse_cli_args
 
 T = TypeVar("T")
+TelegramObject: TypeAlias = Update | Message | CallbackQuery | InlineQuery
 
 
 class LogLevel(StrEnum):
+    """Log levels enumeration."""
+
     TRACE = "TRACE"
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -53,6 +55,8 @@ class LogLevel(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class LogConfig:
+    """Configuration for log formatting."""
+
     FORMAT: ClassVar[str] = (
         "<green>{time:YYYY-MM-DD}</green> "
         "[<cyan>{time:HH:mm:ss}</cyan>]"
@@ -68,60 +72,41 @@ class MaskingConfig:
     """Configuration for data masking."""
 
     visible_chars: int = 4
-    visible_username_chars: int = 2
-    visible_id_chars: int = 2
+    visible_username_chars: int = 3
+    visible_id_chars: int = 3
     cache_size_limit: int = 1000
     pattern_cache_size: int = 256
     min_secret_length: int = 8
     min_mask_length: int = 4
 
 
-class DataMasker:
-    """
-    Optimized utility for data masking with improved performance.
-    """
+@runtime_checkable
+class Maskable(Protocol):
+    """Protocol for objects that can provide maskable data."""
 
-    # Compiled patterns - created once during initialization
-    _COMPILED_PATTERNS: ClassVar[Dict[str, re.Pattern]] = {}
+    @property
+    def id(self) -> int | None: ...
 
-    # Static patterns for exclusions
-    _EXCLUDE_PATTERNS: ClassVar[tuple[re.Pattern, ...]] = ()
+    @property
+    def username(self) -> str | None: ...
 
-    # Patterns for secret detection
-    _SECRET_PATTERNS: ClassVar[tuple[re.Pattern, ...]] = ()
 
-    __slots__ = (
-        "_config",
-        "_known_secrets",
-        "_known_usernames",
-        "_known_user_ids",
-        "_known_chat_ids",
-        "_sanitization_cache",
-        "_lock",
-    )
+class PatternRegistry:
+    """Registry for compiled regex patterns."""
 
-    def __init__(self, config: MaskingConfig | None = None) -> None:
-        self._config = config or MaskingConfig()
+    __slots__ = ("_secret_patterns", "_exclude_patterns", "_initialized")
 
-        # Use frozenset for immutable collections (faster for lookups)
-        self._known_secrets: Set[str] = set()
-        self._known_usernames: Set[str] = set()
-        self._known_user_ids: Set[int] = set()
-        self._known_chat_ids: Set[int] = set()
+    def __init__(self) -> None:
+        self._secret_patterns: tuple[re.Pattern[str], ...] = ()
+        self._exclude_patterns: tuple[re.Pattern[str], ...] = ()
+        self._initialized = False
+        self._initialize()
 
-        # Use OrderedDict for LRU cache (more efficient than dict + separate logic)
-        self._sanitization_cache: OrderedDict[str, str] = OrderedDict()
+    def _initialize(self) -> None:
+        """Initialize and compile all patterns."""
+        if self._initialized:
+            return
 
-        # Lock for thread-safety
-        self._lock = RLock()
-
-        # Initialize patterns if not already created
-        if not self._COMPILED_PATTERNS:
-            self._compile_patterns()
-
-    @classmethod
-    def _compile_patterns(cls) -> None:
-        """Compile all regex patterns once during class initialization."""
         secret_patterns = [
             # Telegram bot tokens (more precise pattern)
             r"\b\d{8,12}:[A-Za-z0-9_-]{35}\b",
@@ -145,64 +130,109 @@ class DataMasker:
             r"^[0-9]{1,8}$",  # Short numbers (ports, etc.)
         ]
 
-        # Compile all patterns
-        cls._SECRET_PATTERNS = tuple(
+        self._secret_patterns = tuple(
             re.compile(pattern, re.IGNORECASE) for pattern in secret_patterns
         )
-        cls._EXCLUDE_PATTERNS = tuple(
+        self._exclude_patterns = tuple(
             re.compile(pattern) for pattern in exclude_patterns
         )
+        self._initialized = True
+
+    @property
+    def secret_patterns(self) -> tuple[re.Pattern[str], ...]:
+        """Get secret detection patterns."""
+        return self._secret_patterns
+
+    @property
+    def exclude_patterns(self) -> tuple[re.Pattern[str], ...]:
+        """Get exclusion patterns."""
+        return self._exclude_patterns
+
+
+class DataMasker:
+    """Optimized utility for data masking with improved performance."""
+
+    __slots__ = (
+        "_config",
+        "_known_secrets",
+        "_known_usernames",
+        "_known_user_ids",
+        "_known_chat_ids",
+        "_sanitization_cache",
+        "_lock",
+        "_pattern_registry",
+    )
+
+    def __init__(self, config: MaskingConfig | None = None) -> None:
+        self._config = config or MaskingConfig()
+        self._pattern_registry = PatternRegistry()
+
+        # Use sets for faster lookups
+        self._known_secrets: set[str] = set()
+        self._known_usernames: set[str] = set()
+        self._known_user_ids: set[int] = set()
+        self._known_chat_ids: set[int] = set()
+
+        # LRU cache implementation
+        self._sanitization_cache: OrderedDict[str, str] = OrderedDict()
+
+        # Thread safety
+        self._lock = RLock()
 
     def add_secret(self, secret: str) -> None:
-        """Adds a known secret to the masking list."""
+        """Add a known secret to the masking list."""
         if not secret or len(secret.strip()) < self._config.min_secret_length:
             return
 
         with self._lock:
             self._known_secrets.add(secret.strip())
-            self._sanitization_cache.clear()
+            self._invalidate_cache()
 
     def add_username(self, username: str) -> None:
-        """Adds a known username to the masking list."""
-        if not username or len(username.strip()) == 0:
+        """Add a known username to the masking list."""
+        if not username or not (clean_username := username.strip()):
             return
 
         with self._lock:
-            self._known_usernames.add(username.strip())
-            self._sanitization_cache.clear()
+            self._known_usernames.add(clean_username)
+            self._invalidate_cache()
 
-    def add_user_id(self, user_id: int) -> None:
-        """Adds a known user ID to the masking list."""
+    def add_user_id(self, user_id: int | None) -> None:
+        """Add a known user ID to the masking list."""
         if user_id is None:
             return
 
         with self._lock:
             self._known_user_ids.add(user_id)
-            self._sanitization_cache.clear()
+            self._invalidate_cache()
 
-    def add_chat_id(self, chat_id: int) -> None:
-        """Adds a known chat ID to the masking list."""
+    def add_chat_id(self, chat_id: int | None) -> None:
+        """Add a known chat ID to the masking list."""
         if chat_id is None:
             return
 
         with self._lock:
             self._known_chat_ids.add(chat_id)
-            self._sanitization_cache.clear()
+            self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Clear the sanitization cache."""
+        self._sanitization_cache.clear()
 
     @lru_cache(maxsize=256)
     def mask_token(self, token: str) -> str:
-        """Masks a token while preserving readability."""
+        """Mask a token while preserving readability."""
         if not token:
             return token
 
-        visible_chars = self._config.visible_chars
         token_len = len(token)
+        visible_chars = self._config.visible_chars
 
-        # For very short tokens - complete masking
+        # Complete masking for very short tokens
         if token_len < self._config.min_mask_length:
             return "*" * token_len
 
-        # For tokens where visible characters would show too much
+        # Complete masking if visible chars would show too much
         if token_len <= visible_chars * 2:
             return "*" * token_len
 
@@ -211,20 +241,16 @@ class DataMasker:
 
     @lru_cache(maxsize=256)
     def mask_username(self, username: str) -> str:
-        """Masks a username leaving some characters visible."""
-        if not username or not username.strip():
+        """Mask a username leaving some characters visible."""
+        if not username or not (clean_username := username.strip()):
             return "[MASKED_USER]"
 
-        username = username.strip()
-
         # Remove @ symbol if present
-        if username.startswith("@"):
-            username = username[1:]
-
-        visible = self._config.visible_username_chars
+        username = clean_username.removeprefix("@")
         username_len = len(username)
+        visible = self._config.visible_username_chars
 
-        # For very short names - complete masking
+        # Complete masking for very short names
         if username_len <= 4 or username_len <= visible * 2:
             return "[MASKED_USER]"
 
@@ -238,65 +264,53 @@ class DataMasker:
         return f"{username[:safe_visible]}{'*' * mask_len}{username[-safe_visible:]}"
 
     @lru_cache(maxsize=256)
-    def mask_user_id(self, user_id: int) -> str:
-        """Masks a user ID preserving some digits."""
+    def mask_user_id(self, user_id: int | None) -> str:
+        """Mask a user ID preserving some digits."""
         if user_id is None:
             return "[MASKED_ID]"
 
         user_id_str = str(abs(user_id))
-        visible = self._config.visible_id_chars
-        id_len = len(user_id_str)
-
-        # For very short IDs - complete masking
-        if id_len <= 6 or id_len <= visible * 2:
-            return "[MASKED_ID]"
-
-        # Ensure at least 4 characters are masked
-        safe_visible = min(visible, (id_len - 4) // 2)
-
-        if safe_visible <= 0:
-            return "[MASKED_ID]"
-
-        mask_len = id_len - safe_visible * 2
-        return (
-            f"{user_id_str[:safe_visible]}{'*' * mask_len}{user_id_str[-safe_visible:]}"
-        )
+        return self._mask_numeric_id(user_id_str, "[MASKED_ID]")
 
     @lru_cache(maxsize=256)
-    def mask_chat_id(self, chat_id: int) -> str:
-        """Masks a chat ID preserving some digits."""
+    def mask_chat_id(self, chat_id: int | None) -> str:
+        """Mask a chat ID preserving some digits."""
         if chat_id is None:
             return "[MASKED_CHAT]"
 
-        # Handle negative chat IDs
         is_negative = chat_id < 0
         chat_id_str = str(abs(chat_id))
-        visible = self._config.visible_id_chars
-        id_len = len(chat_id_str)
+        masked = self._mask_numeric_id(chat_id_str, "[MASKED_CHAT]")
 
-        # For very short IDs - complete masking
+        return f"-{masked}" if is_negative and masked != "[MASKED_CHAT]" else masked
+
+    def _mask_numeric_id(self, id_str: str, fallback: str) -> str:
+        """Helper method to mask numeric IDs."""
+        visible = self._config.visible_id_chars
+        id_len = len(id_str)
+
+        # Complete masking for very short IDs
         if id_len <= 6 or id_len <= visible * 2:
-            return "[MASKED_CHAT]"
+            return fallback
 
         # Ensure at least 4 characters are masked
         safe_visible = min(visible, (id_len - 4) // 2)
 
         if safe_visible <= 0:
-            return "[MASKED_CHAT]"
+            return fallback
 
         mask_len = id_len - safe_visible * 2
-        masked = (
-            f"{chat_id_str[:safe_visible]}{'*' * mask_len}{chat_id_str[-safe_visible:]}"
-        )
-
-        return f"-{masked}" if is_negative else masked
+        return f"{id_str[:safe_visible]}{'*' * mask_len}{id_str[-safe_visible:]}"
 
     def _should_exclude_from_masking(self, text: str) -> bool:
-        """Checks if text should be excluded from masking based on patterns."""
-        return any(pattern.match(text) for pattern in self._EXCLUDE_PATTERNS)
+        """Check if text should be excluded from masking based on patterns."""
+        return any(
+            pattern.match(text)
+            for pattern in self._pattern_registry.exclude_patterns
+        )
 
     def _manage_cache_size(self) -> None:
-        """Manages cache size by removing old entries."""
+        """Manage cache size by removing old entries."""
         if len(self._sanitization_cache) >= self._config.cache_size_limit:
             # Remove 20% of the oldest entries
             items_to_remove = self._config.cache_size_limit // 5
@@ -321,77 +335,8 @@ class DataMasker:
                 self._sanitization_cache[text] = text
             return text
 
-        sanitized = text
-
-        # Mask known secrets (sort by length to avoid partial replacements)
-        if self._known_secrets:
-            for secret in sorted(self._known_secrets, key=len, reverse=True):
-                if secret in sanitized:
-                    sanitized = sanitized.replace(secret, self.mask_token(secret))
-
-        # Mask known usernames
-        if self._known_usernames:
-            for username in sorted(self._known_usernames, key=len, reverse=True):
-                patterns = [username, f"@{username}"]
-                for pattern in patterns:
-                    if pattern in sanitized:
-                        sanitized = sanitized.replace(
-                            pattern, self.mask_username(username)
-                        )
-
-        # Mask known user IDs
-        if self._known_user_ids:
-            for user_id in self._known_user_ids:
-                user_id_str = str(user_id)
-                if user_id_str in sanitized:
-                    sanitized = sanitized.replace(
-                        user_id_str, self.mask_user_id(user_id)
-                    )
-
-        # Mask known chat IDs
-        if self._known_chat_ids:
-            for chat_id in self._known_chat_ids:
-                chat_id_str = str(chat_id)
-                if chat_id_str in sanitized:
-                    sanitized = sanitized.replace(
-                        chat_id_str, self.mask_chat_id(chat_id)
-                    )
-
-        # Apply pattern-based masking for unknown secrets
-        if not self._should_exclude_from_masking(sanitized):
-            for pattern in self._SECRET_PATTERNS:
-
-                def replacement(match) -> str:
-                    matched_text = match.group(0)
-                    # Double-check exclusion for each match
-                    if self._should_exclude_from_masking(matched_text):
-                        return matched_text
-
-                    # Check if this is a user ID, chat ID, or username pattern
-                    groups = match.groups()
-                    pattern_str = pattern.pattern.lower()
-
-                    if "user" in pattern_str and groups and groups[0]:
-                        if groups[0].isdigit():
-                            return match.group(0).replace(
-                                groups[0], self.mask_user_id(int(groups[0]))
-                            )
-                        else:
-                            return match.group(0).replace(
-                                groups[0], self.mask_username(groups[0])
-                            )
-                    elif "chat" in pattern_str and groups and groups[0]:
-                        return match.group(0).replace(
-                            groups[0], self.mask_chat_id(int(groups[0]))
-                        )
-                    elif matched_text.isdigit() and len(matched_text) >= 9:
-                        # Long numeric ID - probably a user ID
-                        return self.mask_user_id(int(matched_text))
-
-                    # Standard masking
-                    return "*" * len(matched_text)
-
-                sanitized = pattern.sub(replacement, sanitized)
+        sanitized = self._apply_known_masks(text)
+        sanitized = self._apply_pattern_masks(sanitized)
 
         # Cache the result
         with self._lock:
@@ -400,37 +345,117 @@ class DataMasker:
 
         return sanitized
 
-    def extract_and_mask_from_telegram_object(
-        self, obj: Union[Update, Message, CallbackQuery, InlineQuery]
-    ) -> None:
-        """Extracts sensitive data from Telegram objects and adds to masking lists."""
-        if isinstance(obj, Update):
-            obj = obj.message or obj.callback_query or obj.inline_query
+    def _apply_known_masks(self, text: str) -> str:
+        """Apply masking for known sensitive data."""
+        result = text
 
-        if not obj:
+        # Mask known secrets (sort by length to avoid partial replacements)
+        for secret in sorted(self._known_secrets, key=len, reverse=True):
+            if secret in result:
+                result = result.replace(secret, self.mask_token(secret))
+
+        # Mask known usernames
+        for username in sorted(self._known_usernames, key=len, reverse=True):
+            for pattern in [username, f"@{username}"]:
+                if pattern in result:
+                    result = result.replace(pattern, self.mask_username(username))
+
+        # Mask known user IDs
+        for user_id in self._known_user_ids:
+            user_id_str = str(user_id)
+            if user_id_str in result:
+                result = result.replace(user_id_str, self.mask_user_id(user_id))
+
+        # Mask known chat IDs
+        for chat_id in self._known_chat_ids:
+            chat_id_str = str(chat_id)
+            if chat_id_str in result:
+                result = result.replace(chat_id_str, self.mask_chat_id(chat_id))
+
+        return result
+
+    def _apply_pattern_masks(self, text: str) -> str:
+        """Apply pattern-based masking for unknown secrets."""
+        if self._should_exclude_from_masking(text):
+            return text
+
+        result = text
+        for pattern in self._pattern_registry.secret_patterns:
+            result = pattern.sub(self._create_replacement_function(pattern), result)
+
+        return result
+
+    def _create_replacement_function(
+            self, pattern: re.Pattern[str]
+    ) -> Callable[[re.Match[str]], str]:
+        """Create a replacement function for regex substitution."""
+
+        def replacement(match: re.Match[str]) -> str:
+            matched_text = match.group(0)
+
+            # Double-check exclusion for each match
+            if self._should_exclude_from_masking(matched_text):
+                return matched_text
+
+            groups = match.groups()
+            pattern_str = pattern.pattern.lower()
+
+            # Handle specific pattern types
+            if "user" in pattern_str and groups and groups[0]:
+                if groups[0].isdigit():
+                    return match.group(0).replace(
+                        groups[0], self.mask_user_id(int(groups[0]))
+                    )
+                return match.group(0).replace(
+                    groups[0], self.mask_username(groups[0])
+                )
+
+            if "chat" in pattern_str and groups and groups[0]:
+                return match.group(0).replace(
+                    groups[0], self.mask_chat_id(int(groups[0]))
+                )
+
+            if matched_text.isdigit() and len(matched_text) >= 9:
+                # Long numeric ID - probably a user ID
+                return self.mask_user_id(int(matched_text))
+
+            # Standard masking
+            return "*" * len(matched_text)
+
+        return replacement
+
+    def extract_and_mask_from_telegram_object(
+            self, obj: TelegramObject | None
+    ) -> None:
+        """Extract sensitive data from Telegram objects and add to masking lists."""
+        if obj is None:
             return
 
+        # Handle Update objects
+        if isinstance(obj, Update):
+            obj = obj.message or obj.callback_query or obj.inline_query
+            if obj is None:
+                return
+
         # Extract user information
-        if hasattr(obj, "from_user") and obj.from_user:
-            user = obj.from_user
+        if hasattr(obj, "from_user") and (user := obj.from_user):
             if user.id:
                 self.add_user_id(user.id)
             if user.username:
                 self.add_username(user.username)
-            if hasattr(user, "first_name") and user.first_name:
-                self.add_username(user.first_name)
-            if hasattr(user, "last_name") and user.last_name:
-                self.add_username(user.last_name)
+            if first_name := getattr(user, "first_name", None):
+                self.add_username(first_name)
+            if last_name := getattr(user, "last_name", None):
+                self.add_username(last_name)
 
         # Extract chat information
-        if hasattr(obj, "chat") and obj.chat:
-            chat = obj.chat
+        if hasattr(obj, "chat") and (chat := obj.chat):
             if chat.id:
                 self.add_chat_id(chat.id)
-            if hasattr(chat, "username") and chat.username:
-                self.add_username(chat.username)
-            if hasattr(chat, "title") and chat.title:
-                self.add_username(chat.title)
+            if username := getattr(chat, "username", None):
+                self.add_username(username)
+            if title := getattr(chat, "title", None):
+                self.add_username(title)
 
 
 class SecureLoggerFilter:
@@ -441,31 +466,34 @@ class SecureLoggerFilter:
     def __init__(self, masker: DataMasker) -> None:
         self.masker = masker
 
-    def __call__(self, record: dict) -> bool:
-        """Filters and sanitizes log records."""
-        # Always sanitize the message
-        message = record.get("message", "")
-        if message:
+    def __call__(self, record: dict[str, Any]) -> bool:
+        """Filter and sanitize log records."""
+        # Sanitize the message
+        if message := record.get("message"):
             record["message"] = self.masker.sanitize_text(message)
 
         # Sanitize extra fields
-        extra = record.get("extra")
-        if extra:
-            sanitized_extra = {}
-            for key, value in extra.items():
-                if isinstance(value, str):
-                    sanitized_extra[key] = self.masker.sanitize_text(value)
-                elif isinstance(value, (int, float)) and key in ("user_id", "chat_id"):
-                    # Mask numeric user/chat IDs in extra fields
-                    if key == "user_id":
-                        sanitized_extra[key] = self.masker.mask_user_id(value)
-                    elif key == "chat_id":
-                        sanitized_extra[key] = self.masker.mask_chat_id(value)
-                else:
-                    sanitized_extra[key] = value
-            record["extra"] = sanitized_extra
+        if extra := record.get("extra"):
+            record["extra"] = self._sanitize_extra(extra)
 
         return True
+
+    def _sanitize_extra(self, extra: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize extra fields in log records."""
+        sanitized_extra = {}
+
+        for key, value in extra.items():
+            match value:
+                case str():
+                    sanitized_extra[key] = self.masker.sanitize_text(value)
+                case int() | float() if key == "user_id":
+                    sanitized_extra[key] = self.masker.mask_user_id(int(value))
+                case int() | float() if key == "chat_id":
+                    sanitized_extra[key] = self.masker.mask_chat_id(int(value))
+                case _:
+                    sanitized_extra[key] = value
+
+        return sanitized_extra
 
 
 class Logger:
@@ -476,7 +504,7 @@ class Logger:
 
     __slots__ = ("_logger", "_masker", "_filter", "_initialized")
 
-    _instance: Optional[Logger] = None
+    _instance: Logger | None = None
     _lock: Final[RLock] = RLock()
 
     def __new__(cls) -> Logger:
@@ -491,22 +519,26 @@ class Logger:
         if not self._initialized:
             with self._lock:
                 if not self._initialized:
-                    self._masker = DataMasker()
-                    self._filter = SecureLoggerFilter(self._masker)
-                    self._logger = logger
-
-                    # Lazy initialization of configuration
-                    try:
-                        from pytmbot.utils.cli import parse_cli_args
-
-                        self._configure_logger(parse_cli_args().log_level.upper())
-                    except ImportError:
-                        self._configure_logger("INFO")
-
+                    self._setup_logger()
                     self._initialized = True
 
+    def _setup_logger(self) -> None:
+        """Set up the logger with masking and configuration."""
+        self._masker = DataMasker()
+        self._filter = SecureLoggerFilter(self._masker)
+        self._logger = logger
+
+        # Lazy initialization of configuration
+        try:
+            from pytmbot.utils.cli import parse_cli_args
+            log_level = parse_cli_args().log_level.upper()
+        except ImportError:
+            log_level = "INFO"
+
+        self._configure_logger(log_level)
+
     def _configure_logger(self, log_level: str) -> None:
-        """Configures the logger with optimized settings."""
+        """Configure the logger with optimized settings."""
         self._logger.remove()
 
         # Main logger with security filter
@@ -531,29 +563,29 @@ class Logger:
             diagnose=False,
             catch=True,
             filter=lambda record: (
-                "sensitive_exception" in record.get("extra", {})
-                and self._filter(record)
+                    "sensitive_exception" in record.get("extra", {})
+                    and self._filter(record)
             ),
         )
 
     def add_secret_to_mask(self, secret: str) -> None:
-        """Adds a secret that should be masked in all logs."""
+        """Add a secret that should be masked in all logs."""
         self._masker.add_secret(secret)
 
     def add_username_to_mask(self, username: str) -> None:
-        """Adds a username that should be masked in all logs."""
+        """Add a username that should be masked in all logs."""
         self._masker.add_username(username)
 
     def add_user_id_to_mask(self, user_id: int) -> None:
-        """Adds a user ID that should be masked in all logs."""
+        """Add a user ID that should be masked in all logs."""
         self._masker.add_user_id(user_id)
 
     def add_chat_id_to_mask(self, chat_id: int) -> None:
-        """Adds a chat ID that should be masked in all logs."""
+        """Add a chat ID that should be masked in all logs."""
         self._masker.add_chat_id(chat_id)
 
-    def configure_masking_from_settings(self, settings) -> None:
-        """Configures masking based on application settings."""
+    def configure_masking_from_settings(self, settings: Any) -> None:
+        """Configure masking based on application settings."""
         try:
             # Add bot tokens to masking
             secrets_to_mask = [
@@ -565,8 +597,7 @@ class Logger:
 
             for secret in secrets_to_mask:
                 if secret and hasattr(secret, "get_secret_value"):
-                    secret_value = secret.get_secret_value()
-                    if secret_value:
+                    if secret_value := secret.get_secret_value():
                         self.add_secret_to_mask(secret_value)
         except (AttributeError, IndexError, TypeError):
             # If settings structure is different, continue silently
@@ -574,14 +605,14 @@ class Logger:
 
     @lru_cache(maxsize=512)
     def _extract_update_data(
-        self,
-        update_id: Optional[int],
-        update_type: str,
-        chat_id: Optional[int],
-        user_id: Optional[int],
-        username: Optional[str],
+            self,
+            update_id: int | None,
+            update_type: str,
+            chat_id: int | None,
+            user_id: int | None,
+            username: str | None,
     ) -> dict[str, Any]:
-        """Extracts relevant data from Telegram update objects (cached version)."""
+        """Extract relevant data from Telegram update objects (cached version)."""
         return {
             "update_type": update_type,
             "update_id": update_id,
@@ -590,13 +621,10 @@ class Logger:
             "username": username,
         }
 
-    def _get_update_data(
-        self,
-        update: Update | Message | CallbackQuery | InlineQuery,
-    ) -> dict[str, Any]:
-        """Extracts relevant data from Telegram update objects."""
+    def _get_update_data(self, update: TelegramObject) -> dict[str, Any]:
+        """Extract relevant data from Telegram update objects."""
         update_id = None
-        obj = update
+        obj: Any = update
 
         if isinstance(update, Update):
             update_id = update.update_id
@@ -606,7 +634,9 @@ class Logger:
 
         chat_id = getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None
         user_id = (
-            getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None
+            getattr(obj.from_user, "id", None)
+            if hasattr(obj, "from_user")
+            else None
         )
         username = (
             getattr(obj.from_user, "username", None)
@@ -628,65 +658,82 @@ class Logger:
         finally:
             self._logger = logger.bind(**previous) if previous else logger.bind()
 
-    def session_decorator(self, func: Callable[..., T] = None) -> Callable[..., T]:
+    def session_decorator(
+            self, func: Callable[..., T] | None = None
+    ) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator for automatic session logging with context."""
 
         def decorator(f: Callable[..., T]) -> Callable[..., T]:
             @wraps(f)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
-                telegram_object = next(
-                    (
-                        arg
-                        for arg in args
-                        if isinstance(
-                            arg, (Message, Update, CallbackQuery, InlineQuery)
-                        )
-                    ),
-                    None,
-                )
-
-                context = {
-                    "component": f.__name__,
-                    "action": f.__name__,
-                }
-
-                if telegram_object:
-                    # Extract sensitive data for masking BEFORE getting update data
-                    self._masker.extract_and_mask_from_telegram_object(telegram_object)
-
-                    # Get update data (will be masked in the filter)
-                    update_data = self._get_update_data(telegram_object)
-                    context.update(update_data)
-                else:
-                    self._logger.warning(
-                        f"No Telegram object found in handler {f.__name__}"
-                    )
+            def wrapper(*args: Any, **kwargs: Any) -> T:
+                telegram_object = self._find_telegram_object(args)
+                context = self._build_context(f.__name__, telegram_object)
 
                 with self.context(**context) as log:
-                    log.info(f"Handler {f.__name__} started")
-                    start_time = monotonic_ns()
-                    try:
-                        result = f(*args, **kwargs)
-                        elapsed_time = (monotonic_ns() - start_time) / 1_000_000
-                        log.success(
-                            f"Handler {f.__name__} completed",
-                            execution_time=f"{elapsed_time:.2f}ms",
-                        )
-                        return result
-                    except Exception as e:
-                        elapsed_time = (monotonic_ns() - start_time) / 1_000_000
-                        # Exception message will be automatically sanitized by the filter
-                        log.exception(
-                            f"Handler {f.__name__} failed after {elapsed_time:.2f}ms: {e}",
-                            execution_time=f"{elapsed_time:.2f}ms",
-                        )
-                        raise
+                    return self._execute_with_logging(f, args, kwargs, log)
 
             return wrapper
 
         return decorator(func) if func else decorator
 
-    def sanitize_and_log(self, level: str, message: str, **kwargs) -> None:
+    def _find_telegram_object(self, args: tuple[Any, ...]) -> TelegramObject | None:
+        """Find a Telegram object in function arguments."""
+        return next(
+            (
+                arg for arg in args
+                if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))
+            ),
+            None,
+        )
+
+    def _build_context(
+            self, func_name: str, telegram_object: TelegramObject | None
+    ) -> dict[str, Any]:
+        """Build context dictionary for logging."""
+        context = {
+            "component": func_name,
+            "action": func_name,
+        }
+
+        if telegram_object:
+            # Extract sensitive data for masking BEFORE getting update data
+            self._masker.extract_and_mask_from_telegram_object(telegram_object)
+            # Get update data (will be masked in the filter)
+            context.update(self._get_update_data(telegram_object))
+        else:
+            self._logger.warning(f"No Telegram object found in handler {func_name}")
+
+        return context
+
+    def _execute_with_logging(
+            self,
+            func: Callable[..., T],
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+            log: Logger,
+    ) -> T:
+        """Execute function with timing and error logging."""
+        func_name = func.__name__
+        log.info(f"Handler {func_name} started")
+        start_time = monotonic_ns()
+
+        try:
+            result = func(*args, **kwargs)
+            elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
+            log.success(
+                f"Handler {func_name} completed",
+                execution_time=f"{elapsed_ms:.2f}ms",
+            )
+            return result
+        except Exception as e:
+            elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
+            log.exception(
+                f"Handler {func_name} failed after {elapsed_ms:.2f}ms: {e}",
+                execution_time=f"{elapsed_ms:.2f}ms",
+            )
+            raise
+
+    def sanitize_and_log(self, level: str, message: str, **kwargs: Any) -> None:
         """Manual sanitization and logging of a message."""
         sanitized_message = self._masker.sanitize_text(message)
         sanitized_kwargs = {
@@ -696,7 +743,7 @@ class Logger:
         getattr(self._logger, level.lower())(sanitized_message, **sanitized_kwargs)
 
     def __getattr__(self, name: str) -> Any:
-        """Proxies attributes to the internal logger."""
+        """Proxy attributes to the internal logger."""
         return getattr(self._logger, name)
 
 
@@ -706,9 +753,7 @@ class BaseComponent:
     __slots__ = ("_log", "component_name")
 
     def __init__(self, component_name: str = "") -> None:
-        self.component_name = (
-            component_name if component_name else self.__class__.__name__
-        )
+        self.component_name = component_name or self.__class__.__name__
         self._log = Logger()
 
     @contextmanager
@@ -718,4 +763,10 @@ class BaseComponent:
             yield log
 
 
-__all__ = ["Logger", "LogLevel", "BaseComponent", "DataMasker", "MaskingConfig"]
+__all__ = [
+    "Logger",
+    "LogLevel",
+    "BaseComponent",
+    "DataMasker",
+    "MaskingConfig",
+]
