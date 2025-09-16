@@ -37,7 +37,7 @@ fastapi = "==0.116.1"
 uvicorn = "==0.35.0"
 influxdb-client = "==1.49.0"
 pypng = "^0.20220715.0"
-qrcode = "==8.2"
+qrcode = {extras = ["pil"], version = "^8.2"}
 aiohttp = "==3.12.15"
 packaging = "==25.0"
 pyoutlineapi = "==0.1.3"
