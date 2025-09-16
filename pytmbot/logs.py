@@ -305,8 +305,7 @@ class DataMasker:
     def _should_exclude_from_masking(self, text: str) -> bool:
         """Check if text should be excluded from masking based on patterns."""
         return any(
-            pattern.match(text)
-            for pattern in self._pattern_registry.exclude_patterns
+            pattern.match(text) for pattern in self._pattern_registry.exclude_patterns
         )
 
     def _manage_cache_size(self) -> None:
@@ -386,7 +385,7 @@ class DataMasker:
         return result
 
     def _create_replacement_function(
-            self, pattern: re.Pattern[str]
+        self, pattern: re.Pattern[str]
     ) -> Callable[[re.Match[str]], str]:
         """Create a replacement function for regex substitution."""
 
@@ -406,9 +405,7 @@ class DataMasker:
                     return match.group(0).replace(
                         groups[0], self.mask_user_id(int(groups[0]))
                     )
-                return match.group(0).replace(
-                    groups[0], self.mask_username(groups[0])
-                )
+                return match.group(0).replace(groups[0], self.mask_username(groups[0]))
 
             if "chat" in pattern_str and groups and groups[0]:
                 return match.group(0).replace(
@@ -424,9 +421,7 @@ class DataMasker:
 
         return replacement
 
-    def extract_and_mask_from_telegram_object(
-            self, obj: TelegramObject | None
-    ) -> None:
+    def extract_and_mask_from_telegram_object(self, obj: TelegramObject | None) -> None:
         """Extract sensitive data from Telegram objects and add to masking lists."""
         if obj is None:
             return
@@ -531,6 +526,7 @@ class Logger:
         # Lazy initialization of configuration
         try:
             from pytmbot.utils.cli import parse_cli_args
+
             log_level = parse_cli_args().log_level.upper()
         except ImportError:
             log_level = "INFO"
@@ -563,8 +559,8 @@ class Logger:
             diagnose=False,
             catch=True,
             filter=lambda record: (
-                    "sensitive_exception" in record.get("extra", {})
-                    and self._filter(record)
+                "sensitive_exception" in record.get("extra", {})
+                and self._filter(record)
             ),
         )
 
@@ -605,12 +601,12 @@ class Logger:
 
     @lru_cache(maxsize=512)
     def _extract_update_data(
-            self,
-            update_id: int | None,
-            update_type: str,
-            chat_id: int | None,
-            user_id: int | None,
-            username: str | None,
+        self,
+        update_id: int | None,
+        update_type: str,
+        chat_id: int | None,
+        user_id: int | None,
+        username: str | None,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects (cached version)."""
         return {
@@ -634,9 +630,7 @@ class Logger:
 
         chat_id = getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None
         user_id = (
-            getattr(obj.from_user, "id", None)
-            if hasattr(obj, "from_user")
-            else None
+            getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None
         )
         username = (
             getattr(obj.from_user, "username", None)
@@ -659,7 +653,7 @@ class Logger:
             self._logger = logger.bind(**previous) if previous else logger.bind()
 
     def session_decorator(
-            self, func: Callable[..., T] | None = None
+        self, func: Callable[..., T] | None = None
     ) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator for automatic session logging with context."""
 
@@ -680,14 +674,15 @@ class Logger:
         """Find a Telegram object in function arguments."""
         return next(
             (
-                arg for arg in args
+                arg
+                for arg in args
                 if isinstance(arg, (Message, Update, CallbackQuery, InlineQuery))
             ),
             None,
         )
 
     def _build_context(
-            self, func_name: str, telegram_object: TelegramObject | None
+        self, func_name: str, telegram_object: TelegramObject | None
     ) -> dict[str, Any]:
         """Build context dictionary for logging."""
         context = {
@@ -706,11 +701,11 @@ class Logger:
         return context
 
     def _execute_with_logging(
-            self,
-            func: Callable[..., T],
-            args: tuple[Any, ...],
-            kwargs: dict[str, Any],
-            log: Logger,
+        self,
+        func: Callable[..., T],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        log: Logger,
     ) -> T:
         """Execute function with timing and error logging."""
         func_name = func.__name__
