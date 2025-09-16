@@ -42,6 +42,7 @@ OPERATION_TIMEOUT: Final[float] = 30.0
 
 class ContainerState(str, Enum):
     """Enhanced container state enumeration with validation."""
+
     RUNNING = "running"
     EXITED = "exited"
     STOPPED = "stopped"
@@ -63,8 +64,7 @@ class ContainerState(str, Enum):
         except ValueError:
             valid_states = [state.value for state in cls]
             raise ValueError(
-                f"Invalid container state: '{value}'. "
-                f"Valid states: {valid_states}"
+                f"Invalid container state: '{value}'. Valid states: {valid_states}"
             ) from None
 
     @property
@@ -86,6 +86,7 @@ class ContainerState(str, Enum):
 @dataclass(frozen=True, slots=True)
 class StateCheckConfig:
     """Configuration for container state checking with validation."""
+
     max_attempts: int = MAX_STATE_CHECK_ATTEMPTS
     interval: float = DEFAULT_STATE_CHECK_INTERVAL
 
@@ -101,15 +102,18 @@ class StateCheckConfig:
         if not (MIN_STATE_CHECK_INTERVAL <= self.interval <= MAX_STATE_CHECK_INTERVAL):
             object.__setattr__(
                 self,
-                'interval',
-                max(MIN_STATE_CHECK_INTERVAL, min(self.interval, MAX_STATE_CHECK_INTERVAL))
+                "interval",
+                max(
+                    MIN_STATE_CHECK_INTERVAL,
+                    min(self.interval, MAX_STATE_CHECK_INTERVAL),
+                ),
             )
 
 
 def check_container_state(
-        container_name: ContainerName,
-        target_state: str = ContainerState.RUNNING,
-        config: StateCheckConfig = StateCheckConfig(),
+    container_name: ContainerName,
+    target_state: str = ContainerState.RUNNING,
+    config: StateCheckConfig = StateCheckConfig(),
 ) -> Optional[ContainerState]:
     """
     Checks if container reaches target state within configured attempts with enhanced monitoring.
@@ -149,7 +153,7 @@ def check_container_state(
                 "target": target.value,
                 "attempt": attempt,
                 "max_attempts": config.max_attempts,
-                "operation_time": f"{time.time() - operation_start:.2f}s"
+                "operation_time": f"{time.time() - operation_start:.2f}s",
             }
 
             logger.debug(
@@ -166,17 +170,19 @@ def check_container_state(
                 current_state = ContainerState.from_str(current_state_str)
                 attempt_time = time.time() - attempt_start
 
-                log_context.update({
-                    "state": current_state.value,
-                    "attempt_time": f"{attempt_time:.3f}s"
-                })
+                log_context.update(
+                    {
+                        "state": current_state.value,
+                        "attempt_time": f"{attempt_time:.3f}s",
+                    }
+                )
 
                 if current_state == target:
                     total_time = time.time() - operation_start
                     logger.info(
                         "Target state reached",
                         total_time=f"{total_time:.2f}s",
-                        **log_context
+                        **log_context,
                     )
                     return current_state
 
@@ -184,12 +190,12 @@ def check_container_state(
                 if current_state.is_transitional and target.is_active:
                     logger.debug(
                         f"Container in transitional state {current_state.value}, continuing to wait",
-                        **log_context
+                        **log_context,
                     )
                 elif current_state.is_stopped and target.is_active:
                     logger.warning(
                         f"Container stopped unexpectedly while waiting for {target.value}",
-                        **log_context
+                        **log_context,
                     )
 
                 if attempt < config.max_attempts:
@@ -285,7 +291,7 @@ def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
                     context["params"] = safe_kwargs
 
             # Log operation start for slow operations
-            if getattr(settings.docker, 'debug_docker_client', False):
+            if getattr(settings.docker, "debug_docker_client", False):
                 logger.debug(f"Starting Docker operation: {operation_name}", **context)
 
             try:
@@ -293,11 +299,13 @@ def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
                 execution_time = time.time() - start_time
 
                 # Update context with success metrics
-                context.update({
-                    "execution_time": f"{execution_time:.3f}s",
-                    "success": True,
-                    "result_type": type(result).__name__,
-                })
+                context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": True,
+                        "result_type": type(result).__name__,
+                    }
+                )
 
                 # Add result size context for collections
                 if isinstance(result, (list, dict)):
@@ -318,7 +326,7 @@ def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
                         f"Docker operation completed: {operation_name}",
                         **context,
                     )
-                elif getattr(settings.docker, 'debug_docker_client', False):
+                elif getattr(settings.docker, "debug_docker_client", False):
                     # Debug mode: log all operations
                     logger.debug(
                         f"Docker operation completed: {operation_name}", **context
@@ -328,12 +336,14 @@ def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                context.update({
-                    "execution_time": f"{execution_time:.3f}s",
-                    "success": False,
-                    "error": sanitize_exception(e),
-                    "error_type": type(e).__name__,
-                })
+                context.update(
+                    {
+                        "execution_time": f"{execution_time:.3f}s",
+                        "success": False,
+                        "error": sanitize_exception(e),
+                        "error_type": type(e).__name__,
+                    }
+                )
 
                 logger.error(f"Docker operation failed: {operation_name}", **context)
                 raise
@@ -392,7 +402,8 @@ def get_container_state(container_id: str) -> Optional[str]:
             if len(_state_cache) > 100:
                 current_time = time.time()
                 expired_keys = [
-                    key for key, (_, ts) in _state_cache.items()
+                    key
+                    for key, (_, ts) in _state_cache.items()
                     if current_time - ts >= _STATE_CACHE_TTL
                 ]
                 for key in expired_keys:
@@ -410,7 +421,7 @@ def get_container_state(container_id: str) -> Optional[str]:
             "Failed to get container state",
             error=sanitize_exception(e),
             error_type=type(e).__name__,
-            **context
+            **context,
         )
         return None
 
@@ -452,27 +463,22 @@ def get_container_safely(container_id: str) -> Container:
             logger.debug(
                 "Container retrieved successfully",
                 execution_time=f"{execution_time:.3f}s",
-                container_name=getattr(container, 'name', 'unknown'),
-                container_status=getattr(container, 'status', 'unknown'),
-                **context
+                container_name=getattr(container, "name", "unknown"),
+                container_status=getattr(container, "status", "unknown"),
+                **context,
             )
             return container
 
     except NotFound:
         execution_time = time.time() - start_time
         logger.warning(
-            "Container not found",
-            execution_time=f"{execution_time:.3f}s",
-            **context
+            "Container not found", execution_time=f"{execution_time:.3f}s", **context
         )
         raise ContainerNotFoundError(
             ErrorContext(
                 message=f"Container not found: {container_id}",
                 error_code="DOCKER_001",
-                metadata={
-                    "container_id": container_id,
-                    "search_time": execution_time
-                },
+                metadata={"container_id": container_id, "search_time": execution_time},
             )
         )
     except Exception as e:
@@ -482,7 +488,7 @@ def get_container_safely(container_id: str) -> Container:
             error=sanitize_exception(e),
             error_type=type(e).__name__,
             execution_time=f"{execution_time:.3f}s",
-            **context
+            **context,
         )
         raise DockerOperationException(
             ErrorContext(
@@ -491,7 +497,7 @@ def get_container_safely(container_id: str) -> Container:
                 metadata={
                     "container_id": container_id,
                     "exception": str(e),
-                    "execution_time": execution_time
+                    "execution_time": execution_time,
                 },
             )
         )
@@ -512,13 +518,31 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
     # Define comprehensive sensitive keys
     sensitive_keys = {
-        "password", "passwd", "pass", "pwd",
-        "token", "access_token", "refresh_token", "jwt",
-        "secret", "api_secret", "client_secret",
-        "key", "private_key", "public_key", "api_key",
-        "auth", "authorization", "credential", "credentials",
-        "cert", "certificate", "ca_cert",
-        "session", "session_id", "cookie",
+        "password",
+        "passwd",
+        "pass",
+        "pwd",
+        "token",
+        "access_token",
+        "refresh_token",
+        "jwt",
+        "secret",
+        "api_secret",
+        "client_secret",
+        "key",
+        "private_key",
+        "public_key",
+        "api_key",
+        "auth",
+        "authorization",
+        "credential",
+        "credentials",
+        "cert",
+        "certificate",
+        "ca_cert",
+        "session",
+        "session_id",
+        "cookie",
     }
 
     safe_kwargs = {}
@@ -533,9 +557,11 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
             if len(value) > 200:
                 safe_kwargs[key] = f"{value[:100]}...[TRUNCATED:{len(value)} chars]"
             # Redact strings that look like tokens/keys
-            elif (len(value) > 20 and
-                  any(char in value for char in "abcdefABCDEF0123456789") and
-                  len(set(value)) > 10):  # High entropy strings
+            elif (
+                len(value) > 20
+                and any(char in value for char in "abcdefABCDEF0123456789")
+                and len(set(value)) > 10
+            ):  # High entropy strings
                 safe_kwargs[key] = f"[REDACTED:{len(value)} chars]"
             else:
                 safe_kwargs[key] = value
@@ -558,7 +584,7 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_container_context(
-        container_id: str, action: str, **extra_context
+    container_id: str, action: str, **extra_context
 ) -> Dict[str, Any]:
     """
     Creates a standard context for logging container operations with validation.
@@ -614,47 +640,53 @@ def get_container_basic_info(container: Container) -> Dict[str, Any]:
     try:
         # Get image tags safely
         image_tags = []
-        if hasattr(container, 'image') and container.image:
-            image_tags = getattr(container.image, 'tags', [])
+        if hasattr(container, "image") and container.image:
+            image_tags = getattr(container.image, "tags", [])
 
         image_name = image_tags[0] if image_tags else "unknown"
 
         basic_info = {
             "id": container.id,
             "short_id": container.short_id,
-            "name": container.name.lstrip('/'),  # Remove leading slash
+            "name": container.name.lstrip("/"),  # Remove leading slash
             "status": container.status,
             "image": image_name,
-            "image_id": getattr(container.image, 'short_id', 'unknown') if hasattr(container, 'image') else 'unknown',
-            "created": getattr(container.attrs, 'get', lambda k, d: d)('Created', 'unknown'),
-            "ports": getattr(container, 'ports', {}),
-            "labels": getattr(container, 'labels', {}),
+            "image_id": getattr(container.image, "short_id", "unknown")
+            if hasattr(container, "image")
+            else "unknown",
+            "created": getattr(container.attrs, "get", lambda k, d: d)(
+                "Created", "unknown"
+            ),
+            "ports": getattr(container, "ports", {}),
+            "labels": getattr(container, "labels", {}),
         }
 
         # Add state information if available
-        if hasattr(container, 'attrs') and container.attrs:
-            state = container.attrs.get('State', {})
-            basic_info.update({
-                'exit_code': state.get('ExitCode'),
-                'pid': state.get('Pid'),
-                'started_at': state.get('StartedAt'),
-                'finished_at': state.get('FinishedAt'),
-            })
+        if hasattr(container, "attrs") and container.attrs:
+            state = container.attrs.get("State", {})
+            basic_info.update(
+                {
+                    "exit_code": state.get("ExitCode"),
+                    "pid": state.get("Pid"),
+                    "started_at": state.get("StartedAt"),
+                    "finished_at": state.get("FinishedAt"),
+                }
+            )
 
         return basic_info
 
     except Exception as e:
         logger.warning(
             "Failed to extract complete container basic info",
-            container_id=getattr(container, 'id', 'unknown'),
-            error=sanitize_exception(e)
+            container_id=getattr(container, "id", "unknown"),
+            error=sanitize_exception(e),
         )
         # Return minimal info on error
         return {
-            "id": getattr(container, 'id', 'unknown'),
-            "short_id": getattr(container, 'short_id', 'unknown'),
-            "name": getattr(container, 'name', 'unknown'),
-            "status": getattr(container, 'status', 'unknown'),
+            "id": getattr(container, "id", "unknown"),
+            "short_id": getattr(container, "short_id", "unknown"),
+            "name": getattr(container, "name", "unknown"),
+            "status": getattr(container, "status", "unknown"),
             "image": "unknown",
         }
 
@@ -676,7 +708,8 @@ def get_cache_stats() -> Dict[str, Any]:
         if cache_size > 0:
             current_time = time.time()
             fresh_entries = sum(
-                1 for _, (_, timestamp) in _state_cache.items()
+                1
+                for _, (_, timestamp) in _state_cache.items()
                 if current_time - timestamp < _STATE_CACHE_TTL
             )
         else:
@@ -691,9 +724,7 @@ def get_cache_stats() -> Dict[str, Any]:
 
 
 def validate_container_operation_params(
-        container_id: str,
-        operation: str,
-        **kwargs
+    container_id: str, operation: str, **kwargs
 ) -> Dict[str, Any]:
     """
     Validate parameters for container operations.
@@ -773,14 +804,16 @@ class ContainerOperationTracker:
 
             # Limit history size
             if len(self._operations[key]) > self._max_history:
-                self._operations[key] = self._operations[key][-self._max_history:]
+                self._operations[key] = self._operations[key][-self._max_history :]
 
             # Periodic cleanup
             if current_time - self._last_cleanup > self._cleanup_interval:
                 self._cleanup_old_operations()
                 self._last_cleanup = current_time
 
-    def get_recent_operations(self, container_id: str, since_seconds: float = 3600) -> List[Dict]:
+    def get_recent_operations(
+        self, container_id: str, since_seconds: float = 3600
+    ) -> List[Dict]:
         """Get recent operations for a container."""
         with self._lock:
             current_time = time.time()
@@ -793,12 +826,14 @@ class ContainerOperationTracker:
                     recent_timestamps = [ts for ts in timestamps if ts > cutoff_time]
 
                     if recent_timestamps:
-                        recent_ops.append({
-                            "operation": operation,
-                            "count": len(recent_timestamps),
-                            "last_time": max(recent_timestamps),
-                            "first_time": min(recent_timestamps),
-                        })
+                        recent_ops.append(
+                            {
+                                "operation": operation,
+                                "count": len(recent_timestamps),
+                                "last_time": max(recent_timestamps),
+                                "first_time": min(recent_timestamps),
+                            }
+                        )
 
             return sorted(recent_ops, key=lambda x: x["last_time"], reverse=True)
 
@@ -831,6 +866,8 @@ def record_container_operation(container_id: str, operation: str) -> None:
     _operation_tracker.record_operation(container_id, operation)
 
 
-def get_container_operation_history(container_id: str, since_seconds: float = 3600) -> List[Dict]:
+def get_container_operation_history(
+    container_id: str, since_seconds: float = 3600
+) -> List[Dict]:
     """Get recent operation history for a container."""
     return _operation_tracker.get_recent_operations(container_id, since_seconds)
