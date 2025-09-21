@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import asyncio
 from concurrent.futures import (
     ThreadPoolExecutor,
     as_completed,
@@ -15,6 +16,8 @@ from typing import Dict, List, Optional, Final, Any
 from functools import lru_cache
 import time
 from threading import RLock
+
+from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import (
@@ -83,10 +86,6 @@ class ContainerInfoCache:
         with self._lock:
             return len(self._cache)
 
-    @property
-    def ttl(self):
-        return self._ttl
-
 
 # Global cache instance
 _container_cache = ContainerInfoCache()
@@ -152,7 +151,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
         container_id: The ID of the container.
 
     Returns:
-        Dict containing container details.
+        Dict containing container details including memory usage.
 
     Raises:
         ContainerNotFoundError: If container is not found.
@@ -172,6 +171,15 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
     try:
         container_details = get_container_safely(container_id)
         attrs = container_details.attrs
+
+        # Get runtime stats for memory usage (this was missing!)
+        memory_stats = {}
+        try:
+            stats = container_details.stats(stream=False)
+            memory_stats = _parse_container_memory_stats(stats)
+        except Exception as e:
+            logger.debug(f"Failed to get container runtime stats: {e}", **context)
+            # Continue without memory stats if unavailable
 
         # Safely parse created timestamp
         created_str = attrs.get("Created", "")
@@ -232,6 +240,10 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             "restart_count": attrs.get("RestartCount", 0),
         }
 
+        # Add memory statistics if available
+        if memory_stats:
+            details.update(memory_stats)
+
         # Cache the details
         _container_cache.set(f"details_{container_id}", details)
 
@@ -239,6 +251,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             "Container details aggregated",
             status=details["status"],
             health=details.get("health", "N/A"),
+            has_memory_stats=bool(memory_stats),
             **context,
         )
         return details
@@ -255,6 +268,47 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             **context,
         )
         raise
+
+
+def _parse_container_memory_stats(container_stats: Dict) -> Dict[str, str]:
+    """
+    Parse the memory statistics of a container.
+
+    Args:
+        container_stats (Dict): The dictionary containing memory statistics of a container.
+
+    Returns:
+        Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
+    """
+    try:
+        # Retrieve the memory statistics from the container_stats dictionary
+        memory_stats = container_stats.get("memory_stats", {})
+
+        # Calculate the memory usage and limit
+        usage = memory_stats.get("usage", 0)
+        limit = memory_stats.get("limit", 0)
+
+        if usage == 0 and limit == 0:
+            return {}  # No memory stats available
+
+        # Use existing utility for formatting bytes
+        from pytmbot.utils import set_naturalsize
+
+        mem_usage = set_naturalsize(usage)
+        mem_limit = set_naturalsize(limit)
+
+        # Calculate the percentage of memory used by the container
+        mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
+
+        return {
+            "mem_usage": mem_usage,
+            "mem_limit": mem_limit,
+            "mem_percent": f"{mem_percent}%",
+        }
+
+    except Exception as e:
+        logger.debug(f"Error parsing container memory stats: {e}")
+        return {}
 
 
 @with_operation_logging("retrieve_containers_stats")
@@ -535,9 +589,61 @@ def fetch_docker_counters() -> Dict[str, int]:
 
 
 @with_operation_logging("fetch_full_container_details")
-def fetch_full_container_details(container_id: str) -> Optional[Dict]:
+def fetch_full_container_details(container_id: str) -> Optional[Container]:
     """
-    Retrieves and returns the full attributes of a Docker container with caching.
+    Retrieves and returns the actual Docker Container object for handler compatibility.
+
+    Args:
+        container_id (str): The ID of the container.
+
+    Returns:
+        Container: The actual Docker Container object, or None if container not found.
+
+    Raises:
+        Exception: For unexpected errors during container retrieval.
+    """
+    context = build_container_context(
+        container_id=container_id,
+        action="full_container_details",
+    )
+
+    start_time = time.time()
+
+    try:
+        # Return the actual Container object for compatibility with handlers
+        container = get_container_safely(container_id)
+
+        execution_time = time.time() - start_time
+
+        logger.debug(
+            "Full container object retrieved",
+            execution_time=f"{execution_time:.3f}s",
+            **context,
+        )
+        return container
+
+    except ContainerNotFoundError:
+        logger.debug("Container not found for full details", **context)
+        return None
+
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logger.error(
+            "Failed to fetch full container details",
+            error=sanitize_exception(e),
+            execution_time=f"{execution_time:.3f}s",
+            **context,
+        )
+        # Return None for backward compatibility, but log the error
+        return None
+
+
+@with_operation_logging("fetch_full_container_details_dict")
+def fetch_full_container_details_dict(container_id: str) -> Optional[Dict]:
+    """
+    Retrieves and returns the full attributes of a Docker container as a dictionary.
+
+    This is the enhanced version that was created in the improvements, renamed for clarity.
 
     Args:
         container_id (str): The ID of the container.
@@ -551,7 +657,7 @@ def fetch_full_container_details(container_id: str) -> Optional[Dict]:
     """
     context = build_container_context(
         container_id=container_id,
-        action="full_container_details",
+        action="full_container_details_dict",
     )
 
     # Check cache first
@@ -590,20 +696,20 @@ def fetch_full_container_details(container_id: str) -> Optional[Dict]:
         execution_time = time.time() - start_time
 
         logger.debug(
-            "Full container details retrieved",
+            "Full container details dictionary retrieved",
             execution_time=f"{execution_time:.3f}s",
             **context,
         )
         return full_details
 
     except ContainerNotFoundError:
-        logger.debug("Container not found for full details", **context)
+        logger.debug("Container not found for full details dict", **context)
         return None
 
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Failed to fetch full container details",
+            "Failed to fetch full container details dict",
             error=sanitize_exception(e),
             execution_time=f"{execution_time:.3f}s",
             **context,
@@ -624,6 +730,21 @@ def get_cache_stats() -> Dict[str, Any]:
     """Get cache statistics for monitoring."""
     return {
         "cache_size": _container_cache.size(),
-        "cache_ttl": _container_cache.ttl,
+        "cache_ttl": _container_cache._ttl,
         "lru_cache_info": fetch_docker_counters.cache_info()._asdict(),
     }
+
+
+# Async version for future use
+async def retrieve_containers_stats_async() -> List[Dict[str, str]]:
+    """
+    Async version of retrieve_containers_stats using asyncio for better concurrency.
+
+    This is for future async implementations and is not used in the current sync bot.
+    """
+    loop = asyncio.get_event_loop()
+
+    # Run the sync version in a thread pool
+    return await loop.run_in_executor(
+        ThreadPoolExecutor(max_workers=1), retrieve_containers_stats
+    )

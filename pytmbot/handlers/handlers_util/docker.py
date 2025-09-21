@@ -198,7 +198,9 @@ def parse_container_basic_info(container_details) -> Dict[str, Any]:
         # Calculate uptime
         started_at = state.get("StartedAt", "")
         uptime = (
-            set_naturaltime(datetime.fromisoformat(started_at)) if started_at else "N/A"
+            set_naturaltime(datetime.fromisoformat(started_at.replace("Z", "+00:00")))
+            if started_at and started_at != "0001-01-01T00:00:00Z"
+            else "N/A"
         )
 
         return {
@@ -433,6 +435,9 @@ def get_comprehensive_container_details(
     """
     Get comprehensive container details with enhanced parsing and security.
 
+    This function now handles both the improved data structure from containers_info
+    and maintains compatibility with existing handler expectations.
+
     Args:
         container_name: Name of the container
 
@@ -440,7 +445,7 @@ def get_comprehensive_container_details(
         Dict with all container details or None if container not found
     """
     try:
-        # Get raw container details
+        # Get raw container details (this returns the actual Container object)
         container_details = get_container_full_details(container_name)
 
         if not container_details:
@@ -455,27 +460,48 @@ def get_comprehensive_container_details(
         # Initialize empty stats
         stats = {}
 
-        # Handle stats differently based on container details type
+        # Handle stats for Container object
         if hasattr(container_details, "stats"):
-            # For Container object, stats() returns a generator
             try:
-                stats_gen = container_details.stats(
-                    stream=False
-                )  # Get single stats reading
-                if isinstance(stats_gen, dict):
-                    stats = stats_gen
+                # Get single stats reading for running containers
+                if container_details.status.lower() == "running":
+                    stats = container_details.stats(stream=False)
+                    if not isinstance(stats, dict):
+                        # Handle case where it returns a generator
+                        stats = next(iter(stats), {})
                 else:
-                    # Handle case where it's actually a generator
-                    stats = next(stats_gen, {})
+                    # For non-running containers, we can't get runtime stats
+                    stats = {}
             except Exception as e:
-                logger.warning(f"Couldn't get container stats: {e}")
-        elif isinstance(container_details, dict):
-            stats = container_details.get("stats", {})
+                logger.warning(f"Couldn't get container runtime stats: {e}")
+                stats = {}
 
         # Parse stats if available
         memory_stats = parse_container_memory_stats(stats) if stats else {}
         cpu_stats = parse_container_cpu_stats(stats) if stats else {}
         network_stats = parse_container_network_stats(stats) if stats else {}
+
+        # If runtime stats are not available but we have Container object,
+        # try to get memory info from the enhanced containers_info data
+        if not memory_stats and hasattr(container_details, "attrs"):
+            # Check if the improved __aggregate_container_details included memory stats
+            # This is a fallback for when runtime stats aren't available
+            try:
+                from pytmbot.adapters.docker.containers_info import (
+                    __aggregate_container_details,
+                )
+
+                enhanced_details = __aggregate_container_details(container_details.id)
+                if enhanced_details:
+                    # Extract memory stats from enhanced details if available
+                    if "mem_usage" in enhanced_details:
+                        memory_stats = {
+                            "mem_usage": enhanced_details.get("mem_usage", "N/A"),
+                            "mem_limit": enhanced_details.get("mem_limit", "N/A"),
+                            "mem_percent": enhanced_details.get("mem_percent", "N/A"),
+                        }
+            except Exception as e:
+                logger.debug(f"Could not get enhanced memory stats: {e}")
 
         # Combine all data
         comprehensive_details = {
@@ -511,21 +537,32 @@ def parse_container_memory_stats(
     Returns:
         Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
     """
-    # Retrieve the memory statistics from the container_stats dictionary
-    memory_stats = container_stats.get("memory_stats", {})
+    try:
+        # Retrieve the memory statistics from the container_stats dictionary
+        memory_stats = container_stats.get("memory_stats", {})
 
-    # Calculate the memory usage and limit
-    usage = memory_stats.get("usage", 0)
-    limit = memory_stats.get("limit", 0)
+        # Calculate the memory usage and limit
+        usage = memory_stats.get("usage", 0)
+        limit = memory_stats.get("limit", 0)
 
-    # Use enhanced formatting for better readability
-    mem_usage = set_naturalsize(usage)
-    mem_limit = set_naturalsize(limit)
+        if usage == 0 and limit == 0:
+            return {}
 
-    # Calculate the percentage of memory used by the container
-    mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
+        # Use enhanced formatting for better readability
+        mem_usage = set_naturalsize(usage)
+        mem_limit = set_naturalsize(limit)
 
-    return {"mem_usage": mem_usage, "mem_limit": mem_limit, "mem_percent": mem_percent}
+        # Calculate the percentage of memory used by the container
+        mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
+
+        return {
+            "mem_usage": mem_usage,
+            "mem_limit": mem_limit,
+            "mem_percent": mem_percent,
+        }
+    except Exception as e:
+        logger.debug(f"Error parsing memory stats: {e}")
+        return {}
 
 
 def parse_container_cpu_stats(container_stats) -> Dict[str, Union[int, float]]:

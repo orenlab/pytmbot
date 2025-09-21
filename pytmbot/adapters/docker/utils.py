@@ -623,7 +623,7 @@ def build_container_context(
 @lru_cache(maxsize=128)
 def get_container_basic_info(container: Container) -> Dict[str, Any]:
     """
-    Extracts basic container information with caching and enhanced data.
+    Extracts basic container information with caching and enhanced data including memory stats.
 
     Args:
         container: Container object
@@ -673,6 +673,19 @@ def get_container_basic_info(container: Container) -> Dict[str, Any]:
                 }
             )
 
+        # Try to get runtime memory statistics (this was missing!)
+        try:
+            if container.status.lower() == "running":
+                stats = container.stats(stream=False)
+                memory_stats = _parse_container_memory_stats_util(stats)
+                if memory_stats:
+                    basic_info.update(memory_stats)
+        except Exception as e:
+            logger.debug(
+                f"Failed to get runtime stats for container {container.short_id}: {e}"
+            )
+            # Continue without memory stats if unavailable
+
         return basic_info
 
     except Exception as e:
@@ -689,6 +702,42 @@ def get_container_basic_info(container: Container) -> Dict[str, Any]:
             "status": getattr(container, "status", "unknown"),
             "image": "unknown",
         }
+
+
+def _parse_container_memory_stats_util(container_stats: Dict) -> Dict[str, str]:
+    """
+    Utility function to parse container memory statistics.
+
+    Args:
+        container_stats: The dictionary containing memory statistics
+
+    Returns:
+        Dict: Memory statistics or empty dict if unavailable
+    """
+    try:
+        memory_stats = container_stats.get("memory_stats", {})
+        usage = memory_stats.get("usage", 0)
+        limit = memory_stats.get("limit", 0)
+
+        if usage == 0 and limit == 0:
+            return {}
+
+        # Use existing utility for formatting bytes
+        from pytmbot.utils import set_naturalsize
+
+        mem_usage = set_naturalsize(usage)
+        mem_limit = set_naturalsize(limit)
+        mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
+
+        return {
+            "mem_usage": mem_usage,
+            "mem_limit": mem_limit,
+            "mem_percent": f"{mem_percent}%",
+        }
+
+    except Exception as e:
+        logger.debug(f"Error parsing memory stats in utils: {e}")
+        return {}
 
 
 def clear_state_cache() -> None:
