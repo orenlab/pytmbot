@@ -209,30 +209,6 @@ class VarConfig(BaseModel):
     model_config = {"frozen": True}
 
 
-class LogsSettings(BaseModel):
-    """
-    Configuration settings for logging.
-
-    Attributes:
-        valid_log_levels (FrozenSet[str]): Set of valid log levels.
-        bot_logger_format (str): Format of the bot logger output.
-    """
-
-    valid_log_levels: FrozenSet[str]
-    bot_logger_format: ClassVar[str] = (
-        "<green>{time:YYYY-MM-DD}</green> "
-        "[<cyan>{time:HH:mm:ss}</cyan>]"
-        "[<level>{level: <8}</level>]"
-        "[<magenta>{module: <16}</magenta>] › "
-        "<level>{message}</level> | {extra}"
-    )
-
-    model_config = {
-        "frozen": True,
-        "json_schema_extra": {"valid_log_levels": get_default_log_levels()},
-    }
-
-
 # Load settings and configurations
 settings = load_settings_from_yaml()
 var_config = VarConfig()

@@ -22,9 +22,9 @@ from pytmbot import logs
 def get_app_version() -> str:
     """Get application version with lazy import to avoid circular dependencies."""
     try:
-        from pytmbot.globals import __version__ as app_version
+        from pytmbot.globals import __version__
 
-        return app_version
+        return __version__
     except ImportError as e:
         raise RuntimeError(
             "Critical application module 'pytmbot.globals' is missing or corrupted. "

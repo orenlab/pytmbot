@@ -5,14 +5,19 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from __future__ import annotations
+
+import subprocess
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from functools import wraps, lru_cache
-from time import sleep
-from typing import Dict, Any, Optional, Final, TypeAlias, List
+from functools import wraps
+from pathlib import Path
 from threading import RLock
+from time import sleep
+from typing import Final, TypeAlias, Any, TYPE_CHECKING
 
 from docker.errors import NotFound
 from docker.models.containers import Container
@@ -26,18 +31,27 @@ from pytmbot.exceptions import (
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
 from pytmbot.models.docker_models import ContainersState
-from pytmbot.utils import sanitize_exception
+from pytmbot.utils import sanitize_exception, set_naturalsize
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = Logger()
 
+# Type aliases for better code clarity
 ContainerName: TypeAlias = str
+ContainerID: TypeAlias = str
+LogContext: TypeAlias = dict[str, Any]
+MemoryStats: TypeAlias = dict[str, str]
 
-# Module constants for better maintainability
+# Module constants
 MAX_STATE_CHECK_ATTEMPTS: Final[int] = 5
 DEFAULT_STATE_CHECK_INTERVAL: Final[float] = 1.5
 MIN_STATE_CHECK_INTERVAL: Final[float] = 0.5
 MAX_STATE_CHECK_INTERVAL: Final[float] = 5.0
 OPERATION_TIMEOUT: Final[float] = 30.0
+STATE_CACHE_TTL: Final[float] = 2.0
+STATE_CACHE_MAX_SIZE: Final[int] = 100
 
 
 class ContainerState(str, Enum):
@@ -53,7 +67,7 @@ class ContainerState(str, Enum):
     DEAD = "dead"
 
     @classmethod
-    def from_str(cls, value: str) -> "ContainerState":
+    def from_str(cls, value: str) -> ContainerState:
         """Convert string to ContainerState with enhanced error handling."""
         if not value or not isinstance(value, str):
             raise ValueError("State value must be a non-empty string")
@@ -90,7 +104,7 @@ class StateCheckConfig:
     max_attempts: int = MAX_STATE_CHECK_ATTEMPTS
     interval: float = DEFAULT_STATE_CHECK_INTERVAL
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration parameters."""
         if not isinstance(self.max_attempts, int) or self.max_attempts <= 0:
             raise ValueError("max_attempts must be a positive integer")
@@ -110,13 +124,226 @@ class StateCheckConfig:
             )
 
 
+@dataclass(slots=True)
+class CacheEntry:
+    """Cache entry with timestamp for TTL management."""
+
+    data: str
+    timestamp: float
+
+
+class ContainerStateCache:
+    """Thread-safe container state cache with TTL management."""
+
+    def __init__(
+        self, ttl: float = STATE_CACHE_TTL, max_size: int = STATE_CACHE_MAX_SIZE
+    ) -> None:
+        self._cache: dict[str, CacheEntry] = {}
+        self._lock = RLock()
+        self._ttl = ttl
+        self._max_size = max_size
+
+    def get(self, container_id: str) -> str | None:
+        """Get cached container state if not expired."""
+        with self._lock:
+            if entry := self._cache.get(container_id):
+                if time.time() - entry.timestamp < self._ttl:
+                    return entry.data
+                else:
+                    del self._cache[container_id]
+        return None
+
+    def set(self, container_id: str, state: str) -> None:
+        """Set container state in cache with TTL."""
+        with self._lock:
+            # Clean expired entries if cache is getting full
+            if len(self._cache) >= self._max_size:
+                self._cleanup_expired()
+
+            self._cache[container_id] = CacheEntry(data=state, timestamp=time.time())
+
+    def _cleanup_expired(self) -> None:
+        """Remove expired cache entries."""
+        current_time = time.time()
+        expired_keys = [
+            key
+            for key, entry in self._cache.items()
+            if current_time - entry.timestamp >= self._ttl
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        with self._lock:
+            self._cache.clear()
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get cache statistics."""
+        with self._lock:
+            current_time = time.time()
+            fresh_entries = sum(
+                1
+                for entry in self._cache.values()
+                if current_time - entry.timestamp < self._ttl
+            )
+            return {
+                "size": len(self._cache),
+                "fresh_entries": fresh_entries,
+                "ttl": self._ttl,
+            }
+
+
+# Global cache instance
+_state_cache = ContainerStateCache()
+
+
+class MemoryStatsProvider:
+    """Fast memory statistics provider using multiple fallback methods."""
+
+    @staticmethod
+    def from_cgroups(container_id: str) -> MemoryStats | None:
+        """Get memory stats directly from cgroups - fastest method."""
+        try:
+            # Try cgroups v2 first (newer Docker installations)
+            cgroup_v2_paths = [
+                f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.current",
+                f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.max",
+            ]
+
+            # Try cgroups v1 (older Docker installations)
+            cgroup_v1_paths = [
+                f"/sys/fs/cgroup/memory/docker/{container_id}/memory.usage_in_bytes",
+                f"/sys/fs/cgroup/memory/docker/{container_id}/memory.limit_in_bytes",
+            ]
+
+            usage, limit = None, None
+
+            # Check cgroups v2
+            if Path(cgroup_v2_paths[0]).exists():
+                try:
+                    usage = int(Path(cgroup_v2_paths[0]).read_text().strip())
+                    limit_str = Path(cgroup_v2_paths[1]).read_text().strip()
+                    limit = int(limit_str) if limit_str != "max" else None
+                except (FileNotFoundError, ValueError, PermissionError):
+                    usage, limit = None, None
+
+            # Check cgroups v1 if v2 failed
+            if usage is None and Path(cgroup_v1_paths[0]).exists():
+                try:
+                    usage = int(Path(cgroup_v1_paths[0]).read_text().strip())
+                    limit = int(Path(cgroup_v1_paths[1]).read_text().strip())
+                except (FileNotFoundError, ValueError, PermissionError):
+                    pass
+
+            if usage is not None:
+                return MemoryStatsProvider._format_memory_stats(usage, limit)
+
+        except Exception as e:
+            logger.debug(f"Failed to get memory from cgroups for {container_id}: {e}")
+
+        return None
+
+    @staticmethod
+    def from_docker_cli(container_id: str) -> MemoryStats | None:
+        """Get memory stats via Docker CLI command."""
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "stats",
+                    "--no-stream",
+                    "--format",
+                    "{{.MemUsage}},{{.MemPerc}}",
+                    container_id[:12],
+                ],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=False,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                parts = result.stdout.strip().split(",")
+                if len(parts) == 2:
+                    mem_usage_raw, mem_percent = parts[0].strip(), parts[1].strip()
+
+                    if " / " in mem_usage_raw:
+                        usage_part, limit_part = mem_usage_raw.split(" / ")
+                        return {
+                            "mem_usage": usage_part.strip(),
+                            "mem_limit": limit_part.strip(),
+                            "mem_percent": mem_percent,
+                        }
+
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"Failed to get memory via docker CLI for {container_id}: {e}")
+
+        return None
+
+    @staticmethod
+    def from_inspect(container: Container) -> MemoryStats | None:
+        """Get memory limit from container inspect - fast but limited."""
+        try:
+            host_config = container.attrs.get("HostConfig", {})
+            memory_limit = host_config.get("Memory", 0)
+
+            if memory_limit > 0:
+                return {
+                    "mem_usage": "N/A",
+                    "mem_limit": set_naturalsize(memory_limit),
+                    "mem_percent": "N/A",
+                }
+            else:
+                return {
+                    "mem_usage": "N/A",
+                    "mem_limit": "No Limit",
+                    "mem_percent": "N/A",
+                }
+
+        except Exception as e:
+            logger.debug(f"Failed to get memory from inspect: {e}")
+            return None
+
+    @staticmethod
+    def from_container_stats(container: Container) -> MemoryStats | None:
+        """Fallback to container.stats() - slowest method."""
+        try:
+            stats = container.stats(stream=False)
+            memory_stats = stats.get("memory_stats", {})
+            usage = memory_stats.get("usage", 0)
+            limit = memory_stats.get("limit", 0)
+
+            if usage == 0 and limit == 0:
+                return {"mem_usage": "N/A", "mem_limit": "N/A", "mem_percent": "N/A"}
+
+            return MemoryStatsProvider._format_memory_stats(usage, limit)
+
+        except Exception as e:
+            logger.debug(f"container.stats() failed: {e}")
+            return None
+
+    @staticmethod
+    def _format_memory_stats(usage: int, limit: int | None) -> MemoryStats:
+        """Format raw memory statistics into human-readable format."""
+        mem_usage = set_naturalsize(usage)
+        mem_limit = set_naturalsize(limit) if limit else "No Limit"
+        mem_percent = round(usage / limit * 100, 2) if limit and limit > 0 else 0
+
+        return {
+            "mem_usage": mem_usage,
+            "mem_limit": mem_limit,
+            "mem_percent": f"{mem_percent}%",
+        }
+
+
 def check_container_state(
     container_name: ContainerName,
     target_state: str = ContainerState.RUNNING,
-    config: StateCheckConfig = StateCheckConfig(),
-) -> Optional[ContainerState]:
+    config: StateCheckConfig | None = None,
+) -> ContainerState | None:
     """
-    Checks if container reaches target state within configured attempts with enhanced monitoring.
+    Checks if container reaches target state within configured attempts.
 
     Args:
         container_name: Container identifier
@@ -130,9 +357,11 @@ def check_container_state(
         ValueError: If target state is invalid or container_name is empty
         DockerOperationException: If Docker operations fail
     """
-    # Input validation
     if not container_name or not isinstance(container_name, str):
         raise ValueError("container_name must be a non-empty string")
+
+    if config is None:
+        config = StateCheckConfig()
 
     try:
         target = ContainerState.from_str(target_state)
@@ -142,101 +371,11 @@ def check_container_state(
         if target.value not in containers_state.__dict__.values():
             raise ValueError(f"Invalid target state: {target}")
 
-        operation_start = time.time()
-        current_state = None
+        return _execute_state_check_loop(container_name, target, config)
 
-        for attempt in range(1, config.max_attempts + 1):
-            attempt_start = time.time()
-
-            log_context = {
-                "container": container_name,
-                "target": target.value,
-                "attempt": attempt,
-                "max_attempts": config.max_attempts,
-                "operation_time": f"{time.time() - operation_start:.2f}s",
-            }
-
-            logger.debug(
-                f"Checking state (attempt {attempt}/{config.max_attempts})",
-                **log_context,
-            )
-
-            try:
-                current_state_str = get_container_state(container_name)
-                if current_state_str is None:
-                    logger.error("Failed to get container state", **log_context)
-                    return None
-
-                current_state = ContainerState.from_str(current_state_str)
-                attempt_time = time.time() - attempt_start
-
-                log_context.update(
-                    {
-                        "state": current_state.value,
-                        "attempt_time": f"{attempt_time:.3f}s",
-                    }
-                )
-
-                if current_state == target:
-                    total_time = time.time() - operation_start
-                    logger.info(
-                        "Target state reached",
-                        total_time=f"{total_time:.2f}s",
-                        **log_context,
-                    )
-                    return current_state
-
-                # Check if we're in a transitional state that might lead to target
-                if current_state.is_transitional and target.is_active:
-                    logger.debug(
-                        f"Container in transitional state {current_state.value}, continuing to wait",
-                        **log_context,
-                    )
-                elif current_state.is_stopped and target.is_active:
-                    logger.warning(
-                        f"Container stopped unexpectedly while waiting for {target.value}",
-                        **log_context,
-                    )
-
-                if attempt < config.max_attempts:
-                    logger.debug(
-                        f"State mismatch: {current_state.value}, retrying in {config.interval}s",
-                        **log_context,
-                    )
-                    sleep(config.interval)
-
-            except Exception as e:
-                attempt_time = time.time() - attempt_start
-                logger.error(
-                    "State check failed",
-                    error=sanitize_exception(e),
-                    error_type=type(e).__name__,
-                    attempt_time=f"{attempt_time:.3f}s",
-                    **log_context,
-                )
-                # Don't return immediately, try remaining attempts
-                if attempt < config.max_attempts:
-                    sleep(config.interval)
-                else:
-                    return None
-
-        total_time = time.time() - operation_start
-        logger.warning(
-            "Failed to reach target state",
-            container=container_name,
-            target=target.value,
-            final_state=current_state.value if current_state else "unknown",
-            attempts=config.max_attempts,
-            total_time=f"{total_time:.2f}s",
-        )
-        return current_state
-
-    except ValueError as e:
+    except ValueError:
         logger.error(
-            "Invalid target state",
-            container=container_name,
-            state=target_state,
-            error=str(e),
+            "Invalid target state", container=container_name, state=target_state
         )
         raise
     except Exception as e:
@@ -249,103 +388,158 @@ def check_container_state(
         raise
 
 
-def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
-    """
-    Enhanced decorator for logging Docker operations with timing, context, and performance monitoring.
+def _execute_state_check_loop(
+    container_name: str, target: ContainerState, config: StateCheckConfig
+) -> ContainerState | None:
+    """Execute the state checking loop with proper logging and timing."""
+    operation_start = time.time()
+    current_state = None
 
-    Args:
-        operation_name: Name of the Docker operation being performed
-        slow_threshold: Threshold in seconds to consider operation slow
-    """
+    for attempt in range(1, config.max_attempts + 1):
+        attempt_start = time.time()
+        log_context = _build_state_check_context(
+            container_name, target, attempt, config, operation_start
+        )
+
+        logger.debug(
+            f"Checking state (attempt {attempt}/{config.max_attempts})", **log_context
+        )
+
+        try:
+            current_state_str = get_container_state(container_name)
+            if current_state_str is None:
+                logger.error("Failed to get container state", **log_context)
+                return None
+
+            current_state = ContainerState.from_str(current_state_str)
+            attempt_time = time.time() - attempt_start
+            log_context.update(
+                {"state": current_state.value, "attempt_time": f"{attempt_time:.3f}s"}
+            )
+
+            if current_state == target:
+                total_time = time.time() - operation_start
+                logger.info(
+                    "Target state reached",
+                    total_time=f"{total_time:.2f}s",
+                    **log_context,
+                )
+                return current_state
+
+            _log_state_transition_info(current_state, target, log_context)
+
+            if attempt < config.max_attempts:
+                logger.debug(
+                    f"State mismatch: {current_state.value}, retrying in {config.interval}s",
+                    **log_context,
+                )
+                sleep(config.interval)
+
+        except Exception as e:
+            attempt_time = time.time() - attempt_start
+            logger.error(
+                "State check failed",
+                error=sanitize_exception(e),
+                error_type=type(e).__name__,
+                attempt_time=f"{attempt_time:.3f}s",
+                **log_context,
+            )
+            if attempt < config.max_attempts:
+                sleep(config.interval)
+            else:
+                return None
+
+    _log_final_state_check_result(
+        container_name, target, current_state, config, operation_start
+    )
+    return current_state
+
+
+def _build_state_check_context(
+    container_name: str,
+    target: ContainerState,
+    attempt: int,
+    config: StateCheckConfig,
+    operation_start: float,
+) -> LogContext:
+    """Build logging context for state check operations."""
+    return {
+        "container": container_name,
+        "target": target.value,
+        "attempt": attempt,
+        "max_attempts": config.max_attempts,
+        "operation_time": f"{time.time() - operation_start:.2f}s",
+    }
+
+
+def _log_state_transition_info(
+    current_state: ContainerState, target: ContainerState, log_context: LogContext
+) -> None:
+    """Log information about container state transitions."""
+    if current_state.is_transitional and target.is_active:
+        logger.debug(
+            f"Container in transitional state {current_state.value}, continuing to wait",
+            **log_context,
+        )
+    elif current_state.is_stopped and target.is_active:
+        logger.warning(
+            f"Container stopped unexpectedly while waiting for {target.value}",
+            **log_context,
+        )
+
+
+def _log_final_state_check_result(
+    container_name: str,
+    target: ContainerState,
+    current_state: ContainerState | None,
+    config: StateCheckConfig,
+    operation_start: float,
+) -> None:
+    """Log the final result of state check operation."""
+    total_time = time.time() - operation_start
+    logger.warning(
+        "Failed to reach target state",
+        container=container_name,
+        target=target.value,
+        final_state=current_state.value if current_state else "unknown",
+        attempts=config.max_attempts,
+        total_time=f"{total_time:.2f}s",
+    )
+
+
+def with_operation_logging(
+    operation_name: str, slow_threshold: float = 1.0
+) -> Callable:
+    """Enhanced decorator for logging Docker operations with timing and performance monitoring."""
     if not operation_name or not isinstance(operation_name, str):
         raise ValueError("operation_name must be a non-empty string")
 
     if slow_threshold <= 0:
         raise ValueError("slow_threshold must be positive")
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> Any:
             start_time = time.time()
             operation_id = f"{operation_name}_{int(start_time * 1000) % 10000}"
+            context = _build_operation_context(
+                operation_name, operation_id, start_time, args, kwargs
+            )
 
-            # Build enhanced base context
-            context = {
-                "action": f"docker_{operation_name}",
-                "operation": operation_name,
-                "operation_id": operation_id,
-                "start_time": datetime.now().isoformat(),
-            }
-
-            # Add function arguments context (sanitized)
-            if args:
-                context["args_count"] = len(args)
-                # Add first argument if it's a string (usually container_id)
-                if args and isinstance(args[0], str):
-                    context["container_id"] = args[0][:12]  # Truncate long IDs
-
-            if kwargs:
-                # Sanitize kwargs using utility
-                safe_kwargs = sanitize_kwargs_for_logging(kwargs)
-                if safe_kwargs:
-                    context["params"] = safe_kwargs
-
-            # Log operation start for slow operations
             if getattr(settings.docker, "debug_docker_client", False):
                 logger.debug(f"Starting Docker operation: {operation_name}", **context)
 
             try:
                 result = func(*args, **kwargs)
                 execution_time = time.time() - start_time
-
-                # Update context with success metrics
-                context.update(
-                    {
-                        "execution_time": f"{execution_time:.3f}s",
-                        "success": True,
-                        "result_type": type(result).__name__,
-                    }
+                _log_operation_success(
+                    operation_name, context, execution_time, result, slow_threshold
                 )
-
-                # Add result size context for collections
-                if isinstance(result, (list, dict)):
-                    context["result_size"] = len(result)
-                elif isinstance(result, str):
-                    context["result_length"] = len(result)
-
-                # Enhanced logging based on execution time and settings
-                if execution_time > slow_threshold:
-                    # Slow operations should be logged at warning level
-                    logger.warning(
-                        f"Docker operation completed (SLOW): {operation_name}",
-                        **context,
-                    )
-                elif execution_time > slow_threshold / 2:
-                    # Moderately slow operations at info level
-                    logger.info(
-                        f"Docker operation completed: {operation_name}",
-                        **context,
-                    )
-                elif getattr(settings.docker, "debug_docker_client", False):
-                    # Debug mode: log all operations
-                    logger.debug(
-                        f"Docker operation completed: {operation_name}", **context
-                    )
-
                 return result
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                context.update(
-                    {
-                        "execution_time": f"{execution_time:.3f}s",
-                        "success": False,
-                        "error": sanitize_exception(e),
-                        "error_type": type(e).__name__,
-                    }
-                )
-
-                logger.error(f"Docker operation failed: {operation_name}", **context)
+                _log_operation_failure(operation_name, context, execution_time, e)
                 raise
 
         return wrapper
@@ -353,14 +547,82 @@ def with_operation_logging(operation_name: str, slow_threshold: float = 1.0):
     return decorator
 
 
-# Thread-safe cache for container states
-_state_cache: Dict[str, tuple[str, float]] = {}
-_state_cache_lock = RLock()
-_STATE_CACHE_TTL = 2.0  # Cache container states for 2 seconds
+def _build_operation_context(
+    operation_name: str,
+    operation_id: str,
+    start_time: float,
+    args: tuple,
+    kwargs: dict[str, Any],
+) -> LogContext:
+    """Build context for operation logging."""
+    context = {
+        "action": f"docker_{operation_name}",
+        "operation": operation_name,
+        "operation_id": operation_id,
+        "start_time": datetime.now().isoformat(),
+    }
+
+    if args:
+        context["args_count"] = len(args)
+        if args and isinstance(args[0], str):
+            context["container_id"] = args[0][:12]
+
+    if kwargs:
+        safe_kwargs = sanitize_kwargs_for_logging(kwargs)
+        if safe_kwargs:
+            context["params"] = safe_kwargs
+
+    return context
+
+
+def _log_operation_success(
+    operation_name: str,
+    context: LogContext,
+    execution_time: float,
+    result: Any,
+    slow_threshold: float,
+) -> None:
+    """Log successful operation with appropriate level based on execution time."""
+    context.update(
+        {
+            "execution_time": f"{execution_time:.3f}s",
+            "success": True,
+            "result_type": type(result).__name__,
+        }
+    )
+
+    if isinstance(result, (list, dict)):
+        context["result_size"] = len(result)
+    elif isinstance(result, str):
+        context["result_length"] = len(result)
+
+    if execution_time > slow_threshold:
+        logger.warning(
+            f"Docker operation completed (SLOW): {operation_name}", **context
+        )
+    elif execution_time > slow_threshold / 2:
+        logger.info(f"Docker operation completed: {operation_name}", **context)
+    elif getattr(settings.docker, "debug_docker_client", False):
+        logger.debug(f"Docker operation completed: {operation_name}", **context)
+
+
+def _log_operation_failure(
+    operation_name: str, context: LogContext, execution_time: float, error: Exception
+) -> None:
+    """Log failed operation with error details."""
+    context.update(
+        {
+            "execution_time": f"{execution_time:.3f}s",
+            "success": False,
+            "error": sanitize_exception(error),
+            "error_type": type(error).__name__,
+        }
+    )
+    logger.error(f"Docker operation failed: {operation_name}", **context)
 
 
 @with_operation_logging("get_container_state", slow_threshold=0.5)
-def get_container_state(container_id: str) -> Optional[str]:
+def get_container_state(container_id: str) -> str | None:
     """
     Retrieves the status of a Docker container with caching and enhanced error handling.
 
@@ -379,15 +641,11 @@ def get_container_state(container_id: str) -> Optional[str]:
     container_id = container_id.strip()
 
     # Check cache first
-    with _state_cache_lock:
-        if container_id in _state_cache:
-            cached_state, timestamp = _state_cache[container_id]
-            if time.time() - timestamp < _STATE_CACHE_TTL:
-                return cached_state
+    if cached_state := _state_cache.get(container_id):
+        return cached_state
 
     context = build_container_context(
-        container_id=container_id,
-        action="container_state_check",
+        container_id=container_id, action="container_state_check"
     )
 
     try:
@@ -395,19 +653,7 @@ def get_container_state(container_id: str) -> Optional[str]:
         status = container.status
 
         # Cache the result
-        with _state_cache_lock:
-            _state_cache[container_id] = (status, time.time())
-
-            # Clean old cache entries
-            if len(_state_cache) > 100:
-                current_time = time.time()
-                expired_keys = [
-                    key
-                    for key, (_, ts) in _state_cache.items()
-                    if current_time - ts >= _STATE_CACHE_TTL
-                ]
-                for key in expired_keys:
-                    del _state_cache[key]
+        _state_cache.set(container_id, status)
 
         logger.debug("Container state retrieved", status=status, **context)
         return status
@@ -445,13 +691,11 @@ def get_container_safely(container_id: str) -> Container:
         raise ValueError("container_id must be a non-empty string")
 
     container_id = container_id.strip()
-
     context = {
         "action": "container_retrieval",
         "container_id": container_id,
         "container_id_length": len(container_id),
     }
-
     start_time = time.time()
 
     try:
@@ -459,7 +703,6 @@ def get_container_safely(container_id: str) -> Container:
             container = adapter.containers.get(container_id)
 
             execution_time = time.time() - start_time
-
             logger.debug(
                 "Container retrieved successfully",
                 execution_time=f"{execution_time:.3f}s",
@@ -503,7 +746,149 @@ def get_container_safely(container_id: str) -> Container:
         )
 
 
-def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def get_container_memory_stats(container: Container) -> MemoryStats:
+    """
+    Get container memory stats using the fastest available method.
+
+    Tries methods in order of speed:
+    1. cgroups direct read (fastest)
+    2. docker CLI command (fast)
+    3. container inspect (very fast, but limited info)
+    4. fallback to container.stats() (slowest)
+
+    Args:
+        container: Docker container object
+
+    Returns:
+        Dictionary with memory statistics
+    """
+    container_id = container.id
+
+    # Method 1: Direct cgroups read (fastest)
+    if memory_stats := MemoryStatsProvider.from_cgroups(container_id):
+        logger.debug(f"Got memory stats from cgroups for {container_id[:12]}")
+        return memory_stats
+
+    # Method 2: Docker CLI (fast) - only for running containers
+    if container.status.lower() == "running":
+        if memory_stats := MemoryStatsProvider.from_docker_cli(container_id):
+            logger.debug(f"Got memory stats from Docker CLI for {container_id[:12]}")
+            return memory_stats
+
+    # Method 3: Container inspect (limited but fast)
+    if memory_stats := MemoryStatsProvider.from_inspect(container):
+        logger.debug(f"Got memory limit from inspect for {container_id[:12]}")
+        return memory_stats
+
+    # Method 4: Fallback to original stats method (slowest)
+    if container.status.lower() == "running":
+        if memory_stats := MemoryStatsProvider.from_container_stats(container):
+            logger.debug(
+                f"Got memory stats from container.stats() for {container_id[:12]}"
+            )
+            return memory_stats
+
+    # Ultimate fallback
+    return {
+        "mem_usage": "Unavailable",
+        "mem_limit": "Unavailable",
+        "mem_percent": "N/A",
+    }
+
+
+def get_container_basic_info(container: Container) -> dict[str, Any]:
+    """
+    Extracts basic container information with enhanced data including memory stats.
+
+    Args:
+        container: Container object
+
+    Returns:
+        Dict: Enhanced container information
+
+    Raises:
+        ValueError: If container is None
+    """
+    if container is None:
+        raise ValueError("Container object cannot be None")
+
+    try:
+        basic_info = _extract_basic_container_data(container)
+
+        # Add state information if available
+        if hasattr(container, "attrs") and container.attrs:
+            basic_info.update(_extract_container_state_info(container.attrs))
+
+        # Get memory statistics for running containers
+        if container.status.lower() == "running":
+            try:
+                memory_stats = get_container_memory_stats(container)
+                if memory_stats:
+                    basic_info.update(memory_stats)
+            except Exception as e:
+                logger.debug(
+                    f"Failed to get runtime stats for container {container.short_id}: {e}"
+                )
+
+        return basic_info
+
+    except Exception as e:
+        logger.warning(
+            "Failed to extract complete container basic info",
+            container_id=getattr(container, "id", "unknown"),
+            error=sanitize_exception(e),
+        )
+        return _get_minimal_container_info(container)
+
+
+def _extract_basic_container_data(container: Container) -> dict[str, Any]:
+    """Extract basic container data without state information."""
+    image_tags = []
+    if hasattr(container, "image") and container.image:
+        image_tags = getattr(container.image, "tags", [])
+
+    image_name = image_tags[0] if image_tags else "unknown"
+
+    return {
+        "id": container.id,
+        "short_id": container.short_id,
+        "name": container.name.lstrip("/"),
+        "status": container.status,
+        "image": image_name,
+        "image_id": getattr(container.image, "short_id", "unknown")
+        if hasattr(container, "image")
+        else "unknown",
+        "created": getattr(container.attrs, "get", lambda k, d: d)(
+            "Created", "unknown"
+        ),
+        "ports": getattr(container, "ports", {}),
+        "labels": getattr(container, "labels", {}),
+    }
+
+
+def _extract_container_state_info(attrs: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract container state information from attrs."""
+    state = attrs.get("State", {})
+    return {
+        "exit_code": state.get("ExitCode"),
+        "pid": state.get("Pid"),
+        "started_at": state.get("StartedAt"),
+        "finished_at": state.get("FinishedAt"),
+    }
+
+
+def _get_minimal_container_info(container: Container) -> dict[str, Any]:
+    """Return minimal container info on error."""
+    return {
+        "id": getattr(container, "id", "unknown"),
+        "short_id": getattr(container, "short_id", "unknown"),
+        "name": getattr(container, "name", "unknown"),
+        "status": getattr(container, "status", "unknown"),
+        "image": "unknown",
+    }
+
+
+def sanitize_kwargs_for_logging(kwargs: dict[str, Any]) -> dict[str, Any]:
     """
     Enhanced sanitization of kwargs for safe logging by removing sensitive information.
 
@@ -516,7 +901,6 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(kwargs, dict):
         return {}
 
-    # Define comprehensive sensitive keys
     sensitive_keys = {
         "password",
         "passwd",
@@ -549,14 +933,11 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in kwargs.items():
         key_lower = key.lower()
 
-        # Check for sensitive keys
         if any(sensitive in key_lower for sensitive in sensitive_keys):
             safe_kwargs[key] = "[REDACTED]"
         elif isinstance(value, str):
-            # Truncate very long strings
             if len(value) > 200:
                 safe_kwargs[key] = f"{value[:100]}...[TRUNCATED:{len(value)} chars]"
-            # Redact strings that look like tokens/keys
             elif (
                 len(value) > 20
                 and any(char in value for char in "abcdefABCDEF0123456789")
@@ -566,13 +947,11 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 safe_kwargs[key] = value
         elif isinstance(value, (list, tuple)):
-            # Limit collection size in logs
             if len(value) > 10:
                 safe_kwargs[key] = f"[LIST:{len(value)} items]"
             else:
                 safe_kwargs[key] = value
         elif isinstance(value, dict):
-            # Recursively sanitize nested dicts
             if len(value) > 20:
                 safe_kwargs[key] = f"[DICT:{len(value)} keys]"
             else:
@@ -584,8 +963,8 @@ def sanitize_kwargs_for_logging(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_container_context(
-    container_id: str, action: str, **extra_context
-) -> Dict[str, Any]:
+    container_id: str, action: str, **extra_context: Any
+) -> LogContext:
     """
     Creates a standard context for logging container operations with validation.
 
@@ -612,7 +991,6 @@ def build_container_context(
         "timestamp": datetime.now().isoformat(),
     }
 
-    # Sanitize extra context
     if extra_context:
         sanitized_extra = sanitize_kwargs_for_logging(extra_context)
         context.update(sanitized_extra)
@@ -620,161 +998,20 @@ def build_container_context(
     return context
 
 
-@lru_cache(maxsize=128)
-def get_container_basic_info(container: Container) -> Dict[str, Any]:
-    """
-    Extracts basic container information with caching and enhanced data including memory stats.
-
-    Args:
-        container: Container object
-
-    Returns:
-        Dict: Enhanced container information
-
-    Raises:
-        ValueError: If container is None
-    """
-    if container is None:
-        raise ValueError("Container object cannot be None")
-
-    try:
-        # Get image tags safely
-        image_tags = []
-        if hasattr(container, "image") and container.image:
-            image_tags = getattr(container.image, "tags", [])
-
-        image_name = image_tags[0] if image_tags else "unknown"
-
-        basic_info = {
-            "id": container.id,
-            "short_id": container.short_id,
-            "name": container.name.lstrip("/"),  # Remove leading slash
-            "status": container.status,
-            "image": image_name,
-            "image_id": getattr(container.image, "short_id", "unknown")
-            if hasattr(container, "image")
-            else "unknown",
-            "created": getattr(container.attrs, "get", lambda k, d: d)(
-                "Created", "unknown"
-            ),
-            "ports": getattr(container, "ports", {}),
-            "labels": getattr(container, "labels", {}),
-        }
-
-        # Add state information if available
-        if hasattr(container, "attrs") and container.attrs:
-            state = container.attrs.get("State", {})
-            basic_info.update(
-                {
-                    "exit_code": state.get("ExitCode"),
-                    "pid": state.get("Pid"),
-                    "started_at": state.get("StartedAt"),
-                    "finished_at": state.get("FinishedAt"),
-                }
-            )
-
-        # Try to get runtime memory statistics (this was missing!)
-        try:
-            if container.status.lower() == "running":
-                stats = container.stats(stream=False)
-                memory_stats = _parse_container_memory_stats_util(stats)
-                if memory_stats:
-                    basic_info.update(memory_stats)
-        except Exception as e:
-            logger.debug(
-                f"Failed to get runtime stats for container {container.short_id}: {e}"
-            )
-            # Continue without memory stats if unavailable
-
-        return basic_info
-
-    except Exception as e:
-        logger.warning(
-            "Failed to extract complete container basic info",
-            container_id=getattr(container, "id", "unknown"),
-            error=sanitize_exception(e),
-        )
-        # Return minimal info on error
-        return {
-            "id": getattr(container, "id", "unknown"),
-            "short_id": getattr(container, "short_id", "unknown"),
-            "name": getattr(container, "name", "unknown"),
-            "status": getattr(container, "status", "unknown"),
-            "image": "unknown",
-        }
-
-
-def _parse_container_memory_stats_util(container_stats: Dict) -> Dict[str, str]:
-    """
-    Utility function to parse container memory statistics.
-
-    Args:
-        container_stats: The dictionary containing memory statistics
-
-    Returns:
-        Dict: Memory statistics or empty dict if unavailable
-    """
-    try:
-        memory_stats = container_stats.get("memory_stats", {})
-        usage = memory_stats.get("usage", 0)
-        limit = memory_stats.get("limit", 0)
-
-        if usage == 0 and limit == 0:
-            return {}
-
-        # Use existing utility for formatting bytes
-        from pytmbot.utils import set_naturalsize
-
-        mem_usage = set_naturalsize(usage)
-        mem_limit = set_naturalsize(limit)
-        mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
-
-        return {
-            "mem_usage": mem_usage,
-            "mem_limit": mem_limit,
-            "mem_percent": f"{mem_percent}%",
-        }
-
-    except Exception as e:
-        logger.debug(f"Error parsing memory stats in utils: {e}")
-        return {}
-
-
 def clear_state_cache() -> None:
     """Clear the container state cache."""
-    global _state_cache
-    with _state_cache_lock:
-        _state_cache.clear()
+    _state_cache.clear()
     logger.debug("Container state cache cleared")
 
 
-def get_cache_stats() -> Dict[str, Any]:
+def get_cache_stats() -> dict[str, Any]:
     """Get comprehensive cache statistics for monitoring."""
-    with _state_cache_lock:
-        cache_size = len(_state_cache)
-
-        # Calculate cache hit ratio (approximate)
-        if cache_size > 0:
-            current_time = time.time()
-            fresh_entries = sum(
-                1
-                for _, (_, timestamp) in _state_cache.items()
-                if current_time - timestamp < _STATE_CACHE_TTL
-            )
-        else:
-            fresh_entries = 0
-
-    return {
-        "state_cache_size": cache_size,
-        "state_cache_fresh_entries": fresh_entries,
-        "state_cache_ttl": _STATE_CACHE_TTL,
-        "basic_info_cache": get_container_basic_info.cache_info()._asdict(),
-    }
+    return _state_cache.get_stats()
 
 
 def validate_container_operation_params(
-    container_id: str, operation: str, **kwargs
-) -> Dict[str, Any]:
+    container_id: str, operation: str, **kwargs: Any
+) -> dict[str, Any]:
     """
     Validate parameters for container operations.
 
@@ -819,7 +1056,7 @@ def validate_container_operation_params(
             raise ValueError("new_container_name too long (maximum 64 characters)")
         validated_params["new_container_name"] = new_name
 
-    elif operation in ["stop", "restart"]:
+    elif operation in {"stop", "restart"}:
         timeout = kwargs.get("timeout", 10)
         if not isinstance(timeout, (int, float)) or timeout < 0:
             raise ValueError("timeout must be a non-negative number")
@@ -830,15 +1067,24 @@ def validate_container_operation_params(
     return validated_params
 
 
+@dataclass(slots=True)
 class ContainerOperationTracker:
     """Track container operations for monitoring and rate limiting."""
 
-    def __init__(self):
-        self._operations: Dict[str, List[float]] = {}
-        self._lock = RLock()
-        self._max_history = 100
-        self._cleanup_interval = 300  # 5 minutes
-        self._last_cleanup = time.time()
+    _operations: dict[str, list[float]] = None
+    _lock: RLock = None
+    _max_history: int = 100
+    _cleanup_interval: float = 300.0  # 5 minutes
+    _last_cleanup: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Initialize tracker components."""
+        if self._operations is None:
+            self._operations = {}
+        if self._lock is None:
+            self._lock = RLock()
+        if self._last_cleanup == 0.0:
+            self._last_cleanup = time.time()
 
     def record_operation(self, container_id: str, operation: str) -> None:
         """Record a container operation."""
@@ -862,7 +1108,7 @@ class ContainerOperationTracker:
 
     def get_recent_operations(
         self, container_id: str, since_seconds: float = 3600
-    ) -> List[Dict]:
+    ) -> list[dict[str, Any]]:
         """Get recent operations for a container."""
         with self._lock:
             current_time = time.time()
@@ -906,7 +1152,7 @@ class ContainerOperationTracker:
             self._operations.clear()
 
 
-# Global operation tracker
+# Global operation tracker instance
 _operation_tracker = ContainerOperationTracker()
 
 
@@ -917,6 +1163,6 @@ def record_container_operation(container_id: str, operation: str) -> None:
 
 def get_container_operation_history(
     container_id: str, since_seconds: float = 3600
-) -> List[Dict]:
+) -> list[dict[str, Any]]:
     """Get recent operation history for a container."""
     return _operation_tracker.get_recent_operations(container_id, since_seconds)
