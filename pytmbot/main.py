@@ -178,13 +178,6 @@ class BotLauncher(logs.BaseComponent):
             # Wait a moment to verify startup
             time.sleep(2)
 
-            if self._health_manager._started:
-                with self.log_context() as log:
-                    log.info("Health monitoring started successfully")
-            else:
-                with self.log_context() as log:
-                    log.warning("Health monitoring failed to start properly")
-
         except Exception as e:
             with self.log_context(error=str(e)) as log:
                 log.error("Failed to start health monitoring")
