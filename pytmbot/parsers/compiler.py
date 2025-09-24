@@ -12,16 +12,11 @@ from typing import Any, Final
 
 from pytmbot.exceptions import TemplateError, ErrorContext
 from pytmbot.logs import BaseComponent
-from pytmbot.parsers._parser import (
-    _render_template,
-    _get_cache_stats,
-    _clear_template_cache,
-)
+from pytmbot.parsers._parser import _render_template, _get_cache_stats, _clear_template_cache
 
 
 class TemplateType(StrEnum):
     """Supported template types."""
-
     AUTH = "auth"
     BASE = "base"
     DOCKER = "docker"
@@ -53,7 +48,10 @@ class Compiler(BaseComponent):
     }
 
     def __init__(
-        self, template_name: str, trusted: bool = False, **context: Any
+            self,
+            template_name: str,
+            trusted: bool = False,
+            **context: Any
     ) -> None:
         """
         Initialize compiler with template and context.
@@ -108,14 +106,16 @@ class Compiler(BaseComponent):
             # Light logging only for untrusted templates or errors
             if not self.trusted:
                 with self.log_context(
-                    action="compile_template",
-                    template_name=self.template_name,
+                        action="compile_template",
+                        template_name=self.template_name,
                 ) as log:
                     log.debug("Compiling untrusted template")
 
             # Validation is now handled inside _render_template
             result = _render_template(
-                self.template_name, trusted=self.trusted, **self.context
+                self.template_name,
+                trusted=self.trusted,
+                **self.context
             )
 
             return result
@@ -123,9 +123,9 @@ class Compiler(BaseComponent):
         except Exception as e:
             # Always log errors
             with self.log_context(
-                action="compile_template_error",
-                template_name=self.template_name,
-                trusted=self.trusted,
+                    action="compile_template_error",
+                    template_name=self.template_name,
+                    trusted=self.trusted,
             ) as log:
                 log.error("Template compilation failed")
 
@@ -145,9 +145,8 @@ class Compiler(BaseComponent):
             ) from e
 
     @staticmethod
-    def validate_template_params(
-        template_name: str, context: dict[str, Any], trusted: bool = False
-    ) -> tuple[str, dict[str, Any]]:
+    def validate_template_params(template_name: str, context: dict[str, Any], trusted: bool = False) -> tuple[
+        str, dict[str, Any]]:
         """
         Explicitly validate template parameters without rendering.
 
@@ -163,7 +162,6 @@ class Compiler(BaseComponent):
             TemplateError: If validation fails
         """
         from pytmbot.parsers.validation import validate_template_render
-
         return validate_template_render(template_name, context, trusted=trusted)
 
     def get_compiler_stats(self) -> dict[str, Any]:
