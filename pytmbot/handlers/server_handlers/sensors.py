@@ -41,15 +41,14 @@ def handle_sensors(message: Message, bot: TeleBot):
                 text="⚠️ No sensors were found :(",
             )
 
-        with Compiler(
+        sensors_message = Compiler.quick_render(
             template_name="b_sensors.jinja2",
             context=sensors_data,
             thought_balloon=em.get_emoji("thought_balloon"),
             thermometer=em.get_emoji("thermometer"),
             exclamation=em.get_emoji("red_exclamation_mark"),
             melting_face=em.get_emoji("melting_face"),
-        ) as compiler:
-            sensors_message = compiler.compile()
+        )
 
         bot.send_message(message.chat.id, text=sensors_message, parse_mode="HTML")
 

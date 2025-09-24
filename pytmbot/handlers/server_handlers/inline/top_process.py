@@ -65,10 +65,9 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_top_processes.jinja2", context=context, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         return bot.edit_message_text(
             chat_id=call.message.chat.id,

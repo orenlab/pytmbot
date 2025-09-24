@@ -40,12 +40,11 @@ def handle_echo(message: Message, bot: TeleBot):
             "thought_balloon": em.get_emoji("thought_balloon"),
         }
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_echo.jinja2",
             first_name=message.from_user.first_name,
             **emojis,
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         send_telegram_message(bot=bot, chat_id=message.chat.id, text=bot_answer)
 

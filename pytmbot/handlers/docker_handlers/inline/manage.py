@@ -116,13 +116,12 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
     }
 
-    with Compiler(
+    context = Compiler.quick_render(
         "d_managing_containers.jinja2",
         emojis=emojis,
         state=state,
         container_name=container_name,
-    ) as compiler:
-        context = compiler.compile()
+    )
 
     return bot.edit_message_text(
         chat_id=call.message.chat.id,

@@ -7,13 +7,16 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, ClassVar, Dict, Final
+from typing import Any, Final
 
 from pytmbot.exceptions import TemplateError, ErrorContext
 from pytmbot.logs import BaseComponent
-from pytmbot.parsers._parser import Jinja2Renderer
+from pytmbot.parsers._parser import (
+    _render_template,
+    _get_cache_stats,
+    _clear_template_cache,
+)
 
 
 class TemplateType(StrEnum):
@@ -25,125 +28,218 @@ class TemplateType(StrEnum):
     PLUGIN = "plugin"
 
 
-@dataclass(frozen=True)
-class CompilerConfig:
-    """Template compiler configuration."""
-
-    TEMPLATE_EXTENSIONS: ClassVar[tuple[str, ...]] = (".jinja2",)
-    DEFAULT_ENCODING: ClassVar[str] = "utf-8"
-
-
 class Compiler(BaseComponent):
     """
-    Template compiler that uses Jinja2Renderer for template rendering.
+    Template compiler with context manager interface.
 
-    Provides a context manager interface for template compilation with
-    proper resource management and error handling.
+    Provides safe, easy-to-use template compilation with proper resource management.
+    Uses optimized private parser implementation internally.
 
     Example:
-        with Compiler("d_images.jinja2", images=imgs, emojis=emoji_map) as c:
+        # Trusted template (from internal code)
+        with Compiler("d_images.jinja2", images=imgs, trusted=True) as c:
+            output = c.compile()
+
+        # Untrusted template (from user input)
+        with Compiler(user_template, data=data, trusted=False) as c:
             output = c.compile()
     """
 
-    _TEMPLATE_TYPE_PREFIXES: Final[Dict[str, TemplateType]] = {
+    TEMPLATE_TYPE_PREFIXES: Final[dict[str, TemplateType]] = {
         "a_": TemplateType.AUTH,
         "b_": TemplateType.BASE,
         "d_": TemplateType.DOCKER,
         "plugin_": TemplateType.PLUGIN,
     }
 
-    def __init__(self, template_name: str, **context: Any) -> None:
-        """Initialize the compiler with template details."""
-        super().__init__("template_compiler")
-        self._template_name = template_name
-        self._context = context
-        self._encoding: str = CompilerConfig.DEFAULT_ENCODING
-        self._renderer = Jinja2Renderer.instance()
+    def __init__(
+        self, template_name: str, trusted: bool = False, **context: Any
+    ) -> None:
+        """
+        Initialize compiler with template and context.
 
-        with self.log_context(
-            action="init", template=template_name, context_keys=list(context.keys())
-        ) as log:
-            log.debug("Compiler initialized")
+        Args:
+            template_name: Name of the template file
+            trusted: If True, skip expensive validation (use for internal templates)
+            **context: Template context variables
+        """
+        super().__init__("template_compiler")
+        self.template_name = template_name
+        self.context = context
+        self.trusted = trusted
 
     def __enter__(self) -> Compiler:
-        """Context manager entry point."""
+        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Context manager exit point."""
+        """Context manager exit."""
         pass
 
     @property
     def template_type(self) -> TemplateType:
         """
-        Determine template type from template name prefix.
+        Determine template type from name prefix.
 
         Returns:
-            TemplateType: Determined template type
+            TemplateType: Detected template type
 
         Raises:
-            PyTMBotErrorTemplateError: If template prefix is unknown
+            TemplateError: If template prefix is unknown
         """
-        for prefix, template_type in self._TEMPLATE_TYPE_PREFIXES.items():
-            if self._template_name.startswith(prefix):
+        for prefix, template_type in self.TEMPLATE_TYPE_PREFIXES.items():
+            if self.template_name.startswith(prefix):
                 return template_type
 
-        with self.log_context(
-            action="template_type", template_name=self._template_name
-        ) as log:
-            log.error(
-                "Unknown template prefix",
-                code="UNKNOWN_TEMPLATE_PREFIX",
-            )
-            raise TemplateError(
-                ErrorContext(
-                    message="Unknown template prefix",
-                    error_code="UNKNOWN_TEMPLATE_PREFIX",
-                    metadata={"template_name": self._template_name},
-                )
-            )
+        # Unknown prefix - still valid, just unknown type
+        return TemplateType.DOCKER  # Default fallback
 
     def compile(self) -> str:
         """
-        Compile the template with provided context.
+        Compile template with integrated validation and context.
 
         Returns:
-            str: Compiled template content
+            str: Rendered template content
 
         Raises:
-            PyTMBotErrorTemplateError: If compilation fails
+            TemplateError: If compilation fails
         """
         try:
-            with self.log_context(
-                action="compile",
-                template=self._template_name,
-                type=self.template_type.value,
-            ) as log:
-                log.debug("Compiling template")
-                compiled_content = self._renderer.render_template(
-                    template_name=self._template_name, **self._context
-                )
-                log.debug("Template compilation completed")
-                return compiled_content
+            # Light logging only for untrusted templates or errors
+            if not self.trusted:
+                with self.log_context(
+                    action="compile_template",
+                    template_name=self.template_name,
+                ) as log:
+                    log.debug("Compiling untrusted template")
+
+            # Validation is now handled inside _render_template
+            result = _render_template(
+                self.template_name, trusted=self.trusted, **self.context
+            )
+
+            return result
 
         except Exception as e:
+            # Always log errors
             with self.log_context(
-                action="compile", template=self._template_name, error=str(e)
+                action="compile_template_error",
+                template_name=self.template_name,
+                trusted=self.trusted,
             ) as log:
-                log.error(
-                    "Template compilation failed", code="TEMPLATE_COMPILATION_ERROR"
+                log.error("Template compilation failed")
+
+            if isinstance(e, TemplateError):
+                raise
+
+            raise TemplateError(
+                ErrorContext(
+                    message="Template compilation failed",
+                    error_code="TEMPLATE_COMPILATION_ERROR",
+                    metadata={
+                        "template_name": self.template_name,
+                        "trusted": self.trusted,
+                        "error": str(e),
+                    },
                 )
-                raise TemplateError(
-                    ErrorContext(
-                        message="Template compilation failed",
-                        error_code="TEMPLATE_COMPILATION_ERROR",
-                        metadata={"template": self._template_name, "error": str(e)},
-                    )
-                )
+            ) from e
 
-    @property
-    def get_compiler_stats(self):
-        return self._renderer.get_cache_stats()
+    @staticmethod
+    def validate_template_params(
+        template_name: str, context: dict[str, Any], trusted: bool = False
+    ) -> tuple[str, dict[str, Any]]:
+        """
+        Explicitly validate template parameters without rendering.
+
+        Args:
+            template_name: Template name to validate
+            context: Template context to validate
+            trusted: Whether to use fast or strict validation
+
+        Returns:
+            tuple: (validated_name, validated_context)
+
+        Raises:
+            TemplateError: If validation fails
+        """
+        from pytmbot.parsers.validation import validate_template_render
+
+        return validate_template_render(template_name, context, trusted=trusted)
+
+    def get_compiler_stats(self) -> dict[str, Any]:
+        """Get compiler cache statistics."""
+        return _get_cache_stats()
+
+    @staticmethod
+    def clear_all_caches() -> None:
+        """Clear all template caches - useful for development/testing."""
+        _clear_template_cache()
+
+    @staticmethod
+    def quick_render(template_name: str, **context: Any) -> str:
+        """
+        Quick rendering for trusted templates without context manager.
+
+        Args:
+            template_name: Template name (must be trusted)
+            **context: Template context
+
+        Returns:
+            str: Rendered template
+        """
+        return _render_template(template_name, trusted=True, **context)
 
 
-__all__ = ["Compiler", "TemplateType"]
+# Convenience functions for common use cases
+def render_docker_template(template_name: str, **context: Any) -> str:
+    """Render docker template with validation."""
+    if not template_name.startswith("d_"):
+        raise TemplateError(
+            ErrorContext(
+                message="Not a docker template",
+                error_code="INVALID_DOCKER_TEMPLATE",
+                metadata={"template_name": template_name},
+            )
+        )
+
+    with Compiler(template_name, trusted=True, **context) as compiler:
+        return compiler.compile()
+
+
+def render_auth_template(template_name: str, **context: Any) -> str:
+    """Render auth template with validation."""
+    if not template_name.startswith("a_"):
+        raise TemplateError(
+            ErrorContext(
+                message="Not an auth template",
+                error_code="INVALID_AUTH_TEMPLATE",
+                metadata={"template_name": template_name},
+            )
+        )
+
+    with Compiler(template_name, trusted=True, **context) as compiler:
+        return compiler.compile()
+
+
+def render_base_template(template_name: str, **context: Any) -> str:
+    """Render base template with validation."""
+    if not template_name.startswith("b_"):
+        raise TemplateError(
+            ErrorContext(
+                message="Not a base template",
+                error_code="INVALID_BASE_TEMPLATE",
+                metadata={"template_name": template_name},
+            )
+        )
+
+    with Compiler(template_name, trusted=True, **context) as compiler:
+        return compiler.compile()
+
+
+__all__ = [
+    "Compiler",
+    "TemplateType",
+    "render_docker_template",
+    "render_auth_template",
+    "render_base_template",
+]

@@ -39,13 +39,12 @@ def handle_file_system(message: Message, bot: TeleBot):
             "warning": em.get_emoji("warning"),
         }
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_fs.jinja2",
             context=disk_usage,
             running_in_docker=running_in_docker,
             **emojis,
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         return bot.send_message(message.chat.id, text=bot_answer, parse_mode="HTML")
 

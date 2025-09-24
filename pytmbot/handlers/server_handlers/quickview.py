@@ -148,10 +148,9 @@ def handle_quick_view(message: Message, bot: TeleBot):
         if "docker" in metrics:
             context["docker"] = metrics["docker"]
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_quick_view.jinja2", context=context, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
 

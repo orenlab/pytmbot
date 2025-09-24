@@ -93,7 +93,7 @@ def handle_getmyid(
         is_bot_admin = message.from_user.id in getattr(bot, "admin_ids", [])
 
         # Generate response using template compiler
-        with Compiler(
+        answer = Compiler.quick_render(
             template_name="b_getmyid.jinja2",
             user_id=user_id,
             chat_id=chat_id,
@@ -104,8 +104,7 @@ def handle_getmyid(
             chat_title=chat_title,
             command="getmyid",
             is_bot_admin=is_bot_admin,
-        ) as compiler:
-            answer = compiler.compile()
+        )
 
         # Send the response message
         sent_message = bot.send_message(

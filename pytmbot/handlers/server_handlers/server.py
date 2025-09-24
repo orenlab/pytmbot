@@ -48,10 +48,9 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             "satellite": em.get_emoji("satellite"),
         }
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_server.jinja2", first_name=first_name, **emojis
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         bot.send_message(
             message.chat.id,

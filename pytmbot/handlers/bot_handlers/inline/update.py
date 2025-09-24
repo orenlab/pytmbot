@@ -33,8 +33,9 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
     emojis = {"thought_balloon": em.get_emoji("thought_balloon")}
 
     try:
-        with Compiler(template_name="b_how_update.jinja2", **emojis) as compiler:
-            bot_answer = compiler.compile()
+        bot_answer = Compiler.quick_render(
+            template_name="b_how_update.jinja2", **emojis
+        )
 
         return bot.edit_message_text(
             chat_id=call.message.chat.id,

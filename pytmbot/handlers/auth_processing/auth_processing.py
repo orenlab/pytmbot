@@ -96,10 +96,9 @@ def _handle_auth_message(
         keyboard = keyboards.build_reply_keyboard(keyboard_type=keyboard_type)
         user_name = _get_user_name(query)
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name=template_name, name=user_name, **emojis
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         _send_response(query, bot, response, keyboard)
 

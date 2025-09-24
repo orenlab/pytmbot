@@ -65,10 +65,9 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(
+    context = Compiler.quick_render(
         "d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name
-    ) as compiler:
-        context = compiler.compile()
+    )
 
     # Build keyboard buttons
     keyboard_buttons = [

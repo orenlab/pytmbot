@@ -83,10 +83,9 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
             },
         }
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="d_images.jinja2", context=template_context
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         # Send the message
         return send_telegram_message(

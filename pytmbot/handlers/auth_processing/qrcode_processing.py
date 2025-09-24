@@ -141,12 +141,11 @@ def handle_qr_code_message(
                 "anxious_face_with_sweat": em.get_emoji("anxious_face_with_sweat"),
             }
 
-            with Compiler(
+            response = Compiler.quick_render(
                 template_name="b_none.jinja2",
                 context="Failed to generate QR code... I apologize!",
                 **emojis,
-            ) as compiler:
-                response = compiler.compile()
+            )
 
             error_message = bot.send_message(message.chat.id, text=response)
 

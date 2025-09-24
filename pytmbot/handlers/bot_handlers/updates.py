@@ -121,8 +121,9 @@ def _render_development_message() -> str:
         "We recommend upgrading to a stable release for a better experience."
     )
 
-    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=message, **emojis
+    )
 
 
 def _render_update_difficulties_message() -> str:
@@ -140,8 +141,9 @@ def _render_update_difficulties_message() -> str:
         "There were some difficulties checking for updates. We should try again later."
     )
 
-    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=message, **emojis
+    )
 
 
 def _render_new_update_message(update_context: dict[str, str]) -> str:
@@ -169,14 +171,13 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
         "cooking": em.get_emoji("cooking"),
     }
 
-    with Compiler(
+    return Compiler.quick_render(
         template_name="b_bot_update.jinja2",
         current_version=current_version,
         release_date=release_date,
         release_notes=release_notes,
         **emojis,
-    ) as compiler:
-        return compiler.compile()
+    )
 
 
 def _render_no_update_message() -> str:
@@ -192,8 +193,9 @@ def _render_no_update_message() -> str:
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=context, **emojis
+    )
 
 
 def _render_future_message(update_context: dict[str, str]) -> str:
@@ -219,8 +221,9 @@ def _render_future_message(update_context: dict[str, str]) -> str:
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=context, **emojis
+    )
 
 
 def __check_bot_update() -> dict[str, str]:

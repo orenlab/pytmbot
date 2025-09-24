@@ -37,10 +37,9 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot):
                 text="Sorry, but i can't get swap memory values. Please try again later.",
             )
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_swap.jinja2", context=swap_data, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         return bot.edit_message_text(
             chat_id=call.message.chat.id,

@@ -66,8 +66,9 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     # Process updates
     prepared_context = prepare_context_for_render(response["data"])
 
-    with Compiler(template_name="d_updates.jinja2", **prepared_context) as compiler:
-        formatted_context = compiler.compile()
+    formatted_context = Compiler.quick_render(
+        template_name="d_updates.jinja2", **prepared_context
+    )
 
     return bot.edit_message_text(
         chat_id=call.message.chat.id,

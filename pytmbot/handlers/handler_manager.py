@@ -5,9 +5,14 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from functools import cache
+from typing import Any, TypeAlias, Final
+
+from telebot.types import Message, CallbackQuery
 
 from pytmbot.globals import settings
 from pytmbot.models.handlers_model import HandlerManager
@@ -50,24 +55,29 @@ from .server_handlers.server import handle_server
 from .server_handlers.services import handle_services_status
 from .server_handlers.uptime import handle_uptime
 
-type MessageType = Any
-type CallbackQueryType = Any
-type HandlerType = dict[str, list[HandlerManager]]
-type FilterFunc = Callable[[Any], bool]
+# Modern type aliases
+MessageType: TypeAlias = Message
+CallbackQueryType: TypeAlias = CallbackQuery
+HandlerType: TypeAlias = dict[str, list[HandlerManager]]
+FilterFunc: TypeAlias = Callable[[Message | CallbackQuery], bool]
+HandlerCallback: TypeAlias = Callable[..., Any]
+
+# Constants
+TOTP_CODE_PATTERN: Final[str] = r"[0-9]{6}$"
 
 
 @dataclass(frozen=True, slots=True)
 class HandlerConfig:
-    """Configuration for handler registration."""
+    """Configuration for handler registration with improved type safety."""
 
-    callback: Callable[..., Any]
+    callback: HandlerCallback
     commands: list[str] | None = None
     regexp: str | None = None
     filter_func: FilterFunc | None = None
 
     def create_handler(self) -> HandlerManager:
         """Create a HandlerManager instance from the config."""
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         if self.commands:
             kwargs["commands"] = self.commands
         if self.regexp:
@@ -77,20 +87,79 @@ class HandlerConfig:
         return HandlerManager(callback=self.callback, kwargs=kwargs)
 
 
-def create_admin_filter(message: MessageType) -> bool:
-    """Create a filter function for admin-only commands."""
-    return message.from_user.id in settings.access_control.allowed_admins_ids
+class AdminFilter:
+    """Filter for admin-only commands with caching."""
+
+    @staticmethod
+    @cache
+    def _get_admin_ids() -> frozenset[int]:
+        """Get admin IDs with caching."""
+        return frozenset(settings.access_control.allowed_admins_ids)
+
+    @classmethod
+    def is_admin(cls, message: MessageType) -> bool:
+        """Check if user is admin."""
+        if not message.from_user:
+            return False
+        return message.from_user.id in cls._get_admin_ids()
 
 
-def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
-    """Build handler configurations dictionary."""
+class InlineFilters:
+    """Collection of inline callback filters."""
+
+    @staticmethod
+    def swap_info(call: CallbackQueryType) -> bool:
+        """Filter for swap info callback."""
+        return call.data == "__swap_info__"
+
+    @staticmethod
+    def process_info(call: CallbackQueryType) -> bool:
+        """Filter for process info callback."""
+        return call.data == "__process_info__"
+
+    @staticmethod
+    def update_info(call: CallbackQueryType) -> bool:
+        """Filter for update info callback."""
+        return call.data == "__how_update__"
+
+    @staticmethod
+    def get_logs(call: CallbackQueryType) -> bool:
+        """Filter for get logs callback."""
+        return call.data.startswith("__get_logs__")
+
+    @staticmethod
+    def containers_full_info(call: CallbackQueryType) -> bool:
+        """Filter for containers full info callback."""
+        return call.data.startswith("__get_full__")
+
+    @staticmethod
+    def back_to_containers(call: CallbackQueryType) -> bool:
+        """Filter for back to containers callback."""
+        return call.data == "back_to_containers"
+
+    @staticmethod
+    def manage_container(call: CallbackQueryType) -> bool:
+        """Filter for manage container callback."""
+        return call.data.startswith("__manage__")
+
+    @staticmethod
+    def image_updates(call: CallbackQueryType) -> bool:
+        """Filter for image updates callback."""
+        return call.data == "__check_updates__"
+
+
+@cache
+def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
+    """Build and cache message handler configurations dictionary."""
     return {
         "authorization": [
             HandlerConfig(callback=handle_twofa_message, regexp="Enter 2FA code")
         ],
         "quick_view": [HandlerConfig(callback=handle_quick_view, regexp="Quick view")],
         "code_verification": [
-            HandlerConfig(callback=handle_totp_code_verification, regexp=r"[0-9]{6}$")
+            HandlerConfig(
+                callback=handle_totp_code_verification, regexp=TOTP_CODE_PATTERN
+            )
         ],
         "start": [HandlerConfig(callback=handle_start, commands=["help", "start"])],
         "about": [HandlerConfig(callback=handle_about_command, regexp="About me")],
@@ -120,7 +189,7 @@ def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
         "load_average": [
             HandlerConfig(callback=handle_load_average, regexp="Load average")
         ],
-        "memory": [HandlerConfig(callback=handle_memory, regexp="Memory")],
+        "memory": [HandlerConfig(callback=handle_memory, regexp="Memory load")],
         "network": [HandlerConfig(callback=handle_network, regexp="Network")],
         "process": [HandlerConfig(callback=handle_process, regexp="Process")],
         "sensors": [HandlerConfig(callback=handle_sensors, regexp="Sensors")],
@@ -138,60 +207,55 @@ def _build_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(
                 callback=handle_qr_code_message,
                 regexp="Get QR-code for 2FA app",
-                filter_func=create_admin_filter,
+                filter_func=AdminFilter.is_admin,
             ),
             HandlerConfig(
                 callback=handle_qr_code_message,
                 commands=["qrcode"],
-                filter_func=create_admin_filter,
+                filter_func=AdminFilter.is_admin,
             ),
         ],
     }
 
 
-def _build_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
-    """Build inline handler configurations dictionary."""
+@cache
+def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
+    """Build and cache inline handler configurations dictionary."""
     return {
         "swap": [
             HandlerConfig(
-                callback=handle_swap_info,
-                filter_func=lambda call: call.data == "__swap_info__",
+                callback=handle_swap_info, filter_func=InlineFilters.swap_info
             )
         ],
         "process_info": [
             HandlerConfig(
-                callback=handle_process_info,
-                filter_func=lambda call: call.data == "__process_info__",
+                callback=handle_process_info, filter_func=InlineFilters.process_info
             )
         ],
         "update_info": [
             HandlerConfig(
-                callback=handle_update_info,
-                filter_func=lambda call: call.data == "__how_update__",
+                callback=handle_update_info, filter_func=InlineFilters.update_info
             )
         ],
         "get_logs": [
-            HandlerConfig(
-                callback=handle_get_logs,
-                filter_func=lambda call: call.data.startswith("__get_logs__"),
-            )
+            HandlerConfig(callback=handle_get_logs, filter_func=InlineFilters.get_logs)
         ],
         "containers_full_info": [
             HandlerConfig(
                 callback=handle_containers_full_info,
-                filter_func=lambda call: call.data.startswith("__get_full__"),
+                filter_func=InlineFilters.containers_full_info,
             )
         ],
         "back_to_containers": [
             HandlerConfig(
                 callback=handle_back_to_containers,
-                filter_func=lambda call: call.data == "back_to_containers",
+                filter_func=InlineFilters.back_to_containers,
             )
         ],
         "manage": [
             HandlerConfig(
                 callback=handle_manage_container,
-                filter_func=lambda call: call.data.startswith("__manage__"),
+                filter_func=InlineFilters.manage_container,
             )
         ],
         "manage_action": [
@@ -202,8 +266,7 @@ def _build_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         ],
         "image_updates": [
             HandlerConfig(
-                callback=handle_image_updates,
-                filter_func=lambda call: call.data == "__check_updates__",
+                callback=handle_image_updates, filter_func=InlineFilters.image_updates
             )
         ],
     }
@@ -219,41 +282,44 @@ def _create_handlers_from_configs(
     }
 
 
+@cache
 def handler_factory() -> HandlerType:
     """
-    Returns a dictionary of HandlerManager objects for command handling.
+    Returns a cached dictionary of HandlerManager objects for command handling.
 
     The factory uses HandlerConfig for cleaner handler creation and
-    better type safety.
+    better type safety. Results are cached for performance.
     """
-    configs = _build_handler_configs()
+    configs = _get_message_handler_configs()
     return _create_handlers_from_configs(configs)
 
 
+@cache
 def inline_handler_factory() -> HandlerType:
     """
-    Returns a dictionary of HandlerManager objects for inline query handling.
+    Returns a cached dictionary of HandlerManager objects for inline query handling.
 
     The factory uses HandlerConfig for cleaner handler creation and
-    better type safety.
+    better type safety. Results are cached for performance.
     """
-    configs = _build_inline_handler_configs()
+    configs = _get_inline_handler_configs()
     return _create_handlers_from_configs(configs)
 
 
+# Future echo handler implementation
+# @cache
 # def echo_handler_factory() -> HandlerType:
-#    """
-#    Returns a dictionary of HandlerManager objects for echo handling.
-
-#    This is always the last handler to be registered.
-#    """
-#    configs = {
-#        "echo": [
-#            HandlerConfig(
-#                callback=handle_echo,
-#                filter_func=lambda message: True
-#            )
-#        ]
-#    }
-
-#    return _create_handlers_from_configs(configs)
+#     """
+#     Returns a dictionary of HandlerManager objects for echo handling.
+#
+#     This is always the last handler to be registered.
+#     """
+#     configs = {
+#         "echo": [
+#             HandlerConfig(
+#                 callback=handle_echo,
+#                 filter_func=lambda message: True
+#             )
+#         ]
+#     }
+#     return _create_handlers_from_configs(configs)

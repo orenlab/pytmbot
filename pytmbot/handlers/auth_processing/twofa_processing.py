@@ -107,8 +107,9 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
             "saluting_face": em.get_emoji("saluting_face"),
         }
 
-        with Compiler(template_name="a_success.jinja2", emojis=emojis) as compiler:
-            response = compiler.compile()
+        response = Compiler.quick_render(
+            template_name="a_success.jinja2", emojis=emojis
+        )
 
         bot.reply_to(message, text=response, reply_markup=keyboard)
     else:
@@ -158,10 +159,9 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
 
     keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
 
-    with Compiler(
+    response = Compiler.quick_render(
         template_name="a_send_totp_code.jinja2", name=name, **emojis
-    ) as compiler:
-        response = compiler.compile()
+    )
 
     send_telegram_message(
         bot=bot,

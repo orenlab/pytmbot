@@ -547,10 +547,9 @@ def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
         }
 
         # Compile template
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_services_status.jinja2", context=template_context, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
 

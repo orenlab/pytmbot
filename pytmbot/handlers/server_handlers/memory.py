@@ -41,13 +41,12 @@ def handle_memory(message: Message, bot: TeleBot):
         data = button_data(text="Swap info", callback_data="__swap_info__")
         keyboard = keyboards.build_inline_keyboard(data)
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_memory.jinja2",
             context=memory_info,
             thought_balloon=em.get_emoji("thought_balloon"),
             abacus=em.get_emoji("abacus"),
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         return bot.send_message(
             message.chat.id,

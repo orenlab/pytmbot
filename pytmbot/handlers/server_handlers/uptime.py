@@ -45,10 +45,9 @@ def handle_uptime(message: Message, bot: TeleBot):
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_uptime.jinja2", context=uptime_data, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
         return bot.send_message(
             message.chat.id,

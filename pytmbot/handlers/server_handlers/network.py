@@ -40,10 +40,9 @@ def handle_network(message: Message, bot: TeleBot):
                 text="⚠️ An error occurred while getting network statistics",
             )
 
-        with Compiler(
+        message_text = Compiler.quick_render(
             template_name="b_net_io.jinja2", context=network_statistics, **emojis
-        ) as compiler:
-            message_text = compiler.compile()
+        )
 
         return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
 

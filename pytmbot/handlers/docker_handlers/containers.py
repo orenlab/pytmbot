@@ -114,7 +114,7 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
             template_name: Final[str] = "b_none.jinja2"
 
             # Define context and emojis
-            context: Final[str] = (
+            context: str = (
                 "There are no containers or incorrect settings are specified."
             )
             emojis: Final[Dict[str, str]] = {
@@ -140,10 +140,9 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
             }
 
         # Render the template with the context data and emojis
-        with Compiler(
+        compiled_data = Compiler.quick_render(
             template_name=template_name, context=context, **emojis
-        ) as compiler:
-            compiled_data = compiler.compile()
+        )
 
         return compiled_data, containers_name
 

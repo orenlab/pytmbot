@@ -86,7 +86,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
         emojis = get_emojis()
 
         # Compile template with all container data
-        with Compiler(
+        context = Compiler.quick_render(
             template_name="d_containers_full_info.jinja2",
             # Basic template emojis
             thought_balloon=emojis.get("thought_balloon", "💭"),
@@ -99,8 +99,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
             banjo=emojis.get("banjo", "🪕"),
             # Spread all container details
             **container_details,
-        ) as compiler:
-            context = compiler.compile()
+        )
 
         # Build keyboard
         keyboard_buttons = []

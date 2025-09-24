@@ -7,7 +7,6 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-import sys
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -15,15 +14,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Protocol
+from typing import override
 from weakref import ref, ReferenceType
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-
-    def override(func):
-        return func
-
 
 import telebot
 from telebot.apihelper import ApiTelegramException
@@ -725,6 +717,13 @@ def create_health_monitor(
     if psutil_adapter:
         monitor.add_checker(SystemResourceChecker(psutil_adapter))
 
+    try:
+        from pytmbot.parsers.health_checker import TemplateParserChecker
+
+        monitor.add_checker(TemplateParserChecker())
+    except ImportError:
+        pass  # Parser не доступен
+
     return monitor
 
 
@@ -743,6 +742,13 @@ def create_health_manager(
 
     if psutil_adapter:
         manager.add_checker(SystemResourceChecker(psutil_adapter))
+
+    try:
+        from pytmbot.parsers.health_checker import TemplateParserChecker
+
+        manager.add_checker(TemplateParserChecker())
+    except ImportError:
+        pass  # Parser не доступен
 
     return manager
 

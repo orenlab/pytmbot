@@ -40,10 +40,9 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
             "thought_balloon": em.get_emoji("thought_balloon"),
         }
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_back.jinja2", first_name=first_name, **emojis
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         send_telegram_message(
             bot=bot,
