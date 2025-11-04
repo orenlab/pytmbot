@@ -1,41 +1,133 @@
 # pyTMBot Roadmap
 
-## 📈 Roadmap Overview
+## 🎯 Current Focus: Architectural Transformation
 
-The roadmap below outlines the planned features and improvements for pyTMBot. Each entry includes the current status and
-estimated launch timeframe.
+**Mission**: Transition to a fully asynchronous, modern, and scalable microservices architecture to enable
+enterprise-grade performance and flexibility.
 
-| #  | Feature                                                            | Current Status | Planned Launch |
-|----|--------------------------------------------------------------------|----------------|----------------|
-| 1  | **Comprehensive Testing**                                          | Planned        | Q4 2025        |
-| 2  | **Background and Regular Statistics Collection**                   | Completed      | Completed      |
-| 3  | **Docker Image Update Monitoring**                                 | Completed      | Completed      |
-| 4  | **Enhanced Image Management**                                      | Planned        | Q4 2025        |
-| 5  | **Container Management**                                           | Completed      | Q3 2024        |
-| 6  | **Integration with Fluentd**                                       | Planned        | Q4 2025        |
-| 7  | **Integration with Grafana**                                       | Planned        | Q4 2025        |
-| 8  | **Podman Support**                                                 | Pending        | TBD            |
-| 9  | **Revised Authorization Mechanism to Prevent Unauthorized Access** | Completed      | Completed      |
-| 10 | **Dockerfile Audit (Transition from pip to Poetry)**               | Pending        | TBD            |
-| 11 | **Initial Documentation**                                          | Completed      | Completed      |
-| 12 | **Implementation of Bot Tree Structure**                           | Completed      | Completed      |
-| 13 | **Migration from Glances to psutil**                               | Completed      | Completed      |
-| 14 | **Multi-Server Agent Support**                                     | Planned        | Q4 2025        |
+### Phase 1: Core Architecture Overhaul (Now - Dec 2025)
 
-## 🆕 New Features
+```yaml
+focus_areas:
+  - full_async_migration: "Complete transition to async/await pattern"
+  - modular_design: "Decoupled microservices architecture"
+  - performance_optimization: "High-throughput message processing"
+  - scalability_foundation: "Horizontal scaling readiness"
+```
 
-### Multi-Server Agent Support (#14)
+## 📅 Release Timeline
 
-Implementation of an agent-based architecture that allows monitoring of multiple servers from a single bot instance,
-similar to solutions like Portainer or Dozzle. This feature will enable:
+### 🟢 Now - Dec 2025 (Immediate Focus)
 
-- Remote server monitoring capabilities
-- Centralized management of distributed infrastructure
-- Agent deployment and configuration management
-- Cross-server statistics and alerting
+- **Core async/await migration**
+- **Plugin system framework**
+- **Performance benchmarking suite**
+- **Enhanced error handling & recovery**
 
-## Feedback and Feature Requests
+### 🟡 Q1 2026 - Feature Expansion
 
-We welcome suggestions and feature requests from our users. If you have any ideas or feedback, please submit
-an [issue](https://github.com/orenlab/pytmbot/issues/new/choose) in the "Feature Request" section of our GitHub
-repository.
+- **Multi-server agent system**
+- **Advanced monitoring integrations**
+- **Enhanced container management**
+- **Production-ready testing suite**
+
+### 🔵 Q2 2026 - Ecosystem Growth
+
+- **Community plugin marketplace**
+- **Advanced analytics dashboard**
+- **Enterprise features**
+
+## 📊 Feature Status
+
+| Component                | Status         | Timeline | Priority |
+|--------------------------|----------------|----------|----------|
+| **Async Core Migration** | 🟡 In Progress | Dec 2025 | P0       |
+| **Plugin Architecture**  | 🟢 Planned     | Dec 2025 | P0       |
+| **Multi-Server Agents**  | ⏳ Scheduled    | Q1 2026  | P1       |
+| **Grafana Integration**  | ⏳ Scheduled    | Q1 2026  | P2       |
+| **Fluentd Integration**  | ⏳ Scheduled    | Q1 2026  | P2       |
+| **Podman Support**       | ⏳ Scheduled    | Q1 2026  | P2       |
+| **Enhanced Testing**     | ⏳ Scheduled    | Q1 2026  | P1       |
+
+## 🏗️ Technical Specifications
+
+### Architecture Goals
+
+```python
+# Target Architecture Principles
+PRINCIPLES = {
+    "async_first": "All I/O operations non-blocking",
+    "microservices": "Independent, replaceable components",
+    "plugin_ecosystem": "Extensible via standardized interfaces",
+    "resilience": "Fault-tolerant with graceful degradation",
+    "observability": "Comprehensive metrics and tracing"
+}
+```
+
+### Performance Targets
+
+- **Connection scaling**: 1k+ concurrent connections
+- **Memory efficiency**: <100MB base memory footprint
+- **Startup time**: <2 seconds cold start
+
+## 🚀 Immediate Milestones (Next 6 Weeks)
+
+### Week 1-2: Foundation
+
+- [ ] Async event loop implementation
+- [ ] Basic plugin system skeleton
+- [ ] Performance baseline established
+
+### Week 3-4: Core Migration
+
+- [ ] Message handlers converted to async
+- [ ] Database operations made non-blocking
+- [ ] Initial plugin API documentation
+
+### Week 5-6: Validation
+
+- [ ] Load testing completed
+- [ ] Backward compatibility verified
+- [ ] Community feedback incorporated
+
+## 🔄 Migration Strategy
+
+### Incremental Rollout Plan
+
+1. **Core async foundation** (non-breaking)
+2. **Parallel plugin system** (backward compatible)
+3. **Gradual feature migration** (feature flags)
+4. **Performance validation** (A/B testing)
+5. **Full cutover** (with rollback capability)
+
+## 🤝 Contribution Opportunities
+
+**High-Impact Areas for Q4 2025:**
+
+- Async wrapper implementations
+- Performance benchmarking suites
+- Plugin development examples
+- Documentation improvements
+
+**Get Involved:**
+
+```bash
+# Explore current architecture issues
+gh issue list --label "architecture" --state open
+
+# Check active development
+git checkout feature/async-core
+```
+
+## 📈 Success Metrics
+
+- [ ] 95%+ code coverage with async tests
+- [ ] 3x performance improvement in benchmark tests
+- [ ] Zero blocking operations in core pathways
+- [ ] Plugin API stability guarantee
+- [ ] Backward compatibility maintained
+
+---
+
+*This roadmap reflects our current focus on architectural excellence. Timeline adjustments may occur based on
+performance validation and community feedback. Last updated: November 2025*
