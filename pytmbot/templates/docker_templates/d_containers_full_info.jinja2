@@ -16,7 +16,7 @@
 <code>Restart Policy:</code> {{ resources.restart_policy }}
 
 {% if stats.memory %}{{ chart_emoji }} <b>Current Usage:</b>
-<code>Memory:</code> {{ stats.memory.mem_usage }} / {{ stats.memory.mem_limit }} ({{ stats.memory.mem_percent }}%)
+<code>Memory:</code> {{ stats.memory.mem_usage }} / {{ stats.memory.mem_limit }} ({% if stats.memory.mem_percent == 'N/A' %}N/A{% else %}{{ stats.memory.mem_percent }}%{% endif %})
 {% if stats.cpu.cpu_percent %}<code>CPU:</code> {{ stats.cpu.cpu_percent }}%
 {% endif %}{% if stats.network %}<code>Network I/O:</code> ↓{{ stats.network.rx_bytes }} ↑{{ stats.network.tx_bytes }}
 {% endif %}

@@ -151,7 +151,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
         container_id: The ID of the container.
 
     Returns:
-        Dict containing container details including memory usage.
+        Dict containing container details for list/overview rendering.
 
     Raises:
         ContainerNotFoundError: If container is not found.
@@ -171,15 +171,6 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
     try:
         container_details = get_container_safely(container_id)
         attrs = container_details.attrs
-
-        # Get runtime stats for memory usage (this was missing!)
-        memory_stats = {}
-        try:
-            stats = container_details.stats(stream=False)
-            memory_stats = _parse_container_memory_stats(stats)
-        except Exception as e:
-            logger.debug(f"Failed to get container runtime stats: {e}", **context)
-            # Continue without memory stats if unavailable
 
         # Safely parse created timestamp
         created_str = attrs.get("Created", "")
@@ -240,10 +231,6 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             "restart_count": attrs.get("RestartCount", 0),
         }
 
-        # Add memory statistics if available
-        if memory_stats:
-            details.update(memory_stats)
-
         # Cache the details
         _container_cache.set(f"details_{container_id}", details)
 
@@ -251,7 +238,6 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             "Container details aggregated",
             status=details["status"],
             health=details.get("health", "N/A"),
-            has_memory_stats=bool(memory_stats),
             **context,
         )
         return details
@@ -268,47 +254,6 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
             **context,
         )
         raise
-
-
-def _parse_container_memory_stats(container_stats: Dict) -> Dict[str, str]:
-    """
-    Parse the memory statistics of a container.
-
-    Args:
-        container_stats (Dict): The dictionary containing memory statistics of a container.
-
-    Returns:
-        Dict: A dictionary with keys for 'mem_usage', 'mem_limit', and 'mem_percent'.
-    """
-    try:
-        # Retrieve the memory statistics from the container_stats dictionary
-        memory_stats = container_stats.get("memory_stats", {})
-
-        # Calculate the memory usage and limit
-        usage = memory_stats.get("usage", 0)
-        limit = memory_stats.get("limit", 0)
-
-        if usage == 0 and limit == 0:
-            return {}  # No memory stats available
-
-        # Use existing utility for formatting bytes
-        from pytmbot.utils import set_naturalsize
-
-        mem_usage = set_naturalsize(usage)
-        mem_limit = set_naturalsize(limit)
-
-        # Calculate the percentage of memory used by the container
-        mem_percent = round(usage / limit * 100, 2) if limit > 0 else 0
-
-        return {
-            "mem_usage": mem_usage,
-            "mem_limit": mem_limit,
-            "mem_percent": f"{mem_percent}%",
-        }
-
-    except Exception as e:
-        logger.debug(f"Error parsing container memory stats: {e}")
-        return {}
 
 
 @with_operation_logging("retrieve_containers_stats")

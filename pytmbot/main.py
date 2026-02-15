@@ -362,7 +362,7 @@ class BotLauncher(logs.BaseComponent):
             for name, component in unhealthy_components.items():
                 details = component.get("details", {})
                 with self.log_context(
-                    component=name,
+                    health_component=name,
                     level=component.get("level"),
                     latency_ms=f"{component.get('latency_ms', 0):.1f}",
                     details=details,

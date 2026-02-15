@@ -309,7 +309,7 @@ class MemoryStatsProvider:
     def from_container_stats(container: Container) -> MemoryStats | None:
         """Fallback to container.stats() - slowest method."""
         try:
-            stats = container.stats(stream=False)
+            stats = get_container_stats_snapshot(container)
             memory_stats = stats.get("memory_stats", {})
             usage = memory_stats.get("usage", 0)
             limit = memory_stats.get("limit", 0)
@@ -335,6 +335,37 @@ class MemoryStatsProvider:
             "mem_limit": mem_limit,
             "mem_percent": f"{mem_percent}%",
         }
+
+
+def get_container_stats_snapshot(container: Container) -> dict[str, Any]:
+    """
+    Get a single runtime stats snapshot with minimal latency.
+
+    Prefers one-shot mode (faster on modern Docker APIs) and falls back to
+    legacy non-streaming stats when one-shot isn't supported.
+    """
+    try:
+        try:
+            stats = container.stats(stream=False, one_shot=True)
+        except TypeError:
+            stats = container.stats(stream=False)
+        except Exception as one_shot_error:
+            one_shot_error_text = str(one_shot_error).lower()
+            if "one-shot" in one_shot_error_text or "one_shot" in one_shot_error_text:
+                stats = container.stats(stream=False)
+            else:
+                raise
+
+        if isinstance(stats, dict):
+            return stats
+
+        # docker-py may return an iterator in some environments
+        snapshot = next(iter(stats), {}) or {}
+        return snapshot if isinstance(snapshot, dict) else {}
+
+    except Exception as e:
+        logger.debug(f"Failed to get container stats snapshot: {e}")
+        return {}
 
 
 def check_container_state(

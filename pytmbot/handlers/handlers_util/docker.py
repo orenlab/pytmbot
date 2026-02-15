@@ -17,6 +17,10 @@ from pytmbot.adapters.docker.containers_info import (
     fetch_container_logs,
     fetch_full_container_details,
 )
+from pytmbot.adapters.docker.utils import (
+    get_container_memory_stats,
+    get_container_stats_snapshot,
+)
 from pytmbot.globals import em
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize, sanitize_logs, set_naturaltime
@@ -459,49 +463,36 @@ def get_comprehensive_container_details(
 
         # Initialize empty stats
         stats = {}
+        memory_stats = {}
 
         # Handle stats for Container object
         if hasattr(container_details, "stats"):
+            is_running = container_details.status.lower() == "running"
+
             try:
-                # Get single stats reading for running containers
-                if container_details.status.lower() == "running":
-                    stats = container_details.stats(stream=False)
-                    if not isinstance(stats, dict):
-                        # Handle case where it returns a generator
-                        stats = next(iter(stats), {})
-                else:
-                    # For non-running containers, we can't get runtime stats
-                    stats = {}
+                # Fast path for memory data to avoid slow Docker stats API where possible
+                if is_running:
+                    memory_stats = normalize_memory_stats(
+                        get_container_memory_stats(container_details)
+                    )
+            except Exception as e:
+                logger.debug(f"Couldn't get fast memory stats: {e}")
+
+            try:
+                # Request a single-shot runtime sample (faster than default stats mode)
+                if is_running:
+                    stats = get_container_stats_snapshot(container_details)
             except Exception as e:
                 logger.warning(f"Couldn't get container runtime stats: {e}")
                 stats = {}
 
-        # Parse stats if available
-        memory_stats = parse_container_memory_stats(stats) if stats else {}
+        # Parse stats if available and prefer runtime memory snapshot if present
+        runtime_memory_stats = parse_container_memory_stats(stats) if stats else {}
+        if runtime_memory_stats:
+            memory_stats = runtime_memory_stats
+
         cpu_stats = parse_container_cpu_stats(stats) if stats else {}
         network_stats = parse_container_network_stats(stats) if stats else {}
-
-        # If runtime stats are not available but we have Container object,
-        # try to get memory info from the enhanced containers_info data
-        if not memory_stats and hasattr(container_details, "attrs"):
-            # Check if the improved __aggregate_container_details included memory stats
-            # This is a fallback for when runtime stats aren't available
-            try:
-                from pytmbot.adapters.docker.containers_info import (
-                    __aggregate_container_details,
-                )
-
-                enhanced_details = __aggregate_container_details(container_details.id)
-                if enhanced_details:
-                    # Extract memory stats from enhanced details if available
-                    if "mem_usage" in enhanced_details:
-                        memory_stats = {
-                            "mem_usage": enhanced_details.get("mem_usage", "N/A"),
-                            "mem_limit": enhanced_details.get("mem_limit", "N/A"),
-                            "mem_percent": enhanced_details.get("mem_percent", "N/A"),
-                        }
-            except Exception as e:
-                logger.debug(f"Could not get enhanced memory stats: {e}")
 
         # Combine all data
         comprehensive_details = {
@@ -523,6 +514,35 @@ def get_comprehensive_container_details(
             f"Error getting comprehensive container details for {container_name}: {e}"
         )
         return None
+
+
+def normalize_memory_stats(
+    raw_memory_stats: Dict[str, Any],
+) -> Dict[str, Union[str, float]]:
+    """Normalize memory stats to template-compatible values."""
+    if not raw_memory_stats:
+        return {}
+
+    mem_percent = raw_memory_stats.get("mem_percent", "N/A")
+    if isinstance(mem_percent, str):
+        mem_percent = mem_percent.strip()
+        if mem_percent.endswith("%"):
+            mem_percent = mem_percent[:-1].strip()
+        if mem_percent.upper() != "N/A":
+            try:
+                mem_percent = float(mem_percent)
+            except ValueError:
+                mem_percent = "N/A"
+    elif isinstance(mem_percent, (int, float)):
+        mem_percent = round(float(mem_percent), 2)
+    else:
+        mem_percent = "N/A"
+
+    return {
+        "mem_usage": raw_memory_stats.get("mem_usage", "N/A"),
+        "mem_limit": raw_memory_stats.get("mem_limit", "N/A"),
+        "mem_percent": mem_percent,
+    }
 
 
 def parse_container_memory_stats(
