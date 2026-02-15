@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Optional
 
 from telebot import TeleBot
 from telebot.types import Message
@@ -13,7 +12,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em, button_data
+from pytmbot.globals import button_data, em, keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler

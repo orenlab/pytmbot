@@ -5,12 +5,12 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import List, Literal, Union
+from typing import Literal
 
 from pyoutlineapi.client import PyOutlineWrapper
-from pyoutlineapi.models import Metrics, AccessKeyList
+from pyoutlineapi.models import AccessKeyList, Metrics
 
-from pytmbot.plugins.outline.models import OutlineServer, OutlineKey
+from pytmbot.plugins.outline.models import OutlineKey, OutlineServer
 from pytmbot.plugins.plugins_core import PluginCore
 
 
@@ -57,7 +57,7 @@ class PluginMethods(PluginCore):
     def outline_action_manager(
         self,
         action: Literal["server_information", "traffic_information", "key_information"],
-    ) -> Union[OutlineServer, Metrics, List[OutlineKey]]:
+    ) -> OutlineServer | Metrics | list[OutlineKey]:
         """
         Manages actions based on the provided action string and returns the appropriate data.
 

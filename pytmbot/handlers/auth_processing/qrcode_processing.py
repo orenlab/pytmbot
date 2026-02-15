@@ -5,20 +5,19 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Optional
 
 from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import em, keyboards
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
-    deletion_manager,
     DeletionResult,
     DeletionStatus,
+    deletion_manager,
 )
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
@@ -46,7 +45,7 @@ def _qr_deletion_callback(result: DeletionResult) -> None:
 @logger.session_decorator
 def handle_qr_code_message(
     message: Message, bot: TeleBot, auto_delete_delay: int = 60
-) -> Optional[Message]:
+) -> Message | None:
     """
     Handles the QR code message by generating a TOTP QR code and sending it as a photo to the user.
 

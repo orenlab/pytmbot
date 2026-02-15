@@ -10,7 +10,7 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, em, running_in_docker
+from pytmbot.globals import em, psutil_adapter, running_in_docker
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 

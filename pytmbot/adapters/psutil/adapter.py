@@ -7,29 +7,29 @@ also providing basic information about the status of local servers.
 
 import concurrent.futures
 import os
+import time
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from datetime import datetime
-from typing import Optional, Dict, Any, Callable
-from collections.abc import Sequence
 from functools import lru_cache, wraps
 from threading import RLock
-import time
+from typing import Any
 
 import psutil
 
 from pytmbot.adapters.psutil.adapter_types import (
-    LoadAverage,
-    MemoryStats,
-    DiskStats,
-    SwapStats,
-    SensorStats,
-    ProcessStats,
-    NetworkIOStats,
-    UserInfo,
-    NetworkInterfaceStats,
     CPUFrequencyStats,
     CPUUsageStats,
+    DiskStats,
+    LoadAverage,
+    MemoryStats,
+    NetworkInterfaceStats,
+    NetworkIOStats,
+    ProcessStats,
+    SensorStats,
+    SwapStats,
     TopProcess,
+    UserInfo,
 )
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize
@@ -111,7 +111,7 @@ class PsutilAdapter:
         operation: str,
         func: Callable[[], Any],
         fallback: Any,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         **log_context,
     ) -> Any:
         """
@@ -171,7 +171,7 @@ class PsutilAdapter:
             )
             return fallback
 
-    def get_process_stats(self, pid: Optional[int] = None) -> Dict[str, Any]:
+    def get_process_stats(self, pid: int | None = None) -> dict[str, Any]:
         """
         Get comprehensive statistics for a specific process.
 
@@ -239,8 +239,8 @@ class PsutilAdapter:
         )
 
     def _collect_stats_concurrently(
-        self, collectors: Sequence[tuple[str, Callable[[], Dict[str, Any]]]]
-    ) -> Dict[str, Any]:
+        self, collectors: Sequence[tuple[str, Callable[[], dict[str, Any]]]]
+    ) -> dict[str, Any]:
         """
         Collect statistics concurrently using ThreadPoolExecutor with improved error handling.
 
@@ -299,7 +299,7 @@ class PsutilAdapter:
         )
         return final_stats
 
-    def _get_basic_process_info(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_basic_process_info(self, process: psutil.Process) -> dict[str, Any]:
         """Get basic process information with safe execution."""
 
         def _collect():
@@ -315,7 +315,7 @@ class PsutilAdapter:
 
         return self._safe_execute("basic process info", _collect, {})
 
-    def _get_process_cpu_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_cpu_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get CPU-related process statistics with safe execution."""
 
         def _collect_cpu_stats():
@@ -344,7 +344,7 @@ class PsutilAdapter:
 
         return self._safe_execute("CPU stats", _collect_cpu_stats, {})
 
-    def _get_process_memory_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_memory_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get memory-related process statistics with safe execution."""
 
         def _collect_memory_stats():
@@ -377,7 +377,7 @@ class PsutilAdapter:
 
         return self._safe_execute("memory stats", _collect_memory_stats, {})
 
-    def _get_process_io_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_io_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get I/O statistics for the process with safe execution."""
 
         def _collect_io_stats():
@@ -393,7 +393,7 @@ class PsutilAdapter:
 
         return self._safe_execute("I/O stats", _collect_io_stats, {})
 
-    def _get_process_file_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_file_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get file descriptor and thread statistics with safe execution."""
 
         def _collect_file_stats():
@@ -415,7 +415,7 @@ class PsutilAdapter:
 
         return self._safe_execute("file stats", _collect_file_stats, {})
 
-    def _get_process_network_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_network_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get network connection statistics with safe execution."""
 
         def _collect_network_stats():
@@ -431,7 +431,7 @@ class PsutilAdapter:
 
         return self._safe_execute("network stats", _collect_network_stats, {})
 
-    def _get_process_context_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_context_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get context switch statistics with safe execution."""
 
         def _collect_context_stats():
@@ -444,7 +444,7 @@ class PsutilAdapter:
 
         return self._safe_execute("context stats", _collect_context_stats, {})
 
-    def _get_process_path_stats(self, process: psutil.Process) -> Dict[str, Any]:
+    def _get_process_path_stats(self, process: psutil.Process) -> dict[str, Any]:
         """Get working directory and command line information with safe execution."""
 
         def _collect_path_stats():
@@ -476,16 +476,16 @@ class PsutilAdapter:
         return self._safe_execute("path stats", _collect_path_stats, {})
 
     @staticmethod
-    def _count_connections_by_status(connections: Sequence[Any]) -> Dict[str, int]:
+    def _count_connections_by_status(connections: Sequence[Any]) -> dict[str, int]:
         """Count network connections by their status with improved typing."""
-        status_counts: Dict[str, int] = {}
+        status_counts: dict[str, int] = {}
         for conn in connections:
             status = getattr(conn, "status", "UNKNOWN")
             status_counts[status] = status_counts.get(status, 0) + 1
         return status_counts
 
     @thread_safe_cache(maxsize=1, ttl_seconds=2.0)  # Cache for 2 seconds
-    def get_current_process_health_summary(self) -> Dict[str, Any]:
+    def get_current_process_health_summary(self) -> dict[str, Any]:
         """
         Get a compact health summary for the current process suitable for logging.
         Cached for 2 seconds to avoid excessive system calls.
@@ -1102,7 +1102,7 @@ class PsutilAdapter:
 
         logger.info("All caches cleared")
 
-    def get_system_summary(self) -> Dict[str, Any]:
+    def get_system_summary(self) -> dict[str, Any]:
         """
         Get a comprehensive system summary with all major metrics.
 

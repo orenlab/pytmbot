@@ -7,20 +7,21 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from functools import wraps
-from typing import Any, Callable, TypeAlias, TypeGuard, cast, TypeVar, Final
+from typing import Any, Final, TypeAlias, TypeGuard, TypeVar, cast
 
 import telebot
-from telebot.types import Message, CallbackQuery, User
+from telebot.types import CallbackQuery, Message, User
 
 from pytmbot.globals import session_manager, settings
 from pytmbot.handlers.auth_processing.auth_processing import (
-    handle_unauthorized_message,
     handle_access_denied,
+    handle_unauthorized_message,
 )
-from pytmbot.logs import Logger, BaseComponent
+from pytmbot.logs import BaseComponent, Logger
 
 logger = Logger()
 

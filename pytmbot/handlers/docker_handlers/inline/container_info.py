@@ -8,15 +8,15 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, settings, button_data
+from pytmbot.globals import button_data, keyboards, settings
 from pytmbot.handlers.handlers_util.docker import (
-    show_handler_info,
-    get_emojis,
     get_comprehensive_container_details,
+    get_emojis,
+    show_handler_info,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.settings import MAX_CONTAINER_NAME_LENGTH, CONTAINER_NAME_PATTERN
+from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 from pytmbot.utils import split_string_into_octets
 
 logger = Logger()

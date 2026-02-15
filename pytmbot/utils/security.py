@@ -7,7 +7,6 @@ also providing basic information about the status of local servers.
 
 import re
 import secrets
-from typing import Dict, Optional, Set
 
 from pytmbot.settings import settings
 
@@ -25,7 +24,7 @@ def sanitize_exception(exception: Exception) -> str:
     exception_str = str(exception)
 
     # Build secret map with safe access to secret values
-    secret_map: Dict[str, str] = {}
+    secret_map: dict[str, str] = {}
 
     # Safely extract secrets with error handling
     try:
@@ -112,7 +111,7 @@ def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> s
     return message.replace(token, masked_token)
 
 
-def mask_username(username: Optional[str], visible: int = 3) -> str:
+def mask_username(username: str | None, visible: int = 3) -> str:
     """
     Masks Telegram username while keeping some characters visible for identification.
 
@@ -155,7 +154,7 @@ def mask_username(username: Optional[str], visible: int = 3) -> str:
     )
 
 
-def mask_user_id(user_id: Optional[int], visible: int = 3) -> str:
+def mask_user_id(user_id: int | None, visible: int = 3) -> str:
     """
     Masks user ID while preserving some digits for identification.
 
@@ -200,9 +199,9 @@ def mask_user_id(user_id: Optional[int], visible: int = 3) -> str:
 
 def sanitize_sensitive_data(
     text: str,
-    tokens: Optional[Set[str]] = None,
-    usernames: Optional[Set[str]] = None,
-    user_ids: Optional[Set[int]] = None,
+    tokens: set[str] | None = None,
+    usernames: set[str] | None = None,
+    user_ids: set[int] | None = None,
 ) -> str:
     """
     Comprehensive sanitization of sensitive data in text.

@@ -6,12 +6,12 @@ also providing basic information about the status of local servers.
 """
 
 import json
-from typing import Dict, Optional, Literal, Any
+from typing import Any, Literal
 
 from telebot import TeleBot
 from telebot.types import Message
 
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import em, keyboards
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
@@ -175,7 +175,7 @@ class OutlinePlugin(PluginInterface):
     def _get_action_data(
         self,
         action: Literal["key_information", "server_information", "traffic_information"],
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Retrieves action data from the plugin methods and processes it.
 
@@ -198,7 +198,7 @@ class OutlinePlugin(PluginInterface):
             )
         return None
 
-    def _get_user_names(self) -> Optional[Dict[str, str]]:
+    def _get_user_names(self) -> dict[str, str] | None:
         """
         Retrieves usernames by their IDs from the key information.
 
@@ -213,7 +213,7 @@ class OutlinePlugin(PluginInterface):
         self,
         template_name: str,
         first_name: str,
-        context: Optional[Dict] = None,
+        context: dict | None = None,
         **kwargs: dict[str, Any],
     ) -> str:
         """

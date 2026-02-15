@@ -10,8 +10,8 @@ from typing import Final
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, em, button_data, settings
-from pytmbot.handlers.handlers_util.docker import show_handler_info, get_sanitized_logs
+from pytmbot.globals import button_data, em, keyboards, settings
+from pytmbot.handlers.handlers_util.docker import get_sanitized_logs, show_handler_info
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler

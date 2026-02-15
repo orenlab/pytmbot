@@ -12,7 +12,7 @@ from functools import cached_property, lru_cache
 from pathlib import Path
 from threading import RLock
 from types import TracebackType
-from typing import Any, Dict, Optional, Type, Final
+from typing import Any, Final
 
 import docker
 from docker import DockerClient
@@ -47,12 +47,12 @@ class DockerAdapter:
         self._validate_configuration()
 
         self._docker_url: str = str(settings.docker.host[0])
-        self._client: Optional[DockerClient] = None
+        self._client: DockerClient | None = None
         self._start_time: datetime = datetime.now()
         self._log = Logger()
         self._lock = RLock()  # Thread safety for client operations
         self._connection_failures = 0
-        self._last_health_check: Optional[datetime] = None
+        self._last_health_check: datetime | None = None
 
         # Initialize base context for all operations
         self._base_context = {
@@ -144,7 +144,7 @@ class DockerAdapter:
             )
 
     @cached_property
-    def _timeout_config(self) -> Dict[str, int]:
+    def _timeout_config(self) -> dict[str, int]:
         """Get timeout configuration for Docker client with validation."""
         timeout = getattr(settings.docker, "timeout", self._DEFAULT_TIMEOUT)
 
@@ -154,8 +154,8 @@ class DockerAdapter:
         return {"timeout": timeout}
 
     def _get_context(
-        self, action: str, extra: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, action: str, extra: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Build context dictionary for logging with consistent structure."""
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
 
@@ -181,7 +181,7 @@ class DockerAdapter:
 
         return context
 
-    def _create_tls_config(self) -> Optional[docker.tls.TLSConfig]:
+    def _create_tls_config(self) -> docker.tls.TLSConfig | None:
         """Create TLS configuration with enhanced security."""
         if not self._docker_url.startswith("https://"):
             return None
@@ -327,7 +327,7 @@ class DockerAdapter:
         return False
 
     @lru_cache(maxsize=1)
-    def _get_docker_info(self) -> Dict[str, Any]:
+    def _get_docker_info(self) -> dict[str, Any]:
         """Get Docker daemon information (cached)."""
         try:
             with self:
@@ -376,9 +376,9 @@ class DockerAdapter:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Exit Docker context manager - manage connection lifecycle."""
         context = self._get_context("context_exit")
@@ -459,7 +459,7 @@ class DockerAdapter:
             )
             return False
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get comprehensive Docker adapter status information."""
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
 

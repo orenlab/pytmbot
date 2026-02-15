@@ -10,16 +10,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
-from typing import Any, TypeAlias, Final
+from typing import Any, Final, TypeAlias
 
-from telebot.types import Message, CallbackQuery
+from telebot.types import CallbackQuery, Message
 
 from pytmbot.globals import settings
 from pytmbot.models.handlers_model import HandlerManager
+
 from .auth_processing.qrcode_processing import handle_qr_code_message
 from .auth_processing.twofa_processing import (
-    handle_twofa_message,
     handle_totp_code_verification,
+    handle_twofa_message,
 )
 from .bot_handlers.about import handle_about_command
 from .bot_handlers.getmyid import handle_getmyid

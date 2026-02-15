@@ -11,7 +11,7 @@ import re
 from functools import lru_cache
 from typing import Any, TypeGuard
 
-from pytmbot.exceptions import TemplateError, ErrorContext
+from pytmbot.exceptions import ErrorContext, TemplateError
 
 # Validation patterns - compiled once
 _TEMPLATE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_.-]*\.jinja2?$")
@@ -274,7 +274,7 @@ class TemplateValidator:
 
             return validated_name, validated_context
 
-        except Exception as e:
+        except Exception:
             self._validation_stats["validation_errors"] += 1
             raise
 

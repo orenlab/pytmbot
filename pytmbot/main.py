@@ -15,14 +15,14 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import NoReturn, Final, Any
+from typing import Any, Final, NoReturn
 
 from humanize import naturaltime
 
 from pytmbot import logs
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
-from pytmbot.exceptions import InitializationError, ShutdownError, ErrorContext
-from pytmbot.health_system import HealthManager, create_health_manager, HealthStatus
+from pytmbot.exceptions import ErrorContext, InitializationError, ShutdownError
+from pytmbot.health_system import HealthManager, HealthStatus, create_health_manager
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 

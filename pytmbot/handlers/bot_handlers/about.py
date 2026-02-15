@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message, LinkPreviewOptions
+from telebot.types import LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext

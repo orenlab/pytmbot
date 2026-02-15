@@ -6,23 +6,25 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Tuple, Optional
+from typing import Any
 
 from humanize import (
     naturalsize as humanize_naturalsize,
+)
+from humanize import (
     naturaltime as humanize_naturaltime,
 )
 
 
-def round_up_tuple(numbers: Tuple[float, ...]) -> Dict[int, float]:
+def round_up_tuple(numbers: tuple[float, ...]) -> dict[int, float]:
     return {i: round(num, 2) for i, num in enumerate(numbers)}
 
 
-def find_in_args(args: Tuple[Any, ...], target_type: type) -> Optional[Any]:
+def find_in_args(args: tuple[Any, ...], target_type: type) -> Any | None:
     return next((arg for arg in args if isinstance(arg, target_type)), None)
 
 
-def find_in_kwargs(kwargs: Dict[str, Any], target_type: type) -> Optional[Any]:
+def find_in_kwargs(kwargs: dict[str, Any], target_type: type) -> Any | None:
     return next(
         (value for value in kwargs.values() if isinstance(value, target_type)), None
     )

@@ -6,14 +6,13 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import datetime
-from typing import Union
 
 from telebot import TeleBot
-from telebot.types import Message, ReplyKeyboardMarkup, InlineKeyboardMarkup
+from telebot.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import session_manager, em, keyboards, settings, var_config
+from pytmbot.globals import em, keyboards, session_manager, settings, var_config
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -232,7 +231,7 @@ def _block_user(user_id: int) -> None:
 
 def __create_referer_keyboard(
     user_id: int,
-) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
+) -> ReplyKeyboardMarkup | InlineKeyboardMarkup:
     """
     Creates a referer keyboard based on the user's handler type and referer URI.
 

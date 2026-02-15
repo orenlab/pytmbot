@@ -6,30 +6,32 @@ also providing basic information about the status of local servers.
 """
 
 import asyncio
+import time
 from concurrent.futures import (
     ThreadPoolExecutor,
     as_completed,
+)
+from concurrent.futures import (
     TimeoutError as FutureTimeoutError,
 )
 from datetime import datetime
-from typing import Dict, List, Optional, Final, Any
 from functools import lru_cache
-import time
 from threading import RLock
+from typing import Any, Final
 
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import (
-    get_container_safely,
     build_container_context,
+    get_container_safely,
     with_operation_logging,
 )
 from pytmbot.exceptions import (
     ContainerNotFoundError,
 )
 from pytmbot.logs import Logger
-from pytmbot.utils import set_naturaltime, sanitize_exception
+from pytmbot.utils import sanitize_exception, set_naturaltime
 
 logger = Logger()
 
@@ -44,11 +46,11 @@ class ContainerInfoCache:
     """Thread-safe cache for container information with TTL."""
 
     def __init__(self, ttl: int = CACHE_TTL):
-        self._cache: Dict[str, tuple[Dict, float]] = {}
+        self._cache: dict[str, tuple[dict, float]] = {}
         self._lock = RLock()
         self._ttl = ttl
 
-    def get(self, key: str) -> Optional[Dict]:
+    def get(self, key: str) -> dict | None:
         """Get cached value if not expired."""
         with self._lock:
             if key in self._cache:
@@ -60,7 +62,7 @@ class ContainerInfoCache:
                     del self._cache[key]
         return None
 
-    def set(self, key: str, value: Dict) -> None:
+    def set(self, key: str, value: dict) -> None:
         """Set cached value with current timestamp."""
         with self._lock:
             self._cache[key] = (value, time.time())
@@ -92,7 +94,7 @@ _container_cache = ContainerInfoCache()
 
 
 @with_operation_logging("fetch_containers_list")
-def __fetch_containers_list() -> List[str]:
+def __fetch_containers_list() -> list[str]:
     """
     Retrieves a list of all containers and returns their short IDs.
 
@@ -143,7 +145,7 @@ def __fetch_containers_list() -> List[str]:
 
 
 @with_operation_logging("aggregate_container_details")
-def __aggregate_container_details(container_id: str) -> Dict[str, str]:
+def __aggregate_container_details(container_id: str) -> dict[str, str]:
     """
     Aggregates details of a Docker container into a dictionary with enhanced error handling.
 
@@ -257,7 +259,7 @@ def __aggregate_container_details(container_id: str) -> Dict[str, str]:
 
 
 @with_operation_logging("retrieve_containers_stats")
-def retrieve_containers_stats() -> List[Dict[str, str]]:
+def retrieve_containers_stats() -> list[dict[str, str]]:
     """
     Retrieves and returns details of Docker containers using optimized parallel processing.
 
@@ -480,7 +482,7 @@ def fetch_container_logs(
 
 @lru_cache(maxsize=1)
 @with_operation_logging("fetch_docker_counters")
-def fetch_docker_counters() -> Dict[str, int]:
+def fetch_docker_counters() -> dict[str, int]:
     """
     Fetches Docker image and container counts with caching.
 
@@ -534,7 +536,7 @@ def fetch_docker_counters() -> Dict[str, int]:
 
 
 @with_operation_logging("fetch_full_container_details")
-def fetch_full_container_details(container_id: str) -> Optional[Container]:
+def fetch_full_container_details(container_id: str) -> Container | None:
     """
     Retrieves and returns the actual Docker Container object for handler compatibility.
 
@@ -584,7 +586,7 @@ def fetch_full_container_details(container_id: str) -> Optional[Container]:
 
 
 @with_operation_logging("fetch_full_container_details_dict")
-def fetch_full_container_details_dict(container_id: str) -> Optional[Dict]:
+def fetch_full_container_details_dict(container_id: str) -> dict | None:
     """
     Retrieves and returns the full attributes of a Docker container as a dictionary.
 
@@ -671,7 +673,7 @@ def clear_container_cache() -> None:
     logger.info("Container cache cleared")
 
 
-def get_cache_stats() -> Dict[str, Any]:
+def get_cache_stats() -> dict[str, Any]:
     """Get cache statistics for monitoring."""
     return {
         "cache_size": _container_cache.size(),
@@ -681,7 +683,7 @@ def get_cache_stats() -> Dict[str, Any]:
 
 
 # Async version for future use
-async def retrieve_containers_stats_async() -> List[Dict[str, str]]:
+async def retrieve_containers_stats_async() -> list[dict[str, str]]:
     """
     Async version of retrieve_containers_stats using asyncio for better concurrency.
 

@@ -7,8 +7,6 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from telebot import TeleBot
 from telebot.types import LinkPreviewOptions, Message
 
@@ -17,9 +15,9 @@ from pytmbot.exceptions import ErrorContext
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
-    deletion_manager,
     DeletionResult,
     DeletionStatus,
+    deletion_manager,
 )
 
 logger = Logger()
@@ -46,7 +44,7 @@ def _deletion_callback(result: DeletionResult) -> None:
 @logger.session_decorator
 def handle_getmyid(
     message: Message, bot: TeleBot, auto_delete_delay: int = 30
-) -> Optional[Message]:
+) -> Message | None:
     """
     Handler for /getmyid command - returns user and chat ID information
     for initial bot configuration and debugging purposes.

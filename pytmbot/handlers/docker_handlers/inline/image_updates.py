@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 import json
-from typing import Dict, List, Union
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
@@ -79,8 +78,8 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
 
 
 def prepare_context_for_render(
-    data: Dict[str, Dict[str, List[dict]]],
-) -> Dict[str, Union[Dict[str, Dict], List[str]]]:
+    data: dict[str, dict[str, list[dict]]],
+) -> dict[str, dict[str, dict] | list[str]]:
     """
     Prepares the context for template rendering.
 

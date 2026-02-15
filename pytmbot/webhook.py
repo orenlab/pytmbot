@@ -6,20 +6,20 @@ also providing basic information about the status of local servers.
 """
 
 from collections import deque
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from time import time
-from typing import Dict, Annotated, AsyncGenerator
-from typing import Optional
+from typing import Annotated
 
 import telebot
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, Depends, Header
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
-from pytmbot.exceptions import InitializationError, ErrorContext, BotException
+from pytmbot.exceptions import BotException, ErrorContext, InitializationError
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.models.telegram_models import TelegramIPValidator
@@ -42,8 +42,8 @@ class RateLimit(BaseComponent):
             self.limit = limit
             self.period = period
             self.ban_threshold = ban_threshold
-            self.requests: Dict[str, deque[float]] = {}
-            self.banned_ips: Dict[str, datetime] = {}
+            self.requests: dict[str, deque[float]] = {}
+            self.banned_ips: dict[str, datetime] = {}
 
     def is_banned(self, client_ip: str) -> bool:
         with self.log_context(ip=client_ip, action="check_ban"):
@@ -97,7 +97,7 @@ class WebhookManager(BaseComponent):
     __slots__ = ("bot", "url", "port", "secret_token")
 
     def __init__(
-        self, bot: TeleBot, url: str, port: int, secret_token: Optional[str] = None
+        self, bot: TeleBot, url: str, port: int, secret_token: str | None = None
     ) -> None:
         super().__init__("webhook_manager")
         self.bot = bot

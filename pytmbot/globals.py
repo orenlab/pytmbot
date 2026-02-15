@@ -8,25 +8,31 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import functools
-from typing import Final, TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
-from pytmbot.keyboards.keyboards import Keyboards, ButtonData
+from pytmbot.keyboards.keyboards import ButtonData, Keyboards
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.settings import (
-    settings as app_settings,
-    var_config as app_var_config,
     bot_command_settings as app_bot_command_settings,
+)
+from pytmbot.settings import (
     bot_description_settings as app_bot_description_settings,
+)
+from pytmbot.settings import (
+    settings as app_settings,
+)
+from pytmbot.settings import (
+    var_config as app_var_config,
 )
 from pytmbot.utils import EmojiConverter, is_running_in_docker
 
 if TYPE_CHECKING:
     from pytmbot.settings import (
-        settings,
-        VarConfig,
         BotCommandSettings,
         BotDescriptionSettings,
+        VarConfig,
+        settings,
     )
 
 # Application metadata - immutable constants

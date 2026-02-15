@@ -11,10 +11,11 @@ import threading
 import time
 import weakref
 from collections import defaultdict
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, DefaultDict, Final, TypeAlias
+from typing import Any, Final, TypeAlias
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
@@ -148,7 +149,7 @@ class _MessageDeletionManager(BaseComponent):
         # Initialize BaseComponent first
         super().__init__("MessageDeletionManager")
 
-        self._user_pending_deletions: DefaultDict[_UserID, set[_MessageID]] = (
+        self._user_pending_deletions: defaultdict[_UserID, set[_MessageID]] = (
             defaultdict(set)
         )
         self._active_tasks: dict[_TaskKey, _DeletionTask] = {}

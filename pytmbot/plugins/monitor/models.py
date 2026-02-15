@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from dataclasses import dataclass
-from typing import TypedDict, Optional, Any
+from typing import Any, TypedDict
 
 from pytmbot.logs import Logger
 
@@ -26,7 +26,7 @@ class ResourceMetrics(TypedDict):
     cpu_usage: float
     memory_usage: float
     disk_usage: dict[str, float]
-    temperatures: dict[str, dict[str, Optional[float]]]
+    temperatures: dict[str, dict[str, float | None]]
     fan_speeds: dict[str, dict[str, int]]
     load_averages: tuple[float, float, float]
 

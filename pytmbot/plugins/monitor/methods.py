@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Dict, Literal
+from typing import Literal
 
 import psutil
 from telebot import TeleBot
@@ -21,14 +21,14 @@ from pytmbot.adapters.docker.containers_info import (
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.adapters.psutil.adapter_types import TopProcess
-from pytmbot.db.influxdb_interface import InfluxDBInterface, InfluxDBConfig
+from pytmbot.db.influxdb_interface import InfluxDBConfig, InfluxDBInterface
 from pytmbot.logs import Logger
 from pytmbot.plugins.monitor.models import ResourceThresholds
 from pytmbot.plugins.monitor.utils import (
-    MonitoringState,
-    SystemMetrics,
     EventTracker,
+    MonitoringState,
     SystemInfo,
+    SystemMetrics,
 )
 from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.settings import settings
@@ -79,9 +79,9 @@ class SystemMonitorPlugin(PluginCore):
         )
 
         # Docker monitoring state
-        self._previous_container_hashes: Dict[str, dict] = {}
-        self._previous_image_hashes: Dict[str, dict] = {}
-        self._previous_counts: Dict[str, int] = {
+        self._previous_container_hashes: dict[str, dict] = {}
+        self._previous_image_hashes: dict[str, dict] = {}
+        self._previous_counts: dict[str, int] = {
             "containers_count": 0,
             "images_count": 0,
         }
@@ -258,7 +258,7 @@ class SystemMonitorPlugin(PluginCore):
                                 f"Temperature ({sensor})", duration
                             )
 
-    def _check_disk_alerts(self, disk_usage: Dict[str, float]) -> None:
+    def _check_disk_alerts(self, disk_usage: dict[str, float]) -> None:
         for disk, usage in disk_usage.items():
             if usage > self.thresholds.disk_usage:
                 event_id = next(

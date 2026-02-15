@@ -19,7 +19,7 @@ from rich import box
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, IntPrompt
 from rich.syntax import Syntax
 from rich.table import Table
@@ -240,7 +240,7 @@ auth_salt:
             elif format_choice == 3:
                 filename = Path(f"auth_salt_{timestamp}.env")
                 with filename.open('w', encoding='utf-8') as f:
-                    f.write(f"# pyTMBot Authentication Salt\n")
+                    f.write("# pyTMBot Authentication Salt\n")
                     f.write(f"# Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
                     f.write(f"AUTH_SALT='{salt}'\n")
 
@@ -268,7 +268,7 @@ auth_salt:
                 # ENV format
                 env_file = Path(f"auth_salt_{timestamp}.env")
                 with env_file.open('w', encoding='utf-8') as f:
-                    f.write(f"# pyTMBot Authentication Salt\n")
+                    f.write("# pyTMBot Authentication Salt\n")
                     f.write(f"AUTH_SALT='{salt}'\n")
                 files.append(env_file)
 

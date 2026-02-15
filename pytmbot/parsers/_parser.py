@@ -94,7 +94,11 @@ def _get_jinja_environment() -> Environment:
         )
 
         # Register filters
-        from pytmbot.parsers.filters import format_timestamp, format_bytes, format_duration
+        from pytmbot.parsers.filters import (
+            format_bytes,
+            format_duration,
+            format_timestamp,
+        )
         _environment.filters.update({
             "format_timestamp": format_timestamp,
             "format_bytes": format_bytes,
@@ -222,7 +226,10 @@ def _render_template(
     # Use proper validation based on trust level
     if trusted:
         # Fast validation for internal/trusted templates
-        from pytmbot.parsers.validation import validate_template_name_fast, validate_context_basic
+        from pytmbot.parsers.validation import (
+            validate_context_basic,
+            validate_template_name_fast,
+        )
         validated_name = validate_template_name_fast(template_name)
         validated_context = validate_context_basic(kwargs)
     else:

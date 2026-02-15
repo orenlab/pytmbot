@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 import re
 from datetime import datetime
 from functools import lru_cache
-from typing import Dict, Any, Union, List, Optional
+from typing import Any
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
@@ -23,7 +23,7 @@ from pytmbot.adapters.docker.utils import (
 )
 from pytmbot.globals import em
 from pytmbot.logs import Logger
-from pytmbot.utils import set_naturalsize, sanitize_logs, set_naturaltime
+from pytmbot.utils import sanitize_logs, set_naturalsize, set_naturaltime
 
 logger = Logger()
 
@@ -111,7 +111,7 @@ def get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> 
     return sanitized_logs
 
 
-def sanitize_environment_variables(env_list: List[str]) -> List[str]:
+def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     """
     Filter out sensitive environment variables for display.
 
@@ -168,7 +168,7 @@ def sanitize_environment_variables(env_list: List[str]) -> List[str]:
     return filtered_vars[:20]  # Limit to first 20 variables
 
 
-def parse_container_basic_info(container_details) -> Dict[str, Any]:
+def parse_container_basic_info(container_details) -> dict[str, Any]:
     """
     Extract basic container information from container details.
 
@@ -227,7 +227,7 @@ def parse_container_basic_info(container_details) -> Dict[str, Any]:
         return {}
 
 
-def parse_container_resources(container_details) -> Dict[str, Any]:
+def parse_container_resources(container_details) -> dict[str, Any]:
     """
     Extract container resource configuration and limits.
 
@@ -283,7 +283,7 @@ def parse_container_resources(container_details) -> Dict[str, Any]:
         return {}
 
 
-def parse_container_network_info(container_details) -> Dict[str, Any]:
+def parse_container_network_info(container_details) -> dict[str, Any]:
     """
     Extract container network configuration (safe subset).
 
@@ -336,7 +336,7 @@ def parse_container_network_info(container_details) -> Dict[str, Any]:
         return {}
 
 
-def parse_container_environment(container_details) -> Dict[str, Any]:
+def parse_container_environment(container_details) -> dict[str, Any]:
     """
     Extract and sanitize container environment information.
 
@@ -387,7 +387,7 @@ def parse_container_environment(container_details) -> Dict[str, Any]:
         return {}
 
 
-def parse_container_attrs(container_attrs) -> Dict:
+def parse_container_attrs(container_attrs) -> dict:
     """
     Parse the container attributes with enhanced environment variable handling.
 
@@ -435,7 +435,7 @@ def parse_container_attrs(container_attrs) -> Dict:
 
 def get_comprehensive_container_details(
     container_name: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get comprehensive container details with enhanced parsing and security.
 
@@ -517,8 +517,8 @@ def get_comprehensive_container_details(
 
 
 def normalize_memory_stats(
-    raw_memory_stats: Dict[str, Any],
-) -> Dict[str, Union[str, float]]:
+    raw_memory_stats: dict[str, Any],
+) -> dict[str, str | float]:
     """Normalize memory stats to template-compatible values."""
     if not raw_memory_stats:
         return {}
@@ -546,8 +546,8 @@ def normalize_memory_stats(
 
 
 def parse_container_memory_stats(
-    container_stats: Dict[str, Any],
-) -> Dict[str, Union[str, float]]:
+    container_stats: dict[str, Any],
+) -> dict[str, str | float]:
     """
     Parse the memory statistics of a container with enhanced formatting.
 
@@ -585,7 +585,7 @@ def parse_container_memory_stats(
         return {}
 
 
-def parse_container_cpu_stats(container_stats) -> Dict[str, Union[int, float]]:
+def parse_container_cpu_stats(container_stats) -> dict[str, int | float]:
     """
     Parse the CPU statistics of a container with enhanced calculations.
 
@@ -635,7 +635,7 @@ def parse_container_cpu_stats(container_stats) -> Dict[str, Union[int, float]]:
         }
 
 
-def parse_container_network_stats(container_stats: Dict) -> Dict:
+def parse_container_network_stats(container_stats: dict) -> dict:
     """
     Parse the network statistics of a container with enhanced formatting.
 

@@ -6,20 +6,20 @@ also providing basic information about the status of local servers.
 """
 
 import asyncio
+import hashlib
 import json
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum, auto
 from functools import lru_cache
-from typing import Dict, List, Optional, TypeAlias, Final, Any
 from threading import RLock
-import hashlib
+from typing import Any, Final, TypeAlias
 
 import aiohttp
-from aiohttp import ClientTimeout, ClientSession, ClientResponseError, ClientError
-from dateutil.parser import isoparse, ParserError
+from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
+from dateutil.parser import ParserError, isoparse
 from packaging import version
 from packaging.version import InvalidVersion
 
@@ -29,8 +29,8 @@ from pytmbot.models.docker_models import TagInfo, UpdateInfo
 from pytmbot.utils import sanitize_exception
 
 # Type Aliases
-LocalImageInfo: TypeAlias = Dict[str, List[Dict[str, Optional[str]]]]
-UpdateResult: TypeAlias = Dict[str, Dict[str, List[dict]]]
+LocalImageInfo: TypeAlias = dict[str, list[dict[str, str | None]]]
+UpdateResult: TypeAlias = dict[str, dict[str, list[dict]]]
 
 # Module constants for better maintainability
 DEFAULT_TIMEOUT: Final[int] = 15
@@ -88,13 +88,13 @@ class UpdaterResponse:
 
     status: UpdaterStatus
     message: str
-    data: Optional[Dict] = None
-    metadata: Optional[Dict] = field(default_factory=dict)
-    execution_time: Optional[float] = None
+    data: dict | None = None
+    metadata: dict | None = field(default_factory=dict)
+    execution_time: float | None = None
     repositories_processed: int = 0
     repositories_failed: int = 0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert response to dictionary for serialization."""
         return {
             "status": self.status.name,
@@ -141,9 +141,9 @@ class EnhancedTagInfo:
 
     tag_info: TagInfo
     tag_type: TagType
-    version_info: Optional[version.Version] = None
-    date_info: Optional[datetime] = None
-    parse_error: Optional[str] = None
+    version_info: version.Version | None = None
+    date_info: datetime | None = None
+    parse_error: str | None = None
 
     @property
     def name(self) -> str:
@@ -154,7 +154,7 @@ class EnhancedTagInfo:
         return self.tag_info.created_at
 
     @property
-    def digest(self) -> Optional[str]:
+    def digest(self) -> str | None:
         return self.tag_info.digest
 
     @property
@@ -280,10 +280,10 @@ class TagAnalyzer:
                         ):
                             raise ValueError("Time out of valid range")
                         date_obj = datetime(
-                            year, month, day, hour, minute, second, tzinfo=timezone.utc
+                            year, month, day, hour, minute, second, tzinfo=UTC
                         )
                     else:
-                        date_obj = datetime(year, month, day, tzinfo=timezone.utc)
+                        date_obj = datetime(year, month, day, tzinfo=UTC)
 
                     return EnhancedTagInfo(tag_info, TagType.DATE, date_info=date_obj)
 
@@ -301,14 +301,14 @@ class TagAnalyzer:
             )
 
 
-def normalize_created_at(created) -> Optional[str]:
+def normalize_created_at(created) -> str | None:
     """Enhanced timestamp normalization with validation."""
     try:
         if isinstance(created, (int, float)):
             # Validate timestamp range (1970 to 2100)
             if not (0 <= created <= 4102444800):  # 2100-01-01
                 return None
-            return datetime.fromtimestamp(created, tz=timezone.utc).isoformat()
+            return datetime.fromtimestamp(created, tz=UTC).isoformat()
         elif isinstance(created, str):
             if created.strip():
                 # Validate ISO format
@@ -355,7 +355,7 @@ class RateLimitHandler:
                 return time.time() - self._last_rate_limit < RATE_LIMIT_BACKOFF * 2
             return time.time() - self._last_rate_limit < RATE_LIMIT_BACKOFF
 
-    def handle_rate_limit(self, retry_after: Optional[int] = None) -> None:
+    def handle_rate_limit(self, retry_after: int | None = None) -> None:
         """Record rate limit event."""
         with self._lock:
             self._last_rate_limit = time.time()
@@ -382,7 +382,7 @@ class DockerImageUpdater(BaseComponent):
         self._timeout = min(timeout, MAX_TIMEOUT)
 
         self.local_images: LocalImageInfo = {}
-        self.tag_cache: Dict[str, tuple[List[EnhancedTagInfo], float]] = {}
+        self.tag_cache: dict[str, tuple[list[EnhancedTagInfo], float]] = {}
         self.analyzer = TagAnalyzer()
         self.rate_limiter = RateLimitHandler()
         self._cache_lock = RLock()
@@ -468,7 +468,7 @@ class DockerImageUpdater(BaseComponent):
 
         return local_images
 
-    def _extract_digest(self, image) -> Optional[str]:
+    def _extract_digest(self, image) -> str | None:
         """Enhanced digest extraction with validation."""
         try:
             repo_digests = image.attrs.get("RepoDigests", [])
@@ -491,7 +491,7 @@ class DockerImageUpdater(BaseComponent):
             return None
 
     def _process_image_tags(
-        self, image, digest: Optional[str], local_images: LocalImageInfo
+        self, image, digest: str | None, local_images: LocalImageInfo
     ) -> None:
         """Enhanced tag processing with validation."""
         created_at = normalize_created_at(image.attrs.get("Created"))
@@ -553,7 +553,7 @@ class DockerImageUpdater(BaseComponent):
 
     async def _fetch_remote_tags(
         self, session: ClientSession, repo: str
-    ) -> List[EnhancedTagInfo]:
+    ) -> list[EnhancedTagInfo]:
         """Enhanced remote tag fetching with comprehensive error handling."""
 
         # Check rate limiting
@@ -581,7 +581,7 @@ class DockerImageUpdater(BaseComponent):
             f"https://registry.hub.docker.com/v2/repositories/library/{repo}/tags/",
         ]
 
-        tags_info: List[EnhancedTagInfo] = []
+        tags_info: list[EnhancedTagInfo] = []
         last_error = None
 
         for url in base_urls:
@@ -644,7 +644,7 @@ class DockerImageUpdater(BaseComponent):
 
     async def _fetch_tags_from_url(
         self, session: ClientSession, url: str, repo: str
-    ) -> Optional[List[EnhancedTagInfo]]:
+    ) -> list[EnhancedTagInfo] | None:
         """Fetch tags from specific URL with intelligent retry logic."""
 
         # Extract the actual repository path from URL for logging
@@ -729,7 +729,7 @@ class DockerImageUpdater(BaseComponent):
                     # Other status codes, don't retry
                     raise
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Only retry timeouts
                 if attempt < MAX_RETRIES - 1:
                     wait_time = 2**attempt  # Exponential backoff
@@ -792,8 +792,8 @@ class DockerImageUpdater(BaseComponent):
             return False
 
     def _find_compatible_updates(
-        self, local_tag: EnhancedTagInfo, remote_tags: List[EnhancedTagInfo]
-    ) -> List[UpdateInfo]:
+        self, local_tag: EnhancedTagInfo, remote_tags: list[EnhancedTagInfo]
+    ) -> list[UpdateInfo]:
         """Enhanced update finding with better compatibility checking."""
 
         with self._log.context(
@@ -886,8 +886,8 @@ class DockerImageUpdater(BaseComponent):
                     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REPOS)
 
                     async def process_repo(
-                        repo: str, local_tags: List[Dict]
-                    ) -> tuple[str, Dict]:
+                        repo: str, local_tags: list[dict]
+                    ) -> tuple[str, dict]:
                         async with semaphore:
                             try:
                                 remote_tags = await self._fetch_remote_tags(
@@ -1057,7 +1057,7 @@ class DockerImageUpdater(BaseComponent):
                     error_response.to_dict(), indent=4, ensure_ascii=False
                 )
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get comprehensive statistics about the updater."""
         with self._cache_lock:
             cache_stats = {
@@ -1098,7 +1098,7 @@ class DockerImageUpdater(BaseComponent):
 
         self._log.info(f"Cleared {cleared_entries} cache entries and reset statistics")
 
-    def validate_configuration(self) -> Dict[str, Any]:
+    def validate_configuration(self) -> dict[str, Any]:
         """Validate current configuration and return issues."""
         issues = []
 

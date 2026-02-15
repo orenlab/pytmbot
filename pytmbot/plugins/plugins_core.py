@@ -12,7 +12,8 @@ from typing import Any
 
 import yaml
 
-from pytmbot import globals as g, logs
+from pytmbot import globals as g
+from pytmbot import logs
 from pytmbot.keyboards import keyboards as kb
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.models import handlers_model
@@ -66,7 +67,7 @@ class PluginCore:
         """
         config_path = self.__get_config_path(config_name)
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = yaml.safe_load(f)
 
             self.logger.debug(f"Loaded plugin config: {config_name}")

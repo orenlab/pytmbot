@@ -5,21 +5,21 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Union, Dict, Any
+from typing import Any
 
 from telebot import TeleBot
-from telebot.types import Message, CallbackQuery
+from telebot.types import CallbackQuery, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import em, keyboards
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
 
 
-def _get_user_name(query: Union[Message, CallbackQuery]) -> str:
+def _get_user_name(query: Message | CallbackQuery) -> str:
     """
     Extracts user name from query.
 
@@ -33,7 +33,7 @@ def _get_user_name(query: Union[Message, CallbackQuery]) -> str:
 
 
 def _send_response(
-    query: Union[Message, CallbackQuery], bot: TeleBot, response: str, keyboard: Any
+    query: Message | CallbackQuery, bot: TeleBot, response: str, keyboard: Any
 ) -> None:
     """
     Sends response to user based on query type.
@@ -62,11 +62,11 @@ def _send_response(
 
 
 def _handle_auth_message(
-    query: Union[Message, CallbackQuery],
+    query: Message | CallbackQuery,
     bot: TeleBot,
     template_name: str,
     keyboard_type: str,
-    emojis: Dict[str, str],
+    emojis: dict[str, str],
     error_code: str,
     error_message: str,
 ) -> None:
@@ -114,7 +114,7 @@ def _handle_auth_message(
 
 @logger.session_decorator
 def handle_unauthorized_message(
-    query: Union[Message, CallbackQuery], bot: TeleBot
+    query: Message | CallbackQuery, bot: TeleBot
 ) -> None:
     """
     Handles unauthorized messages received by the bot.
@@ -149,7 +149,7 @@ def handle_unauthorized_message(
 
 
 @logger.session_decorator
-def handle_access_denied(query: Union[Message, CallbackQuery], bot: TeleBot):
+def handle_access_denied(query: Message | CallbackQuery, bot: TeleBot):
     """
     Handles access denied queries from users.
 

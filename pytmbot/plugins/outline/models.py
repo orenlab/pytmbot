@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Optional
 
 from pydantic import SecretStr
 
@@ -39,4 +38,4 @@ class OutlineKey(PluginCoreModel):
     method: str
     access_url: str
     used_bytes: int
-    data_limit: Optional[int]
+    data_limit: int | None

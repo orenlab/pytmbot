@@ -13,9 +13,8 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Protocol
-from typing import override
-from weakref import ref, ReferenceType
+from typing import Any, Protocol, override
+from weakref import ReferenceType, ref
 
 import telebot
 from telebot.apihelper import ApiTelegramException
@@ -179,7 +178,6 @@ class TelegramApiChecker(BaseHealthChecker):
         try:
             # Use a simple timeout approach instead of signals
             import concurrent.futures
-            import threading
 
             def api_call():
                 return bot.get_me()

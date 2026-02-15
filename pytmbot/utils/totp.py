@@ -16,7 +16,7 @@ from typing import Final
 import pyotp
 import qrcode
 
-from pytmbot.exceptions import QRCodeError, ErrorContext, TOTPError
+from pytmbot.exceptions import ErrorContext, QRCodeError, TOTPError
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 
@@ -79,7 +79,7 @@ class TwoFactorAuthenticator(BaseComponent):
 
         try:
             # Concatenate the user ID, salt, and username
-            message = f"{self.user_id}{self._salt}{self.username}".encode("utf-8")
+            message = f"{self.user_id}{self._salt}{self.username}".encode()
 
             # Hash the concatenated message using blake2b
             hash_obj = hashlib.blake2b(message, digest_size=self.HASH_DIGEST_SIZE)
@@ -159,7 +159,7 @@ class TwoFactorAuthenticator(BaseComponent):
                     qr_code.save(img_bytes)
                     qr_data = img_bytes.getvalue()
 
-                log.info(f"QR code generated", qr_size=len(qr_data))
+                log.info("QR code generated", qr_size=len(qr_data))
                 return qr_data
 
             except TOTPError:
@@ -268,7 +268,7 @@ class TwoFactorAuthenticator(BaseComponent):
 
                 for i in range(count):
                     # Generate deterministic backup code using secret + index
-                    seed = f"{secret}{i}".encode("utf-8")
+                    seed = f"{secret}{i}".encode()
                     code_hash = hashlib.blake2b(seed, digest_size=4).digest()
                     code = base64.b32encode(code_hash).decode("ascii")[:8]  # 8 chars
                     backup_codes.append(f"{code[:4]}-{code[4:]}")  # Format: XXXX-XXXX

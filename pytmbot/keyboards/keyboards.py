@@ -14,8 +14,8 @@ from typing import Final
 
 from telebot.types import (
     InlineKeyboardButton,
-    ReplyKeyboardMarkup,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
 )
 
 from pytmbot.exceptions import KeyboardError

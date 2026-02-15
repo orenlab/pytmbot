@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any, Optional, Final, TypeAlias, TypedDict
+from typing import Any, Final, TypeAlias, TypedDict
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -257,7 +257,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         return CancelUpdate()
 
-    def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
+    def pre_process(self, message: Message, data: Any) -> CancelUpdate | None:
         """
         Process incoming message and enforce rate limiting.
 
@@ -339,7 +339,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
         return None
 
     def post_process(
-        self, message: Message, data: Any, exception: Optional[Exception]
+        self, message: Message, data: Any, exception: Exception | None
     ) -> None:
         """Post-process message after main middleware execution."""
         if not exception:

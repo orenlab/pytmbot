@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Any, Optional
+from typing import Any
 
 from telebot import TeleBot
 from telebot.types import Message
@@ -14,14 +14,14 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, em
+from pytmbot.globals import em, psutil_adapter
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
 
 
-def _get_uptime() -> Optional[str]:
+def _get_uptime() -> str | None:
     """Get system uptime."""
     try:
         return psutil_adapter.get_uptime()
@@ -30,7 +30,7 @@ def _get_uptime() -> Optional[str]:
         return None
 
 
-def _get_load() -> Optional[tuple]:
+def _get_load() -> tuple | None:
     """Get load average."""
     try:
         return psutil_adapter.get_load_average()
@@ -39,7 +39,7 @@ def _get_load() -> Optional[tuple]:
         return None
 
 
-def _get_memory() -> Optional[Dict]:
+def _get_memory() -> dict | None:
     """Get memory statistics."""
     try:
         return psutil_adapter.get_memory()
@@ -48,7 +48,7 @@ def _get_memory() -> Optional[Dict]:
         return None
 
 
-def _get_processes() -> Optional[Dict]:
+def _get_processes() -> dict | None:
     """Get process counts."""
     try:
         return psutil_adapter.get_process_counts()
@@ -57,7 +57,7 @@ def _get_processes() -> Optional[Dict]:
         return None
 
 
-def _get_docker() -> Optional[Dict]:
+def _get_docker() -> dict | None:
     """Get Docker statistics."""
     try:
         return fetch_docker_counters()
@@ -66,7 +66,7 @@ def _get_docker() -> Optional[Dict]:
         return None
 
 
-def _collect_metrics() -> Dict[str, Any]:
+def _collect_metrics() -> dict[str, Any]:
     """
     Collect all metrics concurrently using ThreadPoolExecutor.
 

@@ -10,7 +10,7 @@ from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
 from pytmbot.adapters.docker.utils import check_container_state
-from pytmbot.globals import session_manager, keyboards
+from pytmbot.globals import keyboards, session_manager
 from pytmbot.handlers.handlers_util.docker import show_handler_info
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required

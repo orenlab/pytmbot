@@ -10,7 +10,7 @@ from telebot.types import CallbackQuery
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, em
+from pytmbot.globals import em, psutil_adapter
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 

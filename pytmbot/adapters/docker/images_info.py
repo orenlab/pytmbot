@@ -8,13 +8,13 @@ also providing basic information about the status of local servers.
 import time
 from datetime import datetime
 from functools import wraps
-from typing import List, Dict, Any
+from typing import Any
 
 from docker.errors import APIError, ImageNotFound
 from docker.models.images import Image
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
-from pytmbot.exceptions import ImageOperationError, DockerConnectionError
+from pytmbot.exceptions import DockerConnectionError, ImageOperationError
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize, set_naturaltime
 
@@ -81,7 +81,7 @@ def with_image_logging(operation_name: str):
     return decorator
 
 
-def process_image_attrs(image: Image) -> Dict[str, Any]:
+def process_image_attrs(image: Image) -> dict[str, Any]:
     """
     Process Docker image attributes into a standardized format.
 
@@ -136,7 +136,7 @@ def process_image_attrs(image: Image) -> Dict[str, Any]:
 
 
 @with_image_logging("fetch_image_details")
-def fetch_image_details() -> List[Dict[str, Any]]:
+def fetch_image_details() -> list[dict[str, Any]]:
     """
     Fetches detailed information about Docker images.
 
@@ -161,7 +161,7 @@ def fetch_image_details() -> List[Dict[str, Any]]:
 
 
 @with_image_logging("get_image_history")
-def get_image_history(image_id: str) -> List[Dict[str, Any]]:
+def get_image_history(image_id: str) -> list[dict[str, Any]]:
     """
     Fetches the history of a Docker image.
 
@@ -201,7 +201,7 @@ def get_image_history(image_id: str) -> List[Dict[str, Any]]:
 
 
 @with_image_logging("get_image_stats")
-def get_image_stats() -> Dict[str, Any]:
+def get_image_stats() -> dict[str, Any]:
     """
     Get statistics about Docker images.
 

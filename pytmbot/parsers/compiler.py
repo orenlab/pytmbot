@@ -10,9 +10,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Final
 
-from pytmbot.exceptions import TemplateError, ErrorContext
+from pytmbot.exceptions import ErrorContext, TemplateError
 from pytmbot.logs import BaseComponent
-from pytmbot.parsers._parser import _render_template, _get_cache_stats, _clear_template_cache
+from pytmbot.parsers._parser import (
+    _clear_template_cache,
+    _get_cache_stats,
+    _render_template,
+)
 
 
 class TemplateType(StrEnum):

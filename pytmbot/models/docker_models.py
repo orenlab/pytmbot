@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from enum import Enum
-from typing import Dict, TypeAlias, TypedDict, Optional
+from typing import TypeAlias, TypedDict
 
 from pydantic import BaseModel
 
@@ -33,7 +33,7 @@ class TagInfo(BaseModel):
 
     name: str
     created_at: str  # ISO 8601 date format
-    digest: Optional[str]
+    digest: str | None
 
 
 class UpdateInfo(BaseModel):
@@ -52,7 +52,7 @@ class UpdateInfo(BaseModel):
     created_at_remote: str
     current_digest: str
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Converts UpdateInfo to a dictionary.
 
         Returns:

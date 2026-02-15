@@ -5,27 +5,28 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from functools import wraps
-from typing import Callable, Dict, Any, Final
-from threading import RLock
 import time
+from collections.abc import Callable
 from datetime import datetime
+from functools import wraps
+from threading import RLock
+from typing import Any, Final
 
 from pytmbot.adapters.docker.utils import (
-    get_container_safely,
-    sanitize_kwargs_for_logging,
     build_container_context,
     get_container_basic_info,
+    get_container_safely,
+    sanitize_kwargs_for_logging,
 )
-from pytmbot.globals import settings, session_manager
+from pytmbot.globals import session_manager, settings
 from pytmbot.logs import Logger
 from pytmbot.models.docker_models import (
-    ContainerId,
-    ContainerConfig,
-    DockerResponse,
     ContainerAction,
+    ContainerConfig,
+    ContainerId,
+    DockerResponse,
 )
-from pytmbot.utils import sanitize_exception, is_new_name_valid
+from pytmbot.utils import is_new_name_valid, sanitize_exception
 
 logger = Logger()
 
@@ -41,7 +42,7 @@ def validate_access(func: Callable) -> Callable:
     - Session validation
     """
     # Rate limiting storage (user_id -> last_operation_time)
-    _rate_limits: Dict[int, float] = {}
+    _rate_limits: dict[int, float] = {}
     _lock = RLock()
 
     # Rate limiting configuration
@@ -117,7 +118,7 @@ def validate_access(func: Callable) -> Callable:
                         max_age=f"{max_session_age}s",
                         **context,
                     )
-                    raise PermissionError(f"Session expired. Please re-authenticate")
+                    raise PermissionError("Session expired. Please re-authenticate")
 
             # Log successful authorization at debug level to avoid noise
             logger.debug("Container access authorized", **context)
@@ -150,7 +151,7 @@ class ContainerManager:
 
     def __init__(self) -> None:
         self._lock = RLock()  # Thread safety
-        self._operation_history: Dict[
+        self._operation_history: dict[
             str, datetime
         ] = {}  # Track operations for monitoring
         self._max_operation_timeout: Final[float] = (
@@ -547,7 +548,7 @@ class ContainerManager:
             raise
 
     @staticmethod
-    def get_container_status(container_id: ContainerId) -> Dict[str, Any]:
+    def get_container_status(container_id: ContainerId) -> dict[str, Any]:
         """Get comprehensive container status information for monitoring."""
         context = build_container_context(
             container_id=container_id,
@@ -605,7 +606,7 @@ class ContainerManager:
             )
             raise
 
-    def get_operation_history(self) -> Dict[str, str]:
+    def get_operation_history(self) -> dict[str, str]:
         """Get recent operation history for monitoring."""
         with self._lock:
             return {

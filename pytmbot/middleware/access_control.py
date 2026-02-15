@@ -10,7 +10,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Final, Optional, Any, Set
+from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -37,7 +37,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
     ADMIN_NOTIFY_SUPPRESSION: Final[int] = 300  # seconds
 
     # Commands that unauthorized users can use within their attempt limit
-    SETUP_COMMANDS: Final[Set[str]] = {
+    SETUP_COMMANDS: Final[set[str]] = {
         "/getmyid",
     }
 
@@ -88,7 +88,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         return command in self.SETUP_COMMANDS
 
-    def pre_process(self, message: Message, data: Any) -> Optional[CancelUpdate]:
+    def pre_process(self, message: Message, data: Any) -> CancelUpdate | None:
         user = message.from_user
         if not user:
             context = {
@@ -179,7 +179,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         chat_id: int,
         message: Message,
         base_context: dict,
-    ) -> Optional[CancelUpdate]:
+    ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
 
         self._attempt_count[user_id] += 1
@@ -312,7 +312,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
                 msg += f"❗ Remaining attempts: `{remaining}`\n"
                 context["attempts_remaining"] = remaining
             else:
-                msg += f"⛔ User will be blocked after this attempt\n"
+                msg += "⛔ User will be blocked after this attempt\n"
                 context["user_will_be_blocked"] = True
 
             if is_setup_command:
@@ -458,13 +458,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
             (
                 "🚫 Final warning: Access denied.\n"
                 "⛔ You will be blocked after this attempt.\n"
-                f"💡 Use `/getmyid` for setup information. Goodbye! 👋"
+                "💡 Use `/getmyid` for setup information. Goodbye! 👋"
             ),
         ]
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-        self, message: Message, data: dict[str, Any], exception: Optional[Exception]
+        self, message: Message, data: dict[str, Any], exception: Exception | None
     ) -> None:
         """Post-process message handling."""
         if not exception or isinstance(exception, CancelUpdate):

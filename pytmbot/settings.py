@@ -8,12 +8,12 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import re
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Final
 
 import yaml
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from pytmbot.models.settings_model import SettingsModel
 
@@ -32,7 +32,7 @@ def _get_config_file_path() -> Path:
     return Path(__file__).parent.parent / "pytmbot.yaml"
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_settings_from_yaml() -> SettingsModel:
     """
     Loads settings from a YAML file and returns an instance of SettingsModel.

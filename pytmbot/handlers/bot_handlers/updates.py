@@ -13,7 +13,7 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, __version__, em, __github_api_url__, button_data
+from pytmbot.globals import __github_api_url__, __version__, button_data, em, keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler

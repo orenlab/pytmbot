@@ -9,7 +9,7 @@ Enhanced with configuration versioning and validation.
 
 import warnings
 from functools import cache
-from typing import Optional, Any
+from typing import Any
 
 from packaging import version
 from pydantic import BaseModel, SecretStr, conlist, field_validator, model_validator
@@ -48,7 +48,7 @@ class BotTokenModel(BaseModel):
     """
 
     prod_token: conlist(SecretStr, min_length=1)
-    dev_bot_token: Optional[conlist(SecretStr, min_length=1)] = None
+    dev_bot_token: conlist(SecretStr, min_length=1) | None = None
 
 
 class AccessControlModel(BaseModel):
@@ -91,10 +91,10 @@ class InfluxDBModel(BaseModel):
         debug_mode (bool): Enable debug mode for InfluxDB.
     """
 
-    url: Optional[conlist(SecretStr, min_length=1)]
-    token: Optional[conlist(SecretStr, min_length=1)]
-    org: Optional[conlist(SecretStr, min_length=1)]
-    bucket: Optional[conlist(SecretStr, min_length=1)]
+    url: conlist(SecretStr, min_length=1) | None
+    token: conlist(SecretStr, min_length=1) | None
+    org: conlist(SecretStr, min_length=1) | None
+    bucket: conlist(SecretStr, min_length=1) | None
     debug_mode: bool = False
 
 
@@ -150,8 +150,8 @@ class PluginsConfig(BaseModel):
     Model to configure additional plugins for the bot, such as monitoring and Outline VPN.
     """
 
-    monitor: Optional[MonitorConfig] = None
-    outline: Optional[OutlineVPN] = None
+    monitor: MonitorConfig | None = None
+    outline: OutlineVPN | None = None
 
 
 class WebhookConfig(BaseModel):
@@ -162,8 +162,8 @@ class WebhookConfig(BaseModel):
     url: conlist(SecretStr)
     webhook_port: conlist(int)
     local_port: conlist(int)
-    cert: Optional[conlist(SecretStr)] = None
-    cert_key: Optional[conlist(SecretStr)] = None
+    cert: conlist(SecretStr) | None = None
+    cert_key: conlist(SecretStr) | None = None
 
 
 class ConfigMigrator(logs.BaseComponent):
@@ -209,7 +209,7 @@ class ConfigMigrator(logs.BaseComponent):
 
     @classmethod
     def validate_compatibility(
-        cls, config_version: Optional[str], app_version: str
+        cls, config_version: str | None, app_version: str
     ) -> None:
         """
         Validate compatibility between config and app versions.
@@ -258,7 +258,7 @@ class ConfigMigrator(logs.BaseComponent):
             )
 
     @classmethod
-    def check_deprecation(cls, config_version: Optional[str], app_version: str) -> None:
+    def check_deprecation(cls, config_version: str | None, app_version: str) -> None:
         """
         Check if config version is deprecated and issue warnings.
 
@@ -335,7 +335,7 @@ class SettingsModel(BaseSettings):
 
     # Configuration version - should match app version
     # Default to None for backward compatibility with 0.2.2 configs
-    config_version: Optional[str] = None
+    config_version: str | None = None
 
     # Core configuration
     bot_token: BotTokenModel
@@ -344,13 +344,13 @@ class SettingsModel(BaseSettings):
     chat_id: ChatIdModel
 
     # Optional configurations
-    influxdb: Optional[InfluxDBModel] = None
-    plugins_config: Optional[PluginsConfig] = None
-    webhook_config: Optional[WebhookConfig] = None
+    influxdb: InfluxDBModel | None = None
+    plugins_config: PluginsConfig | None = None
+    webhook_config: WebhookConfig | None = None
 
     @classmethod
     @field_validator("config_version")
-    def validate_config_version(cls, v: Optional[str]) -> Optional[str]:
+    def validate_config_version(cls, v: str | None) -> str | None:
         """
         Validate configuration version against application compatibility.
 
@@ -475,7 +475,7 @@ def load_config_with_migration(config_path: str) -> SettingsModel:
     loader = ConfigLoader()
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
         # Create settings (migration happens automatically in model_validator)

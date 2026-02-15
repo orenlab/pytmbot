@@ -6,15 +6,15 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import Any, Optional, Union
+from typing import Any
 
 from telebot.types import CallbackQuery, Message
 
 from pytmbot.utils.data_processing import find_in_args, find_in_kwargs
 
-type OptionalStr = Optional[str]
-type OptionalInt = Optional[int]
-type OptionalBool = Optional[bool]
+type OptionalStr = str | None
+type OptionalInt = int | None
+type OptionalBool = bool | None
 
 from typing import NamedTuple
 
@@ -88,7 +88,7 @@ def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo
 
 
 def sanitize_logs(
-    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+    container_logs: str | Any, callback_query: CallbackQuery, token: str
 ) -> str:
     """
     Sanitizes container logs by removing ANSI escape sequences

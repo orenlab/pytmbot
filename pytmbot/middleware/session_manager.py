@@ -12,7 +12,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Any, Self, Final, ClassVar
+from typing import Any, ClassVar, Final, Self
 from weakref import WeakValueDictionary
 
 from pytmbot.logs import BaseComponent
@@ -41,10 +41,10 @@ class _UserSession:
 
     auth_state: str = _StateFabric.UNAUTHENTICATED
     totp_attempts: int = 0
-    blocked_time: Optional[datetime] = None
-    login_time: Optional[datetime] = None
-    referer_uri: Optional[str] = None
-    handler_type: Optional[str] = None
+    blocked_time: datetime | None = None
+    login_time: datetime | None = None
+    referer_uri: str | None = None
+    handler_type: str | None = None
 
     def is_expired(self, timeout_minutes: int) -> bool:
         """Check if session is expired."""
@@ -81,7 +81,7 @@ class SessionManager(BaseComponent):
 
     # Private fields
     _user_sessions: dict[int, _UserSession] = field(default_factory=dict, init=False)
-    _cleanup_thread: Optional[threading.Thread] = field(default=None, init=False)
+    _cleanup_thread: threading.Thread | None = field(default=None, init=False)
     _shutdown_event: threading.Event = field(
         default_factory=threading.Event, init=False
     )
@@ -230,7 +230,7 @@ class SessionManager(BaseComponent):
         session.auth_state = self.state_fabric.BLOCKED
 
     def set_blocked_time(
-        self, user_id: int, duration_minutes: Optional[int] = None
+        self, user_id: int, duration_minutes: int | None = None
     ) -> None:
         """Block user for specified duration."""
         duration = duration_minutes or self.block_duration
@@ -248,7 +248,7 @@ class SessionManager(BaseComponent):
                     },
                 )
 
-    def get_blocked_time(self, user_id: int) -> Optional[datetime]:
+    def get_blocked_time(self, user_id: int) -> datetime | None:
         """Get user's blocked time."""
         with self.session_context(user_id) as session:
             return session.blocked_time
@@ -279,7 +279,7 @@ class SessionManager(BaseComponent):
             with self.log_context(user_id=user_id, action="login") as log:
                 log.success("User login time set")
 
-    def get_login_time(self, user_id: int) -> Optional[datetime]:
+    def get_login_time(self, user_id: int) -> datetime | None:
         """Get user's login time."""
         with self.session_context(user_id) as session:
             return session.login_time
@@ -342,12 +342,12 @@ class SessionManager(BaseComponent):
                     context={"handler_type": handler_type, "referer_uri": referer_uri},
                 )
 
-    def get_referer_uri(self, user_id: int) -> Optional[str]:
+    def get_referer_uri(self, user_id: int) -> str | None:
         """Get referer URI for user."""
         with self.session_context(user_id) as session:
             return session.referer_uri
 
-    def get_handler_type(self, user_id: int) -> Optional[str]:
+    def get_handler_type(self, user_id: int) -> str | None:
         """Get handler type for user."""
         with self.session_context(user_id) as session:
             return session.handler_type

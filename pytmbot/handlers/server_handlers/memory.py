@@ -10,7 +10,7 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, keyboards, em, button_data
+from pytmbot.globals import button_data, em, keyboards, psutil_adapter
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 

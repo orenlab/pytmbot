@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import platform
 import time
-from typing import Dict, Optional, Tuple, Final
+from typing import Final
 from uuid import uuid4
 
 import psutil
 
 from pytmbot.logs import Logger
-from pytmbot.plugins.monitor.models import ResourceMetrics, MonitoringState
+from pytmbot.plugins.monitor.models import MonitoringState, ResourceMetrics
 
 logger = Logger()
 
@@ -71,7 +71,7 @@ class SystemMetrics:
             return 0.0
 
     @staticmethod
-    def _get_disk_usage() -> Dict[str, float]:
+    def _get_disk_usage() -> dict[str, float]:
         try:
             return {
                 partition.device: psutil.disk_usage(partition.mountpoint).percent
@@ -85,7 +85,7 @@ class SystemMetrics:
             logger.error(f"Disk usage check failed: {e}", exc_info=True)
             return {}
 
-    def _check_temperatures(self) -> Dict[str, Dict[str, Optional[float]]]:
+    def _check_temperatures(self) -> dict[str, dict[str, float | None]]:
         try:
             temps = psutil.sensors_temperatures()
             if not temps and self.sensors_available:
@@ -107,7 +107,7 @@ class SystemMetrics:
             return {}
 
     @staticmethod
-    def _get_fan_speeds() -> Dict[str, Dict[str, int]]:
+    def _get_fan_speeds() -> dict[str, dict[str, int]]:
         try:
             return {
                 f"{name}_{entry.label or 'default'}": {"current": entry.current}
@@ -119,7 +119,7 @@ class SystemMetrics:
             return {}
 
     @staticmethod
-    def _check_load_average() -> Tuple[float, float, float]:
+    def _check_load_average() -> tuple[float, float, float]:
         try:
             if hasattr(psutil, "getloadavg"):
                 return psutil.getloadavg()
@@ -153,7 +153,7 @@ class EventTracker:
         return event_id
 
     @staticmethod
-    def resolve_event(state: MonitoringState, event_id: str) -> Optional[float]:
+    def resolve_event(state: MonitoringState, event_id: str) -> float | None:
         """Resolve an event and return its duration."""
         if event_id not in state.active_events:
             return None

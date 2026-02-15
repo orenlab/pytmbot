@@ -13,14 +13,14 @@ import shlex
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Final, TypedDict
+from typing import Any, Final, TypedDict
 
 from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, em, settings
+from pytmbot.globals import em, settings
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -41,7 +41,7 @@ class SystemdServicesInfo(TypedDict):
     total_services: int
     active_services: int
     failed_services: int
-    critical_services: Dict[str, ServiceStatus]
+    critical_services: dict[str, ServiceStatus]
     available: bool
 
 
@@ -51,7 +51,7 @@ class AlpineServicesInfo(TypedDict):
     total_services: int
     started_services: int
     stopped_services: int
-    services_by_runlevel: Dict[str, Dict[str, List[str]]]
+    services_by_runlevel: dict[str, dict[str, list[str]]]
     available: bool
     type: str
 
@@ -67,7 +67,7 @@ class ServicesAdapter:
     """Safe adapter for getting system services information with smart caching"""
 
     # Whitelist of safe systemctl commands and arguments
-    SAFE_SYSTEMCTL_COMMANDS: Final[Dict[str, List[str]]] = {
+    SAFE_SYSTEMCTL_COMMANDS: Final[dict[str, list[str]]] = {
         "list-units": ["--type=service", "--output=json", "--no-pager", "--quiet"],
         "is-active": ["--quiet"],
         "is-enabled": ["--quiet"],
@@ -75,7 +75,7 @@ class ServicesAdapter:
     }
 
     # Critical services to monitor (configurable)
-    CRITICAL_SERVICES: Final[List[str]] = [
+    CRITICAL_SERVICES: Final[list[str]] = [
         "ssh",
         "sshd",
         "nginx",
@@ -99,8 +99,8 @@ class ServicesAdapter:
         self.systemd_available: bool = self._check_systemd_availability()
 
         # Simple cache storage with proper typing
-        self._cache: Dict[str, Any] = {}
-        self._cache_timestamps: Dict[str, float] = {}
+        self._cache: dict[str, Any] = {}
+        self._cache_timestamps: dict[str, float] = {}
 
     def _is_cache_valid(self, cache_key: str) -> bool:
         """Check if cache entry is still valid"""
@@ -109,7 +109,7 @@ class ServicesAdapter:
 
         return (time.time() - self._cache_timestamps[cache_key]) < self.CACHE_TTL
 
-    def _get_from_cache(self, cache_key: str) -> Optional[Any]:
+    def _get_from_cache(self, cache_key: str) -> Any | None:
         """Get data from cache if valid"""
         if self._is_cache_valid(cache_key):
             logger.debug(f"Using cached data for {cache_key}")
@@ -170,7 +170,7 @@ class ServicesAdapter:
             return False
 
     @staticmethod
-    def _test_systemctl_command(command: List[str]) -> bool:
+    def _test_systemctl_command(command: list[str]) -> bool:
         """Test if systemctl command works"""
         try:
             result = subprocess.run(
@@ -213,7 +213,7 @@ class ServicesAdapter:
             return False
 
     @staticmethod
-    def _get_systemctl_command_prefix() -> List[str]:
+    def _get_systemctl_command_prefix() -> list[str]:
         """Get the appropriate command prefix for systemctl access"""
         # Try direct systemctl first
         systemctl_paths = ["/usr/bin/systemctl", "/bin/systemctl", "/sbin/systemctl"]
@@ -237,8 +237,8 @@ class ServicesAdapter:
 
     @staticmethod
     def _safe_subprocess_run(
-        command: List[str], timeout: int = 10
-    ) -> Optional[subprocess.CompletedProcess[str]]:
+        command: list[str], timeout: int = 10
+    ) -> subprocess.CompletedProcess[str] | None:
         """Safely execute subprocess with validation"""
         try:
             # Validate command structure
@@ -275,7 +275,7 @@ class ServicesAdapter:
             logger.error(f"Subprocess error: {e}")
             return None
 
-    def get_systemd_services(self) -> Optional[SystemdServicesInfo]:
+    def get_systemd_services(self) -> SystemdServicesInfo | None:
         """Get systemd services information safely with caching"""
         if not self.systemd_available:
             return None
@@ -306,7 +306,7 @@ class ServicesAdapter:
             # Process services data
             active_count = 0
             failed_count = 0
-            critical_services_status: Dict[str, ServiceStatus] = {}
+            critical_services_status: dict[str, ServiceStatus] = {}
 
             for service in services_data:
                 service_active = service.get("active", "")
@@ -337,7 +337,7 @@ class ServicesAdapter:
             logger.error(f"Error getting systemd services: {e}")
             return None
 
-    def _get_service_status(self, service_name: str) -> Optional[ServiceStatus]:
+    def _get_service_status(self, service_name: str) -> ServiceStatus | None:
         """Get detailed status of a specific service"""
         try:
             # Validate service name (only alphanumeric, dash, underscore, dot)
@@ -377,7 +377,7 @@ class ServicesAdapter:
             logger.error(f"Error getting service status for {service_name}: {e}")
             return None
 
-    def get_alpine_services(self) -> Optional[AlpineServicesInfo]:
+    def get_alpine_services(self) -> AlpineServicesInfo | None:
         """Get Alpine Linux OpenRC services information with caching"""
         # Check cache first
         cache_key = "alpine_services"
@@ -392,7 +392,7 @@ class ServicesAdapter:
                 "/usr/sbin/rc-status",
                 "/bin/rc-status",
             ]
-            rc_status_path: Optional[str] = None
+            rc_status_path: str | None = None
 
             for path in rc_status_paths:
                 if Path(path).exists():
@@ -437,11 +437,11 @@ class ServicesAdapter:
             return None
 
     @staticmethod
-    def _parse_rc_status_output(output: str) -> Dict[str, Any]:
+    def _parse_rc_status_output(output: str) -> dict[str, Any]:
         """Parse rc-status command output"""
         services_info = {"total": 0, "started": 0, "stopped": 0, "by_runlevel": {}}
 
-        current_runlevel: Optional[str] = None
+        current_runlevel: str | None = None
 
         for line in output.split("\n"):
             line = line.strip()
@@ -476,7 +476,7 @@ class ServicesAdapter:
 
         return services_info
 
-    def get_services_summary(self) -> Dict[str, Any]:
+    def get_services_summary(self) -> dict[str, Any]:
         """Get comprehensive services summary with automatic cache cleanup"""
         # Clean up expired cache entries
         self._clear_expired_cache()

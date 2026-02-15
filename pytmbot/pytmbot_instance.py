@@ -27,24 +27,24 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import BotCommand
 
 from pytmbot import exceptions
-from pytmbot.exceptions import InitializationError, ErrorContext
+from pytmbot.exceptions import ErrorContext, InitializationError
 from pytmbot.globals import (
-    settings,
     __version__,
     bot_commands_settings,
     bot_description_settings,
+    settings,
     var_config,
 )
 from pytmbot.handlers.handler_manager import (
     handler_factory,
     inline_handler_factory,
 )
-from pytmbot.logs import Logger, BaseComponent
+from pytmbot.logs import BaseComponent, Logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
-from pytmbot.utils import parse_cli_args, sanitize_exception, get_environment_state
+from pytmbot.utils import get_environment_state, parse_cli_args, sanitize_exception
 
 
 class BotState(Enum):
@@ -348,7 +348,6 @@ class PyTMBot(BaseComponent):
             with self.log_context(timeout=timeout) as log:
                 log.debug("Stopping polling with timeout")
 
-            import threading
             import concurrent.futures
 
             def stop_polling_task():

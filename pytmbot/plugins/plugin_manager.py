@@ -13,7 +13,6 @@ import weakref
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Type, Optional, Dict, Set
 
 from telebot import TeleBot
 
@@ -42,8 +41,8 @@ class _PluginInfo:
     name: str
     version: str
     description: str
-    commands: Optional[dict[str, str]] = None
-    index_key: Optional[dict[str, str]] = None
+    commands: dict[str, str] | None = None
+    index_key: dict[str, str] | None = None
     resource_limits: dict = None
 
     def __post_init__(self):
@@ -63,11 +62,11 @@ class PluginManager:
     __slots__ = ("_plugin_base_path", "_plugin_base_for_import", "_plugin_blacklist")
 
     _instance = None
-    _index_keys: Dict[str, str] = {}
-    _plugin_names: Dict[str, str] = {}
-    _plugin_descriptions: Dict[str, str] = {}
-    _plugin_instances: Dict[str, weakref.ref] = {}
-    _loaded_plugins: Set[str] = set()
+    _index_keys: dict[str, str] = {}
+    _plugin_names: dict[str, str] = {}
+    _plugin_descriptions: dict[str, str] = {}
+    _plugin_instances: dict[str, weakref.ref] = {}
+    _loaded_plugins: set[str] = set()
 
     _plugin_resources = {
         "default_limits": {
@@ -167,7 +166,7 @@ class PluginManager:
             raise
 
     @staticmethod
-    def _find_plugin_classes(module) -> List[Type[PluginInterface]]:
+    def _find_plugin_classes(module) -> list[type[PluginInterface]]:
         """Finds all valid plugin classes in the module."""
         plugin_classes = []
         for attribute_name in dir(module):
@@ -196,7 +195,7 @@ class PluginManager:
 
         return permissions
 
-    def _extract_plugin_info(self, module) -> Optional[_PluginInfo]:
+    def _extract_plugin_info(self, module) -> _PluginInfo | None:
         """Extracts and validates plugin configuration details."""
         try:
             required_attrs = ["PLUGIN_NAME", "PLUGIN_VERSION", "PLUGIN_DESCRIPTION"]
@@ -204,9 +203,9 @@ class PluginManager:
                 if not hasattr(module, attr):
                     raise AttributeError(f"Missing required attribute: {attr}")
 
-            name = getattr(module, "PLUGIN_NAME")
-            version = getattr(module, "PLUGIN_VERSION")
-            description = getattr(module, "PLUGIN_DESCRIPTION")
+            name = module.PLUGIN_NAME
+            version = module.PLUGIN_VERSION
+            description = module.PLUGIN_DESCRIPTION
             commands = getattr(module, "PLUGIN_COMMANDS", None)
             index_key = getattr(module, "PLUGIN_INDEX_KEY", None)
 
@@ -299,7 +298,7 @@ class PluginManager:
             except Exception as e:
                 logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
 
-    def _register_plugin(self, plugin_name: str, bot: Optional[TeleBot] = None):
+    def _register_plugin(self, plugin_name: str, bot: TeleBot | None = None):
         """Registers a single plugin with enhanced security and resource management."""
         logger.debug(f"Attempting to register plugin: '{plugin_name}'")
 
@@ -363,7 +362,7 @@ class PluginManager:
             )
             self._cleanup_plugin(plugin_name)
 
-    def register_plugins(self, plugin_names: List[str], bot: Optional[TeleBot] = None):
+    def register_plugins(self, plugin_names: list[str], bot: TeleBot | None = None):
         """Registers multiple plugins with enhanced error handling."""
         plugins_to_register = [
             name.strip()

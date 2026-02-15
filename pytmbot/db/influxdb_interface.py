@@ -7,9 +7,9 @@ also providing basic information about the status of local servers.
 
 import ipaddress
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Any
 from urllib.parse import urlparse
 
 from influxdb_client import InfluxDBClient, Point
@@ -19,8 +19,8 @@ from pytmbot.exceptions import (
     ErrorContext,
     InfluxDBConfigError,
     InfluxDBConnectionError,
-    InfluxDBWriteError,
     InfluxDBQueryError,
+    InfluxDBWriteError,
 )
 from pytmbot.logs import BaseComponent
 
@@ -51,7 +51,7 @@ class InfluxDBInterface(BaseComponent):
         """
         super().__init__("InfluxDBInterface")
         self._config = config
-        self._client: Optional[InfluxDBClient] = None
+        self._client: InfluxDBClient | None = None
         self._write_api = None
         self._query_api = None
         self._warning_shown = False
@@ -221,8 +221,8 @@ class InfluxDBInterface(BaseComponent):
     def write_data(
         self,
         measurement: str,
-        fields: Dict[str, float],
-        tags: Optional[Dict[str, str]] = None,
+        fields: dict[str, float],
+        tags: dict[str, str] | None = None,
     ) -> None:
         """
         Write data points to InfluxDB.
@@ -236,7 +236,7 @@ class InfluxDBInterface(BaseComponent):
             InfluxDBWriteError: If write operation fails
         """
         try:
-            point = Point(measurement).time(datetime.now(timezone.utc))
+            point = Point(measurement).time(datetime.now(UTC))
 
             if tags:
                 for key, value in tags.items():
@@ -284,7 +284,7 @@ class InfluxDBInterface(BaseComponent):
 
     def query_data(
         self, measurement: str, start: str, stop: str, field: str
-    ) -> List[Tuple[datetime, float]]:
+    ) -> list[tuple[datetime, float]]:
         """
         Query data from InfluxDB for a specific measurement and time range.
 
@@ -351,7 +351,7 @@ class InfluxDBInterface(BaseComponent):
             raise InfluxDBQueryError(error_context) from e
 
     @lru_cache(maxsize=32)
-    def get_available_measurements(self) -> List[str]:
+    def get_available_measurements(self) -> list[str]:
         """
         Retrieve available measurements from InfluxDB with caching.
 
@@ -397,7 +397,7 @@ class InfluxDBInterface(BaseComponent):
             raise InfluxDBQueryError(error_context) from e
 
     @lru_cache(maxsize=64)
-    def get_available_fields(self, measurement: str) -> List[str]:
+    def get_available_fields(self, measurement: str) -> list[str]:
         """
         Retrieve available fields for a measurement with caching.
 

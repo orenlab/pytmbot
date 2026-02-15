@@ -5,7 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Final, Tuple, Optional, List, Dict, Any
+from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.types import Message
@@ -13,7 +13,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em, button_data
+from pytmbot.globals import button_data, em, keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -97,7 +97,7 @@ def __get_container_data() -> list[dict[str, str]] | dict[None, None] | dict[Any
         )
 
 
-def __compile_message() -> Tuple[str, Optional[List[str]]]:
+def __compile_message() -> tuple[str, list[str] | None]:
     """
     Compiles the message using the DockerAdapter.
 
@@ -117,7 +117,7 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
             context: str = (
                 "There are no containers or incorrect settings are specified."
             )
-            emojis: Final[Dict[str, str]] = {
+            emojis: Final[dict[str, str]] = {
                 "thought_balloon": em.get_emoji("thought_balloon"),
             }
 
@@ -125,10 +125,10 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
         else:
             template_name: Final[str] = "d_containers.jinja2"
 
-            context: Dict = container_data
+            context: dict = container_data
             containers_name = [container.get("name") for container in context]
 
-            emojis: Final[Dict[str, str]] = {
+            emojis: Final[dict[str, str]] = {
                 "thought_balloon": em.get_emoji("thought_balloon"),
                 "oil_drum": em.get_emoji("oil_drum"),
                 "id": em.get_emoji("ID_button"),
@@ -156,7 +156,7 @@ def __compile_message() -> Tuple[str, Optional[List[str]]]:
         )
 
 
-def get_list_of_containers_again() -> Tuple[str, Optional[List[str]]]:
+def get_list_of_containers_again() -> tuple[str, list[str] | None]:
     """
     Returns the list of containers again.
 

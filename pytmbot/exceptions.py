@@ -11,7 +11,7 @@ from typing import Any
 from telebot import ExceptionHandler
 
 from pytmbot.logs import Logger
-from pytmbot.utils import sanitize_exception, parse_cli_args
+from pytmbot.utils import parse_cli_args, sanitize_exception
 
 logger = Logger()
 

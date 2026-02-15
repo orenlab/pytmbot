@@ -17,7 +17,7 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from time import sleep
-from typing import Final, TypeAlias, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
 from docker.errors import NotFound
 from docker.models.containers import Container

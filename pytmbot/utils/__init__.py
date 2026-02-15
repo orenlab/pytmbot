@@ -11,36 +11,36 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .cli import parse_cli_args
     from .data_processing import (
-        round_up_tuple,
         find_in_args,
         find_in_kwargs,
+        round_up_tuple,
         set_naturalsize,
         set_naturaltime,
         split_string_into_octets,
     )
     from .emoji import EmojiConverter
     from .environment import (
-        is_running_in_docker,
         get_environment_state,
+        is_running_in_docker,
     )
+    from .message_deletion import deletion_manager
     from .security import (
-        sanitize_exception,
         generate_secret_token,
         mask_token_in_message,
-        mask_username,
         mask_user_id,
+        mask_username,
+        sanitize_exception,
     )
     from .telegram_utils import (
-        get_message_full_info,
         get_inline_message_full_info,
+        get_message_full_info,
         sanitize_logs,
     )
     from .validation import (
+        is_bot_development,
         is_new_name_valid,
         is_valid_totp_code,
-        is_bot_development,
     )
-    from .message_deletion import deletion_manager
 
 
 def __getattr__(name: str):

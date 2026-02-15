@@ -10,30 +10,29 @@ from __future__ import annotations
 import re
 import sys
 from collections import OrderedDict
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
-from functools import wraps, lru_cache
+from functools import lru_cache, wraps
 from threading import RLock
 from time import monotonic_ns
 from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    TypeVar,
-    Final,
     TYPE_CHECKING,
-    TypeAlias,
+    Any,
+    ClassVar,
+    Final,
     Protocol,
+    TypeAlias,
+    TypeVar,
     runtime_checkable,
 )
 
 from loguru import logger
-from telebot.types import Update, Message, CallbackQuery, InlineQuery
+from telebot.types import CallbackQuery, InlineQuery, Message, Update
 
 if TYPE_CHECKING:
-    from pytmbot.utils.cli import parse_cli_args
+    pass
 
 T = TypeVar("T")
 TelegramObject: TypeAlias = Update | Message | CallbackQuery | InlineQuery

@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, button_data
+from pytmbot.globals import button_data, keyboards
 from pytmbot.handlers.docker_handlers.containers import get_list_of_containers_again
 from pytmbot.logs import Logger
 

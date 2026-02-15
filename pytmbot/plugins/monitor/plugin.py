@@ -5,12 +5,11 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Optional
 
 from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import em, keyboards
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
@@ -39,7 +38,7 @@ class MonitoringPlugin(PluginInterface):
         self.plugin_logger = plugin.logger
 
     @staticmethod
-    def _get_keyboard(available_periods: Optional[list] = None) -> ReplyKeyboardMarkup:
+    def _get_keyboard(available_periods: list | None = None) -> ReplyKeyboardMarkup:
         """Generate appropriate keyboard based on available periods."""
         return (
             keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
