@@ -54,6 +54,17 @@ log() {
     echo "$_log_timestamp [$_log_time][$_log_formatted_level][$_log_formatted_component] › $3 › $_log_extra_data"
 }
 
+# Validate that an option requiring a value received one
+require_option_value() {
+    _option_name="$1"
+    _option_value="$2"
+
+    if [ -z "$_option_value" ] || [ "${_option_value#--}" != "$_option_value" ]; then
+        log "ERROR" "entrypoint" "Missing value for option" "{\"option\": \"$_option_name\"}"
+        exit 1
+    fi
+}
+
 # Trap signals for proper shutdown
 trap 'handle_exit' TERM INT QUIT HUP
 
@@ -186,16 +197,57 @@ health_check() {
 
     check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
-    $PYTHON_PATH "$MAIN_SCRIPT" --health_check || log "WARNING" "entrypoint" "Bot unhealthy!" "{}"
+    _python_health_rc=0
+    if ! $PYTHON_PATH "$MAIN_SCRIPT" --health_check; then
+        _python_health_rc=$?
+    fi
 
-    log "INFO" "entrypoint" "Health check passed" "{}"
-    return 0
+    case "$_python_health_rc" in
+        0)
+            log "INFO" "entrypoint" "Health check passed" "{\"source\": \"main.py\", \"code\": 0}"
+            return 0
+            ;;
+        1)
+            log "ERROR" "entrypoint" "Health check failed: app reported unhealthy" "{\"source\": \"main.py\", \"code\": 1}"
+            return 1
+            ;;
+        2)
+            # main.py returns 2 when health manager is unavailable in this short-lived process.
+            # Fall back to runtime process liveness for container health checks.
+            _bot_pid=""
+            for _proc in /proc/[0-9]*; do
+                [ -r "$_proc/cmdline" ] || continue
+                _pid="${_proc##*/}"
+                [ "$_pid" = "$$" ] && continue
+                _cmdline=$(tr '\0' ' ' < "$_proc/cmdline" 2>/dev/null || true)
+                case "$_cmdline" in
+                    *"$MAIN_SCRIPT"*)
+                        _bot_pid="$_pid"
+                        break
+                        ;;
+                esac
+            done
+
+            if [ -n "$_bot_pid" ]; then
+                log "WARNING" "entrypoint" "Health manager unavailable, fallback to process check passed" "{\"source\": \"main.py\", \"code\": 2, \"pid\": $_bot_pid}"
+                return 0
+            fi
+
+            log "ERROR" "entrypoint" "Health check unknown and bot process not found" "{\"source\": \"main.py\", \"code\": 2}"
+            return 1
+            ;;
+        *)
+            log "ERROR" "entrypoint" "Unexpected health check exit code" "{\"source\": \"main.py\", \"code\": $_python_health_rc}"
+            return 1
+            ;;
+    esac
 }
 
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
         --log-level)
+            require_option_value "--log-level" "$2"
             if validate_log_level "$2"; then
                 LOG_LEVEL="$2"
             else
@@ -204,6 +256,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --mode)
+            require_option_value "--mode" "$2"
             if validate_mode "$2"; then
                 MODE="$2"
             else
@@ -216,6 +269,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --plugins)
+            require_option_value "--plugins" "$2"
             PLUGINS="$2"
             shift 2
             ;;
@@ -224,6 +278,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --socket_host)
+            require_option_value "--socket_host" "$2"
             SOCKET_HOST="$2"
             shift 2
             ;;
@@ -237,7 +292,7 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         *)
-            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker, --debug-groups\"}"
+            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
             exit 1
             ;;
     esac
