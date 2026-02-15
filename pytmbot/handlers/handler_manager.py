@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 from telebot.types import CallbackQuery, Message
 
@@ -57,11 +57,11 @@ from .server_handlers.services import handle_services_status
 from .server_handlers.uptime import handle_uptime
 
 # Modern type aliases
-MessageType: TypeAlias = Message
-CallbackQueryType: TypeAlias = CallbackQuery
-HandlerType: TypeAlias = dict[str, list[HandlerManager]]
-FilterFunc: TypeAlias = Callable[[Message | CallbackQuery], bool]
-HandlerCallback: TypeAlias = Callable[..., Any]
+type MessageType = Message
+type CallbackQueryType = CallbackQuery
+type HandlerType = dict[str, list[HandlerManager]]
+type FilterFunc = Callable[[Message | CallbackQuery], bool]
+type HandlerCallback = Callable[..., Any]
 
 # Constants
 TOTP_CODE_PATTERN: Final[str] = r"[0-9]{6}$"

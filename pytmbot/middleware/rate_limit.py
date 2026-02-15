@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any, Final, TypeAlias, TypedDict
+from typing import Any, Final, TypedDict
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -18,8 +18,8 @@ from pytmbot.logs import BaseComponent
 from pytmbot.utils import mask_user_id, mask_username
 
 # Type aliases for better readability
-Timestamp: TypeAlias = datetime
-UserID: TypeAlias = int
+type Timestamp = datetime
+type UserID = int
 
 
 class RateLimitConfig(TypedDict):

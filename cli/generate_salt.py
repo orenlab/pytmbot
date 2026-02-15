@@ -317,12 +317,12 @@ auth_salt:
 
             main_task = progress.add_task("🔄 Generating salt collection...", total=len(configs))
 
-            for i, (length, encoding, name, description) in enumerate(configs):
+            for _i, (length, encoding, name, description) in enumerate(configs):
                 # Individual generation task
                 gen_task = progress.add_task(f"Creating {name}...", total=100)
 
                 # Simulate realistic generation time
-                for step in range(100):
+                for _step in range(100):
                     progress.update(gen_task, advance=1)
 
                 salt = self.generate_salt(length, encoding)  # type: ignore
@@ -355,9 +355,9 @@ auth_salt:
 
         # Welcome message
         welcome_text = """
-🎉 Welcome to the Interactive Salt Generation Experience! 
+🎉 Welcome to the Interactive Salt Generation Experience!
 
-This tool will help you create cryptographically secure salts specifically 
+This tool will help you create cryptographically secure salts specifically
 designed for pyTMBot's TOTP authentication system. Let's get started!
         """
 

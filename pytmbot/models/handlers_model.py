@@ -8,13 +8,13 @@ also providing basic information about the status of local servers.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, TypeAlias
+from typing import Any
 
 from pytmbot.logs import Logger
 
 logger = Logger()
 
-CallbackType: TypeAlias = Callable[..., Any]
+type CallbackType = Callable[..., Any]
 
 
 def log_execution(func: CallbackType) -> CallbackType:

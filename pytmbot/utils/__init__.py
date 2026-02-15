@@ -96,7 +96,7 @@ def __getattr__(name: str):
         return getattr(module, name)
 
     if name == "deletion_manager":
-        from message_deletion import deletion_manager
+        from .message_deletion import deletion_manager
 
         return deletion_manager
 
@@ -122,6 +122,7 @@ __all__ = [
     "get_message_full_info",
     "get_inline_message_full_info",
     "sanitize_logs",
+    "deletion_manager",
     "is_new_name_valid",
     "is_valid_totp_code",
     "is_bot_development",

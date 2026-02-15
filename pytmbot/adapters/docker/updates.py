@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from functools import lru_cache
 from threading import RLock
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 import aiohttp
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
@@ -29,8 +29,8 @@ from pytmbot.models.docker_models import TagInfo, UpdateInfo
 from pytmbot.utils import sanitize_exception
 
 # Type Aliases
-LocalImageInfo: TypeAlias = dict[str, list[dict[str, str | None]]]
-UpdateResult: TypeAlias = dict[str, dict[str, list[dict]]]
+type LocalImageInfo = dict[str, list[dict[str, str | None]]]
+type UpdateResult = dict[str, dict[str, list[dict]]]
 
 # Module constants for better maintainability
 DEFAULT_TIMEOUT: Final[int] = 15
@@ -329,9 +329,9 @@ def dict_to_tag_info(info: dict) -> TagInfo:
         raise ValueError("Info must be a dictionary")
 
     required_fields = ["tag", "created_at", "digest"]
-    for field in required_fields:
-        if field not in info:
-            raise ValueError(f"Missing required field: {field}")
+    for field_name in required_fields:
+        if field_name not in info:
+            raise ValueError(f"Missing required field: {field_name}")
 
     return TagInfo(
         name=str(info["tag"]) if info["tag"] is not None else "",
@@ -791,6 +791,13 @@ class DockerImageUpdater(BaseComponent):
         except Exception:
             return False
 
+    @staticmethod
+    def _digests_equal(local_tag: EnhancedTagInfo, remote_tag: EnhancedTagInfo) -> bool:
+        """Compare digests when both are available."""
+        if not local_tag.digest or not remote_tag.digest:
+            return False
+        return local_tag.digest == remote_tag.digest
+
     def _find_compatible_updates(
         self, local_tag: EnhancedTagInfo, remote_tags: list[EnhancedTagInfo]
     ) -> list[UpdateInfo]:
@@ -806,6 +813,16 @@ class DockerImageUpdater(BaseComponent):
 
             for remote_tag in remote_tags:
                 if not remote_tag.is_valid:
+                    continue
+
+                # Same tag name: treat as update only when digest changed explicitly.
+                # This avoids false positives caused by registry push timestamps.
+                if local_tag.name == remote_tag.name:
+                    if self._digests_equal(local_tag, remote_tag):
+                        continue
+
+                    if local_tag.digest and remote_tag.digest:
+                        compatible_tags.append(remote_tag)
                     continue
 
                 # For SEMVER, only compare within same major version
@@ -841,7 +858,7 @@ class DockerImageUpdater(BaseComponent):
                         newer_tag=tag.name,
                         created_at_local=local_tag.created_at,
                         created_at_remote=tag.created_at,
-                        current_digest=tag.digest,
+                        current_digest=local_tag.digest or "",
                     )
                     updates.append(update)
                 except Exception as e:

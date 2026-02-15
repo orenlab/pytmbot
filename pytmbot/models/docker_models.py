@@ -5,8 +5,8 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from enum import Enum
-from typing import TypeAlias, TypedDict
+from enum import StrEnum
+from typing import TypedDict
 
 from pydantic import BaseModel
 
@@ -61,11 +61,11 @@ class UpdateInfo(BaseModel):
         return self.model_dump()  # Convert UpdateInfo to a dictionary
 
 
-ContainerId: TypeAlias = str | int
-DockerResponse: TypeAlias = bool | None
+type ContainerId = str | int
+type DockerResponse = bool | None
 
 
-class ContainerAction(str, Enum):
+class ContainerAction(StrEnum):
     START = "START"
     STOP = "STOP"
     RESTART = "RESTART"

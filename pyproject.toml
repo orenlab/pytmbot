@@ -76,6 +76,10 @@ lint.select = [
 ]
 lint.ignore = [
     "E501", # line too long (если используете formatter)
+    "B019", # lru_cache on instance methods (existing intentional caches)
+    "B904", # explicit cause chaining in except blocks (legacy style)
+    "N815", # allow external camelCase field names for API models
+    "N818", # keep existing BaseBotException naming
 ]
 exclude = [
     ".git",

@@ -199,10 +199,6 @@ class VarConfig(BaseModel):
     bot_long_polling_timeout: int = Field(default=60, ge=1, le=600)
 
 
-# Module-level settings - using proper caching mechanism
-from functools import cache
-
-
 @cache
 def _get_settings() -> SettingsModel:
     """Cached settings loader."""

@@ -190,7 +190,7 @@ class DockerAdapter:
             cert_path = getattr(settings.docker, "cert_path", None)
             key_path = getattr(settings.docker, "key_path", None)
             ca_cert = getattr(settings.docker, "ca_cert", True)
-            verify_hostname = getattr(settings.docker, "verify_hostname", True)
+            getattr(settings.docker, "verify_hostname", True)
 
             # Enhanced TLS configuration
             tls_config = docker.tls.TLSConfig(

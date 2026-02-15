@@ -46,7 +46,7 @@ def validate_access(func: Callable) -> Callable:
     _lock = RLock()
 
     # Rate limiting configuration
-    MIN_OPERATION_INTERVAL: Final[float] = 1.0  # Minimum seconds between operations
+    min_operation_interval: Final[float] = 1.0  # Minimum seconds between operations
 
     @wraps(func)
     def wrapper(self, user_id: int, container_id: ContainerId, *args, **kwargs) -> any:
@@ -69,15 +69,15 @@ def validate_access(func: Callable) -> Callable:
             current_time = time.time()
             last_operation = _rate_limits.get(user_id, 0)
 
-            if current_time - last_operation < MIN_OPERATION_INTERVAL:
+            if current_time - last_operation < min_operation_interval:
                 logger.warning(
                     "Rate limit exceeded for user",
                     time_since_last=f"{current_time - last_operation:.2f}s",
-                    min_interval=MIN_OPERATION_INTERVAL,
+                    min_interval=min_operation_interval,
                     **context,
                 )
                 raise PermissionError(
-                    f"Rate limit exceeded. Wait {MIN_OPERATION_INTERVAL}s between operations"
+                    f"Rate limit exceeded. Wait {min_operation_interval}s between operations"
                 )
 
             _rate_limits[user_id] = current_time

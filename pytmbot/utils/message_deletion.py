@@ -15,7 +15,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
@@ -23,10 +23,10 @@ from telebot.apihelper import ApiTelegramException
 from pytmbot.logs import BaseComponent
 
 # Type aliases for better readability
-_UserID: TypeAlias = int
-_MessageID: TypeAlias = int
-_ChatID: TypeAlias = int
-_TaskKey: TypeAlias = tuple[_UserID, _MessageID]
+type _UserID = int
+type _MessageID = int
+type _ChatID = int
+type _TaskKey = tuple[_UserID, _MessageID]
 
 
 class _DeletionStatus(Enum):

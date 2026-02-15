@@ -5,9 +5,9 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import TypeAlias, TypedDict
+from typing import TypedDict
 
-LoadAverage: TypeAlias = tuple[float, float, float]
+type LoadAverage = tuple[float, float, float]
 
 
 class MemoryStats(TypedDict):

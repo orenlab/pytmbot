@@ -81,7 +81,7 @@ class PluginManager:
         if cls._instance is None:
             try:
                 if cls._instance is None:
-                    cls._instance = super(PluginManager, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
                     cls._instance._initialize()
             except Exception as e:
                 logger.error(f"Failed to create PluginManager instance: {e}")

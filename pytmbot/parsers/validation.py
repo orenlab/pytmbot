@@ -142,7 +142,7 @@ def is_safe_context_value(value: Any) -> bool:
         return False
 
     # Check for callable objects (except types)
-    if hasattr(value, "__call__") and not isinstance(value, type):
+    if callable(value) and not isinstance(value, type):
         return False
 
     # Size limits for strings

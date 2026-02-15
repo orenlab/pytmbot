@@ -12,12 +12,12 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from functools import wraps
 from pathlib import Path
 from threading import RLock
 from time import sleep
-from typing import TYPE_CHECKING, Any, Final, TypeAlias
+from typing import TYPE_CHECKING, Any, Final
 
 from docker.errors import NotFound
 from docker.models.containers import Container
@@ -39,10 +39,10 @@ if TYPE_CHECKING:
 logger = Logger()
 
 # Type aliases for better code clarity
-ContainerName: TypeAlias = str
-ContainerID: TypeAlias = str
-LogContext: TypeAlias = dict[str, Any]
-MemoryStats: TypeAlias = dict[str, str]
+type ContainerName = str
+type ContainerID = str
+type LogContext = dict[str, Any]
+type MemoryStats = dict[str, str]
 
 # Module constants
 MAX_STATE_CHECK_ATTEMPTS: Final[int] = 5
@@ -54,7 +54,7 @@ STATE_CACHE_TTL: Final[float] = 2.0
 STATE_CACHE_MAX_SIZE: Final[int] = 100
 
 
-class ContainerState(str, Enum):
+class ContainerState(StrEnum):
     """Enhanced container state enumeration with validation."""
 
     RUNNING = "running"

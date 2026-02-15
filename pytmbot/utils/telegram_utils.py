@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 from telebot.types import CallbackQuery, Message
 
@@ -15,8 +15,6 @@ from pytmbot.utils.data_processing import find_in_args, find_in_kwargs
 type OptionalStr = str | None
 type OptionalInt = int | None
 type OptionalBool = bool | None
-
-from typing import NamedTuple
 
 
 class MessageInfo(NamedTuple):

@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from functools import wraps
-from typing import Any, Final, TypeAlias, TypeGuard, TypeVar, cast
+from typing import Any, Final, TypeGuard, TypeVar, cast
 
 import telebot
 from telebot.types import CallbackQuery, Message, User
@@ -32,8 +32,8 @@ MAX_USERNAME_LENGTH: Final[int] = 64
 MIN_USER_ID: Final[int] = 1
 
 # Type aliases - простые и понятные
-TelegramQuery: TypeAlias = Message | CallbackQuery
-HandlerFunction: TypeAlias = Callable[[TelegramQuery, telebot.TeleBot], Any]
+type TelegramQuery = Message | CallbackQuery
+type HandlerFunction = Callable[[TelegramQuery, telebot.TeleBot], Any]
 
 
 class HandlerType(StrEnum):

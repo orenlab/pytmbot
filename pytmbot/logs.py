@@ -23,7 +23,6 @@ from typing import (
     ClassVar,
     Final,
     Protocol,
-    TypeAlias,
     TypeVar,
     runtime_checkable,
 )
@@ -35,7 +34,7 @@ if TYPE_CHECKING:
     pass
 
 T = TypeVar("T")
-TelegramObject: TypeAlias = Update | Message | CallbackQuery | InlineQuery
+type TelegramObject = Update | Message | CallbackQuery | InlineQuery
 
 
 class LogLevel(StrEnum):
