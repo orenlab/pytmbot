@@ -48,7 +48,8 @@ We follow a coordinated disclosure process:
 We take the following types of security vulnerabilities seriously:
 
 - **Authentication and authorization bypasses:** Issues that allow unauthorized access to bot functionality or data
-- **Code injection vulnerabilities:** Including command injection, script injection, or any form of malicious code execution
+- **Code injection vulnerabilities:** Including command injection, script injection, or any form of malicious code
+  execution
 - **Sensitive data exposure:** Unintended disclosure of tokens, user data, or configuration information
 - **Denial of service vulnerabilities:** Issues that could cause the bot to crash, hang, or consume excessive resources
 - **Dependencies with known security issues:** Vulnerabilities in third-party libraries used by pyTMbot
@@ -60,6 +61,7 @@ We take the following types of security vulnerabilities seriously:
 When using pyTMbot, follow these security guidelines:
 
 ### Configuration Security
+
 - **File permissions:** Set restrictive permissions on `pytmbot.yaml` (recommended: `600` or `640`)
   ```bash
   chmod 600 pytmbot.yaml
@@ -69,6 +71,7 @@ When using pyTMbot, follow these security guidelines:
 - **Access control:** Limit access to configuration files to only necessary users and processes
 
 ### Token and Secrets Management
+
 - Store all tokens and sensitive configuration exclusively in `pytmbot.yaml`
 - Never commit configuration files containing real tokens to version control
 - Use separate configuration files for different environments (development, staging, production)
@@ -76,6 +79,7 @@ When using pyTMbot, follow these security guidelines:
 - Monitor for accidental token exposure in logs or error messages
 
 ### System Security
+
 - **Keep updated:** Regularly pull the latest Docker image version from the registry
   ```bash
   docker pull pytmbot:latest
@@ -91,12 +95,14 @@ When using pyTMbot, follow these security guidelines:
 - **Network security:** Use Docker networks to isolate containers and restrict access to only necessary ports
 
 ### Monitoring and Logging
+
 - Regularly review bot permissions and access logs
 - Monitor for unusual activity patterns
 - Set up alerts for authentication failures or suspicious behavior
 - Ensure logs don't contain sensitive information like tokens or user data
 
 ### Deployment Security
+
 - Use dedicated user accounts with minimal privileges for running containers
 - **Volume security:** Mount configuration files as read-only volumes
 - **Container hardening:** Run containers as non-root user and drop unnecessary capabilities

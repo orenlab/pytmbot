@@ -25,7 +25,7 @@ readonly LOG_DIR="${PYTMBOT_LOG_DIR:-/var/log}"
 readonly LOG_FILE="${LOG_DIR}/pytmbot_install.log"
 
 # Minimum Python version required
-readonly REQUIRED_PYTHON="3.12.0"
+readonly REQUIRED_PYTHON="3.13.0"
 
 # GitHub repository URL for the bot
 readonly GITHUB_REPO="https://github.com/orenlab/pytmbot.git"
@@ -1503,12 +1503,12 @@ uninstall_pytmbot() {
 install_python_user() {
  show_banner "Python Installation"
 
- if command_exists python3.12; then
-   print_info "Python 3.12 is already installed"
+ if command_exists python3.13; then
+   print_info "Python 3.13 is already installed"
    return 0
  fi
 
- print_info "Installing Python 3.12..."
+ print_info "Installing Python 3.13..."
 
  {
    case "$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null || echo ubuntu)" in
@@ -1520,13 +1520,13 @@ install_python_user() {
          add-apt-repository ppa:deadsnakes/ppa -y 2>/dev/null
          apt-get update -y 2>/dev/null
        fi
-       apt-get install -y python3.12 python3.12-venv python3.12-dev python3-pip 2>/dev/null
+       apt-get install -y python3.13 python3.13-venv python3.13-dev python3-pip 2>/dev/null
        ;;
      centos|rhel)
-       dnf install -y python3.12 python3.12-pip 2>/dev/null
+       dnf install -y python3.13 python3.13-pip 2>/dev/null
        ;;
      fedora)
-       dnf install -y python3.12 python3.12-pip 2>/dev/null
+       dnf install -y python3.13 python3.13-pip 2>/dev/null
        ;;
      arch)
        pacman -Syu --noconfirm python python-pip 2>/dev/null
@@ -1539,14 +1539,14 @@ install_python_user() {
  } >> "$LOG_FILE" 2>&1 &
 
  local python_pid=$!
- show_spinner $python_pid "Installing Python 3.12"
+ show_spinner $python_pid "Installing Python 3.13"
  wait $python_pid
  local python_status=$?
 
- if [ $python_status -eq 0 ] && command_exists python3.12; then
-   print_info "Python 3.12 installed successfully"
+ if [ $python_status -eq 0 ] && command_exists python3.13; then
+   print_info "Python 3.13 installed successfully"
  else
-   print_error "Python 3.12 installation failed"
+   print_error "Python 3.13 installation failed"
    exit 1
  fi
 }
@@ -1559,7 +1559,7 @@ check_python_version() {
  local python_version=""
 
  # Try different Python commands
- for cmd in python3.12 python3.11 python3.10 python3; do
+ for cmd in python3.13 python3.11 python3.10 python3; do
    if command_exists "$cmd"; then
      python_version=$($cmd --version 2>&1 | awk '{print $2}' 2>/dev/null || echo "0.0.0")
      if [[ "$(printf '%s\n' "$REQUIRED_PYTHON" "$python_version" | sort -V | head -n1)" == "$REQUIRED_PYTHON" ]]; then
@@ -1571,11 +1571,11 @@ check_python_version() {
  done
 
  print_warn "Python version $python_version is insufficient. Required: $REQUIRED_PYTHON+"
- read -r -p "Would you like to install Python 3.12? [y/N]: " install_python
+ read -r -p "Would you like to install Python 3.13? [y/N]: " install_python
  if [[ "${install_python,,}" =~ ^[y]$ ]]; then
    install_python_user
  else
-   print_error "Python 3.12+ is required. Aborting."
+   print_error "Python 3.13+ is required. Aborting."
    exit 1
  fi
 }
@@ -1590,8 +1590,8 @@ setup_virtualenv() {
     cd "$INSTALL_DIR" || exit 1
 
     local python_cmd
-    if command_exists python3.12; then
-      python_cmd=python3.12
+    if command_exists python3.13; then
+      python_cmd=python3.13
     elif command_exists python3; then
       python_cmd=python3
     else

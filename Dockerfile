@@ -1,6 +1,6 @@
 ########################################################################################################################
 #                                                                                                                      #
-#                                               pyTMBot - Modern Dockerfile                                            #
+#                                               pyTMBot - Dockerfile                                                   #
 # -------------------------------------------------------------------------------------------------------------------- #
 # A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
 # and extending its functionality with plugins.                                                                        #
@@ -9,13 +9,13 @@
 # Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
 # Repository:     https://github.com/orenlab/pytmbot                                                                   #
 # License:        MIT                                                                                                  #
-# Description:    Modern Dockerfile using pyproject.toml with security improvements.                                  #
+# Description:    Dockerfile using pyproject.toml with security improvements.                                          #
 #                                                                                                                      #
 ########################################################################################################################
 
 # Set base images tag
-ARG PYTHON_IMAGE=3.13-alpine3.22
-ARG ALPINE_IMAGE=3.22
+ARG PYTHON_IMAGE=3.13.12-alpine3.23
+ARG ALPINE_IMAGE=3
 
 ########################################################################################################################
 ######################### BUILD DEPENDENCIES STAGE #####################################################################
