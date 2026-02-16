@@ -403,19 +403,15 @@ class SessionChecker(BaseHealthChecker):
 
             total = stats.get("total_sessions", 0)
             blocked = stats.get("blocked_sessions", 0)
-            expired = stats.get("expired_sessions", 0)
 
             if total == 0:
                 level = HealthLevel.HEALTHY
             else:
                 blocked_ratio = blocked / total
-                expired_ratio = expired / total
 
-                if blocked_ratio > 0.5 or expired_ratio > 0.7:
+                if blocked_ratio > 0.5:
                     level = HealthLevel.UNHEALTHY
-                elif blocked_ratio > 0.3 or expired_ratio > 0.5:
-                    level = HealthLevel.DEGRADED
-                elif total > 1000:
+                elif blocked_ratio > 0.3 or total > 1000:
                     level = HealthLevel.DEGRADED
                 else:
                     level = HealthLevel.HEALTHY

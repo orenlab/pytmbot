@@ -400,8 +400,20 @@ class SessionManager(BaseComponent):
             return len(self._user_sessions)
 
     def get_session_stats(self) -> dict[str, Any]:
-        """Get comprehensive session statistics."""
+        """Get comprehensive session statistics.
+
+        Evicts expired sessions inline to avoid stale data polluting
+        health checks between cleanup-thread runs.
+        """
         with self._lock:
+            expired_users = [
+                uid
+                for uid, s in self._user_sessions.items()
+                if s.is_expired(self.session_timeout)
+            ]
+            for uid in expired_users:
+                del self._user_sessions[uid]
+
             stats = {
                 "total_sessions": len(self._user_sessions),
                 "authenticated_sessions": 0,
@@ -418,8 +430,7 @@ class SessionManager(BaseComponent):
                 elif session.auth_state == self.state_fabric.PROCESSING:
                     stats["processing_sessions"] += 1
 
-                if session.is_expired(self.session_timeout):
-                    stats["expired_sessions"] += 1
+            stats["evicted_sessions"] = len(expired_users)
 
             return stats
 
