@@ -24,9 +24,19 @@ class BotMode(StrEnum):
 class LogLevel(StrEnum):
     """Available log levels."""
 
+    TRACE = "TRACE"
     DEBUG = "DEBUG"
     INFO = "INFO"
+    WARNING = "WARNING"
     ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+class LogFormat(StrEnum):
+    """Available log output formats."""
+
+    HUMAN = "human"
+    JSON = "json"
 
 
 class CLIError(Exception):
@@ -40,6 +50,7 @@ class CLIDefaults:
 
     MODE: Final[BotMode] = BotMode.PROD
     LOG_LEVEL: Final[LogLevel] = LogLevel.INFO
+    LOG_FORMAT: Final[LogFormat | None] = None
     COLORIZE_LOGS: Final[bool] = True
     WEBHOOK: Final[bool] = False
     SOCKET_HOST: Final[str] = "127.0.0.1"
@@ -164,6 +175,14 @@ Examples:
     )
 
     parser.add_argument(
+        "--log-format",
+        type=LogFormat,
+        choices=list(LogFormat),
+        default=CLIDefaults.LOG_FORMAT,
+        help="Log output format (default: human in dev, json in prod)",
+    )
+
+    parser.add_argument(
         "--colorize_logs",
         type=_str_to_bool,
         default=CLIDefaults.COLORIZE_LOGS,
@@ -220,6 +239,11 @@ Examples:
             args.mode = BotMode.DEV
             args.log_level = LogLevel.DEBUG
 
+        if args.log_format is None:
+            args.log_format = (
+                LogFormat.HUMAN if args.mode == BotMode.DEV else LogFormat.JSON
+            )
+
         # Validate plugins
         args.plugins = _validate_plugins(args.plugins)
 
@@ -236,4 +260,12 @@ def get_log_level() -> int:
         int: Numeric log level
     """
     args = parse_cli_args()
-    return getattr(logging, args.log_level.value)
+    level_map = {
+        LogLevel.TRACE: 5,
+        LogLevel.DEBUG: logging.DEBUG,
+        LogLevel.INFO: logging.INFO,
+        LogLevel.WARNING: logging.WARNING,
+        LogLevel.ERROR: logging.ERROR,
+        LogLevel.CRITICAL: logging.CRITICAL,
+    }
+    return level_map[args.log_level]

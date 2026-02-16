@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import RLock
 from types import TracebackType
 from typing import Any, Final
+from uuid import uuid4
 
 import docker
 from docker import DockerClient
@@ -53,16 +54,16 @@ class DockerAdapter:
         self._lock = RLock()  # Thread safety for client operations
         self._connection_failures = 0
         self._last_health_check: datetime | None = None
+        self._span_id: str | None = None
 
         # Initialize base context for all operations
         self._base_context = {
-            "action": "docker_adapter",
             "docker_url": self._docker_url,
             "adapter_id": id(self),
         }
 
         self._perform_security_checks()
-        self._log.debug("DockerAdapter initialized", **self._base_context)
+        self._log.trace("DockerAdapter initialized", **self._base_context)
 
     def _validate_configuration(self) -> None:
         """Validate Docker configuration with comprehensive checks."""
@@ -166,6 +167,9 @@ class DockerAdapter:
             "connection_failures": self._connection_failures,
         }
 
+        if self._span_id:
+            context["span_id"] = self._span_id
+
         if extra:
             # Sanitize any potentially sensitive information
             safe_extra = {}
@@ -198,7 +202,7 @@ class DockerAdapter:
                 verify=ca_cert,
             )
 
-            self._log.debug(
+            self._log.trace(
                 "TLS configuration created",
                 has_client_cert=bool(cert_path and key_path),
                 verify_server=bool(ca_cert),
@@ -215,7 +219,7 @@ class DockerAdapter:
             )
             raise
 
-    def _test_connection(self, client: DockerClient) -> bool:
+    def _test_connection(self, client: DockerClient) -> dict[str, Any] | None:
         """Test Docker connection with timeout and error handling."""
         try:
             # Use ping with timeout
@@ -224,14 +228,14 @@ class DockerAdapter:
             # Additional validation - try to get Docker info
             info = client.info()
             if not info:
-                return False
+                return None
 
-            self._log.debug(
+            self._log.trace(
                 "Connection test successful",
                 docker_version=info.get("ServerVersion", "unknown"),
                 **self._base_context,
             )
-            return True
+            return info
 
         except Exception as e:
             self._log.warning(
@@ -239,7 +243,7 @@ class DockerAdapter:
                 error=sanitize_exception(e),
                 **self._base_context,
             )
-            return False
+            return None
 
     def _create_client(self) -> DockerClient:
         """Create and configure Docker client with enhanced security and error handling."""
@@ -260,19 +264,19 @@ class DockerAdapter:
             client = docker.DockerClient(**client_kwargs)
 
             # Test connection with timeout
-            if not self._test_connection(client):
+            docker_info = self._test_connection(client)
+            if docker_info is None:
                 raise DockerException("Connection test failed")
 
             # Reset failure counter on successful connection
             self._connection_failures = 0
             self._last_health_check = datetime.now()
 
-            self._log.info(
-                "Docker client created successfully",
-                tls_enabled=bool(tls_config),
-                timeout=self._timeout_config.get("timeout"),
+            self._log.debug(
+                "Docker connected",
+                docker_version=docker_info.get("ServerVersion", "unknown"),
                 api_version=getattr(client.api, "_version", "unknown"),
-                **context,
+                span_id=self._span_id,
             )
 
             return client
@@ -318,7 +322,7 @@ class DockerAdapter:
                 self._last_health_check = now
                 return False
             except Exception:
-                self._log.debug(
+                self._log.trace(
                     "Health check failed, client recreation needed",
                     **self._base_context,
                 )
@@ -350,6 +354,7 @@ class DockerAdapter:
     def __enter__(self) -> DockerClient:
         """Enter Docker context manager - create and return client with thread safety."""
         with self._lock:
+            self._span_id = uuid4().hex[:8]
             context = self._get_context("context_enter")
 
             try:
@@ -363,7 +368,7 @@ class DockerAdapter:
                     self._client = self._create_client()
 
                 # Log entry at debug level to avoid noise
-                self._log.debug("Docker context entered", **context)
+                self._log.trace("Docker context entered", **context)
                 return self._client
 
             except Exception as e:
@@ -400,7 +405,7 @@ class DockerAdapter:
                 self._last_health_check = None
             else:
                 # Other exceptions - log at debug to reduce noise
-                self._log.debug(
+                self._log.trace(
                     "Docker context exited with exception",
                     exception_type=exc_type.__name__,
                     exception_message=str(exc_val),
@@ -408,7 +413,9 @@ class DockerAdapter:
                 )
         else:
             # Normal exit - only debug level
-            self._log.debug("Docker context exited normally", **context)
+            self._log.trace("Docker context exited normally", **context)
+
+        self._span_id = None
 
     def health_check(self) -> bool:
         """
@@ -490,7 +497,7 @@ class DockerAdapter:
             if self._client is not None:
                 try:
                     self._client.close()
-                    self._log.debug(
+                    self._log.trace(
                         "Docker client connection closed", **self._base_context
                     )
                 except Exception as e:

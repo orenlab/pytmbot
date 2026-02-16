@@ -57,6 +57,8 @@ class BotLauncher(logs.BaseComponent):
         # Professional health system
         self._health_manager: HealthManager | None = None
         self._last_health_log = 0.0
+        self._previous_health_level: str | None = None
+        self._initial_health_logged = False
 
     def _register_cleanup(self) -> None:
         """Register cleanup handler to ensure proper shutdown on exit."""
@@ -200,17 +202,17 @@ class BotLauncher(logs.BaseComponent):
 
     def _should_log_health_status(self) -> bool:
         """Check if we should log health status based on interval and health state."""
-        current_time = time.time()
-
-        # Always log if unhealthy
-        if self._health_manager and not self._health_manager.is_healthy:
-            # But limit frequency for unhealthy states to every 30 seconds
-            if (current_time - self._last_health_log) >= 30:
-                self._last_health_log = current_time
-                return True
+        if not self._health_manager:
             return False
 
-        # Normal interval for healthy states
+        current_time = time.time()
+        current_summary = self._health_manager.get_summary()
+        current_overall = str(current_summary.get("overall", "offline"))
+
+        if self._previous_health_level is None or current_overall != self._previous_health_level:
+            self._last_health_log = current_time
+            return True
+
         if (current_time - self._last_health_log) >= self.HEALTH_LOG_INTERVAL:
             self._last_health_log = current_time
             return True
@@ -223,6 +225,11 @@ class BotLauncher(logs.BaseComponent):
 
         health_summary = self._health_manager.get_summary()
         overall_status = health_summary.get("overall", "offline")
+        has_state_changed = (
+            self._previous_health_level is not None
+            and self._previous_health_level != overall_status
+        )
+        is_first_health_check = not self._initial_health_logged
 
         # Get supporting data only when needed
         uptime_display = naturaltime(self.start_time)
@@ -238,11 +245,16 @@ class BotLauncher(logs.BaseComponent):
             self._log_bot_startup_completion(
                 health_summary, uptime_display, bot_session_metrics
             )
+            self._previous_health_level = overall_status
+            self._initial_health_logged = True
             return
 
         # Determine log level
         log_level = self._determine_health_log_level(
-            overall_status, within_grace_period
+            overall_status,
+            within_grace_period,
+            has_state_changed,
+            is_first_health_check,
         )
 
         # Main health status log - concise and focused
@@ -254,8 +266,14 @@ class BotLauncher(logs.BaseComponent):
         if args.log_level == "DEBUG" or overall_status not in ("healthy", "degraded"):
             self._log_health_details(health_summary, bot_session_metrics)
 
+        self._previous_health_level = overall_status
+        self._initial_health_logged = True
+
     def _log_bot_startup_completion(
-        self, health_summary: dict, uptime_display: str, bot_session_metrics: dict
+        self,
+        health_summary: dict,
+        uptime_display: str,
+        bot_session_metrics: dict | None,
     ) -> None:
         """Log bot startup completion with essential metrics."""
         log_context = {
@@ -274,17 +292,32 @@ class BotLauncher(logs.BaseComponent):
             log.info("Bot successfully started and is now active")
 
     def _determine_health_log_level(
-        self, overall_status: str, within_grace_period: bool
+        self,
+        overall_status: str,
+        within_grace_period: bool,
+        has_state_changed: bool,
+        is_first_health_check: bool,
     ) -> str:
         """Determine appropriate log level for health status."""
+        if is_first_health_check:
+            return "info"
+
+        if has_state_changed:
+            if overall_status == "healthy":
+                return "info"
+            if overall_status in ("degraded", "unhealthy"):
+                return "warning"
+            return "error"
+
         if overall_status in ("critical", "offline"):
             return "error"
-        elif overall_status in ("unhealthy", "degraded"):
+        if overall_status in ("unhealthy", "degraded"):
             return "warning"
-        elif not self.bot:
+        if not self.bot:
             return "debug" if within_grace_period else "error"
-        else:
-            return "info"
+        if overall_status == "healthy":
+            return "trace"
+        return "info"
 
     def _log_main_health_status(
         self,
@@ -346,7 +379,7 @@ class BotLauncher(logs.BaseComponent):
             getattr(log, log_level)(f"Health: {overall_status}")
 
     def _log_health_details(
-        self, health_summary: dict, bot_session_metrics: dict
+        self, health_summary: dict, bot_session_metrics: dict | None
     ) -> None:
         """Log detailed health information when needed."""
         components = health_summary.get("components", {})
@@ -372,38 +405,14 @@ class BotLauncher(logs.BaseComponent):
         # Log session and rate limit stats only if there's activity
         if bot_session_metrics:
             rate_stats = bot_session_metrics.get("rate_limit_stats", {})
-            session_stats = self._session_manager.get_session_stats()
+            active_users = rate_stats.get("active_users", 0)
+            total_violations = rate_stats.get("total_violations", 0)
 
-            # Only log if there's meaningful activity
-            has_rate_activity = (
-                rate_stats.get("total_violations", 0) > 0
-                or rate_stats.get("active_users", 0) > 0
-            )
-            has_session_activity = session_stats.get("total_sessions", 0) > 0
-
-            if has_rate_activity or has_session_activity:
-                activity_context = {}
-
-                if has_rate_activity:
-                    activity_context.update(
-                        {
-                            "active_users": rate_stats.get("active_users", 0),
-                            "rate_violations": rate_stats.get("total_violations", 0),
-                        }
-                    )
-
-                if has_session_activity:
-                    activity_context.update(
-                        {
-                            "total_sessions": session_stats.get("total_sessions", 0),
-                            "authenticated": session_stats.get(
-                                "authenticated_sessions", 0
-                            ),
-                            "blocked": session_stats.get("blocked_sessions", 0),
-                        }
-                    )
-
-                with self.log_context(**activity_context) as log:
+            if active_users > 0 or total_violations > 0:
+                with self.log_context(
+                    active_users=active_users,
+                    rate_violations=total_violations,
+                ) as log:
                     log.debug("User activity summary")
 
         # System resource details only if concerning

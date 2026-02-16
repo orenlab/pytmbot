@@ -167,7 +167,7 @@ class Keyboards:
             for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
                 reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
 
-            log.debug("Reply keyboard constructed", total_buttons=len(keyboard_buttons))
+            log.trace("Reply keyboard constructed", total_buttons=len(keyboard_buttons))
             return reply_keyboard
 
     @staticmethod
@@ -239,7 +239,7 @@ class Keyboards:
                 if emoji and title  # Skip empty entries
             ]
 
-            log.debug("Keyboard buttons constructed", total=len(buttons))
+            log.trace("Keyboard buttons constructed", total=len(buttons))
             return buttons
 
     def build_inline_keyboard(
@@ -282,5 +282,5 @@ class Keyboards:
             ]
             keyboard.add(*buttons)
 
-            log.debug("Inline keyboard built", total_buttons=len(buttons))
+            log.trace("Inline keyboard built", total_buttons=len(buttons))
             return keyboard

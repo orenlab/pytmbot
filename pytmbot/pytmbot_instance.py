@@ -201,6 +201,9 @@ class PyTMBot(BaseComponent):
 
     def _change_state(self, new_state: BotState, reason: str = "") -> None:
         """Change bot state with logging."""
+        if self._state == new_state:
+            return
+
         old_state = self._state
         self._state = new_state
 

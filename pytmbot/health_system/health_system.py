@@ -179,7 +179,7 @@ class TelegramApiChecker(BaseHealthChecker):
             # Use a simple timeout approach instead of signals
             import concurrent.futures
 
-            def api_call():
+            def api_call() -> Any:
                 return bot.get_me()
 
             # Use ThreadPoolExecutor with timeout
@@ -290,7 +290,7 @@ class PollingChecker(BaseHealthChecker):
 class SystemResourceChecker(BaseHealthChecker):
     """System resource checker."""
 
-    def __init__(self, psutil_adapter) -> None:
+    def __init__(self, psutil_adapter: Any) -> None:
         super().__init__(cache_ttl=20.0)
         self._psutil_adapter = psutil_adapter
 
@@ -373,7 +373,7 @@ class SystemResourceChecker(BaseHealthChecker):
 class SessionChecker(BaseHealthChecker):
     """Session manager checker."""
 
-    def __init__(self, session_manager) -> None:
+    def __init__(self, session_manager: Any) -> None:
         super().__init__(cache_ttl=18.0)
         self._session_manager = session_manager
 
@@ -573,20 +573,29 @@ class HealthMonitor(BaseComponent):
         with self.log_context() as log:
             log.debug("Health monitoring loop started")
 
+        previous_level: HealthLevel | None = None
+
         while self._running and not self._stop_event.is_set():
             try:
                 health = self.check_all()
+                is_first_check = previous_level is None
+                has_changed = previous_level is not None and previous_level != health.overall
 
-                # Log based on health level
-                log_methods = {
-                    HealthLevel.HEALTHY: "debug",
-                    HealthLevel.DEGRADED: "warning",
-                    HealthLevel.UNHEALTHY: "warning",
-                    HealthLevel.CRITICAL: "error",
-                    HealthLevel.OFFLINE: "error",
-                }
-
-                log_method = log_methods.get(health.overall, "info")
+                if is_first_check:
+                    log_method = "info"
+                elif has_changed:
+                    if health.overall == HealthLevel.HEALTHY:
+                        log_method = "info"
+                    elif health.overall in (HealthLevel.DEGRADED, HealthLevel.UNHEALTHY):
+                        log_method = "warning"
+                    else:
+                        log_method = "error"
+                elif health.overall == HealthLevel.HEALTHY:
+                    log_method = "trace"
+                elif health.overall in (HealthLevel.DEGRADED, HealthLevel.UNHEALTHY):
+                    log_method = "warning"
+                else:
+                    log_method = "error"
 
                 with self.log_context(
                     overall=str(health.overall),
@@ -595,7 +604,13 @@ class HealthMonitor(BaseComponent):
                     health_ratio=f"{health.health_ratio:.1%}",
                     duration_ms=f"{health.check_duration_ms:.1f}",
                 ) as log:
-                    getattr(log, log_method)(f"Health: {health.overall}")
+                    if is_first_check:
+                        message = f"Initial health: {health.overall}"
+                    elif has_changed and health.overall == HealthLevel.HEALTHY:
+                        message = "Health recovered: healthy"
+                    else:
+                        message = f"Health: {health.overall}"
+                    getattr(log, log_method)(message)
 
                 # Adaptive interval
                 if health.overall <= HealthLevel.UNHEALTHY:
@@ -604,6 +619,8 @@ class HealthMonitor(BaseComponent):
                     interval = self._base_interval * 0.75
                 else:
                     interval = self._base_interval
+
+                previous_level = health.overall
 
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
@@ -694,13 +711,15 @@ class HealthManager:
         return self._monitor.get_summary()
 
     @property
-    def monitor(self):
+    def monitor(self) -> HealthMonitor:
         return self._monitor
 
 
 # Factory functions
 def create_health_monitor(
-    bot: telebot.TeleBot, session_manager=None, psutil_adapter=None
+    bot: telebot.TeleBot,
+    session_manager: Any | None = None,
+    psutil_adapter: Any | None = None,
 ) -> HealthMonitor:
     """Create configured health monitor."""
     monitor = HealthMonitor()
@@ -726,7 +745,9 @@ def create_health_monitor(
 
 
 def create_health_manager(
-    bot: telebot.TeleBot, session_manager=None, psutil_adapter=None
+    bot: telebot.TeleBot,
+    session_manager: Any | None = None,
+    psutil_adapter: Any | None = None,
 ) -> HealthManager:
     """Create configured health manager."""
     manager = HealthManager()

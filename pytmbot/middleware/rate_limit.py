@@ -29,7 +29,7 @@ class RateLimitConfig(TypedDict):
     period: timedelta
 
 
-class RateLimit(BaseMiddleware, BaseComponent):
+class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
     """
     Middleware for rate limiting user requests to prevent DDoS attacks.
 
@@ -119,25 +119,13 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         if cleaned_count > 0:
             with self.log_context(**context) as logger:
-                logger.debug("Cleaned old requests for user")
+                logger.trace("Cleaned old requests for user")
 
     def _is_rate_limited(self, user_id: UserID, current_time: datetime) -> bool:
         """Check if user has exceeded their rate limit."""
         self._clean_old_requests(user_id, current_time)
         current_requests = len(self._user_requests[user_id])
         is_limited = current_requests >= self.limit
-
-        context = {
-            "operation": "rate_limit_check",
-            "user_id": user_id,
-            "current_requests": current_requests,
-            "limit": self.limit,
-            "is_rate_limited": is_limited,
-            "requests_until_limit": max(0, self.limit - current_requests),
-        }
-
-        with self.log_context(**context) as logger:
-            logger.debug("Rate limit check completed")
 
         return is_limited
 
@@ -168,20 +156,6 @@ class RateLimit(BaseMiddleware, BaseComponent):
         interval_index = min(violation_count - 1, len(backoff_intervals) - 1)
         backoff_interval = backoff_intervals[interval_index]
         should_log = current_time - last_log_time >= backoff_interval
-
-        context = {
-            "operation": "violation_log_check",
-            "user_id": user_id,
-            "violation_count": violation_count,
-            "last_log_time": last_log_time.isoformat(),
-            "current_time": current_time.isoformat(),
-            "backoff_interval_seconds": backoff_interval.total_seconds(),
-            "time_since_last_log": (current_time - last_log_time).total_seconds(),
-            "should_log": should_log,
-        }
-
-        with self.log_context(**context) as logger:
-            logger.debug("Violation logging check completed")
 
         return should_log
 
@@ -224,9 +198,6 @@ class RateLimit(BaseMiddleware, BaseComponent):
         else:
             context.update({"violation_logged": False, "log_suppressed": True})
 
-            with self.log_context(**context) as logger:
-                logger.debug("Rate limit exceeded (logging suppressed)")
-
         # Send warning message to user (with error suppression)
         message_sent = False
         try:
@@ -253,7 +224,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**message_context) as logger:
-                logger.debug("Rate limit warning message sent")
+                logger.trace("Rate limit warning message sent")
 
         return CancelUpdate()
 
@@ -303,14 +274,6 @@ class RateLimit(BaseMiddleware, BaseComponent):
         }
 
         if self._is_rate_limited(user_id, current_time):
-            context = {
-                **base_context,
-                "operation": "rate_limit_triggered",
-                "rate_limited": True,
-            }
-
-            with self.log_context(**context) as logger:
-                logger.debug("Rate limit triggered for user")
             return self._handle_rate_limit(message, user)
 
         # Track successful request
@@ -323,18 +286,16 @@ class RateLimit(BaseMiddleware, BaseComponent):
             self._violation_count[user_id] = 0
             violation_reset = True
 
-        context = {
-            **base_context,
-            "operation": "request_processed",
-            "rate_limited": False,
-            "current_requests": current_requests,
-            "limit": self.limit,
-            "violation_count_reset": violation_reset,
-            "requests_until_limit": max(0, self.limit - current_requests),
-        }
-
-        with self.log_context(**context) as logger:
-            logger.debug("Request processed successfully")
+        if violation_reset:
+            context = {
+                **base_context,
+                "operation": "violation_reset",
+                "rate_limited": False,
+                "current_requests": current_requests,
+                "limit": self.limit,
+            }
+            with self.log_context(**context) as logger:
+                logger.debug("Rate limit violation counter reset")
 
         return None
 
@@ -410,9 +371,9 @@ class RateLimit(BaseMiddleware, BaseComponent):
             },
         }
 
-        context = {"operation": "get_stats", **stats}
-
-        with self.log_context(**context) as logger:
-            logger.debug("Rate limit statistics generated")
+        if total_violations > 0:
+            context = {"operation": "get_stats", **stats}
+            with self.log_context(**context) as logger:
+                logger.debug("Rate limit statistics generated")
 
         return stats

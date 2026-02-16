@@ -8,7 +8,8 @@ argument you can use when starting the bot.
 | Argument         | Type   | Default     | Choices                  | Description                                                                                    |
 |------------------|--------|-------------|--------------------------|------------------------------------------------------------------------------------------------|
 | `--mode`         | `str`  | `prod`      | `dev`, `prod`            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
-| `--log-level`    | `str`  | `INFO`      | `DEBUG`, `INFO`, `ERROR` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
+| `--log-level`    | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development. |
+| `--log-format`   | `str`  | mode-based  | `human`, `json`          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.          |
 | `--webhook`      | `str`  | `False`     | `True`, `False`          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                |
 | `--socket_host`  | `str`  | `127.0.0.1` | N/A                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
 | `--plugins`      | `str`  | `""`        | N/A                      | Specify a comma-separated list of plugins to load. Available: `monitor`, `outline`             |
@@ -92,6 +93,12 @@ configuration file. Below are the sections you need to complete:
 python main.py --mode dev --log-level DEBUG
 ```
 
+**Production mode with explicit JSON logs:**
+
+```bash
+python main.py --mode prod --log-level INFO --log-format json
+```
+
 **Production mode with specific plugins:**
 
 ```bash
@@ -158,7 +165,7 @@ docker run -d \
   --restart on-failure \
   -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod --log-level INFO
+  orenlab/pytmbot:latest --mode prod --log-level INFO --log-format json
 ```
 
 **Development with debug:**
@@ -182,7 +189,7 @@ services:
     volumes:
       - /path/to/config.yaml:/opt/app/pytmbot.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: --mode prod --log-level INFO --plugins monitor,outline
+    command: --mode prod --log-level INFO --log-format json --plugins monitor,outline
 ```
 
 ### Webhook with Docker
@@ -202,6 +209,7 @@ docker run -d \
 
 - Always use `--mode prod` for production environments
 - Set log level to `INFO` or `ERROR` to avoid sensitive information in logs
+- Prefer `--log-format json` for production log aggregation systems
 - Use `--webhook True` only behind a reverse proxy with proper SSL termination
 - Never expose webhook directly to the internet
 

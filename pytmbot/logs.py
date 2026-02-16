@@ -7,12 +7,15 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections import OrderedDict
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
+from datetime import UTC
 from enum import StrEnum
 from functools import lru_cache, wraps
 from threading import RLock
@@ -24,8 +27,10 @@ from typing import (
     Final,
     Protocol,
     TypeVar,
+    cast,
     runtime_checkable,
 )
+from uuid import uuid4
 
 from loguru import logger
 from telebot.types import CallbackQuery, InlineQuery, Message, Update
@@ -55,12 +60,12 @@ class LogLevel(StrEnum):
 class LogConfig:
     """Configuration for log formatting."""
 
-    FORMAT: ClassVar[str] = (
+    HUMAN_FORMAT: ClassVar[str] = (
         "<green>{time:YYYY-MM-DD}</green> "
         "[<cyan>{time:HH:mm:ss}</cyan>]"
         "[<level>{level: <8}</level>]"
-        "[<magenta>{module: <16}</magenta>] › "
-        "<level>{message}</level> › "
+        "[<magenta>{module: <16}</magenta>] "
+        "<level>{message}</level> "
         "<fg #A9A9A9>{extra}</fg #A9A9A9>"
     )
 
@@ -455,38 +460,172 @@ class SecureLoggerFilter:
     """Optimized filter for loguru with automatic data masking."""
 
     __slots__ = ("masker",)
+    _MAX_STRING_LENGTH: Final[int] = 512
+    _MAX_COLLECTION_ITEMS: Final[int] = 12
 
     def __init__(self, masker: DataMasker) -> None:
         self.masker = masker
 
-    def __call__(self, record: dict[str, Any]) -> bool:
+    def __call__(self, record: Any) -> bool:
         """Filter and sanitize log records."""
+        if not isinstance(record, dict):
+            return True
+
         # Sanitize the message
         if message := record.get("message"):
             record["message"] = self.masker.sanitize_text(message)
 
         # Sanitize extra fields
         if extra := record.get("extra"):
-            record["extra"] = self._sanitize_extra(extra)
+            record["extra"] = self._sanitize_extra(
+                extra,
+                module_name=record.get("module"),
+                logger_name=record.get("name"),
+                message=record.get("message"),
+            )
 
         return True
 
-    def _sanitize_extra(self, extra: dict[str, Any]) -> dict[str, Any]:
+    def _sanitize_extra(
+        self,
+        extra: dict[str, Any],
+        module_name: str | None = None,
+        logger_name: str | None = None,
+        message: str | None = None,
+    ) -> dict[str, Any]:
         """Sanitize extra fields in log records."""
-        sanitized_extra = {}
+        sanitized_extra: dict[str, Any] = {}
+
+        component = extra.get("component")
+        action = extra.get("action")
+        normalized_message = self._normalize_identifier(message or "")
 
         for key, value in extra.items():
-            match value:
-                case str():
-                    sanitized_extra[key] = self.masker.sanitize_text(value)
-                case int() | float() if key == "user_id":
-                    sanitized_extra[key] = self.masker.mask_user_id(int(value))
-                case int() | float() if key == "chat_id":
-                    sanitized_extra[key] = self.masker.mask_chat_id(int(value))
-                case _:
-                    sanitized_extra[key] = value
+            if value is None:
+                continue
+
+            if key == "action" and action == component:
+                continue
+
+            if key == "action" and isinstance(value, str):
+                normalized_action = self._normalize_identifier(value)
+                if normalized_action and (
+                    normalized_action in normalized_message
+                    or normalized_message.endswith(normalized_action)
+                    or (
+                        isinstance(component, str)
+                        and normalized_action
+                        == self._normalize_identifier(component)
+                    )
+                ):
+                    continue
+
+            if (
+                key == "component"
+                and isinstance(component, str)
+                and self._is_component_duplicate(
+                    component=component,
+                    module_name=module_name,
+                    logger_name=logger_name,
+                )
+            ):
+                continue
+
+            if (
+                key == "action"
+                and isinstance(action, str)
+                and isinstance(component, str)
+                and self._normalize_identifier(action)
+                == self._normalize_identifier(component)
+            ):
+                continue
+
+            sanitized_extra[key] = self._sanitize_value(key, value)
 
         return sanitized_extra
+
+    @staticmethod
+    def _normalize_identifier(value: str) -> str:
+        """Normalize identifiers for duplicate detection."""
+        return "".join(ch.lower() for ch in value if ch.isalnum())
+
+    @classmethod
+    def _to_class_name(cls, module_name: str | None) -> str:
+        """Convert snake_case module names to class-like names."""
+        if not module_name:
+            return ""
+        return "".join(part.capitalize() for part in module_name.split("_") if part)
+
+    @classmethod
+    def _is_component_duplicate(
+        cls, component: str, module_name: str | None, logger_name: str | None
+    ) -> bool:
+        """Detect duplicated component field."""
+        normalized_component = cls._normalize_identifier(component)
+        if not normalized_component:
+            return True
+
+        candidates: set[str] = set()
+        if module_name:
+            candidates.add(cls._normalize_identifier(module_name))
+            candidates.add(cls._normalize_identifier(cls._to_class_name(module_name)))
+
+        if logger_name:
+            logger_last_part = logger_name.rsplit(".", 1)[-1]
+            candidates.add(cls._normalize_identifier(logger_last_part))
+            candidates.add(
+                cls._normalize_identifier(cls._to_class_name(logger_last_part))
+            )
+
+        candidates.discard("")
+        return normalized_component in candidates
+
+    def _sanitize_value(self, key: str, value: Any, depth: int = 0) -> Any:
+        """Sanitize and compact value recursively to reduce log noise."""
+        if depth > 2:
+            return "[truncated]"
+
+        if isinstance(value, str):
+            if len(value) > self._MAX_STRING_LENGTH:
+                value = f"{value[: self._MAX_STRING_LENGTH - 3]}..."
+            return self.masker.sanitize_text(value)
+
+        if key == "user_id" and isinstance(value, int | float):
+            return self.masker.mask_user_id(int(value))
+
+        if key == "chat_id" and isinstance(value, int | float):
+            return self.masker.mask_chat_id(int(value))
+
+        if hasattr(value, "value") and hasattr(value, "name"):
+            enum_value = getattr(value, "value", None)
+            if isinstance(enum_value, str | int | float | bool):
+                return enum_value
+            return str(value)
+
+        if isinstance(value, dict):
+            items = list(value.items())
+            limited_items = items[: self._MAX_COLLECTION_ITEMS]
+            result: dict[str, Any] = {
+                str(k): self._sanitize_value(str(k), v, depth + 1)
+                for k, v in limited_items
+            }
+            if len(items) > self._MAX_COLLECTION_ITEMS:
+                result["_truncated_items"] = len(items) - self._MAX_COLLECTION_ITEMS
+            return result
+
+        if isinstance(value, list | tuple | set):
+            values = list(value)
+            limited_values = values[: self._MAX_COLLECTION_ITEMS]
+            list_result = [
+                self._sanitize_value(key, item, depth + 1) for item in limited_values
+            ]
+            if len(values) > self._MAX_COLLECTION_ITEMS:
+                list_result.append(
+                    f"...(+{len(values) - self._MAX_COLLECTION_ITEMS} items)"
+                )
+            return list_result
+
+        return value
 
 
 class Logger:
@@ -497,8 +636,15 @@ class Logger:
 
     __slots__ = ("_logger", "_masker", "_filter", "_initialized")
 
+    _logger: Any
+    _masker: DataMasker
+    _filter: SecureLoggerFilter
+    _initialized: bool
     _instance: Logger | None = None
     _lock: Final[RLock] = RLock()
+    _context_data: ClassVar[ContextVar[dict[str, Any] | None]] = ContextVar(
+        "logger_context_data", default=None
+    )
 
     def __new__(cls) -> Logger:
         if cls._instance is None:
@@ -522,44 +668,93 @@ class Logger:
         self._logger = logger
 
         # Lazy initialization of configuration
+        log_level = "INFO"
+        log_format = "human"
         try:
             from pytmbot.utils.cli import parse_cli_args
 
-            log_level = parse_cli_args().log_level.upper()
-        except ImportError:
-            log_level = "INFO"
+            cli_args = parse_cli_args()
+            raw_level = getattr(cli_args, "log_level", log_level)
+            raw_format = getattr(cli_args, "log_format", log_format)
 
-        self._configure_logger(log_level)
+            log_level = str(getattr(raw_level, "value", raw_level)).upper()
+            log_format = str(getattr(raw_format, "value", raw_format)).lower()
+        except Exception:
+            pass
 
-    def _configure_logger(self, log_level: str) -> None:
+        self._configure_logger(log_level, log_format)
+
+    def _json_sink(self, message: Any) -> None:
+        """Render compact structured JSON logs."""
+        record = message.record
+        timestamp = record["time"].astimezone(UTC).isoformat(timespec="milliseconds")
+        payload: dict[str, Any] = {
+            "ts": timestamp.replace("+00:00", "Z"),
+            "level": record["level"].name,
+            "module": record.get("module"),
+            "msg": record.get("message"),
+        }
+
+        for key, value in record.get("extra", {}).items():
+            if value is not None and key not in payload:
+                payload[key] = value
+
+        sys.stdout.write(
+            f"{json.dumps(payload, ensure_ascii=False, default=str, separators=(',', ':'))}\n"
+        )
+
+    def _configure_logger(self, log_level: str, log_format: str) -> None:
         """Configure the logger with optimized settings."""
         self._logger.remove()
 
-        # Main logger with security filter
+        def default_filter(record: dict[str, Any]) -> bool:
+            return "sensitive_exception" not in record.get("extra", {}) and self._filter(
+                record
+            )
+
+        def sensitive_filter(record: dict[str, Any]) -> bool:
+            return "sensitive_exception" in record.get("extra", {}) and self._filter(
+                record
+            )
+
+        if log_format == "json":
+            self._logger.add(
+                self._json_sink,
+                level=log_level,
+                backtrace=True,
+                diagnose=True,
+                catch=True,
+                filter=default_filter,
+            )
+            self._logger.add(
+                self._json_sink,
+                level=log_level,
+                backtrace=False,
+                diagnose=False,
+                catch=True,
+                filter=sensitive_filter,
+            )
+            return
+
         self._logger.add(
             sys.stdout,
-            format=LogConfig.FORMAT,
+            format=LogConfig.HUMAN_FORMAT,
             level=log_level,
             colorize=True,
             backtrace=True,
             diagnose=True,
             catch=True,
-            filter=self._filter,
+            filter=default_filter,
         )
-
-        # Special handler for sensitive exceptions
         self._logger.add(
             sys.stdout,
-            format=LogConfig.FORMAT,
+            format=LogConfig.HUMAN_FORMAT,
             level=log_level,
             colorize=True,
             backtrace=False,
             diagnose=False,
             catch=True,
-            filter=lambda record: (
-                "sensitive_exception" in record.get("extra", {})
-                and self._filter(record)
-            ),
+            filter=sensitive_filter,
         )
 
     def add_secret_to_mask(self, secret: str) -> None:
@@ -604,15 +799,13 @@ class Logger:
         update_type: str,
         chat_id: int | None,
         user_id: int | None,
-        username: str | None,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects (cached version)."""
         return {
-            "update_type": update_type,
+            "update": update_type,
             "update_id": update_id,
             "chat_id": chat_id,
             "user_id": user_id,
-            "username": username,
         }
 
     def _get_update_data(self, update: TelegramObject) -> dict[str, Any]:
@@ -624,31 +817,39 @@ class Logger:
             update_id = update.update_id
             obj = update.message or update.callback_query or update.inline_query
 
-        update_type = type(obj).__name__.lower() if obj else "unknown"
+        update_type = "unknown"
+        if isinstance(obj, Message):
+            update_type = "message"
+        elif isinstance(obj, CallbackQuery):
+            update_type = "callbackquery"
+        elif isinstance(obj, InlineQuery):
+            update_type = "inlinequery"
 
-        chat_id = getattr(obj.chat, "id", None) if hasattr(obj, "chat") else None
+        chat = getattr(obj, "chat", None)
+        if chat is None and hasattr(obj, "message"):
+            chat = getattr(obj.message, "chat", None)
+
+        chat_id = getattr(chat, "id", None)
         user_id = (
             getattr(obj.from_user, "id", None) if hasattr(obj, "from_user") else None
         )
-        username = (
-            getattr(obj.from_user, "username", None)
-            if hasattr(obj, "from_user")
-            else None
-        )
 
-        return self._extract_update_data(
-            update_id, update_type, chat_id, user_id, username
-        )
+        return self._extract_update_data(update_id, update_type, chat_id, user_id)
 
     @contextmanager
     def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
         """Context manager for temporarily binding additional data to the logger."""
-        previous = getattr(self._logger, "_context", {}).copy()
+        current_context = self._context_data.get() or {}
+        context_update = {key: value for key, value in kwargs.items() if value is not None}
+        if "trace_id" not in context_update and current_context.get("trace_id"):
+            context_update["trace_id"] = current_context["trace_id"]
+
+        merged_context = {**current_context, **context_update}
+        token: Token[dict[str, Any] | None] = self._context_data.set(merged_context)
         try:
-            self._logger = self._logger.bind(**kwargs)
             yield self
         finally:
-            self._logger = logger.bind(**previous) if previous else logger.bind()
+            self._context_data.reset(token)
 
     def session_decorator(
         self, func: Callable[..., T] | None = None
@@ -660,9 +861,7 @@ class Logger:
             def wrapper(*args: Any, **kwargs: Any) -> T:
                 telegram_object = self._find_telegram_object(args)
                 context = self._build_context(f.__name__, telegram_object)
-
-                with self.context(**context) as log:
-                    return self._execute_with_logging(f, args, kwargs, log)
+                return self._execute_with_logging(f, args, kwargs, context)
 
             return wrapper
 
@@ -683,48 +882,61 @@ class Logger:
         self, func_name: str, telegram_object: TelegramObject | None
     ) -> dict[str, Any]:
         """Build context dictionary for logging."""
-        context = {
-            "component": func_name,
-            "action": func_name,
-        }
+        context: dict[str, Any] = {"handler": func_name}
 
         if telegram_object:
             # Extract sensitive data for masking BEFORE getting update data
             self._masker.extract_and_mask_from_telegram_object(telegram_object)
             # Get update data (will be masked in the filter)
             context.update(self._get_update_data(telegram_object))
-        else:
-            self._logger.warning(f"No Telegram object found in handler {func_name}")
 
         return context
+
+    @staticmethod
+    def _handler_log_level(elapsed_ms: float) -> str:
+        """Get handler completion level based on execution time."""
+        if elapsed_ms < 500:
+            return "debug"
+        if elapsed_ms <= 2000:
+            return "info"
+        return "warning"
 
     def _execute_with_logging(
         self,
         func: Callable[..., T],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-        log: Logger,
+        context: dict[str, Any],
     ) -> T:
         """Execute function with timing and error logging."""
         func_name = func.__name__
-        log.info(f"Handler {func_name} started")
         start_time = monotonic_ns()
+        inherited_context = self._context_data.get() or {}
+        trace_id = cast(str | None, inherited_context.get("trace_id")) or uuid4().hex[:12]
+        context_with_handler = {**context, "handler": func_name}
 
-        try:
-            result = func(*args, **kwargs)
-            elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
-            log.success(
-                f"Handler {func_name} completed",
-                execution_time=f"{elapsed_ms:.2f}ms",
-            )
-            return result
-        except Exception as e:
-            elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
-            log.exception(
-                f"Handler {func_name} failed after {elapsed_ms:.2f}ms: {e}",
-                execution_time=f"{elapsed_ms:.2f}ms",
-            )
-            raise
+        with self.context(trace_id=trace_id, handler=func_name):
+            try:
+                result = func(*args, **kwargs)
+                elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
+                completion_context = {
+                    **context_with_handler,
+                    "ms": round(elapsed_ms, 2),
+                }
+                level = self._handler_log_level(elapsed_ms)
+                getattr(self, level)(f"{func_name} OK", **completion_context)
+                return result
+            except Exception as e:
+                elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
+                error_context = {
+                    **context_with_handler,
+                    "ms": round(elapsed_ms, 2),
+                }
+                self.exception(
+                    f"{func_name} failed after {elapsed_ms:.2f}ms: {e}",
+                    **error_context,
+                )
+                raise
 
     def sanitize_and_log(self, level: str, message: str, **kwargs: Any) -> None:
         """Manual sanitization and logging of a message."""
@@ -733,11 +945,18 @@ class Logger:
             k: self._masker.sanitize_text(str(v)) if isinstance(v, str) else v
             for k, v in kwargs.items()
         }
-        getattr(self._logger, level.lower())(sanitized_message, **sanitized_kwargs)
+        getattr(self._get_bound_logger(), level.lower())(
+            sanitized_message, **sanitized_kwargs
+        )
+
+    def _get_bound_logger(self) -> Any:
+        """Get logger with current context bound in a thread-safe way."""
+        context = self._context_data.get() or {}
+        return self._logger.bind(**context) if context else self._logger
 
     def __getattr__(self, name: str) -> Any:
         """Proxy attributes to the internal logger."""
-        return getattr(self._logger, name)
+        return getattr(self._get_bound_logger(), name)
 
 
 class BaseComponent:
@@ -752,7 +971,8 @@ class BaseComponent:
     @contextmanager
     def log_context(self, **kwargs: Any) -> Generator[Logger, None, None]:
         """Context manager for logging with additional data."""
-        with self._log.context(component=self.component_name, **kwargs) as log:
+        component = kwargs.pop("component", self.component_name) or self.component_name
+        with self._log.context(component=component, **kwargs) as log:
             yield log
 
 

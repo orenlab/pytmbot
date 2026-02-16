@@ -108,25 +108,20 @@ class AccessControl(BaseMiddleware, BaseComponent):
         chat_id = message.chat.id
 
         if message.text:
+            message_preview = (
+                message.text
+                if len(message.text) <= 64
+                else f"{message.text[:61].rstrip()}..."
+            )
             debug_context = {
-                "operation": "incoming_message_debug",
                 "user_id": mask_user_id(user_id),
-                "username": mask_username(username),
                 "chat_id": chat_id,
-                "message_text": message.text,
-                "message_text_repr": repr(message.text),
-                "message_text_bytes": message.text.encode("utf-8").hex(),
-                "message_length": len(message.text),
-                "user_language_code": user.language_code,
-                "user_client": "iOS"
-                if user.language_code and "ios" in str(user.language_code).lower()
-                else "unknown",
+                "text": message_preview,
+                "cmd": message.text.lstrip().startswith("/"),
             }
 
             with self.log_context(**debug_context) as logger:
-                logger.info(
-                    f"📱 INCOMING MESSAGE: '{message.text}' | Bytes: {message.text.encode('utf-8').hex()} | User: {mask_user_id(user_id)} | Lang: {user.language_code}"
-                )
+                logger.debug("Incoming message received")
 
         base_context = {
             "operation": "pre_process",
@@ -160,7 +155,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**context) as logger:
-                logger.debug("Access granted to authorized user")
+                logger.trace("Access granted to authorized user")
             return None
 
         # Unauthorized users: check attempts and handle accordingly
@@ -178,7 +173,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         username: str,
         chat_id: int,
         message: Message,
-        base_context: dict,
+        base_context: dict[str, Any],
     ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
 

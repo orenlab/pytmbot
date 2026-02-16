@@ -23,6 +23,7 @@ SALT_SCRIPT="pytmbot/utils/salt.py"
 # Default values
 LOG_LEVEL="INFO"
 MODE="prod"
+LOG_FORMAT=""
 SALT="False"
 PLUGINS=""
 WEBHOOK="False"
@@ -153,8 +154,16 @@ check_docker_access() {
 # Function to validate log level
 validate_log_level() {
     case "$1" in
-        DEBUG|INFO|ERROR) return 0 ;;
+        TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL) return 0 ;;
         *) log "ERROR" "entrypoint" "Invalid log level" "{\"level\": \"$1\"}"; return 1 ;;
+    esac
+}
+
+# Function to validate log format
+validate_log_format() {
+    case "$1" in
+        human|json) return 0 ;;
+        *) log "ERROR" "entrypoint" "Invalid log format" "{\"format\": \"$1\"}"; return 1 ;;
     esac
 }
 
@@ -264,6 +273,15 @@ while [ $# -gt 0 ]; do
             fi
             shift 2
             ;;
+        --log-format)
+            require_option_value "--log-format" "$2"
+            if validate_log_format "$2"; then
+                LOG_FORMAT="$2"
+            else
+                exit 1
+            fi
+            shift 2
+            ;;
         --salt)
             SALT="True"
             shift
@@ -292,15 +310,23 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         *)
-            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
+            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --log-format, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
             exit 1
             ;;
     esac
 done
 
+if [ -n "$LOG_FORMAT" ]; then
+    EFFECTIVE_LOG_FORMAT="$LOG_FORMAT"
+elif [ "$MODE" = "dev" ]; then
+    EFFECTIVE_LOG_FORMAT="human(auto)"
+else
+    EFFECTIVE_LOG_FORMAT="json(auto)"
+fi
+
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
-log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\"}"
+log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\"}"
 
 # Check dependencies
 check_dependencies
@@ -326,12 +352,22 @@ if [ "$SALT" = "True" ]; then
     child_pid=$!
 else
     log "INFO" "entrypoint" "Starting main application" "{\"script\": \"$MAIN_SCRIPT\"}"
-    $PYTHON_PATH "$MAIN_SCRIPT" \
-        --log-level "$LOG_LEVEL" \
-        --mode "$MODE" \
-        --plugins "$PLUGINS" \
-        --webhook "$WEBHOOK" \
-        --socket_host "$SOCKET_HOST" &
+    if [ -n "$LOG_FORMAT" ]; then
+        $PYTHON_PATH "$MAIN_SCRIPT" \
+            --log-level "$LOG_LEVEL" \
+            --mode "$MODE" \
+            --log-format "$LOG_FORMAT" \
+            --plugins "$PLUGINS" \
+            --webhook "$WEBHOOK" \
+            --socket_host "$SOCKET_HOST" &
+    else
+        $PYTHON_PATH "$MAIN_SCRIPT" \
+            --log-level "$LOG_LEVEL" \
+            --mode "$MODE" \
+            --plugins "$PLUGINS" \
+            --webhook "$WEBHOOK" \
+            --socket_host "$SOCKET_HOST" &
+    fi
     child_pid=$!
 fi
 
