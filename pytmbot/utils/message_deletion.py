@@ -171,7 +171,7 @@ class _MessageDeletionManager(BaseComponent):
         self._initialized = True
 
         with self.log_context(action="initialize") as log:
-            log.info("MessageDeletionManager initialized successfully")
+            log.info("bot.utils.message_deletion.deletion.manager.ok")
 
     def _start_cleanup_daemon(self) -> None:
         """Start the cleanup daemon thread for periodic maintenance."""
@@ -179,14 +179,14 @@ class _MessageDeletionManager(BaseComponent):
         def _cleanup_worker() -> None:
             """Worker function for periodic cleanup of stale data."""
             with self.log_context(action="cleanup_daemon") as log:
-                log.debug("Cleanup daemon started")
+                log.debug("bot.utils.message_deletion.cleanup.daemon.start")
 
                 while True:
                     try:
                         time.sleep(self._DEFAULT_CLEANUP_INTERVAL)
                         self._cleanup_stale_references()
-                    except Exception as e:
-                        log.error(f"Cleanup daemon error: {e}")
+                    except Exception:
+                        log.error("bot.utils.message_deletion.cleanup.daemon.fail")
 
         cleanup_thread = threading.Thread(
             target=_cleanup_worker, name="MessageDeletionCleanup", daemon=True
@@ -226,7 +226,7 @@ class _MessageDeletionManager(BaseComponent):
                     empty_users_cleaned=len(empty_users),
                 ) as log:
                     log.debug(
-                        f"Cleaned up {cleaned_count} stale references and {len(empty_users)} empty user entries"
+                        "bot.utils.message_deletion.cleaned.stale.debug"
                     )
 
     @contextmanager
@@ -262,7 +262,7 @@ class _MessageDeletionManager(BaseComponent):
             action="configure", old_limit=old_limit, new_limit=max_pending_per_user
         ) as log:
             log.info(
-                f"MessageDeletionManager configured: max_pending_per_user changed from {old_limit} to {max_pending_per_user}"
+                "bot.utils.message_deletion.deletion.manager.info"
             )
 
     def schedule_deletion(
@@ -317,7 +317,7 @@ class _MessageDeletionManager(BaseComponent):
                 # Check if already scheduled
                 if task_key in self._active_tasks:
                     with self._update_stats("already_scheduled"):
-                        log.warning("Duplicate deletion request - already scheduled")
+                        log.warning("bot.utils.message_deletion.duplicate.deletion.ok")
                         return _DeletionResult(
                             status=_DeletionStatus.ALREADY_SCHEDULED,
                             message_id=message_id,
@@ -330,7 +330,7 @@ class _MessageDeletionManager(BaseComponent):
                 if current_pending >= self._max_pending_per_user:
                     with self._update_stats("limit_exceeded"):
                         log.warning(
-                            f"Deletion limit exceeded: {current_pending}/{self._max_pending_per_user}"
+                            "bot.utils.message_deletion.deletion.limit.warn"
                         )
                         return _DeletionResult(
                             status=_DeletionStatus.LIMIT_EXCEEDED,
@@ -351,7 +351,7 @@ class _MessageDeletionManager(BaseComponent):
                         callback=callback,
                     )
                 except ValueError as e:
-                    log.error(f"Invalid task parameters: {e}")
+                    log.error("bot.utils.message_deletion.invalid.task.fail")
                     return _DeletionResult(
                         status=_DeletionStatus.FAILED,
                         message_id=message_id,
@@ -374,7 +374,7 @@ class _MessageDeletionManager(BaseComponent):
 
             with self._update_stats("scheduled"):
                 log.info(
-                    f"Deletion scheduled successfully - pending: {current_pending + 1}/{self._max_pending_per_user}"
+                    "bot.utils.message_deletion.deletion.scheduled.ok"
                 )
 
                 return _DeletionResult(
@@ -404,7 +404,7 @@ class _MessageDeletionManager(BaseComponent):
         ) as log:
             try:
                 log.debug(
-                    f"Starting deletion countdown - waiting {task.delay_seconds}s"
+                    "bot.utils.message_deletion.deletion.countdown.start"
                 )
 
                 # Wait for the specified delay
@@ -426,11 +426,11 @@ class _MessageDeletionManager(BaseComponent):
                         pending_count=self.get_pending_count(task.user_id) - 1,
                     )
 
-                    log.success("Message deletion completed successfully")
+                    log.success("bot.utils.message_deletion.deletion.ok")
 
             except ApiTelegramException as e:
                 error_msg = f"Telegram API error during deletion: {e}"
-                log.error(error_msg)
+                log.error("bot.utils.message_deletion.telegram.api.fail", error=error_msg)
                 result = _DeletionResult(
                     status=_DeletionStatus.FAILED,
                     message_id=task.message_id,
@@ -441,7 +441,7 @@ class _MessageDeletionManager(BaseComponent):
 
             except Exception as e:
                 error_msg = f"Unexpected error during deletion: {e}"
-                log.error(error_msg)
+                log.error("bot.utils.message_deletion.unexpected.fail", error=error_msg)
                 result = _DeletionResult(
                     status=_DeletionStatus.FAILED,
                     message_id=task.message_id,
@@ -456,15 +456,15 @@ class _MessageDeletionManager(BaseComponent):
                     self._active_tasks.pop(task_key, None)
                     self._user_pending_deletions[task.user_id].discard(task.message_id)
 
-                log.debug("Task cleanup completed")
+                log.debug("bot.utils.message_deletion.task.cleanup.ok")
 
                 # Execute callback if provided
                 if task.callback and result:
                     try:
                         task.callback(result)
-                        log.debug("Callback executed successfully")
-                    except Exception as e:
-                        log.error(f"Error executing deletion callback: {e}")
+                        log.debug("bot.utils.message_deletion.callback.executed.ok")
+                    except Exception:
+                        log.error("bot.utils.message_deletion.exec.deletion.fail")
 
     def get_pending_count(self, user_id: _UserID) -> int:
         """
@@ -482,7 +482,7 @@ class _MessageDeletionManager(BaseComponent):
         with self.log_context(
             action="get_pending_count", user_id=user_id, pending_count=count
         ) as log:
-            log.debug(f"Retrieved pending count for user: {count}")
+            log.debug("bot.utils.message_deletion.fetch.pending.debug")
 
         return count
 
@@ -510,9 +510,9 @@ class _MessageDeletionManager(BaseComponent):
                 self._user_pending_deletions[user_id].clear()
 
             if cancelled_count > 0:
-                log.info(f"Cancelled {cancelled_count} pending deletions")
+                log.info("bot.utils.message_deletion.cancelled.pending.info")
             else:
-                log.debug("No pending deletions found to cancel")
+                log.debug("bot.utils.message_deletion.no.pending.debug")
 
             return cancelled_count
 
@@ -527,7 +527,7 @@ class _MessageDeletionManager(BaseComponent):
             stats = self._stats.copy()
 
         with self.log_context(action="get_statistics", stats=stats) as log:
-            log.debug("Statistics retrieved")
+            log.debug("bot.utils.message_deletion.statistics.fetch.debug")
 
         return stats
 
@@ -557,7 +557,7 @@ class _MessageDeletionManager(BaseComponent):
 
         with self.log_context(action="get_system_status", **status) as log:
             log.debug(
-                f"System status retrieved - {total_pending} pending deletions, {users_with_pending} users affected"
+                "bot.utils.message_deletion.status.fetch.debug"
             )
 
         return status

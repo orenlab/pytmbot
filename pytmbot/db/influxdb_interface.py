@@ -78,7 +78,7 @@ class InfluxDBInterface(BaseComponent):
                 self._warning_shown = True
                 with self.log_context(action="initialization") as log:
                     log.warning(
-                        "Using non-local InfluxDB URL. Ensure it is secure.",
+                        "bot.db.influxdb_interface.using.non.warn",
                         extra={"url": self._config.url},
                     )
 
@@ -86,7 +86,7 @@ class InfluxDBInterface(BaseComponent):
             if self._config.debug_mode:
                 with self.log_context(action="initialization") as log:
                     log.debug(
-                        "InfluxDB client initialized",
+                        "bot.db.influxdb_interface.influx.client.init",
                         extra={
                             "url": self._config.url,
                             "org": self._config.org,
@@ -114,7 +114,7 @@ class InfluxDBInterface(BaseComponent):
             # Log connection only once or in debug mode
             if not self._initialized or self._config.debug_mode:
                 with self.log_context(action="connect") as log:
-                    log.debug("InfluxDB connection established")
+                    log.debug("bot.db.influxdb_interface.influx.connection.debug")
                 self._initialized = True
 
             return self
@@ -139,7 +139,7 @@ class InfluxDBInterface(BaseComponent):
                 # Log disconnect only in debug mode
                 if self._config.debug_mode:
                     with self.log_context(action="disconnect") as log:
-                        log.debug("InfluxDB connection closed successfully")
+                        log.debug("bot.db.influxdb_interface.influx.connection.ok")
 
             except Exception as e:
                 error_context = ErrorContext(
@@ -170,7 +170,7 @@ class InfluxDBInterface(BaseComponent):
             if self._config.debug_mode:
                 with self.log_context(action="check_url") as log:
                     log.debug(
-                        "IP address checked",
+                        "bot.db.influxdb_interface.ip.address.debug",
                         extra={"hostname": hostname, "is_private": is_private},
                     )
             return is_private
@@ -184,7 +184,7 @@ class InfluxDBInterface(BaseComponent):
                 if self._config.debug_mode:
                     with self.log_context(action="check_url") as log:
                         log.debug(
-                            "Hostname resolved and checked",
+                            "bot.db.influxdb_interface.hostname.resolved.debug",
                             extra={
                                 "hostname": hostname,
                                 "ip": ip_str,
@@ -198,7 +198,7 @@ class InfluxDBInterface(BaseComponent):
                 if not self._warning_shown:
                     with self.log_context(action="check_url") as log:
                         log.warning(
-                            "Failed to resolve hostname", extra={"hostname": hostname}
+                            "bot.db.influxdb_interface.resolve.hostname.fail", extra={"hostname": hostname}
                         )
                 return False
 
@@ -254,7 +254,7 @@ class InfluxDBInterface(BaseComponent):
                     tag_count=len(tags) if tags else 0,
                 ) as log:
                     log.debug(
-                        "Writing data point",
+                        "bot.db.influxdb_interface.writing.data.debug",
                         extra={
                             "measurement": measurement,
                             "fields": fields,
@@ -267,7 +267,7 @@ class InfluxDBInterface(BaseComponent):
             # Success logging only in debug mode
             if self._config.debug_mode:
                 with self.log_context(action="write") as log:
-                    log.debug("Data point written successfully")
+                    log.debug("bot.db.influxdb_interface.data.point.ok")
 
         except Exception as e:
             # Always log errors
@@ -317,7 +317,7 @@ class InfluxDBInterface(BaseComponent):
                     field=field,
                     time_range={"start": start, "stop": stop},
                 ) as log:
-                    log.debug("Executing query", extra={"query": query})
+                    log.debug("bot.db.influxdb_interface.exec.query.debug", extra={"query": query})
 
             tables = self._query_api.query(query, org=self._config.org)
 
@@ -331,7 +331,7 @@ class InfluxDBInterface(BaseComponent):
             if self._config.debug_mode:
                 with self.log_context(action="query") as log:
                     log.debug(
-                        "Query executed successfully",
+                        "bot.db.influxdb_interface.query.executed.ok",
                         extra={"record_count": len(results)},
                     )
 
@@ -370,7 +370,7 @@ class InfluxDBInterface(BaseComponent):
             # Log only in debug mode
             if self._config.debug_mode:
                 with self.log_context(action="list_measurements") as log:
-                    log.debug("Fetching measurements", extra={"query": query})
+                    log.debug("bot.db.influxdb_interface.fetch.measurements.debug", extra={"query": query})
 
             tables = self._query_api.query(query, org=self._config.org)
 
@@ -382,7 +382,7 @@ class InfluxDBInterface(BaseComponent):
             if self._config.debug_mode:
                 with self.log_context(action="list_measurements") as log:
                     log.debug(
-                        "Measurements retrieved successfully",
+                        "bot.db.influxdb_interface.measurements.fetch.ok",
                         extra={"count": len(measurements)},
                     )
 
@@ -425,7 +425,7 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(
                     action="list_fields", measurement=measurement
                 ) as log:
-                    log.debug("Fetching fields", extra={"query": query})
+                    log.debug("bot.db.influxdb_interface.fetch.fields.debug", extra={"query": query})
 
             tables = self._query_api.query(query, org=self._config.org)
 
@@ -439,7 +439,7 @@ class InfluxDBInterface(BaseComponent):
                     action="list_fields", measurement=measurement
                 ) as log:
                     log.debug(
-                        "Fields retrieved successfully",
+                        "bot.db.influxdb_interface.fields.fetch.ok",
                         extra={"measurement": measurement, "field_count": len(fields)},
                     )
 

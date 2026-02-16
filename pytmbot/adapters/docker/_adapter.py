@@ -63,7 +63,7 @@ class DockerAdapter:
         }
 
         self._perform_security_checks()
-        self._log.trace("DockerAdapter initialized", **self._base_context)
+        self._log.trace("docker.adapter.init", **self._base_context)
 
     def _validate_configuration(self) -> None:
         """Validate Docker configuration with comprehensive checks."""
@@ -96,7 +96,7 @@ class DockerAdapter:
                 stacklevel=2,
             )
             self._log.warning(
-                "Insecure Docker connection detected",
+                "docker.adapter.insecure.connection.warn",
                 docker_url=self._docker_url,
                 security_risk="unencrypted_connection",
                 **self._base_context,
@@ -107,7 +107,7 @@ class DockerAdapter:
             "tcp+tls://"
         ):
             self._log.warning(
-                "TCP connection without TLS detected",
+                "docker.adapter.tcp.connection.warn",
                 docker_url=self._docker_url,
                 security_risk="tcp_without_tls",
                 **self._base_context,
@@ -125,21 +125,21 @@ class DockerAdapter:
 
         if cert_path and not Path(cert_path).exists():
             self._log.warning(
-                "TLS client certificate not found",
+                "docker.adapter.tls.client.warn",
                 cert_path=cert_path,
                 **self._base_context,
             )
 
         if key_path and not Path(key_path).exists():
             self._log.warning(
-                "TLS client key not found",
+                "docker.adapter.tls.client.warn",
                 key_path=key_path,
                 **self._base_context,
             )
 
         if isinstance(ca_cert, str) and not Path(ca_cert).exists():
             self._log.warning(
-                "TLS CA certificate not found",
+                "docker.adapter.tls.ca.warn",
                 ca_cert=ca_cert,
                 **self._base_context,
             )
@@ -203,7 +203,7 @@ class DockerAdapter:
             )
 
             self._log.trace(
-                "TLS configuration created",
+                "docker.adapter.tls.config.debug",
                 has_client_cert=bool(cert_path and key_path),
                 verify_server=bool(ca_cert),
                 **self._base_context,
@@ -213,7 +213,7 @@ class DockerAdapter:
 
         except Exception as e:
             self._log.error(
-                "Failed to create TLS configuration",
+                "docker.adapter.create.tls.fail",
                 error=sanitize_exception(e),
                 **self._base_context,
             )
@@ -231,7 +231,7 @@ class DockerAdapter:
                 return None
 
             self._log.trace(
-                "Connection test successful",
+                "docker.adapter.connection.test.ok",
                 docker_version=info.get("ServerVersion", "unknown"),
                 **self._base_context,
             )
@@ -239,7 +239,7 @@ class DockerAdapter:
 
         except Exception as e:
             self._log.warning(
-                "Connection test failed",
+                "docker.adapter.connection.test.fail",
                 error=sanitize_exception(e),
                 **self._base_context,
             )
@@ -273,7 +273,7 @@ class DockerAdapter:
             self._last_health_check = datetime.now()
 
             self._log.debug(
-                "Docker connected",
+                "docker.adapter.connected.debug",
                 docker_version=docker_info.get("ServerVersion", "unknown"),
                 api_version=getattr(client.api, "_version", "unknown"),
                 span_id=self._span_id,
@@ -284,7 +284,7 @@ class DockerAdapter:
         except DockerException as e:
             self._connection_failures += 1
             self._log.error(
-                "Docker client creation failed",
+                "docker.adapter.client.creation.fail",
                 error=sanitize_exception(e),
                 failure_count=self._connection_failures,
                 **context,
@@ -294,7 +294,7 @@ class DockerAdapter:
         except Exception as e:
             self._connection_failures += 1
             self._log.error(
-                "Unexpected error during client creation",
+                "docker.adapter.unexpected.fail",
                 error=sanitize_exception(e),
                 error_type=type(e).__name__,
                 failure_count=self._connection_failures,
@@ -323,7 +323,7 @@ class DockerAdapter:
                 return False
             except Exception:
                 self._log.trace(
-                    "Health check failed, client recreation needed",
+                    "docker.adapter.health.check.fail",
                     **self._base_context,
                 )
                 return True
@@ -345,7 +345,7 @@ class DockerAdapter:
                 }
         except Exception as e:
             self._log.warning(
-                "Failed to get Docker info",
+                "docker.adapter.get.info.fail",
                 error=sanitize_exception(e),
                 **self._base_context,
             )
@@ -368,12 +368,12 @@ class DockerAdapter:
                     self._client = self._create_client()
 
                 # Log entry at debug level to avoid noise
-                self._log.trace("Docker context entered", **context)
+                self._log.trace("docker.adapter.context.entered.debug", **context)
                 return self._client
 
             except Exception as e:
                 self._log.error(
-                    "Failed to enter Docker context",
+                    "docker.adapter.enter.context.fail",
                     error=sanitize_exception(e),
                     **context,
                 )
@@ -396,7 +396,7 @@ class DockerAdapter:
         if exc_type:
             if issubclass(exc_type, (DockerException, DockerConnectionError)):
                 self._log.error(
-                    "Docker context exited with Docker-related exception",
+                    "docker.adapter.context.exited.fail",
                     exception_type=exc_type.__name__,
                     exception_message=str(exc_val),
                     **context,
@@ -406,14 +406,14 @@ class DockerAdapter:
             else:
                 # Other exceptions - log at debug to reduce noise
                 self._log.trace(
-                    "Docker context exited with exception",
+                    "docker.adapter.context.exited.fail",
                     exception_type=exc_type.__name__,
                     exception_message=str(exc_val),
                     **context,
                 )
         else:
             # Normal exit - only debug level
-            self._log.trace("Docker context exited normally", **context)
+            self._log.trace("docker.adapter.context.exited.debug", **context)
 
         self._span_id = None
 
@@ -443,7 +443,7 @@ class DockerAdapter:
                 execution_time = (datetime.now() - start_time).total_seconds()
 
                 self._log.info(
-                    "Docker health check passed",
+                    "docker.adapter.health.check.info",
                     execution_time=f"{execution_time:.3f}s",
                     docker_version=info.get("ServerVersion", "unknown"),
                     containers_accessible=len(containers) >= 0,
@@ -453,13 +453,13 @@ class DockerAdapter:
 
         except DockerConnectionError as e:
             self._log.warning(
-                "Docker health check failed", error=sanitize_exception(e), **context
+                "docker.adapter.health.check.fail", error=sanitize_exception(e), **context
             )
             return False
 
         except Exception as e:
             self._log.error(
-                "Docker health check encountered unexpected error",
+                "docker.adapter.health.check.fail",
                 error=sanitize_exception(e),
                 error_type=type(e).__name__,
                 **context,
@@ -498,11 +498,11 @@ class DockerAdapter:
                 try:
                     self._client.close()
                     self._log.trace(
-                        "Docker client connection closed", **self._base_context
+                        "docker.adapter.client.connection.debug", **self._base_context
                     )
                 except Exception as e:
                     self._log.warning(
-                        "Error closing Docker client",
+                        "docker.adapter.closing.client.fail",
                         error=sanitize_exception(e),
                         **self._base_context,
                     )
@@ -521,4 +521,4 @@ class DockerAdapter:
         with self._lock:
             self.close()
             self._last_health_check = None
-            self._log.info("Forced Docker client reconnection", **self._base_context)
+            self._log.info("docker.adapter.forced.client.info", **self._base_context)

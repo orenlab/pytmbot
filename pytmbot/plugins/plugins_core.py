@@ -47,7 +47,7 @@ class PluginCore:
         config_path = os.path.join(grandparent_dir, config_name)
 
         if not os.path.isfile(config_path):
-            self.logger.error(f"Config file not found: {config_name}")
+            self.logger.error("bot.plugins.plugins_core.config.file.fail")
             raise FileNotFoundError(f"Config file not found: {config_name}")
 
         return config_path
@@ -70,14 +70,14 @@ class PluginCore:
             with open(config_path) as f:
                 config_data = yaml.safe_load(f)
 
-            self.logger.debug(f"Loaded plugin config: {config_name}")
+            self.logger.debug("bot.plugins.plugins_core.load.plugin.debug")
 
             return config_model(**config_data)
-        except yaml.YAMLError as err:
-            self.logger.error(f"Error parsing YAML file {config_name}: {err}")
+        except yaml.YAMLError:
+            self.logger.error("bot.plugins.plugins_core.parsing.yaml.fail")
             raise
-        except Exception as err:
-            self.logger.error(f"Error loading plugin config: {err}")
+        except Exception:
+            self.logger.error("bot.plugins.plugins_core.load.plugin.fail")
             raise
 
     def build_plugin_keyboard(self, plugin_keyboard_data: dict[str, str]) -> Any:

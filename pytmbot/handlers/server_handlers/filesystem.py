@@ -26,7 +26,7 @@ def handle_file_system(message: Message, bot: TeleBot):
         disk_usage = psutil_adapter.get_disk_usage()
 
         if disk_usage is None:
-            logger.error("Failed to handle disk usage")
+            logger.error("bot.handler.server.filesystem.disk.usage.fail")
             return bot.send_message(
                 message.chat.id,
                 text="⚠️ Failed to handle disk usage. Please try again later.",

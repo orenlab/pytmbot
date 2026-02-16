@@ -25,8 +25,8 @@ def _get_uptime() -> str | None:
     """Get system uptime."""
     try:
         return psutil_adapter.get_uptime()
-    except Exception as e:
-        logger.error(f"Failed to get uptime: {e}")
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.uptime.fail")
         return None
 
 
@@ -34,8 +34,8 @@ def _get_load() -> tuple | None:
     """Get load average."""
     try:
         return psutil_adapter.get_load_average()
-    except Exception as e:
-        logger.error(f"Failed to get load average: {e}")
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.load.fail")
         return None
 
 
@@ -43,8 +43,8 @@ def _get_memory() -> dict | None:
     """Get memory statistics."""
     try:
         return psutil_adapter.get_memory()
-    except Exception as e:
-        logger.error(f"Failed to get memory stats: {e}")
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.memory.fail")
         return None
 
 
@@ -52,8 +52,8 @@ def _get_processes() -> dict | None:
     """Get process counts."""
     try:
         return psutil_adapter.get_process_counts()
-    except Exception as e:
-        logger.error(f"Failed to get process counts: {e}")
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.counts.fail")
         return None
 
 
@@ -61,8 +61,8 @@ def _get_docker() -> dict | None:
     """Get Docker statistics."""
     try:
         return fetch_docker_counters()
-    except Exception as e:
-        logger.error(f"Failed to get Docker stats: {e}")
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.stats.fail")
         return None
 
 
@@ -99,9 +99,9 @@ def _collect_metrics() -> dict[str, Any]:
                 if result is not None:
                     metrics[task_name] = result
                 else:
-                    logger.warning(f"Task {task_name} returned None")
-            except Exception as e:
-                logger.error(f"Task {task_name} generated an exception: {e}")
+                    logger.warning("bot.handler.server.quickview.task.returned.warn")
+            except Exception:
+                logger.error("bot.handler.server.quickview.task.generated.fail")
 
     return metrics
 
@@ -127,7 +127,7 @@ def handle_quick_view(message: Message, bot: TeleBot):
         metrics = _collect_metrics()
 
         if not metrics:
-            logger.error("Failed to collect any metrics for quick view")
+            logger.error("bot.handler.server.quickview.collect.any.fail")
             return bot.send_message(
                 message.chat.id,
                 text="⚠️ Failed to get system metrics. Please try again later.",

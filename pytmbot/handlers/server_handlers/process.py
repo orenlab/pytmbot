@@ -39,7 +39,7 @@ def handle_process(message: Message, bot: TeleBot):
 
         if process_count is None:
             logger.error(
-                f"Failed at @{__name__}: Error occurred while getting process counts"
+                "bot.handler.server.process.get.fail"
             )
             return bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("

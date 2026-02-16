@@ -59,7 +59,7 @@ def send_telegram_message(
 
     except ApiTelegramException as e:
         logger.error(
-            f"Telegram API error: {e}",
+            "bot.handler.handlers_util.utils.fail",
             extra={"chat_id": chat_id, "text_length": len(text), "error": str(e)},
         )
         raise exceptions.ConnectionException(

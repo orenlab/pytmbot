@@ -88,13 +88,13 @@ class TwoFactorAuthenticator(BaseComponent):
             self._secret_cache = base64.b32encode(hash_obj.digest()).decode("ascii")
 
             with self.log_context(user_id=self.user_id, username=self.username) as log:
-                log.debug("TOTP secret generated and cached")
+                log.debug("bot.utils.totp.secret.generated.debug")
 
             return self._secret_cache
 
         except Exception as e:
             with self.log_context(user_id=self.user_id, username=self.username) as log:
-                log.error(f"Secret generation failed: {e}")
+                log.error("bot.utils.totp.secret.generation.fail")
             raise TOTPError(
                 f"Failed to generate secret for user {self.username}: {e}"
             ) from e
@@ -122,13 +122,13 @@ class TwoFactorAuthenticator(BaseComponent):
             )
 
             with self.log_context(user_id=self.user_id, username=self.username) as log:
-                log.debug("TOTP URI generated")
+                log.debug("bot.utils.totp.uri.generated.debug")
 
             return uri
 
         except Exception as e:
             with self.log_context(user_id=self.user_id, username=self.username) as log:
-                log.error(f"TOTP URI generation failed: {e}")
+                log.error("bot.utils.totp.uri.generation.fail")
             raise TOTPError(
                 f"Failed to generate TOTP URI for user {self.username}: {e}"
             ) from e
@@ -145,7 +145,7 @@ class TwoFactorAuthenticator(BaseComponent):
         with self.log_context(
             user_id=self.user_id, username=self.username, operation="qr_generation"
         ) as log:
-            log.debug("Starting QR code generation")
+            log.debug("bot.utils.totp.qr.code.start")
 
             try:
                 # Generate the TOTP authentication URI
@@ -159,11 +159,11 @@ class TwoFactorAuthenticator(BaseComponent):
                     qr_code.save(img_bytes)
                     qr_data = img_bytes.getvalue()
 
-                log.info("QR code generated", qr_size=len(qr_data))
+                log.info("bot.utils.totp.qr.code.info", qr_size=len(qr_data))
                 return qr_data
 
             except TOTPError:
-                log.error("QR code generation failed due to TOTP error")
+                log.error("bot.utils.totp.qr.code.fail")
                 raise QRCodeError(
                     ErrorContext(
                         message="QR code generation failed due to TOTP error.",
@@ -172,7 +172,7 @@ class TwoFactorAuthenticator(BaseComponent):
                     )
                 )
             except Exception as e:
-                log.error(f"QR code generation failed: {e}")
+                log.error("bot.utils.totp.qr.code.fail")
                 raise QRCodeError(
                     ErrorContext(
                         message="QR code generation failed.",
@@ -202,13 +202,13 @@ class TwoFactorAuthenticator(BaseComponent):
         ) as log:
             # Input validation
             if not isinstance(code, str):
-                log.debug(f"Invalid code type: {type(code).__name__}")
+                log.debug("bot.utils.totp.invalid.code.debug")
                 return False
 
             # Clean and validate code format
             cleaned_code = code.strip()
             if not self.TOTP_CODE_PATTERN.match(cleaned_code):
-                log.debug(f"Invalid code format: length={len(cleaned_code)}")
+                log.debug("bot.utils.totp.invalid.code.debug")
                 return False
 
             try:
@@ -218,22 +218,22 @@ class TwoFactorAuthenticator(BaseComponent):
                     interval=self.TOTP_INTERVAL,
                 )
 
-                log.debug("Starting TOTP verification")
+                log.debug("bot.utils.totp.verification.start")
 
                 # Verify with some time window tolerance
                 is_valid = totp.verify(cleaned_code, valid_window=1)
 
                 if is_valid:
-                    log.info("TOTP verification successful")
+                    log.info("bot.utils.totp.verification.ok")
                     return True
                 else:
                     log.warning(
-                        "TOTP verification failed", code_length=len(cleaned_code)
+                        "bot.utils.totp.verification.fail", code_length=len(cleaned_code)
                     )
                     return False
 
             except Exception as e:
-                log.error(f"Critical TOTP verification error: {e}")
+                log.error("bot.utils.totp.critical.verification.fail")
                 raise TOTPError(
                     f"TOTP verification failed for user {self.username}: {e}"
                 ) from e
@@ -273,11 +273,11 @@ class TwoFactorAuthenticator(BaseComponent):
                     code = base64.b32encode(code_hash).decode("ascii")[:8]  # 8 chars
                     backup_codes.append(f"{code[:4]}-{code[4:]}")  # Format: XXXX-XXXX
 
-                log.info(f"Generated {count} backup codes")
+                log.info("bot.utils.totp.generated.backup.info")
                 return backup_codes
 
             except Exception as e:
-                log.error(f"Backup codes generation failed: {e}")
+                log.error("bot.utils.totp.backup.codes.fail")
                 raise TOTPError(
                     f"Failed to generate backup codes for user {self.username}: {e}"
                 ) from e

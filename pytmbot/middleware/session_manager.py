@@ -109,7 +109,7 @@ class SessionManager(BaseComponent):
 
         with self.log_context(action="initialize") as log:
             log.info(
-                "Session manager initialized",
+                "bot.session.manager.init",
                 context={
                     "cleanup_interval": self.cleanup_interval,
                     "session_timeout": self.session_timeout,
@@ -124,21 +124,21 @@ class SessionManager(BaseComponent):
 
         def cleanup_worker() -> None:
             with self.log_context(action="cleanup_worker") as log:
-                log.debug("Cleanup worker thread started")
+                log.debug("bot.session.cleanup.worker.start")
 
                 while not self._shutdown_event.is_set():
                     try:
                         self.clear_expired_sessions()
                     except Exception as e:
                         log.exception(
-                            "Error during session cleanup", context={"error": str(e)}
+                            "bot.session.cleanup.fail", context={"error": str(e)}
                         )
 
                     # Use shutdown event for interruptible sleep
                     if self._shutdown_event.wait(timeout=self.cleanup_interval):
                         break
 
-                log.debug("Cleanup worker thread stopped")
+                log.debug("bot.session.cleanup.worker.stop")
 
         self._cleanup_thread = threading.Thread(
             target=cleanup_worker, name="SessionManager-Cleanup", daemon=True
@@ -152,7 +152,7 @@ class SessionManager(BaseComponent):
                 self._user_sessions[user_id] = _UserSession()
 
                 with self.log_context(user_id=user_id, action="create_session") as log:
-                    log.debug("Created new session for user")
+                    log.debug("bot.session.create.user.debug")
 
             return self._user_sessions[user_id]
 
@@ -177,7 +177,7 @@ class SessionManager(BaseComponent):
 
             with self.log_context(user_id=user_id, action="set_auth_state") as log:
                 log.info(
-                    "Authentication state changed",
+                    "bot.session.authentication.state.info",
                     context={"old_state": old_state, "new_state": state},
                 )
 
@@ -196,7 +196,7 @@ class SessionManager(BaseComponent):
                 user_id=user_id, action="increment_totp_attempts"
             ) as log:
                 log.warning(
-                    "TOTP attempt recorded",
+                    "bot.session.totp.attempt.warn",
                     context={
                         "attempts": session.totp_attempts,
                         "max_attempts": self.max_totp_attempts,
@@ -206,7 +206,7 @@ class SessionManager(BaseComponent):
                 # Auto-block if max attempts reached
                 if session.totp_attempts >= self.max_totp_attempts:
                     self._block_user_internal(session, user_id)
-                    log.warning("User blocked due to excessive TOTP attempts")
+                    log.warning("bot.session.user.blocked.deny")
 
             return session.totp_attempts
 
@@ -221,7 +221,7 @@ class SessionManager(BaseComponent):
             session.totp_attempts = 0
 
             with self.log_context(user_id=user_id, action="reset_totp_attempts") as log:
-                log.debug("TOTP attempts reset")
+                log.debug("bot.session.totp.attempts.debug")
 
     # Blocking management
     def _block_user_internal(self, session: _UserSession, user_id: int) -> None:
@@ -241,7 +241,7 @@ class SessionManager(BaseComponent):
 
             with self.log_context(user_id=user_id, action="block_user") as log:
                 log.warning(
-                    "User blocked",
+                    "bot.session.user.blocked.deny",
                     context={
                         "duration_minutes": duration,
                         "blocked_until": session.blocked_time.isoformat(),
@@ -266,7 +266,7 @@ class SessionManager(BaseComponent):
                     session.auth_state = self.state_fabric.UNAUTHENTICATED
 
                 with self.log_context(user_id=user_id, action="auto_unblock") as log:
-                    log.info("User automatically unblocked")
+                    log.info("bot.session.user.automatically.deny")
 
             return False
 
@@ -277,7 +277,7 @@ class SessionManager(BaseComponent):
             session.login_time = datetime.now()
 
             with self.log_context(user_id=user_id, action="login") as log:
-                log.success("User login time set")
+                log.success("bot.session.user.login.ok")
 
     def get_login_time(self, user_id: int) -> datetime | None:
         """Get user's login time."""
@@ -292,7 +292,7 @@ class SessionManager(BaseComponent):
             if expired:
                 with self.log_context(user_id=user_id, action="session_expired") as log:
                     log.warning(
-                        "Session expired",
+                        "bot.session.expired.warn",
                         context={
                             "login_time": (
                                 session.login_time.isoformat()
@@ -316,7 +316,7 @@ class SessionManager(BaseComponent):
 
             with self.log_context(user_id=user_id, action="auth_check") as log:
                 log.debug(
-                    "Authentication check",
+                    "bot.session.authentication.check.debug",
                     context={
                         "is_authenticated": is_auth,
                         "auth_state": session.auth_state,
@@ -338,7 +338,7 @@ class SessionManager(BaseComponent):
 
             with self.log_context(user_id=user_id, action="set_referer_data") as log:
                 log.debug(
-                    "Referer data set",
+                    "bot.session.referer.data.debug",
                     context={"handler_type": handler_type, "referer_uri": referer_uri},
                 )
 
@@ -359,7 +359,7 @@ class SessionManager(BaseComponent):
             session.handler_type = None
 
             with self.log_context(user_id=user_id, action="reset_referer_data") as log:
-                log.debug("Referer data reset")
+                log.debug("bot.session.referer.data.debug")
 
     # Session cleanup
     def reset_session(self, user_id: int) -> None:
@@ -369,7 +369,7 @@ class SessionManager(BaseComponent):
                 del self._user_sessions[user_id]
 
                 with self.log_context(user_id=user_id, action="reset_session") as log:
-                    log.info("Session reset")
+                    log.info("bot.session.reset.info")
 
     def clear_expired_sessions(self) -> None:
         """Clear all expired sessions."""
@@ -386,7 +386,7 @@ class SessionManager(BaseComponent):
 
                 with self.log_context(action="cleanup_expired_sessions") as log:
                     log.info(
-                        "Expired sessions cleared",
+                        "bot.session.expired.sessions.info",
                         context={
                             "cleared_count": len(expired_users),
                             "expired_users": expired_users,
@@ -437,19 +437,19 @@ class SessionManager(BaseComponent):
     def shutdown(self) -> None:
         """Gracefully shutdown the session manager."""
         with self.log_context(action="shutdown") as log:
-            log.info("Shutting down session manager")
+            log.info("bot.session.shutting.manager.info")
 
             self._shutdown_event.set()
 
             if self._cleanup_thread and self._cleanup_thread.is_alive():
                 self._cleanup_thread.join(timeout=5.0)
                 if self._cleanup_thread.is_alive():
-                    log.warning("Cleanup thread did not stop gracefully")
+                    log.warning("bot.session.cleanup.thread.warn")
 
             with self._lock:
                 self._user_sessions.clear()
 
-            log.success("Session manager shutdown complete")
+            log.success("bot.session.manager.stop")
 
     def __del__(self) -> None:
         """Cleanup on object destruction."""
@@ -465,7 +465,7 @@ class SessionManager(BaseComponent):
                 if hasattr(self, "log_context"):
                     with self.log_context(action="destructor_error") as log:
                         log.debug(
-                            "Unexpected error during cleanup", context={"error": str(e)}
+                            "bot.session.unexpected.fail", context={"error": str(e)}
                         )
             except Exception:
                 pass

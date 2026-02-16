@@ -108,7 +108,7 @@ def __fetch_containers_list(docker_client: Any | None = None) -> list[str]:
     # Check cache first
     cached_result = _container_cache.get("containers_list")
     if cached_result is not None:
-        logger.debug("Using cached container list", **context)
+        logger.debug("docker.containers.using.cached.debug", **context)
         return cached_result["container_ids"]
 
     try:
@@ -131,7 +131,7 @@ def __fetch_containers_list(docker_client: Any | None = None) -> list[str]:
         _container_cache.set("containers_list", cache_data)
 
         logger.info(
-            "Container list fetched",
+            "docker.containers.container.list.info",
             container_count=len(container_ids),
             execution_time=f"{execution_time:.3f}s",
             **context,
@@ -141,7 +141,7 @@ def __fetch_containers_list(docker_client: Any | None = None) -> list[str]:
 
     except Exception as e:
         logger.error(
-            "Failed to fetch container list", error=sanitize_exception(e), **context
+            "docker.containers.fetch.container.fail", error=sanitize_exception(e), **context
         )
         raise
 
@@ -171,7 +171,7 @@ def __aggregate_container_details(
     # Check cache first
     cached_details = _container_cache.get(f"details_{container_id}")
     if cached_details is not None:
-        logger.debug("Using cached container details", **context)
+        logger.debug("docker.containers.using.cached.debug", **context)
         return cached_details
 
     try:
@@ -189,7 +189,7 @@ def __aggregate_container_details(
                 created_at = None
         except (ValueError, AttributeError) as e:
             logger.warning(
-                "Failed to parse container creation time",
+                "docker.containers.parse.container.fail",
                 created_str=created_str,
                 error=str(e),
                 **context,
@@ -210,7 +210,7 @@ def __aggregate_container_details(
                 run_at_display = set_naturaltime(started_at)
             except (ValueError, AttributeError) as e:
                 logger.debug(
-                    "Failed to parse container start time",
+                    "docker.containers.parse.container.fail",
                     started_at_str=started_at_str,
                     error=str(e),
                     **context,
@@ -243,7 +243,7 @@ def __aggregate_container_details(
         _container_cache.set(f"details_{container_id}", details)
 
         logger.debug(
-            "Container details aggregated",
+            "docker.containers.container.details.debug",
             status=details["status"],
             health=details.get("health", "N/A"),
             **context,
@@ -251,12 +251,12 @@ def __aggregate_container_details(
         return details
 
     except ContainerNotFoundError:
-        logger.warning("Container not found during details aggregation", **context)
+        logger.warning("docker.containers.container.not.warn", **context)
         raise
 
     except Exception as e:
         logger.error(
-            "Container details aggregation failed",
+            "docker.containers.container.details.fail",
             error=sanitize_exception(e),
             error_type=type(e).__name__,
             **context,
@@ -282,11 +282,11 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
         with DockerAdapter() as adapter:
             containers_id = __fetch_containers_list(adapter)
             if not containers_id:
-                logger.info("No containers found", **context)
+                logger.info("docker.containers.no.found.info", **context)
                 return []
 
             logger.info(
-                "Starting optimized parallel container stats retrieval",
+                "docker.containers.optimized.parallel.start",
                 containers_count=len(containers_id),
                 max_workers=MAX_WORKERS,
                 **context,
@@ -318,7 +318,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
                         except FutureTimeoutError:
                             timeouts.append(container_id)
                             logger.warning(
-                                "Container processing timeout",
+                                "docker.containers.container.processing.warn",
                                 container_id=container_id,
                                 timeout=5.0,
                                 **context,
@@ -327,7 +327,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
                         except ContainerNotFoundError:
                             failed_containers.append(container_id)
                             logger.debug(
-                                "Container not found during parallel processing",
+                                "docker.containers.container.not.debug",
                                 container_id=container_id,
                                 **context,
                             )
@@ -335,7 +335,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
                         except Exception as e:
                             failed_containers.append(container_id)
                             logger.error(
-                                "Failed to process container in parallel execution",
+                                "docker.containers.container.parallel.fail",
                                 container_id=container_id,
                                 error=sanitize_exception(e),
                                 error_type=type(e).__name__,
@@ -344,7 +344,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
 
                 except FutureTimeoutError:
                     logger.warning(
-                        "Overall operation timeout reached",
+                        "docker.containers.overall.timeout.warn",
                         timeout=OPERATION_TIMEOUT,
                         **context,
                     )
@@ -359,7 +359,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
 
         # Log comprehensive summary
         logger.info(
-            "Container stats retrieval completed",
+            "docker.containers.container.stats.ok",
             successful_count=len(container_details),
             failed_count=len(failed_containers),
             timeout_count=len(timeouts),
@@ -370,7 +370,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
 
         if failed_containers:
             logger.warning(
-                "Some containers failed to process",
+                "docker.containers.some.fail",
                 failed_containers=failed_containers[:10],  # Limit log size
                 failed_count=len(failed_containers),
                 **context,
@@ -378,7 +378,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
 
         if timeouts:
             logger.warning(
-                "Some containers timed out",
+                "docker.containers.some.timed.warn",
                 timeout_containers=timeouts[:10],  # Limit log size
                 timeout_count=len(timeouts),
                 **context,
@@ -389,7 +389,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Container stats retrieval failed",
+            "docker.containers.container.stats.fail",
             error=sanitize_exception(e),
             execution_time=f"{execution_time:.2f}s",
             **context,
@@ -464,7 +464,7 @@ def fetch_container_logs(
         execution_time = time.time() - start_time
 
         logger.debug(
-            "Container logs fetched",
+            "docker.containers.container.logs.debug",
             log_size=len(log_content),
             actual_lines=len(log_content.splitlines()),
             execution_time=f"{execution_time:.3f}s",
@@ -474,13 +474,13 @@ def fetch_container_logs(
         return log_content
 
     except ContainerNotFoundError:
-        logger.warning("Container not found for log fetch", **context)
+        logger.warning("docker.containers.container.not.warn", **context)
         raise
 
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Failed to fetch container logs",
+            "docker.containers.fetch.container.fail",
             error=sanitize_exception(e),
             execution_time=f"{execution_time:.3f}s",
             **context,
@@ -524,7 +524,7 @@ def fetch_docker_counters() -> dict[str, int]:
             execution_time = time.time() - start_time
 
             logger.info(
-                "Docker counters fetched",
+                "docker.containers.counters.fetch.info",
                 execution_time=f"{execution_time:.3f}s",
                 **counters,
                 **context,
@@ -535,7 +535,7 @@ def fetch_docker_counters() -> dict[str, int]:
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Failed to fetch Docker counters",
+            "docker.containers.fetch.counters.fail",
             error=sanitize_exception(e),
             execution_time=f"{execution_time:.3f}s",
             **context,
@@ -572,20 +572,20 @@ def fetch_full_container_details(container_id: str) -> Container | None:
         execution_time = time.time() - start_time
 
         logger.debug(
-            "Full container object retrieved",
+            "docker.containers.full.container.debug",
             execution_time=f"{execution_time:.3f}s",
             **context,
         )
         return container
 
     except ContainerNotFoundError:
-        logger.debug("Container not found for full details", **context)
+        logger.debug("docker.containers.container.not.debug", **context)
         return None
 
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Failed to fetch full container details",
+            "docker.containers.fetch.full.fail",
             error=sanitize_exception(e),
             execution_time=f"{execution_time:.3f}s",
             **context,
@@ -599,7 +599,7 @@ def clear_container_cache() -> None:
     _container_cache.clear()
     # Also clear the LRU cache
     fetch_docker_counters.cache_clear()
-    logger.info("Container cache cleared")
+    logger.info("docker.containers.container.cache.info")
 
 
 def get_cache_stats() -> dict[str, Any]:

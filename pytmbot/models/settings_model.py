@@ -303,7 +303,7 @@ class ConfigMigrator(logs.BaseComponent):
             with self.log_context(
                 legacy_config=True, app_version=self.app_version
             ) as log:
-                log.info("Adding config_version field to legacy config")
+                log.info("bot.models.settings_model.adding.config.info")
             config_data["config_version"] = self.app_version
             return config_data
 
@@ -312,7 +312,7 @@ class ConfigMigrator(logs.BaseComponent):
             with self.log_context(
                 old_version=current_version, new_version=self.app_version
             ) as log:
-                log.info("Updating config version to match app version")
+                log.info("bot.models.settings_model.updating.config.info")
             config_data["config_version"] = self.app_version
 
         return config_data
@@ -403,7 +403,7 @@ class SettingsModel(BaseSettings):
                     legacy_config=True, app_version=cls.app_version
                 ) as log:
                     log.debug(
-                        "No config_version field detected - adding current version"
+                        "bot.models.settings_model.no.config.debug"
                     )
                 values["config_version"] = cls.app_version
             case version if version != cls.app_version:
@@ -412,7 +412,7 @@ class SettingsModel(BaseSettings):
                     new_version=cls.app_version,
                     migration_required=True,
                 ) as log:
-                    log.info("Config version mismatch detected - performing migration")
+                    log.info("bot.models.settings_model.config.version.info")
                 values = migrator.migrate_config(values)
 
         return values
@@ -483,7 +483,7 @@ def load_config_with_migration(config_path: str) -> SettingsModel:
 
         version_info = settings.get_version_info()
         with loader.log_context(config_path=config_path, **version_info) as log:
-            log.info("Configuration loaded successfully")
+            log.info("bot.models.settings_model.config.load.ok")
 
         return settings
 
@@ -491,5 +491,5 @@ def load_config_with_migration(config_path: str) -> SettingsModel:
         with loader.log_context(
             config_path=config_path, error=str(e), error_type=type(e).__name__
         ) as log:
-            log.error("Failed to load configuration")
+            log.error("bot.models.settings_model.load.config.fail")
         raise

@@ -239,8 +239,8 @@ class MemoryStatsProvider:
             if usage is not None:
                 return MemoryStatsProvider._format_memory_stats(usage, limit)
 
-        except Exception as e:
-            logger.debug(f"Failed to get memory from cgroups for {container_id}: {e}")
+        except Exception:
+            logger.debug("docker.utils.get.memory.fail")
 
         return None
 
@@ -276,8 +276,8 @@ class MemoryStatsProvider:
                             "mem_percent": mem_percent,
                         }
 
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
-            logger.debug(f"Failed to get memory via docker CLI for {container_id}: {e}")
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+            logger.debug("docker.utils.get.memory.fail")
 
         return None
 
@@ -301,8 +301,8 @@ class MemoryStatsProvider:
                     "mem_percent": "N/A",
                 }
 
-        except Exception as e:
-            logger.debug(f"Failed to get memory from inspect: {e}")
+        except Exception:
+            logger.debug("docker.utils.get.memory.fail")
             return None
 
     @staticmethod
@@ -319,8 +319,8 @@ class MemoryStatsProvider:
 
             return MemoryStatsProvider._format_memory_stats(usage, limit)
 
-        except Exception as e:
-            logger.debug(f"container.stats() failed: {e}")
+        except Exception:
+            logger.debug("docker.utils.container.stats.fail")
             return None
 
     @staticmethod
@@ -363,8 +363,8 @@ def get_container_stats_snapshot(container: Container) -> dict[str, Any]:
         snapshot = next(iter(stats), {}) or {}
         return snapshot if isinstance(snapshot, dict) else {}
 
-    except Exception as e:
-        logger.debug(f"Failed to get container stats snapshot: {e}")
+    except Exception:
+        logger.debug("docker.utils.get.container.fail")
         return {}
 
 
@@ -412,12 +412,12 @@ def check_container_state(
 
     except ValueError:
         logger.error(
-            "Invalid target state", container=container_name, state=target_state
+            "docker.utils.invalid.target.fail", container=container_name, state=target_state
         )
         raise
     except Exception as e:
         logger.error(
-            "Unexpected error during state check",
+            "docker.utils.unexpected.fail",
             container=container_name,
             target_state=target_state,
             error=sanitize_exception(e),
@@ -442,7 +442,7 @@ def _execute_state_check_loop(
         )
 
         logger.debug(
-            f"Checking state (attempt {attempt}/{config.max_attempts})", **log_context
+            "docker.utils.check.state.debug", **log_context
         )
 
         try:
@@ -451,7 +451,7 @@ def _execute_state_check_loop(
                 docker_client=docker_client,
             )
             if current_state_str is None:
-                logger.error("Failed to get container state", **log_context)
+                logger.error("docker.utils.get.container.fail", **log_context)
                 return None
 
             current_state = ContainerState.from_str(current_state_str)
@@ -463,7 +463,7 @@ def _execute_state_check_loop(
             if current_state == target:
                 total_time = time.time() - operation_start
                 logger.info(
-                    "Target state reached",
+                    "docker.utils.target.state.info",
                     total_time=f"{total_time:.2f}s",
                     **log_context,
                 )
@@ -473,7 +473,7 @@ def _execute_state_check_loop(
 
             if attempt < config.max_attempts:
                 logger.debug(
-                    f"State mismatch: {current_state.value}, retrying in {config.interval}s",
+                    "docker.utils.state.mismatch.debug",
                     **log_context,
                 )
                 sleep(config.interval)
@@ -481,7 +481,7 @@ def _execute_state_check_loop(
         except Exception as e:
             attempt_time = time.time() - attempt_start
             logger.error(
-                "State check failed",
+                "docker.utils.state.check.fail",
                 error=sanitize_exception(e),
                 error_type=type(e).__name__,
                 attempt_time=f"{attempt_time:.3f}s",
@@ -521,12 +521,12 @@ def _log_state_transition_info(
     """Log information about container state transitions."""
     if current_state.is_transitional and target.is_active:
         logger.debug(
-            f"Container in transitional state {current_state.value}, continuing to wait",
+            "docker.utils.container.transitional.debug",
             **log_context,
         )
     elif current_state.is_stopped and target.is_active:
         logger.warning(
-            f"Container stopped unexpectedly while waiting for {target.value}",
+            "docker.utils.container.stop",
             **log_context,
         )
 
@@ -541,7 +541,7 @@ def _log_final_state_check_result(
     """Log the final result of state check operation."""
     total_time = time.time() - operation_start
     logger.warning(
-        "Failed to reach target state",
+        "docker.utils.reach.target.fail",
         container=container_name,
         target=target.value,
         final_state=current_state.value if current_state else "unknown",
@@ -570,7 +570,7 @@ def with_operation_logging(
             )
 
             if getattr(settings.docker, "debug_docker_client", False):
-                logger.debug(f"Starting Docker operation: {operation_name}", **context)
+                logger.debug("docker.utils.start", **context)
 
             try:
                 result = func(*args, **kwargs)
@@ -641,12 +641,12 @@ def _log_operation_success(
 
     if execution_time > slow_threshold:
         logger.warning(
-            f"Docker operation completed (SLOW): {operation_name}", **context
+            "docker.utils.slow.ok", **context
         )
     elif execution_time > slow_threshold / 2:
-        logger.info(f"Docker operation completed: {operation_name}", **context)
+        logger.info("docker.utils.ok", **context)
     elif getattr(settings.docker, "debug_docker_client", False):
-        logger.debug(f"Docker operation completed: {operation_name}", **context)
+        logger.debug("docker.utils.ok", **context)
 
 
 def _log_operation_failure(
@@ -661,7 +661,7 @@ def _log_operation_failure(
             "error_type": type(error).__name__,
         }
     )
-    logger.error(f"Docker operation failed: {operation_name}", **context)
+    logger.error("docker.utils.fail", **context)
 
 
 @with_operation_logging("get_container_state", slow_threshold=0.5)
@@ -700,16 +700,16 @@ def get_container_state(
         # Cache the result
         _state_cache.set(container_id, status)
 
-        logger.debug("Container state retrieved", status=status, **context)
+        logger.debug("docker.utils.container.state.debug", status=status, **context)
         return status
 
     except ContainerNotFoundError:
-        logger.debug("Container not found for state check", **context)
+        logger.debug("docker.utils.container.not.debug", **context)
         return None
 
     except Exception as e:
         logger.error(
-            "Failed to get container state",
+            "docker.utils.get.container.fail",
             error=sanitize_exception(e),
             error_type=type(e).__name__,
             **context,
@@ -755,7 +755,7 @@ def get_container_safely(
 
         execution_time = time.time() - start_time
         logger.debug(
-            "Container retrieved successfully",
+            "docker.utils.container.fetch.ok",
             execution_time=f"{execution_time:.3f}s",
             container_name=getattr(container, "name", "unknown"),
             container_status=getattr(container, "status", "unknown"),
@@ -766,7 +766,7 @@ def get_container_safely(
     except NotFound:
         execution_time = time.time() - start_time
         logger.warning(
-            "Container not found", execution_time=f"{execution_time:.3f}s", **context
+            "docker.utils.container.not.warn", execution_time=f"{execution_time:.3f}s", **context
         )
         raise ContainerNotFoundError(
             ErrorContext(
@@ -778,7 +778,7 @@ def get_container_safely(
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(
-            "Container retrieval failed",
+            "docker.utils.container.retrieval.fail",
             error=sanitize_exception(e),
             error_type=type(e).__name__,
             execution_time=f"{execution_time:.3f}s",
@@ -817,26 +817,26 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
 
     # Method 1: Direct cgroups read (fastest)
     if memory_stats := MemoryStatsProvider.from_cgroups(container_id):
-        logger.debug(f"Got memory stats from cgroups for {container_id[:12]}")
+        logger.debug("docker.utils.got.memory.debug")
         return memory_stats
 
     # Method 2: Runtime one-shot stats for running containers
     if container.status.lower() == "running":
         if memory_stats := MemoryStatsProvider.from_container_stats(container):
             logger.debug(
-                f"Got memory stats from container.stats() for {container_id[:12]}"
+                "docker.utils.got.memory.debug"
             )
             return memory_stats
 
     # Method 3: Container inspect (limited but fast)
     if memory_stats := MemoryStatsProvider.from_inspect(container):
-        logger.debug(f"Got memory limit from inspect for {container_id[:12]}")
+        logger.debug("docker.utils.got.memory.debug")
         return memory_stats
 
     # Method 4: Fallback to docker CLI for running containers
     if container.status.lower() == "running":
         if memory_stats := MemoryStatsProvider.from_docker_cli(container_id):
-            logger.debug(f"Got memory stats from Docker CLI for {container_id[:12]}")
+            logger.debug("docker.utils.got.memory.debug")
             return memory_stats
 
     # Ultimate fallback
@@ -876,16 +876,16 @@ def get_container_basic_info(container: Container) -> dict[str, Any]:
                 memory_stats = get_container_memory_stats(container)
                 if memory_stats:
                     basic_info.update(memory_stats)
-            except Exception as e:
+            except Exception:
                 logger.debug(
-                    f"Failed to get runtime stats for container {container.short_id}: {e}"
+                    "docker.utils.get.runtime.fail"
                 )
 
         return basic_info
 
     except Exception as e:
         logger.warning(
-            "Failed to extract complete container basic info",
+            "docker.utils.extract.ok.fail",
             container_id=getattr(container, "id", "unknown"),
             error=sanitize_exception(e),
         )
@@ -1052,7 +1052,7 @@ def build_container_context(
 def clear_state_cache() -> None:
     """Clear the container state cache."""
     _state_cache.clear()
-    logger.debug("Container state cache cleared")
+    logger.debug("docker.utils.container.state.debug")
 
 
 def get_cache_stats() -> dict[str, Any]:

@@ -140,12 +140,11 @@ def _logs_file_deletion_callback(result: DeletionResult) -> None:
     """Callback function executed after logs file deletion attempt."""
     if result.status == DeletionStatus.SUCCESS:
         logger.info(
-            f"Logs file message {result.message_id} deleted for user {result.user_id}"
+            "bot.handler.docker.logging.logs.file.info"
         )
     elif result.status == DeletionStatus.FAILED:
         logger.warning(
-            f"Failed to delete logs file message {result.message_id} for user {result.user_id}: "
-            f"{result.error_message}"
+            "bot.handler.docker.logging.delete.logs.fail"
         )
 
 
@@ -264,7 +263,7 @@ def _validate_logs_session_access(
     if not _is_logs_session_owner(call, session):
         current_user_id = call.from_user.id if call.from_user else "unknown"
         logger.warning(
-            "Denied logs session access due to owner mismatch",
+            "bot.handler.docker.logging.denied.logs.deny",
             requested_action=requested_action,
             current_user_id=current_user_id,
             session_user_id=session.user_id,
@@ -287,7 +286,7 @@ def _validate_logs_session_access(
     if not is_allowed:
         current_user_id = call.from_user.id if call.from_user else "unknown"
         logger.warning(
-            "Denied logs session action due to auth/session restrictions",
+            "bot.handler.docker.logging.denied.logs.deny",
             requested_action=requested_action,
             current_user_id=current_user_id,
             session_id=session.session_id,
@@ -428,7 +427,7 @@ def _edit_logs_message(
     emojis: dict[str, str],
 ) -> Any:
     if call.message is None:
-        logger.warning("Cannot render logs page: callback message context is missing")
+        logger.warning("bot.handler.docker.logging.cannot.render.warn")
         return show_handler_info(
             call=call,
             text="Cannot update logs view in this context.",
@@ -451,7 +450,7 @@ def _edit_logs_message(
     )
 
     logger.debug(
-        f"Successfully compiled logs for container {session.container_name}",
+        "bot.handler.docker.logging.compiled.logs.ok",
         page=f"{safe_page_index + 1}/{total_pages}",
         message_length=len(context),
         logs_truncated_for_telegram=was_truncated,
@@ -473,11 +472,11 @@ def _open_logs_session(
     user_id: int,
     emojis: dict[str, str],
 ) -> Any:
-    logger.info(f"User {call.from_user.id}: Getting logs for container {container_name}")
+    logger.info("bot.handler.docker.logging.user.getting.info")
     logs = get_sanitized_logs(container_name, call, bot.token)
 
     if not logs:
-        logger.error(f"Error getting logs for container {container_name}")
+        logger.error("bot.handler.docker.logging.getting.logs.fail")
         return show_handler_info(
             call,
             text=f"{container_name}: Error getting logs",
@@ -504,7 +503,7 @@ def _get_session_or_show_error(
 ) -> LogsSession | None:
     session = _logs_sessions.get(session_id)
     if session is None:
-        logger.warning(f"Logs session expired or not found: {session_id}")
+        logger.warning("bot.handler.docker.logging.logs.session.warn")
         show_handler_info(
             call,
             text="Logs session expired. Open logs again from container info.",
@@ -525,7 +524,7 @@ def _send_logs_as_file(
         return None
 
     if call.message is None:
-        logger.warning("Cannot send logs file: callback message context is missing")
+        logger.warning("bot.handler.docker.logging.cannot.send.warn")
         return show_handler_info(
             call,
             text="Cannot send logs file in this context.",
@@ -576,23 +575,20 @@ def _send_logs_as_file(
             reply_to_message_id=sent_message.message_id,
         )
         logger.warning(
-            f"Logs file auto-deletion limit exceeded for user {requester_user_id}"
+            "bot.handler.docker.logging.logs.file.warn"
         )
     elif deletion_result.status == DeletionStatus.SCHEDULED:
         logger.info(
-            f"Logs file auto-deletion scheduled for message {sent_message.message_id} "
-            f"(user {requester_user_id}) in {LOGS_FILE_AUTO_DELETE_DELAY_SECONDS} seconds"
+            "bot.handler.docker.logging.logs.file.info"
         )
     elif deletion_result.status == DeletionStatus.ALREADY_SCHEDULED:
         logger.warning(
-            f"Logs file message {sent_message.message_id} for user {requester_user_id} "
-            "already has a deletion task"
+            "bot.handler.docker.logging.logs.file.ok"
         )
     else:
         callback_text = f"Sent {filename}. Delete manually when done."
         logger.error(
-            f"Unexpected deletion status for logs file message {sent_message.message_id}: "
-            f"{deletion_result.status}"
+            "bot.handler.docker.logging.unexpected.deletion.fail"
         )
 
     return bot.answer_callback_query(
@@ -616,15 +612,14 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
     """
     try:
         parsed = _parse_logs_callback_data(call.data)
-    except (ValueError, TypeError) as e:
-        logger.warning(f"Invalid logs callback format: '{call.data}', error: {e}")
+    except (ValueError, TypeError):
+        logger.warning("bot.handler.docker.logging.invalid.logs.fail")
         return show_handler_info(call, text="Invalid logs request format", bot=bot)
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, parsed.user_id)
     if not is_allowed:
-        current_user_id = call.from_user.id if call.from_user else "unknown"
         logger.warning(
-            f"User {current_user_id}: Denied '__get_logs__' function",
+            "bot.handler.docker.logging.user.denied.deny",
             requested_action=parsed.action,
             target_user_id=parsed.user_id,
             reason=deny_reason,
@@ -677,7 +672,7 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
 
         logs = get_sanitized_logs(old_session.container_name, call, bot.token)
         if not logs:
-            logger.error(f"Error getting logs for container {old_session.container_name}")
+            logger.error("bot.handler.docker.logging.getting.logs.fail")
             return show_handler_info(
                 call,
                 text=f"{old_session.container_name}: Error getting logs",

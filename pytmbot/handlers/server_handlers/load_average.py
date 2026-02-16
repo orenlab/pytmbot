@@ -33,7 +33,7 @@ def handle_load_average(message: Message, bot: TeleBot):
 
         if load_average is None:
             logger.error(
-                f"Failed at @{__name__}: Error occurred while getting load average"
+                "bot.handler.server.load_average.get.fail"
             )
             return bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("

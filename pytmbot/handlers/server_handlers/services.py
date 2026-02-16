@@ -112,7 +112,7 @@ class ServicesAdapter:
     def _get_from_cache(self, cache_key: str) -> Any | None:
         """Get data from cache if valid"""
         if self._is_cache_valid(cache_key):
-            logger.debug(f"Using cached data for {cache_key}")
+            logger.debug("bot.handler.server.services.using.cached.debug")
             return self._cache.get(cache_key)
         return None
 
@@ -120,7 +120,7 @@ class ServicesAdapter:
         """Set data to cache with timestamp"""
         self._cache[cache_key] = data
         self._cache_timestamps[cache_key] = time.time()
-        logger.debug(f"Cached data for {cache_key}")
+        logger.debug("bot.handler.server.services.cached.data.debug")
 
     def _clear_expired_cache(self) -> None:
         """Clean up expired cache entries"""
@@ -136,7 +136,7 @@ class ServicesAdapter:
             self._cache_timestamps.pop(key, None)
 
         if expired_keys:
-            logger.debug(f"Cleared {len(expired_keys)} expired cache entries")
+            logger.debug("bot.handler.server.services.cleared.expired.debug")
 
     def _check_systemd_availability(self) -> bool:
         """Safely check if systemd is available (including from Alpine container)"""
@@ -165,8 +165,8 @@ class ServicesAdapter:
             # Try nsenter to access host namespace (if available)
             return self._can_use_nsenter()
 
-        except Exception as e:
-            logger.warning(f"Error checking systemd availability: {e}")
+        except Exception:
+            logger.warning("bot.handler.server.services.check.systemd.fail")
             return False
 
     @staticmethod
@@ -208,8 +208,8 @@ class ServicesAdapter:
 
             return False
 
-        except Exception as e:
-            logger.warning(f"Error checking nsenter availability: {e}")
+        except Exception:
+            logger.warning("bot.handler.server.services.check.nsenter.fail")
             return False
 
     @staticmethod
@@ -243,7 +243,7 @@ class ServicesAdapter:
         try:
             # Validate command structure
             if not command or not isinstance(command, list):
-                logger.warning(f"Invalid command structure: {command}")
+                logger.warning("bot.handler.server.services.invalid.command.warn")
                 return None
 
             # Ensure command is properly escaped (only if needed)
@@ -269,10 +269,10 @@ class ServicesAdapter:
             return result
 
         except subprocess.TimeoutExpired:
-            logger.warning(f"Command timeout: {' '.join(command)}")
+            logger.warning("bot.handler.server.services.command.timeout.warn")
             return None
-        except (OSError, ValueError) as e:
-            logger.error(f"Subprocess error: {e}")
+        except (OSError, ValueError):
+            logger.error("bot.handler.server.services.subprocess.fail")
             return None
 
     def get_systemd_services(self) -> SystemdServicesInfo | None:
@@ -293,14 +293,14 @@ class ServicesAdapter:
             result = self._safe_subprocess_run(command)
 
             if not result or result.returncode != 0:
-                logger.warning("Failed to get systemd services list")
+                logger.warning("bot.handler.server.services.get.systemd.fail")
                 return None
 
             # Parse JSON output
             try:
                 services_data = json.loads(result.stdout)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse systemctl JSON output: {e}")
+            except json.JSONDecodeError:
+                logger.error("bot.handler.server.services.parse.systemctl.fail")
                 return None
 
             # Process services data
@@ -333,8 +333,8 @@ class ServicesAdapter:
             self._set_cache(cache_key, result_data)
             return result_data
 
-        except Exception as e:
-            logger.error(f"Error getting systemd services: {e}")
+        except Exception:
+            logger.error("bot.handler.server.services.getting.systemd.fail")
             return None
 
     def _get_service_status(self, service_name: str) -> ServiceStatus | None:
@@ -345,7 +345,7 @@ class ServicesAdapter:
                 service_name.replace("-", "").replace("_", "").replace(".", "")
             )
             if not cleaned_name.isalnum():
-                logger.warning(f"Invalid service name: {service_name}")
+                logger.warning("bot.handler.server.services.invalid.service.warn")
                 return None
 
             # Get service status
@@ -373,8 +373,8 @@ class ServicesAdapter:
                 exists=active_result.returncode != 4,  # 4 means unit not found
             )
 
-        except Exception as e:
-            logger.error(f"Error getting service status for {service_name}: {e}")
+        except Exception:
+            logger.error("bot.handler.server.services.getting.service.fail")
             return None
 
     def get_alpine_services(self) -> AlpineServicesInfo | None:
@@ -413,7 +413,7 @@ class ServicesAdapter:
             )
 
             if result.returncode != 0:
-                logger.warning(f"rc-status failed with code {result.returncode}")
+                logger.warning("bot.handler.server.services.rc.status.fail")
                 return None
 
             # Parse rc-status output
@@ -432,8 +432,8 @@ class ServicesAdapter:
             self._set_cache(cache_key, result_data)
             return result_data
 
-        except Exception as e:
-            logger.error(f"Error getting Alpine services: {e}")
+        except Exception:
+            logger.error("bot.handler.server.services.getting.alpine.fail")
             return None
 
     @staticmethod
@@ -531,7 +531,7 @@ def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
         services_info = services_adapter.get_services_summary()
 
         if not services_info.get("available_sources"):
-            logger.warning("No services information sources available")
+            logger.warning("bot.handler.server.services.no.information.warn")
             return bot.send_message(
                 message.chat.id,
                 text=f"{emojis['warning']} No services information available. "

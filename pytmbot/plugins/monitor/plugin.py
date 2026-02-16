@@ -86,8 +86,8 @@ class MonitoringPlugin(PluginInterface):
 
             return self.bot
 
-        except Exception as e:
-            self.plugin_logger.error(f"Failed to register monitoring plugin: {str(e)}")
+        except Exception:
+            self.plugin_logger.error("bot.plugins.monitor.plugin.register.monitoring.fail")
             raise
 
 

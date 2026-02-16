@@ -318,7 +318,7 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
             message.chat.id, "⚠️ An error occurred while processing the command."
         )
         logger.error(
-            f"Images handler error: {error}",
+            "bot.handler.docker.images.fail",
             extra={
                 "chat_id": message.chat.id,
                 "error": str(error),

@@ -83,7 +83,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         }
 
         with self.log_context(**context) as logger:
-            logger.info("Rate limit middleware initialized")
+            logger.info("bot.rate_limit.rate.limit.init")
 
     def _clean_old_requests(self, user_id: UserID, current_time: datetime) -> None:
         """Remove expired request timestamps for a user."""
@@ -119,7 +119,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
 
         if cleaned_count > 0:
             with self.log_context(**context) as logger:
-                logger.trace("Cleaned old requests for user")
+                logger.trace("bot.rate_limit.cleaned.requests.debug")
 
     def _is_rate_limited(self, user_id: UserID, current_time: datetime) -> bool:
         """Check if user has exceeded their rate limit."""
@@ -194,7 +194,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             )
 
             with self.log_context(**context) as logger:
-                logger.warning("Rate limit exceeded")
+                logger.warning("bot.rate_limit.rate.limit.warn")
         else:
             context.update({"violation_logged": False, "log_suppressed": True})
 
@@ -213,7 +213,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             }
 
             with self.log_context(**message_context) as logger:
-                logger.error("Failed to send rate limit warning message")
+                logger.error("bot.rate_limit.send.rate.fail")
 
         if message_sent:
             message_context = {
@@ -224,7 +224,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             }
 
             with self.log_context(**message_context) as logger:
-                logger.trace("Rate limit warning message sent")
+                logger.trace("bot.rate_limit.rate.limit.warn")
 
         return CancelUpdate()
 
@@ -254,7 +254,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             }
 
             with self.log_context(**context) as logger:
-                logger.error("Missing user information in message")
+                logger.error("bot.rate_limit.missing.user.fail")
             return CancelUpdate()
 
         current_time = datetime.now()
@@ -295,7 +295,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
                 "limit": self.limit,
             }
             with self.log_context(**context) as logger:
-                logger.debug("Rate limit violation counter reset")
+                logger.debug("bot.rate_limit.rate.limit.debug")
 
         return None
 
@@ -328,7 +328,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             )
 
         with self.log_context(**context) as logger:
-            logger.error("Exception in rate limit post-process")
+            logger.error("bot.rate_limit.rate.limit.fail")
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -374,6 +374,6 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         if total_violations > 0:
             context = {"operation": "get_stats", **stats}
             with self.log_context(**context) as logger:
-                logger.debug("Rate limit statistics generated")
+                logger.debug("bot.rate_limit.rate.limit.debug")
 
         return stats

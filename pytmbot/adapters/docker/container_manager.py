@@ -72,7 +72,7 @@ def validate_access(func: Callable) -> Callable:
 
             if current_time - last_operation < min_operation_interval:
                 logger.warning(
-                    "Rate limit exceeded for user",
+                    "docker.containers.rate.limit.warn",
                     time_since_last=f"{current_time - last_operation:.2f}s",
                     min_interval=min_operation_interval,
                     **context,
@@ -88,7 +88,7 @@ def validate_access(func: Callable) -> Callable:
             # Check if user is in allowed admins
             if user_id not in settings.access_control.allowed_admins_ids:
                 logger.critical(
-                    "Unauthorized container access attempt - user not in admin list",
+                    "docker.containers.unauthorized.container.deny",
                     **context,
                 )
                 raise PermissionError(
@@ -98,7 +98,7 @@ def validate_access(func: Callable) -> Callable:
             # Check session authentication with timeout validation
             if not session_manager.is_authenticated(user_id):
                 logger.critical(
-                    "Unauthorized container access attempt - session invalid", **context
+                    "docker.containers.unauthorized.container.deny", **context
                 )
                 raise PermissionError(f"User {user_id} session invalid or expired")
 
@@ -114,7 +114,7 @@ def validate_access(func: Callable) -> Callable:
 
                 if session_age > max_session_age:
                     logger.warning(
-                        "Session too old for container operations",
+                        "docker.containers.session.too.warn",
                         session_age=f"{session_age:.1f}s",
                         max_age=f"{max_session_age}s",
                         **context,
@@ -122,13 +122,13 @@ def validate_access(func: Callable) -> Callable:
                     raise PermissionError("Session expired. Please re-authenticate")
 
             # Log successful authorization at debug level to avoid noise
-            logger.debug("Container access authorized", **context)
+            logger.debug("docker.containers.container.access.debug", **context)
             return func(self, user_id, container_id, *args, **kwargs)
 
         except Exception as e:
             # Log failed authorization attempts
             logger.error(
-                "Authorization check failed",
+                "docker.containers.authorization.check.fail",
                 error=sanitize_exception(e),
                 error_type=type(e).__name__,
                 **context,
@@ -203,7 +203,7 @@ class ContainerManager:
 
         except Exception as e:
             logger.warning(
-                f"Container state validation failed for {operation}",
+                "docker.containers.container.state.fail",
                 container_id=getattr(container, "id", "unknown"),
                 error=sanitize_exception(e),
             )
@@ -234,7 +234,7 @@ class ContainerManager:
                 # Record operation
                 self._record_operation("start", container_id)
 
-                logger.info("Starting container", **context)
+                logger.info("docker.containers.container.start", **context)
 
                 result = container.start()
 
@@ -242,7 +242,7 @@ class ContainerManager:
                 container.reload()  # Refresh container state
                 if container.status.lower() not in ["running", "restarting"]:
                     logger.error(
-                        "Container start verification failed",
+                        "docker.containers.container.start.fail",
                         expected_status="running",
                         actual_status=container.status,
                         **context,
@@ -254,7 +254,7 @@ class ContainerManager:
                 execution_time = time.time() - start_time
 
             logger.info(
-                "Container started successfully",
+                "docker.containers.container.start",
                 execution_time=f"{execution_time:.2f}s",
                 final_status=container.status,
                 **context,
@@ -264,7 +264,7 @@ class ContainerManager:
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(
-                "Container start failed",
+                "docker.containers.container.start.fail",
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -296,7 +296,7 @@ class ContainerManager:
                 # Record operation
                 self._record_operation("stop", container_id)
 
-                logger.info("Stopping container", **context)
+                logger.info("docker.containers.container.stop", **context)
 
                 # Stop with timeout to prevent hanging
                 timeout = getattr(settings.docker, "stop_timeout", 10)
@@ -306,7 +306,7 @@ class ContainerManager:
                 container.reload()
                 if container.status.lower() not in ["exited", "stopped"]:
                     logger.error(
-                        "Container stop verification failed",
+                        "docker.containers.container.stop.fail",
                         expected_status="exited/stopped",
                         actual_status=container.status,
                         **context,
@@ -318,7 +318,7 @@ class ContainerManager:
                 execution_time = time.time() - start_time
 
             logger.info(
-                "Container stopped successfully",
+                "docker.containers.container.stop",
                 execution_time=f"{execution_time:.2f}s",
                 final_status=container.status,
                 **context,
@@ -328,7 +328,7 @@ class ContainerManager:
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(
-                "Container stop failed",
+                "docker.containers.container.stop.fail",
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -360,7 +360,7 @@ class ContainerManager:
                 # Record operation
                 self._record_operation("restart", container_id)
 
-                logger.info("Restarting container", **context)
+                logger.info("docker.containers.restarting.container.start", **context)
 
                 # Restart with timeout
                 timeout = getattr(settings.docker, "restart_timeout", 10)
@@ -370,7 +370,7 @@ class ContainerManager:
                 container.reload()
                 if container.status.lower() not in ["running", "restarting"]:
                     logger.error(
-                        "Container restart verification failed",
+                        "docker.containers.container.restart.fail",
                         expected_status="running",
                         actual_status=container.status,
                         **context,
@@ -382,7 +382,7 @@ class ContainerManager:
                 execution_time = time.time() - start_time
 
             logger.info(
-                "Container restarted successfully",
+                "docker.containers.container.restarted.start",
                 execution_time=f"{execution_time:.2f}s",
                 final_status=container.status,
                 **context,
@@ -392,7 +392,7 @@ class ContainerManager:
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(
-                "Container restart failed",
+                "docker.containers.container.restart.fail",
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -429,7 +429,7 @@ class ContainerManager:
             # Validate new name format
             if not is_new_name_valid(new_container_name):
                 logger.warning(
-                    "Invalid container name rejected",
+                    "docker.containers.invalid.container.warn",
                     validation_error="name_format_invalid",
                     **context,
                 )
@@ -443,13 +443,13 @@ class ContainerManager:
 
                 # Check if name is actually different
                 if old_name == new_container_name:
-                    logger.info("Container name unchanged, skipping rename", **context)
+                    logger.info("docker.containers.container.name.info", **context)
                     return None  # No operation needed
 
                 # Record operation
                 self._record_operation("rename", container_id)
 
-                logger.info("Renaming container", old_name=old_name, **context)
+                logger.info("docker.containers.renaming.container.info", old_name=old_name, **context)
 
                 result = container.rename(new_container_name)
 
@@ -459,7 +459,7 @@ class ContainerManager:
                 container.reload()
                 if container.name != new_container_name:
                     logger.error(
-                        "Container rename verification failed",
+                        "docker.containers.container.rename.fail",
                         expected_name=new_container_name,
                         actual_name=container.name,
                         **context,
@@ -469,7 +469,7 @@ class ContainerManager:
                     )
 
             logger.info(
-                "Container renamed successfully",
+                "docker.containers.container.renamed.ok",
                 old_name=old_name,
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -479,7 +479,7 @@ class ContainerManager:
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(
-                "Container rename failed",
+                "docker.containers.container.rename.fail",
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -529,7 +529,7 @@ class ContainerManager:
             if container_action not in actions:
                 raise ValueError(f"Unsupported action: {action}")
 
-            logger.info("Container management request received", **context)
+            logger.info("docker.containers.container.management.info", **context)
 
             # Execute the action with timeout monitoring
             result = actions[container_action](user_id, container_id)
@@ -537,7 +537,7 @@ class ContainerManager:
             execution_time = time.time() - operation_start
 
             logger.info(
-                "Container management completed successfully",
+                "docker.containers.container.management.ok",
                 total_execution_time=f"{execution_time:.2f}s",
                 **context,
             )
@@ -546,7 +546,7 @@ class ContainerManager:
         except (ValueError, KeyError) as e:
             execution_time = time.time() - operation_start
             logger.warning(
-                "Invalid container action requested",
+                "docker.containers.invalid.container.warn",
                 error=sanitize_exception(e),
                 available_actions=[action.value for action in ContainerAction],
                 execution_time=f"{execution_time:.2f}s",
@@ -561,7 +561,7 @@ class ContainerManager:
         except Exception as e:
             execution_time = time.time() - operation_start
             logger.error(
-                "Container management failed",
+                "docker.containers.container.management.fail",
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
@@ -615,7 +615,7 @@ class ContainerManager:
                 )
 
             logger.debug(
-                "Container status retrieved",
+                "docker.containers.container.status.debug",
                 status=status["status"],
                 exit_code=status.get("exit_code"),
                 **context,
@@ -624,7 +624,7 @@ class ContainerManager:
 
         except Exception as e:
             logger.error(
-                "Container status retrieval failed",
+                "docker.containers.container.status.fail",
                 error=sanitize_exception(e),
                 **context,
             )
@@ -642,4 +642,4 @@ class ContainerManager:
         """Clear operation history."""
         with self._lock:
             self._operation_history.clear()
-            logger.debug("Operation history cleared")
+            logger.debug("docker.containers.history.cleared.debug")

@@ -113,7 +113,7 @@ class SystemMonitorPlugin(PluginCore):
                 )
             )
         except Exception as e:
-            logger.error("Failed to initialize InfluxDB client", e)
+            logger.error("bot.plugins.monitor.methods.initialize.influx.fail", e)
             raise
 
     def start_monitoring(self) -> None:
@@ -143,10 +143,10 @@ class SystemMonitorPlugin(PluginCore):
                             "is_docker": self.is_docker,
                         }
                     ) as log:
-                        log.info("Monitoring started successfully")
+                        log.info("bot.plugins.monitor.methods.monitoring.start")
                     return
                 except Exception as e:
-                    logger.error(f"Monitoring start attempt {attempt + 1} failed", e)
+                    logger.error("bot.plugins.monitor.methods.monitoring.start.fail", e)
                     if attempt < retry_attempts - 1:
                         time.sleep(retry_interval)
                     else:
@@ -172,7 +172,7 @@ class SystemMonitorPlugin(PluginCore):
                 time.sleep(self.check_interval)
 
             except Exception as e:
-                logger.error("Monitoring cycle failed", e)
+                logger.error("bot.plugins.monitor.methods.monitoring.cycle.fail", e)
                 time.sleep(max(1, self.check_interval // 2))
 
     def _process_alerts(self, metrics: dict) -> None:
@@ -305,7 +305,7 @@ class SystemMonitorPlugin(PluginCore):
                 )
 
             except Exception as e:
-                logger.error("Docker metrics processing failed", e)
+                logger.error("bot.plugins.monitor.methods.metrics.processing.fail", e)
 
     def _detect_docker_changes(
         self, new_counts: dict, new_containers: list, new_images: list
@@ -320,7 +320,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._known_image_ids.update(new_image_hashes.keys())
                 self.state.init_mode = False
                 logger.info(
-                    "Docker monitoring initialized",
+                    "bot.plugins.monitor.methods.monitoring.init",
                     extra={
                         "containers": len(new_container_hashes),
                         "images": len(new_image_hashes),
@@ -349,7 +349,7 @@ class SystemMonitorPlugin(PluginCore):
             self._previous_counts = new_counts
 
         except Exception as e:
-            logger.error("Failed to detect Docker changes", e)
+            logger.error("bot.plugins.monitor.methods.detect.changes.fail", e)
 
     def _record_metrics(self, fields: dict) -> None:
         try:
@@ -359,9 +359,9 @@ class SystemMonitorPlugin(PluginCore):
             with self.influxdb_client as client:
                 client.write_data("system_metrics", sanitized_fields, metadata)
 
-            logger.debug("Metrics recorded successfully", extra=fields)
-        except Exception as e:
-            logger.exception(f"Error writing metrics to InfluxDB: {e}")
+            logger.debug("bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields)
+        except Exception:
+            logger.exception("bot.plugins.monitor.methods.writing.metrics.fail")
 
     @staticmethod
     def _sanitize_fields(fields: dict) -> dict:
@@ -384,9 +384,9 @@ class SystemMonitorPlugin(PluginCore):
                     for sub_key, sub_value in value.items()
                     if not isinstance(sub_value, (int, float))
                 }
-                for sub_key, sub_value in unsupported.items():
+                for _sub_key, _sub_value in unsupported.items():
                     logger.warning(
-                        f"Unsupported type for nested field '{key}_{sub_key}': {type(sub_value)}"
+                        "bot.plugins.monitor.methods.unsupported.type.warn"
                     )
                 continue
 
@@ -403,19 +403,19 @@ class SystemMonitorPlugin(PluginCore):
                     for i, item in enumerate(value)
                     if not isinstance(item, (int, float))
                 ]
-                for i, item in unsupported:
+                for _i, _item in unsupported:
                     logger.warning(
-                        f"Unsupported type for tuple element '{key}_{i}': {type(item)}"
+                        "bot.plugins.monitor.methods.unsupported.type.warn"
                     )
                 continue
 
-            logger.warning(f"Unsupported type for field '{key}': {type(value)}")
+            logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
         return sanitized_fields
 
     def _send_notification(self, message: str) -> None:
         if self.state.notification_count >= self.monitor_settings.max_notifications[0]:
             if not self.state.max_notifications_reached:
-                logger.warning("Maximum notifications reached")
+                logger.warning("bot.plugins.monitor.methods.maximum.notifications.warn")
                 self.state.max_notifications_reached = True
             return
 
@@ -423,13 +423,13 @@ class SystemMonitorPlugin(PluginCore):
             self.bot.send_message(
                 self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML"
             )
-            logger.info("Notification sent", extra={"message": str(message)})
+            logger.info("bot.plugins.monitor.methods.notification.sent.info", extra={"message": str(message)})
 
             self.state.notification_count += 1
             self._schedule_notification_reset()
 
         except Exception as e:
-            logger.error("Failed to send notification", e)
+            logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
 
     @staticmethod
     def _format_cpu_alert(event_id: str, usage: float) -> str:
@@ -570,12 +570,12 @@ class SystemMonitorPlugin(PluginCore):
             reset_thread.daemon = True
             reset_thread.start()
         except Exception as e:
-            logger.error("Failed to schedule notification reset", e)
+            logger.error("bot.plugins.monitor.methods.schedule.notification.fail", e)
 
     def _reset_notification_count(self) -> None:
         self.state.notification_count = 0
         self.state.max_notifications_reached = False
-        logger.debug("Notification counter reset")
+        logger.debug("bot.plugins.monitor.methods.notification.counter.debug")
 
     def _adjust_check_interval(self) -> None:
         try:
@@ -585,17 +585,17 @@ class SystemMonitorPlugin(PluginCore):
                 if new_interval != self.check_interval:
                     self.check_interval = new_interval
                     logger.info(
-                        "Check interval adjusted",
+                        "bot.plugins.monitor.methods.check.interval.info",
                         extra={"cpu_load": cpu_load, "new_interval": new_interval},
                     )
             else:
                 self.check_interval = self.monitor_settings.check_interval[0]
         except Exception as e:
-            logger.error("Failed to adjust check interval", e)
+            logger.error("bot.plugins.monitor.methods.adjust.check.fail", e)
 
     def stop_monitoring(self) -> None:
         if self.state.is_active:
             self.state.is_active = False
-            logger.info("System monitoring stopped")
+            logger.info("bot.plugins.monitor.methods.monitoring.stop")
         else:
-            logger.warning("Monitoring is not running")
+            logger.warning("bot.plugins.monitor.methods.monitoring.not.warn")

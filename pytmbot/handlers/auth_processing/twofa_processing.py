@@ -100,7 +100,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     current_state = session_manager.get_auth_state(user_id)
     if current_state != session_manager.state_fabric.PROCESSING:
         logger.debug(
-            "Ignoring TOTP input outside processing state",
+            "bot.handler.auth_processing.twofa_processing.ignoring.totp.debug",
             user_id=user_id,
             auth_state=current_state,
         )
@@ -146,7 +146,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         bot.reply_to(message, text=response, reply_markup=keyboard)
     else:
         session_manager.increment_totp_attempts(user_id=user_id)
-        logger.error(f"Invalid TOTP code: {totp_code}")
+        logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
         bot.reply_to(message, "Invalid TOTP code. Please try again.")
 
 
@@ -161,8 +161,7 @@ def _handle_blocked_user(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
-    user_id = message.from_user.id
-    logger.error(f"User {user_id} is blocked")
+    logger.error("bot.handler.auth_processing.twofa_processing.user.blocked.deny")
     bot.reply_to(message, "You are blocked. Please try again later.")
 
 
@@ -223,7 +222,7 @@ def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
         None
     """
     user_id = message.from_user.id
-    logger.error(f"Invalid TOTP code: {message.text}")
+    logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
     bot.reply_to(
         message,
         "Invalid TOTP code. Please enter a 6-digit code. "
@@ -268,7 +267,7 @@ def _block_user(user_id: int) -> None:
 
     session_manager.set_blocked_time(user_id)
 
-    logger.error(f"Processing blocked user {user_id}.")
+    logger.error("bot.handler.auth_processing.twofa_processing.processing.blocked.deny")
 
 
 def __create_referer_keyboard(

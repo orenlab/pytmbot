@@ -81,6 +81,6 @@ class PluginMethods(PluginCore):
 
         try:
             return action_map[action]()
-        except Exception as error:
-            self.logger.exception(f"Failed at @Outline plugin: {error}")
+        except Exception:
+            self.logger.exception("bot.plugins.outline.methods.plugin.fail")
             raise

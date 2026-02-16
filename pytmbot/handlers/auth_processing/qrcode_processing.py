@@ -33,12 +33,11 @@ def _qr_deletion_callback(result: DeletionResult) -> None:
     """
     if result.status == DeletionStatus.SUCCESS:
         logger.info(
-            f"QR code message {result.message_id} successfully deleted for user {result.user_id}"
+            "bot.handler.auth_processing.qrcode_processing.qr.code.ok"
         )
     elif result.status == DeletionStatus.FAILED:
         logger.warning(
-            f"Failed to delete QR code message {result.message_id} for user {result.user_id}: "
-            f"{result.error_message}"
+            "bot.handler.auth_processing.qrcode_processing.delete.qr.fail"
         )
 
 
@@ -116,19 +115,18 @@ def handle_qr_code_message(
                 )
 
                 logger.warning(
-                    f"QR code auto-deletion limit exceeded for user {message.from_user.id}. "
+                    "bot.handler.auth_processing.qrcode_processing.qr.code.warn"
                 )
 
             elif deletion_result.status == DeletionStatus.SCHEDULED:
                 logger.info(
-                    f"QR code auto-deletion scheduled for message {sent_message.message_id} "
-                    f"(user {message.from_user.id}) in {auto_delete_delay} seconds. "
+                    "bot.handler.auth_processing.qrcode_processing.qr.code.info"
                 )
 
             else:
                 # Fallback for any other unexpected status
                 logger.error(
-                    f"Unexpected deletion result status for QR code: {deletion_result.status}"
+                    "bot.handler.auth_processing.qrcode_processing.unexpected.deletion.fail"
                 )
 
             return sent_message
@@ -159,7 +157,7 @@ def handle_qr_code_message(
             )
 
             logger.error(
-                "Failed to generate QR code for user",
+                "bot.handler.auth_processing.qrcode_processing.generate.qr.fail",
                 extra={"user_id": message.from_user.id, "chat_id": message.chat.id},
             )
 
@@ -180,9 +178,9 @@ def handle_qr_code_message(
                 delay_seconds=15,
                 callback=_qr_deletion_callback,
             )
-        except Exception as deletion_error:
+        except Exception:
             logger.error(
-                f"Failed to schedule deletion for error message: {deletion_error}"
+                "bot.handler.auth_processing.qrcode_processing.schedule.deletion.fail"
             )
 
         # Log detailed error information and raise custom exception
@@ -199,5 +197,5 @@ def handle_qr_code_message(
             },
         )
 
-        logger.error(f"QR code handler error: {error_context}")
+        logger.error("bot.handler.auth_processing.qrcode_processing.qr.code.fail")
         raise exceptions.HandlingException(error_context)

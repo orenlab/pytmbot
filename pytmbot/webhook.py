@@ -38,7 +38,7 @@ class RateLimit(BaseComponent):
         with self.log_context(
             limit=limit, period=period, ban_threshold=ban_threshold
         ) as log:
-            log.debug("Initializing rate limiter")
+            log.debug("bot.webhook.rate.limiter.init")
             self.limit = limit
             self.period = period
             self.ban_threshold = ban_threshold
@@ -53,11 +53,11 @@ class RateLimit(BaseComponent):
             ban_time = self.banned_ips[client_ip]
             if (datetime.now() - ban_time).total_seconds() > 3600:
                 with self.log_context(action="ban_expired", ip=client_ip) as log:
-                    log.info("Ban expired, removing IP from banned list")
+                    log.info("bot.webhook.ban.expired.info")
                 del self.banned_ips[client_ip]
                 return False
             with self.log_context(action="banned", ip=client_ip) as log:
-                log.warning("Request from banned IP rejected")
+                log.warning("bot.webhook.request.banned.warn")
             return True
 
     def is_rate_limited(self, client_ip: str) -> bool:
@@ -81,12 +81,12 @@ class RateLimit(BaseComponent):
             if len(request_times) >= self.ban_threshold:
                 self.banned_ips[client_ip] = datetime.now()
                 with self.log_context(action="ban_ip", ip=client_ip) as log:
-                    log.warning("IP banned for excessive requests")
+                    log.warning("bot.webhook.ip.banned.warn")
                 return True
 
             if len(request_times) >= self.limit:
                 with self.log_context(action="rate_limit", ip=client_ip) as log:
-                    log.warning(RATELIMIT_EXCEEDED_MESSAGE)
+                    log.warning("bot.webhook.rate.limit.warn")
                 return True
 
             request_times.append(current_time)
@@ -110,7 +110,7 @@ class WebhookManager(BaseComponent):
             port=port,
             has_secret_token=bool(secret_token),
         ) as log:
-            log.debug("Webhook manager initialized")
+            log.debug("bot.webhook.manager.init")
 
     def setup_webhook(self, webhook_path: str) -> None:
         webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
@@ -123,7 +123,7 @@ class WebhookManager(BaseComponent):
             try:
                 current_webhook = self.bot.get_webhook_info()
                 log.debug(
-                    "Current webhook configuration",
+                    "bot.webhook.config.debug",
                     webhook_info=mask_token_in_message(
                         str(current_webhook), self.bot.token
                     ),
@@ -148,7 +148,7 @@ class WebhookManager(BaseComponent):
 
                 new_webhook = self.bot.get_webhook_info()
                 log.info(
-                    "Webhook successfully configured",
+                    "bot.webhook.config.ok",
                     new_webhook=mask_token_in_message(str(new_webhook), self.bot.token),
                 )
 
@@ -158,7 +158,7 @@ class WebhookManager(BaseComponent):
                     error_code="WEBHOOK_SETUP_FAILED",
                     metadata={"exception": str(e)},
                 )
-                log.exception("Failed to setup webhook", error=error_context.to_dict())
+                log.exception("bot.webhook.init.fail", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
     def remove_webhook(self) -> None:
@@ -172,7 +172,7 @@ class WebhookManager(BaseComponent):
                     error_code="WEBHOOK_REMOVE_FAILED",
                     metadata={"exception": str(e)},
                 )
-                log.exception("Webhook removal failed", error=error_context.to_dict())
+                log.exception("bot.webhook.removal.fail", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
 
@@ -212,7 +212,7 @@ class WebhookServer(BaseComponent):
             port=port,
             webhook_path=mask_token_in_message(self.webhook_path, self.token),
         ) as log:
-            log.debug("Initializing webhook server components")
+            log.debug("bot.webhook.server.components.init")
 
             # Initialize webhook manager
             webhook_settings = settings.webhook_config
@@ -229,7 +229,7 @@ class WebhookServer(BaseComponent):
             self.app = self._create_app()
             self.rate_limiter = RateLimit(limit=10, period=10)
             self.rate_limiter_404 = RateLimit(limit=5, period=10)
-            log.info("Webhook server initialized successfully")
+            log.info("bot.webhook.server.init.ok")
 
     def _create_app(self) -> FastAPI:
         @asynccontextmanager
@@ -239,7 +239,7 @@ class WebhookServer(BaseComponent):
                 webhook_path=mask_token_in_message(self.webhook_path, self.token),
             ) as log:
                 try:
-                    log.info("Starting webhook server lifecycle")
+                    log.info("bot.webhook.server.lifecycle.start")
                     self.webhook_manager.setup_webhook(self.webhook_path)
                     yield
                 except Exception as e:
@@ -249,7 +249,7 @@ class WebhookServer(BaseComponent):
                         metadata={"exception": str(e)},
                     )
                     log.exception(
-                        "Failed to initialize webhook lifecycle",
+                        "bot.webhook.initialize.lifecycle.fail",
                         error=error_context.to_dict(),
                     )
                     raise InitializationError(error_context) from e
@@ -280,7 +280,7 @@ class WebhookServer(BaseComponent):
 
     def _setup_routes(self, app: FastAPI) -> None:
         with self.log_context(action="route_setup") as log:
-            log.debug("Configuring FastAPI routes")
+            log.debug("bot.webhook.config.routes.debug")
 
             @app.exception_handler(404)
             async def not_found_handler(
@@ -293,13 +293,13 @@ class WebhookServer(BaseComponent):
                     request_url=str(request.url),
                 ) as _log:
                     if self.rate_limiter_404.is_rate_limited(client_ip):
-                        _log.warning("Rate limit exceeded for 404 requests")
+                        _log.warning("bot.webhook.rate.limit.warn")
                         return JSONResponse(
                             status_code=429,
                             content={"detail": "Too many not found requests"},
                         )
 
-                    _log.warning("404 request received")
+                    _log.warning("bot.webhook.404.request.warn")
                     return JSONResponse(
                         status_code=404, content={"detail": "Not found"}
                     )
@@ -321,13 +321,13 @@ class WebhookServer(BaseComponent):
                 ) as _log:
                     if not self.telegram_ip_validator.is_telegram_ip(client_ip):
                         _log.warning(
-                            "Non-Telegram IP request blocked",
+                            "bot.webhook.non.ip.deny",
                         )
                         raise HTTPException(
                             status_code=403,
                             detail="Access denied: Request must come from Telegram servers",
                         )
-                    log.info("Telegram IP verified successfully")
+                    log.info("bot.webhook.ip.verified.ok")
                     return client_ip
 
             @app.post(self.webhook_path)
@@ -344,14 +344,14 @@ class WebhookServer(BaseComponent):
                     try:
                         # Rate limiting check
                         if self.rate_limiter.is_rate_limited(client_ip):
-                            _log.warning(RATELIMIT_EXCEEDED_MESSAGE)
+                            _log.warning("bot.webhook.rate.limit.warn")
                             raise HTTPException(
                                 status_code=429, detail="Rate limit exceeded"
                             )
 
                         # Token verification
                         if x_telegram_bot_api_secret_token != self.secret_token:
-                            _log.warning("Invalid secret token received")
+                            _log.warning("bot.webhook.invalid.secret.warn")
                             raise HTTPException(
                                 status_code=403, detail="Invalid secret token"
                             )
@@ -366,7 +366,7 @@ class WebhookServer(BaseComponent):
                         # Request counter threshold check
                         if self.request_counter > 1000:
                             _log.warning(
-                                "Request threshold reached",
+                                "bot.webhook.request.threshold.warn",
                                 total_requests=self.request_counter,
                                 last_restart=self.last_restart.isoformat(),
                                 uptime=(
@@ -382,10 +382,10 @@ class WebhookServer(BaseComponent):
                             update_type=update_type,
                             update_id=update_dict.get("update_id"),
                         ) as update_log:
-                            update_log.info("Processing Telegram update")
+                            update_log.info("bot.webhook.processing.update.info")
                             update_obj = telebot.types.Update.de_json(update_dict)
                             self.bot.process_new_updates([update_obj])
-                            update_log.debug("Update processed successfully")
+                            update_log.debug("bot.webhook.update.processed.ok")
 
                         return JSONResponse(
                             status_code=200,
@@ -394,7 +394,7 @@ class WebhookServer(BaseComponent):
 
                     except ValueError as e:
                         log.error(
-                            "Invalid update format",
+                            "bot.webhook.invalid.update.fail",
                             error=str(e),
                             update_data=update.model_dump(),
                         )
@@ -403,7 +403,7 @@ class WebhookServer(BaseComponent):
                         ) from e
                     except Exception as e:
                         log.error(
-                            "Update processing failed",
+                            "bot.webhook.update.processing.fail",
                             error=str(e),
                             error_type=type(e).__name__,
                             update_data=update.model_dump(),
@@ -427,7 +427,7 @@ class WebhookServer(BaseComponent):
                     metadata={"requested_port": self.port},
                 )
                 log.error(
-                    "Privileged port access attempted", error=error_context.to_dict()
+                    "bot.webhook.privileged.port.fail", error=error_context.to_dict()
                 )
                 raise InitializationError(error_context)
 
@@ -459,9 +459,9 @@ class WebhookServer(BaseComponent):
                         uvicorn_config.update(
                             {"ssl_certfile": cert_file, "ssl_keyfile": key_file}
                         )
-                        config_log.debug("SSL configuration enabled")
+                        config_log.debug("bot.webhook.ssl.config.debug")
 
-                    config_log.info("Starting uvicorn server with configuration")
+                    config_log.info("bot.webhook.uvicorn.server.start")
                     uvicorn.run(**uvicorn_config)
 
             except FileNotFoundError as e:
@@ -470,7 +470,7 @@ class WebhookServer(BaseComponent):
                     error_code="FILE_NOT_FOUND_ERROR",
                     metadata={"exception": str(e)},
                 )
-                log.exception("SSL files not found", error=error_context.to_dict())
+                log.exception("bot.webhook.ssl.files.fail", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
             except PermissionError as e:
@@ -480,7 +480,7 @@ class WebhookServer(BaseComponent):
                     metadata={"exception": str(e)},
                 )
                 log.exception(
-                    "Permission error on server start", error=error_context.to_dict()
+                    "bot.webhook.permission.fail", error=error_context.to_dict()
                 )
                 raise InitializationError(error_context) from e
 
@@ -490,7 +490,7 @@ class WebhookServer(BaseComponent):
                     error_code="OS_ERROR",
                     metadata={"exception": str(e)},
                 )
-                log.exception("OS error on server start", error=error_context.to_dict())
+                log.exception("bot.webhook.os.fail", error=error_context.to_dict())
                 raise InitializationError(error_context) from e
 
             except Exception as e:
@@ -500,6 +500,6 @@ class WebhookServer(BaseComponent):
                     metadata={"error_class": e.__class__.__name__, "exception": str(e)},
                 )
                 log.exception(
-                    "Unexpected error on server start", error=error_context.to_dict()
+                    "bot.webhook.unexpected.fail", error=error_context.to_dict()
                 )
                 raise BotException(error_context) from e

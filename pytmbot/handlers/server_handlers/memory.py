@@ -32,7 +32,7 @@ def handle_memory(message: Message, bot: TeleBot):
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
             logger.error(
-                f"Failed at {__name__}: Error occurred while getting memory info"
+                "bot.handler.server.memory.get.fail"
             )
             return bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("

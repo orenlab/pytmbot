@@ -113,7 +113,7 @@ class Compiler(BaseComponent):
                         action="compile_template",
                         template_name=self.template_name,
                 ) as log:
-                    log.debug("Compiling untrusted template")
+                    log.debug("bot.parsers.compiler.compiling.untrusted.debug")
 
             # Validation is now handled inside _render_template
             result = _render_template(
@@ -131,7 +131,7 @@ class Compiler(BaseComponent):
                     template_name=self.template_name,
                     trusted=self.trusted,
             ) as log:
-                log.error("Template compilation failed")
+                log.error("bot.parsers.compiler.template.compilation.fail")
 
             if isinstance(e, TemplateError):
                 raise

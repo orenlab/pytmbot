@@ -238,11 +238,11 @@ def __check_bot_update() -> dict[str, str]:
                         If an error occurs during the update check, an empty dictionary is returned.
     """
     try:
-        logger.debug("Checking for bot updates...")
+        logger.debug("bot.handler.bot.updates.check.debug")
         with requests.get(__github_api_url__, timeout=5) as response:
             response.raise_for_status()
 
-            logger.debug(f"GitHub API response code: {response.status_code}")
+            logger.debug("bot.handler.bot.updates.git.hub.debug")
 
             data = response.json()
 
@@ -274,10 +274,10 @@ def __check_bot_update() -> dict[str, str]:
                 "body": body,
             }
 
-            logger.debug(f"GitHub API response: {release_info}")
+            logger.debug("bot.handler.bot.updates.git.hub.debug")
 
             return release_info
 
-    except (requests.RequestException, ValueError) as e:
-        logger.error(f"An error occurred during update check: {e}")
+    except (requests.RequestException, ValueError):
+        logger.error("bot.handler.bot.updates.update.fail")
         return {}

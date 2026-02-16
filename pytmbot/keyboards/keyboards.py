@@ -110,7 +110,7 @@ class Keyboards:
             operation=KeyboardOperation.BUILD_INLINE, data=data
         ) as log:
             button_text = split_string_into_octets(data)
-            log.debug("Split string into octets", result=button_text)
+            log.debug("bot.keyboards.split.string.debug", result=button_text)
 
             button = InlineKeyboardButton(
                 text=f"{self.RETURN_BUTTON_EMOJI} Return to {button_text}",
@@ -167,7 +167,7 @@ class Keyboards:
             for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
                 reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
 
-            log.trace("Reply keyboard constructed", total_buttons=len(keyboard_buttons))
+            log.trace("bot.keyboards.reply.keyboard.debug", total_buttons=len(keyboard_buttons))
             return reply_keyboard
 
     @staticmethod
@@ -200,7 +200,7 @@ class Keyboards:
 
             if keyboard_type not in valid_keyboards:
                 log.error(
-                    "Invalid keyboard type requested",
+                    "bot.keyboards.invalid.keyboard.fail",
                     code="KEYBOARD_INVALID_TYPE",
                     requested_type=keyboard_type,
                     valid_types=list(valid_keyboards),
@@ -239,7 +239,7 @@ class Keyboards:
                 if emoji and title  # Skip empty entries
             ]
 
-            log.trace("Keyboard buttons constructed", total=len(buttons))
+            log.trace("bot.keyboards.keyboard.buttons.debug", total=len(buttons))
             return buttons
 
     def build_inline_keyboard(
@@ -269,7 +269,7 @@ class Keyboards:
         ) as log:
             # Validate all buttons are ButtonData instances
             if not all(isinstance(btn, ButtonData) for btn in buttons_data):
-                log.error("Invalid button data provided", code="INVALID_BUTTON_DATA")
+                log.error("bot.keyboards.invalid.button.fail", code="INVALID_BUTTON_DATA")
                 raise KeyboardError("All buttons must be ButtonData instances")
 
             keyboard = InlineKeyboardMarkup(row_width=self.INLINE_ROW_WIDTH)
@@ -282,5 +282,5 @@ class Keyboards:
             ]
             keyboard.add(*buttons)
 
-            log.trace("Inline keyboard built", total_buttons=len(buttons))
+            log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard

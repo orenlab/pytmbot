@@ -45,7 +45,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     called_user_id = split_string_into_octets(call.data, octet_index=2)
 
     if call.from_user is None:
-        logger.warning("Missing user data in manage callback", callback_data=call.data)
+        logger.warning("bot.handler.docker.manage.missing.user.warn", callback_data=call.data)
         return show_handler_info(
             call=call,
             text=f"Managing {container_name}: Missing user information",
@@ -55,7 +55,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
     if not is_allowed:
         logger.warning(
-            "Denied '__manage__' function",
+            "bot.handler.docker.manage.denied.function.deny",
             user_id=call.from_user.id,
             container_name=container_name,
             reason=deny_reason,
@@ -69,14 +69,14 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     # Get container state
     with DockerAdapter() as adapter:
         state = get_container_state(container_name, docker_client=adapter)
-    logger.info(f"Container {container_name} state: {state}")
+    logger.info("bot.handler.docker.manage.container.state.info")
 
     # Build keyboard buttons
     keyboard_buttons = []
 
     # Add action buttons based on container state
     if state == container_state.running:
-        logger.debug(f"Adding stop and restart buttons for {container_name}")
+        logger.debug("bot.handler.docker.manage.adding.stop.debug")
         keyboard_buttons.extend(
             [
                 button_data(
@@ -95,7 +95,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         container_state.stopped,
         container_state.dead,
     ]:
-        logger.debug(f"Adding start button for {container_name}")
+        logger.debug("bot.handler.docker.manage.adding.start.debug")
         keyboard_buttons.append(
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",

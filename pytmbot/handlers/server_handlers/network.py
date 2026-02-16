@@ -33,7 +33,7 @@ def handle_network(message: Message, bot: TeleBot):
 
         if network_statistics is None:
             logger.error(
-                f"Failed at @{__name__}: Error occurred while getting network statistics"
+                "bot.handler.server.network.get.fail"
             )
             return bot.send_message(
                 message.chat.id,

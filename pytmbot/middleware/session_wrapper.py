@@ -162,9 +162,9 @@ def create_auth_context(query: TelegramQuery) -> AuthContext | None:
             referer_handler=referer_handler,
             username=user.username or str(user.id),
         )
-    except (AttributeError, ValueError, TypeError) as e:
+    except (AttributeError, ValueError, TypeError):
         with auth_component.log_context(action="create_auth_context") as log:
-            log.error(f"Failed to create auth context: {e}")
+            log.error("bot.session.create.auth.fail")
         return None
 
 
@@ -183,7 +183,7 @@ def handle_unauthorized_query(query: TelegramQuery, bot: telebot.TeleBot) -> Non
         raise TypeError("Query must be an instance of Message or CallbackQuery")
 
     with auth_component.log_context(action="handle_unauthorized") as log:
-        log.debug("Processing unauthorized query")
+        log.debug("bot.session.processing.unauthorized.deny")
         return handle_unauthorized_message(query, bot)
 
 
@@ -205,7 +205,7 @@ def access_denied_handler(query: TelegramQuery, bot: telebot.TeleBot) -> bool:
         raise TypeError("Query must be an instance of Message or CallbackQuery")
 
     with auth_component.log_context(action="access_denied") as log:
-        log.warning("Access denied for query")
+        log.warning("bot.session.access.denied.deny")
         return handle_access_denied(query, bot)
 
 
@@ -282,7 +282,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
         auth_context = create_auth_context(query)
         if not auth_context:
             with auth_component.log_context(action="auth_check") as log:
-                log.error("Failed to create auth context: invalid user information")
+                log.error("bot.session.create.auth.fail")
             return access_denied_handler(query, bot)
 
         # Check if user is in allowed admins list
@@ -292,7 +292,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
                     user_id=auth_context.user_id,
                     username=auth_context.username,
             ) as log:
-                log.warning("User is not in allowed admins list")
+                log.warning("bot.session.user.not.warn")
             return access_denied_handler(query, bot)
 
         # Check authentication status
@@ -301,7 +301,7 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
         with auth_component.log_context(
                 action="auth_check",
         ) as log:
-            log.debug(f"Authentication status: {is_authenticated}",
+            log.debug("bot.session.authentication.status.debug",
                       context={
                           "user_id": auth_context.user_id,
                           "username": auth_context.username,
@@ -309,14 +309,14 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
                       })
 
             if not is_authenticated:
-                log.warning("Authentication required")
+                log.warning("bot.session.authentication.required.warn")
                 return _handle_unauthenticated_user(auth_context, query, bot)
 
             if session_manager.is_session_expired(auth_context.user_id):
-                log.warning("Session expired")
+                log.warning("bot.session.expired.warn")
                 return _handle_expired_session(auth_context, query, bot)
 
-            log.success("Access granted")
+            log.success("bot.session.access.granted.ok")
             return func(query, bot)
 
     return cast(HandlerFunction, wrapper)

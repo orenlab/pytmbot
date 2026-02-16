@@ -58,16 +58,16 @@ class SystemMetrics:
     def _check_cpu_usage() -> float:
         try:
             return psutil.cpu_percent(interval=1)
-        except Exception as e:
-            logger.error(f"CPU usage check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.cpu.usage.fail", exc_info=True)
             return 0.0
 
     @staticmethod
     def _check_memory_usage() -> float:
         try:
             return psutil.virtual_memory().percent
-        except Exception as e:
-            logger.error(f"Memory usage check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.memory.usage.fail", exc_info=True)
             return 0.0
 
     @staticmethod
@@ -81,15 +81,15 @@ class SystemMetrics:
                     for excluded in SystemMetrics.EXCLUDED_PARTITIONS
                 )
             }
-        except Exception as e:
-            logger.error(f"Disk usage check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.disk.usage.fail", exc_info=True)
             return {}
 
     def _check_temperatures(self) -> dict[str, dict[str, float | None]]:
         try:
             temps = psutil.sensors_temperatures()
             if not temps and self.sensors_available:
-                logger.warning("No temperature sensors available")
+                logger.warning("bot.plugins.monitor.utils.no.temperature.warn")
                 self.sensors_available = False
                 return {}
 
@@ -102,8 +102,8 @@ class SystemMetrics:
                 for name, entries in temps.items()
                 for entry in entries
             }
-        except Exception as e:
-            logger.error(f"Temperature check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.temperature.check.fail", exc_info=True)
             return {}
 
     @staticmethod
@@ -114,8 +114,8 @@ class SystemMetrics:
                 for name, entries in psutil.sensors_fans().items()
                 for entry in entries
             }
-        except Exception as e:
-            logger.error(f"Fan speed check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.fan.speed.fail", exc_info=True)
             return {}
 
     @staticmethod
@@ -124,8 +124,8 @@ class SystemMetrics:
             if hasattr(psutil, "getloadavg"):
                 return psutil.getloadavg()
             return 0.0, 0.0, 0.0
-        except Exception as e:
-            logger.error(f"Load average check failed: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.load.average.fail", exc_info=True)
             return 0.0, 0.0, 0.0
 
 
@@ -147,7 +147,7 @@ class EventTracker:
             "resolved": False,
         }
         logger.info(
-            f"New event created: {event_type}",
+            "bot.plugins.monitor.utils.event.create.info",
             extra={"event_id": event_id, "details": details},
         )
         return event_id
@@ -166,7 +166,7 @@ class EventTracker:
         event["resolved"] = True
 
         logger.info(
-            f"Event resolved: {event['type']}",
+            "bot.plugins.monitor.utils.event.resolved.info",
             extra={
                 "event_id": event_id,
                 "duration": duration,
@@ -193,6 +193,6 @@ class SystemInfo:
                 "architecture": uname.machine,
                 "python_version": platform.python_version(),
             }
-        except Exception as e:
-            logger.error(f"Failed to get platform metadata: {e}", exc_info=True)
+        except Exception:
+            logger.error("bot.plugins.monitor.utils.get.platform.fail", exc_info=True)
             return {"system": "unknown", "hostname": "unknown"}

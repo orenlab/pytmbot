@@ -131,26 +131,25 @@ class TelebotExceptionHandler(ExceptionHandler):
         log_level = parse_cli_args().log_level
 
         if isinstance(exception, BaseBotException):
-            sanitized_msg = exception.sanitized_message()
+            exception.sanitized_message()
             error_context = exception.sanitized_context()
 
-            log_msg = sanitized_msg
             if error_context.metadata:
-                log_msg = f"{sanitized_msg} - Context: {error_context.metadata}"
+                pass
         else:
-            log_msg = sanitize_exception(exception)
+            sanitize_exception(exception)
 
         if log_level == "DEBUG":
             if isinstance(exception, BaseBotException):
                 logger.opt(exception=exception).debug(
-                    f"Exception in @Telebot: {log_msg}"
+                    "bot.exceptions.telebot.fail"
                 )
             else:
                 logger.bind(sensitive_exception=True).debug(
-                    f"Exception in @Telebot: {log_msg}"
+                    "bot.exceptions.telebot.fail"
                 )
         else:
-            logger.error(f"Exception in @Telebot: {log_msg}")
+            logger.error("bot.exceptions.telebot.fail")
 
         return True
 

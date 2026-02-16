@@ -40,7 +40,7 @@ def handle_uptime(message: Message, bot: TeleBot):
         uptime_data = psutil_adapter.get_uptime()
 
         if uptime_data is None:
-            logger.error(f"Failed at @{__name__}: Error occurred while getting uptime")
+            logger.error("bot.handler.server.uptime.get.fail")
             return bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )

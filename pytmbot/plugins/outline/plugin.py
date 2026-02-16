@@ -164,8 +164,8 @@ class OutlinePlugin(PluginInterface):
                 **emojis,
             )
             self.bot.send_message(message.chat.id, response, parse_mode="HTML")
-        except Exception as e:
-            self.plugin_logger.error(f"Error compiling or sending message: {e}")
+        except Exception:
+            self.plugin_logger.error("bot.plugins.outline.plugin.compiling.sending.fail")
             self.bot.send_message(
                 message.chat.id,
                 "Error: An unexpected error occurred.",
@@ -188,13 +188,13 @@ class OutlinePlugin(PluginInterface):
         if isinstance(data, str):
             try:
                 return json.loads(data)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 self.plugin_logger.error(
-                    f"JSON decoding error for action {action}: {e}"
+                    "bot.plugins.outline.plugin.json.decoding.fail"
                 )
         else:
             self.plugin_logger.error(
-                f"Expected string for action {action}, got: {type(data)}"
+                "bot.plugins.outline.plugin.expected.string.fail"
             )
         return None
 
@@ -236,7 +236,7 @@ class OutlinePlugin(PluginInterface):
 
         if not isinstance(response, str):
             self.plugin_logger.error(
-                f"Compiler did not return a string: {type(response)}"
+                "bot.plugins.outline.plugin.compiler.did.fail"
             )
             raise ValueError("Compiler did not return a valid response.")
         return response

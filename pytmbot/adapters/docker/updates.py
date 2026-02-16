@@ -404,7 +404,7 @@ class DockerImageUpdater(BaseComponent):
                 execution_time = time.time() - start_time
 
                 self._log.info(
-                    "DockerImageUpdater initialized successfully",
+                    "docker.updates.image.updater.ok",
                     execution_time=f"{execution_time:.2f}s",
                     repositories_count=len(self.local_images),
                     total_tags=sum(len(tags) for tags in self.local_images.values()),
@@ -413,7 +413,7 @@ class DockerImageUpdater(BaseComponent):
             except Exception as e:
                 execution_time = time.time() - start_time
                 self._log.error(
-                    "Failed to initialize DockerImageUpdater",
+                    "docker.updates.initialize.image.fail",
                     error=sanitize_exception(e),
                     execution_time=f"{execution_time:.2f}s",
                 )
@@ -428,14 +428,14 @@ class DockerImageUpdater(BaseComponent):
         try:
             with DockerAdapter() as adapter:
                 images = adapter.images.list(all=False)
-                self._log.debug(f"Found {len(images)} local Docker images")
+                self._log.debug("docker.updates.found.local.debug")
 
                 for image in images:
                     try:
                         if not image.tags:
                             skipped_count += 1
                             self._log.debug(
-                                f"Skipping image without tags: {image.id[:12]}"
+                                "docker.updates.skipping.image.debug"
                             )
                             continue
 
@@ -446,20 +446,20 @@ class DockerImageUpdater(BaseComponent):
                     except Exception as e:
                         skipped_count += 1
                         self._log.warning(
-                            f"Failed to process image {image.id[:12]}",
+                            "docker.updates.image.fail",
                             error=sanitize_exception(e),
                         )
                         continue
 
-        except Exception as e:
+        except Exception:
             self._log.error(
-                f"Error fetching local Docker images: {sanitize_exception(e)}"
+                "docker.updates.fetch.local.fail"
             )
             raise
 
         total_tags = sum(len(tags) for tags in local_images.values())
         self._log.info(
-            f"Processed {processed_count} images, skipped {skipped_count}",
+            "docker.updates.processed.images.info",
             repositories=len(local_images),
             total_tags=total_tags,
         )
@@ -484,8 +484,8 @@ class DockerImageUpdater(BaseComponent):
 
             return None
 
-        except Exception as e:
-            self._log.debug(f"Could not parse digest for {image.id[:12]}: {e}")
+        except Exception:
+            self._log.debug("docker.updates.could.not.debug")
             return None
 
     def _process_image_tags(
@@ -513,11 +513,11 @@ class DockerImageUpdater(BaseComponent):
                     }
                 )
 
-            except ValueError as e:
-                self._log.warning(f"Invalid tag format '{tag}': {e}")
-            except Exception as e:
+            except ValueError:
+                self._log.warning("docker.updates.invalid.tag.warn")
+            except Exception:
                 self._log.warning(
-                    f"Error processing tag '{tag}': {sanitize_exception(e)}"
+                    "docker.updates.processing.tag.fail"
                 )
 
     @staticmethod
@@ -556,7 +556,7 @@ class DockerImageUpdater(BaseComponent):
 
         # Check rate limiting
         if self.rate_limiter.should_skip_request():
-            self._log.warning(f"Skipping {repo} due to rate limiting")
+            self._log.warning("docker.updates.skipping.due.warn")
             return []
 
         # Check cache
@@ -565,7 +565,7 @@ class DockerImageUpdater(BaseComponent):
                 cached_tags, timestamp = self.tag_cache[repo]
                 if time.time() - timestamp < CACHE_TTL:
                     self._stats["cache_hits"] += 1
-                    self._log.debug(f"Using cached tags for {repo}")
+                    self._log.debug("docker.updates.using.cached.debug")
                     return cached_tags
                 else:
                     # Remove expired cache
@@ -599,7 +599,7 @@ class DockerImageUpdater(BaseComponent):
                         tags_info = result
                         self.rate_limiter.handle_success()
                         self._log.debug(
-                            f"Successfully fetched {len(tags_info)} tags for {repo} from {url_parts}"
+                            "docker.updates.fetch.tags.ok"
                         )
                         break
 
@@ -610,21 +610,21 @@ class DockerImageUpdater(BaseComponent):
                         retry_after = int(e.headers.get("Retry-After", "3600"))
                         self.rate_limiter.handle_rate_limit(retry_after)
                         self._log.warning(
-                            f"Rate limited for {repo}, retry after {retry_after}s"
+                            "docker.updates.rate.limited.warn"
                         )
                         raise  # Re-raise to handle at higher level
                     elif e.status == 404:
-                        self._log.debug(f"Repository not found: {url_parts}")
+                        self._log.debug("docker.updates.repository.not.debug")
                         continue  # Try next URL
                     else:
-                        self._log.warning(f"HTTP error {e.status} fetching {url_parts}")
+                        self._log.warning("docker.updates.http.fail")
                         continue
 
                 except Exception as e:
                     last_error = e
                     self._stats["errors"] += 1
                     self._log.warning(
-                        f"Error fetching {url_parts}: {sanitize_exception(e)}"
+                        "docker.updates.fetch.fail"
                     )
                     continue
 
@@ -635,7 +635,7 @@ class DockerImageUpdater(BaseComponent):
 
         if not tags_info and last_error:
             self._log.warning(
-                f"Failed to fetch tags for {repo} after trying all endpoints: {last_error}"
+                "docker.updates.fetch.tags.fail"
             )
 
         return tags_info
@@ -646,7 +646,7 @@ class DockerImageUpdater(BaseComponent):
         """Fetch tags from specific URL with intelligent retry logic."""
 
         # Extract the actual repository path from URL for logging
-        url_repo = (
+        (
             url.split("/repositories/")[1].split("/tags/")[0]
             if "/repositories/" in url
             else repo
@@ -669,7 +669,7 @@ class DockerImageUpdater(BaseComponent):
                     # Limit results to prevent memory issues
                     if len(results) > MAX_TAGS_PER_REPO:
                         self._log.warning(
-                            f"Too many tags for {url_repo}, limiting to {MAX_TAGS_PER_REPO}"
+                            "docker.updates.too.many.warn"
                         )
                         results = results[:MAX_TAGS_PER_REPO]
 
@@ -689,14 +689,14 @@ class DockerImageUpdater(BaseComponent):
                             if enhanced_tag.is_valid:
                                 tags_info.append(enhanced_tag)
 
-                        except Exception as e:
+                        except Exception:
                             self._log.debug(
-                                f"Failed to process tag entry from {url_repo}: {e}"
+                                "docker.updates.tag.entry.fail"
                             )
                             continue
 
                     self._log.debug(
-                        f"Fetched {len(tags_info)} valid tags from {url_repo}"
+                        "docker.updates.fetch.valid.debug"
                     )
                     return tags_info
 
@@ -704,13 +704,13 @@ class DockerImageUpdater(BaseComponent):
                 # Don't retry on client errors (4xx) - they won't succeed
                 if 400 <= e.status < 500:
                     if e.status == 404:
-                        self._log.debug(f"Repository not found (404): {url_repo}")
+                        self._log.debug("docker.updates.repository.not.debug")
                     elif e.status == 403:
-                        self._log.warning(f"Access forbidden (403): {url_repo}")
+                        self._log.warning("docker.updates.access.forbidden.warn")
                     elif e.status == 429:
-                        self._log.warning(f"Rate limited (429): {url_repo}")
+                        self._log.warning("docker.updates.rate.limited.warn")
                     else:
-                        self._log.warning(f"Client error ({e.status}): {url_repo}")
+                        self._log.warning("docker.updates.client.fail")
                     raise  # Don't retry, re-raise immediately
 
                 # Retry on server errors (5xx) only
@@ -718,7 +718,7 @@ class DockerImageUpdater(BaseComponent):
                     if attempt < MAX_RETRIES - 1:
                         wait_time = 2**attempt
                         self._log.debug(
-                            f"Server error {e.status} on {url_repo}, retrying in {wait_time}s"
+                            "docker.updates.server.fail"
                         )
                         await asyncio.sleep(wait_time)
                     else:
@@ -731,26 +731,26 @@ class DockerImageUpdater(BaseComponent):
                 # Only retry timeouts
                 if attempt < MAX_RETRIES - 1:
                     wait_time = 2**attempt  # Exponential backoff
-                    self._log.debug(f"Timeout on {url_repo}, retrying in {wait_time}s")
+                    self._log.debug("docker.updates.timeout.retry.debug")
                     await asyncio.sleep(wait_time)
                 else:
                     raise
 
-            except (ClientError, json.JSONDecodeError) as e:
+            except (ClientError, json.JSONDecodeError):
                 # Network/parsing errors - retry these
                 if attempt < MAX_RETRIES - 1:
                     wait_time = 2**attempt
                     self._log.debug(
-                        f"Network/parsing error on {url_repo}, retrying in {wait_time}s: {type(e).__name__}"
+                        "docker.updates.network.parsing.fail"
                     )
                     await asyncio.sleep(wait_time)
                 else:
                     raise
 
-            except Exception as e:
+            except Exception:
                 # Unknown errors - don't retry to avoid infinite loops
                 self._log.warning(
-                    f"Unexpected error on {url_repo}: {sanitize_exception(e)}"
+                    "docker.updates.unexpected.fail"
                 )
                 raise
 
@@ -859,8 +859,8 @@ class DockerImageUpdater(BaseComponent):
                         current_digest=local_tag.digest or "",
                     )
                     updates.append(update)
-                except Exception as e:
-                    self._log.warning(f"Failed to create UpdateInfo: {e}")
+                except Exception:
+                    self._log.warning("docker.updates.create.update.fail")
                     continue
 
             return updates
@@ -929,9 +929,9 @@ class DockerImageUpdater(BaseComponent):
                                                 )
                                             )
                                             repo_updates.extend(updates_found)
-                                    except Exception as e:
+                                    except Exception:
                                         self._log.warning(
-                                            f"Error processing local tag: {e}"
+                                            "docker.updates.processing.local.fail"
                                         )
                                         continue
 
@@ -996,7 +996,7 @@ class DockerImageUpdater(BaseComponent):
                             if isinstance(result, Exception):
                                 repositories_failed += 1
                                 self._log.error(
-                                    f"Repository processing failed: {sanitize_exception(result)}"
+                                    "docker.updates.repository.processing.fail"
                                 )
                                 continue
 
@@ -1010,7 +1010,7 @@ class DockerImageUpdater(BaseComponent):
 
                     except Exception as e:
                         self._log.error(
-                            f"Error in parallel processing: {sanitize_exception(e)}"
+                            "docker.updates.parallel.processing.fail"
                         )
                         return UpdaterResponse(
                             status=UpdaterStatus.ERROR,
@@ -1019,7 +1019,7 @@ class DockerImageUpdater(BaseComponent):
                         )
 
             except Exception as e:
-                self._log.error(f"Error in update checking: {sanitize_exception(e)}")
+                self._log.error("docker.updates.update.check.fail")
                 return UpdaterResponse(
                     status=UpdaterStatus.ERROR,
                     message=f"Error checking for updates: {e}",
@@ -1102,7 +1102,7 @@ class DockerImageUpdater(BaseComponent):
     def clear_cache(self) -> None:
         """Clear all cached data."""
         with self._cache_lock:
-            cleared_entries = len(self.tag_cache)
+            len(self.tag_cache)
             self.tag_cache.clear()
 
         # Reset stats
@@ -1114,7 +1114,7 @@ class DockerImageUpdater(BaseComponent):
             "errors": 0,
         }
 
-        self._log.info(f"Cleared {cleared_entries} cache entries and reset statistics")
+        self._log.info("docker.updates.cleared.cache.info")
 
     def validate_configuration(self) -> dict[str, Any]:
         """Validate current configuration and return issues."""

@@ -23,7 +23,7 @@ def log_execution(func: CallbackType) -> CallbackType:
     @wraps(func)
     def wrapper(self: "HandlerManager", **kwargs: Any) -> Any:
         logger.debug(
-            f"Executing callback {self.callback.__name__} with arguments: {kwargs}"
+            "bot.models.handlers_model.exec.callback.debug"
         )
         return func(self, **kwargs)
 
@@ -46,7 +46,7 @@ class HandlerManager:
     def __post_init__(self) -> None:
         """Validate the callback after instance creation."""
         if not callable(self.callback):
-            logger.error(f"Invalid callback provided: {self.callback}")
+            logger.error("bot.models.handlers_model.invalid.callback.fail")
             raise ValueError("The 'callback' parameter must be callable")
 
     @log_execution

@@ -83,8 +83,8 @@ class PluginManager:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialize()
-            except Exception as e:
-                logger.error(f"Failed to create PluginManager instance: {e}")
+            except Exception:
+                logger.error("bot.plugins.plugin_manager.create.plugin.fail")
         return cls._instance
 
     def _initialize(self):
@@ -147,8 +147,8 @@ class PluginManager:
         module_path = f"{self._plugin_base_for_import}.{plugin_name}.plugin"
         try:
             return importlib.import_module(module_path)
-        except ImportError as e:
-            logger.error(f"ImportError: {e} - Module path: {module_path}")
+        except ImportError:
+            logger.error("bot.plugins.plugin_manager.import.fail")
             raise
 
     def _import_module_config(self, plugin_name: str):
@@ -161,8 +161,8 @@ class PluginManager:
         module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
         try:
             return importlib.import_module(module_path)
-        except ImportError as e:
-            logger.error(f"Failed to import plugin config '{plugin_name}': {e}")
+        except ImportError:
+            logger.error("bot.plugins.plugin_manager.import.plugin.fail")
             raise
 
     @staticmethod
@@ -185,7 +185,7 @@ class PluginManager:
         permissions = getattr(module, "PLUGIN_PERMISSIONS", None)
 
         if not isinstance(permissions, PluginsPermissionsModel):
-            logger.error(f"Invalid permissions model in plugin '{module.__name__}'")
+            logger.error("bot.plugins.plugin_manager.invalid.permissions.fail")
             raise ValueError(
                 f"Invalid permissions model for plugin '{module.__name__}'"
             )
@@ -219,7 +219,7 @@ class PluginManager:
 
             if permissions.need_running_on_host_machine and is_running_in_docker():
                 logger.warning(
-                    f"Plugin '{name}' requires host environment. Skipping registration in Docker container."
+                    "bot.plugins.plugin_manager.plugin.requires.warn"
                 )
                 return None
 
@@ -231,8 +231,8 @@ class PluginManager:
                 index_key=index_key,
                 resource_limits=resource_limits,
             )
-        except AttributeError as e:
-            logger.error(f"Plugin config error: missing required attributes - {e}")
+        except AttributeError:
+            logger.error("bot.plugins.plugin_manager.plugin.config.fail")
             return None
 
     @classmethod
@@ -247,8 +247,8 @@ class PluginManager:
             cls._plugin_names[plugin_info.name] = plugin_info.version
             cls._plugin_descriptions[plugin_info.name] = plugin_info.description
             return True
-        except Exception as e:
-            logger.error(f"Failed to add plugin info: {e}")
+        except Exception:
+            logger.error("bot.plugins.plugin_manager.add.plugin.fail")
             return False
 
     @classmethod
@@ -289,25 +289,25 @@ class PluginManager:
             if instance and hasattr(instance, "cleanup"):
                 try:
                     instance.cleanup()
-                except Exception as e:
-                    logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
+                except Exception:
+                    logger.error("bot.plugins.plugin_manager.cleaning.plugin.fail")
 
             try:
                 self._plugin_instances.pop(plugin_name, None)
                 self._loaded_plugins.discard(plugin_name)
-            except Exception as e:
-                logger.error(f"Error cleaning up plugin '{plugin_name}': {e}")
+            except Exception:
+                logger.error("bot.plugins.plugin_manager.cleaning.plugin.fail")
 
     def _register_plugin(self, plugin_name: str, bot: TeleBot | None = None):
         """Registers a single plugin with enhanced security and resource management."""
-        logger.debug(f"Attempting to register plugin: '{plugin_name}'")
+        logger.debug("bot.plugins.plugin_manager.attempting.register.debug")
 
         if not self._validate_plugin_name(plugin_name):
-            logger.error(f"Invalid plugin name: '{plugin_name}'. Skipping.")
+            logger.error("bot.plugins.plugin_manager.invalid.plugin.fail")
             return
 
         if not self._module_exists(plugin_name):
-            logger.error(f"Plugin '{plugin_name}' not found. Skipping.")
+            logger.error("bot.plugins.plugin_manager.plugin.not.fail")
             return
 
         try:
@@ -317,14 +317,14 @@ class PluginManager:
 
             plugin_info = self._extract_plugin_info(config)
             if not plugin_info:
-                logger.error(f"Invalid plugin configuration for '{plugin_name}'.")
+                logger.error("bot.plugins.plugin_manager.invalid.plugin.fail")
                 return
 
             permissions = self._extract_plugin_permissions(config)
             plugin_classes = self._find_plugin_classes(module)
 
             if not plugin_classes:
-                logger.error(f"No valid plugin class found in '{plugin_name}'.")
+                logger.error("bot.plugins.plugin_manager.no.valid.fail")
                 return
 
             # Create plugin instance
@@ -343,22 +343,22 @@ class PluginManager:
                     plugin_instance.register()
                     self._loaded_plugins.add(plugin_name)
                     logger.info(
-                        f"Plugin '{plugin_info.name}' (v{plugin_info.version}) registered successfully."
+                        "bot.plugins.plugin_manager.plugin.register.ok"
                     )
                 else:
                     logger.warning(
-                        f"Plugin '{plugin_info.name}' does not have permission to execute commands. Skipping registration."
+                        "bot.plugins.plugin_manager.plugin.does.warn"
                     )
 
-            except Exception as error:
+            except Exception:
                 logger.exception(
-                    f"Unexpected error registering plugin '{plugin_name}': {error}"
+                    "bot.plugins.plugin_manager.unexpected.fail"
                 )
                 self._cleanup_plugin(plugin_name)
 
-        except Exception as error:
+        except Exception:
             logger.exception(
-                f"Unexpected error registering plugin '{plugin_name}': {error}"
+                "bot.plugins.plugin_manager.unexpected.fail"
             )
             self._cleanup_plugin(plugin_name)
 
@@ -385,8 +385,8 @@ class PluginManager:
             for plugin_name in list(self._loaded_plugins):
                 self._cleanup_plugin(plugin_name)
             self._loaded_plugins.clear()
-        except Exception as e:
-            logger.error(f"Error cleaning up plugins: {e}")
+        except Exception:
+            logger.error("bot.plugins.plugin_manager.cleaning.fail")
 
     def __del__(self):
         """Ensure cleanup when the manager is destroyed."""

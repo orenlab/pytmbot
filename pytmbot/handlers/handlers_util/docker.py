@@ -269,8 +269,8 @@ def parse_container_basic_info(
             "started_at": started_at,
             "uptime": uptime,
         }
-    except Exception as e:
-        logger.error(f"Error parsing container basic info: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
         return {}
 
 
@@ -320,8 +320,8 @@ def parse_container_resources(
                 "MaximumRetryCount", 0
             ),
         }
-    except Exception as e:
-        logger.error(f"Error parsing container resources: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
         return {}
 
 
@@ -368,8 +368,8 @@ def parse_container_network_info(
             "networks": networks[:5],  # Limit display
             "published_ports": len(ports),
         }
-    except Exception as e:
-        logger.error(f"Error parsing container network info: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
         return {}
 
 
@@ -414,8 +414,8 @@ def parse_container_environment(
             "entrypoint": " ".join(entrypoint) if entrypoint else "N/A",
             "env_count": len(env_vars),
         }
-    except Exception as e:
-        logger.error(f"Error parsing container environment: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
         return {}
 
 
@@ -462,8 +462,8 @@ def get_comprehensive_container_details(
             try:
                 # Request a single-shot runtime sample (faster than default stats mode)
                 stats = get_container_stats_snapshot(container_details)
-            except Exception as e:
-                logger.warning(f"Couldn't get container runtime stats: {e}")
+            except Exception:
+                logger.warning("bot.handler.handlers_util.docker.could_not.get.warn")
                 stats = {}
 
         # Prefer runtime memory snapshot when available, fallback to static/fast providers.
@@ -475,8 +475,8 @@ def get_comprehensive_container_details(
                 memory_stats = normalize_memory_stats(
                     get_container_memory_stats(container_details)
                 )
-            except Exception as e:
-                logger.debug(f"Couldn't get fallback memory stats: {e}")
+            except Exception:
+                logger.debug("bot.handler.handlers_util.docker.could_not.get.debug")
 
         cpu_stats = parse_container_cpu_stats(stats) if stats else {}
         network_stats = parse_container_network_stats(stats) if stats else {}
@@ -496,9 +496,9 @@ def get_comprehensive_container_details(
 
         return comprehensive_details
 
-    except Exception as e:
+    except Exception:
         logger.error(
-            f"Error getting comprehensive container details for {container_name}: {e}"
+            "bot.handler.handlers_util.docker.getting.comprehensive.fail"
         )
         return None
 
@@ -567,8 +567,8 @@ def parse_container_memory_stats(
             "mem_limit": mem_limit,
             "mem_percent": mem_percent,
         }
-    except Exception as e:
-        logger.debug(f"Error parsing memory stats: {e}")
+    except Exception:
+        logger.debug("bot.handler.handlers_util.docker.parsing.memory.fail")
         return {}
 
 
@@ -612,8 +612,8 @@ def parse_container_cpu_stats(container_stats) -> dict[str, int | float]:
             "throttling_data": throttling_data.get("throttled_time", 0),
             "cpu_percent": round(cpu_percent, 2),
         }
-    except Exception as e:
-        logger.error(f"Error parsing CPU stats: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.cpu.fail")
         return {
             "periods": 0,
             "throttled_periods": 0,
@@ -651,8 +651,8 @@ def parse_container_network_stats(container_stats: dict) -> dict:
             "rx_errors": total_rx_errors,
             "tx_errors": total_tx_errors,
         }
-    except Exception as e:
-        logger.error(f"Error parsing network stats: {e}")
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.network.fail")
         return {
             "rx_bytes": "0 B",
             "tx_bytes": "0 B",

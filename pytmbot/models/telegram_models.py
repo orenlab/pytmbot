@@ -57,5 +57,5 @@ class TelegramIPValidator:
             return False
 
         except ValueError:
-            logger.error(f"Invalid IP address format: {ip_str}")
+            logger.error("bot.models.telegram_models.invalid.ip.fail")
             return False

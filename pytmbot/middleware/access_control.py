@@ -72,7 +72,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         }
 
         with self.log_context(**context) as logger:
-            logger.info("AccessControl middleware initialized")
+            logger.info("bot.access.control.middleware.init")
 
     def _is_setup_command(self, message: Message) -> bool:
         """Check if the message contains a setup command."""
@@ -100,7 +100,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**context) as logger:
-                logger.error("Message without user info")
+                logger.error("bot.access.without.user.fail")
             return CancelUpdate()
 
         user_id = user.id
@@ -121,7 +121,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**debug_context) as logger:
-                logger.debug("Incoming message received")
+                logger.debug("bot.access.incoming.received.debug")
 
         base_context = {
             "operation": "pre_process",
@@ -143,7 +143,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**context) as logger:
-                logger.warning("Access blocked - silent cancel")
+                logger.warning("bot.access.blocked.silent.deny")
             return CancelUpdate()
 
         # Authorized users get full access without attempt counting
@@ -155,7 +155,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**context) as logger:
-                logger.trace("Access granted to authorized user")
+                logger.trace("bot.access.granted.authorized.ok")
             return None
 
         # Unauthorized users: check attempts and handle accordingly
@@ -207,14 +207,14 @@ class AccessControl(BaseMiddleware, BaseComponent):
             )
 
             with self.log_context(**context) as logger:
-                logger.warning("User blocked after max attempts - silent cancel")
+                logger.warning("bot.access.user.blocked.deny")
 
             # Silent block - no response to user
             return CancelUpdate()
 
         # User still has attempts left
         with self.log_context(**context) as logger:
-            logger.warning("Unauthorized access attempt")
+            logger.warning("bot.access.unauthorized.attempt.deny")
 
         # Notify admin about the attempt
         self._notify_admin(
@@ -231,7 +231,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             )
 
             with self.log_context(**context) as logger:
-                logger.info("Setup command allowed within attempt limit")
+                logger.info("bot.access.command.allowed.init")
 
             return None
 
@@ -266,7 +266,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             }
 
             with self.log_context(**context) as logger:
-                logger.debug("Admin notification suppressed")
+                logger.debug("bot.access.admin.notification.debug")
             return
 
         self._last_admin_notify[user_id] = now
@@ -334,7 +334,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             context["message_length"] = len(msg)
 
             with self.log_context(**context) as logger:
-                logger.info("Admin notification sent")
+                logger.info("bot.access.admin.notification.info")
 
         except Exception as e:
             context.update(
@@ -346,7 +346,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             )
 
             with self.log_context(**context) as logger:
-                logger.error("Admin notification failed")
+                logger.error("bot.access.admin.notification.fail")
 
     def _periodic_cleanup(self) -> None:
         """Clean expired blocks and reset counters."""
@@ -355,7 +355,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             import logging
 
             logging.warning(
-                "AccessControl: _log not available in cleanup thread, skipping detailed logging"
+                "bot.access.control.log.warn"
             )
 
         context = {
@@ -366,12 +366,12 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         try:
             with self.log_context(**context) as logger:
-                logger.info("Periodic cleanup started")
+                logger.info("bot.access.periodic.cleanup.start")
         except AttributeError:
             # Fallback to basic logging if context logging fails
             import logging
 
-            logging.info("AccessControl: Periodic cleanup started")
+            logging.info("bot.access.control.periodic.start")
 
         while True:
             try:
@@ -402,21 +402,21 @@ class AccessControl(BaseMiddleware, BaseComponent):
                     cleanup_context["expired_user_ids"] = expired
                     try:
                         with self.log_context(**cleanup_context) as logger:
-                            logger.info("Expired blocks cleaned")
+                            logger.info("bot.access.expired.blocks.info")
                     except AttributeError:
                         import logging
 
                         logging.info(
-                            f"AccessControl: Expired blocks cleaned, count: {len(expired)}"
+                            "bot.access.control.expired.info"
                         )
                 else:
                     try:
                         with self.log_context(**cleanup_context) as logger:
-                            logger.debug("No expired blocks to clean")
+                            logger.debug("bot.access.no.expired.debug")
                     except AttributeError:
                         import logging
 
-                        logging.debug("AccessControl: No expired blocks to clean")
+                        logging.debug("bot.access.control.no.debug")
 
             except Exception as e:
                 error_context = {
@@ -428,11 +428,11 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
                 try:
                     with self.log_context(**error_context) as logger:
-                        logger.error("Cleanup failed")
+                        logger.error("bot.access.cleanup.fail")
                 except AttributeError:
                     import logging
 
-                    logging.error(f"AccessControl: Cleanup failed: {e}")
+                    logging.error("bot.access.control.cleanup.fail")
 
     @staticmethod
     @lru_cache(maxsize=8)
@@ -486,4 +486,4 @@ class AccessControl(BaseMiddleware, BaseComponent):
             )
 
         with self.log_context(**context) as logger:
-            logger.error("Message processing failed")
+            logger.error("bot.access.processing.fail")

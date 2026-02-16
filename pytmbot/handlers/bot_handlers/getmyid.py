@@ -32,12 +32,11 @@ def _deletion_callback(result: DeletionResult) -> None:
     """
     if result.status == DeletionStatus.SUCCESS:
         logger.debug(
-            f"Message {result.message_id} successfully deleted for user {result.user_id}"
+            "bot.handler.bot.getmyid.deleted.user.ok"
         )
     elif result.status == DeletionStatus.FAILED:
         logger.warning(
-            f"Failed to delete message {result.message_id} for user {result.user_id}: "
-            f"{result.error_message}"
+            "bot.handler.bot.getmyid.delete.user.fail"
         )
 
 
@@ -138,17 +137,16 @@ def handle_getmyid(
                 reply_to_message_id=sent_message.message_id,
             )
 
-            logger.warning(f"Auto-deletion limit exceeded for user {user_id}. ")
+            logger.warning("bot.handler.bot.getmyid.auto.deletion.warn")
 
         elif deletion_result.status == DeletionStatus.SCHEDULED:
             logger.info(
-                f"Auto-deletion scheduled for message {sent_message.message_id} "
-                f"(user {user_id}) in {auto_delete_delay} seconds. "
+                "bot.handler.bot.getmyid.auto.deletion.info"
             )
 
         else:
             # Fallback for any other unexpected status
-            logger.error(f"Unexpected deletion result status: {deletion_result.status}")
+            logger.error("bot.handler.bot.getmyid.unexpected.deletion.fail")
 
         return sent_message
 
@@ -171,5 +169,5 @@ def handle_getmyid(
             },
         )
 
-        logger.error(f"Handler error: {error_context}")
+        logger.error("bot.handler.bot.getmyid.fail")
         raise exceptions.HandlingException(error_context)

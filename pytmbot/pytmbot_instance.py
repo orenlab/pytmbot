@@ -176,14 +176,14 @@ class PyTMBot(BaseComponent):
         with self.log_context(
             session_id=self._session.session_id,
             version=__version__,
-            mode=self.args.mode,
+            mode=self._normalize_mode_value(self.args.mode),
             webhook_mode=self.args.webhook == "True",
             plugins_enabled=bool(
                 self.args.plugins and any(p.strip() for p in self.args.plugins)
             ),
             environment=get_environment_state(),
         ) as log:
-            log.info("PyTMBot initialization started")
+            log.info("bot.core.init.start")
 
         self.bot: TeleBot | None = None
         self.plugin_manager = PluginManager()
@@ -199,6 +199,11 @@ class PyTMBot(BaseComponent):
         """Current session information."""
         return self._session
 
+    @staticmethod
+    def _normalize_mode_value(mode: Any) -> str:
+        """Normalize enum-like mode values for compact log output."""
+        return str(getattr(mode, "value", mode))
+
     def _change_state(self, new_state: BotState, reason: str = "") -> None:
         """Change bot state with logging."""
         if self._state == new_state:
@@ -213,7 +218,7 @@ class PyTMBot(BaseComponent):
             new_state=new_state.value,
             reason=reason,
         ) as log:
-            log.debug(f"State transition: {old_state.value} -> {new_state.value}")
+            log.debug("bot.core.state.transition.debug")
 
     @staticmethod
     def _is_bot_conflict_error(error: Exception) -> bool:
@@ -253,7 +258,7 @@ class PyTMBot(BaseComponent):
             session_id=self._session.session_id if self._session else "unknown",
             strategy=strategy.value,
         ) as log:
-            log.warning(f"Bot conflict detected, applying {strategy.value} strategy")
+            log.warning("bot.core.conflict.detected.warn")
 
         match strategy:
             case ConflictResolutionStrategy.GRACEFUL_SHUTDOWN:
@@ -273,7 +278,7 @@ class PyTMBot(BaseComponent):
             error_type=error_type,
             error_message=str(error),
         ) as log:
-            log.error(f"Critical API error detected: {error_type}")
+            log.error("bot.core.critical.fail")
 
         match error_type:
             case "unauthorized" | "forbidden" | "not_found":
@@ -283,7 +288,7 @@ class PyTMBot(BaseComponent):
             case "rate_limited":
                 retry_after = getattr(error, "retry_after", 60)
                 with self.log_context(retry_after=retry_after) as log:
-                    log.warning(f"Rate limited - waiting {retry_after} seconds")
+                    log.warning("bot.core.rate.limited.warn")
                 time.sleep(min(retry_after, 300))
                 return True
             case "bad_gateway" | "service_unavailable":
@@ -300,7 +305,7 @@ class PyTMBot(BaseComponent):
             return True
         except Exception as e:
             with self.log_context(error=sanitize_exception(e)) as log:
-                log.error("Graceful conflict resolution failed")
+                log.error("bot.core.graceful.conflict.fail")
             return False
 
     def _force_takeover(self) -> bool:
@@ -312,13 +317,13 @@ class PyTMBot(BaseComponent):
             return True
         except Exception as e:
             with self.log_context(error=sanitize_exception(e)) as log:
-                log.error("Force takeover failed")
+                log.error("bot.core.force.takeover.fail")
             return False
 
     def _abort_on_conflict(self) -> bool:
         """Abort operation on conflict."""
         with self.log_context() as log:
-            log.error("Aborting due to bot conflict")
+            log.error("bot.core.aborting.due.fail")
         return False
 
     @contextmanager
@@ -349,7 +354,7 @@ class PyTMBot(BaseComponent):
                 return True
 
             with self.log_context(timeout=timeout) as log:
-                log.debug("Stopping polling with timeout")
+                log.debug("bot.core.polling.timeout.stop")
 
             import concurrent.futures
 
@@ -359,7 +364,7 @@ class PyTMBot(BaseComponent):
                     return True
                 except Exception as e:
                     with self.log_context(error=sanitize_exception(e)) as log:
-                        log.warning("Error during polling stop")
+                        log.warning("bot.core.polling.stop.fail")
                     return False
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -369,13 +374,13 @@ class PyTMBot(BaseComponent):
                     return result
                 except concurrent.futures.TimeoutError:
                     with self.log_context() as log:
-                        log.warning("Polling stop timeout occurred")
+                        log.warning("bot.core.polling.stop.warn")
                     self._shutdown_timeout_occurred = True
                     return False
 
         except Exception as e:
             with self.log_context(error=sanitize_exception(e)) as log:
-                log.error("Failed to stop polling safely")
+                log.error("bot.core.stop.polling.fail")
             return False
 
     def is_healthy(self) -> bool:
@@ -413,7 +418,7 @@ class PyTMBot(BaseComponent):
         with self.log_context(
             session_id=self._session.session_id if self._session else "unknown"
         ) as log:
-            log.warning("Attempting bot recovery")
+            log.warning("bot.core.attempting.recovery.warn")
 
         try:
             # Test basic API connection
@@ -442,7 +447,7 @@ class PyTMBot(BaseComponent):
                 with self.log_context(
                     session_id=self._session.session_id if self._session else "unknown"
                 ) as log:
-                    log.info("Bot recovery successful")
+                    log.info("bot.core.recovery.ok")
                 return True
             else:
                 self._change_state(BotState.ERROR, "Recovery verification failed")
@@ -454,7 +459,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(err),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Bot recovery failed")
+                log.error("bot.core.recovery.fail")
             return False
 
     def retrieve_bot_token(self) -> str:
@@ -510,7 +515,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(e),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Failed to create bot instance")
+                log.error("bot.core.create.instance.fail")
             raise
 
     @bot_required
@@ -530,7 +535,7 @@ class PyTMBot(BaseComponent):
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.debug(
-                        "Bot commands configured",
+                        "bot.core.commands.config.debug",
                         commands=[cmd.command for cmd in commands],
                     )
 
@@ -539,7 +544,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(error),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.warning("Failed to set bot commands or description")
+                log.warning("bot.core.set.commands.fail")
 
     @bot_required
     def _setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
@@ -578,7 +583,7 @@ class PyTMBot(BaseComponent):
                     error=sanitize_exception(error),
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
-                    log.error("Middleware setup failed")
+                    log.error("bot.core.middleware.init.fail")
                 raise
 
         # Single comprehensive log for all middleware
@@ -588,7 +593,7 @@ class PyTMBot(BaseComponent):
             details=middleware_details if self.args.mode == "dev" else None,
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            log.info("Middleware chain configured")
+            log.info("bot.core.middleware.chain.info")
 
     def get_middleware_stats(self, middleware_name: str) -> dict[str, Any] | None:
         """Get statistics from specific middleware."""
@@ -610,7 +615,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(error),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Failed to get middleware statistics")
+                log.error("bot.core.get.middleware.fail")
             return None
 
     def get_rate_limit_stats(self) -> dict[str, Any] | None:
@@ -645,7 +650,7 @@ class PyTMBot(BaseComponent):
                 count=handler_count,
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.debug(f"Registered {handler_count} {handler_type} handlers")
+                log.debug("bot.core.register.debug")
 
         except Exception as err:
             with self.log_context(
@@ -653,7 +658,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(err),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Handler group registration failed")
+                log.error("bot.core.group.registration.fail")
             raise
 
     @bot_required
@@ -695,7 +700,7 @@ class PyTMBot(BaseComponent):
                     error=sanitize_exception(e),
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
-                    log.error(f"{handler_type.title()} handler registration failed")
+                    log.error("bot.core.registration.fail")
                 raise
 
         # Single comprehensive log for all handlers
@@ -704,7 +709,7 @@ class PyTMBot(BaseComponent):
             breakdown=handler_summary,
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            log.info(f"Handlers registered: {', '.join(handler_summary)}")
+            log.info("bot.core.register.info")
 
     @bot_required
     def _load_plugins(self) -> None:
@@ -724,14 +729,14 @@ class PyTMBot(BaseComponent):
                 plugins=actual_plugins,
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.info(f"Loaded {len(actual_plugins)} plugins")
+                log.info("bot.core.load.plugins.info")
         except Exception as err:
             with self.log_context(
                 plugins=actual_plugins,
                 error=sanitize_exception(err),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Plugin loading failed")
+                log.error("bot.core.plugin.load.fail")
             raise
 
     @bot_required
@@ -749,7 +754,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(e),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Bot configuration failed")
+                log.error("bot.core.config.fail")
             raise
 
     def initialize_bot_core(self) -> TeleBot:
@@ -766,11 +771,11 @@ class PyTMBot(BaseComponent):
             # Single comprehensive success log
             with self.log_context(
                 version=__version__,
-                mode=self.args.mode,
+                mode=self._normalize_mode_value(self.args.mode),
                 webhook_enabled=self.args.webhook == "True",
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.info("Bot core initialization completed")
+                log.info("bot.core.init.ok")
 
             return self.bot
         except Exception as e:
@@ -779,7 +784,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(e),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Bot core initialization failed")
+                log.error("bot.core.init.fail")
             raise
 
     @bot_required
@@ -800,7 +805,7 @@ class PyTMBot(BaseComponent):
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.info(
-                    f"Starting webhook server on {config['host']}:{config['port']}"
+                    "bot.core.webhook.server.start"
                 )
 
             server = WebhookServer(self.bot, **config)
@@ -811,14 +816,14 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(err),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Webhook server failed - FastAPI not available")
+                log.error("bot.core.webhook.server.fail")
             raise
         except Exception as err:
             with self.log_context(
                 error=sanitize_exception(err),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Webhook server failed to start")
+                log.error("bot.core.webhook.server.fail")
             raise
 
     def _handle_polling_error(
@@ -832,7 +837,7 @@ class PyTMBot(BaseComponent):
                 consecutive_errors=consecutive_errors,
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.critical("Critical error - terminating bot")
+                log.critical("bot.core.critical.fail")
             raise
 
         # Handle critical API errors first
@@ -853,7 +858,7 @@ class PyTMBot(BaseComponent):
                     retry_delay=current_sleep_time,
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
-                    log.warning(f"Connection error - retrying in {current_sleep_time}s")
+                    log.warning("bot.core.connection.fail")
             elif consecutive_errors % 5 == 0:  # Log every 5th consecutive error
                 with self.log_context(
                     error_type=type(error).__name__,
@@ -862,7 +867,7 @@ class PyTMBot(BaseComponent):
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
                     log.error(
-                        f"Persistent connection issues ({consecutive_errors} errors)"
+                        "bot.core.persistent.connection.fail"
                     )
 
             time.sleep(current_sleep_time)
@@ -875,7 +880,7 @@ class PyTMBot(BaseComponent):
             consecutive_errors=consecutive_errors,
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            log.critical("Unexpected polling error - terminating bot")
+            log.critical("bot.core.unexpected.polling.fail")
         raise
 
     def _start_polling_loop(self, bot_instance: TeleBot) -> None:
@@ -888,7 +893,7 @@ class PyTMBot(BaseComponent):
             long_polling_timeout=var_config.bot_long_polling_timeout,
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            log.info("Starting polling loop")
+            log.info("bot.core.polling.loop.start")
 
         with self._polling_safety_context():
             while True:
@@ -907,7 +912,7 @@ class PyTMBot(BaseComponent):
                             if self._session
                             else "unknown",
                         ) as log:
-                            log.info("Polling connection restored")
+                            log.info("bot.core.polling.connection.ok")
 
                     current_sleep_time = DEFAULT_BASE_SLEEP_TIME
                     consecutive_errors = 0
@@ -924,7 +929,7 @@ class PyTMBot(BaseComponent):
                             if self._session
                             else "unknown",
                         ) as log:
-                            log.warning("Failed to stop polling before retry")
+                            log.warning("bot.core.stop.polling.fail")
 
                     consecutive_errors, current_sleep_time = self._handle_polling_error(
                         error, consecutive_errors, current_sleep_time
@@ -938,11 +943,10 @@ class PyTMBot(BaseComponent):
 
         with self.log_context(
             webhook_enabled=webhook_enabled,
-            mode=self.args.mode,
+            mode=self._normalize_mode_value(self.args.mode),
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            launch_method = "webhook" if webhook_enabled else "polling"
-            log.info(f"Launching bot with {launch_method} mode")
+            log.info("bot.core.start")
 
         try:
             self.bot.remove_webhook()
@@ -956,7 +960,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(error),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Bot launch failed")
+                log.error("bot.core.start.fail")
             raise
 
     def graceful_shutdown(self, timeout: int = POLLING_STOP_TIMEOUT) -> bool:
@@ -967,7 +971,7 @@ class PyTMBot(BaseComponent):
             timeout=timeout,
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
-            log.info("Starting graceful shutdown")
+            log.info("bot.core.graceful.stop.start")
 
         shutdown_success = True
 
@@ -984,7 +988,7 @@ class PyTMBot(BaseComponent):
                             if self._session
                             else "unknown",
                         ) as log:
-                            log.warning("Failed to remove webhook during shutdown")
+                            log.warning("bot.core.remove.webhook.fail")
 
                 # Stop polling if active
                 if not self._safe_stop_polling(timeout):
@@ -1003,7 +1007,7 @@ class PyTMBot(BaseComponent):
                             if self._session
                             else "unknown",
                         ) as log:
-                            log.warning("Middleware cleanup failed")
+                            log.warning("bot.core.middleware.cleanup.fail")
 
         except Exception as e:
             shutdown_success = False
@@ -1011,7 +1015,7 @@ class PyTMBot(BaseComponent):
                 error=sanitize_exception(e),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.error("Graceful shutdown encountered errors")
+                log.error("bot.core.graceful.stop.fail")
 
         finally:
             self._change_state(BotState.SHUTDOWN, "Shutdown completed")
