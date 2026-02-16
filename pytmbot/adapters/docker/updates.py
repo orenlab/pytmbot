@@ -6,14 +6,12 @@ also providing basic information about the status of local servers.
 """
 
 import asyncio
-import hashlib
 import json
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum, auto
-from functools import lru_cache
 from threading import RLock
 from typing import Any, Final
 
@@ -1058,21 +1056,24 @@ class DockerImageUpdater(BaseComponent):
                 repositories_failed=repositories_failed,
             )
 
-    def to_json(self) -> str:
-        """Enhanced JSON output with comprehensive information."""
-        with self._log.context(action="to_json"):
+    def to_dict(self) -> dict[str, Any]:
+        """Run update check and return dictionary response."""
+        with self._log.context(action="to_dict"):
             try:
                 result = asyncio.run(self._check_updates())
-                return json.dumps(result.to_dict(), indent=4, ensure_ascii=False)
+                return result.to_dict()
             except Exception as e:
                 error_response = UpdaterResponse(
                     status=UpdaterStatus.ERROR,
-                    message=f"Failed to generate JSON: {sanitize_exception(e)}",
+                    message=f"Failed to generate response: {sanitize_exception(e)}",
                     execution_time=0.0,
                 )
-                return json.dumps(
-                    error_response.to_dict(), indent=4, ensure_ascii=False
-                )
+                return error_response.to_dict()
+
+    def to_json(self) -> str:
+        """Return JSON representation of update check response."""
+        with self._log.context(action="to_json"):
+            return json.dumps(self.to_dict(), indent=4, ensure_ascii=False)
 
     def get_stats(self) -> dict:
         """Get comprehensive statistics about the updater."""
@@ -1142,30 +1143,6 @@ class DockerImageUpdater(BaseComponent):
                 "Clear cache periodically to avoid memory growth",
             ],
         }
-
-    @lru_cache(maxsize=128)
-    def _generate_cache_key(self, repo: str, tag: str) -> str:
-        """Generate consistent cache key for tag information."""
-        return hashlib.md5(f"{repo}:{tag}".encode()).hexdigest()
-
-    async def check_single_repository(self, repository: str) -> UpdaterResponse:
-        """Check updates for a single repository (useful for testing)."""
-        if repository not in self.local_images:
-            return UpdaterResponse(
-                status=UpdaterStatus.VALIDATION_ERROR,
-                message=f"Repository {repository} not found in local images",
-            )
-
-        # Temporarily modify local_images for single repo check
-        original_images = self.local_images.copy()
-        self.local_images = {repository: self.local_images[repository]}
-
-        try:
-            result = await self._check_updates()
-            return result
-        finally:
-            # Restore original images
-            self.local_images = original_images
 
     def __del__(self):
         """Cleanup on garbage collection."""

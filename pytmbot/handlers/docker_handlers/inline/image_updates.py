@@ -5,8 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import json
-
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
@@ -33,8 +31,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     updater = DockerImageUpdater()
     updater.initialize()
 
-    response_json = updater.to_json()
-    response = json.loads(response_json)
+    response = updater.to_dict()
 
     # Handle rate limit
     if response["status"] == UpdaterStatus.RATE_LIMITED.name:

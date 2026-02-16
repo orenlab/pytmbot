@@ -9,17 +9,17 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
-from pytmbot.adapters.docker.utils import check_container_state
-from pytmbot.globals import keyboards, session_manager
-from pytmbot.handlers.handlers_util.docker import show_handler_info
+from pytmbot.globals import keyboards
+from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
+    show_handler_info,
+)
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
-from pytmbot.models.docker_models import ContainersState
 from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 container_manager = ContainerManager()
-containers_state = ContainersState()
 
 
 def managing_action_fabric(call: CallbackQuery) -> bool:
@@ -58,19 +58,27 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
     container_name = split_string_into_octets(call.data)
     called_user_id = split_string_into_octets(call.data, octet_index=2)
 
-    if int(call.from_user.id) != int(called_user_id):
-        logger.warning(f"User {call.from_user.id}: Denied '__manage__' function")
-        return show_handler_info(
-            call=call, text=f"Managing {container_name}: Access denied", bot=bot
-        )
-
-    if not session_manager.is_authenticated(call.from_user.id):
+    if call.from_user is None:
         logger.warning(
-            f"User {call.from_user.id}: Not authenticated. Denied '__manage__' function"
+            "Missing user data in manage action callback", callback_data=call.data
         )
         return show_handler_info(
             call=call,
-            text=f"Managing {container_name}: Not authenticated user",
+            text=f"Managing {container_name}: Missing user information",
+            bot=bot,
+        )
+
+    is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
+    if not is_allowed:
+        logger.warning(
+            "Denied '__manage__' action",
+            user_id=call.from_user.id,
+            container_name=container_name,
+            reason=deny_reason,
+        )
+        return show_handler_info(
+            call=call,
+            text=f"Managing {container_name}: {deny_reason}",
             bot=bot,
         )
 
@@ -190,14 +198,13 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
         None
     """
     try:
-        container_manager.managing_container(
+        result = container_manager.managing_container(
             call.from_user.id, container_name, action="restart"
         )
-        container_state = check_container_state(container_name)
 
-        if container_state == containers_state.running:
+        if result is None:
             logger.info(
-                f"Restarting {container_name} for user {call.from_user.id}: Success. State: {container_state}"
+                f"Restarting {container_name} for user {call.from_user.id}: Success"
             )
             keyboards_key = keyboards.ButtonData(
                 text=f"Back to {container_name}",
@@ -208,18 +215,18 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             return bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                text=f"Restarting {container_name}: Success. State: {container_state}",
+                text=f"Restarting {container_name}: Success. State: running",
                 reply_markup=keyboard,
             )
-        else:
-            logger.error(
-                f"Error occurred while restarting {container_name}: State: {container_state}"
-            )
-            return show_handler_info(
-                call=call,
-                text=f"Restarting {container_name}: Error occurred. See logs",
-                bot=bot,
-            )
+
+        logger.error(
+            f"Error occurred while restarting {container_name}: Unexpected response"
+        )
+        return show_handler_info(
+            call=call,
+            text=f"Restarting {container_name}: Error occurred. See logs",
+            bot=bot,
+        )
 
     except Exception as e:
         logger.error(f"Error occurred while restarting {container_name}: {e}")

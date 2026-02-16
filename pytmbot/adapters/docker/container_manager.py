@@ -12,6 +12,7 @@ from functools import wraps
 from threading import RLock
 from typing import Any, Final
 
+from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import (
     build_container_context,
     get_container_basic_info,
@@ -174,11 +175,10 @@ class ContainerManager:
 
     @staticmethod
     def _validate_container_state_for_operation(
-        container_id: ContainerId, operation: str
+        container: Any, operation: str
     ) -> None:
         """Validate that container is in appropriate state for the operation."""
         try:
-            container = get_container_safely(container_id)
             current_status = container.status.lower()
 
             # Define valid states for each operation
@@ -204,7 +204,7 @@ class ContainerManager:
         except Exception as e:
             logger.warning(
                 f"Container state validation failed for {operation}",
-                container_id=container_id,
+                container_id=getattr(container, "id", "unknown"),
                 error=sanitize_exception(e),
             )
             # Don't raise - let the actual operation handle the error
@@ -223,29 +223,35 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            # Pre-operation validation
-            self._validate_container_state_for_operation(container_id, "start")
-
-            container = get_container_safely(container_id)
-
-            # Record operation
-            self._record_operation("start", container_id)
-
-            logger.info("Starting container", **context)
-
-            result = container.start()
-
-            execution_time = time.time() - start_time
-
-            # Verify the operation succeeded
-            container.reload()  # Refresh container state
-            if container.status.lower() not in ["running", "restarting"]:
-                logger.warning(
-                    "Container start may have failed",
-                    expected_status="running",
-                    actual_status=container.status,
-                    **context,
+            with DockerAdapter() as adapter:
+                container = get_container_safely(
+                    container_id, docker_client=adapter
                 )
+
+                # Pre-operation validation
+                self._validate_container_state_for_operation(container, "start")
+
+                # Record operation
+                self._record_operation("start", container_id)
+
+                logger.info("Starting container", **context)
+
+                result = container.start()
+
+                # Verify the operation succeeded
+                container.reload()  # Refresh container state
+                if container.status.lower() not in ["running", "restarting"]:
+                    logger.error(
+                        "Container start verification failed",
+                        expected_status="running",
+                        actual_status=container.status,
+                        **context,
+                    )
+                    raise RuntimeError(
+                        f"Start operation failed, current status: {container.status}"
+                    )
+
+                execution_time = time.time() - start_time
 
             logger.info(
                 "Container started successfully",
@@ -279,31 +285,37 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            # Pre-operation validation
-            self._validate_container_state_for_operation(container_id, "stop")
-
-            container = get_container_safely(container_id)
-
-            # Record operation
-            self._record_operation("stop", container_id)
-
-            logger.info("Stopping container", **context)
-
-            # Stop with timeout to prevent hanging
-            timeout = getattr(settings.docker, "stop_timeout", 10)
-            result = container.stop(timeout=timeout)
-
-            execution_time = time.time() - start_time
-
-            # Verify the operation succeeded
-            container.reload()
-            if container.status.lower() not in ["exited", "stopped"]:
-                logger.warning(
-                    "Container stop may have failed",
-                    expected_status="exited/stopped",
-                    actual_status=container.status,
-                    **context,
+            with DockerAdapter() as adapter:
+                container = get_container_safely(
+                    container_id, docker_client=adapter
                 )
+
+                # Pre-operation validation
+                self._validate_container_state_for_operation(container, "stop")
+
+                # Record operation
+                self._record_operation("stop", container_id)
+
+                logger.info("Stopping container", **context)
+
+                # Stop with timeout to prevent hanging
+                timeout = getattr(settings.docker, "stop_timeout", 10)
+                result = container.stop(timeout=timeout)
+
+                # Verify the operation succeeded
+                container.reload()
+                if container.status.lower() not in ["exited", "stopped"]:
+                    logger.error(
+                        "Container stop verification failed",
+                        expected_status="exited/stopped",
+                        actual_status=container.status,
+                        **context,
+                    )
+                    raise RuntimeError(
+                        f"Stop operation failed, current status: {container.status}"
+                    )
+
+                execution_time = time.time() - start_time
 
             logger.info(
                 "Container stopped successfully",
@@ -337,31 +349,37 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            # Pre-operation validation
-            self._validate_container_state_for_operation(container_id, "restart")
-
-            container = get_container_safely(container_id)
-
-            # Record operation
-            self._record_operation("restart", container_id)
-
-            logger.info("Restarting container", **context)
-
-            # Restart with timeout
-            timeout = getattr(settings.docker, "restart_timeout", 10)
-            result = container.restart(timeout=timeout)
-
-            execution_time = time.time() - start_time
-
-            # Verify the operation succeeded
-            container.reload()
-            if container.status.lower() not in ["running", "restarting"]:
-                logger.warning(
-                    "Container restart may have failed",
-                    expected_status="running",
-                    actual_status=container.status,
-                    **context,
+            with DockerAdapter() as adapter:
+                container = get_container_safely(
+                    container_id, docker_client=adapter
                 )
+
+                # Pre-operation validation
+                self._validate_container_state_for_operation(container, "restart")
+
+                # Record operation
+                self._record_operation("restart", container_id)
+
+                logger.info("Restarting container", **context)
+
+                # Restart with timeout
+                timeout = getattr(settings.docker, "restart_timeout", 10)
+                result = container.restart(timeout=timeout)
+
+                # Verify the operation succeeded
+                container.reload()
+                if container.status.lower() not in ["running", "restarting"]:
+                    logger.error(
+                        "Container restart verification failed",
+                        expected_status="running",
+                        actual_status=container.status,
+                        **context,
+                    )
+                    raise RuntimeError(
+                        f"Restart operation failed, current status: {container.status}"
+                    )
+
+                execution_time = time.time() - start_time
 
             logger.info(
                 "Container restarted successfully",
@@ -417,35 +435,38 @@ class ContainerManager:
                 )
                 raise ValueError(f"Invalid container name format: {new_container_name}")
 
-            container = get_container_safely(container_id)
-            old_name = container.name
-
-            # Check if name is actually different
-            if old_name == new_container_name:
-                logger.info("Container name unchanged, skipping rename", **context)
-                return None  # No operation needed
-
-            # Record operation
-            self._record_operation("rename", container_id)
-
-            logger.info("Renaming container", old_name=old_name, **context)
-
-            result = container.rename(new_container_name)
-
-            execution_time = time.time() - start_time
-
-            # Verify the rename succeeded
-            container.reload()
-            if container.name != new_container_name:
-                logger.error(
-                    "Container rename verification failed",
-                    expected_name=new_container_name,
-                    actual_name=container.name,
-                    **context,
+            with DockerAdapter() as adapter:
+                container = get_container_safely(
+                    container_id, docker_client=adapter
                 )
-                raise RuntimeError(
-                    f"Rename operation failed: name is still '{container.name}'"
-                )
+                old_name = container.name
+
+                # Check if name is actually different
+                if old_name == new_container_name:
+                    logger.info("Container name unchanged, skipping rename", **context)
+                    return None  # No operation needed
+
+                # Record operation
+                self._record_operation("rename", container_id)
+
+                logger.info("Renaming container", old_name=old_name, **context)
+
+                result = container.rename(new_container_name)
+
+                execution_time = time.time() - start_time
+
+                # Verify the rename succeeded
+                container.reload()
+                if container.name != new_container_name:
+                    logger.error(
+                        "Container rename verification failed",
+                        expected_name=new_container_name,
+                        actual_name=container.name,
+                        **context,
+                    )
+                    raise RuntimeError(
+                        f"Rename operation failed: name is still '{container.name}'"
+                    )
 
             logger.info(
                 "Container renamed successfully",
@@ -556,39 +577,42 @@ class ContainerManager:
         )
 
         try:
-            container = get_container_safely(container_id)
+            with DockerAdapter() as adapter:
+                container = get_container_safely(
+                    container_id, docker_client=adapter
+                )
 
-            # Get basic container info using utility
-            status = get_container_basic_info(container)
+                # Get basic container info using utility
+                status = get_container_basic_info(container)
 
-            # Add comprehensive status information
-            attrs = container.attrs
-            status.update(
-                {
-                    "created": attrs.get("Created", "unknown"),
-                    "started_at": attrs.get("State", {}).get("StartedAt", "unknown"),
-                    "finished_at": attrs.get("State", {}).get("FinishedAt", "unknown"),
-                    "exit_code": attrs.get("State", {}).get("ExitCode"),
-                    "error": attrs.get("State", {}).get("Error", ""),
-                    "pid": attrs.get("State", {}).get("Pid"),
-                    "restart_count": attrs.get("RestartCount", 0),
-                    "platform": attrs.get("Platform", "unknown"),
-                    "driver": attrs.get("Driver", "unknown"),
-                    "network_mode": attrs.get("HostConfig", {}).get(
-                        "NetworkMode", "unknown"
-                    ),
-                    "ports": attrs.get("NetworkSettings", {}).get("Ports", {}),
-                    "mounts": [
-                        {
-                            "source": mount.get("Source", ""),
-                            "destination": mount.get("Destination", ""),
-                            "mode": mount.get("Mode", ""),
-                            "type": mount.get("Type", ""),
-                        }
-                        for mount in attrs.get("Mounts", [])
-                    ],
-                }
-            )
+                # Add comprehensive status information
+                attrs = container.attrs
+                status.update(
+                    {
+                        "created": attrs.get("Created", "unknown"),
+                        "started_at": attrs.get("State", {}).get("StartedAt", "unknown"),
+                        "finished_at": attrs.get("State", {}).get("FinishedAt", "unknown"),
+                        "exit_code": attrs.get("State", {}).get("ExitCode"),
+                        "error": attrs.get("State", {}).get("Error", ""),
+                        "pid": attrs.get("State", {}).get("Pid"),
+                        "restart_count": attrs.get("RestartCount", 0),
+                        "platform": attrs.get("Platform", "unknown"),
+                        "driver": attrs.get("Driver", "unknown"),
+                        "network_mode": attrs.get("HostConfig", {}).get(
+                            "NetworkMode", "unknown"
+                        ),
+                        "ports": attrs.get("NetworkSettings", {}).get("Ports", {}),
+                        "mounts": [
+                            {
+                                "source": mount.get("Source", ""),
+                                "destination": mount.get("Destination", ""),
+                                "mode": mount.get("Mode", ""),
+                                "type": mount.get("Type", ""),
+                            }
+                            for mount in attrs.get("Mounts", [])
+                        ],
+                    }
+                )
 
             logger.debug(
                 "Container status retrieved",

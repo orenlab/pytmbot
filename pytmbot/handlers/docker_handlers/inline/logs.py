@@ -15,8 +15,12 @@ from typing import Final
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import button_data, em, keyboards, settings
-from pytmbot.handlers.handlers_util.docker import get_sanitized_logs, show_handler_info
+from pytmbot.globals import button_data, em, keyboards
+from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
+    get_sanitized_logs,
+    show_handler_info,
+)
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
@@ -181,13 +185,6 @@ def _parse_logs_callback_data(callback_data: str) -> ParsedLogsCallback:
         )
 
     raise ValueError("Unsupported logs callback format")
-
-
-def _is_logs_access_allowed(current_user_id: int, called_user_id: int) -> bool:
-    return (
-        current_user_id in settings.access_control.allowed_admins_ids
-        and current_user_id == called_user_id
-    )
 
 
 def _build_logs_chunks(logs: str, max_chunk_chars: int = MAX_LOGS_PAGE_CHARS) -> list[str]:
@@ -445,13 +442,18 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
         logger.warning(f"Invalid logs callback format: '{call.data}', error: {e}")
         return show_handler_info(call, text="Invalid logs request format", bot=bot)
 
-    if not _is_logs_access_allowed(call.from_user.id, parsed.user_id):
+    is_allowed, deny_reason = authorize_docker_callback_request(call, parsed.user_id)
+    if not is_allowed:
+        current_user_id = call.from_user.id if call.from_user else "unknown"
         logger.warning(
-            f"User {call.from_user.id}: Denied '__get_logs__' function",
+            f"User {current_user_id}: Denied '__get_logs__' function",
             requested_action=parsed.action,
             target_user_id=parsed.user_id,
+            reason=deny_reason,
         )
-        return show_handler_info(call=call, text="Getting logs: Access denied", bot=bot)
+        return show_handler_info(
+            call=call, text=f"Getting logs: {deny_reason}", bot=bot
+        )
 
     emojis: dict[str, str] = {"thought_balloon": em.get_emoji("thought_balloon")}
 

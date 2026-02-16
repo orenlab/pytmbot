@@ -372,6 +372,7 @@ def check_container_state(
     container_name: ContainerName,
     target_state: str = ContainerState.RUNNING,
     config: StateCheckConfig | None = None,
+    docker_client: Any | None = None,
 ) -> ContainerState | None:
     """
     Checks if container reaches target state within configured attempts.
@@ -402,7 +403,12 @@ def check_container_state(
         if target.value not in containers_state.__dict__.values():
             raise ValueError(f"Invalid target state: {target}")
 
-        return _execute_state_check_loop(container_name, target, config)
+        return _execute_state_check_loop(
+            container_name,
+            target,
+            config,
+            docker_client=docker_client,
+        )
 
     except ValueError:
         logger.error(
@@ -420,7 +426,10 @@ def check_container_state(
 
 
 def _execute_state_check_loop(
-    container_name: str, target: ContainerState, config: StateCheckConfig
+    container_name: str,
+    target: ContainerState,
+    config: StateCheckConfig,
+    docker_client: Any | None = None,
 ) -> ContainerState | None:
     """Execute the state checking loop with proper logging and timing."""
     operation_start = time.time()
@@ -437,7 +446,10 @@ def _execute_state_check_loop(
         )
 
         try:
-            current_state_str = get_container_state(container_name)
+            current_state_str = get_container_state(
+                container_name,
+                docker_client=docker_client,
+            )
             if current_state_str is None:
                 logger.error("Failed to get container state", **log_context)
                 return None
@@ -653,7 +665,9 @@ def _log_operation_failure(
 
 
 @with_operation_logging("get_container_state", slow_threshold=0.5)
-def get_container_state(container_id: str) -> str | None:
+def get_container_state(
+    container_id: str, docker_client: Any | None = None
+) -> str | None:
     """
     Retrieves the status of a Docker container with caching and enhanced error handling.
 
@@ -680,7 +694,7 @@ def get_container_state(container_id: str) -> str | None:
     )
 
     try:
-        container = get_container_safely(container_id)
+        container = get_container_safely(container_id, docker_client=docker_client)
         status = container.status
 
         # Cache the result
@@ -703,7 +717,9 @@ def get_container_state(container_id: str) -> str | None:
         return None
 
 
-def get_container_safely(container_id: str) -> Container:
+def get_container_safely(
+    container_id: str, docker_client: Any | None = None
+) -> Container:
     """
     Safely retrieves a container by ID with uniform error handling and validation.
 
@@ -726,22 +742,26 @@ def get_container_safely(container_id: str) -> Container:
         "action": "container_retrieval",
         "container_id": container_id,
         "container_id_length": len(container_id),
+        "client_source": "shared" if docker_client is not None else "new",
     }
     start_time = time.time()
 
     try:
-        with DockerAdapter() as adapter:
-            container = adapter.containers.get(container_id)
+        if docker_client is not None:
+            container = docker_client.containers.get(container_id)
+        else:
+            with DockerAdapter() as adapter:
+                container = adapter.containers.get(container_id)
 
-            execution_time = time.time() - start_time
-            logger.debug(
-                "Container retrieved successfully",
-                execution_time=f"{execution_time:.3f}s",
-                container_name=getattr(container, "name", "unknown"),
-                container_status=getattr(container, "status", "unknown"),
-                **context,
-            )
-            return container
+        execution_time = time.time() - start_time
+        logger.debug(
+            "Container retrieved successfully",
+            execution_time=f"{execution_time:.3f}s",
+            container_name=getattr(container, "name", "unknown"),
+            container_status=getattr(container, "status", "unknown"),
+            **context,
+        )
+        return container
 
     except NotFound:
         execution_time = time.time() - start_time

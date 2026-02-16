@@ -8,9 +8,13 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import get_container_state
-from pytmbot.globals import button_data, em, keyboards, session_manager
-from pytmbot.handlers.handlers_util.docker import show_handler_info
+from pytmbot.globals import button_data, em, keyboards
+from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
+    show_handler_info,
+)
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
@@ -40,31 +44,31 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     container_name = split_string_into_octets(call.data)
     called_user_id = split_string_into_octets(call.data, octet_index=2)
 
-    # Check if the user is an admin
-    if int(call.from_user.id) != int(called_user_id):
-        logger.warning(
-            f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function"
-        )
+    if call.from_user is None:
+        logger.warning("Missing user data in manage callback", callback_data=call.data)
         return show_handler_info(
-            call=call, text=f"Managing {container_name}: Access denied", bot=bot
+            call=call,
+            text=f"Managing {container_name}: Missing user information",
+            bot=bot,
         )
 
-    is_authenticated = session_manager.is_authenticated(call.from_user.id)
-    logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
-
-    if not is_authenticated:
+    is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
+    if not is_allowed:
         logger.warning(
-            f"User {call.from_user.id} NOT authenticated. "
-            f"Denied '__manage__' function for container {container_name}"
+            "Denied '__manage__' function",
+            user_id=call.from_user.id,
+            container_name=container_name,
+            reason=deny_reason,
         )
         return show_handler_info(
             call=call,
-            text=f"Managing {container_name}: Not authenticated user",
+            text=f"Managing {container_name}: {deny_reason}",
             bot=bot,
         )
 
     # Get container state
-    state = get_container_state(container_name)
+    with DockerAdapter() as adapter:
+        state = get_container_state(container_name, docker_client=adapter)
     logger.info(f"Container {container_name} state: {state}")
 
     # Build keyboard buttons

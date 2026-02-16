@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import asyncio
 import time
 from concurrent.futures import (
     ThreadPoolExecutor,
@@ -94,7 +93,7 @@ _container_cache = ContainerInfoCache()
 
 
 @with_operation_logging("fetch_containers_list")
-def __fetch_containers_list() -> list[str]:
+def __fetch_containers_list(docker_client: Any | None = None) -> list[str]:
     """
     Retrieves a list of all containers and returns their short IDs.
 
@@ -113,29 +112,32 @@ def __fetch_containers_list() -> list[str]:
         return cached_result["container_ids"]
 
     try:
-        with DockerAdapter() as adapter:
-            start_time = time.time()
-            container_list = adapter.containers.list(all=True)
-            execution_time = time.time() - start_time
+        start_time = time.time()
+        if docker_client is not None:
+            container_list = docker_client.containers.list(all=True)
+        else:
+            with DockerAdapter() as adapter:
+                container_list = adapter.containers.list(all=True)
+        execution_time = time.time() - start_time
 
-            container_ids = [container.short_id for container in container_list]
+        container_ids = [container.short_id for container in container_list]
 
-            # Cache the result
-            cache_data = {
-                "container_ids": container_ids,
-                "count": len(container_ids),
-                "execution_time": execution_time,
-            }
-            _container_cache.set("containers_list", cache_data)
+        # Cache the result
+        cache_data = {
+            "container_ids": container_ids,
+            "count": len(container_ids),
+            "execution_time": execution_time,
+        }
+        _container_cache.set("containers_list", cache_data)
 
-            logger.info(
-                "Container list fetched",
-                container_count=len(container_ids),
-                execution_time=f"{execution_time:.3f}s",
-                **context,
-            )
+        logger.info(
+            "Container list fetched",
+            container_count=len(container_ids),
+            execution_time=f"{execution_time:.3f}s",
+            **context,
+        )
 
-            return container_ids
+        return container_ids
 
     except Exception as e:
         logger.error(
@@ -145,7 +147,9 @@ def __fetch_containers_list() -> list[str]:
 
 
 @with_operation_logging("aggregate_container_details")
-def __aggregate_container_details(container_id: str) -> dict[str, str]:
+def __aggregate_container_details(
+    container_id: str, docker_client: Any | None = None
+) -> dict[str, str]:
     """
     Aggregates details of a Docker container into a dictionary with enhanced error handling.
 
@@ -171,7 +175,9 @@ def __aggregate_container_details(container_id: str) -> dict[str, str]:
         return cached_details
 
     try:
-        container_details = get_container_safely(container_id)
+        container_details = get_container_safely(
+            container_id, docker_client=docker_client
+        )
         attrs = container_details.attrs
 
         # Safely parse created timestamp
@@ -273,77 +279,78 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
     start_time = time.time()
 
     try:
-        containers_id = __fetch_containers_list()
-        if not containers_id:
-            logger.info("No containers found", **context)
-            return []
+        with DockerAdapter() as adapter:
+            containers_id = __fetch_containers_list(adapter)
+            if not containers_id:
+                logger.info("No containers found", **context)
+                return []
 
-        logger.info(
-            "Starting optimized parallel container stats retrieval",
-            containers_count=len(containers_id),
-            max_workers=MAX_WORKERS,
-            **context,
-        )
+            logger.info(
+                "Starting optimized parallel container stats retrieval",
+                containers_count=len(containers_id),
+                max_workers=MAX_WORKERS,
+                **context,
+            )
 
-        container_details = []
-        failed_containers = []
-        timeouts = []
+            container_details = []
+            failed_containers = []
+            timeouts = []
 
-        # Use ThreadPoolExecutor with optimized settings
-        with ThreadPoolExecutor(
-            max_workers=min(MAX_WORKERS, len(containers_id)),
-            thread_name_prefix="container_stats",
-        ) as executor:
-            # Submit all tasks
-            future_to_id = {
-                executor.submit(__aggregate_container_details, cid): cid
-                for cid in containers_id
-            }
+            # Use ThreadPoolExecutor with optimized settings
+            with ThreadPoolExecutor(
+                max_workers=min(MAX_WORKERS, len(containers_id)),
+                thread_name_prefix="container_stats",
+            ) as executor:
+                # Submit all tasks using shared docker client
+                future_to_id = {
+                    executor.submit(__aggregate_container_details, cid, adapter): cid
+                    for cid in containers_id
+                }
 
-            # Process completed futures with timeout
-            try:
-                for future in as_completed(future_to_id, timeout=OPERATION_TIMEOUT):
-                    container_id = future_to_id[future]
-                    try:
-                        details = future.result(timeout=5.0)  # Per-container timeout
-                        container_details.append(details)
+                # Process completed futures with timeout
+                try:
+                    for future in as_completed(future_to_id, timeout=OPERATION_TIMEOUT):
+                        container_id = future_to_id[future]
+                        try:
+                            details = future.result(timeout=5.0)  # Per-container timeout
+                            container_details.append(details)
 
-                    except FutureTimeoutError:
-                        timeouts.append(container_id)
-                        logger.warning(
-                            "Container processing timeout",
-                            container_id=container_id,
-                            timeout=5.0,
-                            **context,
-                        )
+                        except FutureTimeoutError:
+                            timeouts.append(container_id)
+                            logger.warning(
+                                "Container processing timeout",
+                                container_id=container_id,
+                                timeout=5.0,
+                                **context,
+                            )
 
-                    except ContainerNotFoundError:
-                        failed_containers.append(container_id)
-                        logger.debug(
-                            "Container not found during parallel processing",
-                            container_id=container_id,
-                            **context,
-                        )
+                        except ContainerNotFoundError:
+                            failed_containers.append(container_id)
+                            logger.debug(
+                                "Container not found during parallel processing",
+                                container_id=container_id,
+                                **context,
+                            )
 
-                    except Exception as e:
-                        failed_containers.append(container_id)
-                        logger.error(
-                            "Failed to process container in parallel execution",
-                            container_id=container_id,
-                            error=sanitize_exception(e),
-                            error_type=type(e).__name__,
-                            **context,
-                        )
+                        except Exception as e:
+                            failed_containers.append(container_id)
+                            logger.error(
+                                "Failed to process container in parallel execution",
+                                container_id=container_id,
+                                error=sanitize_exception(e),
+                                error_type=type(e).__name__,
+                                **context,
+                            )
 
-            except FutureTimeoutError:
-                logger.warning(
-                    "Overall operation timeout reached",
-                    timeout=OPERATION_TIMEOUT,
-                    **context,
-                )
-                # Cancel remaining futures
-                for future in future_to_id:
-                    future.cancel()
+                except FutureTimeoutError:
+                    logger.warning(
+                        "Overall operation timeout reached",
+                        timeout=OPERATION_TIMEOUT,
+                        **context,
+                    )
+                    # Cancel remaining futures
+                    for future in future_to_id:
+                        future.cancel()
 
         execution_time = time.time() - start_time
 
@@ -426,17 +433,18 @@ def fetch_container_logs(
     start_time = time.time()
 
     try:
-        container = get_container_safely(container_id)
+        with DockerAdapter() as adapter:
+            container = get_container_safely(container_id, docker_client=adapter)
 
-        # Fetch logs with enhanced options
-        logs = container.logs(
-            tail=tail_lines,
-            stdout=True,
-            stderr=True,
-            timestamps=include_timestamps,
-            follow=False,  # Never follow in sync context
-            since=None,  # Could be parameterized in future
-        )
+            # Fetch logs with enhanced options
+            logs = container.logs(
+                tail=tail_lines,
+                stdout=True,
+                stderr=True,
+                timestamps=include_timestamps,
+                follow=False,  # Never follow in sync context
+                since=None,  # Could be parameterized in future
+            )
 
         # Decode logs with error handling
         try:
@@ -558,7 +566,8 @@ def fetch_full_container_details(container_id: str) -> Container | None:
 
     try:
         # Return the actual Container object for compatibility with handlers
-        container = get_container_safely(container_id)
+        with DockerAdapter() as adapter:
+            container = get_container_safely(container_id, docker_client=adapter)
 
         execution_time = time.time() - start_time
 
@@ -585,86 +594,6 @@ def fetch_full_container_details(container_id: str) -> Container | None:
         return None
 
 
-@with_operation_logging("fetch_full_container_details_dict")
-def fetch_full_container_details_dict(container_id: str) -> dict | None:
-    """
-    Retrieves and returns the full attributes of a Docker container as a dictionary.
-
-    This is the enhanced version that was created in the improvements, renamed for clarity.
-
-    Args:
-        container_id (str): The ID of the container.
-
-    Returns:
-        dict: A dictionary containing the full attributes of the Docker container,
-              or None if container not found.
-
-    Raises:
-        Exception: For unexpected errors during container retrieval.
-    """
-    context = build_container_context(
-        container_id=container_id,
-        action="full_container_details_dict",
-    )
-
-    # Check cache first
-    cache_key = f"full_details_{container_id}"
-    cached_details = _container_cache.get(cache_key)
-    if cached_details is not None:
-        logger.debug("Using cached full container details", **context)
-        return cached_details
-
-    start_time = time.time()
-
-    try:
-        container = get_container_safely(container_id)
-
-        # Get full container attributes
-        full_details = {
-            "id": container.id,
-            "short_id": container.short_id,
-            "name": container.name,
-            "status": container.status,
-            "attrs": container.attrs,
-            "image": {
-                "id": container.image.id,
-                "tags": container.image.tags,
-                "short_id": container.image.short_id,
-            }
-            if container.image
-            else None,
-            "labels": container.labels,
-            "ports": getattr(container, "ports", {}),
-        }
-
-        # Cache the full details (shorter TTL for full details due to size)
-        _container_cache.set(cache_key, full_details)
-
-        execution_time = time.time() - start_time
-
-        logger.debug(
-            "Full container details dictionary retrieved",
-            execution_time=f"{execution_time:.3f}s",
-            **context,
-        )
-        return full_details
-
-    except ContainerNotFoundError:
-        logger.debug("Container not found for full details dict", **context)
-        return None
-
-    except Exception as e:
-        execution_time = time.time() - start_time
-        logger.error(
-            "Failed to fetch full container details dict",
-            error=sanitize_exception(e),
-            execution_time=f"{execution_time:.3f}s",
-            **context,
-        )
-        # Return empty dict for backward compatibility, but log the error
-        return {}
-
-
 def clear_container_cache() -> None:
     """Clear the container information cache."""
     _container_cache.clear()
@@ -680,18 +609,3 @@ def get_cache_stats() -> dict[str, Any]:
         "cache_ttl": _container_cache._ttl,
         "lru_cache_info": fetch_docker_counters.cache_info()._asdict(),
     }
-
-
-# Async version for future use
-async def retrieve_containers_stats_async() -> list[dict[str, str]]:
-    """
-    Async version of retrieve_containers_stats using asyncio for better concurrency.
-
-    This is for future async implementations and is not used in the current sync bot.
-    """
-    loop = asyncio.get_event_loop()
-
-    # Run the sync version in a thread pool
-    return await loop.run_in_executor(
-        ThreadPoolExecutor(max_workers=1), retrieve_containers_stats
-    )

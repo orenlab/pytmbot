@@ -21,7 +21,7 @@ from pytmbot.adapters.docker.utils import (
     get_container_memory_stats,
     get_container_stats_snapshot,
 )
-from pytmbot.globals import em
+from pytmbot.globals import em, session_manager, settings
 from pytmbot.logs import Logger
 from pytmbot.utils import sanitize_logs, set_naturalsize, set_naturaltime
 
@@ -45,7 +45,59 @@ def show_handler_info(call, text: str, bot: TeleBot):
     )
 
 
-def get_container_full_details(container_name: str) -> dict:
+def authorize_docker_callback_request(
+    call: CallbackQuery,
+    called_user_id: int | str,
+    *,
+    require_admin: bool = True,
+    require_owner_match: bool = True,
+    require_session: bool = True,
+) -> tuple[bool, str]:
+    """
+    Centralized authorization guard for Docker callback handlers.
+
+    Keeps defense-in-depth:
+    - decorator-level checks (2FA/session middleware)
+    - explicit runtime checks for direct module calls
+    """
+    if call.from_user is None:
+        return False, "Missing user information"
+
+    current_user_id = int(call.from_user.id)
+
+    try:
+        target_user_id = int(called_user_id)
+    except (TypeError, ValueError):
+        return False, "Invalid target user id"
+
+    if require_admin and current_user_id not in settings.access_control.allowed_admins_ids:
+        return False, "Access denied"
+
+    if require_owner_match and current_user_id != target_user_id:
+        return False, "Access denied"
+
+    if require_session and not session_manager.is_authenticated(current_user_id):
+        return False, "Not authenticated user"
+
+    return True, ""
+
+
+def _extract_container_attrs(container_details: Any) -> dict[str, Any]:
+    """Normalize container input to attrs dictionary once."""
+    if hasattr(container_details, "attrs"):
+        return container_details.attrs
+
+    if isinstance(container_details, dict) and "attrs" in container_details:
+        attrs = container_details.get("attrs")
+        return attrs if isinstance(attrs, dict) else {}
+
+    if isinstance(container_details, dict):
+        return container_details
+
+    return {}
+
+
+def get_container_full_details(container_name: str) -> Any | None:
     """
     Retrieve the full details of a container.
 
@@ -53,7 +105,7 @@ def get_container_full_details(container_name: str) -> dict:
         container_name (str): The name of the container.
 
     Returns:
-        dict: The full details of the container.
+        Any | None: Docker container object or None.
     """
     # Use a local variable to store the lowercased container name
     lower_container_name = container_name.lower()
@@ -168,7 +220,9 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     return filtered_vars[:20]  # Limit to first 20 variables
 
 
-def parse_container_basic_info(container_details) -> dict[str, Any]:
+def parse_container_basic_info(
+    container_details: Any, attrs: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Extract basic container information from container details.
 
@@ -179,19 +233,12 @@ def parse_container_basic_info(container_details) -> dict[str, Any]:
         Dict with basic container info
     """
     try:
-        # Handle both Container object and dictionary formats
-        if hasattr(container_details, "attrs"):
-            # It's a Container object
-            attrs = container_details.attrs
-        elif isinstance(container_details, dict) and "attrs" in container_details:
-            # It's a dictionary with attrs key
-            attrs = container_details["attrs"]
-        else:
-            # It might be the attrs dictionary directly
-            attrs = container_details
+        resolved_attrs = (
+            attrs if attrs is not None else _extract_container_attrs(container_details)
+        )
 
-        config = attrs.get("Config", {})
-        state = attrs.get("State", {})
+        config = resolved_attrs.get("Config", {})
+        state = resolved_attrs.get("State", {})
 
         # Image info (safe to display)
         image_info = config.get("Image", "unknown")
@@ -208,8 +255,8 @@ def parse_container_basic_info(container_details) -> dict[str, Any]:
         )
 
         return {
-            "id": attrs.get("Id", "")[:12],  # Short ID
-            "name": attrs.get("Name", "").lstrip("/"),
+            "id": resolved_attrs.get("Id", "")[:12],  # Short ID
+            "name": resolved_attrs.get("Name", "").lstrip("/"),
             "image_name": image_name,
             "image_tag": image_tag,
             "status": state.get("Status", "unknown"),
@@ -218,7 +265,7 @@ def parse_container_basic_info(container_details) -> dict[str, Any]:
             "restarting": state.get("Restarting", False),
             "restart_count": state.get("RestartCount", 0),
             "exit_code": state.get("ExitCode", 0),
-            "created": attrs.get("Created", ""),
+            "created": resolved_attrs.get("Created", ""),
             "started_at": started_at,
             "uptime": uptime,
         }
@@ -227,7 +274,9 @@ def parse_container_basic_info(container_details) -> dict[str, Any]:
         return {}
 
 
-def parse_container_resources(container_details) -> dict[str, Any]:
+def parse_container_resources(
+    container_details: Any, attrs: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Extract container resource configuration and limits.
 
@@ -238,18 +287,11 @@ def parse_container_resources(container_details) -> dict[str, Any]:
         Dict with resource information
     """
     try:
-        # Handle both Container object and dictionary formats
-        if hasattr(container_details, "attrs"):
-            # It's a Container object
-            attrs = container_details.attrs
-        elif isinstance(container_details, dict) and "attrs" in container_details:
-            # It's a dictionary with attrs key
-            attrs = container_details["attrs"]
-        else:
-            # It might be the attrs dictionary directly
-            attrs = container_details
+        resolved_attrs = (
+            attrs if attrs is not None else _extract_container_attrs(container_details)
+        )
 
-        host_config = attrs.get("HostConfig", {})
+        host_config = resolved_attrs.get("HostConfig", {})
 
         # Memory limits
         memory_limit = host_config.get("Memory", 0)
@@ -283,7 +325,9 @@ def parse_container_resources(container_details) -> dict[str, Any]:
         return {}
 
 
-def parse_container_network_info(container_details) -> dict[str, Any]:
+def parse_container_network_info(
+    container_details: Any, attrs: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Extract container network configuration (safe subset).
 
@@ -294,19 +338,12 @@ def parse_container_network_info(container_details) -> dict[str, Any]:
         Dict with network information
     """
     try:
-        # Handle both Container object and dictionary formats
-        if hasattr(container_details, "attrs"):
-            # It's a Container object
-            attrs = container_details.attrs
-        elif isinstance(container_details, dict) and "attrs" in container_details:
-            # It's a dictionary with attrs key
-            attrs = container_details["attrs"]
-        else:
-            # It might be the attrs dictionary directly
-            attrs = container_details
+        resolved_attrs = (
+            attrs if attrs is not None else _extract_container_attrs(container_details)
+        )
 
-        network_settings = attrs.get("NetworkSettings", {})
-        host_config = attrs.get("HostConfig", {})
+        network_settings = resolved_attrs.get("NetworkSettings", {})
+        host_config = resolved_attrs.get("HostConfig", {})
 
         # Port mappings (public info)
         port_bindings = host_config.get("PortBindings", {})
@@ -336,7 +373,9 @@ def parse_container_network_info(container_details) -> dict[str, Any]:
         return {}
 
 
-def parse_container_environment(container_details) -> dict[str, Any]:
+def parse_container_environment(
+    container_details: Any, attrs: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Extract and sanitize container environment information.
 
@@ -347,18 +386,11 @@ def parse_container_environment(container_details) -> dict[str, Any]:
         Dict with environment information
     """
     try:
-        # Handle both Container object and dictionary formats
-        if hasattr(container_details, "attrs"):
-            # It's a Container object
-            attrs = container_details.attrs
-        elif isinstance(container_details, dict) and "attrs" in container_details:
-            # It's a dictionary with attrs key
-            attrs = container_details["attrs"]
-        else:
-            # It might be the attrs dictionary directly
-            attrs = container_details
+        resolved_attrs = (
+            attrs if attrs is not None else _extract_container_attrs(container_details)
+        )
 
-        config = attrs.get("Config", {})
+        config = resolved_attrs.get("Config", {})
 
         # Environment variables (sanitized)
         env_vars = config.get("Env", [])
@@ -387,52 +419,6 @@ def parse_container_environment(container_details) -> dict[str, Any]:
         return {}
 
 
-def parse_container_attrs(container_attrs) -> dict:
-    """
-    Parse the container attributes with enhanced environment variable handling.
-
-    Args:
-        container_attrs: Container object or dictionary containing container attributes.
-
-    Returns:
-        Dict: A dictionary with enhanced container attributes.
-    """
-    try:
-        # Handle both Container object and dictionary formats
-        if hasattr(container_attrs, "attrs"):
-            # It's a Container object
-            attrs = container_attrs.attrs
-        elif isinstance(container_attrs, dict) and "State" in container_attrs:
-            # It's already the attrs dictionary
-            attrs = container_attrs
-        else:
-            # Fallback - assume it's a dictionary with attrs key
-            attrs = container_attrs.get("attrs", container_attrs)
-
-        running_state = attrs.get("State", {})
-        config_attrs = attrs.get("Config", {})
-
-        # Sanitize environment variables
-        raw_env = config_attrs.get("Env", [])
-        safe_env = sanitize_environment_variables(raw_env)
-
-        return {
-            "running": running_state.get("Running", False),
-            "paused": running_state.get("Paused", False),
-            "restarting": running_state.get("Restarting", False),
-            "restarting_count": attrs.get("RestartCount", 0),
-            "dead": running_state.get("Dead", False),
-            "exit_code": running_state.get("ExitCode", None),
-            "env": safe_env,  # Use sanitized environment variables
-            "env_count": len(raw_env),  # Original count
-            "command": config_attrs.get("Cmd", ""),
-            "args": attrs.get("Args", ""),
-        }
-    except Exception as e:
-        logger.error(f"Error parsing container attributes: {e}")
-        return {}
-
-
 def get_comprehensive_container_details(
     container_name: str,
 ) -> dict[str, Any] | None:
@@ -455,11 +441,13 @@ def get_comprehensive_container_details(
         if not container_details:
             return None
 
+        attrs = _extract_container_attrs(container_details)
+
         # Parse different aspects of container data
-        basic_info = parse_container_basic_info(container_details)
-        resources = parse_container_resources(container_details)
-        network_info = parse_container_network_info(container_details)
-        environment = parse_container_environment(container_details)
+        basic_info = parse_container_basic_info(container_details, attrs=attrs)
+        resources = parse_container_resources(container_details, attrs=attrs)
+        network_info = parse_container_network_info(container_details, attrs=attrs)
+        environment = parse_container_environment(container_details, attrs=attrs)
 
         # Initialize empty stats
         stats = {}

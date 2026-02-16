@@ -5,80 +5,19 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import time
 from datetime import datetime
-from functools import wraps
 from typing import Any
 
 from docker.errors import APIError, ImageNotFound
 from docker.models.images import Image
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.utils import with_operation_logging
 from pytmbot.exceptions import DockerConnectionError, ImageOperationError
 from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize, set_naturaltime
 
 logger = Logger()
-
-
-def with_image_logging(operation_name: str):
-    """
-    Decorator for logging Docker image operations with timing and context.
-
-    Args:
-        operation_name: Name of the Docker image operation being performed
-    """
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
-            operation_context = {
-                "operation": operation_name,
-                "function": func.__name__,
-                "start_time": datetime.now().isoformat(),
-            }
-
-            try:
-                result = func(*args, **kwargs)
-                execution_time = time.time() - start_time
-
-                operation_context.update(
-                    {
-                        "execution_time": f"{execution_time:.3f}s",
-                        "success": True,
-                        "images_processed": (
-                            len(result) if isinstance(result, list) else 0
-                        ),
-                    }
-                )
-
-                logger.debug(
-                    f"Image operation completed: {operation_name}",
-                    extra=operation_context,
-                )
-
-                return result
-
-            except Exception as e:
-                execution_time = time.time() - start_time
-                operation_context.update(
-                    {
-                        "execution_time": f"{execution_time:.3f}s",
-                        "success": False,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                    }
-                )
-
-                logger.error(
-                    f"Image operation failed: {operation_name}", extra=operation_context
-                )
-                raise ImageOperationError(f"Failed during {operation_name}: {e}") from e
-
-        return wrapper
-
-    return decorator
 
 
 def process_image_attrs(image: Image) -> dict[str, Any]:
@@ -135,7 +74,7 @@ def process_image_attrs(image: Image) -> dict[str, Any]:
         }
 
 
-@with_image_logging("fetch_image_details")
+@with_operation_logging("fetch_image_details")
 def fetch_image_details() -> list[dict[str, Any]]:
     """
     Fetches detailed information about Docker images.
@@ -160,7 +99,7 @@ def fetch_image_details() -> list[dict[str, Any]]:
         raise ImageOperationError(f"Unexpected error: {e}")
 
 
-@with_image_logging("get_image_history")
+@with_operation_logging("get_image_history")
 def get_image_history(image_id: str) -> list[dict[str, Any]]:
     """
     Fetches the history of a Docker image.
@@ -200,7 +139,7 @@ def get_image_history(image_id: str) -> list[dict[str, Any]]:
         raise ImageOperationError(f"Failed to get image history: {e}")
 
 
-@with_image_logging("get_image_stats")
+@with_operation_logging("get_image_stats")
 def get_image_stats() -> dict[str, Any]:
     """
     Get statistics about Docker images.
