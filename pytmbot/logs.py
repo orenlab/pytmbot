@@ -64,7 +64,7 @@ class LogConfig:
         "<green>{time:YYYY-MM-DD}</green> "
         "[<cyan>{time:HH:mm:ss}</cyan>]"
         "[<level>{level: <8}</level>]"
-        "[<magenta>{module: <16}</magenta>] "
+        "[<magenta>{module: <16}</magenta>] › "
         "<level>{message}</level> "
         "<fg #A9A9A9>{extra}</fg #A9A9A9>"
     )
@@ -390,7 +390,7 @@ class DataMasker:
         return result
 
     def _create_replacement_function(
-        self, pattern: re.Pattern[str]
+            self, pattern: re.Pattern[str]
     ) -> Callable[[re.Match[str]], str]:
         """Create a replacement function for regex substitution."""
 
@@ -489,11 +489,11 @@ class SecureLoggerFilter:
         return True
 
     def _sanitize_extra(
-        self,
-        extra: dict[str, Any],
-        module_name: str | None = None,
-        logger_name: str | None = None,
-        message: str | None = None,
+            self,
+            extra: dict[str, Any],
+            module_name: str | None = None,
+            logger_name: str | None = None,
+            message: str | None = None,
     ) -> dict[str, Any]:
         """Sanitize extra fields in log records."""
         sanitized_extra: dict[str, Any] = {}
@@ -512,33 +512,33 @@ class SecureLoggerFilter:
             if key == "action" and isinstance(value, str):
                 normalized_action = self._normalize_identifier(value)
                 if normalized_action and (
-                    normalized_action in normalized_message
-                    or normalized_message.endswith(normalized_action)
-                    or (
-                        isinstance(component, str)
-                        and normalized_action
-                        == self._normalize_identifier(component)
-                    )
+                        normalized_action in normalized_message
+                        or normalized_message.endswith(normalized_action)
+                        or (
+                                isinstance(component, str)
+                                and normalized_action
+                                == self._normalize_identifier(component)
+                        )
                 ):
                     continue
 
             if (
-                key == "component"
-                and isinstance(component, str)
-                and self._is_component_duplicate(
-                    component=component,
-                    module_name=module_name,
-                    logger_name=logger_name,
-                )
+                    key == "component"
+                    and isinstance(component, str)
+                    and self._is_component_duplicate(
+                component=component,
+                module_name=module_name,
+                logger_name=logger_name,
+            )
             ):
                 continue
 
             if (
-                key == "action"
-                and isinstance(action, str)
-                and isinstance(component, str)
-                and self._normalize_identifier(action)
-                == self._normalize_identifier(component)
+                    key == "action"
+                    and isinstance(action, str)
+                    and isinstance(component, str)
+                    and self._normalize_identifier(action)
+                    == self._normalize_identifier(component)
             ):
                 continue
 
@@ -560,7 +560,7 @@ class SecureLoggerFilter:
 
     @classmethod
     def _is_component_duplicate(
-        cls, component: str, module_name: str | None, logger_name: str | None
+            cls, component: str, module_name: str | None, logger_name: str | None
     ) -> bool:
         """Detect duplicated component field."""
         normalized_component = cls._normalize_identifier(component)
@@ -806,11 +806,11 @@ class Logger:
 
     @lru_cache(maxsize=512)
     def _extract_update_data(
-        self,
-        update_id: int | None,
-        update_type: str,
-        chat_id: int | None,
-        user_id: int | None,
+            self,
+            update_id: int | None,
+            update_type: str,
+            chat_id: int | None,
+            user_id: int | None,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects (cached version)."""
         return {
@@ -864,7 +864,7 @@ class Logger:
             self._context_data.reset(token)
 
     def session_decorator(
-        self, func: Callable[..., T] | None = None
+            self, func: Callable[..., T] | None = None
     ) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator for automatic session logging with context."""
 
@@ -891,7 +891,7 @@ class Logger:
         )
 
     def _build_context(
-        self, func_name: str, telegram_object: TelegramObject | None
+            self, func_name: str, telegram_object: TelegramObject | None
     ) -> dict[str, Any]:
         """Build context dictionary for logging."""
         context: dict[str, Any] = {"handler": func_name}
@@ -914,11 +914,11 @@ class Logger:
         return "warning"
 
     def _execute_with_logging(
-        self,
-        func: Callable[..., T],
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-        context: dict[str, Any],
+            self,
+            func: Callable[..., T],
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+            context: dict[str, Any],
     ) -> T:
         """Execute function with timing and error logging."""
         func_name = func.__name__

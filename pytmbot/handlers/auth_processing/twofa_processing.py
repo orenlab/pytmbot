@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from datetime import datetime
 
 from telebot import TeleBot
-from telebot.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
+from telebot.types import ForceReply, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -23,9 +23,33 @@ logger = Logger()
 allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
 
 
+def _extract_totp_code(raw_text: str | None) -> str:
+    """
+    Normalize possible TOTP input formats to a plain 6-digit code.
+
+    Supported formats:
+    - 123456
+    - /123456
+    - /123456@botname
+    """
+    if not raw_text:
+        return ""
+
+    text = raw_text.strip()
+    if not text:
+        return ""
+
+    if text.startswith("/"):
+        command_part = text[1:].split(maxsplit=1)[0]
+        command_name = command_part.split("@", 1)[0]
+        return command_name.strip()
+
+    return text
+
+
 # regexp='Enter 2FA code'
 @logger.session_decorator
-def handle_twofa_message(message: Message, bot: TeleBot):
+def handle_twofa_message(message: Message, bot: TeleBot) -> None:
     """
     Handle the 'Enter 2FA code' message.
 
@@ -73,7 +97,16 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         None
     """
     user_id: int = message.from_user.id
-    totp_code: str = message.text.replace("/", "")
+    current_state = session_manager.get_auth_state(user_id)
+    if current_state != session_manager.state_fabric.PROCESSING:
+        logger.debug(
+            "Ignoring TOTP input outside processing state",
+            user_id=user_id,
+            auth_state=current_state,
+        )
+        return
+
+    totp_code: str = _extract_totp_code(message.text)
 
     if not is_valid_totp_code(totp_code):
         _handle_invalid_totp_code(message, bot)
@@ -156,7 +189,13 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         else message.from_user.username
     )
 
-    keyboard = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
+    if message.chat.type in {"group", "supergroup"}:
+        # In group chats with privacy mode, ForceReply guarantees plain code delivery.
+        reply_markup: ForceReply | ReplyKeyboardMarkup = ForceReply(selective=True)
+        extra_send_kwargs = {"reply_to_message_id": message.message_id}
+    else:
+        reply_markup = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
+        extra_send_kwargs = {}
 
     response = Compiler.quick_render(
         template_name="a_send_totp_code.jinja2", name=name, **emojis
@@ -166,8 +205,9 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         bot=bot,
         chat_id=message.chat.id,
         text=response,
-        reply_markup=keyboard,
+        reply_markup=reply_markup,
         parse_mode="HTML",
+        **extra_send_kwargs,
     )
 
 
@@ -185,9 +225,11 @@ def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
     user_id = message.from_user.id
     logger.error(f"Invalid TOTP code: {message.text}")
     bot.reply_to(
-        message, "Invalid TOTP code. Please enter a 6-digit code. For example, /123456."
+        message,
+        "Invalid TOTP code. Please enter a 6-digit code. "
+        "For example: 123456 or /123456.",
     )
-    session_manager.set_totp_attempts(user_id=user_id)
+    session_manager.increment_totp_attempts(user_id=user_id)
 
 
 def _handle_max_attempts_reached(message: Message, bot: TeleBot) -> None:

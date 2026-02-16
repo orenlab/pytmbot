@@ -64,7 +64,7 @@ type FilterFunc = Callable[[Message | CallbackQuery], bool]
 type HandlerCallback = Callable[..., Any]
 
 # Constants
-TOTP_CODE_PATTERN: Final[str] = r"[0-9]{6}$"
+TOTP_CODE_PATTERN: Final[str] = r"^/?[0-9]{6}$"
 
 
 @dataclass(frozen=True, slots=True)
