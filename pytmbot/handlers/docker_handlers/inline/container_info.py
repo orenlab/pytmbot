@@ -9,6 +9,11 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.globals import button_data, keyboards, settings
+from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
+from pytmbot.handlers.docker_handlers.pagination import (
+    build_page_callback_data,
+    parse_container_full_info_callback_data,
+)
 from pytmbot.handlers.handlers_util.docker import (
     get_comprehensive_container_details,
     get_emojis,
@@ -17,7 +22,6 @@ from pytmbot.handlers.handlers_util.docker import (
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
-from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 
@@ -58,9 +62,14 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
     Handle request for comprehensive container information using enhanced utilities.
     """
     try:
-        # Parse callback data
-        container_name = split_string_into_octets(call.data, octet_index=1)
-        called_user_id = split_string_into_octets(call.data, octet_index=2)
+        if call.data is None:
+            return show_handler_info(call, text="Invalid request format", bot=bot)
+
+        parsed_data = parse_container_full_info_callback_data(call.data)
+        if parsed_data is None:
+            return show_handler_info(call, text="Invalid request format", bot=bot)
+
+        container_name, called_user_id, source_page = parsed_data
 
         # Validate container name
         if not validate_container_name(container_name):
@@ -111,7 +120,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
         # Add admin buttons if user has permissions
         if call.from_user.id in settings.access_control.allowed_admins_ids and int(
             call.from_user.id
-        ) == int(called_user_id):
+        ) == called_user_id:
             logger.debug(f"User {call.from_user.id} is an admin. Adding admin buttons")
 
             keyboard_buttons.extend(
@@ -127,11 +136,19 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 ]
             )
 
+        back_callback_data = "back_to_containers"
+        if source_page is not None:
+            back_callback_data = build_page_callback_data(
+                prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
+                page=source_page,
+                user_id=called_user_id,
+            )
+
         # Back button
         keyboard_buttons.append(
             button_data(
                 text=f"{emojis.get('BACK_arrow', '⬅️')} Back to all containers",
-                callback_data="back_to_containers",
+                callback_data=back_callback_data,
             )
         )
 
@@ -145,12 +162,6 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
             reply_markup=inline_keyboard,
             parse_mode="HTML",
         )
-
-    except IndexError as e:
-        logger.warning(
-            f"Invalid callback_data format: '{call.data}' from user {call.from_user.id}, error: {e}"
-        )
-        return show_handler_info(call, text="Invalid request format", bot=bot)
 
     except ValueError as e:
         logger.warning(

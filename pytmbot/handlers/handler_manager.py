@@ -127,11 +127,15 @@ class InlineFilters:
     @staticmethod
     def get_logs(call: CallbackQueryType) -> bool:
         """Filter for get logs callback."""
+        if call.data is None:
+            return False
         return call.data.startswith("__get_logs__")
 
     @staticmethod
     def containers_full_info(call: CallbackQueryType) -> bool:
         """Filter for containers full info callback."""
+        if call.data is None:
+            return False
         return call.data.startswith("__get_full__")
 
     @staticmethod
@@ -146,6 +150,8 @@ class InlineFilters:
     @staticmethod
     def manage_container(call: CallbackQueryType) -> bool:
         """Filter for manage container callback."""
+        if call.data is None:
+            return False
         return call.data.startswith("__manage__")
 
     @staticmethod

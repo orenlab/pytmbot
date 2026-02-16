@@ -18,6 +18,7 @@ from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import button_data, em, keyboards
 from pytmbot.handlers.docker_handlers.pagination import (
     MAX_TELEGRAM_MESSAGE_LENGTH,
+    build_container_full_info_callback_data,
     build_page_callback_data,
     paginate_items,
 )
@@ -145,7 +146,11 @@ def _build_containers_keyboard(
         keyboard_buttons.append(
             button_data(
                 text=container_name or container_ref,
-                callback_data=f"__get_full__:{container_ref}:{user_id}",
+                callback_data=build_container_full_info_callback_data(
+                    container_ref=container_ref,
+                    user_id=user_id,
+                    page=page,
+                ),
             )
         )
 
