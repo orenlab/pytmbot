@@ -78,7 +78,7 @@ class BotLauncher(logs.BaseComponent):
         except Exception as e:
             if not silent:
                 with self.log_context(error=str(e)) as log:
-                    log.warning("Bot shutdown encountered issues")
+                    log.warning("bot.launcher.encountered.issues.stop")
 
     def _emergency_cleanup(self) -> None:
         """Emergency cleanup for atexit - minimal operations only."""
@@ -96,11 +96,11 @@ class BotLauncher(logs.BaseComponent):
 
             if self._sigint_count == 1:
                 with self.log_context(signal=sig_name) as log:
-                    log.info("Graceful shutdown initiated (Ctrl+C again to force)")
+                    log.info("bot.launcher.graceful.stop")
                 self.shutdown_requested.set()
             elif self._sigint_count >= 2:
                 with self.log_context(signal=sig_name) as log:
-                    log.warning("Forced shutdown initiated")
+                    log.warning("bot.launcher.forced.stop")
                 self._emergency_cleanup()
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
                 os.kill(os.getpid(), signal.SIGINT)
@@ -116,7 +116,7 @@ class BotLauncher(logs.BaseComponent):
             self._handle_sigint(sig_name)
         else:
             with self.log_context(signal=sig_name) as log:
-                log.info("Shutdown initiated by signal")
+                log.info("bot.launcher.initiated.signal.stop")
             self.shutdown_requested.set()
             self._stop_bot_operations()
 
@@ -128,7 +128,7 @@ class BotLauncher(logs.BaseComponent):
             yield self.bot
         except Exception as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Bot creation failed")
+                log.error("bot.launcher.creation.fail")
             raise
         finally:
             self._cleanup_bot()
@@ -137,13 +137,10 @@ class BotLauncher(logs.BaseComponent):
         """Setup professional health monitoring system."""
         if not self.bot or not hasattr(self.bot, "bot"):
             with self.log_context() as log:
-                log.warning("Cannot setup health system: bot not ready")
+                log.warning("bot.launcher.cannot.init.ok")
             return
 
         try:
-            with self.log_context() as log:
-                log.debug("Initializing health monitoring system")
-
             self._health_manager = create_health_manager(
                 bot=self.bot.bot,
                 session_manager=self._session_manager,
@@ -157,24 +154,21 @@ class BotLauncher(logs.BaseComponent):
             with self.log_context(
                 components=len(self._health_manager._monitor._checkers)
             ) as log:
-                log.info("Health monitoring system initialized")
+                log.info("bot.launcher.health.monitoring.init")
 
         except Exception as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Failed to setup health system")
+                log.error("bot.launcher.init.health.fail")
             # Don't re-raise - health system failure shouldn't prevent bot startup
 
     def start_health_monitoring(self) -> None:
         """Start health monitoring."""
         if not self._health_manager:
             with self.log_context() as log:
-                log.warning("Cannot start health monitoring: system not initialized")
+                log.warning("bot.launcher.cannot.start.init")
             return
 
         try:
-            with self.log_context() as log:
-                log.debug("Starting health monitoring background thread")
-
             self._health_manager.start(base_interval=120.0)
 
             # Wait a moment to verify startup
@@ -182,7 +176,7 @@ class BotLauncher(logs.BaseComponent):
 
         except Exception as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Failed to start health monitoring")
+                log.error("bot.launcher.start.health.fail")
 
     def _stop_health_system(self) -> None:
         """Stop health monitoring system."""
@@ -190,10 +184,10 @@ class BotLauncher(logs.BaseComponent):
             try:
                 self._health_manager.stop(timeout=5.0)
                 with self.log_context() as log:
-                    log.info("Health monitoring stopped")
+                    log.info("bot.launcher.health.monitoring.stop")
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
-                    log.warning("Error stopping health system")
+                    log.warning("bot.launcher.stop.health.fail")
 
     def _is_within_startup_grace_period(self) -> bool:
         """Check if we're still within the startup grace period."""
@@ -283,13 +277,13 @@ class BotLauncher(logs.BaseComponent):
             "session_id": bot_session_metrics.get("session_id")
             if bot_session_metrics
             else "unknown",
-            "mode": bot_session_metrics.get("mode")
+            "mode": self._normalize_mode_value(bot_session_metrics.get("mode"))
             if bot_session_metrics
             else "unknown",
         }
 
         with self.log_context(**log_context) as log:
-            log.info("Bot successfully started and is now active")
+            log.info("bot.launcher.start.ok")
 
     def _determine_health_log_level(
         self,
@@ -376,7 +370,12 @@ class BotLauncher(logs.BaseComponent):
             log_context["critical_components"] = critical_issues
 
         with self.log_context(**log_context) as log:
-            getattr(log, log_level)(f"Health: {overall_status}")
+            getattr(log, log_level)("bot.launcher.health.status")
+
+    @staticmethod
+    def _normalize_mode_value(mode: Any) -> str:
+        """Normalize enum-like mode values for compact log output."""
+        return str(getattr(mode, "value", mode))
 
     def _log_health_details(
         self, health_summary: dict, bot_session_metrics: dict | None
@@ -400,7 +399,7 @@ class BotLauncher(logs.BaseComponent):
                     latency_ms=f"{component.get('latency_ms', 0):.1f}",
                     details=details,
                 ) as log:
-                    log.debug(f"Component issue: {name}")
+                    log.debug("bot.launcher.component.issue.debug")
 
         # Log session and rate limit stats only if there's activity
         if bot_session_metrics:
@@ -413,7 +412,7 @@ class BotLauncher(logs.BaseComponent):
                     active_users=active_users,
                     rate_violations=total_violations,
                 ) as log:
-                    log.debug("User activity summary")
+                    log.debug("bot.launcher.user.activity.debug")
 
         # System resource details only if concerning
         system_component = components.get("system_resources", {})
@@ -426,7 +425,7 @@ class BotLauncher(logs.BaseComponent):
                 threads=sys_details.get("threads", 0),
                 status=sys_details.get("status", "unknown"),
             ) as log:
-                log.debug("System resource details")
+                log.debug("bot.launcher.resource.details.debug")
 
     @staticmethod
     def _is_monitor_plugin_loaded() -> bool:
@@ -446,7 +445,7 @@ class BotLauncher(logs.BaseComponent):
             self._stop_bot_operations()
         except Exception as e:
             with self.log_context(error=str(e)) as log:
-                log.warning("Bot cleanup encountered issues")
+                log.warning("bot.launcher.cleanup.encountered.warn")
         finally:
             self.bot = None
 
@@ -458,18 +457,18 @@ class BotLauncher(logs.BaseComponent):
 
             try:
                 with self.log_context() as log:
-                    log.info("Shutdown sequence initiated")
+                    log.info("bot.launcher.sequence.initiated.stop")
 
                 self.shutdown_requested.set()
                 self._stop_health_system()
                 self._stop_bot_operations()
 
                 with self.log_context() as log:
-                    log.info("Shutdown completed successfully")
+                    log.info("bot.launcher.stop.ok")
 
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
-                    log.error("Shutdown failed")
+                    log.error("bot.launcher.stop.fail")
 
                 raise ShutdownError(
                     ErrorContext(
@@ -497,7 +496,7 @@ class BotLauncher(logs.BaseComponent):
                 python_version=platform.python_version(),
                 system=platform.system(),
             ) as log:
-                log.debug("Environment validation completed")
+                log.debug("bot.launcher.environment.validation.ok")
 
         except Exception as e:
             raise InitializationError(
@@ -514,7 +513,7 @@ class BotLauncher(logs.BaseComponent):
             signal.signal(sig, self._signal_handler)
         except (OSError, ValueError) as e:
             with self.log_context(signal=sig.name, error=str(e)) as log:
-                log.debug(f"Cannot register signal handler: {e}")
+                log.debug("bot.launcher.cannot.register.debug")
 
     def _setup_signal_handlers(self) -> None:
         """Setup cross-platform signal handlers."""
@@ -532,12 +531,10 @@ class BotLauncher(logs.BaseComponent):
         with self._managed_bot() as bot:
             # Initialize bot core but don't start polling yet
             with self.log_context() as log:
-                log.debug("Initializing bot core")
+                log.debug("bot.launcher.init")
             bot_instance = bot.initialize_bot_core()
 
             # Setup health system while bot is initialized but not polling
-            with self.log_context() as log:
-                log.debug("Setting up health monitoring system")
             self.setup_health_system()
 
             # Start health monitoring
@@ -548,14 +545,9 @@ class BotLauncher(logs.BaseComponent):
 
             # Log initial health status
             if self._health_manager:
-                with self.log_context() as log:
-                    log.debug("Logging initial health status")
                 self.log_health_status()
 
             # Now start the actual bot polling (this will block)
-            with self.log_context() as log:
-                log.debug("Starting bot polling loop")
-
             # Start polling in a separate thread so we can monitor it
             import threading
 
@@ -568,9 +560,6 @@ class BotLauncher(logs.BaseComponent):
             polling_thread.start()
 
             # Main monitoring loop - wait for shutdown signal
-            with self.log_context() as log:
-                log.debug("Entering main monitoring loop")
-
             while not self.shutdown_requested.is_set() and polling_thread.is_alive():
                 try:
                     # Periodic health status logging
@@ -589,10 +578,9 @@ class BotLauncher(logs.BaseComponent):
 
             with self.log_context(
                 webhook_enabled=webhook_enabled,
-                mode=args.mode,
+                mode=self._normalize_mode_value(args.mode),
             ) as log:
-                launch_method = "webhook" if webhook_enabled else "polling"
-                log.info(f"Starting bot with {launch_method} mode")
+                log.info("bot.launcher.start")
 
             bot_instance.remove_webhook()
             if webhook_enabled:
@@ -601,21 +589,21 @@ class BotLauncher(logs.BaseComponent):
                 self.bot._start_polling_loop(bot_instance)
         except Exception as error:
             with self.log_context(error=str(error)) as log:
-                log.error("Bot polling failed")
+                log.error("bot.launcher.polling.fail")
             self.shutdown_requested.set()
 
     def _handle_keyboard_interrupt(self) -> NoReturn:
         """Handle keyboard interrupt gracefully."""
         with self.log_context() as log:
-            log.info("Keyboard interrupt received, shutting down")
+            log.info("bot.launcher.keyboard.interrupt.info")
         try:
             self.shutdown()
         except ShutdownError as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Shutdown failed during keyboard interrupt handling")
+                log.error("bot.launcher.stop.fail")
         except Exception as e:
             with self.log_context(error=str(e), error_type=type(e).__name__) as log:
-                log.warning("Unexpected error during keyboard interrupt shutdown")
+                log.warning("bot.launcher.unexpected.fail")
 
         sys.exit(0)
 
@@ -631,16 +619,16 @@ class BotLauncher(logs.BaseComponent):
         }
 
         with self.log_context(**error_context) as log:
-            log.critical("Fatal error occurred, initiating emergency shutdown")
+            log.critical("bot.launcher.initiate.fail")
 
         try:
             self.shutdown()
         except ShutdownError as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Shutdown failed during fatal error handling")
+                log.error("bot.launcher.stop.fail")
         except Exception as e:
             with self.log_context(error=str(e), error_type=type(e).__name__) as log:
-                log.warning("Unexpected error during emergency shutdown")
+                log.warning("bot.launcher.unexpected.fail")
 
         sys.exit(1)
 
@@ -653,14 +641,14 @@ class BotLauncher(logs.BaseComponent):
             self.validate_environment()
 
             with self.log_context() as log:
-                log.info("PyTMBot launcher initialization completed")
+                log.info("bot.launcher.init.start.ok")
 
             # Main execution
             self.run_main_loop()
             self.shutdown()
 
             with self.log_context() as log:
-                log.info("PyTMBot shutdown completed")
+                log.info("bot.launcher.stop.ok")
 
             sys.exit(0)
 

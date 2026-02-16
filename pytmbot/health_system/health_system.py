@@ -463,7 +463,7 @@ class HealthMonitor(BaseComponent):
         self._intervals[checker.name] = checker.interval_seconds
 
         with self.log_context(checker=checker.name) as log:
-            log.debug(f"Added health checker: {checker.name}")
+            log.trace("bot.health.added.checker.debug")
 
     def check_all(self) -> SystemHealth:
         """Perform health check on all components."""
@@ -533,7 +533,7 @@ class HealthMonitor(BaseComponent):
         """Start continuous monitoring in a separate thread."""
         if self._running:
             with self.log_context() as log:
-                log.warning("Health monitoring already running")
+                log.warning("bot.health.monitoring.already.ok")
             return
 
         self._base_interval = base_interval
@@ -548,7 +548,7 @@ class HealthMonitor(BaseComponent):
         with self.log_context(
             checkers=len(self._checkers), interval=base_interval
         ) as log:
-            log.info("Health monitoring started")
+            log.info("bot.health.monitoring.start")
 
     def stop_monitoring(self) -> None:
         """Stop monitoring."""
@@ -562,12 +562,12 @@ class HealthMonitor(BaseComponent):
             self._thread.join(timeout=5.0)
 
         with self.log_context() as log:
-            log.info("Health monitoring stopped")
+            log.info("bot.health.monitoring.stop")
 
     def _monitor_loop(self) -> None:
         """Main monitoring loop."""
         with self.log_context() as log:
-            log.debug("Health monitoring loop started")
+            log.trace("bot.health.monitoring.loop.start")
 
         previous_level: HealthLevel | None = None
 
@@ -601,12 +601,12 @@ class HealthMonitor(BaseComponent):
                     duration_ms=f"{health.check_duration_ms:.1f}",
                 ) as log:
                     if is_first_check:
-                        message = f"Initial health: {health.overall}"
+                        event = "bot.health.monitoring.initial.status"
                     elif has_changed and health.overall == HealthLevel.HEALTHY:
-                        message = "Health recovered: healthy"
+                        event = "bot.health.monitoring.recovered.status"
                     else:
-                        message = f"Health: {health.overall}"
-                    getattr(log, log_method)(message)
+                        event = "bot.health.monitoring.status"
+                    getattr(log, log_method)(event)
 
                 # Adaptive interval
                 if health.overall <= HealthLevel.UNHEALTHY:
@@ -620,14 +620,14 @@ class HealthMonitor(BaseComponent):
 
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
-                    log.error("Health monitoring error")
+                    log.error("bot.health.monitoring.fail")
                 interval = self._base_interval
 
             # Sleep with early exit
             self._stop_event.wait(timeout=interval)
 
         with self.log_context() as log:
-            log.debug("Health monitoring loop ended")
+            log.debug("bot.health.monitoring.loop.debug")
 
     @property
     def latest(self) -> SystemHealth | None:
@@ -682,7 +682,7 @@ class HealthManager:
             self._started = True
         except Exception as e:
             with self._monitor.log_context(error=str(e)) as log:
-                log.error("Failed to start health monitoring")
+                log.error("bot.health.start.monitoring.fail")
             raise
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -695,7 +695,7 @@ class HealthManager:
             self._started = False
         except Exception as e:
             with self._monitor.log_context(error=str(e)) as log:
-                log.error("Failed to stop health monitoring")
+                log.error("bot.health.stop.monitoring.fail")
 
     @property
     def is_healthy(self) -> bool:

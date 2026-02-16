@@ -464,6 +464,45 @@ class SecureLoggerFilter:
     __slots__ = ("masker",)
     _MAX_STRING_LENGTH: Final[int] = 512
     _MAX_COLLECTION_ITEMS: Final[int] = 12
+    _DURATION_RE: Final[re.Pattern[str]] = re.compile(
+        r"^\s*(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|sec|secs|second|seconds)?\s*$",
+        re.IGNORECASE,
+    )
+    _DROP_EXTRA_KEYS: ClassVar[set[str]] = {
+        "action",
+        "operation",
+        "handler",
+        "event",
+    }
+    _EXTRA_KEY_ALIAS: ClassVar[dict[str, str]] = {
+        "update_type": "update",
+        "execution_time": "ms",
+        "execution_time_ms": "ms",
+        "duration_ms": "ms",
+        "elapsed_ms": "ms",
+        "check_duration": "check_ms",
+    }
+    _EXTRA_ORDER: ClassVar[tuple[str, ...]] = (
+        "trace_id",
+        "span_id",
+        "update",
+        "update_id",
+        "user_id",
+        "chat_id",
+        "ms",
+        "check_ms",
+        "error",
+        "error_type",
+    )
+
+    _COMPONENT_ALIAS_MAP: ClassVar[dict[str, set[str]]] = {
+        "main": {"main", "botlauncher"},
+        "botlauncher": {"main", "botlauncher"},
+        "pytmbotinstance": {"pytmbotinstance", "core"},
+        "core": {"pytmbotinstance", "core"},
+        "healthsystem": {"healthsystem", "healthmonitor"},
+        "healthmonitor": {"healthsystem", "healthmonitor"},
+    }
 
     def __init__(self, masker: DataMasker) -> None:
         self.masker = masker
@@ -473,11 +512,9 @@ class SecureLoggerFilter:
         if not isinstance(record, dict):
             return True
 
-        # Sanitize the message
         if message := record.get("message"):
             record["message"] = self.masker.sanitize_text(message)
 
-        # Sanitize extra fields
         if extra := record.get("extra"):
             record["extra"] = self._sanitize_extra(
                 extra,
@@ -495,15 +532,28 @@ class SecureLoggerFilter:
             logger_name: str | None = None,
             message: str | None = None,
     ) -> dict[str, Any]:
-        """Sanitize extra fields in log records."""
-        sanitized_extra: dict[str, Any] = {}
-
+        """Sanitize and normalize extra fields."""
+        normalized: dict[str, Any] = {}
         component = extra.get("component")
         action = extra.get("action")
         normalized_message = self._normalize_identifier(message or "")
 
         for key, value in extra.items():
             if value is None:
+                continue
+
+            if key in self._DROP_EXTRA_KEYS:
+                continue
+
+            if (
+                    key == "component"
+                    and isinstance(component, str)
+                    and self._is_component_duplicate(
+                component=component,
+                module_name=module_name,
+                logger_name=logger_name,
+            )
+            ):
                 continue
 
             if key == "action" and action == component:
@@ -522,29 +572,69 @@ class SecureLoggerFilter:
                 ):
                     continue
 
-            if (
-                    key == "component"
-                    and isinstance(component, str)
-                    and self._is_component_duplicate(
-                component=component,
-                module_name=module_name,
-                logger_name=logger_name,
-            )
-            ):
-                continue
+            normalized_key = self._EXTRA_KEY_ALIAS.get(key, key)
+            sanitized_value = self._sanitize_value(normalized_key, value)
 
-            if (
-                    key == "action"
-                    and isinstance(action, str)
-                    and isinstance(component, str)
-                    and self._normalize_identifier(action)
-                    == self._normalize_identifier(component)
-            ):
-                continue
+            if normalized_key in {"ms", "check_ms"}:
+                sanitized_value = self._normalize_duration_value(sanitized_value)
 
-            sanitized_extra[key] = self._sanitize_value(key, value)
+            if normalized_key in normalized:
+                normalized[normalized_key] = self._merge_extra_values(
+                    normalized[normalized_key], sanitized_value
+                )
+            else:
+                normalized[normalized_key] = sanitized_value
 
-        return sanitized_extra
+        return self._order_extra(normalized)
+
+    @classmethod
+    def _normalize_duration_value(cls, value: Any) -> Any:
+        """Normalize textual duration values to numeric milliseconds."""
+        if isinstance(value, int | float):
+            return round(float(value), 2)
+
+        if not isinstance(value, str):
+            return value
+
+        match = cls._DURATION_RE.match(value)
+        if not match:
+            return value
+
+        number = float(match.group("num"))
+        unit = (match.group("unit") or "ms").lower()
+        if unit in {"s", "sec", "secs", "second", "seconds"}:
+            return round(number * 1000, 2)
+        return round(number, 2)
+
+    @staticmethod
+    def _merge_extra_values(existing: Any, new: Any) -> Any:
+        """Merge values for colliding normalized keys."""
+        unknown_values = {"", "unknown", "n/a", "none"}
+        if isinstance(existing, str) and existing.lower() in unknown_values:
+            return new
+        if isinstance(new, str) and new.lower() in unknown_values:
+            return existing
+
+        if isinstance(existing, str) and isinstance(new, int | float):
+            return new
+        if isinstance(existing, int | float) and isinstance(new, str):
+            return existing
+
+        if existing in (None, [], {}, ()):
+            return new
+        return existing
+
+    @classmethod
+    def _order_extra(cls, extra: dict[str, Any]) -> dict[str, Any]:
+        """Return consistently ordered extra payload."""
+        ordered: dict[str, Any] = {}
+        for key in cls._EXTRA_ORDER:
+            if key in extra:
+                ordered[key] = extra[key]
+        for key in sorted(extra):
+            if key not in ordered:
+                ordered[key] = extra[key]
+        return ordered
 
     @staticmethod
     def _normalize_identifier(value: str) -> str:
@@ -559,6 +649,14 @@ class SecureLoggerFilter:
         return "".join(part.capitalize() for part in module_name.split("_") if part)
 
     @classmethod
+    def _expand_component_aliases(cls, value: str | None) -> set[str]:
+        """Expand normalized identifier with known component aliases."""
+        normalized = cls._normalize_identifier(value or "")
+        if not normalized:
+            return set()
+        return cls._COMPONENT_ALIAS_MAP.get(normalized, {normalized})
+
+    @classmethod
     def _is_component_duplicate(
             cls, component: str, module_name: str | None, logger_name: str | None
     ) -> bool:
@@ -569,14 +667,16 @@ class SecureLoggerFilter:
 
         candidates: set[str] = set()
         if module_name:
-            candidates.add(cls._normalize_identifier(module_name))
-            candidates.add(cls._normalize_identifier(cls._to_class_name(module_name)))
+            candidates.update(cls._expand_component_aliases(module_name))
+            candidates.update(
+                cls._expand_component_aliases(cls._to_class_name(module_name))
+            )
 
         if logger_name:
             logger_last_part = logger_name.rsplit(".", 1)[-1]
-            candidates.add(cls._normalize_identifier(logger_last_part))
-            candidates.add(
-                cls._normalize_identifier(cls._to_class_name(logger_last_part))
+            candidates.update(cls._expand_component_aliases(logger_last_part))
+            candidates.update(
+                cls._expand_component_aliases(cls._to_class_name(logger_last_part))
             )
 
         candidates.discard("")
@@ -913,6 +1013,18 @@ class Logger:
             return "info"
         return "warning"
 
+    @staticmethod
+    @lru_cache(maxsize=512)
+    def _handler_event_name(func_name: str) -> str:
+        """Build stable event name for handler lifecycle logs."""
+        normalized = func_name.strip().lower()
+        if normalized.startswith("handle_"):
+            normalized = normalized[7:]
+        normalized = re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+        if not normalized:
+            normalized = "unknown"
+        return f"bot.handler.{normalized}"
+
     def _execute_with_logging(
             self,
             func: Callable[..., T],
@@ -926,6 +1038,7 @@ class Logger:
         inherited_context = self._context_data.get() or {}
         trace_id = cast(str | None, inherited_context.get("trace_id")) or uuid4().hex[:12]
         context_with_handler = {**context, "handler": func_name}
+        handler_event = self._handler_event_name(func_name)
 
         with self.context(trace_id=trace_id, handler=func_name):
             try:
@@ -936,16 +1049,19 @@ class Logger:
                     "ms": round(elapsed_ms, 2),
                 }
                 level = self._handler_log_level(elapsed_ms)
-                getattr(self, level)(f"{func_name} OK", **completion_context)
+                getattr(self, level)(
+                    f"{handler_event}.ok",
+                    **completion_context,
+                )
                 return result
-            except Exception as e:
+            except Exception:
                 elapsed_ms = (monotonic_ns() - start_time) / 1_000_000
                 error_context = {
                     **context_with_handler,
                     "ms": round(elapsed_ms, 2),
                 }
                 self.exception(
-                    f"{func_name} failed after {elapsed_ms:.2f}ms: {e}",
+                    f"{handler_event}.fail",
                     **error_context,
                 )
                 raise

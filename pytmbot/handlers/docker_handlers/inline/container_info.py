@@ -15,6 +15,7 @@ from pytmbot.handlers.docker_handlers.pagination import (
     parse_container_full_info_callback_data,
 )
 from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
     get_comprehensive_container_details,
     get_emojis,
     show_handler_info,
@@ -71,10 +72,28 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
 
         container_name, called_user_id, source_page = parsed_data
 
+        is_allowed, deny_reason = authorize_docker_callback_request(
+            call=call,
+            called_user_id=called_user_id,
+            require_admin=False,
+            require_owner_match=True,
+            require_session=False,
+        )
+        if not is_allowed:
+            logger.warning(
+                "bot.handler.docker.container_info.user.denied.deny",
+                reason=deny_reason,
+            )
+            return show_handler_info(
+                call,
+                text=f"Container info: {deny_reason}",
+                bot=bot,
+            )
+
         # Validate container name
         if not validate_container_name(container_name):
             logger.warning(
-                f"Invalid container name attempted: '{container_name}' by user {call.from_user.id}"
+                "bot.handler.docker.container_info.invalid.container.warn"
             )
             return show_handler_info(
                 call, text="Invalid container name format", bot=bot
@@ -85,7 +104,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
 
         if not container_details:
             logger.info(
-                f"Container '{container_name}' not found, requested by user {call.from_user.id}"
+                "bot.handler.docker.container_info.container.not.info"
             )
             return show_handler_info(
                 call, text=f"{container_name}: Container not found", bot=bot
@@ -121,7 +140,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
         if call.from_user.id in settings.access_control.allowed_admins_ids and int(
             call.from_user.id
         ) == called_user_id:
-            logger.debug(f"User {call.from_user.id} is an admin. Adding admin buttons")
+            logger.debug("bot.handler.docker.container_info.user.admin.debug")
 
             keyboard_buttons.extend(
                 [
@@ -163,16 +182,15 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
             parse_mode="HTML",
         )
 
-    except ValueError as e:
+    except ValueError:
         logger.warning(
-            f"Value error processing callback_data: '{call.data}' from user {call.from_user.id}, error: {e}"
+            "bot.handler.docker.container_info.value.fail"
         )
         return show_handler_info(call, text="Invalid request data", bot=bot)
 
-    except Exception as e:
+    except Exception:
         logger.error(
-            f"Unexpected error in handle_containers_full_info: {e}, "
-            f"callback_data: '{call.data}', user: {call.from_user.id}"
+            "bot.handler.docker.container_info.unexpected.fail"
         )
         return show_handler_info(
             call, text="An error occurred while processing request", bot=bot

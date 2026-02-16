@@ -73,7 +73,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
     try:
         page, callback_user_id = _parse_back_callback_data(call.data)
     except ValueError as exc:
-        logger.warning("Failed to parse containers back callback", error=str(exc))
+        logger.warning("bot.handler.docker.back.parse.containers.fail", error=str(exc))
         return show_handler_info(
             call=call,
             text="Invalid containers pagination request.",
@@ -89,7 +89,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
             called_user_id=target_user_id,
             require_admin=False,
             require_owner_match=True,
-            require_session=True,
+            require_session=False,
         )
         if not is_allowed:
             return show_handler_info(
@@ -104,7 +104,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
     )
 
     logger.debug(
-        "Updated list of containers",
+        "bot.handler.docker.back.updated.list.debug",
         page=page,
         user_id=target_user_id,
     )

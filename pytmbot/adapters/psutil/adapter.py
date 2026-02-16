@@ -149,7 +149,7 @@ class PsutilAdapter:
         except concurrent.futures.TimeoutError:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
             logger.warning(
-                f"Operation timed out: {operation}",
+                "bot.system.timed.warn",
                 timeout_seconds=timeout,
                 ms=round(execution_time_ms, 2),
                 **span_context,
@@ -159,7 +159,7 @@ class PsutilAdapter:
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
             logger.warning(
-                f"Process access issue: {operation}",
+                "bot.system.access.issue.warn",
                 error=str(e),
                 error_type=type(e).__name__,
                 ms=round(execution_time_ms, 2),
@@ -170,7 +170,7 @@ class PsutilAdapter:
         except Exception as e:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
             logger.error(
-                f"Operation failed: {operation}",
+                "bot.system.fail",
                 error=str(e),
                 error_type=type(e).__name__,
                 ms=round(execution_time_ms, 2),
@@ -180,7 +180,7 @@ class PsutilAdapter:
 
     @staticmethod
     def _log_operation_result(
-        message: str,
+        event: str,
         execution_time_ms: float,
         **context: Any,
     ) -> None:
@@ -188,17 +188,17 @@ class PsutilAdapter:
         payload = {**context, "ms": round(execution_time_ms, 2)}
 
         level = "debug" if execution_time_ms < 100 else "info"
-        getattr(logger, level)(message, **payload)
+        getattr(logger, level)(event, **payload)
 
     @staticmethod
     def _log_trace_operation_result(
-        message: str,
+        event: str,
         execution_time_ms: float,
         **context: Any,
     ) -> None:
         """Log low-priority periodic operation results on TRACE."""
         payload = {**context, "ms": round(execution_time_ms, 2)}
-        logger.trace(message, **payload)
+        logger.trace(event, **payload)
 
     def get_process_stats(self, pid: int | None = None) -> dict[str, Any]:
         """
@@ -228,7 +228,7 @@ class PsutilAdapter:
 
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
                 logger.warning(
-                    "Process access denied or not found", error=str(e), **context
+                    "bot.system.access.denied.deny", error=str(e), **context
                 )
                 return {}
 
@@ -255,7 +255,7 @@ class PsutilAdapter:
             **context,
         )
         self._log_operation_result(
-            "Process statistics",
+            "bot.system.process.stats.result",
             execution_time_ms,
             categories=len(result),
             **context,
@@ -297,18 +297,18 @@ class PsutilAdapter:
                     if stats:  # Only update if we got valid stats
                         final_stats.update(stats)
                         successful_collections += 1
-                        logger.trace(f"Collected {name} stats", **context)
+                        logger.trace("bot.system.collected.stats.debug", **context)
 
                 except concurrent.futures.TimeoutError:
                     logger.warning(
-                        f"Timeout collecting {name} stats",
+                        "bot.system.timeout.collecting.warn",
                         timeout_seconds=self._DEFAULT_TIMEOUT,
                         collector=name,
                         **context,
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Failed to collect {name} stats",
+                        "bot.system.collect.stats.fail",
                         error=str(e),
                         error_type=type(e).__name__,
                         collector=name,
@@ -316,7 +316,7 @@ class PsutilAdapter:
                     )
 
         logger.trace(
-            "Concurrent stats collection completed",
+            "bot.system.concurrent.stats.ok",
             collected_categories=successful_collections,
             total_categories=len(collectors),
             **context,
@@ -584,7 +584,7 @@ class PsutilAdapter:
             **context,
         )
         self._log_trace_operation_result(
-            "Process health",
+            "bot.system.process.health.result",
             execution_time_ms,
             cpu=result.get("cpu"),
             memory=result.get("memory_percent"),
@@ -609,7 +609,7 @@ class PsutilAdapter:
             "load averages", _get_load, (0.0, 0.0, 0.0), **context
         )
         self._log_operation_result(
-            "Load averages",
+            "bot.system.load.average.result",
             execution_time_ms,
             load_1m=result[0],
             load_5m=result[1],
@@ -640,7 +640,7 @@ class PsutilAdapter:
             "memory stats", _get_memory, {}, **context
         )
         self._log_operation_result(
-            "Memory stats",
+            "bot.system.memory.stats.result",
             execution_time_ms,
             total=result.get("total"),
             available=result.get("available"),
@@ -681,7 +681,7 @@ class PsutilAdapter:
             "disk usage", _get_disk_stats, [], **context
         )
         self._log_operation_result(
-            "Disk usage",
+            "bot.system.disk.usage.result",
             execution_time_ms,
             partitions_count=len(result),
             **context,
@@ -707,7 +707,7 @@ class PsutilAdapter:
             "swap memory", _get_swap, {}, **context
         )
         self._log_operation_result(
-            "Swap memory",
+            "bot.system.swap.memory.result",
             execution_time_ms,
             total=result.get("total"),
             used=result.get("used"),
@@ -752,7 +752,7 @@ class PsutilAdapter:
             "sensor temperatures", _get_temps, [], **context
         )
         self._log_operation_result(
-            "Sensor temperatures",
+            "bot.system.sensors.temperature.result",
             execution_time_ms,
             sensors_count=len(result),
             **context,
@@ -773,7 +773,7 @@ class PsutilAdapter:
             "uptime", _get_uptime, "unknown", **context
         )
         self._log_operation_result(
-            "System uptime",
+            "bot.system.uptime.result",
             execution_time_ms,
             uptime=result,
             **context,
@@ -798,7 +798,7 @@ class PsutilAdapter:
                             status_counts["other"] += 1
 
             except Exception as e:
-                logger.warning("Error iterating processes", error=str(e), **context)
+                logger.warning("bot.system.iterating.processes.fail", error=str(e), **context)
                 return {"running": 0, "sleeping": 0, "idle": 0, "total": 0}
 
             # Calculate total
@@ -815,7 +815,7 @@ class PsutilAdapter:
             "process counts", _get_counts, {}, **context
         )
         self._log_operation_result(
-            "Process counts",
+            "bot.system.process.counts.result",
             execution_time_ms,
             total=result.get("total"),
             running=result.get("running"),
@@ -853,7 +853,7 @@ class PsutilAdapter:
         )
         first_entry = result[0] if result else {}
         self._log_operation_result(
-            "Network I/O",
+            "bot.system.network.io.result",
             execution_time_ms,
             bytes_sent=first_entry.get("bytes_sent"),
             bytes_recv=first_entry.get("bytes_recv"),
@@ -879,14 +879,14 @@ class PsutilAdapter:
                         }
                     )
             except Exception as e:
-                logger.warning("Error retrieving users", error=str(e), **context)
+                logger.warning("bot.system.fetch.users.fail", error=str(e), **context)
             return users
 
         result, execution_time_ms = self._safe_execute(
             "users info", _get_users, [], **context
         )
         self._log_operation_result(
-            "Users info",
+            "bot.system.users.info.result",
             execution_time_ms,
             users_count=len(result),
             **context,
@@ -904,7 +904,7 @@ class PsutilAdapter:
                 if_addrs = self._psutil.net_if_addrs()
             except Exception as e:
                 logger.warning(
-                    "Error retrieving network interfaces", error=str(e), **context
+                    "bot.system.fetch.network.fail", error=str(e), **context
                 )
                 return {}
 
@@ -934,7 +934,7 @@ class PsutilAdapter:
         )
         active_interfaces = sum(1 for stats in result.values() if stats["is_up"])
         self._log_operation_result(
-            "Network interfaces",
+            "bot.system.network.interfaces.result",
             execution_time_ms,
             total_interfaces=len(result),
             active_interfaces=active_interfaces,
@@ -968,7 +968,7 @@ class PsutilAdapter:
             "CPU frequency", _get_cpu_freq, {}, **context
         )
         self._log_operation_result(
-            "CPU frequency",
+            "bot.system.cpu.frequency.result",
             execution_time_ms,
             current=result.get("current_freq"),
             min=result.get("min_freq"),
@@ -1006,7 +1006,7 @@ class PsutilAdapter:
             **context,
         )
         self._log_operation_result(
-            "CPU usage",
+            "bot.system.cpu.usage.result",
             execution_time_ms,
             overall_cpu=f"{result.get('cpu_percent', 0.0):.1f}%",
             cores_count=len(result.get("cpu_percent_per_core", [])),
@@ -1064,7 +1064,7 @@ class PsutilAdapter:
 
             except Exception as e:
                 logger.warning(
-                    "Error iterating processes for top list", error=str(e), **context
+                    "bot.system.iterating.processes.fail", error=str(e), **context
                 )
                 return []
 
@@ -1090,7 +1090,7 @@ class PsutilAdapter:
             f"{top_processes[0]['memory_percent']:.1f}%" if top_processes else "0.0%"
         )
         self._log_operation_result(
-            "Top processes",
+            "bot.system.top.processes.result",
             execution_time_ms,
             processes_analyzed=processes_analyzed,
             excluded_processes=excluded_processes,
@@ -1112,7 +1112,7 @@ class PsutilAdapter:
             **context,
         )
         self._log_operation_result(
-            "CPU count",
+            "bot.system.cpu.count.result",
             execution_time_ms,
             cpu_cores=result,
             **context,
@@ -1130,7 +1130,7 @@ class PsutilAdapter:
                 except AttributeError:
                     pass  # Not all cached methods support cache_clear
 
-        logger.info("All caches cleared")
+        logger.info("bot.system.all.caches.info")
 
     def get_system_summary(self) -> dict[str, Any]:
         """
@@ -1161,7 +1161,7 @@ class PsutilAdapter:
                         summary[name] = data
                 except Exception as e:
                     logger.warning(
-                        f"Failed to collect {name} for system summary",
+                        "bot.system.collect.summary.fail",
                         error=str(e),
                         **context,
                     )
@@ -1175,7 +1175,7 @@ class PsutilAdapter:
             **context,
         )
         self._log_operation_result(
-            "System summary",
+            "bot.system.summary.result",
             execution_time_ms,
             categories=len(result),
             **context,
