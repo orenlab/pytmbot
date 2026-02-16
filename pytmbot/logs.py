@@ -119,8 +119,10 @@ class PatternRegistry:
             r"\b(?:user_id|user-id|userid)[\s:=]+(\d{6,})\b",
             # Chat ID patterns
             r"\b(?:chat_id|chat-id|chatid)[\s:=]+(-?\d{6,})\b",
-            # Username patterns in logs
-            r"\b(?:username|user)[\s:=]+@?([a-zA-Z0-9_]{3,})\b",
+            # Username patterns in logs (strict key-value forms only)
+            r"\busername\b\s*[:=]\s*['\"]?@?([a-zA-Z0-9_]{3,})\b",
+            # Optional explicit "@username" after "user=" or "user:"
+            r"\buser\b\s*[:=]\s*@([a-zA-Z0-9_]{3,})\b",
             # General long numeric IDs
             r"\b\d{9,}\b",
         ]
@@ -584,6 +586,16 @@ class SecureLoggerFilter:
         """Sanitize and compact value recursively to reduce log noise."""
         if depth > 2:
             return "[truncated]"
+
+        if key == "username" and isinstance(value, str):
+            normalized_value = value.strip()
+            if not normalized_value or normalized_value.lower() in {
+                "unknown",
+                "n/a",
+                "none",
+            }:
+                return value
+            return self.masker.mask_username(normalized_value)
 
         if isinstance(value, str):
             if len(value) > self._MAX_STRING_LENGTH:

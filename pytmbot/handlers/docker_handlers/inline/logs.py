@@ -10,7 +10,7 @@ import io
 import time
 from dataclasses import dataclass
 from threading import RLock
-from typing import Final
+from typing import Any, Final, cast
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
@@ -24,6 +24,11 @@ from pytmbot.handlers.handlers_util.docker import (
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.message_deletion import (
+    DeletionResult,
+    DeletionStatus,
+    deletion_manager,
+)
 
 logger = Logger()
 
@@ -37,6 +42,10 @@ LOGS_ACTION_REFRESH: Final[str] = "refresh"
 LOGS_ACTION_FILE: Final[str] = "file"
 LOGS_TRUNCATION_NOTICE: Final[str] = "[LOGS TRUNCATED FOR TELEGRAM LENGTH LIMIT]\n"
 LOGS_EMPTY_MESSAGE: Final[str] = "No logs available for this container."
+LOGS_FILE_AUTO_DELETE_DELAY_SECONDS: Final[int] = 30
+LOGS_FILE_DELETION_NOTICE: Final[str] = (
+    "This file will be automatically deleted in 30 seconds."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,11 +136,32 @@ class LogsSessionStore:
 _logs_sessions = LogsSessionStore()
 
 
+def _logs_file_deletion_callback(result: DeletionResult) -> None:
+    """Callback function executed after logs file deletion attempt."""
+    if result.status == DeletionStatus.SUCCESS:
+        logger.info(
+            f"Logs file message {result.message_id} deleted for user {result.user_id}"
+        )
+    elif result.status == DeletionStatus.FAILED:
+        logger.warning(
+            f"Failed to delete logs file message {result.message_id} for user {result.user_id}: "
+            f"{result.error_message}"
+        )
+
+
 def _render_logs_template(
     logs: str, container_name: str, emojis: dict[str, str]
 ) -> str:
     """Render logs template with provided context."""
-    return Compiler.quick_render("d_logs.jinja2", emojis=emojis, logs=logs, container_name=container_name)
+    return cast(
+        str,
+        Compiler.quick_render(
+            "d_logs.jinja2",
+            emojis=emojis,
+            logs=logs,
+            container_name=container_name,
+        ),
+    )
 
 
 def _parse_logs_callback_data(callback_data: str) -> ParsedLogsCallback:
@@ -211,6 +241,68 @@ def _build_logs_chunks(logs: str, max_chunk_chars: int = MAX_LOGS_PAGE_CHARS) ->
     return chunks or [LOGS_EMPTY_MESSAGE]
 
 
+def _is_logs_session_owner(call: CallbackQuery, session: LogsSession) -> bool:
+    """Check that callback caller owns the logs session."""
+    if call.from_user is None:
+        return False
+    return int(call.from_user.id) == session.user_id
+
+
+def _validate_logs_session_access(
+    call: CallbackQuery,
+    bot: TeleBot,
+    session: LogsSession,
+    *,
+    requested_action: str,
+) -> bool:
+    """
+    Validate session ownership and active auth for logs session actions.
+
+    This is a defense-in-depth guard for direct handler invocations and
+    stale callback payloads.
+    """
+    if not _is_logs_session_owner(call, session):
+        current_user_id = call.from_user.id if call.from_user else "unknown"
+        logger.warning(
+            "Denied logs session access due to owner mismatch",
+            requested_action=requested_action,
+            current_user_id=current_user_id,
+            session_user_id=session.user_id,
+            session_id=session.session_id,
+        )
+        show_handler_info(
+            call=call,
+            text="Access denied: logs session belongs to another user.",
+            bot=bot,
+        )
+        return False
+
+    is_allowed, deny_reason = authorize_docker_callback_request(
+        call=call,
+        called_user_id=session.user_id,
+        require_admin=True,
+        require_owner_match=True,
+        require_session=True,
+    )
+    if not is_allowed:
+        current_user_id = call.from_user.id if call.from_user else "unknown"
+        logger.warning(
+            "Denied logs session action due to auth/session restrictions",
+            requested_action=requested_action,
+            current_user_id=current_user_id,
+            session_id=session.session_id,
+            reason=deny_reason,
+        )
+        show_handler_info(
+            call=call,
+            text=f"Getting logs: {deny_reason}",
+            bot=bot,
+        )
+        return False
+
+    return True
+
+
 def _clamp_page_index(page_index: int, total_pages: int) -> int:
     if total_pages <= 1:
         return 0
@@ -272,7 +364,7 @@ def _render_logs_page(
 
 def _build_logs_keyboard(
     session: LogsSession, current_page: int, total_pages: int
-):
+) -> Any:
     """Build logs keyboard with navigation and actions."""
     keyboard_buttons = []
 
@@ -334,7 +426,15 @@ def _edit_logs_message(
     session: LogsSession,
     page_index: int,
     emojis: dict[str, str],
-):
+) -> Any:
+    if call.message is None:
+        logger.warning("Cannot render logs page: callback message context is missing")
+        return show_handler_info(
+            call=call,
+            text="Cannot update logs view in this context.",
+            bot=bot,
+        )
+
     total_pages = len(session.chunks)
     safe_page_index = _clamp_page_index(page_index, total_pages)
     logs_chunk = session.chunks[safe_page_index]
@@ -372,13 +472,17 @@ def _open_logs_session(
     container_name: str,
     user_id: int,
     emojis: dict[str, str],
-):
+) -> Any:
     logger.info(f"User {call.from_user.id}: Getting logs for container {container_name}")
     logs = get_sanitized_logs(container_name, call, bot.token)
 
     if not logs:
         logger.error(f"Error getting logs for container {container_name}")
-        return show_handler_info(call, text=f"{container_name}: Error getting logs", bot=bot)
+        return show_handler_info(
+            call,
+            text=f"{container_name}: Error getting logs",
+            bot=bot,
+        )
 
     session = _logs_sessions.create(
         container_name=container_name,
@@ -386,10 +490,18 @@ def _open_logs_session(
         raw_logs=logs,
         chunks=_build_logs_chunks(logs),
     )
-    return _edit_logs_message(call=call, bot=bot, session=session, page_index=0, emojis=emojis)
+    return _edit_logs_message(
+        call=call,
+        bot=bot,
+        session=session,
+        page_index=0,
+        emojis=emojis,
+    )
 
 
-def _get_session_or_show_error(call: CallbackQuery, session_id: str, bot: TeleBot):
+def _get_session_or_show_error(
+    call: CallbackQuery, session_id: str, bot: TeleBot
+) -> LogsSession | None:
     session = _logs_sessions.get(session_id)
     if session is None:
         logger.warning(f"Logs session expired or not found: {session_id}")
@@ -401,31 +513,97 @@ def _get_session_or_show_error(call: CallbackQuery, session_id: str, bot: TeleBo
     return session
 
 
-def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession):
+def _send_logs_as_file(
+    call: CallbackQuery, bot: TeleBot, session: LogsSession
+) -> Any:
+    if not _validate_logs_session_access(
+        call=call,
+        bot=bot,
+        session=session,
+        requested_action=LOGS_ACTION_FILE,
+    ):
+        return None
+
+    if call.message is None:
+        logger.warning("Cannot send logs file: callback message context is missing")
+        return show_handler_info(
+            call,
+            text="Cannot send logs file in this context.",
+            bot=bot,
+        )
+
     if not session.raw_logs.strip():
         return show_handler_info(
             call, text=f"{session.container_name}: No logs available", bot=bot
         )
 
+    chat_id = call.message.chat.id
+    requester_user_id = int(call.from_user.id)
     filename = f"{session.container_name}-logs.txt"
     with io.BytesIO(session.raw_logs.encode("utf-8")) as logs_file:
         logs_file.name = filename
-        bot.send_document(
-            chat_id=call.message.chat.id,
+        sent_message = bot.send_document(
+            chat_id=chat_id,
             document=logs_file,
-            caption=f"Logs file for {session.container_name}",
+            caption=(
+                f"Logs file for {session.container_name}\n\n"
+                f"{LOGS_FILE_DELETION_NOTICE}"
+            ),
             visible_file_name=filename,
         )
 
+    deletion_result = deletion_manager.schedule_deletion(
+        bot=bot,
+        chat_id=chat_id,
+        message_id=sent_message.message_id,
+        user_id=requester_user_id,
+        delay_seconds=LOGS_FILE_AUTO_DELETE_DELAY_SECONDS,
+        callback=_logs_file_deletion_callback,
+    )
+
+    callback_text = f"Sent {filename}. Auto-delete in 30s."
+    if deletion_result.status == DeletionStatus.LIMIT_EXCEEDED:
+        callback_text = f"Sent {filename}. Auto-delete queue is full."
+        warning_message = (
+            "⚠️ <b>Privacy Notice:</b> Too many pending auto-deletions. "
+            "This logs file will not be automatically deleted.\n\n"
+            "<i>Please manually delete this file message.</i>"
+        )
+        bot.send_message(
+            chat_id=chat_id,
+            text=warning_message,
+            parse_mode="HTML",
+            reply_to_message_id=sent_message.message_id,
+        )
+        logger.warning(
+            f"Logs file auto-deletion limit exceeded for user {requester_user_id}"
+        )
+    elif deletion_result.status == DeletionStatus.SCHEDULED:
+        logger.info(
+            f"Logs file auto-deletion scheduled for message {sent_message.message_id} "
+            f"(user {requester_user_id}) in {LOGS_FILE_AUTO_DELETE_DELAY_SECONDS} seconds"
+        )
+    elif deletion_result.status == DeletionStatus.ALREADY_SCHEDULED:
+        logger.warning(
+            f"Logs file message {sent_message.message_id} for user {requester_user_id} "
+            "already has a deletion task"
+        )
+    else:
+        callback_text = f"Sent {filename}. Delete manually when done."
+        logger.error(
+            f"Unexpected deletion status for logs file message {sent_message.message_id}: "
+            f"{deletion_result.status}"
+        )
+
     return bot.answer_callback_query(
-        callback_query_id=call.id, text=f"Sent {filename}", show_alert=False
+        callback_query_id=call.id, text=callback_text, show_alert=False
     )
 
 
 # func=lambda call: call.data.startswith('__get_logs__')
 @logger.session_decorator
 @two_factor_auth_required
-def handle_get_logs(call: CallbackQuery, bot: TeleBot):
+def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
     """
     Handles the callback for getting logs of a container.
 
@@ -470,6 +648,13 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
         session = _get_session_or_show_error(call, parsed.session_id, bot)
         if not session:
             return None
+        if not _validate_logs_session_access(
+            call=call,
+            bot=bot,
+            session=session,
+            requested_action=LOGS_ACTION_NAV,
+        ):
+            return None
         return _edit_logs_message(
             call=call,
             bot=bot,
@@ -481,6 +666,13 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot):
     if parsed.action == LOGS_ACTION_REFRESH and parsed.session_id:
         old_session = _get_session_or_show_error(call, parsed.session_id, bot)
         if not old_session:
+            return None
+        if not _validate_logs_session_access(
+            call=call,
+            bot=bot,
+            session=old_session,
+            requested_action=LOGS_ACTION_REFRESH,
+        ):
             return None
 
         logs = get_sanitized_logs(old_session.container_name, call, bot.token)
