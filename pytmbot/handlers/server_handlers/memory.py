@@ -38,7 +38,11 @@ def handle_memory(message: Message, bot: TeleBot):
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
-        data = button_data(text="Swap info", callback_data="__swap_info__")
+        callback_data = "__swap_info__"
+        if message.from_user is not None:
+            callback_data = f"__swap_info__:{message.from_user.id}"
+
+        data = button_data(text="Swap info", callback_data=callback_data)
         keyboard = keyboards.build_inline_keyboard(data)
 
         bot_answer = Compiler.quick_render(

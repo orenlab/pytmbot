@@ -222,20 +222,20 @@ class DockerAdapter:
     def _test_connection(self, client: DockerClient) -> dict[str, Any] | None:
         """Test Docker connection with timeout and error handling."""
         try:
-            # Use ping with timeout
+            # Fast liveness check.
             client.ping()
 
-            # Additional validation - try to get Docker info
-            info = client.info()
-            if not info:
-                return None
+            # Lightweight metadata call (cheaper than full info()).
+            version = client.version()
+            if not isinstance(version, dict):
+                version = {}
 
             self._log.trace(
                 "docker.adapter.connection.test.ok",
-                docker_version=info.get("ServerVersion", "unknown"),
+                docker_version=version.get("Version", "unknown"),
                 **self._base_context,
             )
-            return info
+            return version
 
         except Exception as e:
             self._log.warning(
@@ -274,7 +274,11 @@ class DockerAdapter:
 
             self._log.debug(
                 "docker.adapter.connected.debug",
-                docker_version=docker_info.get("ServerVersion", "unknown"),
+                docker_version=(
+                    docker_info.get("ServerVersion")
+                    or docker_info.get("Version")
+                    or "unknown"
+                ),
                 api_version=getattr(client.api, "_version", "unknown"),
                 span_id=self._span_id,
             )

@@ -155,13 +155,11 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 ]
             )
 
-        back_callback_data = "back_to_containers"
-        if source_page is not None:
-            back_callback_data = build_page_callback_data(
-                prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
-                page=source_page,
-                user_id=called_user_id,
-            )
+        back_callback_data = build_page_callback_data(
+            prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
+            page=source_page or 1,
+            user_id=called_user_id,
+        )
 
         # Back button
         keyboard_buttons.append(

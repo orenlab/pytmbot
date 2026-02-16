@@ -9,7 +9,6 @@ with safe subprocess execution and fallback mechanisms.
 """
 
 import json
-import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -246,11 +245,7 @@ class ServicesAdapter:
                 logger.warning("bot.handler.server.services.invalid.command.warn")
                 return None
 
-            # Ensure command is properly escaped (only if needed)
-            safe_command = [
-                shlex.quote(str(arg)) if " " in str(arg) else str(arg)
-                for arg in command
-            ]
+            safe_command = [str(arg) for arg in command]
 
             # Execute with strict limits
             result = subprocess.run(
@@ -516,7 +511,7 @@ def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
     }
 
     if message.from_user.id not in settings.access_control.allowed_user_ids:
-        bot.send_message(
+        return bot.send_message(
             message.chat.id,
             f"{emojis.get('warning', '⚠️')} I have checked and you do not have access rights to execute this command. I'm sorry...",
         )

@@ -21,7 +21,8 @@ from pytmbot.adapters.docker.utils import (
     get_container_memory_stats,
     get_container_stats_snapshot,
 )
-from pytmbot.globals import em, session_manager, settings
+from pytmbot.globals import em
+from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
 from pytmbot.utils import sanitize_logs, set_naturalsize, set_naturaltime
 
@@ -63,23 +64,18 @@ def authorize_docker_callback_request(
     if call.from_user is None:
         return False, "Missing user information"
 
-    current_user_id = int(call.from_user.id)
-
     try:
         target_user_id = int(called_user_id)
     except (TypeError, ValueError):
         return False, "Invalid target user id"
 
-    if require_admin and current_user_id not in settings.access_control.allowed_admins_ids:
-        return False, "Access denied"
-
-    if require_owner_match and current_user_id != target_user_id:
-        return False, "Access denied"
-
-    if require_session and not session_manager.is_authenticated(current_user_id):
-        return False, "Not authenticated user"
-
-    return True, ""
+    return authorize_callback_request(
+        call,
+        target_user_id=target_user_id,
+        require_owner_match=require_owner_match,
+        require_admin=require_admin,
+        require_session=require_session,
+    )
 
 
 def _extract_container_attrs(container_details: Any) -> dict[str, Any]:

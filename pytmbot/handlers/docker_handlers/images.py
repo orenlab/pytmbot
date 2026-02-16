@@ -267,7 +267,10 @@ def _build_images_keyboard(
         )
 
     keyboard_buttons.append(
-        button_data(text="Check updates", callback_data="__check_updates__")
+        button_data(
+            text="Check updates",
+            callback_data=f"__check_updates__:{user_id}",
+        )
     )
 
     return keyboards.build_inline_keyboard(keyboard_buttons)

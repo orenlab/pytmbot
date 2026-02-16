@@ -45,8 +45,12 @@ def handle_process(message: Message, bot: TeleBot):
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
 
+        callback_data = "__process_info__"
+        if message.from_user is not None:
+            callback_data = f"__process_info__:{message.from_user.id}"
+
         inline_key = button_data(
-            text="Top 10 processes", callback_data="__process_info__"
+            text="Top 10 processes", callback_data=callback_data
         )
         keyboard = keyboards.build_inline_keyboard(inline_key)
 

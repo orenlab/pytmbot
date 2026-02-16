@@ -112,17 +112,25 @@ class InlineFilters:
     @staticmethod
     def swap_info(call: CallbackQueryType) -> bool:
         """Filter for swap info callback."""
-        return call.data == "__swap_info__"
+        if call.data is None:
+            return False
+        return call.data == "__swap_info__" or call.data.startswith("__swap_info__:")
 
     @staticmethod
     def process_info(call: CallbackQueryType) -> bool:
         """Filter for process info callback."""
-        return call.data == "__process_info__"
+        if call.data is None:
+            return False
+        return call.data == "__process_info__" or call.data.startswith(
+            "__process_info__:"
+        )
 
     @staticmethod
     def update_info(call: CallbackQueryType) -> bool:
         """Filter for update info callback."""
-        return call.data == "__how_update__"
+        if call.data is None:
+            return False
+        return call.data == "__how_update__" or call.data.startswith("__how_update__:")
 
     @staticmethod
     def get_logs(call: CallbackQueryType) -> bool:
@@ -157,7 +165,11 @@ class InlineFilters:
     @staticmethod
     def image_updates(call: CallbackQueryType) -> bool:
         """Filter for image updates callback."""
-        return call.data == "__check_updates__"
+        if call.data is None:
+            return False
+        return call.data == "__check_updates__" or call.data.startswith(
+            "__check_updates__:"
+        )
 
     @staticmethod
     def images_page(call: CallbackQueryType) -> bool:

@@ -10,9 +10,9 @@ from __future__ import annotations
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, ClassVar, Final, Self
+from typing import Any, ClassVar, Final
 from weakref import WeakValueDictionary
 
 from pytmbot.logs import BaseComponent
@@ -59,7 +59,6 @@ class _UserSession:
         return datetime.now() <= self.blocked_time
 
 
-@dataclass
 class SessionManager(BaseComponent):
     """
     Thread-safe session manager with modern Python practices.
@@ -72,21 +71,24 @@ class SessionManager(BaseComponent):
     )
     _lock: ClassVar[threading.RLock] = threading.RLock()
 
-    # Instance configuration
-    state_fabric: _StateFabric = field(default_factory=_StateFabric)
-    cleanup_interval: int = 600  # seconds
-    session_timeout: int = 10  # minutes
-    max_totp_attempts: int = 5
-    block_duration: int = 10  # minutes
+    # Default configuration
+    _DEFAULT_CLEANUP_INTERVAL: Final[int] = 600  # seconds
+    _DEFAULT_SESSION_TIMEOUT: Final[int] = 10  # minutes
+    _DEFAULT_MAX_TOTP_ATTEMPTS: Final[int] = 5
+    _DEFAULT_BLOCK_DURATION: Final[int] = 10  # minutes
 
-    # Private fields
-    _user_sessions: dict[int, _UserSession] = field(default_factory=dict, init=False)
-    _cleanup_thread: threading.Thread | None = field(default=None, init=False)
-    _shutdown_event: threading.Event = field(
-        default_factory=threading.Event, init=False
-    )
+    state_fabric: _StateFabric
+    cleanup_interval: int
+    session_timeout: int
+    max_totp_attempts: int
+    block_duration: int
 
-    def __new__(cls, instance_name: str = "default") -> Self:
+    _user_sessions: dict[int, _UserSession]
+    _cleanup_thread: threading.Thread | None
+    _shutdown_event: threading.Event
+    _initialized: bool
+
+    def __new__(cls, instance_name: str = "default") -> SessionManager:
         """
         Thread-safe singleton implementation with named instances.
         """
@@ -96,14 +98,48 @@ class SessionManager(BaseComponent):
                 cls._instances[instance_name] = instance
             return cls._instances[instance_name]
 
-    def __post_init__(self) -> None:
-        """Initialize the session manager after dataclass initialization."""
-        super().__init__("SessionManager")
+    def __init__(
+        self,
+        instance_name: str = "default",
+        *,
+        cleanup_interval: int | None = None,
+        session_timeout: int | None = None,
+        max_totp_attempts: int | None = None,
+        block_duration: int | None = None,
+    ) -> None:
+        """Initialize singleton state once without resetting active sessions."""
+        del instance_name  # kept for backward-compatible constructor signature
 
-        # Prevent re-initialization
-        if hasattr(self, "_initialized"):
+        if getattr(self, "_initialized", False):
             return
 
+        super().__init__("SessionManager")
+
+        self.state_fabric = _StateFabric()
+        self.cleanup_interval = (
+            cleanup_interval
+            if cleanup_interval is not None
+            else self._DEFAULT_CLEANUP_INTERVAL
+        )
+        self.session_timeout = (
+            session_timeout
+            if session_timeout is not None
+            else self._DEFAULT_SESSION_TIMEOUT
+        )
+        self.max_totp_attempts = (
+            max_totp_attempts
+            if max_totp_attempts is not None
+            else self._DEFAULT_MAX_TOTP_ATTEMPTS
+        )
+        self.block_duration = (
+            block_duration
+            if block_duration is not None
+            else self._DEFAULT_BLOCK_DURATION
+        )
+
+        self._user_sessions = {}
+        self._cleanup_thread = None
+        self._shutdown_event = threading.Event()
         self._initialized = True
         self._start_cleanup_thread()
 

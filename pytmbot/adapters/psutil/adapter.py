@@ -112,9 +112,13 @@ class PsutilAdapter:
     def __init__(self) -> None:
         self._psutil = psutil
         self._lock = RLock()  # Thread safety for instance-level operations
+        self._timeout_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="psutil_timeout",
+        )
 
-    @staticmethod
     def _safe_execute(
+        self,
         operation: str,
         func: Callable[[], R],
         fallback: R,
@@ -137,9 +141,8 @@ class PsutilAdapter:
 
         try:
             if timeout:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(func)
-                    result = future.result(timeout=timeout)
+                future = self._timeout_executor.submit(func)
+                result = future.result(timeout=timeout)
             else:
                 result = func()
 
@@ -148,6 +151,8 @@ class PsutilAdapter:
 
         except concurrent.futures.TimeoutError:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
+            if "future" in locals():
+                future.cancel()
             logger.warning(
                 "bot.system.timed.warn",
                 timeout_seconds=timeout,
@@ -177,6 +182,15 @@ class PsutilAdapter:
                 **span_context,
             )
             return fallback, execution_time_ms
+
+    def close(self) -> None:
+        """Release shared executor resources."""
+        self._timeout_executor.shutdown(wait=False, cancel_futures=True)
+
+    def __del__(self) -> None:
+        """Best-effort cleanup on object destruction."""
+        with suppress(Exception):
+            self.close()
 
     @staticmethod
     def _log_operation_result(

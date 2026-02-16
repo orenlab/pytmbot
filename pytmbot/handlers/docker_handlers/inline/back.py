@@ -83,20 +83,19 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
     current_user_id = int(call.from_user.id)
     target_user_id = callback_user_id if callback_user_id is not None else current_user_id
 
-    if callback_user_id is not None:
-        is_allowed, deny_reason = authorize_docker_callback_request(
+    is_allowed, deny_reason = authorize_docker_callback_request(
+        call=call,
+        called_user_id=target_user_id,
+        require_admin=False,
+        require_owner_match=callback_user_id is not None,
+        require_session=False,
+    )
+    if not is_allowed:
+        return show_handler_info(
             call=call,
-            called_user_id=target_user_id,
-            require_admin=False,
-            require_owner_match=True,
-            require_session=False,
+            text=f"Containers: {deny_reason}",
+            bot=bot,
         )
-        if not is_allowed:
-            return show_handler_info(
-                call=call,
-                text=f"Containers: {deny_reason}",
-                bot=bot,
-            )
 
     context, inline_keyboard = get_list_of_containers_again(
         page=page,

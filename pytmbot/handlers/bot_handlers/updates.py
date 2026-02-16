@@ -42,8 +42,12 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         # Compile the bot's answer
         bot_answer, need_inline = _process_message()
 
+        callback_data = "__how_update__"
+        if message.from_user is not None:
+            callback_data = f"__how_update__:{message.from_user.id}"
+
         keyboard_button = [
-            button_data(text="How update?", callback_data="__how_update__")
+            button_data(text="How update?", callback_data=callback_data)
         ]
 
         inline_button = (

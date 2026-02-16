@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from functools import wraps
-from typing import Any, Final, TypeGuard, TypeVar, cast
+from typing import Any, Final, TypeGuard, TypeVar
 
 import telebot
 from telebot.types import CallbackQuery, Message, User
@@ -319,4 +319,4 @@ def two_factor_auth_required(func: HandlerFunction) -> HandlerFunction:
             log.success("bot.session.access.granted.ok")
             return func(query, bot)
 
-    return cast(HandlerFunction, wrapper)
+    return wrapper

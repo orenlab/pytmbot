@@ -9,6 +9,10 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.updates import DockerImageUpdater, UpdaterStatus
+from pytmbot.handlers.handlers_util.callback_auth import (
+    authorize_callback_request,
+    parse_callback_target_user,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -28,6 +32,30 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
     Returns:
         None
     """
+    try:
+        target_user_id = parse_callback_target_user(call.data, "__check_updates__")
+    except ValueError:
+        return bot.answer_callback_query(
+            call.id,
+            text="Invalid image updates request format.",
+            show_alert=True,
+        )
+
+    is_allowed, deny_reason = authorize_callback_request(
+        call,
+        target_user_id=target_user_id,
+        require_owner_match=target_user_id is not None,
+    )
+    if not is_allowed:
+        return bot.answer_callback_query(call.id, text=deny_reason, show_alert=True)
+
+    if call.message is None:
+        return bot.answer_callback_query(
+            call.id,
+            text="Cannot render image updates in this context.",
+            show_alert=True,
+        )
+
     updater = DockerImageUpdater()
     updater.initialize()
 
