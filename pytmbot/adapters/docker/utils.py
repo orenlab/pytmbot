@@ -259,7 +259,7 @@ class MemoryStatsProvider:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=2,
+                timeout=1.0,
                 check=False,
             )
 
@@ -801,11 +801,11 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
     """
     Get container memory stats using the fastest available method.
 
-    Tries methods in order of speed:
+    Tries methods in order of speed and reliability:
     1. cgroups direct read (fastest)
-    2. docker CLI command (fast)
-    3. container inspect (very fast, but limited info)
-    4. fallback to container.stats() (slowest)
+    2. container.stats() one-shot (fast and detailed)
+    3. container inspect (very fast, limited info)
+    4. docker CLI fallback (slowest, external process)
 
     Args:
         container: Docker container object
@@ -820,10 +820,12 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
         logger.debug(f"Got memory stats from cgroups for {container_id[:12]}")
         return memory_stats
 
-    # Method 2: Docker CLI (fast) - only for running containers
+    # Method 2: Runtime one-shot stats for running containers
     if container.status.lower() == "running":
-        if memory_stats := MemoryStatsProvider.from_docker_cli(container_id):
-            logger.debug(f"Got memory stats from Docker CLI for {container_id[:12]}")
+        if memory_stats := MemoryStatsProvider.from_container_stats(container):
+            logger.debug(
+                f"Got memory stats from container.stats() for {container_id[:12]}"
+            )
             return memory_stats
 
     # Method 3: Container inspect (limited but fast)
@@ -831,12 +833,10 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
         logger.debug(f"Got memory limit from inspect for {container_id[:12]}")
         return memory_stats
 
-    # Method 4: Fallback to original stats method (slowest)
+    # Method 4: Fallback to docker CLI for running containers
     if container.status.lower() == "running":
-        if memory_stats := MemoryStatsProvider.from_container_stats(container):
-            logger.debug(
-                f"Got memory stats from container.stats() for {container_id[:12]}"
-            )
+        if memory_stats := MemoryStatsProvider.from_docker_cli(container_id):
+            logger.debug(f"Got memory stats from Docker CLI for {container_id[:12]}")
             return memory_stats
 
     # Ultimate fallback

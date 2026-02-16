@@ -37,6 +37,7 @@ from .docker_handlers.inline.container_info import (
     handle_containers_full_info,
 )
 from .docker_handlers.inline.image_updates import handle_image_updates
+from .docker_handlers.inline.images_page import handle_images_page
 from .docker_handlers.inline.logs import handle_get_logs
 from .docker_handlers.inline.manage import handle_manage_container
 from .docker_handlers.inline.manage_action import (
@@ -136,7 +137,11 @@ class InlineFilters:
     @staticmethod
     def back_to_containers(call: CallbackQueryType) -> bool:
         """Filter for back to containers callback."""
-        return call.data == "back_to_containers"
+        if call.data is None:
+            return False
+        return call.data == "back_to_containers" or call.data.startswith(
+            "__containers_page__"
+        )
 
     @staticmethod
     def manage_container(call: CallbackQueryType) -> bool:
@@ -147,6 +152,13 @@ class InlineFilters:
     def image_updates(call: CallbackQueryType) -> bool:
         """Filter for image updates callback."""
         return call.data == "__check_updates__"
+
+    @staticmethod
+    def images_page(call: CallbackQueryType) -> bool:
+        """Filter for images pagination callback."""
+        if call.data is None:
+            return False
+        return call.data.startswith("__images_page__")
 
 
 @cache
@@ -276,6 +288,9 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         ],
         "image_updates": [
             HandlerConfig(callback=handle_image_updates, filter_func=InlineFilters.image_updates)
+        ],
+        "images_page": [
+            HandlerConfig(callback=handle_images_page, filter_func=InlineFilters.images_page)
         ],
     }
 

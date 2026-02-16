@@ -82,6 +82,10 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 call, text=f"{container_name}: Container not found", bot=bot
             )
 
+        container_ref = str(container_details.get("name", container_name)).strip().lower()
+        if not container_ref:
+            container_ref = container_name
+
         # Get emojis for template
         emojis = get_emojis()
 
@@ -114,11 +118,11 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 [
                     button_data(
                         text=f"{emojis.get('spiral_calendar', '📅')} Get logs",
-                        callback_data=f"__get_logs__:open:{container_name}:{call.from_user.id}",
+                        callback_data=f"__get_logs__:open:{container_ref}:{call.from_user.id}",
                     ),
                     button_data(
                         text=f"{emojis.get('bullseye', '🎯')} Manage",
-                        callback_data=f"__manage__:{container_name}:{call.from_user.id}",
+                        callback_data=f"__manage__:{container_ref}:{call.from_user.id}",
                     ),
                 ]
             )

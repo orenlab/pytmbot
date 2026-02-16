@@ -5,36 +5,110 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from __future__ import annotations
+
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import button_data, keyboards
-from pytmbot.handlers.docker_handlers.containers import get_list_of_containers_again
+from pytmbot.handlers.docker_handlers.containers import (
+    CONTAINERS_PAGE_CALLBACK_PREFIX,
+    get_list_of_containers_again,
+)
+from pytmbot.handlers.docker_handlers.pagination import parse_page_callback_data
+from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
+    show_handler_info,
+)
 from pytmbot.logs import Logger
 
 logger = Logger()
 
 
+def _parse_back_callback_data(callback_data: str) -> tuple[int, int | None]:
+    """
+    Parse callback for containers list navigation.
+
+    Supported payloads:
+    - 'back_to_containers' -> first page for current user
+    - '__containers_page__:{page}:{user_id}'
+    """
+    if callback_data == "back_to_containers":
+        return 1, None
+
+    parsed = parse_page_callback_data(
+        callback_data,
+        prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
+    )
+    if parsed is None:
+        raise ValueError("Invalid containers pagination callback format")
+
+    page, user_id = parsed
+    return page, user_id
+
+
 # func=lambda call: call.data == 'back_to_containers')
 @logger.session_decorator
 def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
-    # Get the updated list of containers and buttons
-    context, buttons = get_list_of_containers_again()
-
-    logger.debug(f"Updated list of containers: {buttons}")
-
-    keyboard_buttons = [
-        button_data(
-            text=button,
-            callback_data=f"__get_full__:{button}:{call.from_user.id}",
+    if call.from_user is None:
+        return show_handler_info(
+            call=call,
+            text="Cannot identify callback user.",
+            bot=bot,
         )
-        for button in buttons
-    ]
 
-    # Build a custom inline keyboard
-    inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
+    if call.message is None:
+        return show_handler_info(
+            call=call,
+            text="Cannot refresh containers list in this context.",
+            bot=bot,
+        )
 
-    # Edit the message text with the updated container list and keyboard
+    if call.data is None:
+        return show_handler_info(
+            call=call,
+            text="Invalid containers pagination request.",
+            bot=bot,
+        )
+
+    try:
+        page, callback_user_id = _parse_back_callback_data(call.data)
+    except ValueError as exc:
+        logger.warning("Failed to parse containers back callback", error=str(exc))
+        return show_handler_info(
+            call=call,
+            text="Invalid containers pagination request.",
+            bot=bot,
+        )
+
+    current_user_id = int(call.from_user.id)
+    target_user_id = callback_user_id if callback_user_id is not None else current_user_id
+
+    if callback_user_id is not None:
+        is_allowed, deny_reason = authorize_docker_callback_request(
+            call=call,
+            called_user_id=target_user_id,
+            require_admin=False,
+            require_owner_match=True,
+            require_session=True,
+        )
+        if not is_allowed:
+            return show_handler_info(
+                call=call,
+                text=f"Containers: {deny_reason}",
+                bot=bot,
+            )
+
+    context, inline_keyboard = get_list_of_containers_again(
+        page=page,
+        user_id=target_user_id,
+    )
+
+    logger.debug(
+        "Updated list of containers",
+        page=page,
+        user_id=target_user_id,
+    )
+
     return bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,

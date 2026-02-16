@@ -449,35 +449,34 @@ def get_comprehensive_container_details(
         network_info = parse_container_network_info(container_details, attrs=attrs)
         environment = parse_container_environment(container_details, attrs=attrs)
 
-        # Initialize empty stats
-        stats = {}
-        memory_stats = {}
+        # Initialize runtime/stat fields
+        stats: dict[str, Any] = {}
+        memory_stats: dict[str, str | float] = {}
+        is_running = (
+            hasattr(container_details, "status")
+            and str(container_details.status).lower() == "running"
+        )
 
         # Handle stats for Container object
-        if hasattr(container_details, "stats"):
-            is_running = container_details.status.lower() == "running"
-
-            try:
-                # Fast path for memory data to avoid slow Docker stats API where possible
-                if is_running:
-                    memory_stats = normalize_memory_stats(
-                        get_container_memory_stats(container_details)
-                    )
-            except Exception as e:
-                logger.debug(f"Couldn't get fast memory stats: {e}")
-
+        if hasattr(container_details, "stats") and is_running:
             try:
                 # Request a single-shot runtime sample (faster than default stats mode)
-                if is_running:
-                    stats = get_container_stats_snapshot(container_details)
+                stats = get_container_stats_snapshot(container_details)
             except Exception as e:
                 logger.warning(f"Couldn't get container runtime stats: {e}")
                 stats = {}
 
-        # Parse stats if available and prefer runtime memory snapshot if present
+        # Prefer runtime memory snapshot when available, fallback to static/fast providers.
         runtime_memory_stats = parse_container_memory_stats(stats) if stats else {}
         if runtime_memory_stats:
             memory_stats = runtime_memory_stats
+        elif is_running:
+            try:
+                memory_stats = normalize_memory_stats(
+                    get_container_memory_stats(container_details)
+                )
+            except Exception as e:
+                logger.debug(f"Couldn't get fallback memory stats: {e}")
 
         cpu_stats = parse_container_cpu_stats(stats) if stats else {}
         network_stats = parse_container_network_stats(stats) if stats else {}
