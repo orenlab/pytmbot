@@ -11,7 +11,7 @@ from typing import Any
 from docker.errors import APIError, ImageNotFound
 from docker.models.images import Image
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import with_operation_logging
 from pytmbot.exceptions import DockerConnectionError, ImageOperationError
 from pytmbot.logs import Logger
@@ -87,7 +87,7 @@ def fetch_image_details() -> list[dict[str, Any]]:
         ImageOperationError: If the operation fails.
     """
     try:
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             images = adapter.images.list(all=True)
             images_data = [process_image_attrs(image) for image in images]
             return images_data
@@ -116,7 +116,7 @@ def get_image_history(image_id: str) -> list[dict[str, Any]]:
         ImageNotFound: If the image doesn't exist
     """
     try:
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             image = adapter.images.get(image_id)
             history = image.history()
 
@@ -149,7 +149,7 @@ def get_image_stats() -> dict[str, Any]:
         Dictionary containing image statistics
     """
     try:
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             images = adapter.images.list(all=True)
 
             total_size = sum(image.attrs.get("Size", 0) for image in images)

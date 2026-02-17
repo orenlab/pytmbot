@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Final
 from docker.errors import NotFound
 from docker.models.containers import Container
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.exceptions import (
     ContainerNotFoundError,
     DockerOperationException,
@@ -751,7 +751,7 @@ def get_container_safely(
         if docker_client is not None:
             container = docker_client.containers.get(container_id)
         else:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = adapter.containers.get(container_id)
 
         execution_time = time.time() - start_time

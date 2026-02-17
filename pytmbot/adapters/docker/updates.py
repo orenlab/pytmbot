@@ -22,7 +22,7 @@ from dateutil.parser import ParserError, isoparse  # type: ignore[import-untyped
 from packaging import version
 from packaging.version import InvalidVersion
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.logs import BaseComponent
 from pytmbot.models.docker_models import TagInfo, UpdateInfo
 from pytmbot.utils import sanitize_exception
@@ -433,7 +433,7 @@ class DockerImageUpdater(BaseComponent):
         skipped_count = 0
 
         try:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 images = adapter.images.list(all=False)
                 self._log.debug("docker.updates.found.local.debug")
 

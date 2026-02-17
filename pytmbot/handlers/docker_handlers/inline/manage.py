@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import get_container_state
 from pytmbot.globals import button_data, em, keyboards
 from pytmbot.handlers.handlers_util.docker import (
@@ -51,7 +51,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     container_name = auth_context.container_name
 
     # Get container state
-    with DockerAdapter() as adapter:
+    with docker_client_context() as adapter:
         state = get_container_state(container_name, docker_client=adapter)
     logger.info("bot.handler.docker.manage.container.state.info")
 

@@ -12,7 +12,7 @@ from functools import wraps
 from threading import RLock
 from typing import Any, Final
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
     get_container_basic_info,
@@ -248,7 +248,7 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = get_container_safely(
                     container_ref, docker_client=adapter
                 )
@@ -311,7 +311,7 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = get_container_safely(
                     container_ref, docker_client=adapter
                 )
@@ -376,7 +376,7 @@ class ContainerManager:
         start_time = time.time()
 
         try:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = get_container_safely(
                     container_ref, docker_client=adapter
                 )
@@ -463,7 +463,7 @@ class ContainerManager:
                 )
                 raise ValueError(f"Invalid container name format: {new_container_name}")
 
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = get_container_safely(
                     container_ref, docker_client=adapter
                 )
@@ -614,7 +614,7 @@ class ContainerManager:
         )
 
         try:
-            with DockerAdapter() as adapter:
+            with docker_client_context() as adapter:
                 container = get_container_safely(
                     container_ref, docker_client=adapter
                 )

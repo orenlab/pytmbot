@@ -12,7 +12,7 @@ from typing import Any, Final
 
 from docker.models.containers import Container
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
     get_container_safely,
@@ -276,7 +276,7 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
     start_time = time.time()
 
     try:
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             container_objects = adapter.containers.list(all=True)
             if not container_objects:
                 logger.info("docker.containers.no.found.info", **context)
@@ -389,7 +389,7 @@ def fetch_container_logs(
     start_time = time.time()
 
     try:
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             container = get_container_safely(container_id, docker_client=adapter)
 
             # Fetch logs with enhanced options
@@ -464,7 +464,7 @@ def fetch_docker_counters(*, force_refresh: bool = False) -> dict[str, int]:
                 logger.debug("docker.containers.counters.cache.hit.debug", **context)
                 return cached_counters
 
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             # Use list comprehensions for better performance
             images_count = len(
                 adapter.images.list(all=False)
@@ -528,7 +528,7 @@ def fetch_full_container_details(container_id: str) -> Container | None:
 
     try:
         # Return the actual Container object for compatibility with handlers
-        with DockerAdapter() as adapter:
+        with docker_client_context() as adapter:
             container = get_container_safely(container_id, docker_client=adapter)
 
         execution_time = time.time() - start_time
