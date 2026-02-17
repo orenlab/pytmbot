@@ -7,7 +7,6 @@ also providing basic information about the status of local servers.
 
 import time
 from datetime import datetime
-from functools import lru_cache
 from threading import RLock
 from typing import Any, Final
 
@@ -30,6 +29,7 @@ logger = Logger()
 # Module-level constants
 CACHE_TTL: Final[int] = 60  # Cache TTL in seconds
 MAX_LOG_TAIL: Final[int] = 100  # Maximum log lines to fetch
+DOCKER_COUNTERS_CACHE_TTL: Final[float] = 5.0
 
 
 class ContainerInfoCache:
@@ -81,6 +81,44 @@ class ContainerInfoCache:
 
 # Global cache instance
 _container_cache = ContainerInfoCache()
+_docker_counters_cache: dict[str, int] | None = None
+_docker_counters_cached_at: float = 0.0
+_docker_counters_lock = RLock()
+
+
+def _get_cached_docker_counters() -> dict[str, int] | None:
+    """Return cached docker counters if TTL has not expired."""
+    global _docker_counters_cache, _docker_counters_cached_at
+
+    with _docker_counters_lock:
+        if _docker_counters_cache is None:
+            return None
+
+        if (
+            time.monotonic() - _docker_counters_cached_at
+            >= DOCKER_COUNTERS_CACHE_TTL
+        ):
+            _docker_counters_cache = None
+            _docker_counters_cached_at = 0.0
+            return None
+
+        return dict(_docker_counters_cache)
+
+
+def _store_docker_counters(counters: dict[str, int]) -> None:
+    """Store docker counters in bounded TTL cache."""
+    global _docker_counters_cache, _docker_counters_cached_at
+    with _docker_counters_lock:
+        _docker_counters_cache = dict(counters)
+        _docker_counters_cached_at = time.monotonic()
+
+
+def _clear_docker_counters_cache() -> None:
+    """Clear docker counters cache."""
+    global _docker_counters_cache, _docker_counters_cached_at
+    with _docker_counters_lock:
+        _docker_counters_cache = None
+        _docker_counters_cached_at = 0.0
 
 
 @with_operation_logging("aggregate_container_details")
@@ -405,9 +443,8 @@ def fetch_container_logs(
         raise
 
 
-@lru_cache(maxsize=1)
 @with_operation_logging("fetch_docker_counters")
-def fetch_docker_counters() -> dict[str, int]:
+def fetch_docker_counters(*, force_refresh: bool = False) -> dict[str, int]:
     """
     Fetches Docker image and container counts with caching.
 
@@ -421,6 +458,12 @@ def fetch_docker_counters() -> dict[str, int]:
     start_time = time.time()
 
     try:
+        if not force_refresh:
+            cached_counters = _get_cached_docker_counters()
+            if cached_counters is not None:
+                logger.debug("docker.containers.counters.cache.hit.debug", **context)
+                return cached_counters
+
         with DockerAdapter() as adapter:
             # Use list comprehensions for better performance
             images_count = len(
@@ -448,6 +491,7 @@ def fetch_docker_counters() -> dict[str, int]:
                 **context,
             )
 
+            _store_docker_counters(counters)
             return counters
 
     except Exception as e:
@@ -515,15 +559,17 @@ def fetch_full_container_details(container_id: str) -> Container | None:
 def clear_container_cache() -> None:
     """Clear the container information cache."""
     _container_cache.clear()
-    # Also clear the LRU cache
-    fetch_docker_counters.cache_clear()
+    _clear_docker_counters_cache()
     logger.info("docker.containers.container.cache.info")
 
 
 def get_cache_stats() -> dict[str, Any]:
     """Get cache statistics for monitoring."""
+    cached_counters = _get_cached_docker_counters()
     return {
         "cache_size": _container_cache.size(),
         "cache_ttl": _container_cache._ttl,
-        "lru_cache_info": fetch_docker_counters.cache_info()._asdict(),
+        "docker_counters_cached": cached_counters is not None,
+        "docker_counters_ttl_seconds": DOCKER_COUNTERS_CACHE_TTL,
+        "docker_counters_cache_size": len(cached_counters or {}),
     }

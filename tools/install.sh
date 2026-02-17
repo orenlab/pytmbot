@@ -3,8 +3,13 @@
 # pyTMBot - A simple Telegram bot to handle Docker containers and images,
 # also providing basic information about the status of local servers.
 
-# Safe error handling - only exit on truly critical errors
-# set -e TODO: fix the processing of non-zero signals and enable it. This is a critical issue!
+# Safe shell behavior:
+# - `pipefail` catches hidden failures inside pipelines.
+# - `errtrace` propagates ERR traps through functions/subshells.
+# `errexit` is intentionally not enabled yet: the installer still contains
+# interactive/non-critical branches that rely on explicit status handling.
+set -o pipefail
+set -o errtrace
 
 # Colors for output
 readonly GREEN='\033[0;32m'

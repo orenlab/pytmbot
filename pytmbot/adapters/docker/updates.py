@@ -556,6 +556,25 @@ class DockerImageUpdater(BaseComponent):
         else:
             return repo_tag, "latest"
 
+    @staticmethod
+    def _build_repository_urls(repo: str) -> list[str]:
+        """
+        Build Docker Hub repository endpoints.
+
+        For namespaced repositories (e.g. `orenlab/pytmbot`), only the explicit
+        namespace endpoint is valid.
+        """
+        normalized_repo = repo.strip().strip("/")
+        if "/" in normalized_repo:
+            return [
+                f"https://registry.hub.docker.com/v2/repositories/{normalized_repo}/tags/"
+            ]
+
+        return [
+            f"https://registry.hub.docker.com/v2/repositories/{normalized_repo}/tags/",
+            f"https://registry.hub.docker.com/v2/repositories/library/{normalized_repo}/tags/",
+        ]
+
     async def _fetch_remote_tags(
         self, session: ClientSession, repo: str
     ) -> list[EnhancedTagInfo]:
@@ -580,11 +599,8 @@ class DockerImageUpdater(BaseComponent):
 
         self._stats["cache_misses"] += 1
 
-        # Docker Hub API endpoints - try official repo first, then library
-        base_urls = [
-            f"https://registry.hub.docker.com/v2/repositories/{repo}/tags/",
-            f"https://registry.hub.docker.com/v2/repositories/library/{repo}/tags/",
-        ]
+        # Docker Hub API endpoints
+        base_urls = self._build_repository_urls(repo)
 
         tags_info: list[EnhancedTagInfo] = []
         last_error: Exception | None = None
@@ -651,16 +667,9 @@ class DockerImageUpdater(BaseComponent):
         return tags_info
 
     async def _fetch_tags_from_url(
-        self, session: ClientSession, url: str, repo: str
+        self, session: ClientSession, url: str, _repo: str
     ) -> list[EnhancedTagInfo] | None:
         """Fetch tags from specific URL with intelligent retry logic."""
-
-        # Extract the actual repository path from URL for logging
-        (
-            url.split("/repositories/")[1].split("/tags/")[0]
-            if "/repositories/" in url
-            else repo
-        )
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -713,9 +722,7 @@ class DockerImageUpdater(BaseComponent):
             except ClientResponseError as e:
                 # Don't retry on client errors (4xx) - they won't succeed
                 if 400 <= e.status < 500:
-                    if e.status == 404:
-                        self._log.debug("docker.updates.repository.not.debug")
-                    elif e.status == 403:
+                    if e.status == 403:
                         self._log.warning("docker.updates.access.forbidden.warn")
                     elif e.status == 429:
                         self._log.warning("docker.updates.rate.limited.warn")

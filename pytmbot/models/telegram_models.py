@@ -6,6 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import ipaddress
+from collections import deque
 
 from pytmbot.logs import Logger
 
@@ -14,6 +15,8 @@ logger = Logger()
 
 class TelegramIPValidator:
     """Validates if an IP address belongs to Telegram's network ranges."""
+
+    _MAX_VALIDATED_IPS = 4096
 
     def __init__(self) -> None:
         self.ipv4_ranges = [
@@ -37,6 +40,19 @@ class TelegramIPValidator:
         ]
 
         self.validated_ips: set[str] = set()
+        self._validated_ip_order: deque[str] = deque()
+
+    def _remember_validated_ip(self, ip_str: str) -> None:
+        """Store validated IP in a bounded in-memory cache."""
+        if ip_str in self.validated_ips:
+            return
+
+        if len(self.validated_ips) >= self._MAX_VALIDATED_IPS:
+            oldest_ip = self._validated_ip_order.popleft()
+            self.validated_ips.discard(oldest_ip)
+
+        self.validated_ips.add(ip_str)
+        self._validated_ip_order.append(ip_str)
 
     def is_telegram_ip(self, ip_str: str) -> bool:
         if ip_str in self.validated_ips:
@@ -52,7 +68,7 @@ class TelegramIPValidator:
 
             for network in ranges:
                 if ip in network:
-                    self.validated_ips.add(ip_str)
+                    self._remember_validated_ip(ip_str)
                     return True
             return False
 

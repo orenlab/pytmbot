@@ -7,7 +7,8 @@ also providing basic information about the status of local servers.
 
 from datetime import datetime
 
-import requests
+import requests  # type: ignore[import-untyped]
+from packaging.version import InvalidVersion, Version
 from telebot import TeleBot
 from telebot.types import Message
 
@@ -20,6 +21,35 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_bot_development
 
 logger = Logger()
+
+
+def _normalize_version(value: str) -> str:
+    """Normalize version values from release payload and local metadata."""
+    return value.strip().lstrip("vV")
+
+
+def _compare_versions(left: str, right: str) -> int:
+    """
+    Compare two version strings.
+
+    Returns:
+        1 when left > right, 0 when equal, -1 when left < right.
+    """
+    normalized_left = _normalize_version(left)
+    normalized_right = _normalize_version(right)
+
+    try:
+        left_version = Version(normalized_left)
+        right_version = Version(normalized_right)
+        if left_version > right_version:
+            return 1
+        if left_version < right_version:
+            return -1
+        return 0
+    except InvalidVersion:
+        if normalized_left == normalized_right:
+            return 0
+        return 1 if normalized_left > normalized_right else -1
 
 
 # commands=['check_bot_updates']
@@ -98,10 +128,11 @@ def _process_message() -> tuple[str, bool]:
     tag_name = update_context["tag_name"]
 
     # Check the version of the update
-    if tag_name > __version__:
+    version_cmp = _compare_versions(tag_name, __version__)
+    if version_cmp > 0:
         # If the tag name is greater than the bot's version, return a new update message
         return _render_new_update_message(update_context), True
-    elif tag_name == __version__:
+    elif version_cmp == 0:
         # If the tag name is equal to the bot's version, return a no update message
         return _render_no_update_message(), False
     else:

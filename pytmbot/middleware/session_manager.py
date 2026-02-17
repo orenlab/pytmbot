@@ -344,10 +344,22 @@ class SessionManager(BaseComponent):
     def is_authenticated(self, user_id: int) -> bool:
         """Check if user is fully authenticated and session is valid."""
         with self.session_context(user_id) as session:
+            is_blocked = session.is_blocked_now()
+
+            # Auto-unblock if block period has passed.
+            if not is_blocked and session.blocked_time:
+                if session.auth_state == self.state_fabric.BLOCKED:
+                    session.auth_state = self.state_fabric.UNAUTHENTICATED
+                session.blocked_time = None
+
+                with self.log_context(user_id=user_id, action="auto_unblock") as log:
+                    log.info("bot.session.user.automatically.deny")
+
+            is_expired = session.is_expired(self.session_timeout)
             is_auth = (
                 session.auth_state == self.state_fabric.AUTHENTICATED
-                and not self.is_blocked(user_id)
-                and not session.is_expired(self.session_timeout)
+                and not is_blocked
+                and not is_expired
             )
 
             with self.log_context(user_id=user_id, action="auth_check") as log:
@@ -356,8 +368,8 @@ class SessionManager(BaseComponent):
                     context={
                         "is_authenticated": is_auth,
                         "auth_state": session.auth_state,
-                        "is_blocked": self.is_blocked(user_id),
-                        "is_expired": session.is_expired(self.session_timeout),
+                        "is_blocked": is_blocked,
+                        "is_expired": is_expired,
                     },
                 )
 

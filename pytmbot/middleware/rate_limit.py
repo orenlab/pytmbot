@@ -5,7 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any, Final, TypedDict
@@ -65,7 +65,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         self.limit = limit
         self.period = period
         self.update_types = self.SUPPORTED_UPDATES
-        self._user_requests: defaultdict[UserID, list[Timestamp]] = defaultdict(list)
+        self._user_requests: defaultdict[UserID, deque[Timestamp]] = defaultdict(deque)
 
         # Track rate limit violations for logging optimization
         self._violation_count: defaultdict[UserID, int] = defaultdict(int)
@@ -92,7 +92,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         initial_count = len(requests)
 
         while requests and requests[0] < cutoff_time:
-            requests.pop(0)
+            requests.popleft()
 
         cleaned_count = initial_count - len(requests)
 

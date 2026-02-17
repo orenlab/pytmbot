@@ -66,7 +66,8 @@ def process_image_attrs(image: Image) -> dict[str, Any]:
     except Exception as e:
         logger.error(
             "docker.images.image.attributes.fail",
-            extra={"image_id": image.short_id, "error": str(e)},
+            image_id=image.short_id,
+            error=str(e),
         )
         return {
             "id": image.short_id,

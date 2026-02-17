@@ -322,11 +322,9 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         )
         logger.error(
             "bot.handler.docker.images.fail",
-            extra={
-                "chat_id": message.chat.id,
-                "error": str(error),
-                "error_type": type(error).__name__,
-            },
+            chat_id=message.chat.id,
+            error=str(error),
+            error_type=type(error).__name__,
         )
         raise exceptions.HandlingException(
             ErrorContext(

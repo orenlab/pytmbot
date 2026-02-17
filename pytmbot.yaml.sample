@@ -96,6 +96,13 @@ webhook_config:
   local_port:
     - 5001  # Internal port for the bot application
 
+  # Trusted reverse proxy IPs/CIDRs (OPTIONAL)
+  # Configure this only when webhook traffic goes through a trusted proxy/load balancer.
+  # If unset/null, forwarded headers are ignored and direct client IP is used.
+  trusted_proxy_ips: null
+    # - '127.0.0.1/32'
+    # - '10.0.0.0/8'
+
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
   # Set to null or omit if not using SSL certificates
   cert: null

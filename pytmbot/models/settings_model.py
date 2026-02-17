@@ -9,6 +9,7 @@ Enhanced with configuration versioning and validation.
 
 import warnings
 from functools import cache
+from ipaddress import ip_network
 from typing import Any, ClassVar
 
 from packaging import version
@@ -164,6 +165,32 @@ class WebhookConfig(BaseModel):
     local_port: list[int] = Field(min_length=1)
     cert: list[SecretStr] | None = Field(default=None, min_length=1)
     cert_key: list[SecretStr] | None = Field(default=None, min_length=1)
+    trusted_proxy_ips: list[str] | None = Field(default=None, min_length=1)
+
+    @classmethod
+    @field_validator("trusted_proxy_ips")
+    def validate_trusted_proxy_ips(
+        cls, value: list[str] | None
+    ) -> list[str] | None:
+        """Validate trusted proxy IPs/CIDRs format."""
+        if value is None:
+            return None
+
+        normalized: list[str] = []
+        for raw_ip in value:
+            candidate = raw_ip.strip()
+            if not candidate:
+                raise ValueError("trusted_proxy_ips cannot contain empty values")
+
+            try:
+                _ = ip_network(candidate, strict=False)
+            except ValueError as error:
+                raise ValueError(
+                    f"Invalid trusted proxy IP/CIDR value: '{candidate}'"
+                ) from error
+            normalized.append(candidate)
+
+        return normalized
 
 
 class ConfigMigrator(logs.BaseComponent):
@@ -466,7 +493,7 @@ def load_config_with_migration(config_path: str) -> SettingsModel:
     Returns:
         Loaded and validated settings
     """
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     # Create logger for config loading
     class ConfigLoader(logs.BaseComponent):

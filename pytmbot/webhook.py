@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import ipaddress
 from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -53,13 +54,31 @@ def _first_secret(values: list[SecretStr] | None) -> str | None:
 
 
 class RateLimit(BaseComponent):
-    __slots__ = ("limit", "period", "ban_threshold", "requests", "banned_ips")
+    __slots__ = (
+        "limit",
+        "period",
+        "ban_threshold",
+        "requests",
+        "banned_ips",
+        "_last_seen",
+        "max_tracked_ips",
+        "_last_cleanup_ts",
+    )
 
-    def __init__(self, limit: int, period: int, ban_threshold: int = 50) -> None:
+    def __init__(
+        self,
+        limit: int,
+        period: int,
+        ban_threshold: int = 50,
+        max_tracked_ips: int = 4096,
+    ) -> None:
         super().__init__()
 
         with self.log_context(
-            limit=limit, period=period, ban_threshold=ban_threshold
+            limit=limit,
+            period=period,
+            ban_threshold=ban_threshold,
+            max_tracked_ips=max_tracked_ips,
         ) as log:
             log.debug("bot.webhook.rate.limiter.init")
             self.limit = limit
@@ -67,8 +86,56 @@ class RateLimit(BaseComponent):
             self.ban_threshold = ban_threshold
             self.requests: dict[str, deque[float]] = {}
             self.banned_ips: dict[str, datetime] = {}
+            self._last_seen: dict[str, float] = {}
+            self.max_tracked_ips = max(128, max_tracked_ips)
+            self._last_cleanup_ts = 0.0
+
+    def _drop_ip_state(self, client_ip: str) -> None:
+        """Remove all in-memory state for an IP."""
+        self.requests.pop(client_ip, None)
+        self.banned_ips.pop(client_ip, None)
+        self._last_seen.pop(client_ip, None)
+
+    def _evict_oldest_ip(self) -> None:
+        """Evict least recently seen IP to keep memory bounded."""
+        if not self._last_seen:
+            return
+        oldest_ip = min(self._last_seen, key=lambda ip: self._last_seen[ip])
+        self._drop_ip_state(oldest_ip)
+
+    def _cleanup_state(self, current_time: float) -> None:
+        """
+        Cleanup stale in-memory state.
+
+        Runs at most once per minute unless cache is above hard limit.
+        """
+        should_cleanup_now = current_time - self._last_cleanup_ts >= 60.0
+        if not should_cleanup_now and len(self._last_seen) <= self.max_tracked_ips:
+            return
+
+        self._last_cleanup_ts = current_time
+        now = datetime.now()
+        expired_bans = [
+            ip
+            for ip, banned_at in self.banned_ips.items()
+            if (now - banned_at).total_seconds() > 3600
+        ]
+        for ip in expired_bans:
+            self.banned_ips.pop(ip, None)
+
+        stale_ips = [
+            ip
+            for ip, request_times in self.requests.items()
+            if not request_times and ip not in self.banned_ips
+        ]
+        for ip in stale_ips:
+            self._drop_ip_state(ip)
+
+        while len(self._last_seen) > self.max_tracked_ips:
+            self._evict_oldest_ip()
 
     def is_banned(self, client_ip: str) -> bool:
+        self._cleanup_state(time())
         with self.log_context(ip=client_ip, action="check_ban"):
             if client_ip not in self.banned_ips:
                 return False
@@ -84,6 +151,17 @@ class RateLimit(BaseComponent):
             return True
 
     def is_rate_limited(self, client_ip: str) -> bool:
+        current_time = time()
+        self._cleanup_state(current_time)
+
+        if (
+            client_ip not in self.requests
+            and client_ip not in self._last_seen
+            and len(self._last_seen) >= self.max_tracked_ips
+        ):
+            self._evict_oldest_ip()
+        self._last_seen[client_ip] = current_time
+
         with self.log_context(
             ip=client_ip,
             action="rate_check",
@@ -92,7 +170,6 @@ class RateLimit(BaseComponent):
             if self.is_banned(client_ip):
                 return True
 
-            current_time = time()
             if client_ip not in self.requests:
                 self.requests[client_ip] = deque()
 
@@ -211,6 +288,8 @@ class WebhookServer(BaseComponent):
         "telegram_ip_validator",
         "secret_token",
         "webhook_path",
+        "trusted_proxy_sources",
+        "trusted_proxy_networks",
         "webhook_manager",
         "app",
         "rate_limiter",
@@ -242,6 +321,10 @@ class WebhookServer(BaseComponent):
             webhook_settings = _get_webhook_config()
             webhook_url = webhook_settings.url[0].get_secret_value()
             webhook_port = webhook_settings.webhook_port[0]
+            self.trusted_proxy_sources = webhook_settings.trusted_proxy_ips or []
+            self.trusted_proxy_networks = self._parse_proxy_networks(
+                self.trusted_proxy_sources
+            )
 
             self.webhook_manager = WebhookManager(
                 bot=bot,
@@ -251,8 +334,8 @@ class WebhookServer(BaseComponent):
             )
 
             self.app = self._create_app()
-            self.rate_limiter = RateLimit(limit=10, period=10)
-            self.rate_limiter_404 = RateLimit(limit=5, period=10)
+            self.rate_limiter = RateLimit(limit=10, period=10, max_tracked_ips=4096)
+            self.rate_limiter_404 = RateLimit(limit=5, period=10, max_tracked_ips=1024)
             log.info("bot.webhook.server.init.ok")
 
     def _create_app(self) -> FastAPI:
@@ -302,6 +385,85 @@ class WebhookServer(BaseComponent):
             "unknown",
         )
 
+    @staticmethod
+    def _parse_proxy_networks(
+        proxy_sources: list[str],
+    ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Parse trusted proxy CIDR/IP list into network objects."""
+        networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        for source in proxy_sources:
+            networks.append(ipaddress.ip_network(source, strict=False))
+        return networks
+
+    def _is_trusted_proxy(self, source_ip: str) -> bool:
+        """Validate source IP against configured trusted proxies."""
+        try:
+            ip_obj = ipaddress.ip_address(source_ip)
+        except ValueError:
+            return False
+        return any(ip_obj in network for network in self.trusted_proxy_networks)
+
+    def _resolve_client_ip(
+        self, request: Request, x_forwarded_for: str | None
+    ) -> tuple[str, str]:
+        """
+        Resolve real client IP safely.
+
+        Returns:
+            Tuple of (peer_ip, resolved_client_ip)
+        """
+        if request.client is None:
+            raise HTTPException(
+                status_code=400, detail="Cannot determine peer client IP address"
+            )
+
+        peer_ip = request.client.host
+
+        if not x_forwarded_for:
+            return peer_ip, peer_ip
+
+        if not self.trusted_proxy_networks:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Forwarded headers are not allowed",
+            )
+
+        if not self._is_trusted_proxy(peer_ip):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Untrusted proxy source",
+            )
+
+        if len(x_forwarded_for) > 512:
+            raise HTTPException(
+                status_code=400, detail="Malformed X-Forwarded-For header"
+            )
+
+        forwarded_chain = [
+            item.strip() for item in x_forwarded_for.split(",") if item.strip()
+        ]
+        if not forwarded_chain:
+            raise HTTPException(
+                status_code=400, detail="Malformed X-Forwarded-For header"
+            )
+
+        client_ip = forwarded_chain[0]
+        try:
+            _ = ipaddress.ip_address(client_ip)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400, detail="Invalid client IP in forwarded header"
+            ) from error
+
+        return peer_ip, client_ip
+
+    def _get_update_error_context(self, update: UpdateModel) -> dict[str, object]:
+        """Return minimal and safe update context for error logs."""
+        return {
+            "update_id": update.update_id,
+            "update_type": self._get_update_type(update),
+        }
+
     def _setup_routes(self, app: FastAPI) -> None:
         with self.log_context(action="route_setup") as log:
             log.debug("bot.webhook.config.routes.debug")
@@ -333,20 +495,13 @@ class WebhookServer(BaseComponent):
                 request: Request,
                 x_forwarded_for: Annotated[str | None, Header()] = None,
             ) -> str:
-                if x_forwarded_for:
-                    client_ip = x_forwarded_for.split(",")[0].strip()
-                else:
-                    if request.client is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail="Cannot determine client IP address",
-                        )
-                    client_ip = request.client.host
+                peer_ip, client_ip = self._resolve_client_ip(request, x_forwarded_for)
 
                 with self.log_context(
                     action="ip_verification",
                     client_ip=client_ip,
-                    x_forwarded_for=x_forwarded_for,
+                    peer_ip=peer_ip,
+                    has_forwarded_header=bool(x_forwarded_for),
                 ) as _log:
                     if not self.telegram_ip_validator.is_telegram_ip(client_ip):
                         _log.warning(
@@ -356,7 +511,7 @@ class WebhookServer(BaseComponent):
                             status_code=403,
                             detail="Access denied: Request must come from Telegram servers",
                         )
-                    log.info("bot.webhook.ip.verified.ok")
+                    _log.info("bot.webhook.ip.verified.ok")
                     return client_ip
 
             @app.post(self.webhook_path)
@@ -422,20 +577,20 @@ class WebhookServer(BaseComponent):
                         )
 
                     except ValueError as e:
-                        log.error(
+                        _log.error(
                             "bot.webhook.invalid.update.fail",
                             error=str(e),
-                            update_data=update.model_dump(),
+                            **self._get_update_error_context(update),
                         )
                         raise HTTPException(
                             status_code=400, detail="Invalid update format"
                         ) from e
                     except Exception as e:
-                        log.error(
+                        _log.error(
                             "bot.webhook.update.processing.fail",
                             error=str(e),
                             error_type=type(e).__name__,
-                            update_data=update.model_dump(),
+                            **self._get_update_error_context(update),
                         )
                         raise HTTPException(
                             status_code=500, detail="Internal server error"
@@ -471,7 +626,9 @@ class WebhookServer(BaseComponent):
                     ssl_enabled=bool(cert_file and key_file),
                     ssl_cert_present=bool(cert_file),
                     ssl_key_present=bool(key_file),
-                    proxy_enabled=True,
+                    proxy_enabled=bool(self.trusted_proxy_sources),
+                    uvicorn_proxy_headers=False,
+                    trusted_proxy_count=len(self.trusted_proxy_sources),
                     workers_count=1,
                 ) as config_log:
                     if cert_file and key_file:
@@ -482,8 +639,7 @@ class WebhookServer(BaseComponent):
                             port=self.port,
                             log_level="critical",
                             access_log=False,
-                            proxy_headers=True,
-                            forwarded_allow_ips="*",
+                            proxy_headers=False,
                             workers=1,
                             ssl_certfile=cert_file,
                             ssl_keyfile=key_file,
@@ -495,8 +651,7 @@ class WebhookServer(BaseComponent):
                             port=self.port,
                             log_level="critical",
                             access_log=False,
-                            proxy_headers=True,
-                            forwarded_allow_ips="*",
+                            proxy_headers=False,
                             workers=1,
                         )
 

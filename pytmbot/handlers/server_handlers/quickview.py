@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from telebot import TeleBot
 from telebot.types import Message
@@ -84,15 +83,14 @@ def _get_docker() -> dict[str, object] | None:
 
 def _collect_metrics() -> dict[str, object]:
     """
-    Collect all metrics concurrently using ThreadPoolExecutor.
+    Collect all metrics sequentially with predictable low overhead.
 
     Returns:
         Dict containing all collected metrics.
     """
     metrics: dict[str, object] = {}
 
-    # Define tasks to run concurrently
-    tasks: dict[str, Callable[[], object | None]] = {
+    collectors: dict[str, Callable[[], object | None]] = {
         "uptime": _get_uptime,
         "load_average": _get_load,
         "memory": _get_memory,
@@ -100,24 +98,21 @@ def _collect_metrics() -> dict[str, object]:
         "docker": _get_docker,
     }
 
-    # Calculate optimal number of workers
-    optimal_workers = min(len(tasks), (psutil_adapter.get_cpu_count() or 2) + 1)
-
-    with ThreadPoolExecutor(max_workers=optimal_workers) as executor:
-        # Start all tasks
-        future_to_task = {executor.submit(func): name for name, func in tasks.items()}
-
-        # Collect results as they complete
-        for future in as_completed(future_to_task):
-            task_name = future_to_task[future]
-            try:
-                result = future.result()
-                if result is not None:
-                    metrics[task_name] = result
-                else:
-                    logger.warning("bot.handler.server.quickview.task.returned.warn")
-            except Exception:
-                logger.error("bot.handler.server.quickview.task.generated.fail")
+    for metric_name, collector in collectors.items():
+        try:
+            result = collector()
+            if result is not None:
+                metrics[metric_name] = result
+            else:
+                logger.warning(
+                    "bot.handler.server.quickview.task.returned.warn",
+                    metric=metric_name,
+                )
+        except Exception:
+            logger.error(
+                "bot.handler.server.quickview.task.generated.fail",
+                metric=metric_name,
+            )
 
     return metrics
 
