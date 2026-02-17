@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from functools import wraps
@@ -562,7 +562,7 @@ def with_operation_logging(
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             start_time = time.time()
             operation_id = f"{operation_name}_{int(start_time * 1000) % 10000}"
             context = _build_operation_context(
@@ -594,11 +594,11 @@ def _build_operation_context(
     operation_name: str,
     operation_id: str,
     start_time: float,
-    args: tuple,
+    args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> LogContext:
     """Build context for operation logging."""
-    context = {
+    context: LogContext = {
         "action": f"docker_{operation_name}",
         "operation": operation_name,
         "operation_id": operation_id,
@@ -695,7 +695,8 @@ def get_container_state(
 
     try:
         container = get_container_safely(container_id, docker_client=docker_client)
-        status = container.status
+        status_raw = container.status
+        status = status_raw if isinstance(status_raw, str) else str(status_raw)
 
         # Cache the result
         _state_cache.set(container_id, status)
@@ -894,7 +895,7 @@ def get_container_basic_info(container: Container) -> dict[str, Any]:
 
 def _extract_basic_container_data(container: Container) -> dict[str, Any]:
     """Extract basic container data without state information."""
-    image_tags = []
+    image_tags: list[str] = []
     if hasattr(container, "image") and container.image:
         image_tags = getattr(container.image, "tags", [])
 
@@ -980,7 +981,7 @@ def sanitize_kwargs_for_logging(kwargs: dict[str, Any]) -> dict[str, Any]:
         "cookie",
     }
 
-    safe_kwargs = {}
+    safe_kwargs: dict[str, Any] = {}
     for key, value in kwargs.items():
         key_lower = key.lower()
 
@@ -1094,7 +1095,7 @@ def validate_container_operation_params(
         raise ValueError("container_id too long (maximum 64 characters)")
 
     # Operation-specific validation
-    validated_params = {
+    validated_params: dict[str, str | int | float] = {
         "container_id": container_id,
         "operation": operation,
     }
@@ -1122,18 +1123,14 @@ def validate_container_operation_params(
 class ContainerOperationTracker:
     """Track container operations for monitoring and rate limiting."""
 
-    _operations: dict[str, list[float]] = None
-    _lock: RLock = None
+    _operations: dict[str, list[float]] = field(default_factory=dict)
+    _lock: RLock = field(default_factory=RLock)
     _max_history: int = 100
     _cleanup_interval: float = 300.0  # 5 minutes
     _last_cleanup: float = 0.0
 
     def __post_init__(self) -> None:
         """Initialize tracker components."""
-        if self._operations is None:
-            self._operations = {}
-        if self._lock is None:
-            self._lock = RLock()
         if self._last_cleanup == 0.0:
             self._last_cleanup = time.time()
 

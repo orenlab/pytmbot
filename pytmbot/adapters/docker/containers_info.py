@@ -364,11 +364,10 @@ def fetch_container_logs(
                 since=None,  # Could be parameterized in future
             )
 
-        # Decode logs with error handling
-        try:
+        # Decode logs with strict type narrowing
+        if isinstance(logs, (bytes, bytearray)):
             log_content = logs.decode("utf-8", errors="replace")
-        except (UnicodeDecodeError, AttributeError):
-            # Fallback for binary logs
+        else:
             log_content = str(logs)
 
         # Truncate if too large (safety measure)

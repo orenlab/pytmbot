@@ -20,7 +20,7 @@ logger = Logger()
 
 # regexp="Load average"
 @logger.session_decorator
-def handle_load_average(message: Message, bot: TeleBot):
+def handle_load_average(message: Message, bot: TeleBot) -> None:
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
         "desktop_computer": em.get_emoji("desktop_computer"),
@@ -35,9 +35,10 @@ def handle_load_average(message: Message, bot: TeleBot):
             logger.error(
                 "bot.handler.server.load_average.get.fail"
             )
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
+            return None
 
         # Исправленный вариант - два способа:
 

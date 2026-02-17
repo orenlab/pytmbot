@@ -40,7 +40,7 @@ class SystemMetrics:
         }
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sensors_available = True
 
     def collect_metrics(self) -> ResourceMetrics:
@@ -57,7 +57,8 @@ class SystemMetrics:
     @staticmethod
     def _check_cpu_usage() -> float:
         try:
-            return psutil.cpu_percent(interval=1)
+            cpu_usage = psutil.cpu_percent(interval=1)
+            return float(cpu_usage) if isinstance(cpu_usage, (int, float)) else 0.0
         except Exception:
             logger.error("bot.plugins.monitor.utils.cpu.usage.fail", exc_info=True)
             return 0.0
@@ -65,7 +66,12 @@ class SystemMetrics:
     @staticmethod
     def _check_memory_usage() -> float:
         try:
-            return psutil.virtual_memory().percent
+            memory_percent = psutil.virtual_memory().percent
+            return (
+                float(memory_percent)
+                if isinstance(memory_percent, (int, float))
+                else 0.0
+            )
         except Exception:
             logger.error("bot.plugins.monitor.utils.memory.usage.fail", exc_info=True)
             return 0.0
@@ -122,7 +128,17 @@ class SystemMetrics:
     def _check_load_average() -> tuple[float, float, float]:
         try:
             if hasattr(psutil, "getloadavg"):
-                return psutil.getloadavg()
+                load_avg = psutil.getloadavg()
+                if (
+                    isinstance(load_avg, tuple)
+                    and len(load_avg) == 3
+                    and all(isinstance(value, (int, float)) for value in load_avg)
+                ):
+                    return (
+                        float(load_avg[0]),
+                        float(load_avg[1]),
+                        float(load_avg[2]),
+                    )
             return 0.0, 0.0, 0.0
         except Exception:
             logger.error("bot.plugins.monitor.utils.load.average.fail", exc_info=True)

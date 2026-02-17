@@ -20,7 +20,7 @@ from telebot.types import (
 
 from pytmbot.exceptions import KeyboardError
 from pytmbot.logs import Logger
-from pytmbot.settings import keyboard_settings
+from pytmbot.settings import KeyboardSettings, keyboard_settings
 from pytmbot.utils import EmojiConverter, split_string_into_octets
 
 
@@ -45,6 +45,14 @@ class ButtonData:
             raise ValueError("Button text must be a non-empty string")
         if not self.callback_data or not isinstance(self.callback_data, str):
             raise ValueError("Callback data must be a non-empty string")
+
+
+def _resolve_keyboard_settings() -> KeyboardSettings:
+    """Resolve lazily loaded keyboard settings with strict typing."""
+    current_settings = keyboard_settings
+    if not isinstance(current_settings, KeyboardSettings):
+        raise KeyboardError("Keyboard settings are not initialized")
+    return current_settings
 
 
 class Keyboards:
@@ -188,15 +196,20 @@ class Keyboards:
         with logger.context(
             operation=KeyboardOperation.GET_DATA, keyboard_type=keyboard_type or "main"
         ) as log:
-            if keyboard_type is None:
-                return keyboard_settings.main_keyboard
-
-            # Get valid keyboard types more efficiently
-            valid_keyboards = {
-                attr
-                for attr in dir(keyboard_settings)
-                if attr.endswith("_keyboard") and not attr.startswith("_")
+            settings_data = _resolve_keyboard_settings()
+            keyboard_map: dict[str, dict[str, str]] = {
+                "main_keyboard": settings_data.main_keyboard,
+                "server_keyboard": settings_data.server_keyboard,
+                "docker_keyboard": settings_data.docker_keyboard,
+                "auth_keyboard": settings_data.auth_keyboard,
+                "auth_processing_keyboard": settings_data.auth_processing_keyboard,
+                "back_keyboard": settings_data.back_keyboard,
             }
+
+            if keyboard_type is None:
+                return keyboard_map["main_keyboard"]
+
+            valid_keyboards = set(keyboard_map)
 
             if keyboard_type not in valid_keyboards:
                 log.error(
@@ -210,7 +223,7 @@ class Keyboards:
                     f"Valid types: {', '.join(sorted(valid_keyboards))}"
                 )
 
-            return getattr(keyboard_settings, keyboard_type)
+            return keyboard_map[keyboard_type]
 
     def _construct_keyboard(self, keyboard_data: dict[str, str]) -> list[str]:
         """Construct a keyboard with emojis and titles.

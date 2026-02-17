@@ -11,6 +11,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot import exceptions
+from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import em, psutil_adapter, running_in_docker
 from pytmbot.handlers.handlers_util.callback_auth import (
@@ -25,17 +26,18 @@ logger = Logger()
 
 # func=lambda call: call.data == '__process_info__'
 @logger.session_decorator
-def handle_process_info(call: CallbackQuery, bot: TeleBot):
+def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
     """Handles the process_info command to display top CPU and memory consuming processes."""
 
     try:
-        target_user_id = parse_callback_target_user(call.data, "__process_info__")
+        target_user_id = parse_callback_target_user(call.data or "", "__process_info__")
     except ValueError:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             callback_query_id=call.id,
             text="Invalid process info request format.",
             show_alert=True,
         )
+        return None
 
     is_allowed, deny_reason = authorize_callback_request(
         call,
@@ -43,18 +45,20 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
         require_owner_match=target_user_id is not None,
     )
     if not is_allowed:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             callback_query_id=call.id,
             text=deny_reason,
             show_alert=True,
         )
+        return None
 
     if call.message is None:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             callback_query_id=call.id,
             text="Cannot render process info in this context.",
             show_alert=True,
         )
+        return None
 
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
@@ -66,14 +70,17 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
         processes_data = psutil_adapter.get_top_processes(count=10)
 
         if not processes_data:
-            return bot.edit_message_text(
+            bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
                 text="Sorry, but I can't get process information. Please try again later.",
             )
+            return None
 
         # Format table as fixed-width string
-        def format_process_table(processes: list[dict], max_name_len: int = 18) -> str:
+        def format_process_table(
+            processes: list[TopProcess], max_name_len: int = 18
+        ) -> str:
             from textwrap import shorten
 
             header = f"{'PID':<6} | {'Process Name':<{max_name_len}} | {'CPU':>5} | {'MEM':>5}"
@@ -101,12 +108,13 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot):
             template_name="b_top_processes.jinja2", context=context, **emojis
         )
 
-        return bot.edit_message_text(
+        bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=bot_answer,
             parse_mode="HTML",
         )
+        return None
 
     except Exception as error:
         bot.edit_message_text(

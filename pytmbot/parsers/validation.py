@@ -238,8 +238,8 @@ class TemplateValidator:
     Provides both fast and strict validation modes based on use case.
     """
 
-    def __init__(self):
-        self._validation_stats = {
+    def __init__(self) -> None:
+        self._validation_stats: dict[str, int] = {
             "fast_validations": 0,
             "strict_validations": 0,
             "validation_errors": 0,
@@ -278,7 +278,7 @@ class TemplateValidator:
             self._validation_stats["validation_errors"] += 1
             raise
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> dict[str, int]:
         """Get validation statistics."""
         return self._validation_stats.copy()
 
@@ -305,7 +305,7 @@ def validate_template_render(
     return _validator.validate_render_params(template_name, context, strict=not trusted)
 
 
-def get_validation_stats() -> dict[str, Any]:
+def get_validation_stats() -> dict[str, int]:
     """Get global validation statistics."""
     return _validator.get_stats()
 

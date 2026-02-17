@@ -57,13 +57,15 @@ class MonitoringPlugin(PluginInterface):
             "warning": em.get_emoji("warning"),
         }
 
-        with Compiler(
+        user_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
+        response = Compiler.quick_render(
             template_name="plugin_monitor_index.jinja2",
-            first_name=message.from_user.first_name,
+            first_name=user_name,
             available_periods=available_periods,
             **emojis,
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         return self.bot.send_message(
             message.chat.id, text=response, reply_markup=keyboard, parse_mode="Markdown"
@@ -73,7 +75,7 @@ class MonitoringPlugin(PluginInterface):
         """Handle CPU usage request."""
         raise NotImplementedError("CPU usage handling not implemented")
 
-    def register(self) -> TeleBot:
+    def register(self) -> None:
         """Register SystemMonitorPlugin and start monitoring."""
         try:
             monitor_plugin = SystemMonitorPlugin(bot=self.bot)
@@ -83,8 +85,6 @@ class MonitoringPlugin(PluginInterface):
                 self.handle_monitoring, regexp="Monitoring"
             )
             self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
-
-            return self.bot
 
         except Exception:
             self.plugin_logger.error("bot.plugins.monitor.plugin.register.monitoring.fail")

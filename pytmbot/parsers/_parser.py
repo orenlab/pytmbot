@@ -16,7 +16,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Final
 
-from cachetools import TTLCache
+from cachetools import TTLCache  # type: ignore[import-untyped]
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from jinja2.sandbox import SandboxedEnvironment
@@ -36,8 +36,8 @@ _PLUGIN_PREFIX: Final[str] = "plugin_"
 _PLUGIN_TEMPLATE_BASE: Final[str] = "plugins_template"
 
 # Production-ready caching with TTL
-_template_cache = TTLCache(maxsize=100, ttl=3600)  # 1 hour TTL
-_result_cache = TTLCache(maxsize=50, ttl=1800)  # 30 min result cache
+_template_cache: TTLCache[str, Template] = TTLCache(maxsize=100, ttl=3600)  # 1 hour TTL
+_result_cache: TTLCache[str, str] = TTLCache(maxsize=50, ttl=1800)  # 30 min result cache
 _cache_lock = RLock()
 
 # Singleton environment
@@ -141,7 +141,7 @@ def _load_template(template_name: str) -> Template:
     """Load template with TTL caching."""
     with _cache_lock:
         template = _template_cache.get(template_name)
-        if template is not None:
+        if isinstance(template, Template):
             return template
 
     # Load from filesystem
@@ -203,7 +203,7 @@ def _render_template_cached(template_name: str, context: dict[str, Any]) -> str:
         cache_key = f"{template_name}:{context_hash}"
         with _cache_lock:
             result = _result_cache.get(cache_key)
-            if result is not None:
+            if isinstance(result, str):
                 return result
 
     # Render and cache

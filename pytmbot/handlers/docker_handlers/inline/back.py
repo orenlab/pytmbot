@@ -48,37 +48,41 @@ def _parse_back_callback_data(callback_data: str) -> tuple[int, int | None]:
 
 # func=lambda call: call.data == 'back_to_containers')
 @logger.session_decorator
-def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
+def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
     if call.from_user is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Cannot identify callback user.",
             bot=bot,
         )
+        return None
 
     if call.message is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Cannot refresh containers list in this context.",
             bot=bot,
         )
+        return None
 
     if call.data is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Invalid containers pagination request.",
             bot=bot,
         )
+        return None
 
     try:
         page, callback_user_id = _parse_back_callback_data(call.data)
     except ValueError as exc:
         logger.warning("bot.handler.docker.back.parse.containers.fail", error=str(exc))
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Invalid containers pagination request.",
             bot=bot,
         )
+        return None
 
     current_user_id = int(call.from_user.id)
     target_user_id = callback_user_id if callback_user_id is not None else current_user_id
@@ -91,11 +95,12 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
         require_session=False,
     )
     if not is_allowed:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Containers: {deny_reason}",
             bot=bot,
         )
+        return None
 
     context, inline_keyboard = get_list_of_containers_again(
         page=page,
@@ -108,10 +113,11 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot):
         user_id=target_user_id,
     )
 
-    return bot.edit_message_text(
+    bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
     )
+    return None

@@ -66,15 +66,24 @@ def handle_getmyid(
         - All operations are logged for security monitoring
     """
     try:
+        if message.from_user is None:
+            bot.send_message(
+                message.chat.id,
+                "⚠️ Unable to resolve user identity for this message.",
+            )
+            return None
+
+        user = message.from_user
+
         # Send typing indicator for better UX
         bot.send_chat_action(message.chat.id, "typing")
 
         # Extract user and chat information
-        user_id = message.from_user.id
+        user_id = user.id
         chat_id = message.chat.id
-        first_name = message.from_user.first_name or "Unknown"
-        last_name = message.from_user.last_name or ""
-        username = message.from_user.username
+        first_name = user.first_name or "Unknown"
+        last_name = user.last_name or ""
+        username = user.username
         chat_type = message.chat.type
         chat_title = getattr(message.chat, "title", None)
 
@@ -87,7 +96,7 @@ def handle_getmyid(
         }.get(chat_type, chat_type.title())
 
         # Check if user is bot administrator
-        is_bot_admin = message.from_user.id in getattr(bot, "admin_ids", [])
+        is_bot_admin = user.id in getattr(bot, "admin_ids", [])
 
         # Generate response using template compiler
         answer = Compiler.quick_render(

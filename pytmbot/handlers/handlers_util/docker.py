@@ -29,7 +29,7 @@ from pytmbot.utils import sanitize_logs, set_naturalsize, set_naturaltime
 logger = Logger()
 
 
-def show_handler_info(call, text: str, bot: TeleBot):
+def show_handler_info(call: CallbackQuery, text: str, bot: TeleBot) -> bool:
     """
     Handles the case when a container is not found.
 
@@ -80,8 +80,9 @@ def authorize_docker_callback_request(
 
 def _extract_container_attrs(container_details: Any) -> dict[str, Any]:
     """Normalize container input to attrs dictionary once."""
-    if hasattr(container_details, "attrs"):
-        return container_details.attrs
+    attrs = getattr(container_details, "attrs", None)
+    if isinstance(attrs, dict):
+        return attrs
 
     if isinstance(container_details, dict) and "attrs" in container_details:
         attrs = container_details.get("attrs")
@@ -110,7 +111,7 @@ def get_container_full_details(container_name: str) -> Any | None:
 
 
 @lru_cache(maxsize=128)
-def get_emojis():
+def get_emojis() -> dict[str, str]:
     """
     Return a dictionary of emojis with keys representing emoji names and values as emoji characters.
     """
@@ -568,7 +569,7 @@ def parse_container_memory_stats(
         return {}
 
 
-def parse_container_cpu_stats(container_stats) -> dict[str, int | float]:
+def parse_container_cpu_stats(container_stats: dict[str, Any]) -> dict[str, int | float]:
     """
     Parse the CPU statistics of a container with enhanced calculations.
 

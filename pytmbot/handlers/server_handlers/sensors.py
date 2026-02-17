@@ -19,7 +19,7 @@ logger = Logger()
 
 # regexp="Sensors")
 @logger.session_decorator
-def handle_sensors(message: Message, bot: TeleBot):
+def handle_sensors(message: Message, bot: TeleBot) -> None:
     """
     Handles the "sensors" command.
 
@@ -36,10 +36,11 @@ def handle_sensors(message: Message, bot: TeleBot):
         sensors_data = psutil_adapter.get_sensors_temperatures()
 
         if sensors_data is None or sensors_data == []:
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id,
                 text="⚠️ No sensors were found :(",
             )
+            return None
 
         sensors_message = Compiler.quick_render(
             template_name="b_sensors.jinja2",

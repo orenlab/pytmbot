@@ -27,7 +27,9 @@ def handle_start(message: Message, bot: TeleBot) -> None:
 
         keyboard = keyboards.build_reply_keyboard()
 
-        first_name = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
         answer = Compiler.quick_render(
             template_name="b_index.jinja2", first_name=first_name

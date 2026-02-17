@@ -19,7 +19,7 @@ logger = Logger()
 
 # regexp="Network
 @logger.session_decorator
-def handle_network(message: Message, bot: TeleBot):
+def handle_network(message: Message, bot: TeleBot) -> None:
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
         "globe_showing_europe_africa": em.get_emoji("globe_showing_Europe-Africa"),
@@ -35,16 +35,18 @@ def handle_network(message: Message, bot: TeleBot):
             logger.error(
                 "bot.handler.server.network.get.fail"
             )
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id,
                 text="⚠️ An error occurred while getting network statistics",
             )
+            return None
 
         message_text = Compiler.quick_render(
             template_name="b_net_io.jinja2", context=network_statistics, **emojis
         )
 
-        return bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
+        bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
+        return None
 
     except Exception as error:
         bot.send_message(

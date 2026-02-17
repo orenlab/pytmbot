@@ -23,7 +23,7 @@ logger = Logger()
 
 # func=lambda call: call.data == '__how_update__'
 @logger.session_decorator
-def handle_update_info(call: CallbackQuery, bot: TeleBot):
+def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
     """
     Handle the 'check_update_info' command
 
@@ -35,7 +35,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot):
         None
     """
     try:
-        target_user_id = parse_callback_target_user(call.data, "__how_update__")
+        target_user_id = parse_callback_target_user(call.data or "", "__how_update__")
     except ValueError:
         return bot.answer_callback_query(
             callback_query_id=call.id,

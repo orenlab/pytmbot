@@ -11,7 +11,7 @@ import threading
 import time
 import weakref
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -230,7 +230,7 @@ class _MessageDeletionManager(BaseComponent):
                     )
 
     @contextmanager
-    def _update_stats(self, stat_name: str):
+    def _update_stats(self, stat_name: str) -> Generator[None, None, None]:
         """Context manager for thread-safe statistics updates."""
         try:
             yield

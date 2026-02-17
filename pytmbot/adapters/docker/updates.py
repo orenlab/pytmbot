@@ -9,6 +9,7 @@ import asyncio
 import json
 import re
 import time
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum, auto
@@ -17,7 +18,7 @@ from typing import Any, Final
 
 import aiohttp
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
-from dateutil.parser import ParserError, isoparse
+from dateutil.parser import ParserError, isoparse  # type: ignore[import-untyped]
 from packaging import version
 from packaging.version import InvalidVersion
 
@@ -177,7 +178,11 @@ class EnhancedTagInfo:
         else:
             # Fall back to creation time comparison
             try:
-                return isoparse(self.created_at) < isoparse(other.created_at)
+                left_date = isoparse(self.created_at)
+                right_date = isoparse(other.created_at)
+                if isinstance(left_date, datetime) and isinstance(right_date, datetime):
+                    return left_date < right_date
+                return self.name < other.name
             except (ParserError, ValueError):
                 return self.name < other.name
 
@@ -299,7 +304,7 @@ class TagAnalyzer:
             )
 
 
-def normalize_created_at(created) -> str | None:
+def normalize_created_at(created: Any) -> str | None:
     """Enhanced timestamp normalization with validation."""
     try:
         if isinstance(created, (int, float)):
@@ -312,7 +317,9 @@ def normalize_created_at(created) -> str | None:
                 # Validate ISO format
                 try:
                     parsed_date = isoparse(created)
-                    return parsed_date.isoformat()
+                    if isinstance(parsed_date, datetime):
+                        return parsed_date.isoformat()
+                    return str(parsed_date)
                 except (ParserError, ValueError):
                     return created  # Return as-is if can't parse
             return None
@@ -341,9 +348,9 @@ def dict_to_tag_info(info: dict) -> TagInfo:
 class RateLimitHandler:
     """Handle Docker Hub rate limiting with intelligent backoff."""
 
-    def __init__(self):
-        self._last_rate_limit = 0
-        self._consecutive_limits = 0
+    def __init__(self) -> None:
+        self._last_rate_limit: float = 0.0
+        self._consecutive_limits: int = 0
         self._lock = RLock()
 
     def should_skip_request(self) -> bool:
@@ -466,7 +473,7 @@ class DockerImageUpdater(BaseComponent):
 
         return local_images
 
-    def _extract_digest(self, image) -> str | None:
+    def _extract_digest(self, image: Any) -> str | None:
         """Enhanced digest extraction with validation."""
         try:
             repo_digests = image.attrs.get("RepoDigests", [])
@@ -489,7 +496,7 @@ class DockerImageUpdater(BaseComponent):
             return None
 
     def _process_image_tags(
-        self, image, digest: str | None, local_images: LocalImageInfo
+        self, image: Any, digest: str | None, local_images: LocalImageInfo
     ) -> None:
         """Enhanced tag processing with validation."""
         created_at = normalize_created_at(image.attrs.get("Created"))
@@ -580,7 +587,7 @@ class DockerImageUpdater(BaseComponent):
         ]
 
         tags_info: list[EnhancedTagInfo] = []
-        last_error = None
+        last_error: Exception | None = None
 
         for url in base_urls:
             # Extract the actual repository name from URL for proper context logging
@@ -607,7 +614,10 @@ class DockerImageUpdater(BaseComponent):
                     last_error = e
                     if e.status == 429:  # Rate limited
                         self._stats["rate_limits"] += 1
-                        retry_after = int(e.headers.get("Retry-After", "3600"))
+                        headers = e.headers
+                        retry_after = int(
+                            headers.get("Retry-After", "3600") if headers else "3600"
+                        )
                         self.rate_limiter.handle_rate_limit(retry_after)
                         self._log.warning(
                             "docker.updates.rate.limited.warn"
@@ -766,23 +776,23 @@ class DockerImageUpdater(BaseComponent):
 
         try:
             if local_tag.tag_type == TagType.SEMVER:
-                return (
-                    remote_tag.version_info
-                    and local_tag.version_info
-                    and remote_tag.version_info > local_tag.version_info
-                )
+                if remote_tag.version_info is None or local_tag.version_info is None:
+                    return False
+                return remote_tag.version_info > local_tag.version_info
             elif local_tag.tag_type == TagType.DATE:
-                return (
-                    remote_tag.date_info
-                    and local_tag.date_info
-                    and remote_tag.date_info > local_tag.date_info
-                )
+                if remote_tag.date_info is None or local_tag.date_info is None:
+                    return False
+                return remote_tag.date_info > local_tag.date_info
             else:
                 # Fall back to creation time comparison
                 try:
                     local_time = isoparse(local_tag.created_at)
                     remote_time = isoparse(remote_tag.created_at)
-                    return remote_time > local_time
+                    if isinstance(local_time, datetime) and isinstance(
+                        remote_time, datetime
+                    ):
+                        return remote_time > local_time
+                    return False
                 except (ParserError, ValueError):
                     return False
 
@@ -984,7 +994,7 @@ class DockerImageUpdater(BaseComponent):
                                 }
 
                     # Execute all repository processing tasks
-                    tasks = [
+                    tasks: list[Coroutine[Any, Any, tuple[str, dict[str, Any]]]] = [
                         process_repo(repo, local_tags)
                         for repo, local_tags in self.local_images.items()
                     ]
@@ -993,7 +1003,7 @@ class DockerImageUpdater(BaseComponent):
                         results = await asyncio.gather(*tasks, return_exceptions=True)
 
                         for result in results:
-                            if isinstance(result, Exception):
+                            if isinstance(result, BaseException):
                                 repositories_failed += 1
                                 self._log.error(
                                     "docker.updates.repository.processing.fail"
@@ -1144,7 +1154,7 @@ class DockerImageUpdater(BaseComponent):
             ],
         }
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on garbage collection."""
         try:
             self.clear_cache()

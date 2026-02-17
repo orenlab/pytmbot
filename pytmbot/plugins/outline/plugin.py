@@ -33,7 +33,14 @@ class OutlinePlugin(PluginInterface):
         super().__init__(bot)
         self.plugin_logger = plugin.logger
 
-    @plugin.logger.session_decorator
+    @staticmethod
+    def _get_first_name(message: Message) -> str:
+        """Resolve user's first name safely for templates."""
+        from_user = message.from_user
+        if from_user and from_user.first_name:
+            return from_user.first_name
+        return "User"
+
     def outline_handler(self, message: Message) -> None:
         """
         Handles the '/outline' command by sending a compiled response
@@ -47,7 +54,7 @@ class OutlinePlugin(PluginInterface):
 
         response = self._compile_template(
             template_name="plugin_outline_index.jinja2",
-            first_name=message.from_user.first_name,
+            first_name=self._get_first_name(message),
             **emojis,
         )
         keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
@@ -55,8 +62,7 @@ class OutlinePlugin(PluginInterface):
             message.chat.id, response, reply_markup=keyboard, parse_mode="Markdown"
         )
 
-    @plugin.logger.session_decorator
-    def handle_server_info(self, message: Message) -> Message:
+    def handle_server_info(self, message: Message) -> Message | None:
         """
         Handles messages with 'Server info' by sending server information
         compiled using the 'plugin_outline_server_info.jinja2' template.
@@ -83,14 +89,13 @@ class OutlinePlugin(PluginInterface):
 
         response = self._compile_template(
             template_name="plugin_outline_server_info.jinja2",
-            first_name=message.from_user.first_name,
+            first_name=self._get_first_name(message),
             context=server_info,
             **emojis,
         )
-        self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+        return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @plugin.logger.session_decorator
-    def handle_keys(self, message: Message) -> Message:
+    def handle_keys(self, message: Message) -> Message | None:
         """
         Handles messages with 'Keys' by sending key information compiled
         using the 'plugin_outline_keys.jinja2' template.
@@ -114,14 +119,13 @@ class OutlinePlugin(PluginInterface):
 
         response = self._compile_template(
             template_name="plugin_outline_keys.jinja2",
-            first_name=message.from_user.first_name,
+            first_name=self._get_first_name(message),
             context=keys,
             **emojis,
         )
-        self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+        return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
-    @plugin.logger.session_decorator
-    def handle_traffic(self, message: Message) -> Message:
+    def handle_traffic(self, message: Message) -> Message | None:
         """
         Handles messages with 'Traffic' by sending traffic information
         compiled using the 'plugin_outline_traffic.jinja2' template.
@@ -156,17 +160,17 @@ class OutlinePlugin(PluginInterface):
         try:
             response = self._compile_template(
                 template_name="plugin_outline_traffic.jinja2",
-                first_name=message.from_user.first_name,
+                first_name=self._get_first_name(message),
                 context={
                     "bytesTransferredByUserId": bytes_transferred,
                     "userNames": user_names,
                 },
                 **emojis,
             )
-            self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+            return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
         except Exception:
             self.plugin_logger.error("bot.plugins.outline.plugin.compiling.sending.fail")
-            self.bot.send_message(
+            return self.bot.send_message(
                 message.chat.id,
                 "Error: An unexpected error occurred.",
                 parse_mode="HTML",
@@ -175,7 +179,7 @@ class OutlinePlugin(PluginInterface):
     def _get_action_data(
         self,
         action: Literal["key_information", "server_information", "traffic_information"],
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """
         Retrieves action data from the plugin methods and processes it.
 
@@ -187,11 +191,20 @@ class OutlinePlugin(PluginInterface):
         data = plugin_methods.outline_action_manager(action=action)
         if isinstance(data, str):
             try:
-                return json.loads(data)
+                parsed_data = json.loads(data)
+                if isinstance(parsed_data, dict):
+                    return {str(key): value for key, value in parsed_data.items()}
+                return None
             except json.JSONDecodeError:
                 self.plugin_logger.error(
                     "bot.plugins.outline.plugin.json.decoding.fail"
                 )
+        elif isinstance(data, dict):
+            return {str(key): value for key, value in data.items()}
+        elif hasattr(data, "model_dump"):
+            dumped_data = data.model_dump()
+            if isinstance(dumped_data, dict):
+                return {str(key): value for key, value in dumped_data.items()}
         else:
             self.plugin_logger.error(
                 "bot.plugins.outline.plugin.expected.string.fail"
@@ -213,8 +226,8 @@ class OutlinePlugin(PluginInterface):
         self,
         template_name: str,
         first_name: str,
-        context: dict | None = None,
-        **kwargs: dict[str, Any],
+        context: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> str:
         """
         Compiles the template with the provided context and first name.
@@ -241,21 +254,24 @@ class OutlinePlugin(PluginInterface):
             raise ValueError("Compiler did not return a valid response.")
         return response
 
-    def register(self) -> TeleBot:
+    def register(self) -> None:
         """
         Registers message handlers for the plugin's commands and regex patterns.
 
         :return: The instance of TeleBot with registered handlers.
         """
-        self.bot.register_message_handler(self.outline_handler, commands=["outline"])
-        self.bot.register_message_handler(self.outline_handler, regexp="Outline VPN")
-        self.bot.register_message_handler(
-            self.handle_server_info, regexp="Outline info"
-        )
-        self.bot.register_message_handler(self.handle_keys, regexp="Keys")
-        self.bot.register_message_handler(self.handle_traffic, regexp="Traffic")
+        wrapped_outline_handler = plugin.logger.session_decorator(self.outline_handler)
+        wrapped_server_handler = plugin.logger.session_decorator(self.handle_server_info)
+        wrapped_keys_handler = plugin.logger.session_decorator(self.handle_keys)
+        wrapped_traffic_handler = plugin.logger.session_decorator(self.handle_traffic)
 
-        return self.bot
+        self.bot.register_message_handler(wrapped_outline_handler, commands=["outline"])
+        self.bot.register_message_handler(wrapped_outline_handler, regexp="Outline VPN")
+        self.bot.register_message_handler(
+            wrapped_server_handler, regexp="Outline info"
+        )
+        self.bot.register_message_handler(wrapped_keys_handler, regexp="Keys")
+        self.bot.register_message_handler(wrapped_traffic_handler, regexp="Traffic")
 
 
 __all__ = ["OutlinePlugin"]

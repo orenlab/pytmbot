@@ -60,6 +60,12 @@ def handle_twofa_message(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
+    if message.from_user is None:
+        bot.send_message(
+            message.chat.id,
+            "⚠️ Cannot identify user for 2FA flow.",
+        )
+        return
     user_id = message.from_user.id
     try:
         if session_manager.is_blocked(user_id):
@@ -96,6 +102,10 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
+    if message.from_user is None:
+        bot.send_message(message.chat.id, "⚠️ Cannot identify user for TOTP verification.")
+        return
+
     user_id: int = message.from_user.id
     current_state = session_manager.get_auth_state(user_id)
     if current_state != session_manager.state_fabric.PROCESSING:
@@ -112,9 +122,8 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         _handle_invalid_totp_code(message, bot)
         return
 
-    if session_manager.get_blocked_time(
-        user_id
-    ) and datetime.now() < session_manager.get_blocked_time(user_id):
+    blocked_until = session_manager.get_blocked_time(user_id)
+    if blocked_until is not None and datetime.now() < blocked_until:
         _handle_blocked_user(message, bot)
         return
 
@@ -123,7 +132,8 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         _handle_max_attempts_reached(message, bot)
         return
 
-    authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
+    username = message.from_user.username or ""
+    authenticator = TwoFactorAuthenticator(user_id, username)
     if authenticator.verify_totp_code(totp_code):
         bot.send_chat_action(message.chat.id, "typing")
         session_manager.set_auth_state(
@@ -182,19 +192,17 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         "down_arrow": em.get_emoji("down_arrow"),
     }
 
-    name = (
-        message.from_user.first_name
-        if message.from_user.first_name
-        else message.from_user.username
-    )
+    first_name = message.from_user.first_name if message.from_user else None
+    username = message.from_user.username if message.from_user else None
+    name = first_name or username or "User"
 
     if message.chat.type in {"group", "supergroup"}:
         # In group chats with privacy mode, ForceReply guarantees plain code delivery.
         reply_markup: ForceReply | ReplyKeyboardMarkup = ForceReply(selective=True)
-        extra_send_kwargs = {"reply_to_message_id": message.message_id}
+        reply_to_message_id: int | None = message.message_id
     else:
         reply_markup = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
-        extra_send_kwargs = {}
+        reply_to_message_id = None
 
     response = Compiler.quick_render(
         template_name="a_send_totp_code.jinja2", name=name, **emojis
@@ -206,7 +214,7 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         text=response,
         reply_markup=reply_markup,
         parse_mode="HTML",
-        **extra_send_kwargs,
+        reply_to_message_id=reply_to_message_id,
     )
 
 
@@ -221,6 +229,9 @@ def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
+    if message.from_user is None:
+        bot.reply_to(message, "Invalid TOTP code format.")
+        return
     user_id = message.from_user.id
     logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
     bot.reply_to(
@@ -242,6 +253,12 @@ def _handle_max_attempts_reached(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
+    if message.from_user is None:
+        bot.reply_to(
+            message,
+            "You have reached the maximum number of attempts. Please try again later.",
+        )
+        return
     user_id = message.from_user.id
     _block_user(user_id)
     bot.reply_to(
@@ -283,9 +300,10 @@ def __create_referer_keyboard(
         Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]: The created referer keyboard.
     """
     handler_type = session_manager.get_handler_type(user_id)
-    referer_uri = session_manager.get_referer_uri(user_id)
+    referer_uri = session_manager.get_referer_uri(user_id) or ""
 
     try:
+        keyboard: ReplyKeyboardMarkup | InlineKeyboardMarkup
         if handler_type == "message":
             keyboard = keyboards.build_referer_main_keyboard(referer_uri)
         elif handler_type == "callback_query":

@@ -11,8 +11,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
-from dateutil import parser
-
 
 def format_timestamp(value: str | int | Any) -> str:
     """
@@ -28,7 +26,10 @@ def format_timestamp(value: str | int | Any) -> str:
         match value:
             case str() if value:
                 try:
-                    dt = parser.isoparse(value)
+                    iso_value = value.strip()
+                    if iso_value.endswith("Z"):
+                        iso_value = f"{iso_value[:-1]}+00:00"
+                    dt = datetime.fromisoformat(iso_value)
                 except (ValueError, TypeError):
                     # Try parsing as unix timestamp string
                     try:

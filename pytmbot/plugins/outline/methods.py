@@ -15,26 +15,34 @@ from pytmbot.plugins.plugins_core import PluginCore
 
 
 class PluginMethods(PluginCore):
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes the PluginMethods class and sets up the Outline API client.
         """
         super().__init__()
-        self.plugin_config = self.settings.plugins_config.outline
+        plugins_config = self.settings.plugins_config
+        outline_config = plugins_config.outline if plugins_config else None
+        if outline_config is None:
+            raise RuntimeError("Outline plugin configuration is missing")
+
+        self.plugin_config = outline_config
         api_url_secret = self.plugin_config.api_url[0]
         cert_secret = self.plugin_config.cert[0]
         self.api_url = api_url_secret.get_secret_value()
         self.cert = cert_secret.get_secret_value()
         self.client = PyOutlineWrapper(self.api_url, self.cert, verify_tls=False)
 
-    def _fetch_server_information(self):
+    def _fetch_server_information(self) -> OutlineServer:
         """
         Fetches server information from the Outline API.
 
         Returns:
             Server: An object containing information about the Outline server.
         """
-        return self.client.get_server_info()
+        server_info = self.client.get_server_info()
+        if isinstance(server_info, OutlineServer):
+            return server_info
+        return OutlineServer.model_validate(server_info)
 
     def _fetch_traffic_information(self) -> Metrics:
         """

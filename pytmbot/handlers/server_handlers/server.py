@@ -35,7 +35,9 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             keyboard_type="server_keyboard"
         )
 
-        first_name: str = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),

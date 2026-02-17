@@ -8,6 +8,10 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pytmbot.health_system import HealthResult
 
 
 class TemplateParserChecker:
@@ -16,7 +20,7 @@ class TemplateParserChecker:
     def __init__(self, cache_ttl: float = 35.0):
         self._cache_ttl = cache_ttl
         self._last_check = 0.0
-        self._cached_result = None
+        self._cached_result: HealthResult | None = None
 
     @property
     def name(self) -> str:
@@ -26,7 +30,7 @@ class TemplateParserChecker:
     def interval_seconds(self) -> float:
         return 90.0
 
-    def check_sync(self):
+    def check_sync(self) -> HealthResult:
         """Check template parser health."""
         current_time = time.time()
 

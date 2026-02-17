@@ -15,7 +15,8 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Final, NoReturn
+from types import FrameType
+from typing import TYPE_CHECKING, Any, Final, NoReturn
 
 from humanize import naturaltime
 
@@ -28,8 +29,10 @@ from pytmbot.utils import parse_cli_args
 
 args = parse_cli_args()
 
-if not args.health_check:
-    from pytmbot import pytmbot_instance
+if TYPE_CHECKING:
+    from telebot import TeleBot
+
+    from pytmbot.pytmbot_instance import PyTMBot
 
 
 class BotLauncher(logs.BaseComponent):
@@ -43,7 +46,7 @@ class BotLauncher(logs.BaseComponent):
 
     def __init__(self) -> None:
         super().__init__("bot_launcher")
-        self.bot = None
+        self.bot: PyTMBot | None = None
         self.shutdown_requested = threading.Event()
         self.start_time = datetime.now()
         self._shutdown_lock = threading.RLock()
@@ -105,8 +108,9 @@ class BotLauncher(logs.BaseComponent):
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
                 os.kill(os.getpid(), signal.SIGINT)
 
-    def _signal_handler(self, signum: int, frame) -> None:
+    def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
         """Signal handler for graceful shutdown."""
+        _ = frame
         try:
             sig_name = signal.Signals(signum).name
         except ValueError:
@@ -121,10 +125,12 @@ class BotLauncher(logs.BaseComponent):
             self._stop_bot_operations()
 
     @contextmanager
-    def _managed_bot(self) -> Generator[Any, None, None]:
+    def _managed_bot(self) -> Generator[PyTMBot, None, None]:
         """Context manager for bot lifecycle."""
         try:
-            self.bot = pytmbot_instance.PyTMBot()
+            from pytmbot.pytmbot_instance import PyTMBot
+
+            self.bot = PyTMBot()
             yield self.bot
         except Exception as e:
             with self.log_context(error=str(e)) as log:
@@ -135,14 +141,15 @@ class BotLauncher(logs.BaseComponent):
 
     def setup_health_system(self) -> None:
         """Setup professional health monitoring system."""
-        if not self.bot or not hasattr(self.bot, "bot"):
+        bot_component = self.bot
+        if bot_component is None or bot_component.bot is None:
             with self.log_context() as log:
                 log.warning("bot.launcher.cannot.init.ok")
             return
 
         try:
             self._health_manager = create_health_manager(
-                bot=self.bot.bot,
+                bot=bot_component.bot,
                 session_manager=self._session_manager,
                 psutil_adapter=self._psutil_adapter,
             )
@@ -571,10 +578,13 @@ class BotLauncher(logs.BaseComponent):
                 except KeyboardInterrupt:
                     break
 
-    def _start_bot_polling(self, bot_instance) -> None:
+    def _start_bot_polling(self, bot_instance: TeleBot) -> None:
         """Start bot polling in a separate method."""
         try:
             webhook_enabled = args.webhook == "True"
+            bot_component = self.bot
+            if bot_component is None:
+                raise RuntimeError("Bot component is not initialized")
 
             with self.log_context(
                 webhook_enabled=webhook_enabled,
@@ -584,9 +594,9 @@ class BotLauncher(logs.BaseComponent):
 
             bot_instance.remove_webhook()
             if webhook_enabled:
-                self.bot._start_webhook_server()
+                bot_component._start_webhook_server()
             else:
-                self.bot._start_polling_loop(bot_instance)
+                bot_component._start_polling_loop(bot_instance)
         except Exception as error:
             with self.log_context(error=str(error)) as log:
                 log.error("bot.launcher.polling.fail")

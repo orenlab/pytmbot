@@ -9,10 +9,10 @@ Enhanced with configuration versioning and validation.
 
 import warnings
 from functools import cache
-from typing import Any
+from typing import Any, ClassVar
 
 from packaging import version
-from pydantic import BaseModel, SecretStr, conlist, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from pytmbot import logs
@@ -47,8 +47,8 @@ class BotTokenModel(BaseModel):
         dev_bot_token (Optional[List[SecretStr]]): Optional list of development bot tokens.
     """
 
-    prod_token: conlist(SecretStr, min_length=1)
-    dev_bot_token: conlist(SecretStr, min_length=1) | None = None
+    prod_token: list[SecretStr] = Field(min_length=1)
+    dev_bot_token: list[SecretStr] | None = Field(default=None, min_length=1)
 
 
 class AccessControlModel(BaseModel):
@@ -61,9 +61,9 @@ class AccessControlModel(BaseModel):
         auth_salt (List[SecretStr]): List of secret salts for authorization.
     """
 
-    allowed_user_ids: conlist(int, min_length=1)
-    allowed_admins_ids: conlist(int, min_length=1)
-    auth_salt: conlist(SecretStr, min_length=1)
+    allowed_user_ids: list[int] = Field(min_length=1)
+    allowed_admins_ids: list[int] = Field(min_length=1)
+    auth_salt: list[SecretStr] = Field(min_length=1)
 
 
 class DockerHostModel(BaseModel):
@@ -75,7 +75,7 @@ class DockerHostModel(BaseModel):
         debug_docker_client (bool): Enable debug logging for Docker client.
     """
 
-    host: conlist(str, min_length=1)
+    host: list[str] = Field(min_length=1)
     debug_docker_client: bool = False
 
 
@@ -91,10 +91,10 @@ class InfluxDBModel(BaseModel):
         debug_mode (bool): Enable debug mode for InfluxDB.
     """
 
-    url: conlist(SecretStr, min_length=1) | None
-    token: conlist(SecretStr, min_length=1) | None
-    org: conlist(SecretStr, min_length=1) | None
-    bucket: conlist(SecretStr, min_length=1) | None
+    url: list[SecretStr] | None = Field(default=None, min_length=1)
+    token: list[SecretStr] | None = Field(default=None, min_length=1)
+    org: list[SecretStr] | None = Field(default=None, min_length=1)
+    bucket: list[SecretStr] | None = Field(default=None, min_length=1)
     debug_mode: bool = False
 
 
@@ -106,7 +106,7 @@ class ChatIdModel(BaseModel):
         global_chat_id (Optional[List[int]]): Optional list of chat IDs for global notifications.
     """
 
-    global_chat_id: conlist(int, min_length=1)
+    global_chat_id: list[int] = Field(min_length=1)
 
 
 class TraceholdSettings(BaseModel):
@@ -114,12 +114,12 @@ class TraceholdSettings(BaseModel):
     Model to define threshold settings for CPU, memory, and disk usage monitoring.
     """
 
-    cpu_usage_threshold: conlist(int, min_length=1, max_length=1)
-    memory_usage_threshold: conlist(int, min_length=1, max_length=1)
-    disk_usage_threshold: conlist(int, min_length=1, max_length=1)
-    cpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
-    gpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
-    disk_temperature_threshold: conlist(int, min_length=1, max_length=1)
+    cpu_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    memory_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    disk_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    cpu_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
+    gpu_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
+    disk_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
 
 
 class MonitorConfig(BaseModel):
@@ -128,11 +128,11 @@ class MonitorConfig(BaseModel):
     """
 
     tracehold: TraceholdSettings
-    max_notifications: conlist(int, min_length=1, max_length=1)
-    check_interval: conlist(int, min_length=1, max_length=1)
-    reset_notification_count: conlist(int, min_length=1, max_length=1)
-    retry_attempts: conlist(int, min_length=1, max_length=2)
-    retry_interval: conlist(int, min_length=1, max_length=2)
+    max_notifications: list[int] = Field(min_length=1, max_length=1)
+    check_interval: list[int] = Field(min_length=1, max_length=1)
+    reset_notification_count: list[int] = Field(min_length=1, max_length=1)
+    retry_attempts: list[int] = Field(min_length=1, max_length=2)
+    retry_interval: list[int] = Field(min_length=1, max_length=2)
     monitor_docker: bool = False
 
 
@@ -141,8 +141,8 @@ class OutlineVPN(BaseModel):
     Model to store Outline VPN settings.
     """
 
-    api_url: conlist(SecretStr)
-    cert: conlist(SecretStr)
+    api_url: list[SecretStr] = Field(min_length=1)
+    cert: list[SecretStr] = Field(min_length=1)
 
 
 class PluginsConfig(BaseModel):
@@ -159,11 +159,11 @@ class WebhookConfig(BaseModel):
     Model to configure webhook settings for the bot.
     """
 
-    url: conlist(SecretStr)
-    webhook_port: conlist(int)
-    local_port: conlist(int)
-    cert: conlist(SecretStr) | None = None
-    cert_key: conlist(SecretStr) | None = None
+    url: list[SecretStr] = Field(min_length=1)
+    webhook_port: list[int] = Field(min_length=1)
+    local_port: list[int] = Field(min_length=1)
+    cert: list[SecretStr] | None = Field(default=None, min_length=1)
+    cert_key: list[SecretStr] | None = Field(default=None, min_length=1)
 
 
 class ConfigMigrator(logs.BaseComponent):
@@ -335,6 +335,7 @@ class SettingsModel(BaseSettings):
 
     # Configuration version - should match app version
     # Default to None for backward compatibility with 0.2.2 configs
+    app_version: ClassVar[str] = get_app_version()
     config_version: str | None = None
 
     # Core configuration

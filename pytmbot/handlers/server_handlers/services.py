@@ -8,6 +8,8 @@ Services Handler - Provides comprehensive system services status information
 with safe subprocess execution and fallback mechanisms.
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import time
@@ -50,7 +52,7 @@ class AlpineServicesInfo(TypedDict):
     total_services: int
     started_services: int
     stopped_services: int
-    services_by_runlevel: dict[str, dict[str, list[str]]]
+    services_by_runlevel: dict[str, RunlevelServices]
     available: bool
     type: str
 
@@ -60,6 +62,22 @@ class CacheInfo(TypedDict):
 
     cache_ttl: int
     cached_entries: int
+
+
+class RunlevelServices(TypedDict):
+    """Type definition for OpenRC runlevel service buckets."""
+
+    started: list[str]
+    stopped: list[str]
+
+
+class ParsedRcStatus(TypedDict):
+    """Type definition for parsed rc-status output."""
+
+    total: int
+    started: int
+    stopped: int
+    by_runlevel: dict[str, RunlevelServices]
 
 
 class ServicesAdapter:
@@ -120,6 +138,62 @@ class ServicesAdapter:
         self._cache[cache_key] = data
         self._cache_timestamps[cache_key] = time.time()
         logger.debug("bot.handler.server.services.cached.data.debug")
+
+    @staticmethod
+    def _as_systemd_services_info(data: Any) -> SystemdServicesInfo | None:
+        """Convert cached payload to typed Systemd info when possible."""
+        if not isinstance(data, dict):
+            return None
+
+        if not {
+            "total_services",
+            "active_services",
+            "failed_services",
+            "critical_services",
+            "available",
+        }.issubset(data):
+            return None
+
+        critical_services = data.get("critical_services")
+        if not isinstance(critical_services, dict):
+            return None
+
+        return {
+            "total_services": int(data["total_services"]),
+            "active_services": int(data["active_services"]),
+            "failed_services": int(data["failed_services"]),
+            "critical_services": critical_services,
+            "available": bool(data["available"]),
+        }
+
+    @staticmethod
+    def _as_alpine_services_info(data: Any) -> AlpineServicesInfo | None:
+        """Convert cached payload to typed Alpine info when possible."""
+        if not isinstance(data, dict):
+            return None
+
+        if not {
+            "total_services",
+            "started_services",
+            "stopped_services",
+            "services_by_runlevel",
+            "available",
+            "type",
+        }.issubset(data):
+            return None
+
+        services_by_runlevel = data.get("services_by_runlevel")
+        if not isinstance(services_by_runlevel, dict):
+            return None
+
+        return {
+            "total_services": int(data["total_services"]),
+            "started_services": int(data["started_services"]),
+            "stopped_services": int(data["stopped_services"]),
+            "services_by_runlevel": services_by_runlevel,
+            "available": bool(data["available"]),
+            "type": str(data["type"]),
+        }
 
     def _clear_expired_cache(self) -> None:
         """Clean up expired cache entries"""
@@ -277,7 +351,7 @@ class ServicesAdapter:
 
         # Check cache first
         cache_key = "systemd_services"
-        cached_data = self._get_from_cache(cache_key)
+        cached_data = self._as_systemd_services_info(self._get_from_cache(cache_key))
         if cached_data is not None:
             return cached_data
 
@@ -376,7 +450,7 @@ class ServicesAdapter:
         """Get Alpine Linux OpenRC services information with caching"""
         # Check cache first
         cache_key = "alpine_services"
-        cached_data = self._get_from_cache(cache_key)
+        cached_data = self._as_alpine_services_info(self._get_from_cache(cache_key))
         if cached_data is not None:
             return cached_data
 
@@ -432,9 +506,14 @@ class ServicesAdapter:
             return None
 
     @staticmethod
-    def _parse_rc_status_output(output: str) -> dict[str, Any]:
+    def _parse_rc_status_output(output: str) -> ParsedRcStatus:
         """Parse rc-status command output"""
-        services_info = {"total": 0, "started": 0, "stopped": 0, "by_runlevel": {}}
+        services_info: ParsedRcStatus = {
+            "total": 0,
+            "started": 0,
+            "stopped": 0,
+            "by_runlevel": {},
+        }
 
         current_runlevel: str | None = None
 
@@ -476,7 +555,7 @@ class ServicesAdapter:
         # Clean up expired cache entries
         self._clear_expired_cache()
 
-        summary = {
+        summary: dict[str, Any] = {
             "systemd": self.get_systemd_services(),
             "alpine": self.get_alpine_services(),
             "available_sources": [],
@@ -498,7 +577,7 @@ class ServicesAdapter:
 
 # regexp="Services" or "📊 Services"
 @logger.session_decorator
-def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
+def handle_services_status(message: Message, bot: TeleBot) -> Message | None:
     """Handle services status request with comprehensive information"""
 
     emojis = {
@@ -510,7 +589,8 @@ def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
         "warning": em.get_emoji("warning"),
     }
 
-    if message.from_user.id not in settings.access_control.allowed_user_ids:
+    from_user = message.from_user
+    if from_user is None or from_user.id not in settings.access_control.allowed_user_ids:
         return bot.send_message(
             message.chat.id,
             f"{emojis.get('warning', '⚠️')} I have checked and you do not have access rights to execute this command. I'm sorry...",
@@ -563,3 +643,5 @@ def handle_services_status(message: Message, bot: TeleBot) -> None | Message:
                 },
             )
         )
+
+    return None

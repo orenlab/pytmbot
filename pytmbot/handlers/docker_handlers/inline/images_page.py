@@ -26,38 +26,42 @@ logger = Logger()
 
 @logger.catch()
 @logger.session_decorator
-def handle_images_page(call: CallbackQuery, bot: TeleBot):
+def handle_images_page(call: CallbackQuery, bot: TeleBot) -> None:
     if call.from_user is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Cannot identify callback user.",
             bot=bot,
         )
+        return None
 
     if call.message is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Cannot update images list in this context.",
             bot=bot,
         )
+        return None
 
     if call.data is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Invalid images pagination request.",
             bot=bot,
         )
+        return None
 
     parsed = parse_page_callback_data(
         call.data,
         prefix=IMAGES_PAGE_CALLBACK_PREFIX,
     )
     if parsed is None:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text="Invalid images pagination request.",
             bot=bot,
         )
+        return None
 
     page, target_user_id = parsed
     is_allowed, deny_reason = authorize_docker_callback_request(
@@ -68,18 +72,20 @@ def handle_images_page(call: CallbackQuery, bot: TeleBot):
         require_session=True,
     )
     if not is_allowed:
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Images: {deny_reason}",
             bot=bot,
         )
+        return None
 
     context, inline_keyboard = render_images_page(page=page, user_id=target_user_id)
 
-    return bot.edit_message_text(
+    bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
     )
+    return None

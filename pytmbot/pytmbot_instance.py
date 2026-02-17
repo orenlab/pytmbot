@@ -10,16 +10,16 @@ from __future__ import annotations
 import ssl
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
 from time import sleep
-from typing import Any, Final, TypedDict
+from typing import Any, Concatenate, Final, TypedDict
 
-import requests
+import requests  # type: ignore[import-untyped]
 import telebot
 import urllib3.exceptions
 from telebot import TeleBot
@@ -131,12 +131,13 @@ CONFLICT_RESOLUTION_STRATEGY: Final[ConflictResolutionStrategy] = (
     ConflictResolutionStrategy.GRACEFUL_SHUTDOWN
 )
 
-
-def bot_required(func: Callable) -> Callable:
+def bot_required[**P, R](
+    func: Callable[Concatenate[PyTMBot, P], R],
+) -> Callable[Concatenate[PyTMBot, P], R]:
     """Decorator to ensure bot instance is initialized before method execution."""
 
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: PyTMBot, *args: P.args, **kwargs: P.kwargs) -> R:
         if not isinstance(self.bot, TeleBot):
             raise RuntimeError("Bot instance not initialized")
         return func(self, *args, **kwargs)
@@ -249,7 +250,9 @@ class PyTMBot(BaseComponent):
         """Check if error is critical and requires immediate shutdown."""
         return isinstance(error, CriticalExceptionTypes)
 
-    def _handle_bot_conflict(self, strategy: ConflictResolutionStrategy = None) -> bool:
+    def _handle_bot_conflict(
+        self, strategy: ConflictResolutionStrategy | None = None
+    ) -> bool:
         """Handle bot conflict based on resolution strategy."""
         if strategy is None:
             strategy = CONFLICT_RESOLUTION_STRATEGY
@@ -327,12 +330,10 @@ class PyTMBot(BaseComponent):
         return False
 
     @contextmanager
-    def _polling_safety_context(self):
+    def _polling_safety_context(self) -> Generator[None, None, None]:
         """Context manager for safe polling operations."""
-        polling_was_active = False
+        polling_was_active = self.bot is not None and hasattr(self.bot, "stop_polling")
         try:
-            if self.bot and hasattr(self.bot, "polling") and self.bot.polling:
-                polling_was_active = True
             yield
         except Exception as e:
             if self._is_bot_conflict_error(e):
@@ -346,21 +347,21 @@ class PyTMBot(BaseComponent):
 
     def _safe_stop_polling(self, timeout: int = POLLING_STOP_TIMEOUT) -> bool:
         """Safely stop polling with timeout."""
-        if not self.bot or not hasattr(self.bot, "polling"):
+        if not self.bot or not hasattr(self.bot, "stop_polling"):
             return True
 
         try:
-            if not getattr(self.bot, "polling", False):
-                return True
-
             with self.log_context(timeout=timeout) as log:
                 log.debug("bot.core.polling.timeout.stop")
 
             import concurrent.futures
 
-            def stop_polling_task():
+            def stop_polling_task() -> bool:
                 try:
-                    self.bot.stop_polling()
+                    bot = self.bot
+                    if bot is None:
+                        return True
+                    bot.stop_polling()
                     return True
                 except Exception as e:
                     with self.log_context(error=sanitize_exception(e)) as log:
@@ -432,8 +433,7 @@ class PyTMBot(BaseComponent):
 
             # Stop current operations safely
             if self.args.webhook != "True":
-                if hasattr(self.bot, "polling") and self.bot.polling:
-                    self._safe_stop_polling()
+                self._safe_stop_polling()
 
             # Brief pause before restart
             sleep(DEFAULT_BASE_SLEEP_TIME)
@@ -465,10 +465,20 @@ class PyTMBot(BaseComponent):
     def retrieve_bot_token(self) -> str:
         """Retrieve bot token based on mode."""
         try:
+            if self.args.mode == "dev":
+                dev_tokens = settings.bot_token.dev_bot_token
+                if not dev_tokens:
+                    raise InitializationError(
+                        ErrorContext(
+                            message="Development bot token not found in configuration",
+                            error_code="CORE_001_DEV",
+                            metadata={"mode": self.args.mode},
+                        )
+                    )
+                return dev_tokens[0].get_secret_value()
+
             token = (
-                settings.bot_token.dev_bot_token[0].get_secret_value()
-                if self.args.mode == "dev"
-                else settings.bot_token.prod_token[0].get_secret_value()
+                settings.bot_token.prod_token[0].get_secret_value()
             )
             return token
         except AttributeError as error:
@@ -522,12 +532,15 @@ class PyTMBot(BaseComponent):
     def _setup_commands_and_description(self) -> None:
         """Setup bot commands and description."""
         try:
+            bot = self.bot
+            if bot is None:
+                raise RuntimeError("Bot instance not initialized")
             commands = [
                 BotCommand(command, desc)
                 for command, desc in bot_commands_settings.bot_commands.items()
             ]
-            self.bot.set_my_commands(commands)
-            self.bot.set_my_description(bot_description_settings.bot_description)
+            bot.set_my_commands(commands)
+            bot.set_my_description(bot_description_settings.bot_description)
 
             if self.args.mode == "dev" or commands:
                 with self.log_context(
@@ -549,6 +562,10 @@ class PyTMBot(BaseComponent):
     @bot_required
     def _setup_middleware_chain(self, middlewares: list[MiddlewareType]) -> None:
         """Setup middleware chain."""
+        bot = self.bot
+        if bot is None:
+            raise RuntimeError("Bot instance not initialized")
+
         middleware_names = []
         middleware_details = []
 
@@ -556,8 +573,8 @@ class PyTMBot(BaseComponent):
             middlewares, key=lambda x: x[1].get("priority", 999)
         ):
             try:
-                middleware_instance = middleware_class(bot=self.bot, **kwargs)
-                self.bot.setup_middleware(middleware_instance)
+                middleware_instance = middleware_class(bot=bot, **kwargs)
+                bot.setup_middleware(middleware_instance)
 
                 # Store middleware instance for stats collection
                 middleware_name = middleware_class.__name__.lower()
@@ -608,7 +625,10 @@ class PyTMBot(BaseComponent):
             return None
 
         try:
-            return middleware_instance.get_stats()
+            stats = middleware_instance.get_stats()
+            if isinstance(stats, dict):
+                return {str(key): value for key, value in stats.items()}
+            return None
         except Exception as error:
             with self.log_context(
                 middleware=middleware_name,
@@ -664,11 +684,15 @@ class PyTMBot(BaseComponent):
     @bot_required
     def _register_handler_chain(self) -> None:
         """Register all bot handlers."""
-        handlers_config = [
-            (handler_factory, self.bot.register_message_handler, "message"),
+        bot = self.bot
+        if bot is None:
+            raise RuntimeError("Bot instance not initialized")
+
+        handlers_config: list[tuple[Callable[[], HandlerDict], RegisterMethod, str]] = [
+            (handler_factory, bot.register_message_handler, "message"),
             (
                 inline_handler_factory,
-                self.bot.register_callback_query_handler,
+                bot.register_callback_query_handler,
                 "callback",
             ),
         ]
@@ -793,10 +817,24 @@ class PyTMBot(BaseComponent):
         try:
             from pytmbot.webhook import WebhookServer
 
+            bot = self.bot
+            if bot is None:
+                raise RuntimeError("Bot instance not initialized")
+
+            webhook_settings = settings.webhook_config
+            if webhook_settings is None:
+                raise InitializationError(
+                    ErrorContext(
+                        message="Webhook configuration is missing",
+                        error_code="CORE_WEBHOOK_001",
+                        metadata={},
+                    )
+                )
+
             config = WebhookConfig(
                 host=self.args.socket_host,
-                port=settings.webhook_config.local_port[0],
-                token=self.bot.token,
+                port=webhook_settings.local_port[0],
+                token=bot.token,
             )
 
             with self.log_context(
@@ -808,7 +846,7 @@ class PyTMBot(BaseComponent):
                     "bot.core.webhook.server.start"
                 )
 
-            server = WebhookServer(self.bot, **config)
+            server = WebhookServer(bot, **config)
             server.start()
 
         except ImportError as err:
@@ -919,9 +957,8 @@ class PyTMBot(BaseComponent):
 
                 except Exception as error:
                     try:
-                        if bot_instance.polling:
-                            self._safe_stop_polling()
-                            time.sleep(current_sleep_time)
+                        self._safe_stop_polling()
+                        time.sleep(current_sleep_time)
                     except Exception as stop_err:
                         with self.log_context(
                             error=sanitize_exception(stop_err),

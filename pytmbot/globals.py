@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING, Final
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.keyboards.keyboards import ButtonData, Keyboards
 from pytmbot.middleware.session_manager import SessionManager
+from pytmbot.models.settings_model import SettingsModel
+from pytmbot.settings import (
+    BotCommandSettings,
+    BotDescriptionSettings,
+    VarConfig,
+)
 from pytmbot.settings import (
     bot_command_settings as app_bot_command_settings,
 )
@@ -28,12 +34,23 @@ from pytmbot.settings import (
 from pytmbot.utils import EmojiConverter, is_running_in_docker
 
 if TYPE_CHECKING:
-    from pytmbot.settings import (
-        BotCommandSettings,
-        BotDescriptionSettings,
-        VarConfig,
-        settings,
-    )
+    # Static typing for legacy lazy globals exposed via __getattr__.
+    session_manager: SessionManager
+    keyboards: Keyboards
+    em: EmojiConverter
+    button_data: type[ButtonData]
+    psutil_adapter: PsutilAdapter
+    running_in_docker: bool
+
+
+def _require_instance[T](value: object, expected_type: type[T], name: str) -> T:
+    """Validate dynamic imports from settings module and narrow their type."""
+    if not isinstance(value, expected_type):
+        raise TypeError(
+            f"Invalid type for '{name}': "
+            f"expected {expected_type.__name__}, got {type(value).__name__}"
+        )
+    return value
 
 # Application metadata - immutable constants
 __version__: Final[str] = "0.3.0-dev"
@@ -45,10 +62,18 @@ __github_api_url__: Final[str] = (
 )
 
 # Settings - direct references to avoid unnecessary copies
-settings: settings = app_settings
-var_config: VarConfig = app_var_config
-bot_commands_settings: BotCommandSettings = app_bot_command_settings
-bot_description_settings: BotDescriptionSettings = app_bot_description_settings
+settings: SettingsModel = _require_instance(app_settings, SettingsModel, "settings")
+var_config: VarConfig = _require_instance(app_var_config, VarConfig, "var_config")
+bot_commands_settings: BotCommandSettings = _require_instance(
+    app_bot_command_settings,
+    BotCommandSettings,
+    "bot_command_settings",
+)
+bot_description_settings: BotDescriptionSettings = _require_instance(
+    app_bot_description_settings,
+    BotDescriptionSettings,
+    "bot_description_settings",
+)
 
 
 # Lazy-loaded singletons to avoid expensive initialization at import time

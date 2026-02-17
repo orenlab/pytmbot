@@ -64,10 +64,17 @@ def handle_qr_code_message(
         - Graceful handling when deletion limits are exceeded
         - All operations are logged for security monitoring
     """
+    if message.from_user is None:
+        bot.send_message(
+            message.chat.id,
+            "⚠️ Cannot identify user for QR generation.",
+        )
+        return None
+
+    user_id = message.from_user.id
+    username = message.from_user.username or ""
     keyboard = keyboards.build_reply_keyboard(keyboard_type="auth_processing_keyboard")
-    authenticator = TwoFactorAuthenticator(
-        message.from_user.id, message.from_user.username
-    )
+    authenticator = TwoFactorAuthenticator(user_id, username)
 
     try:
         # Send typing indicator for better UX
@@ -93,7 +100,7 @@ def handle_qr_code_message(
                 bot=bot,
                 chat_id=message.chat.id,
                 message_id=sent_message.message_id,
-                user_id=message.from_user.id,
+                user_id=user_id,
                 delay_seconds=auto_delete_delay,
                 callback=_qr_deletion_callback,
             )
@@ -151,14 +158,14 @@ def handle_qr_code_message(
                 bot=bot,
                 chat_id=message.chat.id,
                 message_id=error_message.message_id,
-                user_id=message.from_user.id,
+                user_id=user_id,
                 delay_seconds=15,  # Delete error messages faster
                 callback=_qr_deletion_callback,
             )
 
             logger.error(
                 "bot.handler.auth_processing.qrcode_processing.generate.qr.fail",
-                extra={"user_id": message.from_user.id, "chat_id": message.chat.id},
+                extra={"user_id": user_id, "chat_id": message.chat.id},
             )
 
             return None
@@ -174,7 +181,7 @@ def handle_qr_code_message(
                 bot=bot,
                 chat_id=message.chat.id,
                 message_id=error_message.message_id,
-                user_id=message.from_user.id,
+                user_id=user_id,
                 delay_seconds=15,
                 callback=_qr_deletion_callback,
             )

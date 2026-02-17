@@ -33,6 +33,9 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         None
     """
     try:
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
         bot.send_chat_action(message.chat.id, "typing")
 
         # Fetch plugin information
@@ -41,8 +44,6 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Check if there are any plugins available
         if not plugin_names:
-            first_name: str = message.from_user.first_name
-
             send_telegram_message(
                 bot=bot,
                 chat_id=message.chat.id,
@@ -63,19 +64,17 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         # Build the keyboard
         plugins_keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=keys)
 
-        first_name: str = message.from_user.first_name
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),
         }
 
         # Compile the response using the template
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_plugins.jinja2",
             first_name=first_name,
             plugins=plugins,
             **emojis,
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         send_telegram_message(
             bot=bot,

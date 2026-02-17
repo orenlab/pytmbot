@@ -19,7 +19,7 @@ logger = Logger()
 
 # regexp="Uptime"
 @logger.session_decorator
-def handle_uptime(message: Message, bot: TeleBot):
+def handle_uptime(message: Message, bot: TeleBot) -> None:
     """
     Handle uptime message from a user.
 
@@ -41,18 +41,20 @@ def handle_uptime(message: Message, bot: TeleBot):
 
         if uptime_data is None:
             logger.error("bot.handler.server.uptime.get.fail")
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
+            return None
 
         bot_answer = Compiler.quick_render(
             template_name="b_uptime.jinja2", context=uptime_data, **emojis
         )
 
-        return bot.send_message(
+        bot.send_message(
             message.chat.id,
             text=bot_answer,
         )
+        return None
 
     except Exception as error:
         bot.send_message(

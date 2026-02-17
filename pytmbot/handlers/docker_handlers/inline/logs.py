@@ -599,7 +599,7 @@ def _send_logs_as_file(
 # func=lambda call: call.data.startswith('__get_logs__')
 @logger.session_decorator
 @two_factor_auth_required
-def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
+def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handles the callback for getting logs of a container.
 
@@ -611,10 +611,11 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
         None
     """
     try:
-        parsed = _parse_logs_callback_data(call.data)
+        parsed = _parse_logs_callback_data(call.data or "")
     except (ValueError, TypeError):
         logger.warning("bot.handler.docker.logging.invalid.logs.fail")
-        return show_handler_info(call, text="Invalid logs request format", bot=bot)
+        show_handler_info(call, text="Invalid logs request format", bot=bot)
+        return None
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, parsed.user_id)
     if not is_allowed:
@@ -624,20 +625,22 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
             target_user_id=parsed.user_id,
             reason=deny_reason,
         )
-        return show_handler_info(
+        show_handler_info(
             call=call, text=f"Getting logs: {deny_reason}", bot=bot
         )
+        return None
 
     emojis: dict[str, str] = {"thought_balloon": em.get_emoji("thought_balloon")}
 
     if parsed.action == LOGS_ACTION_OPEN and parsed.container_name:
-        return _open_logs_session(
+        _open_logs_session(
             call=call,
             bot=bot,
             container_name=parsed.container_name,
             user_id=parsed.user_id,
             emojis=emojis,
         )
+        return None
 
     if parsed.action == LOGS_ACTION_NAV and parsed.session_id:
         session = _get_session_or_show_error(call, parsed.session_id, bot)
@@ -650,13 +653,14 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
             requested_action=LOGS_ACTION_NAV,
         ):
             return None
-        return _edit_logs_message(
+        _edit_logs_message(
             call=call,
             bot=bot,
             session=session,
             page_index=parsed.page_index,
             emojis=emojis,
         )
+        return None
 
     if parsed.action == LOGS_ACTION_REFRESH and parsed.session_id:
         old_session = _get_session_or_show_error(call, parsed.session_id, bot)
@@ -673,11 +677,12 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
         logs = get_sanitized_logs(old_session.container_name, call, bot.token)
         if not logs:
             logger.error("bot.handler.docker.logging.getting.logs.fail")
-            return show_handler_info(
+            show_handler_info(
                 call,
                 text=f"{old_session.container_name}: Error getting logs",
                 bot=bot,
             )
+            return None
 
         _logs_sessions.remove(parsed.session_id)
         refreshed_session = _logs_sessions.create(
@@ -686,18 +691,21 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> Any:
             raw_logs=logs,
             chunks=_build_logs_chunks(logs),
         )
-        return _edit_logs_message(
+        _edit_logs_message(
             call=call,
             bot=bot,
             session=refreshed_session,
             page_index=0,
             emojis=emojis,
         )
+        return None
 
     if parsed.action == LOGS_ACTION_FILE and parsed.session_id:
         session = _get_session_or_show_error(call, parsed.session_id, bot)
         if not session:
             return None
-        return _send_logs_as_file(call=call, bot=bot, session=session)
+        _send_logs_as_file(call=call, bot=bot, session=session)
+        return None
 
-    return show_handler_info(call, text="Unsupported logs action", bot=bot)
+    show_handler_info(call, text="Unsupported logs action", bot=bot)
+    return None

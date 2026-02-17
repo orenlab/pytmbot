@@ -338,8 +338,8 @@ class DockerAdapter:
     def _get_docker_info(self) -> dict[str, Any]:
         """Get Docker daemon information (cached)."""
         try:
-            with self:
-                info = self._client.info()
+            with self as client:
+                info = client.info()
                 return {
                     "version": info.get("ServerVersion", "unknown"),
                     "api_version": info.get("ApiVersion", "unknown"),
@@ -373,6 +373,8 @@ class DockerAdapter:
 
                 # Log entry at debug level to avoid noise
                 self._log.trace("docker.adapter.context.entered.debug", **context)
+                if self._client is None:
+                    raise DockerConnectionError("Docker client is not initialized")
                 return self._client
 
             except Exception as e:
@@ -432,17 +434,17 @@ class DockerAdapter:
         start_time = datetime.now()
 
         try:
-            with self:
+            with self as client:
                 # Test basic connectivity
-                self._client.ping()
+                client.ping()
 
                 # Test API functionality
-                info = self._client.info()
+                info = client.info()
                 if not info:
                     raise DockerException("Docker info returned empty")
 
                 # Test container listing (lightweight operation)
-                containers = self._client.containers.list(limit=1)
+                containers = client.containers.list(limit=1)
 
                 execution_time = (datetime.now() - start_time).total_seconds()
 

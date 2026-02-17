@@ -34,7 +34,9 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         bot.send_chat_action(message.chat.id, "typing")
         main_keyboard = keyboards.build_reply_keyboard()
 
-        first_name: str = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Literal
+from typing import Any, Literal
 
 import psutil
 from telebot import TeleBot
@@ -31,7 +31,6 @@ from pytmbot.plugins.monitor.utils import (
     SystemMetrics,
 )
 from pytmbot.plugins.plugins_core import PluginCore
-from pytmbot.settings import settings
 from pytmbot.utils import is_running_in_docker, set_naturalsize
 
 logger = Logger()
@@ -63,7 +62,12 @@ class SystemMonitorPlugin(PluginCore):
         super().__init__()
 
         self.bot = bot
-        self.monitor_settings = self.settings.plugins_config.monitor
+        plugins_config = self.settings.plugins_config
+        monitor_settings = plugins_config.monitor if plugins_config else None
+        if monitor_settings is None:
+            raise RuntimeError("Monitor plugin configuration is missing")
+
+        self.monitor_settings = monitor_settings
         self.event_threshold_duration = event_threshold_duration
 
         # Initialize state and thresholds
@@ -103,13 +107,22 @@ class SystemMonitorPlugin(PluginCore):
 
     def _init_influxdb(self) -> None:
         try:
+            influxdb_config = self.settings.influxdb
+            if influxdb_config is None or (
+                influxdb_config.url is None
+                or influxdb_config.token is None
+                or influxdb_config.org is None
+                or influxdb_config.bucket is None
+            ):
+                raise RuntimeError("InfluxDB configuration is missing required fields")
+
             self.influxdb_client = InfluxDBInterface(
                 InfluxDBConfig(
-                    url=settings.influxdb.url[0].get_secret_value(),
-                    token=settings.influxdb.token[0].get_secret_value(),
-                    org=settings.influxdb.org[0].get_secret_value(),
-                    bucket=settings.influxdb.bucket[0].get_secret_value(),
-                    debug_mode=settings.influxdb.debug_mode,
+                    url=influxdb_config.url[0].get_secret_value(),
+                    token=influxdb_config.token[0].get_secret_value(),
+                    org=influxdb_config.org[0].get_secret_value(),
+                    bucket=influxdb_config.bucket[0].get_secret_value(),
+                    debug_mode=influxdb_config.debug_mode,
                 )
             )
         except Exception as e:
@@ -161,7 +174,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._adjust_check_interval()
 
                 # Collect and process metrics
-                metrics = self.system_metrics.collect_metrics()
+                metrics: dict[str, Any] = dict(self.system_metrics.collect_metrics())
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
@@ -175,7 +188,7 @@ class SystemMonitorPlugin(PluginCore):
                 logger.error("bot.plugins.monitor.methods.monitoring.cycle.fail", e)
                 time.sleep(max(1, self.check_interval // 2))
 
-    def _process_alerts(self, metrics: dict) -> None:
+    def _process_alerts(self, metrics: dict[str, Any]) -> None:
         self._check_cpu_alert(metrics["cpu_usage"])
         self._check_memory_alert(metrics["memory_usage"])
         self._check_temperature_alerts(metrics["temperatures"])
@@ -286,7 +299,7 @@ class SystemMonitorPlugin(PluginCore):
                                 f"Disk usage ({disk})", duration
                             )
 
-    def _process_docker_metrics(self, metrics: dict) -> None:
+    def _process_docker_metrics(self, metrics: dict[str, Any]) -> None:
         current_time = time.time()
         if (
             current_time - self.state.docker_counters_last_updated
@@ -308,7 +321,10 @@ class SystemMonitorPlugin(PluginCore):
                 logger.error("bot.plugins.monitor.methods.metrics.processing.fail", e)
 
     def _detect_docker_changes(
-        self, new_counts: dict, new_containers: list, new_images: list
+        self,
+        new_counts: dict[str, int],
+        new_containers: list[dict[str, Any]],
+        new_images: list[dict[str, Any]],
     ) -> None:
         try:
             new_container_hashes = {cont["id"]: cont for cont in new_containers}
@@ -351,7 +367,7 @@ class SystemMonitorPlugin(PluginCore):
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.detect.changes.fail", e)
 
-    def _record_metrics(self, fields: dict) -> None:
+    def _record_metrics(self, fields: dict[str, Any]) -> None:
         try:
             metadata = SystemInfo.get_platform_metadata(self.is_docker)
             sanitized_fields = self._sanitize_fields(fields)
@@ -364,8 +380,8 @@ class SystemMonitorPlugin(PluginCore):
             logger.exception("bot.plugins.monitor.methods.writing.metrics.fail")
 
     @staticmethod
-    def _sanitize_fields(fields: dict) -> dict:
-        sanitized_fields = {}
+    def _sanitize_fields(fields: dict[str, Any]) -> dict[str, Any]:
+        sanitized_fields: dict[str, Any] = {}
         for key, value in fields.items():
             if isinstance(value, (int, float, str, bool, type(None))):
                 sanitized_fields[key] = value
@@ -398,12 +414,12 @@ class SystemMonitorPlugin(PluginCore):
                         if isinstance(item, (int, float))
                     }
                 )
-                unsupported = [
+                unsupported_tuple_items = [
                     (i, item)
                     for i, item in enumerate(value)
                     if not isinstance(item, (int, float))
                 ]
-                for _i, _item in unsupported:
+                for _i, _item in unsupported_tuple_items:
                     logger.warning(
                         "bot.plugins.monitor.methods.unsupported.type.warn"
                     )

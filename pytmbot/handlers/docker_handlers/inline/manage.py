@@ -27,9 +27,9 @@ container_state = ContainersState
 
 # func=lambda call: call.data.startswith('__manage__')
 @logger.catch()
-@two_factor_auth_required
 @logger.session_decorator
-def handle_manage_container(call: CallbackQuery, bot: TeleBot):
+@two_factor_auth_required
+def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handles the callback for managing a container.
 
@@ -41,16 +41,18 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         None
     """
     # Extract container name and called user ID from the callback data
-    container_name = split_string_into_octets(call.data)
-    called_user_id = split_string_into_octets(call.data, octet_index=2)
+    callback_data = call.data or ""
+    container_name = split_string_into_octets(callback_data)
+    called_user_id = split_string_into_octets(callback_data, octet_index=2)
 
     if call.from_user is None:
         logger.warning("bot.handler.docker.manage.missing.user.warn", callback_data=call.data)
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Managing {container_name}: Missing user information",
             bot=bot,
         )
+        return
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
     if not is_allowed:
@@ -60,11 +62,12 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
             container_name=container_name,
             reason=deny_reason,
         )
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Managing {container_name}: {deny_reason}",
             bot=bot,
         )
+        return
 
     # Get container state
     with DockerAdapter() as adapter:
@@ -127,9 +130,18 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         container_name=container_name,
     )
 
-    return bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    callback_message = call.message
+    if callback_message is None:
+        show_handler_info(
+            call=call,
+            text=f"Managing {container_name}: Missing callback message",
+            bot=bot,
+        )
+        return
+
+    bot.edit_message_text(
+        chat_id=callback_message.chat.id,
+        message_id=callback_message.message_id,
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",

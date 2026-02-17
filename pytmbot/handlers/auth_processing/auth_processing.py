@@ -5,10 +5,13 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Any
-
 from telebot import TeleBot
-from telebot.types import CallbackQuery, Message
+from telebot.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardMarkup,
+)
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -29,11 +32,17 @@ def _get_user_name(query: Message | CallbackQuery) -> str:
     Returns:
         str: User's first name or username.
     """
-    return query.from_user.first_name or query.from_user.username
+    user = query.from_user
+    if user is None:
+        return "User"
+    return user.first_name or user.username or "User"
 
 
 def _send_response(
-    query: Message | CallbackQuery, bot: TeleBot, response: str, keyboard: Any
+    query: Message | CallbackQuery,
+    bot: TeleBot,
+    response: str,
+    keyboard: ReplyKeyboardMarkup | InlineKeyboardMarkup,
 ) -> None:
     """
     Sends response to user based on query type.
@@ -48,9 +57,12 @@ def _send_response(
         None
     """
     if isinstance(query, CallbackQuery):
-        bot.delete_message(query.message.chat.id, query.message.message_id)
+        callback_message = query.message
+        if callback_message is None:
+            raise ValueError("Callback query does not contain message")
+        bot.delete_message(callback_message.chat.id, callback_message.message_id)
         bot.send_message(
-            query.message.chat.id,
+            callback_message.chat.id,
             text=response,
             reply_markup=keyboard,
             parse_mode="HTML",
@@ -112,7 +124,6 @@ def _handle_auth_message(
         )
 
 
-@logger.session_decorator
 def handle_unauthorized_message(
     query: Message | CallbackQuery, bot: TeleBot
 ) -> None:
@@ -148,8 +159,7 @@ def handle_unauthorized_message(
     )
 
 
-@logger.session_decorator
-def handle_access_denied(query: Message | CallbackQuery, bot: TeleBot):
+def handle_access_denied(query: Message | CallbackQuery, bot: TeleBot) -> None:
     """
     Handles access denied queries from users.
 

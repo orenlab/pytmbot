@@ -25,7 +25,7 @@ logger = Logger()
 
 # regexp="Process")
 @logger.session_decorator
-def handle_process(message: Message, bot: TeleBot):
+def handle_process(message: Message, bot: TeleBot) -> None:
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
         "horizontal_traffic_light": em.get_emoji("horizontal_traffic_light"),
@@ -41,9 +41,10 @@ def handle_process(message: Message, bot: TeleBot):
             logger.error(
                 "bot.handler.server.process.get.fail"
             )
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
+            return None
 
         callback_data = "__process_info__"
         if message.from_user is not None:
@@ -61,9 +62,10 @@ def handle_process(message: Message, bot: TeleBot):
             **emojis,
         )
 
-        return bot.send_message(
+        bot.send_message(
             message.chat.id, text=message_text, parse_mode="HTML", reply_markup=keyboard
         )
+        return None
 
     except Exception as error:
         bot.send_message(

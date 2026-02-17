@@ -21,7 +21,7 @@ logger = Logger()
 
 @logger.catch()
 @logger.session_decorator
-def handle_image_updates(call: CallbackQuery, bot: TeleBot):
+def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handles the callback for Docker image updates.
 
@@ -33,13 +33,14 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
         None
     """
     try:
-        target_user_id = parse_callback_target_user(call.data, "__check_updates__")
+        target_user_id = parse_callback_target_user(call.data or "", "__check_updates__")
     except ValueError:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             call.id,
             text="Invalid image updates request format.",
             show_alert=True,
         )
+        return None
 
     is_allowed, deny_reason = authorize_callback_request(
         call,
@@ -47,14 +48,16 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
         require_owner_match=target_user_id is not None,
     )
     if not is_allowed:
-        return bot.answer_callback_query(call.id, text=deny_reason, show_alert=True)
+        bot.answer_callback_query(call.id, text=deny_reason, show_alert=True)
+        return None
 
     if call.message is None:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             call.id,
             text="Cannot render image updates in this context.",
             show_alert=True,
         )
+        return None
 
     updater = DockerImageUpdater()
     updater.initialize()
@@ -63,29 +66,32 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
 
     # Handle rate limit
     if response["status"] == UpdaterStatus.RATE_LIMITED.name:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             call.id,
             text=f"Rate limit exceeded. Please try again in {response['data']['retry_after']} seconds.",
             show_alert=True,
         )
+        return None
 
     # Handle errors
     if response["status"] == UpdaterStatus.ERROR.name:
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             call.id,
             text=f"Error checking updates: {response['message']}",
             show_alert=True,
         )
+        return None
 
     # Handle success with no updates
     if not response["data"] or all(
         not image_info["updates"] for image_info in response["data"].values()
     ):
-        return bot.answer_callback_query(
+        bot.answer_callback_query(
             call.id,
             text="No updates found for any images.",
             show_alert=True,
         )
+        return None
 
     # Process updates
     prepared_context = prepare_context_for_render(response["data"])
@@ -94,12 +100,13 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot):
         template_name="d_updates.jinja2", **prepared_context
     )
 
-    return bot.edit_message_text(
+    bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         text=formatted_context,
         parse_mode="Markdown",
     )
+    return None
 
 
 def prepare_context_for_render(

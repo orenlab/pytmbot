@@ -23,7 +23,7 @@ logger = logs.Logger()
 
 
 class PluginCore:
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = g.settings
         self.var_config = g.var_config
         self.logger = logger

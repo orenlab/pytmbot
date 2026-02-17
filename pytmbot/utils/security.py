@@ -8,7 +8,15 @@ also providing basic information about the status of local servers.
 import re
 import secrets
 
-from pytmbot.settings import settings
+from pytmbot.models.settings_model import SettingsModel
+from pytmbot.settings import settings as app_settings
+
+
+def _get_settings() -> SettingsModel:
+    """Resolve lazily loaded settings module attribute to strict type."""
+    if not isinstance(app_settings, SettingsModel):
+        raise TypeError("Invalid settings type")
+    return app_settings
 
 
 def sanitize_exception(exception: Exception) -> str:
@@ -28,12 +36,18 @@ def sanitize_exception(exception: Exception) -> str:
 
     # Safely extract secrets with error handling
     try:
-        secrets_to_mask = [
-            settings.bot_token.prod_token[0],
-            settings.bot_token.dev_bot_token[0],
-            settings.plugins_config.outline.api_url[0],
-            settings.plugins_config.outline.cert[0],
-        ]
+        settings = _get_settings()
+        secrets_to_mask: list[object] = [settings.bot_token.prod_token[0]]
+
+        dev_tokens = settings.bot_token.dev_bot_token
+        if dev_tokens:
+            secrets_to_mask.append(dev_tokens[0])
+
+        plugins_config = settings.plugins_config
+        outline_config = plugins_config.outline if plugins_config else None
+        if outline_config is not None:
+            secrets_to_mask.append(outline_config.api_url[0])
+            secrets_to_mask.append(outline_config.cert[0])
 
         for secret in secrets_to_mask:
             if secret and hasattr(secret, "get_secret_value"):

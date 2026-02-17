@@ -5,14 +5,17 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from __future__ import annotations
+
 import importlib
 import importlib.util
 import inspect
 import re
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from types import ModuleType
 
 from telebot import TeleBot
 
@@ -43,15 +46,13 @@ class _PluginInfo:
     description: str
     commands: dict[str, str] | None = None
     index_key: dict[str, str] | None = None
-    resource_limits: dict = None
-
-    def __post_init__(self):
-        if self.resource_limits is None:
-            self.resource_limits = {
-                "max_memory_mb": 100,
-                "max_cpu_percent": 50,
-                "execution_timeout_sec": 30,
-            }
+    resource_limits: dict[str, int] = field(
+        default_factory=lambda: {
+            "max_memory_mb": 100,
+            "max_cpu_percent": 50,
+            "execution_timeout_sec": 30,
+        }
+    )
 
 
 class PluginManager:
@@ -61,14 +62,14 @@ class PluginManager:
 
     __slots__ = ("_plugin_base_path", "_plugin_base_for_import", "_plugin_blacklist")
 
-    _instance = None
+    _instance: PluginManager | None = None
     _index_keys: dict[str, str] = {}
     _plugin_names: dict[str, str] = {}
     _plugin_descriptions: dict[str, str] = {}
-    _plugin_instances: dict[str, weakref.ref] = {}
+    _plugin_instances: dict[str, weakref.ReferenceType[PluginInterface]] = {}
     _loaded_plugins: set[str] = set()
 
-    _plugin_resources = {
+    _plugin_resources: dict[str, dict[str, int]] = {
         "default_limits": {
             "max_memory_mb": 100,
             "max_cpu_percent": 50,
@@ -76,7 +77,7 @@ class PluginManager:
         }
     }
 
-    def __new__(cls, *args, **kwargs) -> "PluginManager":
+    def __new__(cls, *args: object, **kwargs: object) -> PluginManager:
         """Creates or retrieves the singleton instance of the PluginManager."""
         if cls._instance is None:
             try:
@@ -85,15 +86,17 @@ class PluginManager:
                     cls._instance._initialize()
             except Exception:
                 logger.error("bot.plugins.plugin_manager.create.plugin.fail")
+        if cls._instance is None:
+            raise RuntimeError("PluginManager initialization failed")
         return cls._instance
 
-    def _initialize(self):
+    def _initialize(self) -> None:
         """Initialize the plugin manager instance."""
         self._plugin_base_path = Path("pytmbot/plugins")
         self._plugin_base_for_import = "pytmbot.plugins"
         self._load_blacklist()
 
-    def _load_blacklist(self):
+    def _load_blacklist(self) -> None:
         """Load blacklisted plugin patterns and names."""
         self._plugin_blacklist = {
             "patterns": [
@@ -139,7 +142,7 @@ class PluginManager:
         module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
         return importlib.util.find_spec(module_path) is not None
 
-    def _import_module(self, plugin_name: str):
+    def _import_module(self, plugin_name: str) -> ModuleType:
         """Safely imports the plugin module."""
         if not self._validate_plugin_path(plugin_name):
             raise ImportError(f"Plugin path validation failed for '{plugin_name}'")
@@ -151,7 +154,7 @@ class PluginManager:
             logger.error("bot.plugins.plugin_manager.import.fail")
             raise
 
-    def _import_module_config(self, plugin_name: str):
+    def _import_module_config(self, plugin_name: str) -> ModuleType:
         """Safely imports the plugin configuration module."""
         if not self._validate_plugin_path(plugin_name):
             raise ImportError(
@@ -166,7 +169,7 @@ class PluginManager:
             raise
 
     @staticmethod
-    def _find_plugin_classes(module) -> list[type[PluginInterface]]:
+    def _find_plugin_classes(module: ModuleType) -> list[type[PluginInterface]]:
         """Finds all valid plugin classes in the module."""
         plugin_classes = []
         for attribute_name in dir(module):
@@ -180,7 +183,7 @@ class PluginManager:
         return plugin_classes
 
     @staticmethod
-    def _extract_plugin_permissions(module) -> PluginsPermissionsModel:
+    def _extract_plugin_permissions(module: ModuleType) -> PluginsPermissionsModel:
         """Extracts and validates plugin permissions."""
         permissions = getattr(module, "PLUGIN_PERMISSIONS", None)
 
@@ -195,7 +198,7 @@ class PluginManager:
 
         return permissions
 
-    def _extract_plugin_info(self, module) -> _PluginInfo | None:
+    def _extract_plugin_info(self, module: ModuleType) -> _PluginInfo | None:
         """Extracts and validates plugin configuration details."""
         try:
             required_attrs = ["PLUGIN_NAME", "PLUGIN_VERSION", "PLUGIN_DESCRIPTION"]
@@ -281,7 +284,7 @@ class PluginManager:
         """
         return cls._plugin_descriptions
 
-    def _cleanup_plugin(self, plugin_name: str):
+    def _cleanup_plugin(self, plugin_name: str) -> None:
         """Performs cleanup operations for a plugin."""
         ref = self._plugin_instances.get(plugin_name)
         if ref:
@@ -298,7 +301,7 @@ class PluginManager:
             except Exception:
                 logger.error("bot.plugins.plugin_manager.cleaning.plugin.fail")
 
-    def _register_plugin(self, plugin_name: str, bot: TeleBot | None = None):
+    def _register_plugin(self, plugin_name: str, bot: TeleBot | None = None) -> None:
         """Registers a single plugin with enhanced security and resource management."""
         logger.debug("bot.plugins.plugin_manager.attempting.register.debug")
 
@@ -325,6 +328,10 @@ class PluginManager:
 
             if not plugin_classes:
                 logger.error("bot.plugins.plugin_manager.no.valid.fail")
+                return
+
+            if bot is None:
+                logger.error("bot.plugins.plugin_manager.bot.instance.missing.fail")
                 return
 
             # Create plugin instance
@@ -362,7 +369,9 @@ class PluginManager:
             )
             self._cleanup_plugin(plugin_name)
 
-    def register_plugins(self, plugin_names: list[str], bot: TeleBot | None = None):
+    def register_plugins(
+        self, plugin_names: list[str], bot: TeleBot | None = None
+    ) -> None:
         """Registers multiple plugins with enhanced error handling."""
         plugins_to_register = [
             name.strip()
@@ -378,7 +387,7 @@ class PluginManager:
     def is_plugin_loaded(cls, plugin_name: str) -> bool:
         return plugin_name in cls._loaded_plugins
 
-    def cleanup_all_plugins(self):
+    def cleanup_all_plugins(self) -> None:
         """Cleanly shuts down all registered plugins."""
 
         try:
@@ -388,6 +397,6 @@ class PluginManager:
         except Exception:
             logger.error("bot.plugins.plugin_manager.cleaning.fail")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Ensure cleanup when the manager is destroyed."""
         self.cleanup_all_plugins()

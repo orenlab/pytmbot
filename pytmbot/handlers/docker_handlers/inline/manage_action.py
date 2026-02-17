@@ -9,7 +9,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
-from pytmbot.globals import keyboards
+from pytmbot.globals import button_data, keyboards
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     show_handler_info,
@@ -38,13 +38,14 @@ def managing_action_fabric(call: CallbackQuery) -> bool:
         "__stop__",
         "__restart__",
     ]
-    return any(call.data.startswith(callback_data) for callback_data in action)
+    callback_data = call.data or ""
+    return any(callback_data.startswith(action_name) for action_name in action)
 
 
 # func=lambda call: managing_action_fabric(call)
-@two_factor_auth_required
 @logger.session_decorator
-def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
+@two_factor_auth_required
+def handle_manage_container_action(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handles the callback query for managing a container.
 
@@ -55,18 +56,20 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
     Returns:
         None
     """
-    container_name = split_string_into_octets(call.data)
-    called_user_id = split_string_into_octets(call.data, octet_index=2)
+    callback_data = call.data or ""
+    container_name = split_string_into_octets(callback_data)
+    called_user_id = split_string_into_octets(callback_data, octet_index=2)
 
     if call.from_user is None:
         logger.warning(
             "bot.handler.docker.manage_action.missing.user.warn", callback_data=call.data
         )
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Managing {container_name}: Missing user information",
             bot=bot,
         )
+        return
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
     if not is_allowed:
@@ -76,32 +79,30 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot):
             container_name=container_name,
             reason=deny_reason,
         )
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Managing {container_name}: {deny_reason}",
             bot=bot,
         )
+        return
 
     managing_actions = {
         "__start__": __start_container,
         "__stop__": __stop_container,
         "__restart__": __restart_container,
     }
-    managing_action = split_string_into_octets(call.data, octet_index=0)
+    managing_action = split_string_into_octets(callback_data, octet_index=0)
 
     if managing_action in managing_actions:
         managing_actions[managing_action](
             call=call, container_name=container_name, bot=bot
         )
-        return None
-    else:
-        logger.error(
-            "bot.handler.docker.manage_action.manage.fail"
-        )
-        return None
+        return
+
+    logger.error("bot.handler.docker.manage_action.manage.fail")
 
 
-def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
+def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot) -> None:
     """
     Starts a Docker container based on the provided container name and user ID.
 
@@ -113,6 +114,14 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     Returns:
         None
     """
+    if call.from_user is None:
+        show_handler_info(
+            call=call,
+            text=f"Starting {container_name}: Missing user information",
+            bot=bot,
+        )
+        return
+
     try:
         result = container_manager.managing_container(
             call.from_user.id, container_name, action="start"
@@ -122,28 +131,31 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             logger.info(
                 "bot.handler.docker.manage_action.user.start.ok"
             )
-            return show_handler_info(
+            show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
             )
+            return
         else:
             logger.error(
                 "bot.handler.docker.manage_action.start.user.fail"
             )
-            return show_handler_info(
+            show_handler_info(
                 call=call,
                 text=f"Starting {container_name}: Error occurred. See logs",
                 bot=bot,
             )
+            return
     except Exception:
         logger.error("bot.handler.docker.manage_action.start.fail")
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Starting {container_name}: Unexpected error occurred",
             bot=bot,
         )
+        return
 
 
-def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
+def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot) -> None:
     """
     Stops a Docker container based on the provided container name and user ID.
 
@@ -155,6 +167,14 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     Returns:
         None
     """
+    if call.from_user is None:
+        show_handler_info(
+            call=call,
+            text=f"Stopping {container_name}: Missing user information",
+            bot=bot,
+        )
+        return
+
     try:
         result = container_manager.managing_container(
             call.from_user.id, container_name, action="stop"
@@ -164,28 +184,31 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             logger.info(
                 "bot.handler.docker.manage_action.user.stop.ok"
             )
-            return show_handler_info(
+            show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
             )
+            return
         else:
             logger.error(
                 "bot.handler.docker.manage_action.stop.user.fail"
             )
-            return show_handler_info(
+            show_handler_info(
                 call=call,
                 text=f"Stopping {container_name}: Error occurred. See logs",
                 bot=bot,
             )
+            return
     except Exception:
         logger.error("bot.handler.docker.manage_action.stop.fail")
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Stopping {container_name}: Unexpected error occurred",
             bot=bot,
         )
+        return
 
 
-def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
+def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) -> None:
     """
     Restarts a Docker container based on the provided container name and user ID.
 
@@ -197,6 +220,23 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
     Returns:
         None
     """
+    if call.from_user is None:
+        show_handler_info(
+            call=call,
+            text=f"Restarting {container_name}: Missing user information",
+            bot=bot,
+        )
+        return
+
+    callback_message = call.message
+    if callback_message is None:
+        show_handler_info(
+            call=call,
+            text=f"Restarting {container_name}: Missing callback message",
+            bot=bot,
+        )
+        return
+
     try:
         result = container_manager.managing_container(
             call.from_user.id, container_name, action="restart"
@@ -206,32 +246,35 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot):
             logger.info(
                 "bot.handler.docker.manage_action.restarting.user.start"
             )
-            keyboards_key = keyboards.ButtonData(
+            keyboards_key = button_data(
                 text=f"Back to {container_name}",
                 callback_data=f"__manage__:{container_name}:{call.from_user.id}",
             )
             keyboard = keyboards.build_inline_keyboard(keyboards_key)
 
-            return bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
+            bot.edit_message_text(
+                chat_id=callback_message.chat.id,
+                message_id=callback_message.message_id,
                 text=f"Restarting {container_name}: Success. State: running",
                 reply_markup=keyboard,
             )
+            return
 
         logger.error(
             "bot.handler.docker.manage_action.restart.fail"
         )
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Restarting {container_name}: Error occurred. See logs",
             bot=bot,
         )
+        return
 
     except Exception:
         logger.error("bot.handler.docker.manage_action.restart.fail")
-        return show_handler_info(
+        show_handler_info(
             call=call,
             text=f"Restarting {container_name}: Unexpected error occurred",
             bot=bot,
         )
+        return

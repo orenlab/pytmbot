@@ -19,7 +19,7 @@ logger = Logger()
 
 # regexp="File system"
 @logger.session_decorator
-def handle_file_system(message: Message, bot: TeleBot):
+def handle_file_system(message: Message, bot: TeleBot) -> None:
     try:
         bot.send_chat_action(message.chat.id, "typing")
 
@@ -27,10 +27,11 @@ def handle_file_system(message: Message, bot: TeleBot):
 
         if disk_usage is None:
             logger.error("bot.handler.server.filesystem.disk.usage.fail")
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id,
                 text="⚠️ Failed to handle disk usage. Please try again later.",
             )
+            return None
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),
@@ -46,7 +47,8 @@ def handle_file_system(message: Message, bot: TeleBot):
             **emojis,
         )
 
-        return bot.send_message(message.chat.id, text=bot_answer, parse_mode="HTML")
+        bot.send_message(message.chat.id, text=bot_answer, parse_mode="HTML")
+        return None
 
     except Exception as error:
         bot.send_message(

@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     )
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     if name == "parse_cli_args":
         from .cli import parse_cli_args
 

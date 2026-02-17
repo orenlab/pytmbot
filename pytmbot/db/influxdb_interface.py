@@ -127,6 +127,28 @@ class InfluxDBInterface(BaseComponent):
             )
             raise InfluxDBConnectionError(error_context) from e
 
+    def _require_write_api(self) -> Any:
+        """Return initialized write API or raise connection error."""
+        if self._write_api is None:
+            raise InfluxDBConnectionError(
+                ErrorContext(
+                    message="InfluxDB write API is not initialized",
+                    error_code="WRITE_API_NOT_INITIALIZED",
+                )
+            )
+        return self._write_api
+
+    def _require_query_api(self) -> Any:
+        """Return initialized query API or raise connection error."""
+        if self._query_api is None:
+            raise InfluxDBConnectionError(
+                ErrorContext(
+                    message="InfluxDB query API is not initialized",
+                    error_code="QUERY_API_NOT_INITIALIZED",
+                )
+            )
+        return self._query_api
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the runtime context and ensure proper cleanup."""
         if self._client:
@@ -158,6 +180,8 @@ class InfluxDBInterface(BaseComponent):
         """
         parsed_url = urlparse(self._config.url)
         hostname = parsed_url.hostname
+        if hostname is None:
+            return False
 
         if hostname in ("localhost", "127.0.0.1"):
             return True
@@ -239,11 +263,11 @@ class InfluxDBInterface(BaseComponent):
             point = Point(measurement).time(datetime.now(UTC))
 
             if tags:
-                for key, value in tags.items():
-                    point = point.tag(key, value)
+                for tag_key, tag_value in tags.items():
+                    point = point.tag(tag_key, tag_value)
 
-            for key, value in fields.items():
-                point = point.field(key, value)
+            for field_key, field_value in fields.items():
+                point = point.field(field_key, field_value)
 
             # Log write operations only in debug mode to avoid noise
             if self._config.debug_mode:
@@ -262,7 +286,8 @@ class InfluxDBInterface(BaseComponent):
                         },
                     )
 
-            self._write_api.write(bucket=self._config.bucket, record=point)
+            write_api = self._require_write_api()
+            write_api.write(bucket=self._config.bucket, record=point)
 
             # Success logging only in debug mode
             if self._config.debug_mode:
@@ -319,7 +344,8 @@ class InfluxDBInterface(BaseComponent):
                 ) as log:
                     log.debug("bot.db.influxdb_interface.exec.query.debug", extra={"query": query})
 
-            tables = self._query_api.query(query, org=self._config.org)
+            query_api = self._require_query_api()
+            tables = query_api.query(query, org=self._config.org)
 
             results = [
                 (record.get_time(), record.get_value())
@@ -372,7 +398,8 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(action="list_measurements") as log:
                     log.debug("bot.db.influxdb_interface.fetch.measurements.debug", extra={"query": query})
 
-            tables = self._query_api.query(query, org=self._config.org)
+            query_api = self._require_query_api()
+            tables = query_api.query(query, org=self._config.org)
 
             measurements = [
                 record.get_value() for table in tables for record in table.records
@@ -427,7 +454,8 @@ class InfluxDBInterface(BaseComponent):
                 ) as log:
                     log.debug("bot.db.influxdb_interface.fetch.fields.debug", extra={"query": query})
 
-            tables = self._query_api.query(query, org=self._config.org)
+            query_api = self._require_query_api()
+            tables = query_api.query(query, org=self._config.org)
 
             fields = [
                 record.get_value() for table in tables for record in table.records

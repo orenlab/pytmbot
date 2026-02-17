@@ -19,7 +19,7 @@ logger = Logger()
 
 # regexp="Memory load"
 @logger.session_decorator
-def handle_memory(message: Message, bot: TeleBot):
+def handle_memory(message: Message, bot: TeleBot) -> None:
     """
     Handle the "Memory load" command.
 
@@ -34,9 +34,10 @@ def handle_memory(message: Message, bot: TeleBot):
             logger.error(
                 "bot.handler.server.memory.get.fail"
             )
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
+            return None
 
         callback_data = "__swap_info__"
         if message.from_user is not None:
@@ -52,12 +53,13 @@ def handle_memory(message: Message, bot: TeleBot):
             abacus=em.get_emoji("abacus"),
         )
 
-        return bot.send_message(
+        bot.send_message(
             message.chat.id,
             text=bot_answer,
             reply_markup=keyboard,
             parse_mode="HTML",
         )
+        return None
 
     except Exception as error:
         bot.send_message(

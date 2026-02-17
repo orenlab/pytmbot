@@ -58,17 +58,19 @@ def validate_container_name(name: str) -> bool:
 
 @logger.catch()
 @logger.session_decorator
-def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
+def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handle request for comprehensive container information using enhanced utilities.
     """
     try:
         if call.data is None:
-            return show_handler_info(call, text="Invalid request format", bot=bot)
+            show_handler_info(call, text="Invalid request format", bot=bot)
+            return None
 
         parsed_data = parse_container_full_info_callback_data(call.data)
         if parsed_data is None:
-            return show_handler_info(call, text="Invalid request format", bot=bot)
+            show_handler_info(call, text="Invalid request format", bot=bot)
+            return None
 
         container_name, called_user_id, source_page = parsed_data
 
@@ -84,20 +86,22 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
                 "bot.handler.docker.container_info.user.denied.deny",
                 reason=deny_reason,
             )
-            return show_handler_info(
+            show_handler_info(
                 call,
                 text=f"Container info: {deny_reason}",
                 bot=bot,
             )
+            return None
 
         # Validate container name
         if not validate_container_name(container_name):
             logger.warning(
                 "bot.handler.docker.container_info.invalid.container.warn"
             )
-            return show_handler_info(
+            show_handler_info(
                 call, text="Invalid container name format", bot=bot
             )
+            return None
 
         # Get comprehensive container details using enhanced utilities
         container_details = get_comprehensive_container_details(container_name)
@@ -106,9 +110,10 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
             logger.info(
                 "bot.handler.docker.container_info.container.not.info"
             )
-            return show_handler_info(
+            show_handler_info(
                 call, text=f"{container_name}: Container not found", bot=bot
             )
+            return None
 
         container_ref = str(container_details.get("name", container_name)).strip().lower()
         if not container_ref:
@@ -171,25 +176,37 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
 
         inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
+        callback_message = call.message
+        if callback_message is None:
+            show_handler_info(
+                call=call,
+                text="Cannot render container details in this context",
+                bot=bot,
+            )
+            return None
+
         # Send response
-        return bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+        bot.edit_message_text(
+            chat_id=callback_message.chat.id,
+            message_id=callback_message.message_id,
             text=context,
             reply_markup=inline_keyboard,
             parse_mode="HTML",
         )
+        return None
 
     except ValueError:
         logger.warning(
             "bot.handler.docker.container_info.value.fail"
         )
-        return show_handler_info(call, text="Invalid request data", bot=bot)
+        show_handler_info(call, text="Invalid request data", bot=bot)
+        return None
 
     except Exception:
         logger.error(
             "bot.handler.docker.container_info.unexpected.fail"
         )
-        return show_handler_info(
+        show_handler_info(
             call, text="An error occurred while processing request", bot=bot
         )
+        return None

@@ -53,7 +53,7 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
         )
 
 
-def __fetch_counters():
+def __fetch_counters() -> dict[str, int]:
     """
     Fetch Docker counters.
 
@@ -61,10 +61,19 @@ def __fetch_counters():
         Optional[Dict[str, int]]: A dictionary containing Docker counters, or None if the counters cannot be
         fetched.
     """
-    return fetch_docker_counters()
+    raw_counters = fetch_docker_counters()
+    if not isinstance(raw_counters, dict):
+        raise ValueError("Invalid docker counters payload")
+
+    counters: dict[str, int] = {}
+    for key, value in raw_counters.items():
+        if isinstance(key, str) and isinstance(value, int):
+            counters[key] = value
+
+    return counters
 
 
-def __compile_message():
+def __compile_message() -> str:
     """
     Compile message and render a bot answer based on docker counters.
 
@@ -77,7 +86,7 @@ def __compile_message():
     """
     docker_counters = __fetch_counters()
     if docker_counters is None:
-        return {"images_count": "N/A", "containers_count": "N/A"}
+        raise ValueError("Docker counters are unavailable")
 
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),

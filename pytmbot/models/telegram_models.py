@@ -15,7 +15,7 @@ logger = Logger()
 class TelegramIPValidator:
     """Validates if an IP address belongs to Telegram's network ranges."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.ipv4_ranges = [
             ipaddress.ip_network("91.108.56.0/22"),
             ipaddress.ip_network("91.108.4.0/22"),

@@ -5,7 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from pytmbot.logs import Logger
@@ -57,7 +57,4 @@ class MonitoringState:
     init_mode: bool = True
     sensors_available: bool = True
     return_cached_disk_usage: bool = False
-    active_events: dict[str, EventData] = None
-
-    def __post_init__(self):
-        self.active_events = {}
+    active_events: dict[str, EventData] = field(default_factory=dict)

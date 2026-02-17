@@ -31,10 +31,11 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         None
     """
     try:
+        user = message.from_user
         user_name = (
-            message.from_user.first_name
-            if message.from_user.first_name
-            else message.from_user.username
+            (user.first_name if user else None)
+            or (user.username if user else None)
+            or "User"
         )
         bot.send_chat_action(message.chat.id, "typing")
 

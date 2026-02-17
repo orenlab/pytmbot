@@ -11,6 +11,7 @@ import argparse
 import base64
 import secrets
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -31,10 +32,10 @@ class SaltGenerator:
 
     def __init__(self) -> None:
         self.console = Console()
-        self.encoding_options = {
+        self.encoding_options: dict[Literal['base32', 'base64', 'hex'], Callable[[bytes], bytes]] = {
             'base32': base64.b32encode,
             'base64': base64.b64encode,
-            'hex': lambda x: x.hex().encode()
+            'hex': lambda payload: payload.hex().encode('utf-8')
         }
 
     def generate_salt(

@@ -20,7 +20,7 @@ logger = Logger()
 
 # func=lambda message: True
 @logger.session_decorator
-def handle_echo(message: Message, bot: TeleBot):
+def handle_echo(message: Message, bot: TeleBot) -> None:
     """
     Handles the 'echo' command.
 
@@ -42,7 +42,10 @@ def handle_echo(message: Message, bot: TeleBot):
 
         bot_answer = Compiler.quick_render(
             template_name="b_echo.jinja2",
-            first_name=message.from_user.first_name,
+            first_name=(
+                message.from_user.first_name if message.from_user else None
+            )
+            or "User",
             **emojis,
         )
 

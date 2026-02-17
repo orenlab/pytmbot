@@ -16,4 +16,4 @@ class EmojiConverter:
 
     def get_emoji(self, emoji_name: str) -> str:
         emoji_str = f":{emoji_name}:"
-        return self.emoji_library.emojize(emoji_str)
+        return str(self.emoji_library.emojize(emoji_str))

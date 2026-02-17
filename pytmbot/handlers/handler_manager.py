@@ -61,7 +61,9 @@ from .server_handlers.uptime import handle_uptime
 type MessageType = Message
 type CallbackQueryType = CallbackQuery
 type HandlerType = dict[str, list[HandlerManager]]
-type FilterFunc = Callable[[Message | CallbackQuery], bool]
+type MessageFilterFunc = Callable[[MessageType], bool]
+type CallbackFilterFunc = Callable[[CallbackQueryType], bool]
+type FilterFunc = MessageFilterFunc | CallbackFilterFunc
 type HandlerCallback = Callable[..., Any]
 
 # Constants

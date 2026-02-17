@@ -5,8 +5,8 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
 
 from telebot import TeleBot
 from telebot.types import Message
@@ -30,53 +30,69 @@ def _get_uptime() -> str | None:
         return None
 
 
-def _get_load() -> tuple | None:
+def _get_load() -> tuple[float, float, float] | None:
     """Get load average."""
     try:
-        return psutil_adapter.get_load_average()
+        load_avg = psutil_adapter.get_load_average()
+        if (
+            isinstance(load_avg, tuple)
+            and len(load_avg) == 3
+            and all(isinstance(value, (int, float)) for value in load_avg)
+        ):
+            return (float(load_avg[0]), float(load_avg[1]), float(load_avg[2]))
+        return None
     except Exception:
         logger.error("bot.handler.server.quickview.get.load.fail")
         return None
 
 
-def _get_memory() -> dict | None:
+def _get_memory() -> dict[str, object] | None:
     """Get memory statistics."""
     try:
-        return psutil_adapter.get_memory()
+        memory_stats = psutil_adapter.get_memory()
+        if isinstance(memory_stats, dict):
+            return {str(key): value for key, value in memory_stats.items()}
+        return None
     except Exception:
         logger.error("bot.handler.server.quickview.get.memory.fail")
         return None
 
 
-def _get_processes() -> dict | None:
+def _get_processes() -> dict[str, object] | None:
     """Get process counts."""
     try:
-        return psutil_adapter.get_process_counts()
+        process_stats = psutil_adapter.get_process_counts()
+        if isinstance(process_stats, dict):
+            return {str(key): value for key, value in process_stats.items()}
+        return None
     except Exception:
         logger.error("bot.handler.server.quickview.get.counts.fail")
         return None
 
 
-def _get_docker() -> dict | None:
+def _get_docker() -> dict[str, object] | None:
     """Get Docker statistics."""
     try:
-        return fetch_docker_counters()
+        docker_stats = fetch_docker_counters()
+        if isinstance(docker_stats, dict):
+            return {str(key): value for key, value in docker_stats.items()}
+        return None
     except Exception:
         logger.error("bot.handler.server.quickview.get.stats.fail")
         return None
 
 
-def _collect_metrics() -> dict[str, Any]:
+def _collect_metrics() -> dict[str, object]:
     """
     Collect all metrics concurrently using ThreadPoolExecutor.
 
     Returns:
         Dict containing all collected metrics.
     """
-    metrics = {}
+    metrics: dict[str, object] = {}
 
     # Define tasks to run concurrently
-    tasks = {
+    tasks: dict[str, Callable[[], object | None]] = {
         "uptime": _get_uptime,
         "load_average": _get_load,
         "memory": _get_memory,
@@ -108,7 +124,7 @@ def _collect_metrics() -> dict[str, Any]:
 
 # regexp="Quick view|Quick status|qv"
 @logger.session_decorator
-def handle_quick_view(message: Message, bot: TeleBot):
+def handle_quick_view(message: Message, bot: TeleBot) -> None:
     """Handle quick view command to show system and Docker summary."""
     emojis = {
         "computer": em.get_emoji("desktop_computer"),
@@ -128,25 +144,40 @@ def handle_quick_view(message: Message, bot: TeleBot):
 
         if not metrics:
             logger.error("bot.handler.server.quickview.collect.any.fail")
-            return bot.send_message(
+            bot.send_message(
                 message.chat.id,
                 text="⚠️ Failed to get system metrics. Please try again later.",
             )
+            return
+
+        load_average_raw = metrics.get("load_average")
+        load_average: tuple[float, float, float] = (
+            load_average_raw
+            if (
+                isinstance(load_average_raw, tuple)
+                and len(load_average_raw) == 3
+                and all(isinstance(value, (int, float)) for value in load_average_raw)
+            )
+            else (0.0, 0.0, 0.0)
+        )
+        memory_stats = metrics.get("memory")
+        process_stats = metrics.get("processes")
 
         # Prepare context for template
-        context = {
+        context: dict[str, object] = {
             "system": {
                 "uptime": metrics.get("uptime", "N/A"),
-                "load_average": metrics.get("load_average", (0, 0, 0)),
-                "memory": metrics.get("memory", {}),
-                "processes": metrics.get("processes", {}),
+                "load_average": load_average,
+                "memory": memory_stats if isinstance(memory_stats, dict) else {},
+                "processes": process_stats if isinstance(process_stats, dict) else {},
                 "cpu": metrics.get("cpu", {}),
             }
         }
 
         # Add Docker metrics if available
-        if "docker" in metrics:
-            context["docker"] = metrics["docker"]
+        docker_metrics = metrics.get("docker")
+        if isinstance(docker_metrics, dict):
+            context["docker"] = docker_metrics
 
         bot_answer = Compiler.quick_render(
             template_name="b_quick_view.jinja2", context=context, **emojis

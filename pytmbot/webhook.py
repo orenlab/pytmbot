@@ -16,17 +16,40 @@ import telebot
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import SecretStr
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 from pytmbot.exceptions import BotException, ErrorContext, InitializationError
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
+from pytmbot.models.settings_model import WebhookConfig as SettingsWebhookConfig
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils import generate_secret_token, mask_token_in_message
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
+
+
+def _get_webhook_config() -> SettingsWebhookConfig:
+    """Get webhook config and fail fast with typed error when it's unavailable."""
+    webhook_config = settings.webhook_config
+    if webhook_config is None:
+        raise InitializationError(
+            ErrorContext(
+                message="Webhook configuration is missing",
+                error_code="WEBHOOK_CONFIG_MISSING",
+                metadata={},
+            )
+        )
+    return webhook_config
+
+
+def _first_secret(values: list[SecretStr] | None) -> str | None:
+    """Safely extract first secret value from optional secret list."""
+    if not values:
+        return None
+    return values[0].get_secret_value()
 
 
 class RateLimit(BaseComponent):
@@ -114,7 +137,8 @@ class WebhookManager(BaseComponent):
 
     def setup_webhook(self, webhook_path: str) -> None:
         webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
-        cert_path = settings.webhook_config.cert[0].get_secret_value() or None
+        webhook_settings = _get_webhook_config()
+        cert_path = _first_secret(webhook_settings.cert)
 
         with self.log_context(
             action="setup_webhook",
@@ -215,7 +239,7 @@ class WebhookServer(BaseComponent):
             log.debug("bot.webhook.server.components.init")
 
             # Initialize webhook manager
-            webhook_settings = settings.webhook_config
+            webhook_settings = _get_webhook_config()
             webhook_url = webhook_settings.url[0].get_secret_value()
             webhook_port = webhook_settings.webhook_port[0]
 
@@ -286,7 +310,8 @@ class WebhookServer(BaseComponent):
             async def not_found_handler(
                 request: Request, exc: HTTPException
             ) -> JSONResponse:
-                client_ip = request.client.host
+                _ = exc
+                client_ip = request.client.host if request.client else "unknown"
                 with self.log_context(
                     action="handle_404",
                     client_ip=client_ip,
@@ -308,11 +333,15 @@ class WebhookServer(BaseComponent):
                 request: Request,
                 x_forwarded_for: Annotated[str | None, Header()] = None,
             ) -> str:
-                client_ip = (
-                    x_forwarded_for.split(",")[0].strip()
-                    if x_forwarded_for
-                    else request.client.host
-                )
+                if x_forwarded_for:
+                    client_ip = x_forwarded_for.split(",")[0].strip()
+                else:
+                    if request.client is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Cannot determine client IP address",
+                        )
+                    client_ip = request.client.host
 
                 with self.log_context(
                     action="ip_verification",
@@ -433,19 +462,9 @@ class WebhookServer(BaseComponent):
 
             try:
                 # SSL configuration
-                cert_file = settings.webhook_config.cert[0].get_secret_value()
-                key_file = settings.webhook_config.cert_key[0].get_secret_value()
-
-                uvicorn_config = {
-                    "app": self.app,
-                    "host": self.host,
-                    "port": self.port,
-                    "log_level": "critical",
-                    "access_log": False,
-                    "proxy_headers": True,
-                    "forwarded_allow_ips": "*",
-                    "workers": 1,
-                }
+                webhook_settings = _get_webhook_config()
+                cert_file = _first_secret(webhook_settings.cert)
+                key_file = _first_secret(webhook_settings.cert_key)
 
                 # Server configuration logging
                 with self.log_context(
@@ -456,13 +475,32 @@ class WebhookServer(BaseComponent):
                     workers_count=1,
                 ) as config_log:
                     if cert_file and key_file:
-                        uvicorn_config.update(
-                            {"ssl_certfile": cert_file, "ssl_keyfile": key_file}
-                        )
                         config_log.debug("bot.webhook.ssl.config.debug")
+                        uvicorn.run(
+                            self.app,
+                            host=self.host,
+                            port=self.port,
+                            log_level="critical",
+                            access_log=False,
+                            proxy_headers=True,
+                            forwarded_allow_ips="*",
+                            workers=1,
+                            ssl_certfile=cert_file,
+                            ssl_keyfile=key_file,
+                        )
+                    else:
+                        uvicorn.run(
+                            self.app,
+                            host=self.host,
+                            port=self.port,
+                            log_level="critical",
+                            access_log=False,
+                            proxy_headers=True,
+                            forwarded_allow_ips="*",
+                            workers=1,
+                        )
 
                     config_log.info("bot.webhook.uvicorn.server.start")
-                    uvicorn.run(**uvicorn_config)
 
             except FileNotFoundError as e:
                 error_context = ErrorContext(
