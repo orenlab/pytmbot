@@ -11,7 +11,7 @@ from telebot.types import CallbackQuery
 from pytmbot.adapters.docker.container_manager import ContainerManager
 from pytmbot.globals import button_data, keyboards
 from pytmbot.handlers.handlers_util.docker import (
-    authorize_docker_callback_request,
+    get_authorized_container_callback_context,
     show_handler_info,
 )
 from pytmbot.logs import Logger
@@ -56,35 +56,17 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot) -> None:
     Returns:
         None
     """
-    callback_data = call.data or ""
-    container_name = split_string_into_octets(callback_data)
-    called_user_id = split_string_into_octets(callback_data, octet_index=2)
-
-    if call.from_user is None:
-        logger.warning(
-            "bot.handler.docker.manage_action.missing.user.warn", callback_data=call.data
-        )
-        show_handler_info(
-            call=call,
-            text=f"Managing {container_name}: Missing user information",
-            bot=bot,
-        )
+    context = get_authorized_container_callback_context(
+        call=call,
+        bot=bot,
+        operation_label="Managing",
+        missing_user_event="bot.handler.docker.manage_action.missing.user.warn",
+        denied_event="bot.handler.docker.manage_action.denied.manage.deny",
+    )
+    if context is None:
         return
-
-    is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
-    if not is_allowed:
-        logger.warning(
-            "bot.handler.docker.manage_action.denied.manage.deny",
-            user_id=call.from_user.id,
-            container_name=container_name,
-            reason=deny_reason,
-        )
-        show_handler_info(
-            call=call,
-            text=f"Managing {container_name}: {deny_reason}",
-            bot=bot,
-        )
-        return
+    callback_data = context.callback_data
+    container_name = context.container_name
 
     managing_actions = {
         "__start__": __start_container,

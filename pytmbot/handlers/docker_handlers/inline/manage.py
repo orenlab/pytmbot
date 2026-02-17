@@ -12,14 +12,13 @@ from pytmbot.adapters.docker._adapter import DockerAdapter
 from pytmbot.adapters.docker.utils import get_container_state
 from pytmbot.globals import button_data, em, keyboards
 from pytmbot.handlers.handlers_util.docker import (
-    authorize_docker_callback_request,
+    get_authorized_container_callback_context,
     show_handler_info,
 )
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 container_state = ContainersState
@@ -40,34 +39,16 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     Returns:
         None
     """
-    # Extract container name and called user ID from the callback data
-    callback_data = call.data or ""
-    container_name = split_string_into_octets(callback_data)
-    called_user_id = split_string_into_octets(callback_data, octet_index=2)
-
-    if call.from_user is None:
-        logger.warning("bot.handler.docker.manage.missing.user.warn", callback_data=call.data)
-        show_handler_info(
-            call=call,
-            text=f"Managing {container_name}: Missing user information",
-            bot=bot,
-        )
+    auth_context = get_authorized_container_callback_context(
+        call=call,
+        bot=bot,
+        operation_label="Managing",
+        missing_user_event="bot.handler.docker.manage.missing.user.warn",
+        denied_event="bot.handler.docker.manage.denied.function.deny",
+    )
+    if auth_context is None:
         return
-
-    is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
-    if not is_allowed:
-        logger.warning(
-            "bot.handler.docker.manage.denied.function.deny",
-            user_id=call.from_user.id,
-            container_name=container_name,
-            reason=deny_reason,
-        )
-        show_handler_info(
-            call=call,
-            text=f"Managing {container_name}: {deny_reason}",
-            bot=bot,
-        )
-        return
+    container_name = auth_context.container_name
 
     # Get container state
     with DockerAdapter() as adapter:
@@ -84,11 +65,11 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
             [
                 button_data(
                     text=f"{em.get_emoji('no_entry')} Stop",
-                    callback_data=f"__stop__:{container_name}:{call.from_user.id}",
+                    callback_data=f"__stop__:{container_name}:{auth_context.user_id}",
                 ),
                 button_data(
                     text=f"{em.get_emoji('recycling_symbol')} Restart",
-                    callback_data=f"__restart__:{container_name}:{call.from_user.id}",
+                    callback_data=f"__restart__:{container_name}:{auth_context.user_id}",
                 ),
             ]
         )
@@ -102,7 +83,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
         keyboard_buttons.append(
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
-                callback_data=f"__start__:{container_name}:{call.from_user.id}",
+                callback_data=f"__start__:{container_name}:{auth_context.user_id}",
             )
         )
 
@@ -110,7 +91,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     keyboard_buttons.append(
         button_data(
             text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
-            callback_data=f"__get_full__:{container_name}:{call.from_user.id}",
+            callback_data=f"__get_full__:{container_name}:{auth_context.user_id}",
         )
     )
 
@@ -123,7 +104,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
         "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
     }
 
-    context = Compiler.quick_render(
+    rendered_context = Compiler.quick_render(
         "d_managing_containers.jinja2",
         emojis=emojis,
         state=state,
@@ -142,7 +123,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     bot.edit_message_text(
         chat_id=callback_message.chat.id,
         message_id=callback_message.message_id,
-        text=context,
+        text=rendered_context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
     )

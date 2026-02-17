@@ -34,7 +34,7 @@ pyyaml = "==6.0.3"
 pygal = "==3.1.0"
 pytelegrambotapi = "==4.31.0"
 fastapi = "==0.129.0"
-uvicorn = "==0.40.0"
+uvicorn = "==0.41.0"
 influxdb-client = "==1.50.0"
 pypng = "^0.20220715.0"
 qrcode = { extras = ["pil"], version = "^8.2" }
@@ -51,7 +51,7 @@ ruff = "^0.15.1"
 pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 mypy = "^1.0.0"
-codeclone = "^1.4.1"
+codeclone = "^1.4.2"
 
 [tool.poetry.extras]
 pyoutlineapi = ["pyoutlineapi"]

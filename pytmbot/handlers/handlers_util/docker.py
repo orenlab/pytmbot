@@ -6,6 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
@@ -24,9 +25,23 @@ from pytmbot.adapters.docker.utils import (
 from pytmbot.globals import em
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
-from pytmbot.utils import sanitize_logs, set_naturalsize, set_naturaltime
+from pytmbot.utils import (
+    sanitize_logs,
+    set_naturalsize,
+    set_naturaltime,
+    split_string_into_octets,
+)
 
 logger = Logger()
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizedContainerCallbackContext:
+    """Parsed and authorized callback context for container handlers."""
+
+    callback_data: str
+    container_name: str
+    user_id: int
 
 
 def show_handler_info(call: CallbackQuery, text: str, bot: TeleBot) -> bool:
@@ -75,6 +90,54 @@ def authorize_docker_callback_request(
         require_owner_match=require_owner_match,
         require_admin=require_admin,
         require_session=require_session,
+    )
+
+
+def get_authorized_container_callback_context(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    operation_label: str,
+    missing_user_event: str,
+    denied_event: str,
+) -> AuthorizedContainerCallbackContext | None:
+    """
+    Parse and authorize Docker container callback request.
+
+    Returns parsed context on success, otherwise sends user-facing callback alert and returns None.
+    """
+    callback_data = call.data or ""
+    container_name = split_string_into_octets(callback_data)
+    called_user_id = split_string_into_octets(callback_data, octet_index=2)
+
+    if call.from_user is None:
+        logger.warning(missing_user_event, callback_data=call.data)
+        show_handler_info(
+            call=call,
+            text=f"{operation_label} {container_name}: Missing user information",
+            bot=bot,
+        )
+        return None
+
+    is_allowed, deny_reason = authorize_docker_callback_request(call, called_user_id)
+    if not is_allowed:
+        logger.warning(
+            denied_event,
+            user_id=call.from_user.id,
+            container_name=container_name,
+            reason=deny_reason,
+        )
+        show_handler_info(
+            call=call,
+            text=f"{operation_label} {container_name}: {deny_reason}",
+            bot=bot,
+        )
+        return None
+
+    return AuthorizedContainerCallbackContext(
+        callback_data=callback_data,
+        container_name=container_name,
+        user_id=call.from_user.id,
     )
 
 
