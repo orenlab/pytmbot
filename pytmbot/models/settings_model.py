@@ -170,8 +170,8 @@ class WebhookConfig(BaseModel):
     cert_key: list[SecretStr] | None = Field(default=None, min_length=1)
     trusted_proxy_ips: list[str] | None = Field(default=None, min_length=1)
 
-    @classmethod
     @field_validator("trusted_proxy_ips")
+    @classmethod
     def validate_trusted_proxy_ips(
         cls, value: list[str] | None
     ) -> list[str] | None:
