@@ -33,6 +33,9 @@ readonly GITHUB_REPO="https://github.com/orenlab/pytmbot.git"
 # Bot service name
 readonly SERVICE_NAME="pytmbot"
 
+# Installer version (kept in sync with generated configuration metadata)
+readonly INSTALLER_VERSION="0.3.0-dev"
+
 # Cleanup function for sensitive data
 cleanup() {
   # Restore cursor if it was hidden
@@ -259,7 +262,7 @@ show_banner() {
   echo -e "${BOLD}${CYAN}╠$(printf '═%.0s' $(seq 1 $((banner_width-2))))╣${NC}"
 
   # Center-aligned info
-  local version="v0.3.0-dev"
+  local version="v${INSTALLER_VERSION}"
   local author="by Denis Rozhnovskiy"
   local system_info
   system_info="$(uname -s 2>/dev/null || echo "Linux") $(uname -r 2>/dev/null || echo "Unknown")"
@@ -280,11 +283,26 @@ show_banner() {
 
 # Function to check if the script is running as root
 check_root() {
-  if ! sudo -n true 2>/dev/null; then
-    print_error "This script requires root privileges. Please use 'sudo' or switch to a user with appropriate permissions."
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    print_error "This script requires root privileges. Please run it with sudo."
     exit 1
   fi
   print_info "Root privileges confirmed"
+}
+
+# Validate installation directory safety to prevent destructive operations on critical paths.
+validate_install_dir() {
+  if [[ -z "$INSTALL_DIR" ]] || [[ "$INSTALL_DIR" != /* ]]; then
+    print_error "Invalid installation directory: '$INSTALL_DIR' (must be an absolute path)"
+    exit 1
+  fi
+
+  case "$INSTALL_DIR" in
+    "/"|"/opt"|"/usr"|"/var"|"/etc"|"/tmp"|"/home"|"/root")
+      print_error "Unsafe installation directory: '$INSTALL_DIR'"
+      exit 1
+      ;;
+  esac
 }
 
 # Secure random salt generation
@@ -310,6 +328,46 @@ generate_auth_salt() {
 # Function to check if a command exists
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# Get normalized OS ID from /etc/os-release.
+get_os_id() {
+  local os_id
+  os_id=$(grep -E '^ID=' /etc/os-release 2>/dev/null | head -n1 | cut -d'=' -f2 | tr -d '"')
+  echo "${os_id:-ubuntu}"
+}
+
+# Install Docker Compose plugin from trusted package sources.
+install_docker_compose_plugin_securely() {
+  local os_id
+  os_id=$(get_os_id)
+
+  case "$os_id" in
+    ubuntu|debian)
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y 2>/dev/null || return 1
+      apt-get install -y docker-compose-plugin 2>/dev/null || return 1
+      ;;
+    centos|rhel)
+      yum install -y docker-compose-plugin 2>/dev/null || return 1
+      ;;
+    fedora)
+      dnf install -y docker-compose-plugin 2>/dev/null || return 1
+      ;;
+    arch)
+      pacman -S --noconfirm docker-compose 2>/dev/null || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+# Escape a value for safe single-quoted YAML output.
+yaml_escape_single_quoted() {
+  printf "%s" "$1" | sed "s/'/''/g"
 }
 
 # Safe user operations
@@ -375,14 +433,76 @@ create_pytmbot_user() {
 install_docker_securely() {
   show_banner "Docker Installation"
 
-  local docker_script="/tmp/docker-install-$$.sh"
-  local docker_url="https://get.docker.com"
+  local os_id
+  os_id=$(get_os_id)
+  local allow_unverified_script="${PYTMBOT_ALLOW_UNVERIFIED_DOCKER_SCRIPT:-false}"
 
+  print_info "Installing Docker from package manager (OS: ${os_id})..."
+
+  {
+    case "$os_id" in
+      ubuntu|debian)
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y 2>/dev/null || exit 1
+        apt-get install -y docker.io 2>/dev/null || exit 1
+        ;;
+      centos|rhel)
+        yum install -y docker 2>/dev/null || exit 1
+        ;;
+      fedora)
+        dnf install -y docker 2>/dev/null || exit 1
+        ;;
+      arch)
+        pacman -Syu --noconfirm 2>/dev/null || exit 1
+        pacman -S --noconfirm docker 2>/dev/null || exit 1
+        ;;
+      *)
+        exit 2
+        ;;
+    esac
+  } >> "$LOG_FILE" 2>&1 &
+
+  local pkg_pid=$!
+  show_spinner $pkg_pid "Installing Docker packages"
+  wait $pkg_pid
+  local pkg_status=$?
+
+  # Try to start Docker service if systemd is available.
+  if command_exists systemctl; then
+    systemctl enable docker 2>/dev/null || true
+    systemctl start docker 2>/dev/null || true
+  fi
+
+  # Verify package-based installation.
+  if [ $pkg_status -eq 0 ] && command_exists docker; then
+    if ! command_exists systemctl || systemctl is-active --quiet docker 2>/dev/null; then
+      print_info "Docker installed and running successfully"
+      return 0
+    fi
+  fi
+
+  # Fallback path for distributions where package installation is unavailable.
+  if [[ "${allow_unverified_script,,}" != "true" ]]; then
+    print_error "Docker package installation failed or unsupported for OS: ${os_id}"
+    print_info "Fallback to get.docker.com is disabled by default for supply-chain safety"
+    print_info "If you accept the risk, run with: PYTMBOT_ALLOW_UNVERIFIED_DOCKER_SCRIPT=true"
+    exit 1
+  fi
+
+  local docker_script
+  docker_script=$(mktemp /tmp/docker-install-XXXXXX.sh 2>/dev/null) || {
+    print_error "Failed to create temporary file for Docker installer script"
+    exit 1
+  }
+
+  local docker_url="https://get.docker.com"
+  print_warn "Using unverified Docker convenience script fallback"
   print_info "Downloading Docker installation script..."
 
-  # Download with timeout and error checking
   {
     curl -fsSL --connect-timeout 30 --max-time 300 "$docker_url" -o "$docker_script" 2>/dev/null || exit 1
+    chmod 700 "$docker_script" 2>/dev/null || exit 1
+    head -n 1 "$docker_script" | grep -q "^#!" || exit 1
   } >> "$LOG_FILE" 2>&1 &
 
   local download_pid=$!
@@ -396,20 +516,11 @@ install_docker_securely() {
     exit 1
   fi
 
-  # Show script size and ask for confirmation
   local script_size
-  script_size=$(stat -c%s "$docker_script" 2>/dev/null || echo "unknown")
-  print_warn "Downloaded script size: ${script_size} bytes"
+  script_size=$(stat -c%s "$docker_script" 2>/dev/null || stat -f%z "$docker_script" 2>/dev/null || echo "unknown")
+  print_warn "Downloaded script size: ${script_size} bytes (unverified)"
 
-  echo ""
-  echo -e "${YELLOW}The script will now install Docker. This will:"
-  echo "- Add Docker's official GPG key"
-  echo "- Add Docker repository to your system"
-  echo "- Install Docker CE"
-  echo "- Start and enable Docker service${NC}"
-  echo ""
-
-  read -r -p "Do you want to continue with Docker installation? [y/N]: " confirm
+  read -r -p "Continue with unverified Docker script execution? [y/N]: " confirm
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     rm -f "$docker_script" 2>/dev/null || true
     print_error "Docker installation cancelled by user"
@@ -418,8 +529,10 @@ install_docker_securely() {
 
   {
     bash "$docker_script" 2>/dev/null || exit 1
-    systemctl enable docker 2>/dev/null || true
-    systemctl start docker 2>/dev/null || true
+    if command_exists systemctl; then
+      systemctl enable docker 2>/dev/null || true
+      systemctl start docker 2>/dev/null || true
+    fi
   } >> "$LOG_FILE" 2>&1 &
 
   local docker_pid=$!
@@ -429,13 +542,15 @@ install_docker_securely() {
 
   rm -f "$docker_script" 2>/dev/null || true
 
-  # Verify installation
-  if [ $docker_status -eq 0 ] && command_exists docker && systemctl is-active --quiet docker 2>/dev/null; then
-    print_info "Docker installed and running successfully"
-  else
-    print_error "Docker installation failed. Check log: $LOG_FILE"
-    exit 1
+  if [ $docker_status -eq 0 ] && command_exists docker; then
+    if ! command_exists systemctl || systemctl is-active --quiet docker 2>/dev/null; then
+      print_info "Docker installed and running successfully"
+      return 0
+    fi
   fi
+
+  print_error "Docker installation failed. Check log: $LOG_FILE"
+  exit 1
 }
 
 # Repository cloning with error handling
@@ -689,15 +804,15 @@ configure_bot() {
       if [[ -n "$cert" && -n "$cert_key" ]]; then
         print_info "SSL certificates configured"
       else
-        print_info "No SSL certificates provided (will use defaults)"
+        print_info "No SSL certificates provided (cert/cert_key set to null)"
       fi
     else
       print_warn "Invalid webhook URL format, webhook disabled"
-      webhook_url=""
+      webhook_url="https://yourdomain.com"
     fi
   else
     print_info "Webhook configuration skipped - using polling mode"
-    webhook_url="https://yourdomain.com/webhook"
+    webhook_url="https://yourdomain.com"
   fi
 
   # ===============================================
@@ -771,6 +886,48 @@ configure_bot() {
   allowed_user_ids_yaml=$(echo "$allowed_user_ids" | tr ',' '\n' | sed 's/^[[:space:]]*/    - /' | sed 's/[[:space:]]*$//')
   allowed_admins_ids_yaml=$(echo "$allowed_admins_ids" | tr ',' '\n' | sed 's/^[[:space:]]*/    - /' | sed 's/[[:space:]]*$//')
 
+  # Normalize and escape scalar YAML values.
+  local webhook_host
+  webhook_host="${webhook_url#https://}"
+  webhook_host="${webhook_host#http://}"
+  webhook_host="${webhook_host%%/*}"
+
+  local yaml_prod_token yaml_auth_salt yaml_docker_host yaml_webhook_host
+  local yaml_influxdb_url yaml_influxdb_token yaml_influxdb_org yaml_influxdb_bucket
+  yaml_prod_token=$(yaml_escape_single_quoted "$prod_token")
+  yaml_auth_salt=$(yaml_escape_single_quoted "$auth_salt")
+  yaml_docker_host=$(yaml_escape_single_quoted "$docker_host")
+  yaml_webhook_host=$(yaml_escape_single_quoted "$webhook_host")
+  yaml_influxdb_url=$(yaml_escape_single_quoted "$influxdb_url")
+  yaml_influxdb_token=$(yaml_escape_single_quoted "${influxdb_token:-YOUR_INFLUXDB_TOKEN}")
+  yaml_influxdb_org=$(yaml_escape_single_quoted "$influxdb_org")
+  yaml_influxdb_bucket=$(yaml_escape_single_quoted "$influxdb_bucket")
+
+  local dev_token_yaml cert_yaml cert_key_yaml
+  if [[ -n "$dev_token" ]]; then
+    local yaml_dev_token
+    yaml_dev_token=$(yaml_escape_single_quoted "$dev_token")
+    printf -v dev_token_yaml "  dev_bot_token:\n    - '%s'" "$yaml_dev_token"
+  else
+    dev_token_yaml="  dev_bot_token: null"
+  fi
+
+  if [[ -n "$cert" ]]; then
+    local yaml_cert
+    yaml_cert=$(yaml_escape_single_quoted "$cert")
+    printf -v cert_yaml "  cert:\n    - '%s'" "$yaml_cert"
+  else
+    cert_yaml="  cert: null"
+  fi
+
+  if [[ -n "$cert_key" ]]; then
+    local yaml_cert_key
+    yaml_cert_key=$(yaml_escape_single_quoted "$cert_key")
+    printf -v cert_key_yaml "  cert_key:\n    - '%s'" "$yaml_cert_key"
+  else
+    cert_key_yaml="  cert_key: null"
+  fi
+
   # Create configuration with secure permissions
   {
     umask 077 # Only owner can read/write
@@ -778,17 +935,22 @@ configure_bot() {
     # Create the complete YAML configuration
     cat > "$CONFIG_FILE" << EOF
 ################################################################
+# pyTMBot Configuration File
+# Version: ${INSTALLER_VERSION}
+################################################################
+config_version: '${INSTALLER_VERSION}'
+
+################################################################
 # General Bot Settings
 ################################################################
 # Bot Token Configuration
 bot_token:
   # Production bot token (REQUIRED)
   prod_token:
-    - '$prod_token'
+    - '$yaml_prod_token'
 
   # Development bot token (OPTIONAL)
-  dev_bot_token:
-    - '${dev_token:-}'
+$dev_token_yaml
 
 # Access Control Settings (REQUIRED)
 access_control:
@@ -802,7 +964,7 @@ $allowed_admins_ids_yaml
 
   # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
   auth_salt:
-    - '$auth_salt'
+    - '$yaml_auth_salt'
 
 # Chat ID Configuration (REQUIRED)
 chat_id:
@@ -816,7 +978,7 @@ chat_id:
 docker:
   # Docker socket path (REQUIRED)
   host:
-    - '$docker_host'
+    - '$yaml_docker_host'
 
   # Enable Docker client debug logging (OPTIONAL)
   debug_docker_client: false
@@ -827,7 +989,7 @@ docker:
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
   url:
-    - '${webhook_url#https://}'
+    - '$yaml_webhook_host'
 
   # External webhook port (REQUIRED if using webhooks)
   webhook_port:
@@ -838,12 +1000,10 @@ webhook_config:
     - $local_port
 
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
-  cert:
-    - '${cert:-/path/to/your/certificate.pem}'
+$cert_yaml
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
-  cert_key:
-    - '${cert_key:-/path/to/your/private.key}'
+$cert_key_yaml
 
 ################################################################
 # Plugins Configuration (OPTIONAL)
@@ -895,19 +1055,19 @@ plugins_config:
 influxdb:
   # InfluxDB server URL (REQUIRED if using InfluxDB)
   url:
-    - '$influxdb_url'
+    - '$yaml_influxdb_url'
 
   # InfluxDB access token (REQUIRED if using InfluxDB)
   token:
-    - '${influxdb_token:-YOUR_INFLUXDB_TOKEN}'
+    - '$yaml_influxdb_token'
 
   # InfluxDB organization name (REQUIRED if using InfluxDB)
   org:
-    - '$influxdb_org'
+    - '$yaml_influxdb_org'
 
   # InfluxDB bucket name (REQUIRED if using InfluxDB)
   bucket:
-    - '$influxdb_bucket'
+    - '$yaml_influxdb_bucket'
 
   # InfluxDB debug mode (OPTIONAL)
   debug_mode: $influxdb_debug
@@ -1128,7 +1288,7 @@ update_local_pytmbot() {
   fi
 
   # Save current config
-  local temp_config="/tmp/pytmbot_config_$.yaml"
+  local temp_config="/tmp/pytmbot_config_$$.yaml"
   cp "$CONFIG_FILE" "$temp_config" 2>/dev/null || {
     print_error "Failed to backup configuration"
     exit 1
@@ -1250,7 +1410,10 @@ update_docker_pytmbot() {
 
   # Determine update method based on docker-compose.yml
   local image_name
-  image_name=$(grep "image:" docker-compose.yml | awk '{print $2}' | head -n1)
+  image_name=$(docker compose config --images 2>/dev/null | head -n1 | tr -d '[:space:]')
+  if [[ -z "$image_name" ]]; then
+    image_name=$(grep "image:" docker-compose.yml | awk '{print $2}' | head -n1 | tr -d '[:space:]')
+  fi
 
   if [[ "$image_name" == "orenlab/pytmbot"* ]]; then
     # Pre-built image update
@@ -1819,20 +1982,20 @@ install_bot_in_docker() {
 
   # Check for Docker Compose plugin
   if ! docker compose version >/dev/null 2>&1; then
-    print_info "Installing Docker Compose plugin..."
+    print_info "Installing Docker Compose plugin from package manager..."
     {
-      # Install Docker Compose as plugin
-      mkdir -p ~/.docker/cli-plugins/
-      curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose 2>/dev/null
-      chmod +x ~/.docker/cli-plugins/docker-compose 2>/dev/null
+      install_docker_compose_plugin_securely || exit 1
     } >> "$LOG_FILE" 2>&1 &
 
     local compose_pid=$!
     show_spinner $compose_pid "Installing Docker Compose plugin"
-    wait $compose_pid || {
+    wait $compose_pid
+    local compose_status=$?
+    if [ $compose_status -ne 0 ] || ! docker compose version >/dev/null 2>&1; then
       print_error "Failed to install Docker Compose plugin"
+      print_info "Install docker-compose-plugin manually for your distribution and re-run installer"
       exit 1
-    }
+    fi
     print_info "Docker Compose plugin installed successfully"
   else
     print_info "Docker Compose is already available"
@@ -2139,12 +2302,13 @@ update_menu() {
 # Script entry point
 main() {
   # Initialize logging
-  log_to_file "INFO" "pyTMBot Installer v0.3.0-dev started"
+  log_to_file "INFO" "pyTMBot Installer v${INSTALLER_VERSION} started"
   log_to_file "INFO" "System: $(uname -a 2>/dev/null || echo "Unknown")"
   log_to_file "INFO" "User: $(whoami 2>/dev/null || echo "Unknown")"
 
   # Check root privileges
   check_root
+  validate_install_dir
 
   # Show main menu
   main_menu

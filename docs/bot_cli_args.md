@@ -5,17 +5,19 @@ argument you can use when starting the bot.
 
 ## 🛠️ Arguments
 
-| Argument         | Type   | Default     | Choices                  | Description                                                                                    |
-|------------------|--------|-------------|--------------------------|------------------------------------------------------------------------------------------------|
-| `--mode`         | `str`  | `prod`      | `dev`, `prod`            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
-| `--log-level`    | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development. |
-| `--log-format`   | `str`  | mode-based  | `human`, `json`          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.          |
-| `--webhook`      | `str`  | `False`     | `True`, `False`          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                |
-| `--socket_host`  | `str`  | `127.0.0.1` | N/A                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
-| `--plugins`      | `str`  | `""`        | N/A                      | Specify a comma-separated list of plugins to load. Available: `monitor`, `outline`             |
-| `--salt`         | `flag` | `False`     | N/A                      | Generate unique salt for using it in TOTP authentication and exit                              |
-| `--health_check` | `flag` | `False`     | N/A                      | Perform comprehensive health check and exit                                                    |
-| `--check-docker` | `flag` | `False`     | N/A                      | Check Docker socket access and group configuration, then exit                                  |
+| Argument          | Type   | Default     | Choices                                                  | Description                                                                                    |
+|-------------------|--------|-------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| `--mode`          | `str`  | `prod`      | `dev`, `prod`                                            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
+| `--log-level`     | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
+| `--log-format`    | `str`  | mode-based  | `human`, `json`                                          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.          |
+| `--colorize_logs` | `bool` | `True`      | `true`, `false`                                          | Enable or disable colorized logs in human format.                                              |
+| `--webhook`       | `bool` | `False`     | `True`, `False`                                          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                |
+| `--socket_host`   | `str`  | `127.0.0.1` | N/A                                                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
+| `--plugins`       | `list` | `[]`        | N/A                                                      | Specify a space-separated list of plugins to load. Available: `monitor`, `outline`.            |
+| `--debug`         | `flag` | `False`     | N/A                                                      | Shortcut for `--mode dev --log-level DEBUG`.                                                   |
+| `--salt`          | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: generate TOTP salt and exit.                                        |
+| `--health_check`  | `flag` | `False`     | N/A                                                      | Perform comprehensive health check and exit                                                    |
+| `--check-docker`  | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: check Docker socket access and group configuration, then exit.      |
 
 ## 🏥 Health Check & Diagnostic Arguments
 
@@ -47,9 +49,17 @@ Specifically checks Docker-related configuration:
 **Usage:**
 
 ```bash
-python main.py --check-docker
-# or in Docker
 docker run orenlab/pytmbot:latest --check-docker
+```
+
+### `--salt`
+
+Generates secure salt for TOTP configuration and exits.
+
+**Usage:**
+
+```bash
+docker run --rm orenlab/pytmbot:latest --salt
 ```
 
 ## 📄 Required Configurations
@@ -102,7 +112,7 @@ python main.py --mode prod --log-level INFO --log-format json
 **Production mode with specific plugins:**
 
 ```bash
-python main.py --mode prod --log-level INFO --plugins monitor,outline
+python main.py --mode prod --log-level INFO --plugins monitor outline
 ```
 
 ### Webhook Mode
@@ -130,7 +140,7 @@ python main.py --plugins monitor
 **All plugins with debug logging:**
 
 ```bash
-python main.py --plugins monitor,outline --log-level DEBUG
+python main.py --plugins monitor outline --log-level DEBUG
 ```
 
 ### Utility Commands
@@ -138,7 +148,7 @@ python main.py --plugins monitor,outline --log-level DEBUG
 **Generate authentication salt:**
 
 ```bash
-python main.py --salt
+docker run --rm orenlab/pytmbot:latest --salt
 ```
 
 **Health check:**
@@ -150,7 +160,8 @@ python main.py --health_check
 **Docker configuration check:**
 
 ```bash
-python main.py --check-docker
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --check-docker
 ```
 
 ## 🐳 Docker Usage Examples
@@ -189,7 +200,7 @@ services:
     volumes:
       - /path/to/config.yaml:/opt/app/pytmbot.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: --mode prod --log-level INFO --log-format json --plugins monitor,outline
+    command: --mode prod --log-level INFO --log-format json --plugins monitor
 ```
 
 ### Webhook with Docker
@@ -200,7 +211,7 @@ docker run -d \
   --restart on-failure \
   -p 8080:8080 \
   -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
-  orenlab/pytmbot:latest --mode prod --webhook True --socket_host 0.0.0.0
+  orenlab/pytmbot:latest --mode prod --webhook --socket_host 0.0.0.0
 ```
 
 ## 🛡️ Security Considerations
@@ -210,7 +221,7 @@ docker run -d \
 - Always use `--mode prod` for production environments
 - Set log level to `INFO` or `ERROR` to avoid sensitive information in logs
 - Prefer `--log-format json` for production log aggregation systems
-- Use `--webhook True` only behind a reverse proxy with proper SSL termination
+- Use `--webhook` only behind a reverse proxy with proper SSL termination
 - Never expose webhook directly to the internet
 
 ### Development
@@ -234,7 +245,8 @@ The entrypoint script handles:
 
 1. **Docker permission errors**:
    ```bash
-   python main.py --check-docker
+   docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+     orenlab/pytmbot:latest --check-docker
    ```
 
 2. **Health check failures**:

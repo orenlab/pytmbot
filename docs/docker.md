@@ -131,7 +131,7 @@ networks:
 - **Chat ID**: Set `global_chat_id` for notifications
 - **Access Control**: Configure `allowed_user_ids`, `allowed_admins_ids`, and `auth_salt`
 
-### Webhook Configuration (if using `--webhook True`)
+### Webhook Configuration (if using `--webhook`)
 
 - **webhook_config**: Complete all parameters in the webhook configuration section
 - **Security Note**: Bot cannot run on port 80 for security reasons. Use reverse proxy (Nginx, Nginx Proxy Manager, or
@@ -187,21 +187,26 @@ docker run -d \
   --pid host \
   --memory 256m \
   --cpu-shares 512 \
-  orenlab/pytmbot:latest --mode prod --webhook True --socket_host 0.0.0.0
+  orenlab/pytmbot:latest --mode prod --webhook --socket_host 0.0.0.0
 ```
 
 ### Command Line Arguments
 
-| Argument         | Type   | Default     | Choices                  | Description                                                                                    |
-|------------------|--------|-------------|--------------------------|------------------------------------------------------------------------------------------------|
-| `--mode`         | `str`  | `prod`      | `dev`, `prod`            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
-| `--log-level`    | `str`  | `INFO`      | `DEBUG`, `INFO`, `ERROR` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
-| `--webhook`      | `str`  | `False`     | `True`, `False`          | Start the bot in webhook mode. Useful for receiving updates via HTTP callbacks.                |
-| `--socket_host`  | `str`  | `127.0.0.1` | N/A                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
-| `--plugins`      | `list` | `[]`        | N/A                      | Specify a comma-separated list of plugins to load. Available: monitor, outline                 |
-| `--salt`         | `str`  | `False`     | N/A                      | Generate unique salt for using it in TOTP authentication                                       |
-| `--health_check` | `str`  | `False`     | `True`, `False`          | Perform comprehensive health check and exit                                                    |
-| `--check-docker` | N/A    | N/A         | N/A                      | Check Docker socket access and group configuration, then exit                                  |
+For full core CLI reference, see `/Users/denrozhnovskiy/PycharmProjects/pytmbot/docs/bot_cli_args.md`.
+
+Docker image entrypoint supports:
+
+| Argument         | Type   | Default     | Description                                                          |
+|------------------|--------|-------------|----------------------------------------------------------------------|
+| `--mode`         | `str`  | `prod`      | Bot mode: `dev` / `prod`.                                            |
+| `--log-level`    | `str`  | `INFO`      | Log level: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `--log-format`   | `str`  | mode-based  | Log format: `human` / `json`.                                        |
+| `--plugins`      | `str`  | `""`        | Plugin name (for example: `monitor`).                                |
+| `--webhook`      | `flag` | `False`     | Enable webhook mode (no value required).                             |
+| `--socket_host`  | `str`  | `127.0.0.1` | Socket host for webhook mode.                                        |
+| `--health_check` | `flag` | `False`     | Run health check and exit.                                           |
+| `--check-docker` | `flag` | `False`     | Check Docker socket/group access and exit.                           |
+| `--salt`         | `flag` | `False`     | Generate auth salt and exit.                                         |
 
 ## Plugin System
 
@@ -229,12 +234,6 @@ pyTMbot supports various plugins to extend functionality:
 Enable specific plugins:
 
 ```bash
-docker run ... orenlab/pytmbot:latest --plugins monitor,outline
-```
-
-Enable single plugin:
-
-```bash
 docker run ... orenlab/pytmbot:latest --plugins monitor
 ```
 
@@ -247,7 +246,7 @@ docker run ... orenlab/pytmbot:latest --mode dev --log-level DEBUG --plugins mon
 Webhook mode (requires reverse proxy):
 
 ```bash
-docker run ... orenlab/pytmbot:latest --webhook True --socket_host 0.0.0.0
+docker run ... orenlab/pytmbot:latest --webhook --socket_host 0.0.0.0
 ```
 
 ### Health Checks and Diagnostics
@@ -289,10 +288,10 @@ The container includes built-in health checks that monitor:
 docker pull orenlab/pytmbot:latest
 
 # Stop current container
-docker-compose down
+docker compose down
 
 # Start with new version
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Reproducible Builds

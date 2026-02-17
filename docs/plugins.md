@@ -17,7 +17,7 @@ the container.
 
 🐳 Example Usage with Docker Compose
 
-Create a docker-compose.yml file with the following configuration:
+Create a `docker-compose.yml` file with the following configuration:
 
 ```yaml
 services:
@@ -45,13 +45,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: --plugins monitor,outline --log-level DEBUG  # Bot start parameters: logging and plugins`
+    command: --plugins monitor --log-level DEBUG  # Bot start parameters: logging and plugins
 ```
 
 To start the container:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 📋 Plugin Details
@@ -128,19 +128,18 @@ Behavior
 Once enabled, the Outline plugin provides an interface to interact with the Outline VPN server, allowing key management
 and server configuration updates based on the provided credentials.
 
-🛠️ Enabling Multiple Plugins
+🛠️ Enabling Plugins
 
-To activate multiple plugins, update the command section in the docker-compose.yml file. For example, to enable both the
-Monitor and Outline plugins:
+To activate a plugin, update the command section in the `docker-compose.yml` file. For example:
 
 ```yaml
-command: --plugins monitor,outline
+command: --plugins monitor
 ```
 
 Then run:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 🚀 Future Enhancements

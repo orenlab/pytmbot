@@ -9,7 +9,7 @@ You have several options for installing pyTMBot. Choose the method that best sui
 You can run pyTMBot using a pre-built Docker image for a fast and simple setup. Follow
 the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
 
-### 2. 📜 **Use the `install.sh` script (debugging and refinement are still necessary)**
+### 2. 📜 **Use the `install.sh` script**
 
 The easiest way to get started is by using the **install.sh** script. Follow
 the [detailed instructions here](script_install.md) to quickly install and set up pyTMBot with minimal effort.

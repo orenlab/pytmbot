@@ -42,11 +42,11 @@ sudo docker run -d \
 
 ### Available Options:
 
-- **Log Levels**: `DEBUG`, `INFO`, `ERROR`
+- **Log Levels**: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
 - **Modes**: `dev`, `prod`
 - **Additional Options**:
-    - `--plugins monitor,outline`: Load specific plugins
-    - `--webhook True`: Enable webhook mode
+    - `--plugins monitor`: Load monitor plugin
+    - `--webhook`: Enable webhook mode
     - `--socket_host 0.0.0.0`: Set host for webhook mode
 
 ## 4. **Access the Bot's Logs**

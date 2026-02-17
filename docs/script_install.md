@@ -1,217 +1,147 @@
-# 📦 pyTMBot Installation Script
+# pyTMBot Installation Script (`tools/install.sh`)
 
-This script provides an easy way to install, manage, and uninstall the pyTMBot either inside a Docker container or
-locally on your system. It also includes support for setting up a Python virtual environment for local installations.
+`install.sh` is the interactive installer for:
 
-## ✅ Requirements
+- Docker installation (prebuilt image or source build)
+- Local installation (systemd + virtualenv)
+- Update flow (auto-detects local vs Docker installation)
+- Full uninstall flow
 
-- **Root privileges**: The script requires `sudo` or root access to install necessary system packages.
-- **Supported Operating Systems**:
+## Requirements
+
+- Root privileges (`sudo` / `root`)
+- Supported Linux families:
     - Ubuntu/Debian
-    - CentOS/RHEL/Fedora
+    - CentOS/RHEL
+    - Fedora
     - Arch Linux
-- **Python 3.12** (automatically installed if not present)
-- **Docker** (automatically installed if not present for Docker installation option)
+- For local installation: Python `3.13+` (installer can provision Python `3.13`)
 
-## 📋 Pre-Installation Information
+## Security Model (Important)
 
-Before running the script, gather the following information:
-
-### 🔑 Essential Information
-
-1. **Telegram Bot Token**: Obtain from BotFather when creating your bot
-2. **Allowed Telegram User IDs**: Valid Telegram user IDs (can be adjusted later via logs)
-3. **Global Chat ID**: Send a message to your bot, then visit:
-   ```
-   https://api.telegram.org/bot<YourBotToken>/getUpdates
-   ```
-   Look for the `chat_id` in the JSON response.
-
-### 🐳 Docker Configuration
-
-4. **Docker Socket Path**: Default is `unix:///var/run/docker.sock`
-
-### 🌐 Webhook Configuration (if applicable)
-
-5. **Domain URL or Public IP**: For webhook mode
-6. **SSL Certificate Path**: Path to SSL certificate file
-7. **SSL Private Key Path**: Path to SSL private key file
-
-### 📊 Monitor Plugin (InfluxDB)
-
-8. **InfluxDB URL**: Address of your InfluxDB server
-9. **Organization Name**: Your InfluxDB organization name
-10. **Bucket Name**: The name of your InfluxDB bucket
-11. **InfluxDB Token**: Your authorization token for InfluxDB
-
-## ⚙️ Usage
-
-### 🚀 Running the Script
-
-To get the latest version of the script and run it:
+- The script validates that installation directory is safe and absolute (defaults to `/opt/pytmbot`).
+- Docker installation is performed from OS package manager by default.
+- Docker Compose plugin is installed from OS package manager by default.
+- Fallback to Docker convenience script (`https://get.docker.com`) is disabled by default.
+- To explicitly allow unverified fallback, set:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
+PYTMBOT_ALLOW_UNVERIFIED_DOCKER_SCRIPT=true
 ```
 
-### 🛠️ Installation Options
+Use fallback only when package installation is unavailable in your environment.
 
-When running the script, you will be prompted to choose one of the following options:
-
-#### 1. **Docker Installation**
-
-Runs pyTMBot inside a Docker container for easy management and isolation.
-
-- **Features**: Process isolation, reduced dependency conflicts, easy management
-- **Sub-options**:
-    - Use pre-built Docker image (recommended)
-    - Build from source
-- **Requirements**: Docker and Docker Compose (automatically installed if missing)
-
-#### 2. **Local Installation**
-
-Installs pyTMBot directly on your system.
-
-- **Features**: More control and flexibility, direct system integration
-- **Process**:
-    - Creates `pytmbot` system user
-    - Installs Python 3.12 (if necessary)
-    - Sets up virtual environment
-    - Installs all required dependencies
-    - Creates systemd service for automatic startup
-- **Plugin Selection**: Choose between `outline`, `monitor`, or both
-- **Logging Levels**: INFO, ERROR, or DEBUG
-
-#### 3. **Update Local Installation**
-
-Updates pyTMBot to the latest version.
-
-- **Process**: Updates from GitHub repository
-- **Note**: Review configuration file compatibility after updates
-- **Service Management**: Option to automatically restart the service
-
-#### 4. **Uninstall pyTMBot**
-
-Completely removes the bot and its files from your system.
-
-- **Removes**: Service files, bot files, virtual environment, user account
-- **Optional**: Log file removal
-
-## 🔧 Configuration Details
-
-### 📝 Systemd Service
-
-For local installations, the script creates a systemd service with:
-
-- **User**: `pytmbot`
-- **Group**: `docker`
-- **Working Directory**: `/opt/pytmbot`
-- **Security**: Enhanced security options including `ProtectSystem=full`
-- **Logging**: Separate logs for stdout and stderr
-
-### 🐳 Docker Compose
-
-For Docker installations, creates a `docker-compose.yml` with:
-
-- **Security**: Read-only filesystem, dropped capabilities, no new privileges
-- **Networking**: Isolated network (`pytmbot_net`)
-- **Health Checks**: Python process monitoring
-- **Logging**: Size-limited JSON logs
-
-## 📜 Logs and Monitoring
-
-### 📊 Log Files
-
-- **Installation Log**: `/var/log/pytmbot_install.log`
-- **Application Log**: `/var/log/pytmbot.log` (local installation)
-- **Error Log**: `/var/log/pytmbot_error.log` (local installation)
-- **Docker Logs**: `docker logs pytmbot` (Docker installation)
-
-### 🔍 Service Management
-
-For local installations:
+## Run Installer
 
 ```bash
-# Check service status
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/main/tools/install.sh)"
+```
+
+## What Installer Asks For
+
+Minimal required values:
+
+1. Production Telegram bot token
+2. Global chat ID
+3. Allowed user IDs
+4. Allowed admin IDs
+
+Optional values:
+
+1. Development bot token
+2. Webhook domain/ports/certificates
+3. InfluxDB settings
+
+## Configuration Output
+
+Installer writes config to:
+
+```bash
+/opt/pytmbot/pytmbot.yaml
+```
+
+Generated config is aligned with current schema:
+
+- includes `config_version`
+- uses `null` for optional empty values (`dev_bot_token`, `webhook_config.cert`, `webhook_config.cert_key`)
+- writes secure permissions (`600`) for config file
+
+## Installation Modes
+
+### 1) Docker Installation
+
+Two sub-options:
+
+1. Prebuilt image (`orenlab/pytmbot:latest`)
+2. Build from source
+
+For prebuilt mode installer generates `/opt/pytmbot/docker-compose.yml` with hardened defaults:
+
+- read-only root filesystem
+- dropped capabilities
+- `no-new-privileges`
+- bind-mounted Docker socket as read-only
+- resource limits and log rotation
+
+### 2) Local Installation
+
+Installer performs:
+
+1. Creates service user `pytmbot`
+2. Clones repository to `/opt/pytmbot`
+3. Creates virtualenv and installs dependencies
+4. Creates systemd unit (`/etc/systemd/system/pytmbot.service`)
+5. Enables and starts service
+
+Systemd security includes `ProtectSystem=strict` and related hardening flags.
+
+## Update Flow
+
+Use installer option `3`.
+
+- Local install: updates repo/deps and restores existing config
+- Docker install:
+    - prebuilt image flow: `docker compose pull && docker compose up -d`
+    - source flow: `git fetch/reset`, rebuild and start
+
+## Uninstall Flow
+
+Use installer option `4`.
+
+Can remove:
+
+- systemd service
+- Docker containers/images/volumes
+- installation directory
+- `pytmbot` user
+- logs
+
+Optional config backup is offered before removal.
+
+## Logs
+
+- Installer log: `/var/log/pytmbot_install.log`
+- Local mode app logs: `/var/log/pytmbot.log`, `/var/log/pytmbot_error.log`
+- Docker mode runtime logs: `docker logs pytmbot`
+
+## Useful Commands
+
+Local mode:
+
+```bash
 sudo systemctl status pytmbot
-
-# Start/stop/restart service
-sudo systemctl start pytmbot
-sudo systemctl stop pytmbot
-sudo systemctl restart pytmbot
-
-# View logs
 sudo journalctl -u pytmbot -f
 ```
 
-For Docker installations:
+Docker mode:
 
 ```bash
-# Check container status
-docker ps -f name=pytmbot
-
-# View logs
+docker ps --filter "name=pytmbot"
 docker logs pytmbot -f
-
-# Restart container
-docker restart pytmbot
+cd /opt/pytmbot && docker compose ps
 ```
 
-## ❗ Troubleshooting
+## Notes
 
-### 🔧 Common Issues
-
-- **Unsupported OS**: Manually install Python 3.12 if your OS is not supported
-- **Permission Denied**: Ensure you are running the script with `sudo` or as root
-- **Docker Issues**: Confirm Docker is installed and properly configured
-- **Service Fails**: Check logs for detailed error information
-- **Configuration Errors**: Verify all required fields are properly filled
-
-### 🛠️ Manual Fixes
-
-- **Python Version**: Script automatically handles Python 3.12 installation
-- **Virtual Environment**: Automatically created in `/opt/pytmbot/venv`
-- **Dependencies**: All requirements installed automatically
-- **User Permissions**: `pytmbot` user automatically added to `docker` group
-
-## 🚫 Uninstallation
-
-### 🏠 Local Uninstallation
-
-Run the script and choose option `4`:
-
-```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
-```
-
-### 🐳 Docker Uninstallation
-
-Remove the Docker container and images:
-
-```bash
-# Stop and remove container
-sudo docker compose down
-
-# Remove images (optional)
-sudo docker rmi orenlab/pytmbot
-
-# Clean up files
-sudo rm -rf /opt/pytmbot
-```
-
-## 🔄 Updates
-
-### 📦 Local Updates
-
-- Use option `3` in the installation script
-- Automatically pulls latest changes from GitHub
-- Prompts for service restart
-- Check configuration file compatibility
-
-### 🐳 Docker Updates
-
-```bash
-cd /opt/pytmbot
-sudo docker compose pull
-sudo docker compose up -d
-```
+- Installer expects Linux host with package manager access.
+- If your distro does not provide required Docker packages, use manual Docker installation first, then rerun installer.
