@@ -4,10 +4,11 @@
 # Compatible with app version: 0.3.0-dev (exact match required)
 ################################################################
 
-# Configuration Schema Version (REQUIRED for 0.3.0+)
+# Configuration Schema Version (RECOMMENDED for 0.3.0+)
 # This field should match your pytmbot version exactly
 # Supported versions: 0.2.2, 0.3.0-dev, 0.3.0
 # For legacy 0.2.2 configs: this field can be omitted
+# If omitted, pytmbot auto-fills config_version with current app version during migration
 config_version: '0.3.0-dev'
 
 ################################################################
