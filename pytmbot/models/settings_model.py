@@ -9,6 +9,8 @@ Enhanced with configuration versioning and validation.
 
 import warnings
 from functools import cache
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from ipaddress import ip_network
 from typing import Any, ClassVar
 
@@ -21,16 +23,17 @@ from pytmbot import logs
 
 @cache
 def get_app_version() -> str:
-    """Get application version with lazy import to avoid circular dependencies."""
-    try:
-        from pytmbot.globals import __version__
+    """
+    Resolve application version without importing `pytmbot.globals`.
 
-        return __version__
-    except ImportError as e:
-        raise RuntimeError(
-            "Critical application module 'pytmbot.globals' is missing or corrupted. "
-            "Application integrity compromised."
-        ) from e
+    Importing `globals` from this module creates a circular dependency during
+    startup (`settings_model -> globals -> keyboards -> exceptions -> utils.security -> settings_model`).
+    """
+    try:
+        return package_version("pyTMBot")
+    except PackageNotFoundError:
+        # Source/development fallback when package metadata is unavailable.
+        return "0.3.0-dev"
 
 
 class ConfigVersionError(Exception):
