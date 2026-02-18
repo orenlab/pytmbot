@@ -132,6 +132,18 @@ def test_settings_model_migration_and_version_info(monkeypatch: pytest.MonkeyPat
     assert upgraded_info["is_deprecated"] is True
 
 
+def test_access_control_requires_admins_subset_of_allowed_users() -> None:
+    payload = _base_config()
+    payload["access_control"] = {
+        "allowed_user_ids": [1],
+        "allowed_admins_ids": [2],
+        "auth_salt": ["salt-value"],
+    }
+
+    with pytest.raises(ValidationError, match="allowed_admins_ids must be a subset"):
+        SettingsModel.model_validate(payload)
+
+
 def test_load_config_with_migration_reads_file_and_raises_on_error(
     tmp_path: Path,
 ) -> None:

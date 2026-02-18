@@ -98,6 +98,7 @@ class _SettingsStub:
 
 @dataclass
 class _AccessControlStub:
+    allowed_user_ids: list[int]
     allowed_admins_ids: list[int]
 
 
@@ -392,7 +393,13 @@ def test_is_user_authorized_helper(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         session_wrapper_module,
         "settings",
-        _SettingsStub(access_control=_AccessControlStub(allowed_admins_ids=[1, 2])),
+        _SettingsStub(
+            access_control=_AccessControlStub(
+                allowed_user_ids=[1, 2],
+                allowed_admins_ids=[2],
+            )
+        ),
     )
     assert session_wrapper_module._is_user_authorized(2) is True
+    assert session_wrapper_module._is_user_authorized(1) is False
     assert session_wrapper_module._is_user_authorized(9) is False

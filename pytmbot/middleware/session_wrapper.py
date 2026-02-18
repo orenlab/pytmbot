@@ -214,7 +214,7 @@ def access_denied_handler(query: TelegramQuery, bot: telebot.TeleBot) -> None:
 
 def _is_user_authorized(user_id: int) -> bool:
     """
-    Check if user is in allowed admins list.
+    Check if user is authorized for privileged actions.
 
     Args:
         user_id: User ID to check
@@ -222,7 +222,11 @@ def _is_user_authorized(user_id: int) -> bool:
     Returns:
         bool: True if user is authorized
     """
-    return user_id in settings.access_control.allowed_admins_ids
+    access_control = settings.access_control
+    return (
+        user_id in access_control.allowed_user_ids
+        and user_id in access_control.allowed_admins_ids
+    )
 
 
 def _handle_unauthenticated_user(

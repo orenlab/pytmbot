@@ -69,6 +69,20 @@ class AccessControlModel(BaseModel):
     allowed_admins_ids: list[int] = Field(min_length=1)
     auth_salt: list[SecretStr] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def validate_admins_subset(self) -> "AccessControlModel":
+        """Ensure admins are always part of allowed users."""
+        allowed_users = set(self.allowed_user_ids)
+        invalid_admins = [
+            admin_id for admin_id in self.allowed_admins_ids if admin_id not in allowed_users
+        ]
+        if invalid_admins:
+            raise ValueError(
+                "allowed_admins_ids must be a subset of allowed_user_ids. "
+                f"Unknown admin IDs: {invalid_admins}"
+            )
+        return self
+
 
 class DockerHostModel(BaseModel):
     """
