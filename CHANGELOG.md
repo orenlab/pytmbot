@@ -9,6 +9,7 @@ All notable changes are documented in this file.
 - Health monitoring subsystem with component-level checks and startup health reporting.
 - Configuration versioning with automatic migration (`config_version` handling).
 - Paginated Docker UI flows (containers/images/logs), including log export to file.
+- 2FA-protected inline container runtime views for `Volumes` and `Networks` with dedicated callbacks/templates.
 - Secure message deletion manager with scheduled cleanup flow.
 - `/getmyid` command and stronger access-control middleware behavior.
 - CLI support for log format selection (`--log-format human|json`).
@@ -36,6 +37,8 @@ All notable changes are documented in this file.
 
 - Telegram `MESSAGE_TOO_LONG` failures during log rendering.
 - 2FA flow now accepts plain code input, with proper input cleanup outside auth flow.
+- Sensitive auto-deletion flows now keep UI navigation: after bot-driven deletion, users receive a `Back to main menu`
+  keyboard prompt.
 - False `degraded` health status due to expired sessions in health stats.
 - Entrypoint health check behavior made deterministic and fail-fast.
 - Entrypoint Python interpreter path fixed to use `/opt/venv/bin/python3`, resolving missing-package edge cases in
