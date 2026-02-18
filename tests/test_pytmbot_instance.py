@@ -262,7 +262,9 @@ def test_recovery_successful_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert bot.state is instance_module.BotState.RUNNING
 
 
-def test_retrieve_bot_token_supports_dev_and_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_retrieve_bot_token_supports_dev_and_prod(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     bot = instance_module.PyTMBot()
     settings_stub = SimpleNamespace(
         bot_token=SimpleNamespace(
@@ -336,7 +338,9 @@ def test_register_handler_chain_registers_message_and_callback_handlers(
     assert len(dummy.callback_handlers) == 1
 
 
-def test_initialize_bot_core_sets_running_state(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_bot_core_sets_running_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     bot = instance_module.PyTMBot()
     dummy = _DummyTeleBot()
 
@@ -443,11 +447,21 @@ def test_handle_bot_conflict_strategy_dispatch(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert (
-        bot._handle_bot_conflict(instance_module.ConflictResolutionStrategy.GRACEFUL_SHUTDOWN)
+        bot._handle_bot_conflict(
+            instance_module.ConflictResolutionStrategy.GRACEFUL_SHUTDOWN
+        )
         is True
     )
-    assert bot._handle_bot_conflict(instance_module.ConflictResolutionStrategy.FORCE_TAKEOVER) is True
-    assert bot._handle_bot_conflict(instance_module.ConflictResolutionStrategy.ABORT) is False
+    assert (
+        bot._handle_bot_conflict(
+            instance_module.ConflictResolutionStrategy.FORCE_TAKEOVER
+        )
+        is True
+    )
+    assert (
+        bot._handle_bot_conflict(instance_module.ConflictResolutionStrategy.ABORT)
+        is False
+    )
     assert called == ["graceful", "force", "abort"]
 
 
@@ -493,7 +507,9 @@ def test_polling_safety_context_conflict_and_reraise(
         "_is_bot_conflict_error",
         lambda self, error: True,
     )
-    monkeypatch.setattr(instance_module.PyTMBot, "_handle_bot_conflict", lambda self: True)
+    monkeypatch.setattr(
+        instance_module.PyTMBot, "_handle_bot_conflict", lambda self: True
+    )
 
     with bot._polling_safety_context():
         raise RuntimeError("409 conflict")
@@ -581,7 +597,9 @@ def test_start_webhook_server_requires_configuration(
     )
 
     monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    monkeypatch.setattr(instance_module, "settings", SimpleNamespace(webhook_config=None))
+    monkeypatch.setattr(
+        instance_module, "settings", SimpleNamespace(webhook_config=None)
+    )
 
     with pytest.raises(instance_module.InitializationError) as exc_info:
         bot._start_webhook_server()
@@ -632,9 +650,14 @@ def test_bot_required_and_critical_api_paths(monkeypatch: pytest.MonkeyPatch) ->
         "_handle_bot_conflict",
         lambda self: True,
     )
-    assert bot._handle_critical_api_error(_build_api_exception(401), "unauthorized") is False
+    assert (
+        bot._handle_critical_api_error(_build_api_exception(401), "unauthorized")
+        is False
+    )
     assert bot._handle_critical_api_error(_build_api_exception(409), "conflict") is True
-    assert bot._handle_critical_api_error(_build_api_exception(502), "bad_gateway") is True
+    assert (
+        bot._handle_critical_api_error(_build_api_exception(502), "bad_gateway") is True
+    )
     assert bot._handle_critical_api_error(_build_api_exception(499), "unknown") is False
 
 
@@ -645,14 +668,20 @@ def test_conflict_resolution_success_and_polling_context_unresolved(
     dummy = _DummyTeleBot(polling=True)
     bot.bot = cast(TeleBot, dummy)
     sleeps: list[int] = []
-    monkeypatch.setattr(instance_module, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(
+        instance_module, "sleep", lambda seconds: sleeps.append(seconds)
+    )
 
     assert bot._graceful_conflict_resolution() is True
     assert bot._force_takeover() is True
     assert sleeps == [20, 5]
 
-    monkeypatch.setattr(instance_module.PyTMBot, "_is_bot_conflict_error", lambda self, error: True)
-    monkeypatch.setattr(instance_module.PyTMBot, "_handle_bot_conflict", lambda self: False)
+    monkeypatch.setattr(
+        instance_module.PyTMBot, "_is_bot_conflict_error", lambda self, error: True
+    )
+    monkeypatch.setattr(
+        instance_module.PyTMBot, "_handle_bot_conflict", lambda self: False
+    )
     with pytest.raises(RuntimeError):
         with bot._polling_safety_context():
             raise RuntimeError("conflict unresolved")
@@ -791,7 +820,9 @@ def test_register_handlers_and_initialize_failure_paths(
 
     with pytest.raises(RuntimeError):
         bot._register_handler_group(
-            handler_factory_func=lambda: (_ for _ in ()).throw(RuntimeError("factory failed")),
+            handler_factory_func=lambda: (_ for _ in ()).throw(
+                RuntimeError("factory failed")
+            ),
             register_method=lambda callback, **kwargs: None,
         )
 
@@ -868,10 +899,14 @@ def test_polling_error_and_loop_and_shutdown_branches(
     _set_bot_args(bot, plugins=[], webhook="False")
 
     with pytest.raises(RuntimeError):
-        bot._handle_polling_error(MemoryError("oom"), consecutive_errors=0, current_sleep_time=1)
+        bot._handle_polling_error(
+            MemoryError("oom"), consecutive_errors=0, current_sleep_time=1
+        )
 
     with pytest.raises(RuntimeError):
-        bot._handle_polling_error(RuntimeError("unexpected"), consecutive_errors=0, current_sleep_time=1)
+        bot._handle_polling_error(
+            RuntimeError("unexpected"), consecutive_errors=0, current_sleep_time=1
+        )
 
     class _PollingBot(_DummyTeleBot):
         def infinity_polling(self, **kwargs: object) -> None:
@@ -879,19 +914,23 @@ def test_polling_error_and_loop_and_shutdown_branches(
 
     polling_bot = _PollingBot()
     monkeypatch.setattr(instance_module.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(instance_module.PyTMBot, "_safe_stop_polling", lambda self: True)
+    monkeypatch.setattr(
+        instance_module.PyTMBot, "_safe_stop_polling", lambda self: True
+    )
 
     @contextmanager
     def _polling_ctx() -> Generator[None, None, None]:
         yield
 
-    monkeypatch.setattr(instance_module.PyTMBot, "_polling_safety_context", lambda self: _polling_ctx())
+    monkeypatch.setattr(
+        instance_module.PyTMBot, "_polling_safety_context", lambda self: _polling_ctx()
+    )
     monkeypatch.setattr(
         instance_module.PyTMBot,
         "_handle_polling_error",
-        lambda self, error, consecutive_errors, current_sleep_time: (_ for _ in ()).throw(
-            SystemExit(0)
-        ),
+        lambda self, error, consecutive_errors, current_sleep_time: (
+            _ for _ in ()
+        ).throw(SystemExit(0)),
     )
 
     with pytest.raises(SystemExit):

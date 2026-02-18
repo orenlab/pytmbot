@@ -77,7 +77,9 @@ def test_about_handler_success_and_error(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         about_module.Compiler,
         "quick_render",
-        lambda template_name, context: (_ for _ in ()).throw(RuntimeError("template fail")),
+        lambda template_name, context: (_ for _ in ()).throw(
+            RuntimeError("template fail")
+        ),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
@@ -113,12 +115,34 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(
         navigation_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_reply_keyboard": staticmethod(lambda keyboard_type=None: "nav-kbd")})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {
+                    "build_reply_keyboard": staticmethod(
+                        lambda keyboard_type=None: "nav-kbd"
+                    )
+                },
+            )(),
+        ),
     )
     monkeypatch.setattr(
         start_module,
         "keyboards",
-        cast(object, type("_Kbd2", (), {"build_reply_keyboard": staticmethod(lambda keyboard_type=None: "start-kbd")})()),
+        cast(
+            object,
+            type(
+                "_Kbd2",
+                (),
+                {
+                    "build_reply_keyboard": staticmethod(
+                        lambda keyboard_type=None: "start-kbd"
+                    )
+                },
+            )(),
+        ),
     )
     monkeypatch.setattr(
         server_module,
@@ -128,12 +152,26 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
             type(
                 "_Kbd3",
                 (),
-                {"build_reply_keyboard": staticmethod(lambda keyboard_type=None: "server-kbd")},
+                {
+                    "build_reply_keyboard": staticmethod(
+                        lambda keyboard_type=None: "server-kbd"
+                    )
+                },
             )(),
         ),
     )
-    monkeypatch.setattr(navigation_module, "em", cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda _name: "e")})()))
-    monkeypatch.setattr(server_module, "em", cast(object, type("_Em2", (), {"get_emoji": staticmethod(lambda _name: "e")})()))
+    monkeypatch.setattr(
+        navigation_module,
+        "em",
+        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda _name: "e")})()),
+    )
+    monkeypatch.setattr(
+        server_module,
+        "em",
+        cast(
+            object, type("_Em2", (), {"get_emoji": staticmethod(lambda _name: "e")})()
+        ),
+    )
 
     bot = _Bot()
     navigation_handler = _raw_handler(navigation_module.handle_navigation)
@@ -151,7 +189,9 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(
         server_module.Compiler,
         "quick_render",
-        lambda template_name, first_name, **kwargs: (_ for _ in ()).throw(RuntimeError("server fail")),
+        lambda template_name, first_name, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("server fail")
+        ),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:
         server_handler(cast(Message, _Message()), cast(TeleBot, bot))
@@ -190,7 +230,9 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         docker_module.Compiler,
         "quick_render",
-        lambda template_name, context, **kwargs: (_ for _ in ()).throw(RuntimeError("template")),
+        lambda template_name, context, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("template")
+        ),
     )
     with pytest.raises(exceptions.TemplateError):
         docker_module.__compile_message()
@@ -209,7 +251,18 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         docker_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_reply_keyboard": staticmethod(lambda keyboard_type=None: "docker-kbd")})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {
+                    "build_reply_keyboard": staticmethod(
+                        lambda keyboard_type=None: "docker-kbd"
+                    )
+                },
+            )(),
+        ),
     )
 
     bot = _Bot()
@@ -305,7 +358,14 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(
         containers_module,
         "keyboards",
-        cast(object, type("_Kbd2", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd2",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
     monkeypatch.setattr(
         containers_module,
@@ -315,7 +375,15 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
             type(
                 "_Em",
                 (),
-                {"get_emoji": staticmethod(lambda key: {"BACK_arrow": "⬅️", "next_track_button": "⏭️", "warning": "⚠️"}[key])},
+                {
+                    "get_emoji": staticmethod(
+                        lambda key: {
+                            "BACK_arrow": "⬅️",
+                            "next_track_button": "⏭️",
+                            "warning": "⚠️",
+                        }[key]
+                    )
+                },
             )(),
         ),
     )

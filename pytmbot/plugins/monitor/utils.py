@@ -109,7 +109,9 @@ class SystemMetrics:
                 for entry in entries
             }
         except Exception:
-            logger.error("bot.plugins.monitor.utils.temperature.check.fail", exc_info=True)
+            logger.error(
+                "bot.plugins.monitor.utils.temperature.check.fail", exc_info=True
+            )
             return {}
 
     @staticmethod

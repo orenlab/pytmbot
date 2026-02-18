@@ -70,8 +70,7 @@ def test_mask_username_and_user_id() -> None:
 
 def test_sanitize_sensitive_data_masks_explicit_values_and_patterns() -> None:
     source = (
-        "token=12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "
-        "user test_user id 123456789"
+        "token=12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA user test_user id 123456789"
     )
     sanitized = sanitize_sensitive_data(
         source,
@@ -84,7 +83,9 @@ def test_sanitize_sensitive_data_masks_explicit_values_and_patterns() -> None:
     assert "12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" not in sanitized
 
 
-def test_sanitize_exception_masks_known_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sanitize_exception_masks_known_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_settings = _FakeSettings(
         bot_token=_FakeBotToken(
             prod_token=[_FakeSecret("prod-secret-token")],

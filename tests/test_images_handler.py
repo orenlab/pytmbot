@@ -118,7 +118,11 @@ def test_load_images_data_cache_and_errors(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_render_paginated_images_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(images_module, "MAX_TELEGRAM_MESSAGE_LENGTH", 25)
-    monkeypatch.setattr(images_module, "_render_images_page_text", lambda page_items, page, total_pages, total_items: "X" * 500)
+    monkeypatch.setattr(
+        images_module,
+        "_render_images_page_text",
+        lambda page_items, page, total_pages, total_items: "X" * 500,
+    )
     monkeypatch.setattr(
         images_module,
         "em",
@@ -154,7 +158,14 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         images_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
     monkeypatch.setattr(
         images_module,
@@ -177,26 +188,48 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     )
 
     keyboard = images_module._build_images_keyboard(page=2, total_pages=3, user_id=7)
-    callbacks = [cast(str, item["callback_data"]) for item in cast(list[dict[str, object]], keyboard)]
+    callbacks = [
+        cast(str, item["callback_data"])
+        for item in cast(list[dict[str, object]], keyboard)
+    ]
     assert "__images_page__:1:7" in callbacks
     assert "__images_page__:3:7" in callbacks
     assert "__check_updates__:7" in callbacks
 
-    keyboard_single = images_module._build_images_keyboard(page=1, total_pages=1, user_id=7)
-    callbacks_single = [cast(str, item["callback_data"]) for item in cast(list[dict[str, object]], keyboard_single)]
+    keyboard_single = images_module._build_images_keyboard(
+        page=1, total_pages=1, user_id=7
+    )
+    callbacks_single = [
+        cast(str, item["callback_data"])
+        for item in cast(list[dict[str, object]], keyboard_single)
+    ]
     assert callbacks_single == ["__check_updates__:7"]
 
     monkeypatch.setattr(images_module, "_load_images_data", lambda: [{"name": "img"}])
-    monkeypatch.setattr(images_module, "_prepare_images_for_listing", lambda images: [{"name": "img"}])
-    monkeypatch.setattr(images_module, "_render_paginated_images_text", lambda images, page: ("images-page", 1, 1))
-    monkeypatch.setattr(images_module, "_build_images_keyboard", lambda page, total_pages, user_id: "kbd")
+    monkeypatch.setattr(
+        images_module, "_prepare_images_for_listing", lambda images: [{"name": "img"}]
+    )
+    monkeypatch.setattr(
+        images_module,
+        "_render_paginated_images_text",
+        lambda images, page: ("images-page", 1, 1),
+    )
+    monkeypatch.setattr(
+        images_module,
+        "_build_images_keyboard",
+        lambda page, total_pages, user_id: "kbd",
+    )
 
-    rendered_text, rendered_keyboard = images_module.render_images_page(page=1, user_id=7)
+    rendered_text, rendered_keyboard = images_module.render_images_page(
+        page=1, user_id=7
+    )
     assert rendered_text == "images-page"
     assert rendered_keyboard == "kbd"
 
     sent_payloads: list[dict[str, object]] = []
-    monkeypatch.setattr(images_module, "render_images_page", lambda page, user_id: ("images-ui", "kbd"))
+    monkeypatch.setattr(
+        images_module, "render_images_page", lambda page, user_id: ("images-ui", "kbd")
+    )
 
     def _send(
         bot: object,
@@ -225,8 +258,15 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     assert sent_payloads[-1]["text"] == "images-ui"
     assert bot.actions[-1] == (11, "typing")
 
-    monkeypatch.setattr(images_module, "render_images_page", lambda page, user_id: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        images_module,
+        "render_images_page",
+        lambda page, user_id: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     with pytest.raises(exceptions.HandlingException) as exc_info:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert exc_info.value.context.error_code == "HAND_010"
-    assert "error occurred while processing the command" in str(bot.sent_messages[-1]["text"]).lower()
+    assert (
+        "error occurred while processing the command"
+        in str(bot.sent_messages[-1]["text"]).lower()
+    )

@@ -94,10 +94,14 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         "psutil_adapter",
         cast(
             object,
-            type("_A2", (), {"get_swap_memory": staticmethod(lambda: {"used": "1 GiB"})})(),
+            type(
+                "_A2", (), {"get_swap_memory": staticmethod(lambda: {"used": "1 GiB"})}
+            )(),
         ),
     )
-    monkeypatch.setattr(swap_module.Compiler, "quick_render", lambda **kwargs: "swap-ok")
+    monkeypatch.setattr(
+        swap_module.Compiler, "quick_render", lambda **kwargs: "swap-ok"
+    )
     handler(cast(CallbackQuery, _Call(data="__swap_info__:17")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "swap-ok"
 
@@ -143,10 +147,15 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         top_process_module,
         "psutil_adapter",
-        cast(object, type("_P", (), {"get_top_processes": staticmethod(lambda count=10: [])})()),
+        cast(
+            object,
+            type("_P", (), {"get_top_processes": staticmethod(lambda count=10: [])})(),
+        ),
     )
     handler(cast(CallbackQuery, _Call(data="__process_info__:17")), cast(TeleBot, bot))
-    assert "can't get process information" in str(bot.edited_messages[-1]["text"]).lower()
+    assert (
+        "can't get process information" in str(bot.edited_messages[-1]["text"]).lower()
+    )
 
     monkeypatch.setattr(
         top_process_module,
@@ -206,5 +215,7 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:
-        handler(cast(CallbackQuery, _Call(data="__process_info__:17")), cast(TeleBot, bot))
+        handler(
+            cast(CallbackQuery, _Call(data="__process_info__:17")), cast(TeleBot, bot)
+        )
     assert exc_info.value.context.error_code == "HAND_010"

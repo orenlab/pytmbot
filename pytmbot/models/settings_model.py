@@ -74,7 +74,9 @@ class AccessControlModel(BaseModel):
         """Ensure admins are always part of allowed users."""
         allowed_users = set(self.allowed_user_ids)
         invalid_admins = [
-            admin_id for admin_id in self.allowed_admins_ids if admin_id not in allowed_users
+            admin_id
+            for admin_id in self.allowed_admins_ids
+            if admin_id not in allowed_users
         ]
         if invalid_admins:
             raise ValueError(
@@ -186,9 +188,7 @@ class WebhookConfig(BaseModel):
 
     @field_validator("trusted_proxy_ips")
     @classmethod
-    def validate_trusted_proxy_ips(
-        cls, value: list[str] | None
-    ) -> list[str] | None:
+    def validate_trusted_proxy_ips(cls, value: list[str] | None) -> list[str] | None:
         """Validate trusted proxy IPs/CIDRs format."""
         if value is None:
             return None
@@ -447,9 +447,7 @@ class SettingsModel(BaseSettings):
                 with migrator.log_context(
                     legacy_config=True, app_version=cls.app_version
                 ) as log:
-                    log.debug(
-                        "bot.models.settings_model.no.config.debug"
-                    )
+                    log.debug("bot.models.settings_model.no.config.debug")
                 values["config_version"] = cls.app_version
             case version if version != cls.app_version:
                 with migrator.log_context(

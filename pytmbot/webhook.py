@@ -666,7 +666,9 @@ class WebhookServer(BaseComponent):
                     error_code="FILE_NOT_FOUND_ERROR",
                     metadata={"exception": str(e)},
                 )
-                log.exception("bot.webhook.ssl.files.fail", error=error_context.to_dict())
+                log.exception(
+                    "bot.webhook.ssl.files.fail", error=error_context.to_dict()
+                )
                 raise InitializationError(error_context) from e
 
             except PermissionError as e:

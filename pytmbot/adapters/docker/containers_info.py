@@ -94,10 +94,7 @@ def _get_cached_docker_counters() -> dict[str, int] | None:
         if _docker_counters_cache is None:
             return None
 
-        if (
-            time.monotonic() - _docker_counters_cached_at
-            >= DOCKER_COUNTERS_CACHE_TTL
-        ):
+        if time.monotonic() - _docker_counters_cached_at >= DOCKER_COUNTERS_CACHE_TTL:
             _docker_counters_cache = None
             _docker_counters_cached_at = 0.0
             return None
@@ -472,7 +469,9 @@ def fetch_docker_counters(*, force_refresh: bool = False) -> dict[str, int]:
             containers = adapter.containers.list(all=True)
             containers_count = len(containers)
             running_containers = sum(
-                1 for container in containers if getattr(container, "status", "") == "running"
+                1
+                for container in containers
+                if getattr(container, "status", "") == "running"
             )
 
             counters = {

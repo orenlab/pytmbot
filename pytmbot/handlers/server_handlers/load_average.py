@@ -34,9 +34,7 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
         load_average = round_up_tuple(psutil_adapter.get_load_average())
 
         if load_average is None:
-            logger.error(
-                "bot.handler.server.load_average.get.fail"
-            )
+            logger.error("bot.handler.server.load_average.get.fail")
             bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )

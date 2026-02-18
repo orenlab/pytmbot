@@ -113,7 +113,9 @@ def test_config_migrator_migrate_config_paths(monkeypatch: pytest.MonkeyPatch) -
     assert migrator.migrate_config(current)["config_version"] == "0.3.0-dev"
 
 
-def test_settings_model_migration_and_version_info(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settings_model_migration_and_version_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(SettingsModel, "app_version", "0.3.0-dev")
     payload = _base_config()
 

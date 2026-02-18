@@ -354,9 +354,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         if not hasattr(self, "_log") or self._log is None:
             import logging
 
-            logging.warning(
-                "bot.access.control.log.warn"
-            )
+            logging.warning("bot.access.control.log.warn")
 
         context = {
             "operation": "periodic_cleanup",
@@ -406,9 +404,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
                     except AttributeError:
                         import logging
 
-                        logging.info(
-                            "bot.access.control.expired.info"
-                        )
+                        logging.info("bot.access.control.expired.info")
                 else:
                     try:
                         with self.log_context(**cleanup_context) as logger:

@@ -33,7 +33,9 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         None
     """
     try:
-        target_user_id = parse_callback_target_user(call.data or "", "__check_updates__")
+        target_user_id = parse_callback_target_user(
+            call.data or "", "__check_updates__"
+        )
     except ValueError:
         bot.answer_callback_query(
             call.id,

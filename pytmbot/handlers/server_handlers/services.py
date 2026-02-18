@@ -591,7 +591,10 @@ def handle_services_status(message: Message, bot: TeleBot) -> Message | None:
     }
 
     from_user = message.from_user
-    if from_user is None or from_user.id not in settings.access_control.allowed_user_ids:
+    if (
+        from_user is None
+        or from_user.id not in settings.access_control.allowed_user_ids
+    ):
         return bot.send_message(
             message.chat.id,
             f"{emojis.get('warning', '⚠️')} I have checked and you do not have access rights to execute this command. I'm sorry...",

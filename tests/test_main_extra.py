@@ -87,7 +87,9 @@ def test_handle_sigint_graceful_then_forced(monkeypatch: pytest.MonkeyPatch) -> 
     launcher = main_module.BotLauncher()
     kill_calls: list[tuple[int, int]] = []
 
-    monkeypatch.setattr(main_module.os, "kill", lambda pid, sig: kill_calls.append((pid, sig)))
+    monkeypatch.setattr(
+        main_module.os, "kill", lambda pid, sig: kill_calls.append((pid, sig))
+    )
     monkeypatch.setattr(main_module.os, "getpid", lambda: 42)
     monkeypatch.setattr(main_module.signal, "signal", lambda _sig, _handler: None)
     monkeypatch.setattr(launcher, "_emergency_cleanup", lambda: None)
@@ -99,7 +101,9 @@ def test_handle_sigint_graceful_then_forced(monkeypatch: pytest.MonkeyPatch) -> 
     assert kill_calls and kill_calls[0][0] == 42
 
 
-def test_signal_handler_non_sigint_requests_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_signal_handler_non_sigint_requests_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
     launcher._signal_handler(signal.SIGTERM, None)
@@ -139,7 +143,9 @@ def test_should_log_health_status_on_state_change_and_interval(
 ) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
-    launcher._health_manager = SimpleNamespace(get_summary=lambda: {"overall": "healthy"})
+    launcher._health_manager = SimpleNamespace(
+        get_summary=lambda: {"overall": "healthy"}
+    )
 
     monkeypatch.setattr(main_module.time, "time", lambda: 100.0)
     assert launcher._should_log_health_status() is True
@@ -153,7 +159,9 @@ def test_should_log_health_status_on_state_change_and_interval(
     assert launcher._should_log_health_status() is True
 
 
-def test_log_health_status_startup_then_regular(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_log_health_status_startup_then_regular(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
     launcher.bot = SimpleNamespace(
@@ -176,8 +184,16 @@ def test_log_health_status_startup_then_regular(monkeypatch: pytest.MonkeyPatch)
 
     called = {"main": 0, "details": 0}
     monkeypatch.setattr(main_module, "naturaltime", lambda _dt: "now")
-    monkeypatch.setattr(launcher, "_log_main_health_status", lambda *args, **kwargs: called.__setitem__("main", called["main"] + 1))
-    monkeypatch.setattr(launcher, "_log_health_details", lambda *args, **kwargs: called.__setitem__("details", called["details"] + 1))
+    monkeypatch.setattr(
+        launcher,
+        "_log_main_health_status",
+        lambda *args, **kwargs: called.__setitem__("main", called["main"] + 1),
+    )
+    monkeypatch.setattr(
+        launcher,
+        "_log_health_details",
+        lambda *args, **kwargs: called.__setitem__("details", called["details"] + 1),
+    )
 
     launcher.log_health_status()
     # Startup completion branch returns before main/details logging.
@@ -218,10 +234,18 @@ def test_log_health_details_for_problematic_components(
 def test_cleanup_and_shutdown_error_wrapping(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
-    launcher.bot = SimpleNamespace(bot=SimpleNamespace(stop_polling=lambda: None, remove_webhook=lambda: None))
-    launcher._health_manager = SimpleNamespace(stop=lambda timeout: (_ for _ in ()).throw(RuntimeError("fail")))
+    launcher.bot = SimpleNamespace(
+        bot=SimpleNamespace(stop_polling=lambda: None, remove_webhook=lambda: None)
+    )
+    launcher._health_manager = SimpleNamespace(
+        stop=lambda timeout: (_ for _ in ()).throw(RuntimeError("fail"))
+    )
 
-    monkeypatch.setattr(launcher, "_stop_bot_operations", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        launcher,
+        "_stop_bot_operations",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     with pytest.raises(ShutdownError):
         launcher.shutdown()
 
@@ -232,16 +256,24 @@ def test_start_bot_polling_paths_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     calls = {"webhook": 0, "polling": 0}
 
     launcher.bot = SimpleNamespace(
-        _start_webhook_server=lambda: calls.__setitem__("webhook", calls["webhook"] + 1),
-        _start_polling_loop=lambda _bot: calls.__setitem__("polling", calls["polling"] + 1),
+        _start_webhook_server=lambda: calls.__setitem__(
+            "webhook", calls["webhook"] + 1
+        ),
+        _start_polling_loop=lambda _bot: calls.__setitem__(
+            "polling", calls["polling"] + 1
+        ),
     )
     bot_instance = SimpleNamespace(remove_webhook=lambda: None)
 
-    monkeypatch.setattr(main_module, "args", SimpleNamespace(webhook="False", mode="dev"))
+    monkeypatch.setattr(
+        main_module, "args", SimpleNamespace(webhook="False", mode="dev")
+    )
     launcher._start_bot_polling(bot_instance)
     assert calls["polling"] == 1
 
-    monkeypatch.setattr(main_module, "args", SimpleNamespace(webhook="True", mode="dev"))
+    monkeypatch.setattr(
+        main_module, "args", SimpleNamespace(webhook="True", mode="dev")
+    )
     launcher._start_bot_polling(bot_instance)
     assert calls["webhook"] == 1
 
@@ -264,8 +296,14 @@ def test_run_success_and_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     launcher2 = main_module.BotLauncher()
     monkeypatch.setattr(launcher2, "_register_cleanup", lambda: None)
     monkeypatch.setattr(launcher2, "_setup_signal_handlers", lambda: None)
-    monkeypatch.setattr(launcher2, "validate_environment", lambda: (_ for _ in ()).throw(RuntimeError("bad")))
-    monkeypatch.setattr(main_module.sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr(
+        launcher2,
+        "validate_environment",
+        lambda: (_ for _ in ()).throw(RuntimeError("bad")),
+    )
+    monkeypatch.setattr(
+        main_module.sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code))
+    )
 
     with pytest.raises(SystemExit) as exit_err:
         launcher2.run()
@@ -299,7 +337,9 @@ def test_shutdown_bot_silently_and_cleanup_paths(
         remove_webhook=lambda: calls.append("remove"),
     )
     launcher.bot = SimpleNamespace(bot=bot_ok)
-    launcher._session_manager = SimpleNamespace(shutdown=lambda: calls.append("session"))
+    launcher._session_manager = SimpleNamespace(
+        shutdown=lambda: calls.append("session")
+    )
     launcher._shutdown_bot_silently(silent=False)
     assert calls == ["stop", "remove", "session"]
 
@@ -313,7 +353,9 @@ def test_shutdown_bot_silently_and_cleanup_paths(
     launcher._shutdown_bot_silently(silent=False)
 
 
-def test_managed_bot_exception_always_cleans_up(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_managed_bot_exception_always_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
     cleaned: list[bool] = []
@@ -403,7 +445,9 @@ def test_cleanup_shutdown_and_signal_registration_branches(
 
     launcher.bot = SimpleNamespace(bot=SimpleNamespace())
     monkeypatch.setattr(
-        launcher, "_stop_bot_operations", lambda: (_ for _ in ()).throw(RuntimeError("cleanup failed"))
+        launcher,
+        "_stop_bot_operations",
+        lambda: (_ for _ in ()).throw(RuntimeError("cleanup failed")),
     )
     launcher._cleanup_bot()
     assert launcher.bot is None
@@ -417,7 +461,9 @@ def test_cleanup_shutdown_and_signal_registration_branches(
     launcher3.bot = SimpleNamespace(bot=SimpleNamespace())
     launcher3._health_manager = SimpleNamespace(stop=lambda timeout: None)
     monkeypatch.setattr(
-        launcher3, "_stop_bot_operations", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        launcher3,
+        "_stop_bot_operations",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     with pytest.raises(ShutdownError):
         launcher3.shutdown()
@@ -425,14 +471,16 @@ def test_cleanup_shutdown_and_signal_registration_branches(
     monkeypatch.setattr(
         main_module.signal,
         "signal",
-        lambda sig, handler: (_ for _ in ()).throw(OSError("blocked"))
-        if sig == signal.SIGTERM
-        else None,
+        lambda sig, handler: (
+            (_ for _ in ()).throw(OSError("blocked")) if sig == signal.SIGTERM else None
+        ),
     )
     launcher3._register_signal_handler(signal.SIGTERM)
 
 
-def test_run_main_loop_keyboard_interrupt_breaks(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_main_loop_keyboard_interrupt_breaks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
 
@@ -453,7 +501,9 @@ def test_keyboard_interrupt_fatal_error_and_main_entrypoints(
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
 
-    monkeypatch.setattr(main_module.sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr(
+        main_module.sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code))
+    )
     monkeypatch.setattr(
         launcher,
         "shutdown",
@@ -489,15 +539,25 @@ def test_keyboard_interrupt_fatal_error_and_main_entrypoints(
     assert run_interrupt.value.code == 0
 
     called = {"health": 0, "run": 0}
-    monkeypatch.setattr(main_module, "check_health", lambda: called.__setitem__("health", called["health"] + 1))
+    monkeypatch.setattr(
+        main_module,
+        "check_health",
+        lambda: called.__setitem__("health", called["health"] + 1),
+    )
     monkeypatch.setattr(
         main_module,
         "BotLauncher",
-        lambda: SimpleNamespace(run=lambda: called.__setitem__("run", called["run"] + 1)),
+        lambda: SimpleNamespace(
+            run=lambda: called.__setitem__("run", called["run"] + 1)
+        ),
     )
 
-    monkeypatch.setattr(main_module, "args", SimpleNamespace(health_check=True), raising=False)
+    monkeypatch.setattr(
+        main_module, "args", SimpleNamespace(health_check=True), raising=False
+    )
     main_module.main()
-    monkeypatch.setattr(main_module, "args", SimpleNamespace(health_check=False), raising=False)
+    monkeypatch.setattr(
+        main_module, "args", SimpleNamespace(health_check=False), raising=False
+    )
     main_module.main()
     assert called == {"health": 1, "run": 1}

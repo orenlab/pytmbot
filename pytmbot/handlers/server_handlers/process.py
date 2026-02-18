@@ -43,9 +43,7 @@ def handle_process(message: Message, bot: TeleBot) -> None:
         process_count = psutil_adapter.get_process_counts()
 
         if process_count is None:
-            logger.error(
-                "bot.handler.server.process.get.fail"
-            )
+            logger.error("bot.handler.server.process.get.fail")
             bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )
@@ -55,9 +53,7 @@ def handle_process(message: Message, bot: TeleBot) -> None:
         if message.from_user is not None:
             callback_data = f"__process_info__:{message.from_user.id}"
 
-        inline_key = button_data(
-            text="Top 10 processes", callback_data=callback_data
-        )
+        inline_key = button_data(text="Top 10 processes", callback_data=callback_data)
         keyboard = keyboards.build_inline_keyboard(inline_key)
 
         message_text = Compiler.quick_render(

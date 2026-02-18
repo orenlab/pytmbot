@@ -457,7 +457,9 @@ class DockerAdapter:
 
         except DockerConnectionError as e:
             self._log.warning(
-                "docker.adapter.health.check.fail", error=sanitize_exception(e), **context
+                "docker.adapter.health.check.fail",
+                error=sanitize_exception(e),
+                **context,
             )
             return False
 

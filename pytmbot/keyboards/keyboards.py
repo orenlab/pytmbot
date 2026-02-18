@@ -175,7 +175,10 @@ class Keyboards:
             for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
                 reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
 
-            log.trace("bot.keyboards.reply.keyboard.debug", total_buttons=len(keyboard_buttons))
+            log.trace(
+                "bot.keyboards.reply.keyboard.debug",
+                total_buttons=len(keyboard_buttons),
+            )
             return reply_keyboard
 
     @staticmethod
@@ -282,7 +285,9 @@ class Keyboards:
         ) as log:
             # Validate all buttons are ButtonData instances
             if not all(isinstance(btn, ButtonData) for btn in buttons_data):
-                log.error("bot.keyboards.invalid.button.fail", code="INVALID_BUTTON_DATA")
+                log.error(
+                    "bot.keyboards.invalid.button.fail", code="INVALID_BUTTON_DATA"
+                )
                 raise KeyboardError("All buttons must be ButtonData instances")
 
             keyboard = InlineKeyboardMarkup(row_width=self.INLINE_ROW_WIDTH)

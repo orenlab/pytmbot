@@ -558,9 +558,7 @@ def get_comprehensive_container_details(
         return comprehensive_details
 
     except Exception:
-        logger.error(
-            "bot.handler.handlers_util.docker.getting.comprehensive.fail"
-        )
+        logger.error("bot.handler.handlers_util.docker.getting.comprehensive.fail")
         return None
 
 
@@ -633,7 +631,9 @@ def parse_container_memory_stats(
         return {}
 
 
-def parse_container_cpu_stats(container_stats: dict[str, Any]) -> dict[str, int | float]:
+def parse_container_cpu_stats(
+    container_stats: dict[str, Any],
+) -> dict[str, int | float]:
     """
     Parse the CPU statistics of a container with enhanced calculations.
 

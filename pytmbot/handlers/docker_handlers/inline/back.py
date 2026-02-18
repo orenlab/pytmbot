@@ -85,7 +85,9 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
         return None
 
     current_user_id = int(call.from_user.id)
-    target_user_id = callback_user_id if callback_user_id is not None else current_user_id
+    target_user_id = (
+        callback_user_id if callback_user_id is not None else current_user_id
+    )
 
     is_allowed, deny_reason = authorize_docker_callback_request(
         call=call,

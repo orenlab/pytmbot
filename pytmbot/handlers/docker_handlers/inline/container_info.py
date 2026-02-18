@@ -97,27 +97,23 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
 
         # Validate container name
         if not validate_container_name(container_name):
-            logger.warning(
-                "bot.handler.docker.container_info.invalid.container.warn"
-            )
-            show_handler_info(
-                call, text="Invalid container name format", bot=bot
-            )
+            logger.warning("bot.handler.docker.container_info.invalid.container.warn")
+            show_handler_info(call, text="Invalid container name format", bot=bot)
             return None
 
         # Get comprehensive container details using enhanced utilities
         container_details = get_comprehensive_container_details(container_name)
 
         if not container_details:
-            logger.info(
-                "bot.handler.docker.container_info.container.not.info"
-            )
+            logger.info("bot.handler.docker.container_info.container.not.info")
             show_handler_info(
                 call, text=f"{container_name}: Container not found", bot=bot
             )
             return None
 
-        container_ref = str(container_details.get("name", container_name)).strip().lower()
+        container_ref = (
+            str(container_details.get("name", container_name)).strip().lower()
+        )
         if not container_ref:
             container_ref = container_name
 
@@ -144,9 +140,10 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         keyboard_buttons = []
 
         # Add admin buttons if user has permissions
-        if call.from_user.id in settings.access_control.allowed_admins_ids and int(
-            call.from_user.id
-        ) == called_user_id:
+        if (
+            call.from_user.id in settings.access_control.allowed_admins_ids
+            and int(call.from_user.id) == called_user_id
+        ):
             logger.debug("bot.handler.docker.container_info.user.admin.debug")
 
             keyboard_buttons.extend(
@@ -198,16 +195,12 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         return None
 
     except ValueError:
-        logger.warning(
-            "bot.handler.docker.container_info.value.fail"
-        )
+        logger.warning("bot.handler.docker.container_info.value.fail")
         show_handler_info(call, text="Invalid request data", bot=bot)
         return None
 
     except Exception:
-        logger.error(
-            "bot.handler.docker.container_info.unexpected.fail"
-        )
+        logger.error("bot.handler.docker.container_info.unexpected.fail")
         show_handler_info(
             call, text="An error occurred while processing request", bot=bot
         )

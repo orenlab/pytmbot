@@ -34,9 +34,7 @@ def handle_network(message: Message, bot: TeleBot) -> None:
         network_statistics = psutil_adapter.get_net_io_counters()
 
         if network_statistics is None:
-            logger.error(
-                "bot.handler.server.network.get.fail"
-            )
+            logger.error("bot.handler.server.network.get.fail")
             bot.send_message(
                 message.chat.id,
                 text="⚠️ An error occurred while getting network statistics",

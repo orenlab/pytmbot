@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-
 from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
@@ -89,7 +88,9 @@ class MonitoringPlugin(PluginInterface):
             self.bot.register_message_handler(self.handle_cpu_usage, regexp="CPU usage")
 
         except Exception:
-            self.plugin_logger.error("bot.plugins.monitor.plugin.register.monitoring.fail")
+            self.plugin_logger.error(
+                "bot.plugins.monitor.plugin.register.monitoring.fail"
+            )
             raise
 
 

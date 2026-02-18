@@ -88,9 +88,9 @@ def is_valid_query(query: object) -> TypeGuard[TelegramQuery]:
         bool: True if query is valid Message or CallbackQuery with user info
     """
     return (
-            isinstance(query, (Message, CallbackQuery))
-            and hasattr(query, 'from_user')
-            and query.from_user is not None
+        isinstance(query, (Message, CallbackQuery))
+        and hasattr(query, "from_user")
+        and query.from_user is not None
     )
 
 
@@ -301,9 +301,9 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
         # Check if user is in allowed admins list
         if not _is_user_authorized(auth_context.user_id):
             with auth_component.log_context(
-                    action="auth_check",
-                    user_id=auth_context.user_id,
-                    username=auth_context.username,
+                action="auth_check",
+                user_id=auth_context.user_id,
+                username=auth_context.username,
             ) as log:
                 log.warning("bot.session.user.not.warn")
             access_denied_handler(query, bot)
@@ -313,14 +313,16 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
         is_authenticated = session_manager.is_authenticated(auth_context.user_id)
 
         with auth_component.log_context(
-                action="auth_check",
+            action="auth_check",
         ) as log:
-            log.debug("bot.session.authentication.status.debug",
-                      context={
-                          "user_id": auth_context.user_id,
-                          "username": auth_context.username,
-                          "handler_type": auth_context.handler_type.value,
-                      })
+            log.debug(
+                "bot.session.authentication.status.debug",
+                context={
+                    "user_id": auth_context.user_id,
+                    "username": auth_context.username,
+                    "handler_type": auth_context.handler_type.value,
+                },
+            )
 
             if not is_authenticated:
                 log.warning("bot.session.authentication.required.warn")

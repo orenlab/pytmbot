@@ -229,7 +229,8 @@ class TwoFactorAuthenticator(BaseComponent):
                     return True
                 else:
                     log.warning(
-                        "bot.utils.totp.verification.fail", code_length=len(cleaned_code)
+                        "bot.utils.totp.verification.fail",
+                        code_length=len(cleaned_code),
                     )
                     return False
 

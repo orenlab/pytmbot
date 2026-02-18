@@ -575,14 +575,19 @@ class HealthMonitor(BaseComponent):
             try:
                 health = self.check_all()
                 is_first_check = previous_level is None
-                has_changed = previous_level is not None and previous_level != health.overall
+                has_changed = (
+                    previous_level is not None and previous_level != health.overall
+                )
 
                 if is_first_check:
                     log_method = "info"
                 elif has_changed:
                     if health.overall == HealthLevel.HEALTHY:
                         log_method = "info"
-                    elif health.overall in (HealthLevel.DEGRADED, HealthLevel.UNHEALTHY):
+                    elif health.overall in (
+                        HealthLevel.DEGRADED,
+                        HealthLevel.UNHEALTHY,
+                    ):
                         log_method = "warning"
                     else:
                         log_method = "error"

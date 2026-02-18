@@ -143,12 +143,70 @@ def _assert_memory_or_process_handler_paths(
     assert exc_info.value.context.error_code == expected_error_code
 
 
+def _assert_simple_handler_paths(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    compiler: object,
+    handler: object,
+    adapter_method: str,
+    success_payload: object,
+    success_text: str,
+    parse_mode: str,
+    none_text_contains: str,
+    expected_error_code: str,
+    message: Message,
+    bot: TeleBot,
+    messages: list[dict[str, object]],
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type("A", (), {adapter_method: lambda self: success_payload})(),
+    )
+    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: success_text)
+    _invoke_handler(handler, message, bot)
+    assert messages[-1]["text"] == success_text
+    assert messages[-1]["parse_mode"] == parse_mode
+
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type("A", (), {adapter_method: lambda self: None})(),
+    )
+    _invoke_handler(handler, message, bot)
+    assert none_text_contains in str(messages[-1]["text"])
+
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type(
+            "A",
+            (),
+            {
+                adapter_method: lambda self: (_ for _ in ()).throw(
+                    RuntimeError("handler fail")
+                )
+            },
+        )(),
+    )
+    with pytest.raises(HandlingException) as exc_info:
+        _invoke_handler(handler, message, bot)
+    assert exc_info.value.context.error_code == expected_error_code
+
+
 def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot, actions, messages = _build_bot(monkeypatch)
     message = _build_message(10)
 
-    monkeypatch.setattr(uptime_module, "psutil_adapter", type("A", (), {"get_uptime": lambda self: "1h"})())
-    monkeypatch.setattr(uptime_module.Compiler, "quick_render", lambda **_kwargs: "uptime ok")
+    monkeypatch.setattr(
+        uptime_module,
+        "psutil_adapter",
+        type("A", (), {"get_uptime": lambda self: "1h"})(),
+    )
+    monkeypatch.setattr(
+        uptime_module.Compiler, "quick_render", lambda **_kwargs: "uptime ok"
+    )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
     assert actions[-1] == (10, "typing")
     assert messages[-1]["text"] == "uptime ok"
@@ -164,7 +222,11 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         uptime_module,
         "psutil_adapter",
-        type("A", (), {"get_uptime": lambda self: (_ for _ in ()).throw(RuntimeError("boom"))})(),
+        type(
+            "A",
+            (),
+            {"get_uptime": lambda self: (_ for _ in ()).throw(RuntimeError("boom"))},
+        )(),
     )
     with pytest.raises(HandlingException) as exc_info:
         _invoke_handler(uptime_module.handle_uptime, message, bot)
@@ -180,7 +242,11 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         "psutil_adapter",
         type("A", (), {"get_load_average": lambda self: (0.1, 0.2, 0.3)})(),
     )
-    monkeypatch.setattr(load_average_module.Compiler, "quick_render", lambda *_args, **_kwargs: "load ok")
+    monkeypatch.setattr(
+        load_average_module.Compiler,
+        "quick_render",
+        lambda *_args, **_kwargs: "load ok",
+    )
     _invoke_handler(load_average_module.handle_load_average, message, bot)
     assert messages[-1]["text"] == "load ok"
     assert messages[-1]["parse_mode"] == "Markdown"
@@ -188,7 +254,15 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         load_average_module,
         "psutil_adapter",
-        type("A", (), {"get_load_average": lambda self: (_ for _ in ()).throw(RuntimeError("load fail"))})(),
+        type(
+            "A",
+            (),
+            {
+                "get_load_average": lambda self: (_ for _ in ()).throw(
+                    RuntimeError("load fail")
+                )
+            },
+        )(),
     )
     with pytest.raises(HandlingException) as exc_info:
         _invoke_handler(load_average_module.handle_load_average, message, bot)
@@ -199,32 +273,21 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot, _actions, messages = _build_bot(monkeypatch)
     message = _build_message(12)
 
-    monkeypatch.setattr(
-        network_module,
-        "psutil_adapter",
-        type("A", (), {"get_net_io_counters": lambda self: {"rx": "1 MiB"}})(),
+    _assert_simple_handler_paths(
+        monkeypatch=monkeypatch,
+        module=network_module,
+        compiler=network_module.Compiler,
+        handler=network_module.handle_network,
+        adapter_method="get_net_io_counters",
+        success_payload={"rx": "1 MiB"},
+        success_text="network ok",
+        parse_mode="HTML",
+        none_text_contains="error occurred while getting network statistics",
+        expected_error_code="HAND_005",
+        message=message,
+        bot=bot,
+        messages=messages,
     )
-    monkeypatch.setattr(network_module.Compiler, "quick_render", lambda **_kwargs: "network ok")
-    _invoke_handler(network_module.handle_network, message, bot)
-    assert messages[-1]["text"] == "network ok"
-    assert messages[-1]["parse_mode"] == "HTML"
-
-    monkeypatch.setattr(
-        network_module,
-        "psutil_adapter",
-        type("A", (), {"get_net_io_counters": lambda self: None})(),
-    )
-    _invoke_handler(network_module.handle_network, message, bot)
-    assert "error occurred while getting network statistics" in str(messages[-1]["text"])
-
-    monkeypatch.setattr(
-        network_module,
-        "psutil_adapter",
-        type("A", (), {"get_net_io_counters": lambda self: (_ for _ in ()).throw(RuntimeError("net fail"))})(),
-    )
-    with pytest.raises(HandlingException) as exc_info:
-        _invoke_handler(network_module.handle_network, message, bot)
-    assert exc_info.value.context.error_code == "HAND_005"
 
 
 def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -263,56 +326,33 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
     bot, _actions, messages = _build_bot(monkeypatch)
     message = _build_message(14)
 
-    monkeypatch.setattr(
-        sensors_module,
-        "psutil_adapter",
-        type("A", (), {"get_sensors_temperatures": lambda self: [{"name": "cpu", "temp": 55}]})(),
+    _assert_simple_handler_paths(
+        monkeypatch=monkeypatch,
+        module=sensors_module,
+        compiler=sensors_module.Compiler,
+        handler=sensors_module.handle_sensors,
+        adapter_method="get_sensors_temperatures",
+        success_payload=[{"name": "cpu", "temp": 55}],
+        success_text="sensors ok",
+        parse_mode="HTML",
+        none_text_contains="No sensors were found",
+        expected_error_code="HAND_003",
+        message=message,
+        bot=bot,
+        messages=messages,
     )
-    monkeypatch.setattr(sensors_module.Compiler, "quick_render", lambda **_kwargs: "sensors ok")
-    _invoke_handler(sensors_module.handle_sensors, message, bot)
-    assert messages[-1]["text"] == "sensors ok"
-    assert messages[-1]["parse_mode"] == "HTML"
-
-    monkeypatch.setattr(
-        sensors_module,
-        "psutil_adapter",
-        type("A", (), {"get_sensors_temperatures": lambda self: []})(),
+    _assert_simple_handler_paths(
+        monkeypatch=monkeypatch,
+        module=filesystem_module,
+        compiler=filesystem_module.Compiler,
+        handler=filesystem_module.handle_file_system,
+        adapter_method="get_disk_usage",
+        success_payload={"disk": []},
+        success_text="fs ok",
+        parse_mode="HTML",
+        none_text_contains="Failed to handle disk usage",
+        expected_error_code="HAND_008",
+        message=message,
+        bot=bot,
+        messages=messages,
     )
-    _invoke_handler(sensors_module.handle_sensors, message, bot)
-    assert "No sensors were found" in str(messages[-1]["text"])
-
-    monkeypatch.setattr(
-        sensors_module,
-        "psutil_adapter",
-        type("A", (), {"get_sensors_temperatures": lambda self: (_ for _ in ()).throw(RuntimeError("sensor fail"))})(),
-    )
-    with pytest.raises(HandlingException) as sens_exc:
-        _invoke_handler(sensors_module.handle_sensors, message, bot)
-    assert sens_exc.value.context.error_code == "HAND_003"
-
-    monkeypatch.setattr(
-        filesystem_module,
-        "psutil_adapter",
-        type("A", (), {"get_disk_usage": lambda self: {"disk": []}})(),
-    )
-    monkeypatch.setattr(filesystem_module.Compiler, "quick_render", lambda **_kwargs: "fs ok")
-    _invoke_handler(filesystem_module.handle_file_system, message, bot)
-    assert messages[-1]["text"] == "fs ok"
-    assert messages[-1]["parse_mode"] == "HTML"
-
-    monkeypatch.setattr(
-        filesystem_module,
-        "psutil_adapter",
-        type("A", (), {"get_disk_usage": lambda self: None})(),
-    )
-    _invoke_handler(filesystem_module.handle_file_system, message, bot)
-    assert "Failed to handle disk usage" in str(messages[-1]["text"])
-
-    monkeypatch.setattr(
-        filesystem_module,
-        "psutil_adapter",
-        type("A", (), {"get_disk_usage": lambda self: (_ for _ in ()).throw(RuntimeError("fs fail"))})(),
-    )
-    with pytest.raises(HandlingException) as fs_exc:
-        _invoke_handler(filesystem_module.handle_file_system, message, bot)
-    assert fs_exc.value.context.error_code == "HAND_008"

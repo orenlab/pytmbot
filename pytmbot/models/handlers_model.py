@@ -22,9 +22,7 @@ def log_execution(func: CallbackType) -> CallbackType:
 
     @wraps(func)
     def wrapper(self: "HandlerManager", **kwargs: Any) -> Any:
-        logger.debug(
-            "bot.models.handlers_model.exec.callback.debug"
-        )
+        logger.debug("bot.models.handlers_model.exec.callback.debug")
         return func(self, **kwargs)
 
     return wrapper

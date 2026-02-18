@@ -101,7 +101,9 @@ def _make_session(
 
 
 def _raw_handle_get_logs() -> Callable[[CallbackQuery, TeleBot], None]:
-    first_layer = getattr(logs_module.handle_get_logs, "__wrapped__", logs_module.handle_get_logs)
+    first_layer = getattr(
+        logs_module.handle_get_logs, "__wrapped__", logs_module.handle_get_logs
+    )
     second_layer = getattr(first_layer, "__wrapped__", first_layer)
     return cast(Callable[[CallbackQuery, TeleBot], None], second_layer)
 
@@ -145,19 +147,27 @@ def test_logs_session_store_create_handles_id_collision(
     [
         (
             "__get_logs__:nginx:100",
-            ParsedLogsCallback(action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100),
+            ParsedLogsCallback(
+                action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100
+            ),
         ),
         (
             "__get_logs__:open:nginx:100",
-            ParsedLogsCallback(action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100),
+            ParsedLogsCallback(
+                action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100
+            ),
         ),
         (
             "__get_logs__:nav:sess:2:100",
-            ParsedLogsCallback(action=LOGS_ACTION_NAV, session_id="sess", page_index=2, user_id=100),
+            ParsedLogsCallback(
+                action=LOGS_ACTION_NAV, session_id="sess", page_index=2, user_id=100
+            ),
         ),
         (
             "__get_logs__:refresh:sess:100",
-            ParsedLogsCallback(action=LOGS_ACTION_REFRESH, session_id="sess", user_id=100),
+            ParsedLogsCallback(
+                action=LOGS_ACTION_REFRESH, session_id="sess", user_id=100
+            ),
         ),
         (
             "__get_logs__:file:sess:100",
@@ -165,7 +175,9 @@ def test_logs_session_store_create_handles_id_collision(
         ),
     ],
 )
-def test_parse_logs_callback_data_valid(data: str, expected: ParsedLogsCallback) -> None:
+def test_parse_logs_callback_data_valid(
+    data: str, expected: ParsedLogsCallback
+) -> None:
     assert logs_module._parse_logs_callback_data(data) == expected
 
 
@@ -289,7 +301,9 @@ def test_validate_logs_session_access_denies_by_authorization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     shown: list[str] = []
-    monkeypatch.setattr(logs_module, "_is_logs_session_owner", lambda call, session: True)
+    monkeypatch.setattr(
+        logs_module, "_is_logs_session_owner", lambda call, session: True
+    )
     monkeypatch.setattr(
         logs_module,
         "authorize_docker_callback_request",
@@ -315,7 +329,9 @@ def test_validate_logs_session_access_denies_by_authorization(
 
 
 def test_validate_logs_session_access_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(logs_module, "_is_logs_session_owner", lambda call, session: True)
+    monkeypatch.setattr(
+        logs_module, "_is_logs_session_owner", lambda call, session: True
+    )
     monkeypatch.setattr(
         logs_module,
         "authorize_docker_callback_request",
@@ -356,7 +372,9 @@ def test_build_logs_keyboard_contains_navigation_and_actions(
     )
     session = _make_session(session_id="sid-1", container_name="api", user_id=77)
 
-    buttons = logs_module._build_logs_keyboard(session=session, current_page=1, total_pages=3)
+    buttons = logs_module._build_logs_keyboard(
+        session=session, current_page=1, total_pages=3
+    )
     callbacks = [button["callback_data"] for button in buttons]
     assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:0:77" in callbacks
     assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:2:77" in callbacks
@@ -394,7 +412,9 @@ def test_edit_logs_message_handles_missing_message_context(
 def test_edit_logs_message_edits_with_clamped_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False))
+    monkeypatch.setattr(
+        logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False)
+    )
     monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
     bot = _DummyBot()
     call = _DummyCall(message=_DummyMessage(chat=_DummyChat(id=10), message_id=20))
@@ -435,7 +455,9 @@ def test_get_session_or_show_error_when_expired(
     assert shown == ["Logs session expired. Open logs again from container info."]
 
 
-def test_send_logs_as_file_scheduled_auto_deletion(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_send_logs_as_file_scheduled_auto_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         logs_module,
         "_validate_logs_session_access",
@@ -452,7 +474,9 @@ def test_send_logs_as_file_scheduled_auto_deletion(monkeypatch: pytest.MonkeyPat
         ),
     )
     bot = _DummyBot()
-    call = _DummyCall(from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7)))
+    call = _DummyCall(
+        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
+    )
     session = _make_session(container_name="api", user_id=99, raw_logs="abc")
 
     result = logs_module._send_logs_as_file(
@@ -467,7 +491,9 @@ def test_send_logs_as_file_scheduled_auto_deletion(monkeypatch: pytest.MonkeyPat
     assert bot.callback_answers[0]["text"] == "Sent api-logs.txt. Auto-delete in 30s."
 
 
-def test_send_logs_as_file_handles_limit_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_send_logs_as_file_handles_limit_exceeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         logs_module,
         "_validate_logs_session_access",
@@ -484,7 +510,9 @@ def test_send_logs_as_file_handles_limit_exceeded(monkeypatch: pytest.MonkeyPatc
         ),
     )
     bot = _DummyBot()
-    call = _DummyCall(from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7)))
+    call = _DummyCall(
+        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
+    )
     session = _make_session(container_name="api", user_id=99, raw_logs="abc")
 
     logs_module._send_logs_as_file(
@@ -517,7 +545,9 @@ def test_send_logs_as_file_handles_unexpected_schedule_status(
         ),
     )
     bot = _DummyBot()
-    call = _DummyCall(from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7)))
+    call = _DummyCall(
+        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
+    )
     session = _make_session(container_name="api", user_id=99, raw_logs="abc")
 
     logs_module._send_logs_as_file(
@@ -525,10 +555,15 @@ def test_send_logs_as_file_handles_unexpected_schedule_status(
         bot=cast(TeleBot, bot),
         session=session,
     )
-    assert bot.callback_answers[0]["text"] == "Sent api-logs.txt. Delete manually when done."
+    assert (
+        bot.callback_answers[0]["text"]
+        == "Sent api-logs.txt. Delete manually when done."
+    )
 
 
-def test_handle_get_logs_invalid_and_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_get_logs_invalid_and_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     shown: list[str] = []
     monkeypatch.setattr(
         logs_module,
@@ -586,7 +621,9 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     monkeypatch.setattr(
         logs_module,
         "_open_logs_session",
-        lambda call, bot, container_name, user_id, emojis: opened.append(container_name),
+        lambda call, bot, container_name, user_id, emojis: opened.append(
+            container_name
+        ),
     )
     monkeypatch.setattr(
         logs_module,
@@ -600,7 +637,9 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     )
 
     old_session = _make_session(session_id="s1", container_name="api", user_id=333)
-    refreshed_session = _make_session(session_id="s2", container_name="api", user_id=333)
+    refreshed_session = _make_session(
+        session_id="s2", container_name="api", user_id=333
+    )
     monkeypatch.setattr(
         logs_module,
         "_get_session_or_show_error",
@@ -616,6 +655,7 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
         "remove",
         lambda session_id: removed_sessions.append(session_id),
     )
+
     def _create_session(
         container_name: str,
         user_id: int,
@@ -700,7 +740,9 @@ def test_send_logs_as_file_includes_expected_schedule_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured_delay: list[int] = []
-    monkeypatch.setattr(logs_module, "_validate_logs_session_access", lambda **kwargs: True)
+    monkeypatch.setattr(
+        logs_module, "_validate_logs_session_access", lambda **kwargs: True
+    )
 
     def _schedule(
         *,
@@ -722,7 +764,9 @@ def test_send_logs_as_file_includes_expected_schedule_delay(
 
     monkeypatch.setattr(logs_module.deletion_manager, "schedule_deletion", _schedule)
     bot = _DummyBot()
-    call = _DummyCall(from_user=_DummyUser(id=77), message=_DummyMessage(chat=_DummyChat(id=9)))
+    call = _DummyCall(
+        from_user=_DummyUser(id=77), message=_DummyMessage(chat=_DummyChat(id=9))
+    )
     session = _make_session(container_name="nginx", user_id=77, raw_logs="abc")
     logs_module._send_logs_as_file(
         call=cast(CallbackQuery, call),

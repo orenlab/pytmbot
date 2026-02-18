@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import (

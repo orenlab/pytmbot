@@ -416,7 +416,9 @@ def check_container_state(
 
     except ValueError:
         logger.error(
-            "docker.utils.invalid.target.fail", container=container_name, state=target_state
+            "docker.utils.invalid.target.fail",
+            container=container_name,
+            state=target_state,
         )
         raise
     except Exception as e:
@@ -445,9 +447,7 @@ def _execute_state_check_loop(
             container_name, target, attempt, config, operation_start
         )
 
-        logger.debug(
-            "docker.utils.check.state.debug", **log_context
-        )
+        logger.debug("docker.utils.check.state.debug", **log_context)
 
         try:
             current_state_str = get_container_state(
@@ -644,9 +644,7 @@ def _log_operation_success(
         context["result_length"] = len(result)
 
     if execution_time > slow_threshold:
-        logger.warning(
-            "docker.utils.slow.ok", **context
-        )
+        logger.warning("docker.utils.slow.ok", **context)
     elif execution_time > slow_threshold / 2:
         logger.info("docker.utils.ok", **context)
     elif getattr(settings.docker, "debug_docker_client", False):
@@ -771,7 +769,9 @@ def get_container_safely(
     except NotFound:
         execution_time = time.time() - start_time
         logger.warning(
-            "docker.utils.container.not.warn", execution_time=f"{execution_time:.3f}s", **context
+            "docker.utils.container.not.warn",
+            execution_time=f"{execution_time:.3f}s",
+            **context,
         )
         raise ContainerNotFoundError(
             ErrorContext(
@@ -828,9 +828,7 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
     # Method 2: Runtime one-shot stats for running containers
     if container.status.lower() == "running":
         if memory_stats := MemoryStatsProvider.from_container_stats(container):
-            logger.debug(
-                "docker.utils.got.memory.debug"
-            )
+            logger.debug("docker.utils.got.memory.debug")
             return memory_stats
 
     # Method 3: Container inspect (limited but fast)
@@ -882,9 +880,7 @@ def get_container_basic_info(container: Container) -> dict[str, Any]:
                 if memory_stats:
                     basic_info.update(memory_stats)
             except Exception:
-                logger.debug(
-                    "docker.utils.get.runtime.fail"
-                )
+                logger.debug("docker.utils.get.runtime.fail")
 
         return basic_info
 
@@ -935,6 +931,7 @@ def _extract_container_state_info(attrs: Mapping[str, Any]) -> dict[str, Any]:
 
 def _get_minimal_container_info(container: Container) -> dict[str, Any]:
     """Return minimal container info on error."""
+
     def _safe_getattr(name: str, default: str = "unknown") -> str:
         try:
             value = getattr(container, name, default)

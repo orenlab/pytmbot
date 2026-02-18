@@ -37,7 +37,9 @@ _PLUGIN_TEMPLATE_BASE: Final[str] = "plugins_template"
 
 # Production-ready caching with TTL
 _template_cache: TTLCache[str, Template] = TTLCache(maxsize=100, ttl=3600)  # 1 hour TTL
-_result_cache: TTLCache[str, str] = TTLCache(maxsize=50, ttl=1800)  # 30 min result cache
+_result_cache: TTLCache[str, str] = TTLCache(
+    maxsize=50, ttl=1800
+)  # 30 min result cache
 _cache_lock = RLock()
 
 # Singleton environment
@@ -45,12 +47,14 @@ _environment: Environment | None = None
 _env_lock = RLock()
 
 # Hot templates for fast path
-_HOT_TEMPLATES: Final[frozenset[str]] = frozenset([
-    "d_containers.jinja2",
-    "d_images.jinja2",
-    "b_base.jinja2",
-    "a_auth.jinja2",
-])
+_HOT_TEMPLATES: Final[frozenset[str]] = frozenset(
+    [
+        "d_containers.jinja2",
+        "d_images.jinja2",
+        "b_base.jinja2",
+        "a_auth.jinja2",
+    ]
+)
 
 
 def _get_jinja_environment() -> Environment:
@@ -76,11 +80,7 @@ def _get_jinja_environment() -> Environment:
             )
 
         _environment = SandboxedEnvironment(
-            loader=FileSystemLoader(
-                template_path,
-                followlinks=False,
-                encoding="utf-8"
-            ),
+            loader=FileSystemLoader(template_path, followlinks=False, encoding="utf-8"),
             autoescape=select_autoescape(
                 enabled_extensions=("html", "txt", "jinja2"),
                 default_for_string=True,
@@ -99,11 +99,14 @@ def _get_jinja_environment() -> Environment:
             format_duration,
             format_timestamp,
         )
-        _environment.filters.update({
-            "format_timestamp": format_timestamp,
-            "format_bytes": format_bytes,
-            "format_duration": format_duration,
-        })
+
+        _environment.filters.update(
+            {
+                "format_timestamp": format_timestamp,
+                "format_bytes": format_bytes,
+                "format_duration": format_duration,
+            }
+        )
 
         return _environment
 
@@ -113,7 +116,9 @@ def _resolve_template_subdirectory(template_name: str) -> str:
     """Resolve template subdirectory with caching."""
     if template_name.startswith(_PLUGIN_PREFIX):
         try:
-            plugin_name = template_name.split("_", 1)[1].split(".", 1)[0]  # Remove extension
+            plugin_name = template_name.split("_", 1)[1].split(".", 1)[
+                0
+            ]  # Remove extension
             return f"{_PLUGIN_TEMPLATE_BASE}/{plugin_name}"
         except IndexError as e:
             raise exceptions.TemplateError(
@@ -217,9 +222,9 @@ def _render_template_cached(template_name: str, context: dict[str, Any]) -> str:
 
 
 def _render_template(
-        template_name: str,
-        trusted: bool = False,
-        **kwargs: Any,
+    template_name: str,
+    trusted: bool = False,
+    **kwargs: Any,
 ) -> str:
     """Core template rendering with integrated validation."""
 
@@ -230,11 +235,13 @@ def _render_template(
             validate_context_basic,
             validate_template_name_fast,
         )
+
         validated_name = validate_template_name_fast(template_name)
         validated_context = validate_context_basic(kwargs)
     else:
         # Strict validation for untrusted input
         from pytmbot.parsers.validation import validate_template_render
+
         validated_name, validated_context = validate_template_render(
             template_name, kwargs, trusted=False
         )
@@ -284,8 +291,12 @@ def _get_cache_stats() -> dict[str, Any]:
     with _cache_lock:
         stats = {
             "template_cache_size": len(_template_cache),
-            "template_cache_hits": _template_cache.hits if hasattr(_template_cache, 'hits') else 0,
-            "template_cache_misses": _template_cache.misses if hasattr(_template_cache, 'misses') else 0,
+            "template_cache_hits": _template_cache.hits
+            if hasattr(_template_cache, "hits")
+            else 0,
+            "template_cache_misses": _template_cache.misses
+            if hasattr(_template_cache, "misses")
+            else 0,
             "result_cache_size": len(_result_cache),
             "subdirectory_cache_info": _resolve_template_subdirectory.cache_info(),
             "environment_initialized": _environment is not None,
@@ -294,6 +305,7 @@ def _get_cache_stats() -> dict[str, Any]:
     # Add validation stats
     try:
         from pytmbot.parsers.validation import get_validation_stats
+
         stats["validation"] = get_validation_stats()
     except ImportError:
         stats["validation"] = {"error": "validation module not available"}
@@ -317,6 +329,7 @@ def _clear_template_cache() -> None:
     # Clear validation cache too
     try:
         from pytmbot.parsers.validation import clear_validation_cache
+
         clear_validation_cache()
     except ImportError:
         pass

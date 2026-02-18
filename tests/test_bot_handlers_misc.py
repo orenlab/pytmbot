@@ -88,7 +88,9 @@ def _raw_handler(handler: object) -> Callable[..., object]:
     return cast(Callable[..., object], second_layer)
 
 
-def test_getmyid_deletion_callback_logs_statuses(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_getmyid_deletion_callback_logs_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     events: list[str] = []
 
     @dataclass
@@ -153,10 +155,14 @@ def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             pending_count=1,
         )
 
-    monkeypatch.setattr(getmyid_module.deletion_manager, "schedule_deletion", _scheduled)
+    monkeypatch.setattr(
+        getmyid_module.deletion_manager, "schedule_deletion", _scheduled
+    )
 
     normal_message = _Message()
-    sent = handler(cast(Message, normal_message), cast(TeleBot, bot), auto_delete_delay=15)
+    sent = handler(
+        cast(Message, normal_message), cast(TeleBot, bot), auto_delete_delay=15
+    )
     assert isinstance(sent, _SentMessage)
     assert schedule_calls and schedule_calls[-1]["delay_seconds"] == 15
     assert bot.chat_actions[-1] == (normal_message.chat.id, "typing")
@@ -240,12 +246,22 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             type(
                 "_Kbd",
                 (),
-                {"build_reply_keyboard": staticmethod(lambda plugin_keyboard_data=None: "plugins-kbd")},
+                {
+                    "build_reply_keyboard": staticmethod(
+                        lambda plugin_keyboard_data=None: "plugins-kbd"
+                    )
+                },
             )(),
         ),
     )
-    monkeypatch.setattr(plugins_module.Compiler, "quick_render", lambda **kwargs: "plugins-rendered")
-    monkeypatch.setattr(plugins_module, "em", cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda _key: "💭")})()))
+    monkeypatch.setattr(
+        plugins_module.Compiler, "quick_render", lambda **kwargs: "plugins-rendered"
+    )
+    monkeypatch.setattr(
+        plugins_module,
+        "em",
+        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda _key: "💭")})()),
+    )
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert sent_payloads[-1]["text"] == "plugins-rendered"
@@ -276,7 +292,9 @@ def test_version_helpers_and_process_message_branches(
 
     monkeypatch.setattr(updates_module, "is_bot_development", lambda version: False)
     monkeypatch.setattr(updates_module, "__check_bot_update", lambda: {})
-    monkeypatch.setattr(updates_module, "_render_update_difficulties_message", lambda: "difficult")
+    monkeypatch.setattr(
+        updates_module, "_render_update_difficulties_message", lambda: "difficult"
+    )
     assert updates_module._process_message() == ("difficult", False)
 
     monkeypatch.setattr(
@@ -288,9 +306,13 @@ def test_version_helpers_and_process_message_branches(
             "body": "notes",
         },
     )
-    monkeypatch.setattr(updates_module, "_render_new_update_message", lambda context: "new")
+    monkeypatch.setattr(
+        updates_module, "_render_new_update_message", lambda context: "new"
+    )
     monkeypatch.setattr(updates_module, "_render_no_update_message", lambda: "same")
-    monkeypatch.setattr(updates_module, "_render_future_message", lambda context: "future")
+    monkeypatch.setattr(
+        updates_module, "_render_future_message", lambda context: "future"
+    )
 
     monkeypatch.setattr(updates_module, "_compare_versions", lambda left, right: 1)
     assert updates_module._process_message() == ("new", True)
@@ -310,9 +332,7 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
         def __enter__(self) -> _Response:
             return self
 
-        def __exit__(
-            self, exc_type: object, exc: object, tb: object
-        ) -> Literal[False]:
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> Literal[False]:
             return False
 
         def raise_for_status(self) -> None:
@@ -326,7 +346,9 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
         "published_at": "2026-02-17T12:34:56",
         "body": "Release notes",
     }
-    monkeypatch.setattr(updates_module.requests, "get", lambda url, timeout: _Response(payload))
+    monkeypatch.setattr(
+        updates_module.requests, "get", lambda url, timeout: _Response(payload)
+    )
 
     result = updates_module.__check_bot_update()
     assert result["tag_name"] == "v1.2.3"
@@ -335,7 +357,9 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(
         updates_module.requests,
         "get",
-        lambda url, timeout: (_ for _ in ()).throw(updates_module.requests.RequestException("boom")),
+        lambda url, timeout: (_ for _ in ()).throw(
+            updates_module.requests.RequestException("boom")
+        ),
     )
     assert updates_module.__check_bot_update() == {}
 
@@ -345,12 +369,25 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
     handler = _raw_handler(updates_module.handle_bot_updates)
 
-    monkeypatch.setattr(updates_module, "_process_message", lambda: ("update-message", True))
-    monkeypatch.setattr(updates_module, "button_data", lambda text, callback_data: {"text": text, "callback_data": callback_data})
+    monkeypatch.setattr(
+        updates_module, "_process_message", lambda: ("update-message", True)
+    )
+    monkeypatch.setattr(
+        updates_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
     monkeypatch.setattr(
         updates_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
     monkeypatch.setattr(
         updates_module,
@@ -394,7 +431,9 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         missing_message_text_contains="Cannot render update info",
     )
 
-    monkeypatch.setattr(inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update")
+    monkeypatch.setattr(
+        inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update"
+    )
     handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "how-to-update"
 
@@ -404,6 +443,8 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("render fail")),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:
-        handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
+        handler(
+            cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot)
+        )
     assert exc_info.value.context.error_code == "HAND_019"
     assert "Some error occurred" in str(bot.edited_messages[-1]["text"])

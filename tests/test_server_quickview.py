@@ -76,7 +76,9 @@ def _build_message(chat_id: int = 1) -> Message:
     return message_obj
 
 
-def test_quickview_metric_collectors_happy_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_quickview_metric_collectors_happy_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     adapter = SimpleNamespace(
         get_uptime=lambda: "1h 10m",
         get_load_average=lambda: (0.1, 0.2, 0.3),
@@ -84,7 +86,9 @@ def test_quickview_metric_collectors_happy_paths(monkeypatch: pytest.MonkeyPatch
         get_process_counts=lambda: {"running": 1, "sleeping": 3},
     )
     monkeypatch.setattr(quickview, "psutil_adapter", adapter)
-    monkeypatch.setattr(quickview, "fetch_docker_counters", lambda: {"containers_count": 2})
+    monkeypatch.setattr(
+        quickview, "fetch_docker_counters", lambda: {"containers_count": 2}
+    )
 
     assert quickview._get_uptime() == "1h 10m"
     assert quickview._get_load() == (0.1, 0.2, 0.3)
@@ -193,4 +197,6 @@ def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert exc_info.value.context.error_code == "HAND_QV1"
     assert "render failed" in str(exc_info.value.context.metadata["exception"])
-    assert "An error occurred while processing the command." in str(messages[-1]["text"])
+    assert "An error occurred while processing the command." in str(
+        messages[-1]["text"]
+    )

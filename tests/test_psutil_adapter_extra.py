@@ -190,7 +190,9 @@ class _FakePsutil:
         )
 
     def users(self) -> list[SimpleNamespace]:
-        return [SimpleNamespace(name="den", terminal="tty", host="localhost", started=1.0)]
+        return [
+            SimpleNamespace(name="den", terminal="tty", host="localhost", started=1.0)
+        ]
 
     def net_if_stats(self) -> dict[str, SimpleNamespace]:
         return {"eth0": SimpleNamespace(isup=True, speed=1000, duplex="full", mtu=1500)}
@@ -208,7 +210,9 @@ class _FakePsutil:
     def cpu_freq(self) -> SimpleNamespace:
         return SimpleNamespace(current=2800.0, min=1000.0, max=3500.0)
 
-    def cpu_percent(self, *, interval: float, percpu: bool = False) -> float | list[float]:
+    def cpu_percent(
+        self, *, interval: float, percpu: bool = False
+    ) -> float | list[float]:
         del interval
         if percpu:
             return [10.0, 20.0]
@@ -262,7 +266,9 @@ def test_psutil_adapter_core_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     adapter = psutil_adapter_module.PsutilAdapter()
     fake_psutil = _FakePsutil()
     monkeypatch.setattr(adapter, "_psutil", fake_psutil)
-    monkeypatch.setattr(psutil_adapter_module, "set_naturalsize", lambda value: f"{value}B")
+    monkeypatch.setattr(
+        psutil_adapter_module, "set_naturalsize", lambda value: f"{value}B"
+    )
     monkeypatch.setattr(psutil_adapter_module.psutil, "boot_time", lambda: 0.0)
 
     process_stats = adapter.get_process_stats(pid=123)

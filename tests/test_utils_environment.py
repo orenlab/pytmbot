@@ -36,13 +36,15 @@ def test_get_environment_state_contains_required_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     get_environment_state.cache_clear()
-    monkeypatch.setattr(
-        "pytmbot.utils.environment.is_running_in_docker", lambda: False
-    )
+    monkeypatch.setattr("pytmbot.utils.environment.is_running_in_docker", lambda: False)
     state = get_environment_state()
     assert state["Running on"] == "Bare Metal"
     assert "Python path" in state
     assert isinstance(state["Command args"], list)
     assert isinstance(state["Module path"], list)
     assert isinstance(state["Python version"], str)
-    assert os.path.basename(str(state["Python path"])) in {"python", "python3", "python3.13"}
+    assert os.path.basename(str(state["Python path"])) in {
+        "python",
+        "python3",
+        "python3.13",
+    }

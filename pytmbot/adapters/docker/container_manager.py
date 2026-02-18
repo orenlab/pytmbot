@@ -199,9 +199,7 @@ class ContainerManager:
                     del self._operation_history[key]
 
     @staticmethod
-    def _validate_container_state_for_operation(
-        container: Any, operation: str
-    ) -> None:
+    def _validate_container_state_for_operation(container: Any, operation: str) -> None:
         """Validate that container is in appropriate state for the operation."""
         try:
             current_status = container.status.lower()
@@ -250,9 +248,7 @@ class ContainerManager:
 
         try:
             with docker_client_context() as adapter:
-                container = get_container_safely(
-                    container_ref, docker_client=adapter
-                )
+                container = get_container_safely(container_ref, docker_client=adapter)
 
                 # Pre-operation validation
                 self._validate_container_state_for_operation(container, "start")
@@ -313,9 +309,7 @@ class ContainerManager:
 
         try:
             with docker_client_context() as adapter:
-                container = get_container_safely(
-                    container_ref, docker_client=adapter
-                )
+                container = get_container_safely(container_ref, docker_client=adapter)
 
                 # Pre-operation validation
                 self._validate_container_state_for_operation(container, "stop")
@@ -378,9 +372,7 @@ class ContainerManager:
 
         try:
             with docker_client_context() as adapter:
-                container = get_container_safely(
-                    container_ref, docker_client=adapter
-                )
+                container = get_container_safely(container_ref, docker_client=adapter)
 
                 # Pre-operation validation
                 self._validate_container_state_for_operation(container, "restart")
@@ -465,9 +457,7 @@ class ContainerManager:
                 raise ValueError(f"Invalid container name format: {new_container_name}")
 
             with docker_client_context() as adapter:
-                container = get_container_safely(
-                    container_ref, docker_client=adapter
-                )
+                container = get_container_safely(container_ref, docker_client=adapter)
                 old_name = container.name
 
                 # Check if name is actually different
@@ -478,7 +468,11 @@ class ContainerManager:
                 # Record operation
                 self._record_operation("rename", container_ref)
 
-                logger.info("docker.containers.renaming.container.info", old_name=old_name, **context)
+                logger.info(
+                    "docker.containers.renaming.container.info",
+                    old_name=old_name,
+                    **context,
+                )
 
                 container.rename(new_container_name)
 
@@ -616,9 +610,7 @@ class ContainerManager:
 
         try:
             with docker_client_context() as adapter:
-                container = get_container_safely(
-                    container_ref, docker_client=adapter
-                )
+                container = get_container_safely(container_ref, docker_client=adapter)
 
                 # Get basic container info using utility
                 status = get_container_basic_info(container)
@@ -628,8 +620,12 @@ class ContainerManager:
                 status.update(
                     {
                         "created": attrs.get("Created", "unknown"),
-                        "started_at": attrs.get("State", {}).get("StartedAt", "unknown"),
-                        "finished_at": attrs.get("State", {}).get("FinishedAt", "unknown"),
+                        "started_at": attrs.get("State", {}).get(
+                            "StartedAt", "unknown"
+                        ),
+                        "finished_at": attrs.get("State", {}).get(
+                            "FinishedAt", "unknown"
+                        ),
                         "exit_code": attrs.get("State", {}).get("ExitCode"),
                         "error": attrs.get("State", {}).get("Error", ""),
                         "pid": attrs.get("State", {}).get("Pid"),

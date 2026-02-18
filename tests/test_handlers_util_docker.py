@@ -242,7 +242,9 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     assert environment["user"] == "pytmbot"
     assert environment["entrypoint"] == "tini -s -- ./entrypoint.sh"
     assert environment["env_count"] == 3
-    assert any("DB_PASSWORD=<HIDDEN>" in item for item in environment["environment_vars"])
+    assert any(
+        "DB_PASSWORD=<HIDDEN>" in item for item in environment["environment_vars"]
+    )
 
 
 def test_parse_container_memory_cpu_network_stats(
@@ -318,7 +320,9 @@ def test_normalize_memory_stats_parses_percent_variants() -> None:
 def test_get_sanitized_logs_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     call = _build_callback_query("__get_logs__:pytmbot:101")
     monkeypatch.setattr(docker_utils, "fetch_container_logs", lambda _name: "raw logs")
-    monkeypatch.setattr(docker_utils, "sanitize_logs", lambda logs, _call, _token: f"san:{logs}")
+    monkeypatch.setattr(
+        docker_utils, "sanitize_logs", lambda logs, _call, _token: f"san:{logs}"
+    )
     assert get_sanitized_logs("pytmbot", call, "TOKEN") == "san:raw logs"
 
 
@@ -330,7 +334,9 @@ def test_get_comprehensive_container_details_paths(
 
     attrs = _container_attrs()
     container = _FakeContainer(status="running", attrs=attrs)
-    monkeypatch.setattr(docker_utils, "get_container_full_details", lambda _name: container)
+    monkeypatch.setattr(
+        docker_utils, "get_container_full_details", lambda _name: container
+    )
     monkeypatch.setattr(docker_utils, "set_naturalsize", lambda value: f"{value}B")
     monkeypatch.setattr(docker_utils, "set_naturaltime", lambda _dt: "just now")
     monkeypatch.setattr(
@@ -358,7 +364,11 @@ def test_get_comprehensive_container_details_paths(
     monkeypatch.setattr(
         docker_utils,
         "get_container_memory_stats",
-        lambda _container: {"mem_usage": "fallback", "mem_limit": "fallback", "mem_percent": "9%"},
+        lambda _container: {
+            "mem_usage": "fallback",
+            "mem_limit": "fallback",
+            "mem_percent": "9%",
+        },
     )
 
     details = get_comprehensive_container_details("pytmbot")

@@ -76,7 +76,9 @@ def test_webhook_server_proxy_helpers_and_resolve_errors() -> None:
         host="127.0.0.1",
         port=8443,
     )
-    server.trusted_proxy_networks = server._parse_proxy_networks(["10.0.0.0/8", "127.0.0.1"])
+    server.trusted_proxy_networks = server._parse_proxy_networks(
+        ["10.0.0.0/8", "127.0.0.1"]
+    )
     assert server._is_trusted_proxy("10.1.1.1") is True
     assert server._is_trusted_proxy("invalid-ip") is False
 
@@ -102,7 +104,9 @@ def test_webhook_server_proxy_helpers_and_resolve_errors() -> None:
 def test_get_webhook_config_raises_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(webhook_module, "settings", SimpleNamespace(webhook_config=None))
+    monkeypatch.setattr(
+        webhook_module, "settings", SimpleNamespace(webhook_config=None)
+    )
     with pytest.raises(InitializationError) as exc_info:
         webhook_module._get_webhook_config()
     assert exc_info.value.context.error_code == "WEBHOOK_CONFIG_MISSING"

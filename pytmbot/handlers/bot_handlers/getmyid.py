@@ -31,13 +31,9 @@ def _deletion_callback(result: DeletionResult) -> None:
         result: Result of the deletion operation
     """
     if result.status == DeletionStatus.SUCCESS:
-        logger.debug(
-            "bot.handler.bot.getmyid.deleted.user.ok"
-        )
+        logger.debug("bot.handler.bot.getmyid.deleted.user.ok")
     elif result.status == DeletionStatus.FAILED:
-        logger.warning(
-            "bot.handler.bot.getmyid.delete.user.fail"
-        )
+        logger.warning("bot.handler.bot.getmyid.delete.user.fail")
 
 
 @logger.session_decorator
@@ -149,9 +145,7 @@ def handle_getmyid(
             logger.warning("bot.handler.bot.getmyid.auto.deletion.warn")
 
         elif deletion_result.status == DeletionStatus.SCHEDULED:
-            logger.info(
-                "bot.handler.bot.getmyid.auto.deletion.info"
-            )
+            logger.info("bot.handler.bot.getmyid.auto.deletion.info")
 
         else:
             # Fallback for any other unexpected status

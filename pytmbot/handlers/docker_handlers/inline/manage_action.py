@@ -112,17 +112,13 @@ def __start_container(call: CallbackQuery, container_name: str, bot: TeleBot) ->
         )
 
         if result is None:
-            logger.info(
-                "bot.handler.docker.manage_action.user.start.ok"
-            )
+            logger.info("bot.handler.docker.manage_action.user.start.ok")
             show_handler_info(
                 call=call, text=f"Starting {container_name}: Success", bot=bot
             )
             return
         else:
-            logger.error(
-                "bot.handler.docker.manage_action.start.user.fail"
-            )
+            logger.error("bot.handler.docker.manage_action.start.user.fail")
             show_handler_info(
                 call=call,
                 text=f"Starting {container_name}: Error occurred. See logs",
@@ -165,17 +161,13 @@ def __stop_container(call: CallbackQuery, container_name: str, bot: TeleBot) -> 
         )
 
         if result is None:
-            logger.info(
-                "bot.handler.docker.manage_action.user.stop.ok"
-            )
+            logger.info("bot.handler.docker.manage_action.user.stop.ok")
             show_handler_info(
                 call=call, text=f"Stopping {container_name}: Success", bot=bot
             )
             return
         else:
-            logger.error(
-                "bot.handler.docker.manage_action.stop.user.fail"
-            )
+            logger.error("bot.handler.docker.manage_action.stop.user.fail")
             show_handler_info(
                 call=call,
                 text=f"Stopping {container_name}: Error occurred. See logs",
@@ -227,9 +219,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) 
         )
 
         if result is None:
-            logger.info(
-                "bot.handler.docker.manage_action.restarting.user.start"
-            )
+            logger.info("bot.handler.docker.manage_action.restarting.user.start")
             keyboards_key = button_data(
                 text=f"Back to {container_name}",
                 callback_data=f"__manage__:{container_name}:{call.from_user.id}",
@@ -244,9 +234,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) 
             )
             return
 
-        logger.error(
-            "bot.handler.docker.manage_action.restart.fail"
-        )
+        logger.error("bot.handler.docker.manage_action.restart.fail")
         show_handler_info(
             call=call,
             text=f"Restarting {container_name}: Error occurred. See logs",

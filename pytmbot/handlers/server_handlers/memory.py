@@ -40,9 +40,7 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         bot.send_chat_action(message.chat.id, "typing")
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
-            logger.error(
-                "bot.handler.server.memory.get.fail"
-            )
+            logger.error("bot.handler.server.memory.get.fail")
             bot.send_message(
                 message.chat.id, text="⚠️ Some error occurred. Please try again later("
             )

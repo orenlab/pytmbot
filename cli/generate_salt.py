@@ -264,7 +264,9 @@ auth_salt:
         self.display_salt_info(salt, length, encoding)
         self.display_config_template(salt)
 
-        if self._prompt_yes_no("Generate additional salts with predefined configs?", default=False):
+        if self._prompt_yes_no(
+            "Generate additional salts with predefined configs?", default=False
+        ):
             self.generate_multiple_salts()
 
         self.save_to_file(salt)

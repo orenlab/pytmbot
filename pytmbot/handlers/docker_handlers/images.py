@@ -86,7 +86,8 @@ def _truncate_list(
         return []
 
     normalized = [
-        _truncate_text(item, max_length=max_item_length) for item in list(value)[:max_items]
+        _truncate_text(item, max_length=max_item_length)
+        for item in list(value)[:max_items]
     ]
     if len(value) > max_items:
         normalized.append(f"... +{len(value) - max_items} more")
@@ -113,13 +114,17 @@ def _compact_image_for_listing(image: dict[str, Any]) -> dict[str, Any]:
     """Compact large image fields so one item always fits Telegram limits."""
     return {
         "id": _truncate_text(image.get("id", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH),
-        "name": _truncate_text(image.get("name", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH),
+        "name": _truncate_text(
+            image.get("name", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH
+        ),
         "tags": _truncate_list(image.get("tags", []), max_items=MAX_LIST_FIELD_ITEMS),
         "architecture": _truncate_text(
             image.get("architecture", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH
         ),
         "os": _truncate_text(image.get("os", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH),
-        "size": _truncate_text(image.get("size", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH),
+        "size": _truncate_text(
+            image.get("size", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH
+        ),
         "created": _truncate_text(
             image.get("created", "N/A"), max_length=MAX_TEXT_FIELD_LENGTH
         ),
@@ -154,7 +159,9 @@ def _compact_image_for_listing(image: dict[str, Any]) -> dict[str, Any]:
 
 
 def _prepare_images_for_listing(images: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [_compact_image_for_listing(image) for image in images if isinstance(image, dict)]
+    return [
+        _compact_image_for_listing(image) for image in images if isinstance(image, dict)
+    ]
 
 
 def _load_images_data() -> list[dict[str, Any]]:

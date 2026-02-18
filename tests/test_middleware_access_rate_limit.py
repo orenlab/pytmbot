@@ -104,7 +104,9 @@ def test_access_control_unauthorized_attempts_and_blocking(
     assert any(msg.get("parse_mode") == "Markdown" for msg in bot.sent_messages)
 
 
-def test_access_control_setup_command_is_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_access_control_setup_command_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     bot = _BotStub()
     monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
     monkeypatch.setattr(

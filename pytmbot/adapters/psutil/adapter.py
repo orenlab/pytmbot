@@ -243,9 +243,7 @@ class PsutilAdapter:
                 _ = process.pid  # This will raise if process doesn't exist
 
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                logger.warning(
-                    "bot.system.access.denied.deny", error=str(e), **context
-                )
+                logger.warning("bot.system.access.denied.deny", error=str(e), **context)
                 return {}
 
             # Define collectors with better error isolation
@@ -901,7 +899,9 @@ class PsutilAdapter:
                             status_counts["other"] += 1
 
             except Exception as e:
-                logger.warning("bot.system.iterating.processes.fail", error=str(e), **context)
+                logger.warning(
+                    "bot.system.iterating.processes.fail", error=str(e), **context
+                )
                 return {"running": 0, "sleeping": 0, "idle": 0, "total": 0}
 
             # Calculate total
@@ -1023,9 +1023,7 @@ class PsutilAdapter:
                 if_stats = self._psutil.net_if_stats()
                 if_addrs = self._psutil.net_if_addrs()
             except Exception as e:
-                logger.warning(
-                    "bot.system.fetch.network.fail", error=str(e), **context
-                )
+                logger.warning("bot.system.fetch.network.fail", error=str(e), **context)
                 return {}
 
             result: dict[str, NetworkInterfaceStats] = {}
@@ -1210,7 +1208,7 @@ class PsutilAdapter:
             # Sort by combined CPU and memory usage (weighted average)
             sorted_processes = sorted(
                 processes,
-                key=lambda p: (p["cpu_percent"] * 0.6 + p["memory_percent"] * 0.4),
+                key=lambda p: p["cpu_percent"] * 0.6 + p["memory_percent"] * 0.4,
                 reverse=True,
             )
 

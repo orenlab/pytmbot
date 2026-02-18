@@ -441,9 +441,7 @@ class DockerImageUpdater(BaseComponent):
                     try:
                         if not image.tags:
                             skipped_count += 1
-                            self._log.debug(
-                                "docker.updates.skipping.image.debug"
-                            )
+                            self._log.debug("docker.updates.skipping.image.debug")
                             continue
 
                         digest = self._extract_digest(image)
@@ -459,9 +457,7 @@ class DockerImageUpdater(BaseComponent):
                         continue
 
         except Exception:
-            self._log.error(
-                "docker.updates.fetch.local.fail"
-            )
+            self._log.error("docker.updates.fetch.local.fail")
             raise
 
         total_tags = sum(len(tags) for tags in local_images.values())
@@ -523,9 +519,7 @@ class DockerImageUpdater(BaseComponent):
             except ValueError:
                 self._log.warning("docker.updates.invalid.tag.warn")
             except Exception:
-                self._log.warning(
-                    "docker.updates.processing.tag.fail"
-                )
+                self._log.warning("docker.updates.processing.tag.fail")
 
     @staticmethod
     def _parse_tag(tag: str) -> tuple[str, str]:
@@ -621,9 +615,7 @@ class DockerImageUpdater(BaseComponent):
                     if result:
                         tags_info = result
                         self.rate_limiter.handle_success()
-                        self._log.debug(
-                            "docker.updates.fetch.tags.ok"
-                        )
+                        self._log.debug("docker.updates.fetch.tags.ok")
                         break
 
                 except ClientResponseError as e:
@@ -635,9 +627,7 @@ class DockerImageUpdater(BaseComponent):
                             headers.get("Retry-After", "3600") if headers else "3600"
                         )
                         self.rate_limiter.handle_rate_limit(retry_after)
-                        self._log.warning(
-                            "docker.updates.rate.limited.warn"
-                        )
+                        self._log.warning("docker.updates.rate.limited.warn")
                         raise  # Re-raise to handle at higher level
                     elif e.status == 404:
                         self._log.debug("docker.updates.repository.not.debug")
@@ -649,9 +639,7 @@ class DockerImageUpdater(BaseComponent):
                 except Exception as e:
                     last_error = e
                     self._stats["errors"] += 1
-                    self._log.warning(
-                        "docker.updates.fetch.fail"
-                    )
+                    self._log.warning("docker.updates.fetch.fail")
                     continue
 
         # Cache results (even empty results to avoid repeated failures)
@@ -660,9 +648,7 @@ class DockerImageUpdater(BaseComponent):
                 self.tag_cache[repo] = (tags_info, time.time())
 
         if not tags_info and last_error:
-            self._log.warning(
-                "docker.updates.fetch.tags.fail"
-            )
+            self._log.warning("docker.updates.fetch.tags.fail")
 
         return tags_info
 
@@ -687,9 +673,7 @@ class DockerImageUpdater(BaseComponent):
 
                     # Limit results to prevent memory issues
                     if len(results) > MAX_TAGS_PER_REPO:
-                        self._log.warning(
-                            "docker.updates.too.many.warn"
-                        )
+                        self._log.warning("docker.updates.too.many.warn")
                         results = results[:MAX_TAGS_PER_REPO]
 
                     tags_info = []
@@ -709,14 +693,10 @@ class DockerImageUpdater(BaseComponent):
                                 tags_info.append(enhanced_tag)
 
                         except Exception:
-                            self._log.debug(
-                                "docker.updates.tag.entry.fail"
-                            )
+                            self._log.debug("docker.updates.tag.entry.fail")
                             continue
 
-                    self._log.debug(
-                        "docker.updates.fetch.valid.debug"
-                    )
+                    self._log.debug("docker.updates.fetch.valid.debug")
                     return tags_info
 
             except ClientResponseError as e:
@@ -734,9 +714,7 @@ class DockerImageUpdater(BaseComponent):
                 elif e.status >= 500:
                     if attempt < MAX_RETRIES - 1:
                         wait_time = 2**attempt
-                        self._log.debug(
-                            "docker.updates.server.fail"
-                        )
+                        self._log.debug("docker.updates.server.fail")
                         await asyncio.sleep(wait_time)
                     else:
                         raise
@@ -757,18 +735,14 @@ class DockerImageUpdater(BaseComponent):
                 # Network/parsing errors - retry these
                 if attempt < MAX_RETRIES - 1:
                     wait_time = 2**attempt
-                    self._log.debug(
-                        "docker.updates.network.parsing.fail"
-                    )
+                    self._log.debug("docker.updates.network.parsing.fail")
                     await asyncio.sleep(wait_time)
                 else:
                     raise
 
             except Exception:
                 # Unknown errors - don't retry to avoid infinite loops
-                self._log.warning(
-                    "docker.updates.unexpected.fail"
-                )
+                self._log.warning("docker.updates.unexpected.fail")
                 raise
 
         return None
@@ -954,9 +928,11 @@ class DockerImageUpdater(BaseComponent):
 
                                 # Sort and limit updates
                                 repo_updates.sort(
-                                    key=lambda x: isoparse(x.created_at_remote)
-                                    if x.created_at_remote
-                                    else datetime.min,
+                                    key=lambda x: (
+                                        isoparse(x.created_at_remote)
+                                        if x.created_at_remote
+                                        else datetime.min
+                                    ),
                                     reverse=True,
                                 )
 
@@ -1026,9 +1002,7 @@ class DockerImageUpdater(BaseComponent):
                                 repositories_processed += 1
 
                     except Exception as e:
-                        self._log.error(
-                            "docker.updates.parallel.processing.fail"
-                        )
+                        self._log.error("docker.updates.parallel.processing.fail")
                         return UpdaterResponse(
                             status=UpdaterStatus.ERROR,
                             message=f"Failed during parallel processing: {e}",

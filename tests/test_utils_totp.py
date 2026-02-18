@@ -61,7 +61,9 @@ def test_backup_codes_reject_invalid_count() -> None:
         auth.get_backup_codes(0)
 
 
-def test_totp_secret_generation_and_uri_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_totp_secret_generation_and_uri_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
 
     monkeypatch.setattr(
@@ -93,7 +95,9 @@ def test_totp_qr_code_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         auth.generate_totp_qr_code()
 
     monkeypatch.setattr(
-        TwoFactorAuthenticator, "_generate_totp_auth_uri", lambda self: "otpauth://totp/test"
+        TwoFactorAuthenticator,
+        "_generate_totp_auth_uri",
+        lambda self: "otpauth://totp/test",
     )
     monkeypatch.setattr(
         totp_module.qrcode,
@@ -104,7 +108,9 @@ def test_totp_qr_code_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         auth.generate_totp_qr_code()
 
 
-def test_totp_verify_and_backup_codes_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_totp_verify_and_backup_codes_error_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
     assert auth.verify_totp_code(cast(str, 123456)) is False
 

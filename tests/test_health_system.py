@@ -196,7 +196,9 @@ def test_system_resource_checker_thresholds() -> None:
 
 
 def test_session_checker_levels() -> None:
-    healthy = SessionChecker(_FakeSessionManager({"total_sessions": 0, "blocked_sessions": 0}))
+    healthy = SessionChecker(
+        _FakeSessionManager({"total_sessions": 0, "blocked_sessions": 0})
+    )
     assert healthy._perform_check().level == HealthLevel.HEALTHY
 
     degraded = SessionChecker(

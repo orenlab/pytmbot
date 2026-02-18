@@ -267,7 +267,9 @@ def test_fetch_tags_from_url_parses_entries(monkeypatch: pytest.MonkeyPatch) -> 
     assert {item.name for item in parsed} == {"v1.2.0", "latest"}
 
 
-def test_fetch_tags_from_url_limits_large_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_tags_from_url_limits_large_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     updater = DockerImageUpdater()
 
     class _FakeResponse:
@@ -419,7 +421,9 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
         ) -> None:
             return None
 
-    monkeypatch.setattr(updates_module.aiohttp, "TCPConnector", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        updates_module.aiohttp, "TCPConnector", lambda **_kwargs: object()
+    )
     monkeypatch.setattr(updates_module, "ClientSession", _NoopClientSession)
 
     updater = DockerImageUpdater()
@@ -434,9 +438,7 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
         TagInfo(name="v1.1.0", created_at="2026-02-01T00:00:00Z", digest="sha256:new")
     )
 
-    async def _fetch_success(
-        _session: object, _repo: str
-    ) -> list[EnhancedTagInfo]:
+    async def _fetch_success(_session: object, _repo: str) -> list[EnhancedTagInfo]:
         return [remote_tag]
 
     monkeypatch.setattr(updater, "_fetch_remote_tags", _fetch_success)
@@ -449,7 +451,9 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
 
     updater.local_images = {"repo/rate": [local_tag]}
 
-    async def _fetch_rate_limited(_session: object, _repo: str) -> list[EnhancedTagInfo]:
+    async def _fetch_rate_limited(
+        _session: object, _repo: str
+    ) -> list[EnhancedTagInfo]:
         raise _make_client_response_error(429, "rate limited")
 
     monkeypatch.setattr(updater, "_fetch_remote_tags", _fetch_rate_limited)
@@ -459,9 +463,7 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
 
     updater.local_images = {"repo/ok": [local_tag], "repo/fail": [local_tag]}
 
-    async def _fetch_mixed(
-        _session: object, repo: str
-    ) -> list[EnhancedTagInfo]:
+    async def _fetch_mixed(_session: object, repo: str) -> list[EnhancedTagInfo]:
         if repo == "repo/ok":
             return [remote_tag]
         raise RuntimeError("boom")

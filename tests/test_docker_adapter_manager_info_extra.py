@@ -78,17 +78,26 @@ class _ManagedContainer:
 
     def start(self) -> None:
         self.status = "running"
-        self.attrs["State"] = {**cast(dict[str, object], self.attrs["State"]), "Status": "running"}
+        self.attrs["State"] = {
+            **cast(dict[str, object], self.attrs["State"]),
+            "Status": "running",
+        }
 
     def stop(self, *, timeout: int) -> None:
         del timeout
         self.status = "stopped"
-        self.attrs["State"] = {**cast(dict[str, object], self.attrs["State"]), "Status": "stopped"}
+        self.attrs["State"] = {
+            **cast(dict[str, object], self.attrs["State"]),
+            "Status": "stopped",
+        }
 
     def restart(self, *, timeout: int) -> None:
         del timeout
         self.status = "running"
-        self.attrs["State"] = {**cast(dict[str, object], self.attrs["State"]), "Status": "running"}
+        self.attrs["State"] = {
+            **cast(dict[str, object], self.attrs["State"]),
+            "Status": "running",
+        }
 
     def rename(self, new_name: str) -> None:
         self.name = new_name
@@ -117,12 +126,16 @@ def _docker_settings_stub() -> SimpleNamespace:
     )
 
 
-def test_docker_adapter_context_health_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_docker_adapter_context_health_and_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import pytmbot.adapters.docker._adapter as docker_adapter_module
 
     fake_client = _FakeDockerClient()
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
-    monkeypatch.setattr(docker_adapter_module.docker, "DockerClient", lambda **kwargs: fake_client)
+    monkeypatch.setattr(
+        docker_adapter_module.docker, "DockerClient", lambda **kwargs: fake_client
+    )
 
     adapter = docker_adapter_module.DockerAdapter()
     with adapter as client:
@@ -149,13 +162,17 @@ def test_docker_adapter_handles_invalid_config_and_connection_failures(
 
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     failing_client = _FakeDockerClient(ping_ok=False)
-    monkeypatch.setattr(docker_adapter_module.docker, "DockerClient", lambda **kwargs: failing_client)
+    monkeypatch.setattr(
+        docker_adapter_module.docker, "DockerClient", lambda **kwargs: failing_client
+    )
     adapter = docker_adapter_module.DockerAdapter()
     assert adapter.health_check() is False
     adapter.close()
 
 
-def test_container_manager_manage_actions_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_container_manager_manage_actions_and_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import pytmbot.adapters.docker.container_manager as container_manager_module
 
     container = _ManagedContainer(status="running")
@@ -174,19 +191,32 @@ def test_container_manager_manage_actions_and_status(monkeypatch: pytest.MonkeyP
             get_session_info=lambda _user_id: {"created_at": time.time()},
         ),
     )
-    monkeypatch.setattr(container_manager_module, "is_new_name_valid", lambda _name: True)
-    monkeypatch.setattr(container_manager_module, "get_container_safely", lambda _cid, docker_client=None: container)
+    monkeypatch.setattr(
+        container_manager_module, "is_new_name_valid", lambda _name: True
+    )
+    monkeypatch.setattr(
+        container_manager_module,
+        "get_container_safely",
+        lambda _cid, docker_client=None: container,
+    )
 
     @contextmanager
     def _client_context() -> Iterator[object]:
         yield SimpleNamespace()
 
-    monkeypatch.setattr(container_manager_module, "docker_client_context", _client_context)
+    monkeypatch.setattr(
+        container_manager_module, "docker_client_context", _client_context
+    )
 
     assert manager.managing_container(1, container.id, "start") is None
     assert manager.managing_container(1, container.id, "stop") is None
     assert manager.managing_container(1, container.id, "restart") is None
-    assert manager.managing_container(1, container.id, "rename", new_container_name="renamed") is None
+    assert (
+        manager.managing_container(
+            1, container.id, "rename", new_container_name="renamed"
+        )
+        is None
+    )
 
     status = manager.get_container_status(container.id)
     assert status["name"] == "renamed"
@@ -210,12 +240,17 @@ def test_container_manager_access_control_blocks_unauthorized(
     monkeypatch.setattr(
         container_manager_module,
         "settings",
-        SimpleNamespace(access_control=SimpleNamespace(allowed_admins_ids=[]), docker=SimpleNamespace()),
+        SimpleNamespace(
+            access_control=SimpleNamespace(allowed_admins_ids=[]),
+            docker=SimpleNamespace(),
+        ),
     )
     monkeypatch.setattr(
         container_manager_module,
         "session_manager",
-        SimpleNamespace(is_authenticated=lambda _uid: False, get_session_info=lambda _uid: {}),
+        SimpleNamespace(
+            is_authenticated=lambda _uid: False, get_session_info=lambda _uid: {}
+        ),
     )
 
     with pytest.raises(PermissionError):
@@ -240,8 +275,14 @@ def test_containers_info_retrieve_logs_counters_and_cache(
     def _client_context() -> Iterator[object]:
         yield fake_adapter
 
-    monkeypatch.setattr(containers_info_module, "docker_client_context", _client_context)
-    monkeypatch.setattr(containers_info_module, "get_container_safely", lambda _cid, docker_client=None: container)
+    monkeypatch.setattr(
+        containers_info_module, "docker_client_context", _client_context
+    )
+    monkeypatch.setattr(
+        containers_info_module,
+        "get_container_safely",
+        lambda _cid, docker_client=None: container,
+    )
     monkeypatch.setattr(containers_info_module, "Container", _ManagedContainer)
     monkeypatch.setattr(docker_utils_module, "settings", _docker_settings_stub())
 
@@ -284,7 +325,9 @@ def test_fetch_full_container_details_returns_none_for_not_found(
     def _client_context() -> Iterator[object]:
         yield SimpleNamespace()
 
-    monkeypatch.setattr(containers_info_module, "docker_client_context", _client_context)
+    monkeypatch.setattr(
+        containers_info_module, "docker_client_context", _client_context
+    )
     assert containers_info_module.fetch_full_container_details("missing") is None
 
 

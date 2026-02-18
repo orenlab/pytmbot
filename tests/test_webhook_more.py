@@ -76,19 +76,26 @@ def test_not_found_exception_handler_paths(monkeypatch: pytest.MonkeyPatch) -> N
     request = _build_request("149.154.167.220", "/missing")
     not_found = HTTPException(status_code=404, detail="Not found")
 
-    monkeypatch.setattr(type(server.rate_limiter_404), "is_rate_limited", lambda self, _ip: False)
+    monkeypatch.setattr(
+        type(server.rate_limiter_404), "is_rate_limited", lambda self, _ip: False
+    )
+
     async def _call_not_found() -> Response:
         return await handler(request, not_found)
 
     response: Response = asyncio.run(_call_not_found())
     assert response.status_code == 404
 
-    monkeypatch.setattr(type(server.rate_limiter_404), "is_rate_limited", lambda self, _ip: True)
+    monkeypatch.setattr(
+        type(server.rate_limiter_404), "is_rate_limited", lambda self, _ip: True
+    )
     limited_response: Response = asyncio.run(_call_not_found())
     assert limited_response.status_code == 429
 
 
-def test_webhook_verify_telegram_dependency_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_webhook_verify_telegram_dependency_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     server = _build_server()
     dependency_call: FunctionType | None = None
     for route in server.app.routes:

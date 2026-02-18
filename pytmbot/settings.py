@@ -19,7 +19,9 @@ from pytmbot.models.settings_model import SettingsModel
 
 # Constants
 MAX_CONTAINER_NAME_LENGTH: Final[int] = 253
-CONTAINER_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+CONTAINER_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+)
 
 
 def _get_config_file_path() -> Path:
@@ -147,7 +149,9 @@ class KeyboardSettings(BaseModel):
     server_keyboard: dict[str, str] = Field(default_factory=get_default_server_keyboard)
     docker_keyboard: dict[str, str] = Field(default_factory=get_default_docker_keyboard)
     auth_keyboard: dict[str, str] = Field(default_factory=get_default_auth_keyboard)
-    auth_processing_keyboard: dict[str, str] = Field(default_factory=get_default_auth_processing_keyboard)
+    auth_processing_keyboard: dict[str, str] = Field(
+        default_factory=get_default_auth_processing_keyboard
+    )
     back_keyboard: dict[str, str] = Field(default_factory=get_default_back_keyboard)
 
 
@@ -176,7 +180,7 @@ class BotDescriptionSettings(BaseModel):
 
     bot_description: str = Field(
         default="pyTMBot - A simple Telegram bot designed to gather basic information "
-                "about the status of your local servers"
+        "about the status of your local servers"
     )
 
 
@@ -193,7 +197,9 @@ class VarConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    template_path: str = Field(default_factory=lambda: str(Path(__file__).parent / "templates"))
+    template_path: str = Field(
+        default_factory=lambda: str(Path(__file__).parent / "templates")
+    )
     totp_max_attempts: int = Field(default=3, ge=1, le=10)
     bot_polling_timeout: int = Field(default=30, ge=1, le=300)
     bot_long_polling_timeout: int = Field(default=60, ge=1, le=600)
@@ -232,15 +238,15 @@ def _get_bot_description_settings() -> BotDescriptionSettings:
 def __getattr__(name: str) -> object:
     """Lazy-loaded module attributes for backward compatibility."""
     match name:
-        case 'settings':
+        case "settings":
             return _get_settings()
-        case 'var_config':
+        case "var_config":
             return _get_var_config()
-        case 'keyboard_settings':
+        case "keyboard_settings":
             return _get_keyboard_settings()
-        case 'bot_command_settings':
+        case "bot_command_settings":
             return _get_bot_command_settings()
-        case 'bot_description_settings':
+        case "bot_description_settings":
             return _get_bot_description_settings()
         case _:
             raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

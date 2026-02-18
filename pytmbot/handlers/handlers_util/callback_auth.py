@@ -30,7 +30,7 @@ def parse_callback_target_user(callback_data: str | None, prefix: str) -> int | 
     if not callback_data.startswith(expected_prefix):
         raise ValueError("Invalid callback prefix")
 
-    payload = callback_data[len(expected_prefix):].strip()
+    payload = callback_data[len(expected_prefix) :].strip()
     if not payload:
         raise ValueError("Missing callback user id")
 
@@ -57,7 +57,10 @@ def authorize_callback_request(
     if current_user_id not in settings.access_control.allowed_user_ids:
         return False, "Access denied"
 
-    if require_admin and current_user_id not in settings.access_control.allowed_admins_ids:
+    if (
+        require_admin
+        and current_user_id not in settings.access_control.allowed_admins_ids
+    ):
         return False, "Access denied"
 
     if require_owner_match:

@@ -99,7 +99,9 @@ def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
     keyboard = Keyboards()
 
     long_payload = "x" * 120
-    markup = keyboard.build_inline_keyboard(ButtonData(text="Open", callback_data=long_payload))
+    markup = keyboard.build_inline_keyboard(
+        ButtonData(text="Open", callback_data=long_payload)
+    )
     callbacks = _flatten_inline_callback_data(markup)
     assert callbacks
     assert len(callbacks[0]) == keyboard.MAX_CALLBACK_DATA_LENGTH

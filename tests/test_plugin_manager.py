@@ -137,7 +137,9 @@ def _prepare_register_plugin_monkeypatch(
         staticmethod(lambda _name: True),
     )
     monkeypatch.setattr(PluginManager, "_module_exists", lambda self, _name: True)
-    monkeypatch.setattr(PluginManager, "_import_module", lambda self, _name: plugin_module)
+    monkeypatch.setattr(
+        PluginManager, "_import_module", lambda self, _name: plugin_module
+    )
     monkeypatch.setattr(
         PluginManager,
         "_import_module_config",

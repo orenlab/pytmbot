@@ -112,7 +112,9 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         None
     """
     if message.from_user is None:
-        bot.send_message(message.chat.id, "⚠️ Cannot identify user for TOTP verification.")
+        bot.send_message(
+            message.chat.id, "⚠️ Cannot identify user for TOTP verification."
+        )
         return
 
     user_id: int = message.from_user.id

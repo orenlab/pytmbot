@@ -141,9 +141,7 @@ class TelebotExceptionHandler(ExceptionHandler):
 
         if log_level == "DEBUG":
             if isinstance(exception, BaseBotException):
-                logger.opt(exception=exception).debug(
-                    "bot.exceptions.telebot.fail"
-                )
+                logger.opt(exception=exception).debug("bot.exceptions.telebot.fail")
             else:
                 logger.bind(sensitive_exception=True).debug(
                     "bot.exceptions.telebot.fail"

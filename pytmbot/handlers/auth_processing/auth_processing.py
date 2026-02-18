@@ -126,9 +126,7 @@ def _handle_auth_message(
         )
 
 
-def handle_unauthorized_message(
-    query: Message | CallbackQuery, bot: TeleBot
-) -> None:
+def handle_unauthorized_message(query: Message | CallbackQuery, bot: TeleBot) -> None:
     """
     Handles unauthorized messages received by the bot.
 

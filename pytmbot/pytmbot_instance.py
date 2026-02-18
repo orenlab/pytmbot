@@ -131,6 +131,7 @@ CONFLICT_RESOLUTION_STRATEGY: Final[ConflictResolutionStrategy] = (
     ConflictResolutionStrategy.GRACEFUL_SHUTDOWN
 )
 
+
 def bot_required[**P, R](
     func: Callable[Concatenate[PyTMBot, P], R],
 ) -> Callable[Concatenate[PyTMBot, P], R]:
@@ -477,9 +478,7 @@ class PyTMBot(BaseComponent):
                     )
                 return dev_tokens[0].get_secret_value()
 
-            token = (
-                settings.bot_token.prod_token[0].get_secret_value()
-            )
+            token = settings.bot_token.prod_token[0].get_secret_value()
             return token
         except AttributeError as error:
             raise InitializationError(
@@ -842,9 +841,7 @@ class PyTMBot(BaseComponent):
                 port=config["port"],
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
-                log.info(
-                    "bot.core.webhook.server.start"
-                )
+                log.info("bot.core.webhook.server.start")
 
             server = WebhookServer(bot, **config)
             server.start()
@@ -904,9 +901,7 @@ class PyTMBot(BaseComponent):
                     retry_delay=current_sleep_time,
                     session_id=self._session.session_id if self._session else "unknown",
                 ) as log:
-                    log.error(
-                        "bot.core.persistent.connection.fail"
-                    )
+                    log.error("bot.core.persistent.connection.fail")
 
             time.sleep(current_sleep_time)
             current_sleep_time = min(current_sleep_time * 2, DEFAULT_MAX_SLEEP_TIME)

@@ -40,7 +40,9 @@ class _ContainerStub:
         self.ports: dict[str, str] = {}
         self.labels: dict[str, str] = {}
 
-    def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
+    def stats(
+        self, *, stream: bool, one_shot: bool = False
+    ) -> dict[str, object] | Iterator[dict[str, object]]:
         if stream:
             return {}
         if one_shot:
@@ -72,7 +74,9 @@ def test_state_check_config_validation_and_clamping() -> None:
         docker_utils.StateCheckConfig(interval=0.0)
 
 
-def test_container_state_cache_expiry_and_stats(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_container_state_cache_expiry_and_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     clock = [100.0]
     monkeypatch.setattr(docker_utils.time, "time", lambda: clock[0])
 
@@ -88,7 +92,9 @@ def test_container_state_cache_expiry_and_stats(monkeypatch: pytest.MonkeyPatch)
 
 def test_get_container_stats_snapshot_handles_one_shot_and_iterator() -> None:
     class _IteratorContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> Iterator[dict[str, object]]:  # type: ignore[override]
+        def stats(
+            self, *, stream: bool, one_shot: bool = False
+        ) -> Iterator[dict[str, object]]:
             del stream, one_shot
             return iter([{"memory_stats": {"usage": 5, "limit": 10}}])
 
@@ -99,11 +105,14 @@ def test_get_container_stats_snapshot_handles_one_shot_and_iterator() -> None:
 
 def test_get_container_stats_snapshot_handles_errors() -> None:
     class _BrokenContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:  # type: ignore[override]
+        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
             del stream, one_shot
             raise RuntimeError("boom")
 
-    assert docker_utils.get_container_stats_snapshot(cast(Container, _BrokenContainer())) == {}
+    assert (
+        docker_utils.get_container_stats_snapshot(cast(Container, _BrokenContainer()))
+        == {}
+    )
 
 
 def test_check_container_state_reaches_target(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,10 +173,14 @@ def test_get_container_state_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None
     docker_utils.clear_state_cache()
     calls = {"count": 0}
 
-    def _get_container(container_id: str, docker_client: object | None = None) -> Container:
+    def _get_container(
+        container_id: str, docker_client: object | None = None
+    ) -> Container:
         del docker_client
         calls["count"] += 1
-        return cast(Container, _ContainerStub(status="running", name=f"/{container_id}"))
+        return cast(
+            Container, _ContainerStub(status="running", name=f"/{container_id}")
+        )
 
     monkeypatch.setattr(docker_utils, "get_container_safely", _get_container)
     first = docker_utils.get_container_state("cid1234")
@@ -195,17 +208,24 @@ def test_get_container_safely_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ContainerNotFoundError):
         docker_utils.get_container_safely(
-            "cid1234", docker_client=SimpleNamespace(containers=_ContainersAPI(NotFound("missing")))
+            "cid1234",
+            docker_client=SimpleNamespace(
+                containers=_ContainersAPI(NotFound("missing"))
+            ),
         )
 
     with pytest.raises(DockerOperationException):
         docker_utils.get_container_safely(
             "cid1234",
-            docker_client=SimpleNamespace(containers=_ContainersAPI(RuntimeError("boom"))),
+            docker_client=SimpleNamespace(
+                containers=_ContainersAPI(RuntimeError("boom"))
+            ),
         )
 
 
-def test_get_container_safely_uses_context_manager(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_container_safely_uses_context_manager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     container = cast(Container, _ContainerStub())
 
     @contextmanager
@@ -217,12 +237,18 @@ def test_get_container_safely_uses_context_manager(monkeypatch: pytest.MonkeyPat
     assert resolved is container
 
 
-def test_get_container_memory_stats_fallback_order(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_container_memory_stats_fallback_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     container = cast(Container, _ContainerStub(status="running"))
     monkeypatch.setattr(
         docker_utils.MemoryStatsProvider,
         "from_cgroups",
-        lambda _cid: {"mem_usage": "1 MiB", "mem_limit": "2 MiB", "mem_percent": "50.0%"},
+        lambda _cid: {
+            "mem_usage": "1 MiB",
+            "mem_limit": "2 MiB",
+            "mem_percent": "50.0%",
+        },
     )
     result = docker_utils.get_container_memory_stats(container)
     assert result["mem_percent"] == "50.0%"
@@ -233,7 +259,11 @@ def test_get_container_basic_info_and_fallback(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         docker_utils,
         "get_container_memory_stats",
-        lambda _container: {"mem_usage": "3 MiB", "mem_limit": "4 MiB", "mem_percent": "75.0%"},
+        lambda _container: {
+            "mem_usage": "3 MiB",
+            "mem_limit": "4 MiB",
+            "mem_percent": "75.0%",
+        },
     )
     info = docker_utils.get_container_basic_info(container)
     assert info["name"] == "test"

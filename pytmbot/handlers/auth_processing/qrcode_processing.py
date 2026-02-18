@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-
 from telebot import TeleBot
 from telebot.types import Message
 
@@ -34,13 +33,9 @@ def _qr_deletion_callback(result: DeletionResult) -> None:
         result: Result of the deletion operation
     """
     if result.status == DeletionStatus.SUCCESS:
-        logger.info(
-            "bot.handler.auth_processing.qrcode_processing.qr.code.ok"
-        )
+        logger.info("bot.handler.auth_processing.qrcode_processing.qr.code.ok")
     elif result.status == DeletionStatus.FAILED:
-        logger.warning(
-            "bot.handler.auth_processing.qrcode_processing.delete.qr.fail"
-        )
+        logger.warning("bot.handler.auth_processing.qrcode_processing.delete.qr.fail")
 
 
 @logger.session_decorator

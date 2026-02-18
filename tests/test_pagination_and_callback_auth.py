@@ -38,8 +38,14 @@ def test_parse_and_build_page_callback_data() -> None:
     assert payload == "containers_page:1:42"
     assert parse_page_callback_data(payload, prefix="containers_page") == (1, 42)
     assert parse_page_callback_data("wrong:1:42", prefix="containers_page") is None
-    assert parse_page_callback_data("containers_page:0:42", prefix="containers_page") is None
-    assert parse_page_callback_data("containers_page:x:42", prefix="containers_page") is None
+    assert (
+        parse_page_callback_data("containers_page:0:42", prefix="containers_page")
+        is None
+    )
+    assert (
+        parse_page_callback_data("containers_page:x:42", prefix="containers_page")
+        is None
+    )
 
 
 def test_parse_and_build_container_full_info_callback_data() -> None:
@@ -55,17 +61,30 @@ def test_parse_and_build_container_full_info_callback_data() -> None:
         container_ref="redis",
         user_id=101,
     )
-    assert parse_container_full_info_callback_data(payload_without_page) == ("redis", 101, None)
+    assert parse_container_full_info_callback_data(payload_without_page) == (
+        "redis",
+        101,
+        None,
+    )
     assert parse_container_full_info_callback_data("broken") is None
-    assert parse_container_full_info_callback_data(
-        f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}::101"
-    ) is None
-    assert parse_container_full_info_callback_data(
-        f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:bad"
-    ) is None
-    assert parse_container_full_info_callback_data(
-        f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:101:0"
-    ) is None
+    assert (
+        parse_container_full_info_callback_data(
+            f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}::101"
+        )
+        is None
+    )
+    assert (
+        parse_container_full_info_callback_data(
+            f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:bad"
+        )
+        is None
+    )
+    assert (
+        parse_container_full_info_callback_data(
+            f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:101:0"
+        )
+        is None
+    )
 
 
 def test_parse_callback_target_user() -> None:

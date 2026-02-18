@@ -221,9 +221,7 @@ class PluginManager:
             permissions = self._extract_plugin_permissions(module)
 
             if permissions.need_running_on_host_machine and is_running_in_docker():
-                logger.warning(
-                    "bot.plugins.plugin_manager.plugin.requires.warn"
-                )
+                logger.warning("bot.plugins.plugin_manager.plugin.requires.warn")
                 return None
 
             return _PluginInfo(
@@ -349,24 +347,16 @@ class PluginManager:
                 if permissions.base_permission:
                     plugin_instance.register()
                     self._loaded_plugins.add(plugin_name)
-                    logger.info(
-                        "bot.plugins.plugin_manager.plugin.register.ok"
-                    )
+                    logger.info("bot.plugins.plugin_manager.plugin.register.ok")
                 else:
-                    logger.warning(
-                        "bot.plugins.plugin_manager.plugin.does.warn"
-                    )
+                    logger.warning("bot.plugins.plugin_manager.plugin.does.warn")
 
             except Exception:
-                logger.exception(
-                    "bot.plugins.plugin_manager.unexpected.fail"
-                )
+                logger.exception("bot.plugins.plugin_manager.unexpected.fail")
                 self._cleanup_plugin(plugin_name)
 
         except Exception:
-            logger.exception(
-                "bot.plugins.plugin_manager.unexpected.fail"
-            )
+            logger.exception("bot.plugins.plugin_manager.unexpected.fail")
             self._cleanup_plugin(plugin_name)
 
     def register_plugins(

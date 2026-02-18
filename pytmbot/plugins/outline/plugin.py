@@ -171,7 +171,9 @@ class OutlinePlugin(PluginInterface):
             )
             return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
         except Exception:
-            self.plugin_logger.error("bot.plugins.outline.plugin.compiling.sending.fail")
+            self.plugin_logger.error(
+                "bot.plugins.outline.plugin.compiling.sending.fail"
+            )
             return self.bot.send_message(
                 message.chat.id,
                 "Error: An unexpected error occurred.",
@@ -208,9 +210,7 @@ class OutlinePlugin(PluginInterface):
             if isinstance(dumped_data, dict):
                 return {str(key): value for key, value in dumped_data.items()}
         else:
-            self.plugin_logger.error(
-                "bot.plugins.outline.plugin.expected.string.fail"
-            )
+            self.plugin_logger.error("bot.plugins.outline.plugin.expected.string.fail")
         return None
 
     def _get_user_names(self) -> dict[str, str] | None:
@@ -250,9 +250,7 @@ class OutlinePlugin(PluginInterface):
             response = compiler.compile()
 
         if not isinstance(response, str):
-            self.plugin_logger.error(
-                "bot.plugins.outline.plugin.compiler.did.fail"
-            )
+            self.plugin_logger.error("bot.plugins.outline.plugin.compiler.did.fail")
             raise ValueError("Compiler did not return a valid response.")
         return response
 
@@ -263,15 +261,15 @@ class OutlinePlugin(PluginInterface):
         :return: The instance of TeleBot with registered handlers.
         """
         wrapped_outline_handler = plugin.logger.session_decorator(self.outline_handler)
-        wrapped_server_handler = plugin.logger.session_decorator(self.handle_server_info)
+        wrapped_server_handler = plugin.logger.session_decorator(
+            self.handle_server_info
+        )
         wrapped_keys_handler = plugin.logger.session_decorator(self.handle_keys)
         wrapped_traffic_handler = plugin.logger.session_decorator(self.handle_traffic)
 
         self.bot.register_message_handler(wrapped_outline_handler, commands=["outline"])
         self.bot.register_message_handler(wrapped_outline_handler, regexp="Outline VPN")
-        self.bot.register_message_handler(
-            wrapped_server_handler, regexp="Outline info"
-        )
+        self.bot.register_message_handler(wrapped_server_handler, regexp="Outline info")
         self.bot.register_message_handler(wrapped_keys_handler, regexp="Keys")
         self.bot.register_message_handler(wrapped_traffic_handler, regexp="Traffic")
 

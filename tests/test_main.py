@@ -26,8 +26,13 @@ def test_launcher_normalize_mode_and_log_level_logic(
 
     assert launcher._normalize_mode_value(SimpleNamespace(value="dev")) == "dev"
     assert launcher._determine_health_log_level("healthy", True, False, True) == "info"
-    assert launcher._determine_health_log_level("degraded", False, True, False) == "warning"
-    assert launcher._determine_health_log_level("critical", False, False, False) == "error"
+    assert (
+        launcher._determine_health_log_level("degraded", False, True, False)
+        == "warning"
+    )
+    assert (
+        launcher._determine_health_log_level("critical", False, False, False) == "error"
+    )
 
 
 def test_should_log_health_status_reacts_to_state_changes(

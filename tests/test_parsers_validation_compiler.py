@@ -78,7 +78,10 @@ def test_template_validator_tracks_stats() -> None:
 
 
 def test_validate_template_render_switches_mode() -> None:
-    assert validate_template_render("b_x.jinja2", {"key": "v"}, trusted=True)[0] == "b_x.jinja2"
+    assert (
+        validate_template_render("b_x.jinja2", {"key": "v"}, trusted=True)[0]
+        == "b_x.jinja2"
+    )
     with pytest.raises(TemplateError):
         validate_template_render("b_x.jinja2", {"bad-key": "v"}, trusted=False)
 
@@ -91,7 +94,9 @@ def test_compiler_template_type_detection() -> None:
     assert Compiler("unknown.jinja2").template_type == TemplateType.DOCKER
 
 
-def test_compiler_compile_success_and_quick_render(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compiler_compile_success_and_quick_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: dict[str, Any] = {}
 
     def _fake_render(template_name: str, *, trusted: bool, **context: Any) -> str:
@@ -125,7 +130,9 @@ def test_compiler_compile_error_wrapping(monkeypatch: pytest.MonkeyPatch) -> Non
     assert exc_info.value.context.metadata["template_name"] == "d_demo.jinja2"
 
 
-def test_compiler_compile_reraises_template_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compiler_compile_reraises_template_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     original = TemplateError(
         ErrorContext(
             message="bad template",
@@ -158,7 +165,9 @@ def test_compiler_stats_and_cache_clear(monkeypatch: pytest.MonkeyPatch) -> None
     assert clear_called["value"] is True
 
 
-def test_compiler_validate_template_params_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compiler_validate_template_params_delegates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def _fake_validate(
         template_name: str,
         context: dict[str, Any],
@@ -170,7 +179,9 @@ def test_compiler_validate_template_params_delegates(monkeypatch: pytest.MonkeyP
         return template_name, context
 
     monkeypatch.setattr(validation_module, "validate_template_render", _fake_validate)
-    assert Compiler.validate_template_params("b_template.jinja2", {"x": 1}, trusted=True) == (
+    assert Compiler.validate_template_params(
+        "b_template.jinja2", {"x": 1}, trusted=True
+    ) == (
         "b_template.jinja2",
         {"x": 1},
     )
@@ -195,7 +206,9 @@ def test_render_helpers_validate_template_prefix(
 
 
 def test_render_helpers_call_compiler(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(Compiler, "compile", lambda self: f"rendered:{self.template_name}")
+    monkeypatch.setattr(
+        Compiler, "compile", lambda self: f"rendered:{self.template_name}"
+    )
 
     assert render_docker_template("d_ok.jinja2") == "rendered:d_ok.jinja2"
     assert render_auth_template("a_ok.jinja2") == "rendered:a_ok.jinja2"

@@ -218,7 +218,10 @@ class BotLauncher(logs.BaseComponent):
         current_summary = self._health_manager.get_summary()
         current_overall = str(current_summary.get("overall", "offline"))
 
-        if self._previous_health_level is None or current_overall != self._previous_health_level:
+        if (
+            self._previous_health_level is None
+            or current_overall != self._previous_health_level
+        ):
             self._last_health_log = current_time
             return True
 
@@ -462,7 +465,11 @@ class BotLauncher(logs.BaseComponent):
         with self._shutdown_lock:
             if self._shutdown_completed:
                 return
-            if not self.bot and not self._health_manager and self._bot_operations_stopped:
+            if (
+                not self.bot
+                and not self._health_manager
+                and self._bot_operations_stopped
+            ):
                 self._shutdown_completed = True
                 return
 

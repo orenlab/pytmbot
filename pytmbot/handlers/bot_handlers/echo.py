@@ -43,9 +43,7 @@ def handle_echo(message: Message, bot: TeleBot) -> None:
 
         bot_answer = Compiler.quick_render(
             template_name="b_echo.jinja2",
-            first_name=(
-                message.from_user.first_name if message.from_user else None
-            )
+            first_name=(message.from_user.first_name if message.from_user else None)
             or "User",
             **emojis,
         )

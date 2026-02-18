@@ -65,6 +65,20 @@ def _raw_handler(handler: object) -> Callable[..., object]:
     return cast(Callable[..., object], wrapped)
 
 
+def _assert_common_callback_context_errors(
+    *,
+    handler: Callable[..., object],
+    bot: _Bot,
+    shown: list[str],
+    missing_message_error: str,
+) -> None:
+    handler(cast(CallbackQuery, _Call(from_user=None)), cast(TeleBot, bot))
+    assert shown[-1] == "Cannot identify callback user."
+
+    handler(cast(CallbackQuery, _Call(message=None)), cast(TeleBot, bot))
+    assert shown[-1] == missing_message_error
+
+
 def test_back_callback_parsing() -> None:
     assert back_module._parse_back_callback_data("back_to_containers") == (1, None)
     assert back_module._parse_back_callback_data("__containers_page__:2:44") == (2, 44)
@@ -78,13 +92,16 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     bot = _Bot()
     shown: list[str] = []
 
-    monkeypatch.setattr(back_module, "show_handler_info", lambda call, text, bot: shown.append(text))
+    monkeypatch.setattr(
+        back_module, "show_handler_info", lambda call, text, bot: shown.append(text)
+    )
 
-    handler(cast(CallbackQuery, _Call(from_user=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot identify callback user."
-
-    handler(cast(CallbackQuery, _Call(message=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot refresh containers list in this context."
+    _assert_common_callback_context_errors(
+        handler=handler,
+        bot=bot,
+        shown=shown,
+        missing_message_error="Cannot refresh containers list in this context.",
+    )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
     assert shown[-1] == "Invalid containers pagination request."
@@ -97,7 +114,9 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         "authorize_docker_callback_request",
         lambda call, called_user_id, **kwargs: (False, "denied"),
     )
-    handler(cast(CallbackQuery, _Call(data="__containers_page__:1:11")), cast(TeleBot, bot))
+    handler(
+        cast(CallbackQuery, _Call(data="__containers_page__:1:11")), cast(TeleBot, bot)
+    )
     assert shown[-1] == "Containers: denied"
 
     monkeypatch.setattr(
@@ -110,7 +129,9 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         "get_list_of_containers_again",
         lambda page, user_id: ("containers", "kbd"),
     )
-    handler(cast(CallbackQuery, _Call(data="__containers_page__:3:11")), cast(TeleBot, bot))
+    handler(
+        cast(CallbackQuery, _Call(data="__containers_page__:3:11")), cast(TeleBot, bot)
+    )
     assert bot.edited_messages[-1]["text"] == "containers"
 
 
@@ -120,40 +141,61 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     shown: list[str] = []
     auth_kwargs: list[dict[str, object]] = []
 
-    monkeypatch.setattr(images_page_module, "show_handler_info", lambda call, text, bot: shown.append(text))
+    monkeypatch.setattr(
+        images_page_module,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
 
-    handler(cast(CallbackQuery, _Call(from_user=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot identify callback user."
-
-    handler(cast(CallbackQuery, _Call(message=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot update images list in this context."
+    _assert_common_callback_context_errors(
+        handler=handler,
+        bot=bot,
+        shown=shown,
+        missing_message_error="Cannot update images list in this context.",
+    )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
     assert shown[-1] == "Invalid images pagination request."
 
-    monkeypatch.setattr(images_page_module, "parse_page_callback_data", lambda data, prefix: None)
+    monkeypatch.setattr(
+        images_page_module, "parse_page_callback_data", lambda data, prefix: None
+    )
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
     assert shown[-1] == "Invalid images pagination request."
 
-    monkeypatch.setattr(images_page_module, "parse_page_callback_data", lambda data, prefix: (2, 11))
+    monkeypatch.setattr(
+        images_page_module, "parse_page_callback_data", lambda data, prefix: (2, 11)
+    )
 
-    def _deny_auth(call: object, called_user_id: object, **kwargs: object) -> tuple[bool, str]:
+    def _deny_auth(
+        call: object, called_user_id: object, **kwargs: object
+    ) -> tuple[bool, str]:
         del call, called_user_id
         auth_kwargs.append(kwargs)
         return False, "forbidden"
 
-    monkeypatch.setattr(images_page_module, "authorize_docker_callback_request", _deny_auth)
+    monkeypatch.setattr(
+        images_page_module, "authorize_docker_callback_request", _deny_auth
+    )
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert shown[-1] == "Images: forbidden"
     assert auth_kwargs[-1]["require_session"] is False
 
-    def _allow_auth(call: object, called_user_id: object, **kwargs: object) -> tuple[bool, str]:
+    def _allow_auth(
+        call: object, called_user_id: object, **kwargs: object
+    ) -> tuple[bool, str]:
         del call, called_user_id
         auth_kwargs.append(kwargs)
         return True, ""
 
-    monkeypatch.setattr(images_page_module, "authorize_docker_callback_request", _allow_auth)
-    monkeypatch.setattr(images_page_module, "render_images_page", lambda page, user_id: ("images-page", "kbd"))
+    monkeypatch.setattr(
+        images_page_module, "authorize_docker_callback_request", _allow_auth
+    )
+    monkeypatch.setattr(
+        images_page_module,
+        "render_images_page",
+        lambda page, user_id: ("images-page", "kbd"),
+    )
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "images-page"
     assert auth_kwargs[-1]["require_session"] is False
@@ -268,14 +310,28 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             }
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
-    monkeypatch.setattr(image_updates_module.Compiler, "quick_render", lambda **kwargs: "updates-rendered")
+    monkeypatch.setattr(
+        image_updates_module.Compiler,
+        "quick_render",
+        lambda **kwargs: "updates-rendered",
+    )
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "updates-rendered"
 
 
 def test_manage_action_fabric_and_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert manage_action_module.managing_action_fabric(cast(CallbackQuery, _Call(data="__start__:c:1"))) is True
-    assert manage_action_module.managing_action_fabric(cast(CallbackQuery, _Call(data="other"))) is False
+    assert (
+        manage_action_module.managing_action_fabric(
+            cast(CallbackQuery, _Call(data="__start__:c:1"))
+        )
+        is True
+    )
+    assert (
+        manage_action_module.managing_action_fabric(
+            cast(CallbackQuery, _Call(data="other"))
+        )
+        is False
+    )
 
     handler = _raw_handler(manage_action_module.handle_manage_container_action)
     bot = _Bot()
@@ -300,7 +356,11 @@ def test_manage_action_fabric_and_dispatch(monkeypatch: pytest.MonkeyPatch) -> N
         "get_authorized_container_callback_context",
         lambda **kwargs: _Context("__start__:api:11", "api", 11),
     )
-    monkeypatch.setattr(manage_action_module, "split_string_into_octets", lambda callback_data, octet_index=1: "__start__")
+    monkeypatch.setattr(
+        manage_action_module,
+        "split_string_into_octets",
+        lambda callback_data, octet_index=1: "__start__",
+    )
     monkeypatch.setattr(
         manage_action_module,
         "__start_container",
@@ -315,73 +375,144 @@ def test_manage_action_private_functions(monkeypatch: pytest.MonkeyPatch) -> Non
     bot = _Bot()
     shown: list[str] = []
 
-    monkeypatch.setattr(manage_action_module, "show_handler_info", lambda call, text, bot: shown.append(text))
+    monkeypatch.setattr(
+        manage_action_module,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
 
     # start
-    manage_action_module.__start_container(cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot))
+    manage_action_module.__start_container(
+        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Starting api: Missing user information"
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: None)
-    manage_action_module.__start_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: None,
+    )
+    manage_action_module.__start_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Starting api: Success"
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: "err")
-    manage_action_module.__start_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: "err",
+    )
+    manage_action_module.__start_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Starting api: Error occurred. See logs"
 
     monkeypatch.setattr(
         manage_action_module.container_manager,
         "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda user_id, container_name, action: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
     )
-    manage_action_module.__start_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    manage_action_module.__start_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Starting api: Unexpected error occurred"
 
     # stop
-    manage_action_module.__stop_container(cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot))
+    manage_action_module.__stop_container(
+        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Stopping api: Missing user information"
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: None)
-    manage_action_module.__stop_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: None,
+    )
+    manage_action_module.__stop_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Stopping api: Success"
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: "err")
-    manage_action_module.__stop_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: "err",
+    )
+    manage_action_module.__stop_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Stopping api: Error occurred. See logs"
 
     monkeypatch.setattr(
         manage_action_module.container_manager,
         "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda user_id, container_name, action: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
     )
-    manage_action_module.__stop_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    manage_action_module.__stop_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Stopping api: Unexpected error occurred"
 
     # restart
-    manage_action_module.__restart_container(cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot))
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Restarting api: Missing user information"
 
-    manage_action_module.__restart_container(cast(CallbackQuery, _Call(message=None)), "api", cast(TeleBot, bot))
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call(message=None)), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Restarting api: Missing callback message"
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: None)
-    monkeypatch.setattr(manage_action_module, "button_data", lambda text, callback_data: {"text": text, "callback_data": callback_data})
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: None,
+    )
+    monkeypatch.setattr(
+        manage_action_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
     monkeypatch.setattr(
         manage_action_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
-    manage_action_module.__restart_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert "Restarting api: Success" in str(bot.edited_messages[-1]["text"])
 
-    monkeypatch.setattr(manage_action_module.container_manager, "managing_container", lambda user_id, container_name, action: "err")
-    manage_action_module.__restart_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: "err",
+    )
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Restarting api: Error occurred. See logs"
 
     monkeypatch.setattr(
         manage_action_module.container_manager,
         "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda user_id, container_name, action: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
     )
-    manage_action_module.__restart_container(cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot))
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
     assert shown[-1] == "Restarting api: Unexpected error occurred"

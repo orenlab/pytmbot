@@ -222,7 +222,8 @@ class InfluxDBInterface(BaseComponent):
                 if not self._warning_shown:
                     with self.log_context(action="check_url") as log:
                         log.warning(
-                            "bot.db.influxdb_interface.resolve.hostname.fail", extra={"hostname": hostname}
+                            "bot.db.influxdb_interface.resolve.hostname.fail",
+                            extra={"hostname": hostname},
                         )
                 return False
 
@@ -342,7 +343,10 @@ class InfluxDBInterface(BaseComponent):
                     field=field,
                     time_range={"start": start, "stop": stop},
                 ) as log:
-                    log.debug("bot.db.influxdb_interface.exec.query.debug", extra={"query": query})
+                    log.debug(
+                        "bot.db.influxdb_interface.exec.query.debug",
+                        extra={"query": query},
+                    )
 
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
@@ -396,7 +400,10 @@ class InfluxDBInterface(BaseComponent):
             # Log only in debug mode
             if self._config.debug_mode:
                 with self.log_context(action="list_measurements") as log:
-                    log.debug("bot.db.influxdb_interface.fetch.measurements.debug", extra={"query": query})
+                    log.debug(
+                        "bot.db.influxdb_interface.fetch.measurements.debug",
+                        extra={"query": query},
+                    )
 
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
@@ -452,7 +459,10 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(
                     action="list_fields", measurement=measurement
                 ) as log:
-                    log.debug("bot.db.influxdb_interface.fetch.fields.debug", extra={"query": query})
+                    log.debug(
+                        "bot.db.influxdb_interface.fetch.fields.debug",
+                        extra={"query": query},
+                    )
 
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)

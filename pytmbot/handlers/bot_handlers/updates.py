@@ -85,9 +85,7 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         if message.from_user is not None:
             callback_data = f"__how_update__:{message.from_user.id}"
 
-        keyboard_button = [
-            button_data(text="How update?", callback_data=callback_data)
-        ]
+        keyboard_button = [button_data(text="How update?", callback_data=callback_data)]
 
         inline_button = (
             keyboards.build_inline_keyboard(keyboard_button) if need_inline else None

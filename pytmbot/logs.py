@@ -390,7 +390,7 @@ class DataMasker:
         return result
 
     def _create_replacement_function(
-            self, pattern: re.Pattern[str]
+        self, pattern: re.Pattern[str]
     ) -> Callable[[re.Match[str]], str]:
         """Create a replacement function for regex substitution."""
 
@@ -526,11 +526,11 @@ class SecureLoggerFilter:
         return True
 
     def _sanitize_extra(
-            self,
-            extra: dict[str, Any],
-            module_name: str | None = None,
-            logger_name: str | None = None,
-            message: str | None = None,
+        self,
+        extra: dict[str, Any],
+        module_name: str | None = None,
+        logger_name: str | None = None,
+        message: str | None = None,
     ) -> dict[str, Any]:
         """Sanitize and normalize extra fields."""
         normalized: dict[str, Any] = {}
@@ -546,13 +546,13 @@ class SecureLoggerFilter:
                 continue
 
             if (
-                    key == "component"
-                    and isinstance(component, str)
-                    and self._is_component_duplicate(
-                component=component,
-                module_name=module_name,
-                logger_name=logger_name,
-            )
+                key == "component"
+                and isinstance(component, str)
+                and self._is_component_duplicate(
+                    component=component,
+                    module_name=module_name,
+                    logger_name=logger_name,
+                )
             ):
                 continue
 
@@ -562,13 +562,12 @@ class SecureLoggerFilter:
             if key == "action" and isinstance(value, str):
                 normalized_action = self._normalize_identifier(value)
                 if normalized_action and (
-                        normalized_action in normalized_message
-                        or normalized_message.endswith(normalized_action)
-                        or (
-                                isinstance(component, str)
-                                and normalized_action
-                                == self._normalize_identifier(component)
-                        )
+                    normalized_action in normalized_message
+                    or normalized_message.endswith(normalized_action)
+                    or (
+                        isinstance(component, str)
+                        and normalized_action == self._normalize_identifier(component)
+                    )
                 ):
                     continue
 
@@ -658,7 +657,7 @@ class SecureLoggerFilter:
 
     @classmethod
     def _is_component_duplicate(
-            cls, component: str, module_name: str | None, logger_name: str | None
+        cls, component: str, module_name: str | None, logger_name: str | None
     ) -> bool:
         """Detect duplicated component field."""
         normalized_component = cls._normalize_identifier(component)
@@ -820,9 +819,9 @@ class Logger:
         self._logger.remove()
 
         def default_filter(record: dict[str, Any]) -> bool:
-            return "sensitive_exception" not in record.get("extra", {}) and self._filter(
-                record
-            )
+            return "sensitive_exception" not in record.get(
+                "extra", {}
+            ) and self._filter(record)
 
         def sensitive_filter(record: dict[str, Any]) -> bool:
             return "sensitive_exception" in record.get("extra", {}) and self._filter(
@@ -906,11 +905,11 @@ class Logger:
 
     @lru_cache(maxsize=512)
     def _extract_update_data(
-            self,
-            update_id: int | None,
-            update_type: str,
-            chat_id: int | None,
-            user_id: int | None,
+        self,
+        update_id: int | None,
+        update_type: str,
+        chat_id: int | None,
+        user_id: int | None,
     ) -> dict[str, Any]:
         """Extract relevant data from Telegram update objects (cached version)."""
         return {
@@ -952,7 +951,9 @@ class Logger:
     def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
         """Context manager for temporarily binding additional data to the logger."""
         current_context = self._context_data.get() or {}
-        context_update = {key: value for key, value in kwargs.items() if value is not None}
+        context_update = {
+            key: value for key, value in kwargs.items() if value is not None
+        }
         if "trace_id" not in context_update and current_context.get("trace_id"):
             context_update["trace_id"] = current_context["trace_id"]
 
@@ -964,7 +965,7 @@ class Logger:
             self._context_data.reset(token)
 
     def session_decorator(
-            self, func: Callable[..., T] | None = None
+        self, func: Callable[..., T] | None = None
     ) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator for automatic session logging with context."""
 
@@ -991,7 +992,7 @@ class Logger:
         )
 
     def _build_context(
-            self, func_name: str, telegram_object: TelegramObject | None
+        self, func_name: str, telegram_object: TelegramObject | None
     ) -> dict[str, Any]:
         """Build context dictionary for logging."""
         context: dict[str, Any] = {"handler": func_name}
@@ -1026,17 +1027,19 @@ class Logger:
         return f"bot.handler.{normalized}"
 
     def _execute_with_logging(
-            self,
-            func: Callable[..., T],
-            args: tuple[Any, ...],
-            kwargs: dict[str, Any],
-            context: dict[str, Any],
+        self,
+        func: Callable[..., T],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        context: dict[str, Any],
     ) -> T:
         """Execute function with timing and error logging."""
         func_name = func.__name__
         start_time = monotonic_ns()
         inherited_context = self._context_data.get() or {}
-        trace_id = cast(str | None, inherited_context.get("trace_id")) or uuid4().hex[:12]
+        trace_id = (
+            cast(str | None, inherited_context.get("trace_id")) or uuid4().hex[:12]
+        )
         context_with_handler = {**context, "handler": func_name}
         handler_event = self._handler_event_name(func_name)
 

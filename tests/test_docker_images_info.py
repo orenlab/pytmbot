@@ -71,7 +71,10 @@ def test_fetch_image_details_success(monkeypatch: pytest.MonkeyPatch) -> None:
         _FakeImage(
             short_id="sha256:abc",
             tags=["repo/app:1.0"],
-            attrs={"Created": "2026-02-17T12:00:00.000000Z", "RepoTags": ["repo/app:1.0"]},
+            attrs={
+                "Created": "2026-02-17T12:00:00.000000Z",
+                "RepoTags": ["repo/app:1.0"],
+            },
         )
     ]
     adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
@@ -104,9 +107,13 @@ def test_fetch_image_details_wraps_connection_error(
         ) -> None:
             return None
 
-    monkeypatch.setattr(images_info_module, "docker_client_context", lambda: _FailingContext())
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", lambda: _FailingContext()
+    )
 
-    with pytest.raises(images_info_module.ImageOperationError, match="Failed to connect"):
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Failed to connect"
+    ):
         images_info_module.fetch_image_details()
 
 
@@ -169,8 +176,16 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     import pytmbot.adapters.docker.images_info as images_info_module
 
     images = [
-        _FakeImage(short_id="sha256:1", tags=["repo/a:1"], attrs={"Size": 1024, "Os": "linux", "Architecture": "amd64"}),
-        _FakeImage(short_id="sha256:2", tags=[], attrs={"Size": 2048, "Os": "linux", "Architecture": "arm64"}),
+        _FakeImage(
+            short_id="sha256:1",
+            tags=["repo/a:1"],
+            attrs={"Size": 1024, "Os": "linux", "Architecture": "amd64"},
+        ),
+        _FakeImage(
+            short_id="sha256:2",
+            tags=[],
+            attrs={"Size": 2048, "Os": "linux", "Architecture": "arm64"},
+        ),
     ]
     adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
 
@@ -198,7 +213,11 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
         ) -> None:
             return None
 
-    monkeypatch.setattr(images_info_module, "docker_client_context", lambda: _FailingContext())
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", lambda: _FailingContext()
+    )
 
-    with pytest.raises(images_info_module.ImageOperationError, match="Failed to get image statistics"):
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Failed to get image statistics"
+    ):
         images_info_module.get_image_stats()

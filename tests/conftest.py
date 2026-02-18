@@ -16,7 +16,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
 
 @pytest.fixture(autouse=True)
-def stable_process_state(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def stable_process_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
     """Keep process-wide caches and argv deterministic across tests."""
     monkeypatch.setattr(sys, "argv", ["pytmbot-test"])
     parse_cli_args.cache_clear()

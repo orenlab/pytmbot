@@ -95,7 +95,11 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
     assert shown[-1] == "Invalid request format"
 
-    monkeypatch.setattr(container_info_module, "parse_container_full_info_callback_data", lambda data: None)
+    monkeypatch.setattr(
+        container_info_module,
+        "parse_container_full_info_callback_data",
+        lambda data: None,
+    )
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
     assert shown[-1] == "Invalid request format"
 
@@ -117,12 +121,18 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         "authorize_docker_callback_request",
         lambda **kwargs: (True, ""),
     )
-    monkeypatch.setattr(container_info_module, "validate_container_name", lambda name: False)
+    monkeypatch.setattr(
+        container_info_module, "validate_container_name", lambda name: False
+    )
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
     assert shown[-1] == "Invalid container name format"
 
-    monkeypatch.setattr(container_info_module, "validate_container_name", lambda name: True)
-    monkeypatch.setattr(container_info_module, "get_comprehensive_container_details", lambda name: {})
+    monkeypatch.setattr(
+        container_info_module, "validate_container_name", lambda name: True
+    )
+    monkeypatch.setattr(
+        container_info_module, "get_comprehensive_container_details", lambda name: {}
+    )
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
     assert shown[-1] == "api: Container not found"
 
@@ -154,7 +164,11 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
             "banjo": "🪕",
         },
     )
-    monkeypatch.setattr(container_info_module.Compiler, "quick_render", lambda **kwargs: "container-full")
+    monkeypatch.setattr(
+        container_info_module.Compiler,
+        "quick_render",
+        lambda **kwargs: "container-full",
+    )
     monkeypatch.setattr(
         container_info_module,
         "button_data",
@@ -163,7 +177,14 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         container_info_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
 
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
@@ -190,8 +211,14 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         "parse_container_full_info_callback_data",
         lambda data: ("api", 11, 1),
     )
-    monkeypatch.setattr(container_info_module, "validate_container_name", lambda name: True)
-    monkeypatch.setattr(container_info_module, "get_comprehensive_container_details", lambda name: {"name": "api"})
+    monkeypatch.setattr(
+        container_info_module, "validate_container_name", lambda name: True
+    )
+    monkeypatch.setattr(
+        container_info_module,
+        "get_comprehensive_container_details",
+        lambda name: {"name": "api"},
+    )
     monkeypatch.setattr(
         container_info_module.Compiler,
         "quick_render",
@@ -238,7 +265,9 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         ) -> Literal[False]:
             return False
 
-    monkeypatch.setattr(manage_module, "docker_client_context", lambda: _DockerContext())
+    monkeypatch.setattr(
+        manage_module, "docker_client_context", lambda: _DockerContext()
+    )
     monkeypatch.setattr(
         manage_module,
         "button_data",
@@ -247,23 +276,51 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         manage_module,
         "keyboards",
-        cast(object, type("_Kbd", (), {"build_inline_keyboard": staticmethod(lambda buttons: buttons)})()),
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
     )
-    monkeypatch.setattr(manage_module, "em", cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})()))
-    monkeypatch.setattr(manage_module.Compiler, "quick_render", lambda *args, **kwargs: "manage-ui")
+    monkeypatch.setattr(
+        manage_module,
+        "em",
+        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})()),
+    )
+    monkeypatch.setattr(
+        manage_module.Compiler, "quick_render", lambda *args, **kwargs: "manage-ui"
+    )
 
-    monkeypatch.setattr(manage_module, "get_container_state", lambda container_name, docker_client: "running")
+    monkeypatch.setattr(
+        manage_module,
+        "get_container_state",
+        lambda container_name, docker_client: "running",
+    )
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
-    running_callbacks = cast(list[dict[str, str]], bot.edited_messages[-1]["reply_markup"])
+    running_callbacks = cast(
+        list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
+    )
     running_values = [item["callback_data"] for item in running_callbacks]
     assert any(value.startswith("__stop__") for value in running_values)
     assert any(value.startswith("__restart__") for value in running_values)
 
-    monkeypatch.setattr(manage_module, "get_container_state", lambda container_name, docker_client: "exited")
+    monkeypatch.setattr(
+        manage_module,
+        "get_container_state",
+        lambda container_name, docker_client: "exited",
+    )
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
-    stopped_callbacks = cast(list[dict[str, str]], bot.edited_messages[-1]["reply_markup"])
+    stopped_callbacks = cast(
+        list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
+    )
     stopped_values = [item["callback_data"] for item in stopped_callbacks]
     assert any(value.startswith("__start__") for value in stopped_values)
 
-    handler(cast(CallbackQuery, _Call(data="__manage__:api:11", message=None)), cast(TeleBot, bot))
+    handler(
+        cast(CallbackQuery, _Call(data="__manage__:api:11", message=None)),
+        cast(TeleBot, bot),
+    )
     assert shown[-1] == "Managing api: Missing callback message"

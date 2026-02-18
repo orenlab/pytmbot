@@ -142,13 +142,9 @@ _logs_sessions = LogsSessionStore()
 def _logs_file_deletion_callback(result: DeletionResult) -> None:
     """Callback function executed after logs file deletion attempt."""
     if result.status == DeletionStatus.SUCCESS:
-        logger.info(
-            "bot.handler.docker.logging.logs.file.info"
-        )
+        logger.info("bot.handler.docker.logging.logs.file.info")
     elif result.status == DeletionStatus.FAILED:
-        logger.warning(
-            "bot.handler.docker.logging.delete.logs.fail"
-        )
+        logger.warning("bot.handler.docker.logging.delete.logs.fail")
 
 
 def _render_logs_template(
@@ -219,7 +215,9 @@ def _parse_logs_callback_data(callback_data: str) -> ParsedLogsCallback:
     raise ValueError("Unsupported logs callback format")
 
 
-def _build_logs_chunks(logs: str, max_chunk_chars: int = MAX_LOGS_PAGE_CHARS) -> list[str]:
+def _build_logs_chunks(
+    logs: str, max_chunk_chars: int = MAX_LOGS_PAGE_CHARS
+) -> list[str]:
     """Split logs into pages where index 0 contains newest logs."""
     if not logs.strip():
         return [LOGS_EMPTY_MESSAGE]
@@ -515,9 +513,7 @@ def _get_session_or_show_error(
     return session
 
 
-def _send_logs_as_file(
-    call: CallbackQuery, bot: TeleBot, session: LogsSession
-) -> Any:
+def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) -> Any:
     if not _validate_logs_session_access(
         call=call,
         bot=bot,
@@ -548,8 +544,7 @@ def _send_logs_as_file(
             chat_id=chat_id,
             document=logs_file,
             caption=(
-                f"Logs file for {session.container_name}\n\n"
-                f"{LOGS_FILE_DELETION_NOTICE}"
+                f"Logs file for {session.container_name}\n\n{LOGS_FILE_DELETION_NOTICE}"
             ),
             visible_file_name=filename,
         )
@@ -577,22 +572,14 @@ def _send_logs_as_file(
             parse_mode="HTML",
             reply_to_message_id=sent_message.message_id,
         )
-        logger.warning(
-            "bot.handler.docker.logging.logs.file.warn"
-        )
+        logger.warning("bot.handler.docker.logging.logs.file.warn")
     elif deletion_result.status == DeletionStatus.SCHEDULED:
-        logger.info(
-            "bot.handler.docker.logging.logs.file.info"
-        )
+        logger.info("bot.handler.docker.logging.logs.file.info")
     elif deletion_result.status == DeletionStatus.ALREADY_SCHEDULED:
-        logger.warning(
-            "bot.handler.docker.logging.logs.file.ok"
-        )
+        logger.warning("bot.handler.docker.logging.logs.file.ok")
     else:
         callback_text = f"Sent {filename}. Delete manually when done."
-        logger.error(
-            "bot.handler.docker.logging.unexpected.deletion.fail"
-        )
+        logger.error("bot.handler.docker.logging.unexpected.deletion.fail")
 
     return bot.answer_callback_query(
         callback_query_id=call.id, text=callback_text, show_alert=False
@@ -628,9 +615,7 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
             target_user_id=parsed.user_id,
             reason=deny_reason,
         )
-        show_handler_info(
-            call=call, text=f"Getting logs: {deny_reason}", bot=bot
-        )
+        show_handler_info(call=call, text=f"Getting logs: {deny_reason}", bot=bot)
         return None
 
     emojis: dict[str, str] = {"thought_balloon": em.get_emoji("thought_balloon")}

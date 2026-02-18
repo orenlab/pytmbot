@@ -32,7 +32,9 @@ def test_global_getters_are_cached_singletons() -> None:
 def test_globals_deprecated_aliases_and_unknown_attribute() -> None:
     with warnings.catch_warnings(record=True) as captured:
         warnings.simplefilter("always", DeprecationWarning)
-        assert globals_module.__getattr__("button_data") is globals_module.ButtonDataType
+        assert (
+            globals_module.__getattr__("button_data") is globals_module.ButtonDataType
+        )
         assert globals_module.__getattr__("keyboards") is globals_module.get_keyboards()
         assert globals_module.__getattr__("em") is globals_module.get_emoji_converter()
         assert (
@@ -43,7 +45,10 @@ def test_globals_deprecated_aliases_and_unknown_attribute() -> None:
             globals_module.__getattr__("running_in_docker")
             == globals_module.is_docker_environment()
         )
-        assert globals_module.__getattr__("session_manager") is globals_module.get_session_manager()
+        assert (
+            globals_module.__getattr__("session_manager")
+            is globals_module.get_session_manager()
+        )
 
     assert len(captured) >= 6
     assert all(isinstance(item.message, DeprecationWarning) for item in captured)

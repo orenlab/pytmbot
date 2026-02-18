@@ -375,7 +375,9 @@ class SystemMonitorPlugin(PluginCore):
             with self.influxdb_client as client:
                 client.write_data("system_metrics", sanitized_fields, metadata)
 
-            logger.debug("bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields)
+            logger.debug(
+                "bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields
+            )
         except Exception:
             logger.exception("bot.plugins.monitor.methods.writing.metrics.fail")
 
@@ -401,9 +403,7 @@ class SystemMonitorPlugin(PluginCore):
                     if not isinstance(sub_value, (int, float))
                 }
                 for _sub_key, _sub_value in unsupported.items():
-                    logger.warning(
-                        "bot.plugins.monitor.methods.unsupported.type.warn"
-                    )
+                    logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
                 continue
 
             if isinstance(value, tuple):
@@ -420,9 +420,7 @@ class SystemMonitorPlugin(PluginCore):
                     if not isinstance(item, (int, float))
                 ]
                 for _i, _item in unsupported_tuple_items:
-                    logger.warning(
-                        "bot.plugins.monitor.methods.unsupported.type.warn"
-                    )
+                    logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
                 continue
 
             logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
@@ -439,7 +437,10 @@ class SystemMonitorPlugin(PluginCore):
             self.bot.send_message(
                 self.settings.chat_id.global_chat_id[0], message, parse_mode="HTML"
             )
-            logger.info("bot.plugins.monitor.methods.notification.sent.info", extra={"message": str(message)})
+            logger.info(
+                "bot.plugins.monitor.methods.notification.sent.info",
+                extra={"message": str(message)},
+            )
 
             self.state.notification_count += 1
             self._schedule_notification_reset()

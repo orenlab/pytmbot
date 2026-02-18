@@ -24,10 +24,7 @@ def test_data_masker_masks_known_and_pattern_values() -> None:
     masker.add_user_id(123456789)
     masker.add_chat_id(-4970000716)
 
-    source = (
-        "token super-secret-token user test_user "
-        "id 123456789 chat -4970000716"
-    )
+    source = "token super-secret-token user test_user id 123456789 chat -4970000716"
     sanitized = masker.sanitize_text(source)
     assert "super-secret-token" not in sanitized
     assert "test_user" not in sanitized
@@ -88,11 +85,17 @@ def test_logger_handler_helpers() -> None:
     assert Logger._handler_log_level(3000.0) == "warning"
 
 
-def test_logger_json_sink_writes_compact_json(capsys: pytest.CaptureFixture[str]) -> None:
+def test_logger_json_sink_writes_compact_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     logger = Logger()
     message = SimpleNamespace(
         record={
-            "time": SimpleNamespace(astimezone=lambda _tz: SimpleNamespace(isoformat=lambda timespec: "2026-01-01T00:00:00.000+00:00")),
+            "time": SimpleNamespace(
+                astimezone=lambda _tz: SimpleNamespace(
+                    isoformat=lambda timespec: "2026-01-01T00:00:00.000+00:00"
+                )
+            ),
             "level": SimpleNamespace(name="INFO"),
             "module": "main",
             "message": "bot.launcher.start",

@@ -142,7 +142,9 @@ def _raw_session_handler(handler: object) -> Callable[[Message, TeleBot], None]:
     return cast(Callable[[Message, TeleBot], None], raw)
 
 
-def _raw_qr_handler(handler: object) -> Callable[[Message, TeleBot, int], Message | None]:
+def _raw_qr_handler(
+    handler: object,
+) -> Callable[[Message, TeleBot, int], Message | None]:
     raw = getattr(handler, "__wrapped__", handler)
     return cast(Callable[[Message, TeleBot, int], Message | None], raw)
 
@@ -182,14 +184,18 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         auth_module,
         "keyboards",
-        SimpleNamespace(build_reply_keyboard=lambda keyboard_type: f"kbd:{keyboard_type}"),
+        SimpleNamespace(
+            build_reply_keyboard=lambda keyboard_type: f"kbd:{keyboard_type}"
+        ),
     )
     monkeypatch.setattr(
         auth_module.Compiler,
         "quick_render",
         lambda template_name, name, **kwargs: f"{template_name}:{name}",
     )
-    monkeypatch.setattr(auth_module, "_send_response", lambda query, bot, response, keyboard: None)
+    monkeypatch.setattr(
+        auth_module, "_send_response", lambda query, bot, response, keyboard: None
+    )
 
     auth_module._handle_auth_message(
         query=cast(Message, _Msg()),
@@ -215,7 +221,9 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         auth_module.Compiler,
         "quick_render",
-        lambda template_name, name, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda template_name, name, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
     )
     with pytest.raises(exceptions.AuthError) as exc_info:
         auth_module._handle_auth_message(
@@ -243,7 +251,9 @@ def test_auth_public_handlers_delegate(monkeypatch: pytest.MonkeyPatch) -> None:
         SimpleNamespace(get_emoji=lambda _name: "x"),
     )
 
-    auth_module.handle_unauthorized_message(cast(Message, _Msg()), cast(TeleBot, _Bot()))
+    auth_module.handle_unauthorized_message(
+        cast(Message, _Msg()), cast(TeleBot, _Bot())
+    )
     auth_module.handle_access_denied(cast(Message, _Msg()), cast(TeleBot, _Bot()))
     assert called == [
         ("a_auth_required.jinja2", "auth_keyboard"),
@@ -271,21 +281,33 @@ def test_twofa_send_totp_code_message_private_and_group(
     monkeypatch.setattr(
         twofa_module,
         "keyboards",
-        SimpleNamespace(build_reply_keyboard=lambda keyboard_type: f"kbd:{keyboard_type}"),
+        SimpleNamespace(
+            build_reply_keyboard=lambda keyboard_type: f"kbd:{keyboard_type}"
+        ),
     )
     monkeypatch.setattr(
         twofa_module.Compiler,
         "quick_render",
         lambda template_name, name, **kwargs: f"totp:{name}",
     )
-    monkeypatch.setattr(twofa_module, "em", SimpleNamespace(get_emoji=lambda _name: "e"))
+    monkeypatch.setattr(
+        twofa_module, "em", SimpleNamespace(get_emoji=lambda _name: "e")
+    )
 
-    private_message = _Msg(chat=_Chat(id=1, type="private"), from_user=_User(first_name="Alice"))
-    twofa_module._send_totp_code_message(cast(Message, private_message), cast(TeleBot, _Bot()))
+    private_message = _Msg(
+        chat=_Chat(id=1, type="private"), from_user=_User(first_name="Alice")
+    )
+    twofa_module._send_totp_code_message(
+        cast(Message, private_message), cast(TeleBot, _Bot())
+    )
     assert captured[-1]["reply_to_message_id"] is None
 
-    group_message = _Msg(chat=_Chat(id=2, type="group"), from_user=_User(first_name="Bob"))
-    twofa_module._send_totp_code_message(cast(Message, group_message), cast(TeleBot, _Bot()))
+    group_message = _Msg(
+        chat=_Chat(id=2, type="group"), from_user=_User(first_name="Bob")
+    )
+    twofa_module._send_totp_code_message(
+        cast(Message, group_message), cast(TeleBot, _Bot())
+    )
     assert captured[-1]["reply_to_message_id"] == group_message.message_id
 
 
@@ -306,7 +328,9 @@ def test_twofa_invalid_and_max_attempt_and_blocking_paths(
     assert session_stub.attempts[7] == 0
     assert 7 in session_stub.blocked_until
 
-    twofa_module._handle_max_attempts_reached(cast(Message, message), cast(TeleBot, bot))
+    twofa_module._handle_max_attempts_reached(
+        cast(Message, message), cast(TeleBot, bot)
+    )
     assert "maximum number of attempts" in str(bot.replies[-1]["text"])
 
 
@@ -343,15 +367,23 @@ def test_handle_twofa_message_and_totp_verification_branches(
     session_stub = _SessionManagerStub()
     session_stub.auth_states[55] = session_stub.state_fabric.PROCESSING
     monkeypatch.setattr(twofa_module, "session_manager", session_stub)
-    monkeypatch.setattr(twofa_module, "var_config", SimpleNamespace(totp_max_attempts=2))
-    monkeypatch.setattr(twofa_module, "is_valid_totp_code", lambda value: value == "123456")
-    monkeypatch.setattr(twofa_module, "em", SimpleNamespace(get_emoji=lambda _name: "e"))
+    monkeypatch.setattr(
+        twofa_module, "var_config", SimpleNamespace(totp_max_attempts=2)
+    )
+    monkeypatch.setattr(
+        twofa_module, "is_valid_totp_code", lambda value: value == "123456"
+    )
+    monkeypatch.setattr(
+        twofa_module, "em", SimpleNamespace(get_emoji=lambda _name: "e")
+    )
     monkeypatch.setattr(
         twofa_module.Compiler,
         "quick_render",
         lambda template_name, emojis: "ok",
     )
-    monkeypatch.setattr(twofa_module, "__create_referer_keyboard", lambda user_id: "kbd")
+    monkeypatch.setattr(
+        twofa_module, "__create_referer_keyboard", lambda user_id: "kbd"
+    )
 
     class _Authenticator:
         def __init__(self, user_id: int, username: str) -> None:
@@ -445,7 +477,9 @@ def test_qrcode_handler_success_limit_and_failure_paths(
         user_id=11,
         pending_count=1,
     )
-    monkeypatch.setattr(qrcode_module.deletion_manager, "schedule_deletion", lambda **kwargs: scheduled)
+    monkeypatch.setattr(
+        qrcode_module.deletion_manager, "schedule_deletion", lambda **kwargs: scheduled
+    )
 
     raw_qr = _raw_qr_handler(qrcode_module.handle_qr_code_message)
     bot = _Bot()

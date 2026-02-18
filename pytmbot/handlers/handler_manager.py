@@ -188,21 +188,15 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
         "authorization": [
             HandlerConfig(callback=handle_twofa_message, regexp="Enter 2FA code")
         ],
-        "quick_view": [
-            HandlerConfig(callback=handle_quick_view, regexp="Quick view")
-        ],
+        "quick_view": [HandlerConfig(callback=handle_quick_view, regexp="Quick view")],
         "code_verification": [
-            HandlerConfig(callback=handle_totp_code_verification, regexp=TOTP_CODE_PATTERN)
+            HandlerConfig(
+                callback=handle_totp_code_verification, regexp=TOTP_CODE_PATTERN
+            )
         ],
-        "start": [
-            HandlerConfig(callback=handle_start, commands=["help", "start"])
-        ],
-        "about": [
-            HandlerConfig(callback=handle_about_command, regexp="About me")
-        ],
-        "getmyid": [
-            HandlerConfig(callback=handle_getmyid, commands=["getmyid"])
-        ],
+        "start": [HandlerConfig(callback=handle_start, commands=["help", "start"])],
+        "about": [HandlerConfig(callback=handle_about_command, regexp="About me")],
+        "getmyid": [HandlerConfig(callback=handle_getmyid, commands=["getmyid"])],
         "navigation": [
             HandlerConfig(callback=handle_navigation, regexp="Back to main menu"),
             HandlerConfig(callback=handle_navigation, commands=["back"]),
@@ -228,21 +222,11 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
         "load_average": [
             HandlerConfig(callback=handle_load_average, regexp="Load average")
         ],
-        "memory": [
-            HandlerConfig(callback=handle_memory, regexp="Memory load")
-        ],
-        "network": [
-            HandlerConfig(callback=handle_network, regexp="Network")
-        ],
-        "process": [
-            HandlerConfig(callback=handle_process, regexp="Process")
-        ],
-        "sensors": [
-            HandlerConfig(callback=handle_sensors, regexp="Sensors")
-        ],
-        "uptime": [
-            HandlerConfig(callback=handle_uptime, regexp="Uptime")
-        ],
+        "memory": [HandlerConfig(callback=handle_memory, regexp="Memory load")],
+        "network": [HandlerConfig(callback=handle_network, regexp="Network")],
+        "process": [HandlerConfig(callback=handle_process, regexp="Process")],
+        "sensors": [HandlerConfig(callback=handle_sensors, regexp="Sensors")],
+        "uptime": [HandlerConfig(callback=handle_uptime, regexp="Uptime")],
         "plugins": [
             HandlerConfig(callback=handle_plugins, commands=["plugins"]),
             HandlerConfig(callback=handle_plugins, regexp="Plugins"),
@@ -251,9 +235,7 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(callback=handle_server, commands=["server"]),
             HandlerConfig(callback=handle_server, regexp="Server"),
         ],
-        "services": [
-            HandlerConfig(callback=handle_services_status, regexp="Services")
-        ],
+        "services": [HandlerConfig(callback=handle_services_status, regexp="Services")],
         "qrcode": [
             HandlerConfig(
                 callback=handle_qr_code_message,
@@ -274,13 +256,19 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
     """Build and cache inline handler configurations dictionary."""
     return {
         "swap": [
-            HandlerConfig(callback=handle_swap_info, filter_func=InlineFilters.swap_info)
+            HandlerConfig(
+                callback=handle_swap_info, filter_func=InlineFilters.swap_info
+            )
         ],
         "process_info": [
-            HandlerConfig(callback=handle_process_info, filter_func=InlineFilters.process_info)
+            HandlerConfig(
+                callback=handle_process_info, filter_func=InlineFilters.process_info
+            )
         ],
         "update_info": [
-            HandlerConfig(callback=handle_update_info, filter_func=InlineFilters.update_info)
+            HandlerConfig(
+                callback=handle_update_info, filter_func=InlineFilters.update_info
+            )
         ],
         "get_logs": [
             HandlerConfig(callback=handle_get_logs, filter_func=InlineFilters.get_logs)
@@ -288,17 +276,20 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         "containers_full_info": [
             HandlerConfig(
                 callback=handle_containers_full_info,
-                filter_func=InlineFilters.containers_full_info
+                filter_func=InlineFilters.containers_full_info,
             )
         ],
         "back_to_containers": [
             HandlerConfig(
                 callback=handle_back_to_containers,
-                filter_func=InlineFilters.back_to_containers
+                filter_func=InlineFilters.back_to_containers,
             )
         ],
         "manage": [
-            HandlerConfig(callback=handle_manage_container, filter_func=InlineFilters.manage_container)
+            HandlerConfig(
+                callback=handle_manage_container,
+                filter_func=InlineFilters.manage_container,
+            )
         ],
         "manage_action": [
             HandlerConfig(
@@ -307,15 +298,21 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
             )
         ],
         "image_updates": [
-            HandlerConfig(callback=handle_image_updates, filter_func=InlineFilters.image_updates)
+            HandlerConfig(
+                callback=handle_image_updates, filter_func=InlineFilters.image_updates
+            )
         ],
         "images_page": [
-            HandlerConfig(callback=handle_images_page, filter_func=InlineFilters.images_page)
+            HandlerConfig(
+                callback=handle_images_page, filter_func=InlineFilters.images_page
+            )
         ],
     }
 
 
-def _create_handlers_from_configs(configs: dict[str, list[HandlerConfig]]) -> HandlerType:
+def _create_handlers_from_configs(
+    configs: dict[str, list[HandlerConfig]],
+) -> HandlerType:
     """Create handlers from configuration dictionary."""
     return {
         category: [config.create_handler() for config in handlers]
@@ -345,6 +342,7 @@ def inline_handler_factory() -> HandlerType:
     """
     configs = _get_inline_handler_configs()
     return _create_handlers_from_configs(configs)
+
 
 # Future echo handler implementation
 # @cache

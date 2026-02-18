@@ -19,7 +19,10 @@ def _clear_parser_caches() -> None:
 def test_resolve_template_subdirectory_for_standard_and_plugin_templates() -> None:
     parser_module._resolve_template_subdirectory.cache_clear()
 
-    assert parser_module._resolve_template_subdirectory("d_images.jinja2") == "docker_templates"
+    assert (
+        parser_module._resolve_template_subdirectory("d_images.jinja2")
+        == "docker_templates"
+    )
     assert (
         parser_module._resolve_template_subdirectory("plugin_monitor_index.jinja2")
         == "plugins_template/monitor_index"
@@ -31,7 +34,9 @@ def test_resolve_template_subdirectory_for_standard_and_plugin_templates() -> No
 
 def test_hash_context_handles_non_sortable_keys() -> None:
     assert isinstance(parser_module._hash_context({"a": 1}), str)
-    assert parser_module._hash_context(cast(dict[str, object], {1: "x", "a": "b"})) is None
+    assert (
+        parser_module._hash_context(cast(dict[str, object], {1: "x", "a": "b"})) is None
+    )
 
 
 def test_load_template_and_render_template_paths() -> None:
@@ -51,7 +56,9 @@ def test_render_template_strict_validation_rejects_untrusted_name() -> None:
         parser_module._render_template("../evil.jinja2", trusted=False)
 
 
-def test_environment_missing_template_directory(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_environment_missing_template_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     parser_module._clear_template_cache()
     missing_dir = Path.cwd() / "definitely_missing_templates_dir_for_tests"
     monkeypatch.setattr(

@@ -44,7 +44,9 @@ def test_load_settings_from_yaml_reads_current_project_config() -> None:
     assert settings.access_control.allowed_user_ids
 
 
-def test_load_settings_from_yaml_file_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_settings_from_yaml_file_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         settings_module,
         "_get_config_file_path",

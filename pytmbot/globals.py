@@ -52,6 +52,7 @@ def _require_instance[T](value: object, expected_type: type[T], name: str) -> T:
         )
     return value
 
+
 # Application metadata - immutable constants
 __version__: Final[str] = "0.3.0-dev"
 __author__: Final[str] = "Denis Rozhnovskiy <pytelemonbot@mail.ru>"

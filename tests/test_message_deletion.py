@@ -200,14 +200,22 @@ def test_execute_deletion_handles_missing_bot_reference(
 
     assert callback_results
     assert callback_results[0].status.name == "FAILED"
-    assert "Bot instance no longer available" in (callback_results[0].error_message or "")
+    assert "Bot instance no longer available" in (
+        callback_results[0].error_message or ""
+    )
 
 
-def test_cancel_get_status_and_repr(manager: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cancel_get_status_and_repr(
+    manager: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     bot = _FakeBot()
     monkeypatch.setattr(message_deletion_module.threading, "Thread", _NoopThread)
-    manager.schedule_deletion(bot=bot, chat_id=1, message_id=30, user_id=5, delay_seconds=1)
-    manager.schedule_deletion(bot=bot, chat_id=1, message_id=31, user_id=5, delay_seconds=1)
+    manager.schedule_deletion(
+        bot=bot, chat_id=1, message_id=30, user_id=5, delay_seconds=1
+    )
+    manager.schedule_deletion(
+        bot=bot, chat_id=1, message_id=31, user_id=5, delay_seconds=1
+    )
 
     assert manager.get_pending_count(5) == 2
     cancelled = manager.cancel_user_deletions(5)

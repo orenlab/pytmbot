@@ -225,9 +225,7 @@ class _MessageDeletionManager(BaseComponent):
                     cleaned_tasks=cleaned_count,
                     empty_users_cleaned=len(empty_users),
                 ) as log:
-                    log.debug(
-                        "bot.utils.message_deletion.cleaned.stale.debug"
-                    )
+                    log.debug("bot.utils.message_deletion.cleaned.stale.debug")
 
     @contextmanager
     def _update_stats(self, stat_name: str) -> Generator[None, None, None]:
@@ -261,9 +259,7 @@ class _MessageDeletionManager(BaseComponent):
         with self.log_context(
             action="configure", old_limit=old_limit, new_limit=max_pending_per_user
         ) as log:
-            log.info(
-                "bot.utils.message_deletion.deletion.manager.info"
-            )
+            log.info("bot.utils.message_deletion.deletion.manager.info")
 
     def schedule_deletion(
         self,
@@ -329,9 +325,7 @@ class _MessageDeletionManager(BaseComponent):
                 # Check if limit is exceeded
                 if current_pending >= self._max_pending_per_user:
                     with self._update_stats("limit_exceeded"):
-                        log.warning(
-                            "bot.utils.message_deletion.deletion.limit.warn"
-                        )
+                        log.warning("bot.utils.message_deletion.deletion.limit.warn")
                         return _DeletionResult(
                             status=_DeletionStatus.LIMIT_EXCEEDED,
                             message_id=message_id,
@@ -373,9 +367,7 @@ class _MessageDeletionManager(BaseComponent):
             deletion_thread.start()
 
             with self._update_stats("scheduled"):
-                log.info(
-                    "bot.utils.message_deletion.deletion.scheduled.ok"
-                )
+                log.info("bot.utils.message_deletion.deletion.scheduled.ok")
 
                 return _DeletionResult(
                     status=_DeletionStatus.SCHEDULED,
@@ -403,9 +395,7 @@ class _MessageDeletionManager(BaseComponent):
             task_age_seconds=int(time.time() - task.created_at),
         ) as log:
             try:
-                log.debug(
-                    "bot.utils.message_deletion.deletion.countdown.start"
-                )
+                log.debug("bot.utils.message_deletion.deletion.countdown.start")
 
                 # Wait for the specified delay
                 time.sleep(task.delay_seconds)
@@ -430,7 +420,9 @@ class _MessageDeletionManager(BaseComponent):
 
             except ApiTelegramException as e:
                 error_msg = f"Telegram API error during deletion: {e}"
-                log.error("bot.utils.message_deletion.telegram.api.fail", error=error_msg)
+                log.error(
+                    "bot.utils.message_deletion.telegram.api.fail", error=error_msg
+                )
                 result = _DeletionResult(
                     status=_DeletionStatus.FAILED,
                     message_id=task.message_id,
@@ -556,9 +548,7 @@ class _MessageDeletionManager(BaseComponent):
         }
 
         with self.log_context(action="get_system_status", **status) as log:
-            log.debug(
-                "bot.utils.message_deletion.status.fetch.debug"
-            )
+            log.debug("bot.utils.message_deletion.status.fetch.debug")
 
         return status
 

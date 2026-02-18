@@ -55,7 +55,9 @@ def test_auth_state_and_totp_blocking(monkeypatch: pytest.MonkeyPatch) -> None:
     assert manager.get_totp_attempts(user_id) == 0
 
 
-def test_is_authenticated_expiry_and_auto_unblock(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_authenticated_expiry_and_auto_unblock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     manager = _create_manager(
         monkeypatch,
         session_timeout=1,

@@ -28,7 +28,9 @@ def _completed_process(
     )
 
 
-def _new_adapter(monkeypatch: pytest.MonkeyPatch, *, systemd_available: bool) -> ServicesAdapter:
+def _new_adapter(
+    monkeypatch: pytest.MonkeyPatch, *, systemd_available: bool
+) -> ServicesAdapter:
     monkeypatch.setattr(
         ServicesAdapter,
         "_check_systemd_availability",
@@ -127,7 +129,9 @@ def test_safe_subprocess_run_validates_and_handles_failures(
 def test_safe_subprocess_run_returns_none_on_os_or_value_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _value_error_run(*_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+    def _value_error_run(
+        *_args: Any, **_kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         raise ValueError("bad")
 
     monkeypatch.setattr(services_module.subprocess, "run", _value_error_run)
@@ -166,7 +170,9 @@ def test_check_systemd_availability_tries_paths_and_nsenter(
             return self._value == "/host/usr/bin/systemctl"
 
     monkeypatch.setattr(services_module, "Path", _FakePath)
-    monkeypatch.setattr(ServicesAdapter, "_test_systemctl_command", lambda command: True)
+    monkeypatch.setattr(
+        ServicesAdapter, "_test_systemctl_command", lambda command: True
+    )
 
     adapter = _new_adapter(monkeypatch, systemd_available=True)
     assert adapter._check_systemd_availability() is True
@@ -190,7 +196,9 @@ def test_check_systemd_availability_returns_false_on_exception(
     assert adapter._check_systemd_availability() is False
 
 
-def test_get_systemctl_command_prefix_fallback_order(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_systemctl_command_prefix_fallback_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class _FakePath:
         def __init__(self, value: str) -> None:
             self._value = value
@@ -207,8 +215,12 @@ def test_get_systemd_services_returns_none_on_invalid_json_or_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _new_adapter(monkeypatch, systemd_available=True)
-    monkeypatch.setattr(adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"])
-    monkeypatch.setattr(adapter, "_safe_subprocess_run", lambda command, timeout=10: None)
+    monkeypatch.setattr(
+        adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"]
+    )
+    monkeypatch.setattr(
+        adapter, "_safe_subprocess_run", lambda command, timeout=10: None
+    )
     assert adapter.get_systemd_services() is None
 
     monkeypatch.setattr(
@@ -223,7 +235,9 @@ def test_get_service_status_returns_none_when_subprocess_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _new_adapter(monkeypatch, systemd_available=True)
-    monkeypatch.setattr(adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"])
+    monkeypatch.setattr(
+        adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"]
+    )
     monkeypatch.setattr(
         adapter,
         "_safe_subprocess_run",
@@ -285,9 +299,13 @@ def test_get_service_status_validates_name_and_parses_results(
     adapter = _new_adapter(monkeypatch, systemd_available=True)
     assert adapter._get_service_status("invalid;name") is None
 
-    monkeypatch.setattr(adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"])
+    monkeypatch.setattr(
+        adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"]
+    )
 
-    def _fake_safe_run(command: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    def _fake_safe_run(
+        command: list[str], timeout: int = 10
+    ) -> subprocess.CompletedProcess[str]:
         del timeout
         if "is-active" in command:
             return _completed_process("active\n", 0)
@@ -305,7 +323,9 @@ def test_get_systemd_services_parses_and_uses_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _new_adapter(monkeypatch, systemd_available=True)
-    monkeypatch.setattr(adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"])
+    monkeypatch.setattr(
+        adapter, "_get_systemctl_command_prefix", lambda: ["/bin/systemctl"]
+    )
 
     units_payload = [
         {"unit": "ssh.service", "active": "active"},
@@ -313,7 +333,9 @@ def test_get_systemd_services_parses_and_uses_cache(
         {"unit": "cron.service", "active": "active"},
     ]
 
-    def _fake_safe_run(command: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    def _fake_safe_run(
+        command: list[str], timeout: int = 10
+    ) -> subprocess.CompletedProcess[str]:
         del timeout
         assert "--output=json" in command
         return _completed_process(json.dumps(units_payload), 0)
@@ -322,9 +344,11 @@ def test_get_systemd_services_parses_and_uses_cache(
     monkeypatch.setattr(
         adapter,
         "_get_service_status",
-        lambda service: {"active": "active", "enabled": "enabled", "exists": True}
-        if service == "ssh"
-        else None,
+        lambda service: (
+            {"active": "active", "enabled": "enabled", "exists": True}
+            if service == "ssh"
+            else None
+        ),
     )
 
     first = adapter.get_systemd_services()
@@ -337,7 +361,9 @@ def test_get_systemd_services_parses_and_uses_cache(
     monkeypatch.setattr(
         adapter,
         "_safe_subprocess_run",
-        lambda _command, timeout=10: (_ for _ in ()).throw(AssertionError("cache miss")),
+        lambda _command, timeout=10: (_ for _ in ()).throw(
+            AssertionError("cache miss")
+        ),
     )
     second = adapter.get_systemd_services()
     assert second == first
@@ -444,7 +470,11 @@ def test_handle_services_status_returns_no_sources_message(
         type(
             "_Emoji",
             (),
-            {"get_emoji": staticmethod(lambda _name: {"warning": "⚠️", "gear": "⚙️"}.get(_name, "x"))},
+            {
+                "get_emoji": staticmethod(
+                    lambda _name: {"warning": "⚠️", "gear": "⚙️"}.get(_name, "x")
+                )
+            },
         )(),
     )
     message = _DummyMessage(from_user=_DummyUser(id=200))
@@ -464,7 +494,9 @@ def test_handle_services_status_successful_render(
     monkeypatch.setattr(
         services_module.Compiler,
         "quick_render",
-        lambda template_name, context, **kwargs: f"render:{template_name}:{context['has_systemd']}",
+        lambda template_name, context, **kwargs: (
+            f"render:{template_name}:{context['has_systemd']}"
+        ),
     )
     monkeypatch.setattr(
         services_module,
@@ -480,7 +512,9 @@ def test_handle_services_status_successful_render(
         cast(TeleBot, bot),
     )
     assert bot.actions == [(100, "typing")]
-    assert str(bot.sent_messages[-1]["text"]).startswith("render:b_services_status.jinja2:True")
+    assert str(bot.sent_messages[-1]["text"]).startswith(
+        "render:b_services_status.jinja2:True"
+    )
 
 
 def test_handle_services_status_wraps_template_errors(
@@ -490,7 +524,9 @@ def test_handle_services_status_wraps_template_errors(
     monkeypatch.setattr(
         services_module.Compiler,
         "quick_render",
-        lambda template_name, context, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda template_name, context, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
     )
     monkeypatch.setattr(
         services_module,
