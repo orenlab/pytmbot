@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import session_manager, settings
+from pytmbot.globals import get_session_manager, settings
+
+session_manager = get_session_manager()
 
 
 def parse_callback_target_user(callback_data: str | None, prefix: str) -> int | None:

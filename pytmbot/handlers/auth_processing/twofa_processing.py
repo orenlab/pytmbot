@@ -12,7 +12,13 @@ from telebot.types import ForceReply, InlineKeyboardMarkup, Message, ReplyKeyboa
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, keyboards, session_manager, settings, var_config
+from pytmbot.globals import (
+    get_emoji_converter,
+    get_keyboards,
+    get_session_manager,
+    settings,
+    var_config,
+)
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -20,6 +26,9 @@ from pytmbot.utils import is_valid_totp_code
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
+session_manager = get_session_manager()
 allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
 
 

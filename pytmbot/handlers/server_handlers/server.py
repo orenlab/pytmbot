@@ -10,11 +10,13 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, keyboards
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 @logger.session_decorator

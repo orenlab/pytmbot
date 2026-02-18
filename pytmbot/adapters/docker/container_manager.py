@@ -19,7 +19,7 @@ from pytmbot.adapters.docker.utils import (
     get_container_safely,
     sanitize_kwargs_for_logging,
 )
-from pytmbot.globals import session_manager, settings
+from pytmbot.globals import get_session_manager, settings
 from pytmbot.logs import Logger
 from pytmbot.models.docker_models import (
     ContainerAction,
@@ -29,6 +29,7 @@ from pytmbot.models.docker_models import (
 from pytmbot.utils import is_new_name_valid, sanitize_exception
 
 logger = Logger()
+session_manager = get_session_manager()
 
 
 def validate_access(

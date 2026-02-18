@@ -397,10 +397,14 @@ def check_container_state(
 
     try:
         target = ContainerState.from_str(target_state)
-        containers_state = ContainersState()
+        containers_state_values = {
+            value
+            for key, value in vars(ContainersState).items()
+            if not key.startswith("_") and isinstance(value, str)
+        }
 
         # Validate target state exists in containers state model
-        if target.value not in containers_state.__dict__.values():
+        if target.value not in containers_state_values:
             raise ValueError(f"Invalid target state: {target}")
 
         return _execute_state_check_loop(
@@ -931,11 +935,18 @@ def _extract_container_state_info(attrs: Mapping[str, Any]) -> dict[str, Any]:
 
 def _get_minimal_container_info(container: Container) -> dict[str, Any]:
     """Return minimal container info on error."""
+    def _safe_getattr(name: str, default: str = "unknown") -> str:
+        try:
+            value = getattr(container, name, default)
+        except Exception:
+            return default
+        return value if isinstance(value, str) else str(value)
+
     return {
-        "id": getattr(container, "id", "unknown"),
-        "short_id": getattr(container, "short_id", "unknown"),
-        "name": getattr(container, "name", "unknown"),
-        "status": getattr(container, "status", "unknown"),
+        "id": _safe_getattr("id"),
+        "short_id": _safe_getattr("short_id"),
+        "name": _safe_getattr("name"),
+        "status": _safe_getattr("status"),
         "image": "unknown",
     }
 

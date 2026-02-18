@@ -13,7 +13,11 @@ from telebot.types import CallbackQuery
 from pytmbot import exceptions
 from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter, running_in_docker
+from pytmbot.globals import (
+    get_emoji_converter,
+    get_psutil_adapter,
+    is_docker_environment,
+)
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
@@ -22,6 +26,9 @@ from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+psutil_adapter = get_psutil_adapter()
+running_in_docker = is_docker_environment()
 
 
 # func=lambda call: call.data == '__process_info__'

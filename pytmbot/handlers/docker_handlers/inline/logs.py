@@ -15,7 +15,7 @@ from typing import Any, Final, cast
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import button_data, em, keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_sanitized_logs,
@@ -31,6 +31,9 @@ from pytmbot.utils.message_deletion import (
 )
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 MAX_TELEGRAM_MESSAGE_LENGTH: Final[int] = 4096
 MAX_LOGS_PAGE_CHARS: Final[int] = 3200

@@ -10,12 +10,14 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter
+from pytmbot.globals import get_emoji_converter, get_psutil_adapter
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import round_up_tuple
 
 logger = Logger()
+em = get_emoji_converter()
+psutil_adapter = get_psutil_adapter()
 
 
 # regexp="Load average"

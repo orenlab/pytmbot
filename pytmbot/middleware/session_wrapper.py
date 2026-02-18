@@ -16,7 +16,7 @@ from typing import Final, TypeGuard
 import telebot
 from telebot.types import CallbackQuery, Message, User
 
-from pytmbot.globals import session_manager, settings
+from pytmbot.globals import get_session_manager, settings
 from pytmbot.handlers.auth_processing.auth_processing import (
     handle_access_denied,
     handle_unauthorized_message,
@@ -24,6 +24,7 @@ from pytmbot.handlers.auth_processing.auth_processing import (
 from pytmbot.logs import BaseComponent, Logger
 
 logger = Logger()
+session_manager = get_session_manager()
 
 # Constants
 MAX_USERNAME_LENGTH: Final[int] = 64

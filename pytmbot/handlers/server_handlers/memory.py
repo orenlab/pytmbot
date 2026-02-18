@@ -10,11 +10,20 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import button_data, em, keyboards, psutil_adapter
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    get_psutil_adapter,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
+psutil_adapter = get_psutil_adapter()
 
 
 # regexp="Memory load"

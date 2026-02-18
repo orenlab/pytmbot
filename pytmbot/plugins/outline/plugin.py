@@ -11,7 +11,7 @@ from typing import Any, Literal
 from telebot import TeleBot
 from telebot.types import Message
 
-from pytmbot.globals import em, keyboards
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
@@ -21,6 +21,8 @@ from pytmbot.utils import set_naturalsize
 
 plugin_methods = PluginMethods()
 plugin = PluginCore()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 class OutlinePlugin(PluginInterface):

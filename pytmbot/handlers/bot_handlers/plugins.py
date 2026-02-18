@@ -10,13 +10,15 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, keyboards
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.plugin_manager import PluginManager
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 plugin_manager = PluginManager()
 
 

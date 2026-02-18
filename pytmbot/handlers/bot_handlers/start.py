@@ -10,12 +10,13 @@ from telebot.types import LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards
+from pytmbot.globals import get_keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+keyboards = get_keyboards()
 
 
 # commands=['help', 'start'])

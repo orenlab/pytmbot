@@ -9,6 +9,12 @@ from pytmbot.utils.cli import parse_cli_args
 from pytmbot.utils.environment import get_environment_state, is_running_in_docker
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Normalize argv before test collection imports application modules."""
+    del session
+    sys.argv[:] = ["pytmbot-test"]
+
+
 @pytest.fixture(autouse=True)
 def stable_process_state(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Keep process-wide caches and argv deterministic across tests."""

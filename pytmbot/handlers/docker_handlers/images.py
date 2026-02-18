@@ -18,7 +18,7 @@ from telebot.types import InlineKeyboardMarkup, Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.images_info import fetch_image_details
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import button_data, em, keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.pagination import (
     MAX_TELEGRAM_MESSAGE_LENGTH,
     build_page_callback_data,
@@ -29,6 +29,9 @@ from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 IMAGES_PAGE_CALLBACK_PREFIX: Final[str] = "__images_page__"
 IMAGES_DEFAULT_PAGE_SIZE: Final[int] = 2

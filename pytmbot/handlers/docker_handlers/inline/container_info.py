@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import button_data, keyboards, settings
+from pytmbot.globals import ButtonDataType, get_keyboards, settings
 from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
 from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
@@ -25,6 +25,8 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 
 logger = Logger()
+button_data = ButtonDataType
+keyboards = get_keyboards()
 
 
 def validate_container_name(name: str) -> bool:

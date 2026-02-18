@@ -883,7 +883,7 @@ class PyTMBot(BaseComponent):
         if is_critical_api:
             if not self._handle_critical_api_error(error, error_type):
                 # Cannot recover from this error type
-                raise
+                raise error
             # If we can recover, continue with normal error handling
 
         if isinstance(error, PollingExceptionTypes):
@@ -919,7 +919,7 @@ class PyTMBot(BaseComponent):
             session_id=self._session.session_id if self._session else "unknown",
         ) as log:
             log.critical("bot.core.unexpected.polling.fail")
-        raise
+        raise error
 
     def _start_polling_loop(self, bot_instance: TeleBot) -> None:
         """Start polling loop with exponential backoff on errors."""

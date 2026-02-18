@@ -14,13 +14,22 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import __github_api_url__, __version__, button_data, em, keyboards
+from pytmbot.globals import (
+    ButtonDataType,
+    __github_api_url__,
+    __version__,
+    get_emoji_converter,
+    get_keyboards,
+)
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_bot_development
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 def _normalize_version(value: str) -> str:

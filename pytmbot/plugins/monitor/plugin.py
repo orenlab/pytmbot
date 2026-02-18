@@ -9,7 +9,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
-from pytmbot.globals import em, keyboards
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
@@ -17,6 +17,8 @@ from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
 
 plugin = PluginCore()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 class MonitoringPlugin(PluginInterface):

@@ -10,11 +10,18 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter, running_in_docker
+from pytmbot.globals import (
+    get_emoji_converter,
+    get_psutil_adapter,
+    is_docker_environment,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+psutil_adapter = get_psutil_adapter()
+running_in_docker = is_docker_environment()
 
 
 # regexp="File system"

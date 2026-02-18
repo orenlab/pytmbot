@@ -22,7 +22,7 @@ from pytmbot.adapters.docker.utils import (
     get_container_memory_stats,
     get_container_stats_snapshot,
 )
-from pytmbot.globals import em
+from pytmbot.globals import get_emoji_converter
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
 from pytmbot.utils import (
@@ -33,6 +33,7 @@ from pytmbot.utils import (
 )
 
 logger = Logger()
+em = get_emoji_converter()
 
 
 @dataclass(frozen=True, slots=True)

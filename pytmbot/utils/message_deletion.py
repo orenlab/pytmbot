@@ -459,7 +459,7 @@ class _MessageDeletionManager(BaseComponent):
                 log.debug("bot.utils.message_deletion.task.cleanup.ok")
 
                 # Execute callback if provided
-                if task.callback and result:
+                if task.callback is not None and result is not None:
                     try:
                         task.callback(result)
                         log.debug("bot.utils.message_deletion.callback.executed.ok")

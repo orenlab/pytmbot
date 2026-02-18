@@ -15,7 +15,7 @@ from telebot.types import InlineKeyboardMarkup, Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import button_data, em, keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.pagination import (
     MAX_TELEGRAM_MESSAGE_LENGTH,
     build_container_full_info_callback_data,
@@ -27,6 +27,9 @@ from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 CONTAINERS_PAGE_CALLBACK_PREFIX: Final[str] = "__containers_page__"
 CONTAINERS_DEFAULT_PAGE_SIZE: Final[int] = 8

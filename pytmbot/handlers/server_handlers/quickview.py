@@ -13,11 +13,13 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter
+from pytmbot.globals import get_emoji_converter, get_psutil_adapter
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+psutil_adapter = get_psutil_adapter()
 
 
 def _get_uptime() -> str | None:

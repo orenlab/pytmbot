@@ -9,7 +9,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
-from pytmbot.globals import button_data, keyboards
+from pytmbot.globals import ButtonDataType, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
     get_authorized_container_callback_context,
     show_handler_info,
@@ -19,6 +19,8 @@ from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
+button_data = ButtonDataType
+keyboards = get_keyboards()
 container_manager = ContainerManager()
 
 

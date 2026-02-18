@@ -10,7 +10,7 @@ from telebot.types import CallbackQuery
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em
+from pytmbot.globals import get_emoji_converter
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
@@ -19,6 +19,7 @@ from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
 
 
 # func=lambda call: call.data == '__how_update__'

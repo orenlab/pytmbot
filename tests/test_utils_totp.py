@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
+from typing import cast
 
 import pyotp
 import pytest
 
-from pytmbot.exceptions import TOTPError
+import pytmbot.utils.totp as totp_module
+from pytmbot.exceptions import QRCodeError, TOTPError
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
 
@@ -57,3 +59,72 @@ def test_backup_codes_reject_invalid_count() -> None:
     auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
     with pytest.raises(TOTPError):
         auth.get_backup_codes(0)
+
+
+def test_totp_secret_generation_and_uri_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+
+    monkeypatch.setattr(
+        totp_module.hashlib,
+        "blake2b",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("hash error")),
+    )
+    with pytest.raises(TOTPError):
+        auth._generate_secret()
+
+    monkeypatch.setattr(
+        TwoFactorAuthenticator,
+        "_generate_secret",
+        lambda self: (_ for _ in ()).throw(RuntimeError("secret error")),
+    )
+    with pytest.raises(TOTPError):
+        auth._generate_totp_auth_uri()
+
+
+def test_totp_qr_code_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+
+    monkeypatch.setattr(
+        TwoFactorAuthenticator,
+        "_generate_totp_auth_uri",
+        lambda self: (_ for _ in ()).throw(TOTPError("totp failed")),
+    )
+    with pytest.raises(QRCodeError):
+        auth.generate_totp_qr_code()
+
+    monkeypatch.setattr(
+        TwoFactorAuthenticator, "_generate_totp_auth_uri", lambda self: "otpauth://totp/test"
+    )
+    monkeypatch.setattr(
+        totp_module.qrcode,
+        "make",
+        lambda _uri: (_ for _ in ()).throw(RuntimeError("qr failed")),
+    )
+    with pytest.raises(QRCodeError):
+        auth.generate_totp_qr_code()
+
+
+def test_totp_verify_and_backup_codes_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+    assert auth.verify_totp_code(cast(str, 123456)) is False
+
+    class _BrokenTOTP:
+        def verify(self, _code: str, valid_window: int) -> bool:
+            del valid_window
+            raise RuntimeError("verify failed")
+
+    monkeypatch.setattr(
+        totp_module.pyotp,
+        "TOTP",
+        lambda *_args, **_kwargs: _BrokenTOTP(),
+    )
+    with pytest.raises(TOTPError):
+        auth.verify_totp_code("123456")
+
+    monkeypatch.setattr(
+        TwoFactorAuthenticator,
+        "_generate_secret",
+        lambda self: (_ for _ in ()).throw(RuntimeError("secret failed")),
+    )
+    with pytest.raises(TOTPError):
+        auth.get_backup_codes(3)

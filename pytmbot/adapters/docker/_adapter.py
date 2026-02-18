@@ -97,7 +97,6 @@ class DockerAdapter:
             )
             self._log.warning(
                 "docker.adapter.insecure.connection.warn",
-                docker_url=self._docker_url,
                 security_risk="unencrypted_connection",
                 **self._base_context,
             )
@@ -108,7 +107,6 @@ class DockerAdapter:
         ):
             self._log.warning(
                 "docker.adapter.tcp.connection.warn",
-                docker_url=self._docker_url,
                 security_risk="tcp_without_tls",
                 **self._base_context,
             )

@@ -585,6 +585,9 @@ class WebhookServer(BaseComponent):
                         raise HTTPException(
                             status_code=400, detail="Invalid update format"
                         ) from e
+                    except HTTPException:
+                        # Preserve original status codes (e.g., 403/429) from guard checks.
+                        raise
                     except Exception as e:
                         _log.error(
                             "bot.webhook.update.processing.fail",

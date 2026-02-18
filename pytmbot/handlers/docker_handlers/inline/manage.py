@@ -10,7 +10,7 @@ from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import get_container_state
-from pytmbot.globals import button_data, em, keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
     get_authorized_container_callback_context,
     show_handler_info,
@@ -21,6 +21,9 @@ from pytmbot.models.docker_models import ContainersState
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 container_state = ContainersState
 
 

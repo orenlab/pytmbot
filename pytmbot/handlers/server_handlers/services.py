@@ -21,11 +21,12 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, settings
+from pytmbot.globals import get_emoji_converter, settings
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
 
 
 class ServiceStatus(TypedDict):
