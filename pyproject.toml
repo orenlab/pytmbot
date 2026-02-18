@@ -1,13 +1,18 @@
-[tool.poetry]
+[project]
 name = "pyTMBot"
 version = "0.3.0-dev"
 description = "Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating the need for webhooks"
-authors = ["Denis Rozhnovskiy <pytelemonbot@mail.ru>"]
+authors = [{ name = "Denis Rozhnovskiy", email = "pytelemonbot@mail.ru" }]
+requires-python = ">=3.12,<4"
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/orenlab/pytmbot"
-homepage = "https://github.com/orenlab/pytmbot"
-keywords = ["telegram", "bot", "docker", "monitoring", "server"]
+keywords = [
+    "telegram",
+    "bot",
+    "docker",
+    "monitoring",
+    "server",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: System Administrators",
@@ -16,50 +21,59 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
-packages = [{ include = "pytmbot" }]
+dependencies = [
+    "emoji==2.15.0",
+    "jinja2==3.1.6",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.13.0",
+    "docker==7.1.0",
+    "humanize==4.15.0",
+    "psutil==7.2.2",
+    "pyotp==2.9.0",
+    "loguru==0.7.3",
+    "pyyaml==6.0.3",
+    "pygal==3.1.0",
+    "pytelegrambotapi==4.31.0",
+    "fastapi==0.129.0",
+    "uvicorn==0.41.0",
+    "influxdb-client==1.50.0",
+    "pypng>=0.20220715.0,<0.20220716",
+    "qrcode>=8.2,<9",
+    "aiohttp==3.13.3",
+    "packaging==26.0",
+    "python-dateutil>=2.9.0.post0",
+    "cachetools>=7.0.1,<8",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-emoji = "2.15.0"
-jinja2 = "==3.1.6"
-pydantic = "==2.12.5"
-pydantic-settings = "==2.13.0"
-docker = "==7.1.0"
-humanize = "==4.15.0"
-psutil = "==7.2.2"
-pyotp = "==2.9.0"
-loguru = "==0.7.3"
-pyyaml = "==6.0.3"
-pygal = "==3.1.0"
-pytelegrambotapi = "==4.31.0"
-fastapi = "==0.129.0"
-uvicorn = "==0.41.0"
-influxdb-client = "==1.50.0"
-pypng = "^0.20220715.0"
-qrcode = { extras = ["pil"], version = "^8.2" }
-aiohttp = "==3.13.3"
-packaging = "==26.0"
-pyoutlineapi = "==0.4.0"
-click = { version = "==8.3.1", optional = true }
-python-dateutil = ">=2.9.0.post0"
-cachetools = "^7.0.1"
-rich = "^14.1.0"
+[project.optional-dependencies]
+pyoutlineapi = ["pyoutlineapi==0.4.0"]
+click = ["click==8.3.1"]
 
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.15.1"
-pytest = "^9.0.2"
-pytest-cov = "^7.0.0"
-mypy = "^1.0.0"
-codeclone = "^1.4.2"
+[project.urls]
+Homepage = "https://github.com/orenlab/pytmbot"
+Repository = "https://github.com/orenlab/pytmbot"
 
-[tool.poetry.extras]
-pyoutlineapi = ["pyoutlineapi"]
-click = ["click"]
+[dependency-groups]
+dev = [
+    "ruff>=0.15.1,<0.16",
+    "pytest>=9.0.2,<10",
+    "pytest-cov>=7.0.0,<8",
+    "mypy>=1.0.0,<2",
+    "codeclone>=1.4.2,<2",
+]
+
+[tool.uv]
+
+[tool.uv.build-backend]
+module-name = ["pytmbot"]
+module-root = ""
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
 
 [tool.ruff]
 line-length = 88

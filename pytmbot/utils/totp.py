@@ -15,6 +15,7 @@ from typing import Final
 
 import pyotp
 import qrcode
+from qrcode.image.pure import PyPNGImage
 
 from pytmbot.exceptions import ErrorContext, QRCodeError, TOTPError
 from pytmbot.globals import settings
@@ -151,8 +152,8 @@ class TwoFactorAuthenticator(BaseComponent):
                 # Generate the TOTP authentication URI
                 auth_uri = self._generate_totp_auth_uri()
 
-                # Create a QR code from the authentication URI (using simple approach like original)
-                qr_code = qrcode.make(auth_uri)
+                # Use pure-Python PNG backend (PyPNGImage) to avoid Pillow dependency.
+                qr_code = qrcode.make(auth_uri, image_factory=PyPNGImage)
 
                 # Save the QR code as bytes in a BytesIO object
                 with io.BytesIO() as img_bytes:
