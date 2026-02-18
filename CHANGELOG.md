@@ -27,6 +27,7 @@ All notable changes are documented in this file.
   release tag publication.
 - Container details/handlers flow reworked with improved pagination context and callback behavior.
 - Installer workflow refactored and documented for safer defaults.
+- Local installer dependency setup switched to `pip` with `pip3` fallback in virtualenv (no host `uv` bootstrap).
 - Docker counters cache switched from permanent `lru_cache` to TTL-based targeted invalidation.
 - `quick_view` metric collection simplified to reduce threadpool overhead on hot path.
 - Rate-limit request buffer moved to `deque` for O(1) cleanup.
@@ -58,12 +59,14 @@ All notable changes are documented in this file.
 - Installer hardening:
     - safer install-dir validation,
     - package-manager Docker/Compose installation by default,
-    - unverified `get.docker.com` fallback moved to explicit opt-in.
+    - unverified `get.docker.com` fallback moved to explicit opt-in,
+    - mandatory startup SHA256 integrity gate with explicit `YES` confirmation against published hash.
 
 ### Documentation
 
 - Installation, Docker, settings, CLI args, plugins, and debug docs synchronized with actual runtime behavior.
 - Installer security model and new operational constraints explicitly documented.
+- `docs/script_install.md` now includes a secure hash-verification flow and expected installer SHA256 for `master`.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
 
 [0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06bb1db
