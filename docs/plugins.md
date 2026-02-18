@@ -15,6 +15,10 @@ supported plugins and their configuration.
 Plugins do not require separate installation. To activate the desired plugins, use the --plugins argument when starting
 the container.
 
+> Docker entrypoint currently accepts one plugin value in `--plugins`.
+> If you need multiple plugins in one process, start core CLI directly:
+> `python pytmbot/main.py --plugins monitor outline`.
+
 🐳 Example Usage with Docker Compose
 
 Create a `docker-compose.yml` file with the following configuration:

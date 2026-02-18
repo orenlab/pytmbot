@@ -89,7 +89,7 @@ Installer performs:
 
 1. Creates service user `pytmbot`
 2. Clones repository to `/opt/pytmbot`
-3. Creates virtualenv and installs dependencies
+3. Creates virtualenv and installs project/runtime dependencies via `pip` (with `pip3` fallback) from `pyproject.toml`
 4. Creates systemd unit (`/etc/systemd/system/pytmbot.service`)
 5. Enables and starts service
 
@@ -99,7 +99,7 @@ Systemd security includes `ProtectSystem=strict` and related hardening flags.
 
 Use installer option `3`.
 
-- Local install: updates repo/deps and restores existing config
+- Local install: updates repo/dependencies via virtualenv `pip` flow and restores existing config
 - Docker install:
     - prebuilt image flow: `docker compose pull && docker compose up -d`
     - source flow: `git fetch/reset`, rebuild and start

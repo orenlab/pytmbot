@@ -80,8 +80,8 @@ When using pyTMbot, follow these security guidelines:
 
 - **Keep updated:** Regularly pull the latest Docker image version from the registry
   ```bash
-  docker pull pytmbot:latest
-  docker-compose pull  # if using docker-compose
+  docker pull orenlab/pytmbot:latest
+  docker compose pull  # if using Docker Compose
   ```
 - **Image security:** Use only official images from trusted Docker registries
 - **Container scanning:** Periodically scan Docker images for vulnerabilities:

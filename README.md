@@ -61,7 +61,7 @@ Refer to [plugins.md](docs/plugins.md) for more information on adding and managi
 
 ## 🕸 Requirements
 
-Starting from version 0.9.0, **pyTMbot** can run **either directly on the host machine or in a Docker container**. Both
+Current **0.3.x** builds can run **either directly on the host machine or in a Docker container**. Both
 deployment methods provide full functionality, but there are slight differences in system access depending on the
 environment:
 
@@ -90,9 +90,9 @@ Refer to [installation.md](docs/installation.md) for full instructions on settin
 
 **pyTMbot** comes with security-first features, such as:
 
-- **Superuser Role:** Manage Docker containers securely.
-- **TOTP 2FA Support:** Secure sensitive actions with time-based OTPs and QR code generation.
-- **Access Control Middleware:** Manage bot access using a customizable list of admin IDs.
+- **Allowlist Access Control:** Only IDs from `allowed_user_ids` can use bot features.
+- **Admin Boundaries:** Sensitive actions are restricted to `allowed_admins_ids`.
+- **TOTP 2FA Support:** Sensitive operations use time-based OTP verification with QR setup.
 - **Rate Limiting Middleware:** To protect against **DoS (Denial-of-Service) attacks**, pyTMbot integrates middleware
   that limits the number of requests allowed from a single user or IP address within a specified time frame. This
   prevents abuse while ensuring smooth performance under heavy load.

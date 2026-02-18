@@ -125,13 +125,20 @@ webhook_config:
   local_port:
     - 5001  # Internal port for the bot application
 
+  # Trusted reverse proxy IPs/CIDRs (OPTIONAL)
+  # Configure this only when webhook traffic goes through trusted proxy/load balancer.
+  # If null/unset, forwarded headers are ignored.
+  trusted_proxy_ips: null
+    # - '127.0.0.1/32'
+    # - '10.0.0.0/8'
+
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
-  cert:
-    - '/path/to/your/certificate.pem'  # Replace with actual certificate path
+  cert: null
+    # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
-  cert_key:
-    - '/path/to/your/private.key'      # Replace with actual private key path
+  cert_key: null
+    # - '/path/to/your/private.key'      # Replace with actual private key path
 
 ################################################################
 # Plugins Configuration (OPTIONAL)
@@ -438,7 +445,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
 
 ## 🔧 Command Line Arguments
 
-For the full argument reference, see `/Users/denrozhnovskiy/PycharmProjects/pytmbot/docs/bot_cli_args.md`.
+For the full argument reference, see [`docs/bot_cli_args.md`](bot_cli_args.md).
 
 Docker entrypoint supports these operational flags:
 
@@ -453,6 +460,8 @@ Docker entrypoint supports these operational flags:
 | `--health_check` | `flag` | `False`     | Run health check and exit.                                           |
 | `--check-docker` | `flag` | `False`     | Check Docker socket/group access and exit.                           |
 | `--salt`         | `flag` | `False`     | Generate auth salt and exit.                                         |
+
+Note: in Docker entrypoint mode, `--plugins` currently accepts one plugin value.
 
 ## 📊 Plugin System
 

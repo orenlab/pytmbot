@@ -247,26 +247,47 @@ check_system_requirements() {
   print_info "System requirements check passed"
 }
 
-# Modern beautiful banner
+# Stable width-safe banner (ANSI colors + ASCII frame)
 show_banner() {
   local action="$1"
   clear
 
-  # Get terminal width for responsive design
+  # Get terminal width and clamp to a safe range
   local term_width
   term_width=$(tput cols 2>/dev/null || echo 80)
-  local banner_width=$((term_width > 100 ? 100 : term_width - 4))
+  local max_width=96
+  local min_width=60
+  local banner_width=$((term_width - 4))
+  if [ "$banner_width" -gt "$max_width" ]; then
+    banner_width="$max_width"
+  fi
+  if [ "$banner_width" -lt "$min_width" ]; then
+    banner_width="$min_width"
+  fi
+  local inner_width=$((banner_width - 4))
 
-  # Create gradient effect with different colors
-  local gradient1="${CYAN}▓▓▓▓▓▓${BLUE}▓▓▓▓▓▓${PURPLE}▓▓▓▓▓▓${NC}"
-  local gradient2="${PURPLE}▓▓▓▓▓▓${BLUE}▓▓▓▓▓▓${CYAN}▓▓▓▓▓▓${NC}"
+  _repeat_char() {
+    local count="$1"
+    local char="$2"
+    printf "%*s" "$count" "" | tr " " "$char"
+  }
+
+  _banner_line() {
+    local text="$1"
+    # Force printable ASCII to keep visual width deterministic across terminals.
+    text=$(LC_ALL=C printf "%s" "$text" | tr -cd '[:print:]')
+    # Keep ASCII content inside banner to avoid terminal width drift on emoji/wide glyphs
+    if [ "${#text}" -gt "$inner_width" ]; then
+      text="${text:0:$inner_width}"
+    fi
+    printf "${BOLD}${CYAN}|${NC} %-*s ${BOLD}${CYAN}|${NC}\n" "$inner_width" "$text"
+  }
 
   echo ""
-  echo -e "${BOLD}${CYAN}╔$(printf '═%.0s' $(seq 1 $((banner_width-2))))╗${NC}"
-  echo -e "${BOLD}${CYAN}║${NC} ${gradient1} ${BOLD}${WHITE}pyTMBot ${YELLOW}Installer${NC} ${gradient2} ${BOLD}${CYAN}║${NC}"
-  echo -e "${BOLD}${CYAN}╠$(printf '═%.0s' $(seq 1 $((banner_width-2))))╣${NC}"
+  printf "${BOLD}${CYAN}+%s+${NC}\n" "$(_repeat_char $((banner_width-2)) '=')"
+  _banner_line "pyTMBot Installer"
+  printf "${BOLD}${CYAN}+%s+${NC}\n" "$(_repeat_char $((banner_width-2)) '-')"
 
-  # Center-aligned info
   local version="v${INSTALLER_VERSION}"
   local author="by Denis Rozhnovskiy"
   local system_info
@@ -274,15 +295,15 @@ show_banner() {
   local date_info
   date_info="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)"
 
-  printf "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "🚀 $action"
-  printf "${BOLD}${CYAN}║${NC} ${GRAY}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "   Version: $version"
-  printf "${BOLD}${CYAN}║${NC} ${GRAY}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "   $author"
-  echo -e "${BOLD}${CYAN}╠$(printf '─%.0s' $(seq 1 $((banner_width-2))))╣${NC}"
-  printf "${BOLD}${CYAN}║${NC} ${WHITE}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "💻 System: $system_info"
-  printf "${BOLD}${CYAN}║${NC} ${WHITE}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "🕒 Time: $date_info"
-  echo -e "${BOLD}${CYAN}╠$(printf '─%.0s' $(seq 1 $((banner_width-2))))╣${NC}"
-  printf "${BOLD}${CYAN}║${NC} ${YELLOW}%-*s${CYAN}║${NC}\n" $((banner_width-4)) "🔗 github.com/orenlab/pytmbot"
-  echo -e "${BOLD}${CYAN}╚$(printf '═%.0s' $(seq 1 $((banner_width-2))))╝${NC}"
+  _banner_line "$action"
+  _banner_line "Version: $version"
+  _banner_line "$author"
+  printf "${BOLD}${CYAN}+%s+${NC}\n" "$(_repeat_char $((banner_width-2)) '-')"
+  _banner_line "System: $system_info"
+  _banner_line "Time: $date_info"
+  printf "${BOLD}${CYAN}+%s+${NC}\n" "$(_repeat_char $((banner_width-2)) '-')"
+  _banner_line "github.com/orenlab/pytmbot"
+  printf "${BOLD}${CYAN}+%s+${NC}\n" "$(_repeat_char $((banner_width-2)) '=')"
   echo ""
 }
 
@@ -333,6 +354,44 @@ generate_auth_salt() {
 # Function to check if a command exists
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# Resolve pip executable inside a virtual environment.
+# Priority: pip -> pip3. Returns non-zero if neither exists.
+resolve_venv_pip_cmd() {
+  local venv_dir="$1"
+  if [ -x "$venv_dir/bin/pip" ]; then
+    echo "$venv_dir/bin/pip"
+    return 0
+  fi
+  if [ -x "$venv_dir/bin/pip3" ]; then
+    echo "$venv_dir/bin/pip3"
+    return 0
+  fi
+  return 1
+}
+
+# Install local project and runtime deps into venv via pip.
+install_local_project_with_pip() {
+  local venv_dir="$1"
+  local venv_python="$venv_dir/bin/python"
+  local pip_cmd=""
+
+  if [ ! -x "$venv_python" ]; then
+    echo "Virtualenv Python not found: $venv_python" >&2
+    return 1
+  fi
+
+  # Ensure pip exists in venv (some distributions create venv without pip).
+  "$venv_python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+
+  pip_cmd=$(resolve_venv_pip_cmd "$venv_dir") || {
+    echo "Neither pip nor pip3 found in virtualenv: $venv_dir" >&2
+    return 1
+  }
+
+  "$pip_cmd" install --upgrade pip setuptools wheel >/dev/null 2>&1 || return 1
+  "$pip_cmd" install --no-cache-dir . >/dev/null 2>&1 || return 1
 }
 
 # Get normalized OS ID from /etc/os-release.
@@ -581,7 +640,7 @@ clone_repo() {
     cd "$INSTALL_DIR" || exit 1
 
     # Check if essential files exist
-    for file in "requirements.txt" "pytmbot/main.py" "pytmbot.yaml.sample"; do
+    for file in "pyproject.toml" "pytmbot/main.py" "pytmbot.yaml.sample"; do
       if [ ! -f "$file" ]; then
         echo "Essential file missing: $file" >&2
         exit 1
@@ -1137,7 +1196,7 @@ create_service() {
         break
         ;;
       3)
-        plugins="outline,monitor"
+        plugins="outline monitor"
         print_info "Both plugins selected"
         break
         ;;
@@ -1306,11 +1365,24 @@ update_local_pytmbot() {
     git fetch origin 2>/dev/null || exit 1
     git reset --hard origin/main 2>/dev/null || exit 1
 
-    # Update virtual environment if requirements changed
-    if [ -f requirements.txt ] && [ -d venv ]; then
-      source venv/bin/activate || exit 1
-      pip install --upgrade pip setuptools wheel 2>/dev/null || exit 1
-      pip install -r requirements.txt --upgrade 2>/dev/null || exit 1
+    # Update virtual environment using pip (pip3 fallback inside venv)
+    if [ -f pyproject.toml ]; then
+      local update_python
+      if command_exists python3.13; then
+        update_python=python3.13
+      else
+        update_python=python3
+      fi
+
+      # Recreate missing virtual environment during update
+      if [ ! -d venv ]; then
+        "$update_python" -m venv venv 2>/dev/null || exit 1
+      fi
+
+      install_local_project_with_pip "venv" || exit 1
+    else
+      echo "pyproject.toml not found" >&2
+      exit 1
     fi
 
     # Restore configuration
@@ -1770,15 +1842,11 @@ setup_virtualenv() {
     # Create virtual environment
     $python_cmd -m venv venv 2>/dev/null || exit 1
 
-    # Activate and upgrade pip
-    source venv/bin/activate || exit 1
-    pip install --upgrade pip setuptools wheel 2>/dev/null || exit 1
-
-    # Install requirements
-    if [ -f requirements.txt ]; then
-      pip install -r requirements.txt 2>/dev/null || exit 1
+    # Install project + runtime dependencies with pip/pip3
+    if [ -f pyproject.toml ]; then
+      install_local_project_with_pip "venv" || exit 1
     else
-      echo "requirements.txt not found" >&2
+      echo "pyproject.toml not found" >&2
       exit 1
     fi
 

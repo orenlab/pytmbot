@@ -134,6 +134,7 @@ networks:
 ### Webhook Configuration (if using `--webhook`)
 
 - **webhook_config**: Complete all parameters in the webhook configuration section
+- **trusted_proxy_ips**: Configure trusted reverse-proxy IPs/CIDRs when forwarded headers are used
 - **Security Note**: Bot cannot run on port 80 for security reasons. Use reverse proxy (Nginx, Nginx Proxy Manager, or
   Traefik)
 
@@ -192,7 +193,7 @@ docker run -d \
 
 ### Command Line Arguments
 
-For full core CLI reference, see `/Users/denrozhnovskiy/PycharmProjects/pytmbot/docs/bot_cli_args.md`.
+For full core CLI reference, see [`docs/bot_cli_args.md`](bot_cli_args.md).
 
 Docker image entrypoint supports:
 
@@ -201,7 +202,7 @@ Docker image entrypoint supports:
 | `--mode`         | `str`  | `prod`      | Bot mode: `dev` / `prod`.                                            |
 | `--log-level`    | `str`  | `INFO`      | Log level: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
 | `--log-format`   | `str`  | mode-based  | Log format: `human` / `json`.                                        |
-| `--plugins`      | `str`  | `""`        | Plugin name (for example: `monitor`).                                |
+| `--plugins`      | `str`  | `""`        | Single plugin name in Docker entrypoint mode (for example: `monitor`). |
 | `--webhook`      | `flag` | `False`     | Enable webhook mode (no value required).                             |
 | `--socket_host`  | `str`  | `127.0.0.1` | Socket host for webhook mode.                                        |
 | `--health_check` | `flag` | `False`     | Run health check and exit.                                           |
@@ -236,6 +237,8 @@ Enable specific plugins:
 ```bash
 docker run ... orenlab/pytmbot:latest --plugins monitor
 ```
+
+Note: Docker entrypoint currently accepts one `--plugins` value.
 
 Development mode with debug logging:
 
@@ -277,9 +280,9 @@ The container is configured with the following resource limits for optimal perfo
 
 The container includes built-in health checks that monitor:
 
-- Configuration file presence
-- Network connectivity
-- Core service status
+- Python runtime availability
+- Main script health path (`--health_check`)
+- Docker socket accessibility and permissions (when mounted)
 
 ## Upgrading
 

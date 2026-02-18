@@ -15,10 +15,6 @@ jobs:
       matrix:
         tag:
           - 0.3.0 # This will also be tagged as latest
-        include:
-          - tag: 0.3.0
-            is_latest: true
-            context: https://github.com/orenlab/pytmbot.git#0.3.0
 
     steps:
       - name: Check that tag exists
@@ -51,7 +47,7 @@ jobs:
         if: steps.check_tag.outputs.exists == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
+          context: https://github.com/orenlab/pytmbot.git#${{ matrix.tag }}
           platforms: linux/amd64,linux/arm64
           sbom: true
           provenance: mode=max
@@ -65,8 +61,8 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             orenlab/pytmbot:${{ matrix.tag }}
-            ${{ matrix.is_latest && 'orenlab/pytmbot:latest' || '' }}
+            orenlab/pytmbot:latest
 
       - name: Skip message
         if: steps.check_tag.outputs.exists != 'true'
-        run: echo "No-op: tag ${{ matrix.tag }} is not available yet."
+        run: echo "Tag ${{ matrix.tag }} is not available yet, skipping build."

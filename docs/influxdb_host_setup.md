@@ -210,7 +210,7 @@ sudo systemctl reload nginx
 
 ## Secure Configuration for Isolated Servers
 
-For isolated or home servers, use this secure docker-compose configuration:
+For isolated or home servers, use this secure Docker Compose configuration:
 
 ```yaml
 services:
@@ -352,4 +352,4 @@ For production environments, consider additional security measures such as:
 - Penetration testing
 - Compliance certifications
 
-Remember: Security is an ongoing process, not a one-time setup.Д
+Remember: Security is an ongoing process, not a one-time setup.

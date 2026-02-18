@@ -3,28 +3,28 @@ repos:
     hooks:
       - id: ruff-format
         name: Ruff (format)
-        entry: ruff format .
+        entry: uv run ruff format .
         language: system
         pass_filenames: false
         types: [ python ]
 
       - id: ruff-check
         name: Ruff (lint)
-        entry: ruff check .
+        entry: uv run ruff check .
         language: system
         pass_filenames: false
         types: [ python ]
 
       - id: mypy
         name: Mypy
-        entry: mypy .
+        entry: uv run mypy .
         language: system
         pass_filenames: false
         types: [ python ]
 
       - id: codeclone
         name: CodeClone
-        entry: codeclone
+        entry: uv run codeclone
         language: system
         pass_filenames: false
         args: [ ".", "--ci" ]
