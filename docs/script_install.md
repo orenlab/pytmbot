@@ -37,7 +37,7 @@ Recommended secure flow (verify hash before execution):
 
 ```bash
 curl -fsSLo /tmp/pytmbot-install.sh https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh
-echo "92fe4dac4b69498356ede495cb07aeab4e924a5e15c27a3a2211d55910ef5862  /tmp/pytmbot-install.sh" | sha256sum -c -
+echo "57a5314266327da8be95f819d95cab6ca6d30749e7fdd04854f7331f1802c327  /tmp/pytmbot-install.sh" | sha256sum -c -
 sudo bash /tmp/pytmbot-install.sh
 ```
 
@@ -50,7 +50,7 @@ shasum -a 256 /tmp/pytmbot-install.sh
 Expected SHA256 (`tools/install.sh`, current `master`):
 
 ```text
-92fe4dac4b69498356ede495cb07aeab4e924a5e15c27a3a2211d55910ef5862
+57a5314266327da8be95f819d95cab6ca6d30749e7fdd04854f7331f1802c327
 ```
 
 Quick one-liner (convenient, but no local pre-execution hash verification):
@@ -58,6 +58,11 @@ Quick one-liner (convenient, but no local pre-execution hash verification):
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
 ```
+
+Note: with one-liner execution, shell command substitution trims trailing newlines.
+Installer shows both:
+- `EXECUTED PAYLOAD SHA256`
+- `COMPARISON SHA256 (for docs)` (normalized value to compare against published hash)
 
 On startup, installer will stop and require explicit confirmation:
 

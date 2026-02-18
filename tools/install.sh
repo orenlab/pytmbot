@@ -409,14 +409,24 @@ calculate_string_sha256() {
 verify_installer_integrity_or_exit() {
   local script_path="${BASH_SOURCE[0]:-}"
   local script_source="inline payload (bash -c)"
-  local installer_hash=""
+  local executed_hash=""
+  local compare_hash=""
   local user_confirmation=""
+  local hash_mode="file"
 
   if [ -n "$script_path" ] && [ -f "$script_path" ]; then
     script_source="$script_path"
-    installer_hash=$(calculate_file_sha256 "$script_path" 2>/dev/null || true)
+    executed_hash=$(calculate_file_sha256 "$script_path" 2>/dev/null || true)
+    compare_hash="$executed_hash"
   elif [ -n "${BASH_EXECUTION_STRING:-}" ]; then
-    installer_hash=$(calculate_string_sha256 "$BASH_EXECUTION_STRING" 2>/dev/null || true)
+    hash_mode="inline"
+    executed_hash=$(calculate_string_sha256 "$BASH_EXECUTION_STRING" 2>/dev/null || true)
+    # Command substitution strips trailing newlines; add one back for
+    # repository-file parity when comparing with the published docs hash.
+    compare_hash=$(calculate_string_sha256 "${BASH_EXECUTION_STRING}"$'\n' 2>/dev/null || true)
+    if [ -z "$compare_hash" ]; then
+      compare_hash="$executed_hash"
+    fi
   fi
 
   show_banner "Installer Integrity Verification"
@@ -429,10 +439,22 @@ verify_installer_integrity_or_exit() {
   print_message "$GRAY" "  • Verification docs: $INSTALLER_DOCS_URL"
   echo ""
 
-  if [ -n "$installer_hash" ]; then
-    print_message "$BOLD$WHITE" "CURRENT SHA256:"
-    print_message "$BOLD$YELLOW" "  $installer_hash"
-    log_to_file "INFO" "Installer SHA256: $installer_hash"
+  if [ -n "$executed_hash" ] && [ -n "$compare_hash" ]; then
+    if [ "$hash_mode" = "inline" ]; then
+      print_message "$BOLD$WHITE" "EXECUTED PAYLOAD SHA256:"
+      print_message "$BOLD$YELLOW" "  $executed_hash"
+      print_message "$BOLD$WHITE" "COMPARISON SHA256 (for docs):"
+      print_message "$BOLD$YELLOW" "  $compare_hash"
+      if [ "$executed_hash" != "$compare_hash" ]; then
+        print_message "$GRAY" "  Note: one-liner execution trims trailing newline in payload."
+      fi
+      log_to_file "INFO" "Installer SHA256 (executed payload): $executed_hash"
+      log_to_file "INFO" "Installer SHA256 (docs comparison): $compare_hash"
+    else
+      print_message "$BOLD$WHITE" "CURRENT SHA256:"
+      print_message "$BOLD$YELLOW" "  $compare_hash"
+      log_to_file "INFO" "Installer SHA256: $compare_hash"
+    fi
   else
     print_error "Unable to calculate installer SHA256 hash."
     print_message "$WHITE" "Please run the secure file-based flow from docs and retry."
@@ -443,7 +465,7 @@ verify_installer_integrity_or_exit() {
   echo ""
   print_message "$BOLD$WHITE" "REQUIRED ACTION:"
   print_message "$GRAY" "  1) Open documentation and locate expected hash for current installer version"
-  print_message "$GRAY" "  2) Compare hash values symbol-by-symbol"
+  print_message "$GRAY" "  2) Compare the docs-comparison hash symbol-by-symbol"
   print_message "$GRAY" "  3) Continue only if values are identical"
   echo ""
   read -r -p "Type YES if the hash matches documentation: " user_confirmation
