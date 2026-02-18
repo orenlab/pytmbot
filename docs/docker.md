@@ -11,18 +11,18 @@ A secure, lightweight Docker container for pyTMbot - your Telegram-based monitor
 - **Maintained by**: [OrenLab Team](https://github.com/orenlab)
 - **Where to file issues**: [GitHub Issues](https://github.com/orenlab/pytmbot/issues)
 - **Supported architectures**: `amd64`, `arm64`
-- **Base image**: Alpine Linux
+- **Base image**: Ubuntu
 - **Published image artifact details**:
     - **Image**: `orenlab/pytmbot`
     - **Supported tags**:
         - `latest` - Latest stable release
         - `X.Y.Z` - Specific version releases (e.g., `1.2.3`)
-        - `alpine-dev` - Development version
+        - `ubuntu-dev` - Development version
 
 ## Security Features
 
 - Read-only container filesystem
-- Minimal base image (Alpine Linux)
+- Minimal base image footprint (Ubuntu LTS runtime)
 - Regular security updates
 - Dropped unnecessary capabilities
 - No privilege escalation allowed
@@ -298,6 +298,23 @@ docker compose up -d
 
 Each release image is built in an isolated GitHub Actions environment with pinned dependency versions. The build process
 is fully automated and reproducible. The GitHub Action source code is available in the repository.
+
+### Build-time Bytecode
+
+Official builds compile Python bytecode during image build to reduce cold-start overhead in production.
+
+- `COMPILE_BYTECODE=1` (default): compile bytecode (faster startup, slightly larger image and longer build).
+- `COMPILE_BYTECODE=0`: skip compilation (faster build, slightly slower startup).
+
+CI policy:
+- `ubuntu-dev` uses `COMPILE_BYTECODE=0` to keep development images smaller.
+- release images use `COMPILE_BYTECODE=1` for faster production startup.
+
+Example:
+
+```bash
+docker build --build-arg COMPILE_BYTECODE=0 -t orenlab/pytmbot:local-dev .
+```
 
 ## Troubleshooting
 

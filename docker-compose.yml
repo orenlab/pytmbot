@@ -1,6 +1,6 @@
 services:
   pytmbot:
-    image: orenlab/pytmbot:alpine-dev
+    image: orenlab/pytmbot:ubuntu-dev
     container_name: pytmbot
     restart: on-failure
 
@@ -23,17 +23,10 @@ services:
     # Process settings
     pid: host
 
-    # Resource limits (совместимый синтаксис)
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-          pids: 100
-        reservations:
-          memory: 64M
-
-    # Process limits (отдельно от deploy)
+    # Resource limits
+    cpus: 0.5
+    mem_limit: 256m
+    mem_reservation: 64m
     pids_limit: 100
 
     # Process limits
@@ -72,7 +65,7 @@ services:
     labels:
       - "service.name=pytmbot"
       - "service.environment=development"
-      - "service.version=alpine-dev"
+      - "service.version=ubuntu-dev"
 
     # Command
     command: ["--log-level", "INFO"]

@@ -2,171 +2,143 @@
 #                                                                                                                      #
 #                                               pyTMBot - Dockerfile                                                   #
 # -------------------------------------------------------------------------------------------------------------------- #
-# A lightweight Telegram bot for managing Docker containers and images, monitoring server statuses,                    #
-# and extending its functionality with plugins.                                                                        #
-#                                                                                                                      #
-# Project:        pyTMBot                                                                                              #
-# Author:         Denis Rozhnovskiy <pytelemonbot@mail.ru>                                                             #
-# Repository:     https://github.com/orenlab/pytmbot                                                                   #
-# License:        MIT                                                                                                  #
-# Description:    Dockerfile using pyproject.toml with security improvements.                                          #
+# Ubuntu-based multi-stage image with uv-locked dependencies and minimal runtime footprint.                           #
 #                                                                                                                      #
 ########################################################################################################################
 
-# Set base images tag
-ARG PYTHON_IMAGE=3.13.12-alpine3.23
-ARG ALPINE_IMAGE=3
+# syntax=docker/dockerfile:1.7
+
+ARG UBUNTU_IMAGE=24.04
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.9.5
+ARG COMPILE_BYTECODE=1
 
 ########################################################################################################################
-######################### BUILD DEPENDENCIES STAGE #####################################################################
+######################### UV BINARY STAGE ##############################################################################
 ########################################################################################################################
-FROM python:${PYTHON_IMAGE} AS builder
+FROM ${UV_IMAGE} AS uv_bin
+
+########################################################################################################################
+######################### BUILD STAGE ##################################################################################
+########################################################################################################################
+FROM ubuntu:${UBUNTU_IMAGE} AS builder
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG COMPILE_BYTECODE
 
 WORKDIR /build
 
-# Copy project files and source code for pip to resolve dependencies
-COPY pyproject.toml poetry.lock* ./
-COPY pytmbot ./pytmbot
-RUN touch README.md 2>/dev/null || true
-
-# Install dependencies directly from pyproject.toml using pip
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/var/cache/apk \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eux && \
-    # Validate project files
-    test -f pyproject.toml || (echo "ERROR: pyproject.toml not found" && exit 1) && \
-    # Install build dependencies
-    apk add --no-cache --virtual .build-deps \
-        gcc python3-dev musl-dev linux-headers binutils && \
-    # Upgrade pip to ensure pyproject.toml support
-    pip install --no-cache-dir --upgrade pip setuptools wheel build && \
-    # Install only runtime dependencies (excluding dev/test groups)
-    pip install --no-cache-dir --target /packages . && \
-    # Clean up build dependencies
-    apk del .build-deps && \
-    # Strip debug symbols from compiled extensions
-    find /packages -name "*.so" -exec strip --strip-unneeded {} + 2>/dev/null || true && \
-    # Show final package size
-    echo "=== PACKAGES SIZE ===" && \
-    du -sh /packages
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        build-essential \
+        python3 \
+        python3-dev \
+        python3-venv \
+        libffi-dev \
+        libssl-dev \
+        libjpeg-dev \
+        zlib1g-dev \
+        pkg-config \
+        tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=uv_bin /uv /usr/local/bin/uv
+
+ENV UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy
+
+# Copy lock + project metadata first to maximize dependency-layer cache reuse.
+COPY pyproject.toml uv.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    set -eux && \
+    uv sync \
+        --frozen \
+        --no-dev \
+        --no-editable \
+        --no-install-project \
+        --python /usr/bin/python3
+
+COPY pytmbot ./pytmbot
+
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    set -eux && \
+    uv sync \
+        --frozen \
+        --no-dev \
+        --no-editable \
+        --no-install-project \
+        --python /usr/bin/python3 && \
+    if [ "$COMPILE_BYTECODE" = "1" ]; then \
+        # Runtime uses PYTHONOPTIMIZE=1: compile a single opt-1 bytecode set
+        # to avoid keeping duplicate non-optimized and optimized caches.
+        python3 -m compileall -q -j 0 -o 1 /opt/venv /build/pytmbot; \
+    fi
 
 ########################################################################################################################
-######################### OPTIMIZATION STAGE ###########################################################################
+######################### RUNTIME STAGE ################################################################################
 ########################################################################################################################
-FROM python:${PYTHON_IMAGE} AS optimizer
+FROM ubuntu:${UBUNTU_IMAGE} AS runtime
 
-COPY --from=builder /packages /packages
+ARG DEBIAN_FRONTEND=noninteractive
 
-# Enhanced cleanup with security focus
-RUN cd /packages && \
-    echo "=== OPTIMIZING PACKAGES ===" && \
-    # Remove Python bytecode and cache
-    find . -name '*.pyc' -delete && \
-    find . -name '*.pyo' -delete && \
-    find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    # Remove tests and docs
-    find . -name 'tests' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    find . -name 'test' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    find . -type d -name 'doc' -exec rm -rf {} + 2>/dev/null || true && \
-    find . -type d -name 'docs' -exec rm -rf {} + 2>/dev/null || true && \
-    find . -type d -name 'examples' -exec rm -rf {} + 2>/dev/null || true && \
-    # Remove metadata
-    find . -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    find . -name '*.egg-info' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    # Strip binaries
-    find . -name '*.so' -exec strip --strip-unneeded {} + 2>/dev/null || true && \
-    find . -name '*.so.*' -exec strip --strip-unneeded {} + 2>/dev/null || true && \
-    # Remove development files
-    find . -name '*.a' -delete 2>/dev/null || true && \
-    find . -name '*.h' -delete 2>/dev/null || true && \
-    find . -type d -name 'include' -exec rm -rf {} + 2>/dev/null || true && \
-    # Remove pip, setuptools, wheel completely
-    rm -rf pip* setuptools* wheel* pkg_resources* _distutils_hack* distutils* && \
-    echo "=== OPTIMIZED PACKAGES SIZE ===" && \
-    du -sh /packages && \
-    du -sh /packages/* 2>/dev/null | sort -hr | head -10
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        python3 \
+        tini \
+        tzdata \
+        passwd && \
+    rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* && \
+    rm -rf /var/lib/apt/lists/*
 
-########################################################################################################################
-######################### PYTHON EXTRACTOR STAGE #######################################################################
-########################################################################################################################
-FROM python:${PYTHON_IMAGE} AS python_extractor
-
-ARG PYTHON_VERSION=3.13
-
-# Extract minimal Python runtime
-RUN mkdir -p /python_minimal/bin /python_minimal/lib && \
-    # Copy only essential binaries
-    cp /usr/local/bin/python${PYTHON_VERSION} /python_minimal/bin/ && \
-    ln -sf python${PYTHON_VERSION} /python_minimal/bin/python3 && \
-    ln -sf python${PYTHON_VERSION} /python_minimal/bin/python && \
-    # Copy Python standard library
-    cp -r /usr/local/lib/python${PYTHON_VERSION} /python_minimal/lib/ && \
-    # Copy shared libraries
-    find /usr/local/lib -name "libpython*.so*" -exec cp {} /python_minimal/lib/ \; && \
-    # Clean up standard library (conservative approach)
-    cd /python_minimal/lib/python${PYTHON_VERSION} && \
-    rm -rf test tests tkinter turtle* idlelib ensurepip && \
-    find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true && \
-    find . -name '*.pyc' -delete && \
-    find . -type d -name 'doc' -exec rm -rf {} + 2>/dev/null || true && \
-    echo "=== PYTHON MINIMAL SIZE ===" && \
-    du -sh /python_minimal
-
-########################################################################################################################
-######################### RUNTIME STAGE #################################################################################
-########################################################################################################################
-FROM alpine:${ALPINE_IMAGE} AS runtime
-
-ARG PYTHON_VERSION=3.13
-
-# Install minimal runtime dependencies
-RUN apk update && apk upgrade --no-cache && \
-    # Install only essential packages
-    apk add --no-cache \
-        libssl3 libcrypto3 libffi zlib readline sqlite-libs tzdata \
-        su-exec tini && \
-    # Create docker group with default GID (will be adjusted by entrypoint)
-    addgroup docker && \
-    # Create user with fixed UID for consistency
-    adduser -D -u 1001 -s /bin/sh pytmbot && \
-    adduser pytmbot docker && \
-    # Create directories
+# Create runtime user and groups with stable UID/GID and docker-socket compatibility.
+RUN groupadd --gid 1001 pytmbot && \
+    useradd --uid 1001 --gid 1001 --create-home --home-dir /home/pytmbot --shell /usr/sbin/nologin pytmbot && \
+    if ! getent group docker >/dev/null; then groupadd docker; fi && \
+    usermod -aG docker,root pytmbot && \
+    if getent group 1000 >/dev/null; then \
+        usermod -aG "$(getent group 1000 | cut -d: -f1)" pytmbot; \
+    else \
+        groupadd --gid 1000 hostdocker && usermod -aG hostdocker pytmbot; \
+    fi && \
     mkdir -p /opt/app && \
     chown -R pytmbot:pytmbot /opt/app && \
-    chmod 750 /opt/app && \
-    # Security cleanup
-    rm -rf /var/cache/apk/* /var/lib/apk/lists/* /tmp/* /root/.cache \
-           /usr/share/man /usr/share/doc
+    chmod 750 /opt/app
 
 WORKDIR /opt/app
 
-# Set environment with security improvements
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/opt/app:/opt/packages \
-    PATH=/usr/local/bin:$PATH \
+    PYTHONPATH=/opt/app \
+    PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=random \
     PYTHONOPTIMIZE=1 \
     PYTHONINSPECT=0 \
     TZ=UTC
 
-# Copy Python runtime
-COPY --from=python_extractor /python_minimal/bin/* /usr/local/bin/
-COPY --from=python_extractor /python_minimal/lib /usr/local/lib/
+# Copy virtual environment produced by uv from the builder image.
+COPY --link --from=builder /opt/venv /opt/venv
 
-# Copy optimized packages
-COPY --from=optimizer --chown=pytmbot:pytmbot /packages /opt/packages
+# Keep compatibility with existing entrypoint absolute interpreter path.
+RUN ln -sf /opt/venv/bin/python3 /usr/local/bin/python3 && \
+    ln -sf /opt/venv/bin/python3 /usr/local/bin/python
 
-# Copy application with proper permissions
-COPY --chown=pytmbot:pytmbot --chmod=755 ./entrypoint.sh ./entrypoint.sh
-COPY --chown=pytmbot:pytmbot ./pytmbot ./pytmbot
+COPY --link --chown=pytmbot:pytmbot --chmod=755 ./entrypoint.sh ./entrypoint.sh
+# Copy app sources from builder to keep dependency layers cache-friendly.
+COPY --link --from=builder --chown=1001:1001 /build/pytmbot ./pytmbot
 
-# Verify installation
-RUN python3 --version && \
-    test -x ./entrypoint.sh
+# Basic runtime validation.
+RUN python3 --version && test -x ./entrypoint.sh
 
-# Health check
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
     CMD ["./entrypoint.sh", "--health_check"]
 

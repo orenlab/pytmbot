@@ -1,15 +1,18 @@
-name: Push Alpine Dev Image
+name: Push Ubuntu Dev Image
 
 on:
   push:
     branches:
       - '**'  # слушаем все ветки
 
+concurrency:
+  group: dev-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
   id-token: write
-  security-events: write
 
 jobs:
   push_dev_image:
@@ -44,7 +47,7 @@ jobs:
         with:
           images: orenlab/pytmbot
           tags: |
-            type=raw,value=alpine-dev
+            type=raw,value=ubuntu-dev
           labels: |
             org.opencontainers.image.title=pyTMbot
             org.opencontainers.image.description=Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system
@@ -57,7 +60,10 @@ jobs:
           target: production
           file: Dockerfile
           push: true
+          pull: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            COMPILE_BYTECODE=0
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: mode=max

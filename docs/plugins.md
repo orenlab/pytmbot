@@ -22,8 +22,8 @@ Create a `docker-compose.yml` file with the following configuration:
 ```yaml
 services:
   pytmbot:
-    # Lightweight Alpine-based image with dev environment for pyTMbot
-    image: orenlab/pytmbot:alpine-dev
+    # Ubuntu-based development image for pyTMbot
+    image: orenlab/pytmbot:ubuntu-dev
     container_name: pytmbot
     # Restart the container only on failure for reliability
     restart: on-failure

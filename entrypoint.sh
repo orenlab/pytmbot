@@ -16,7 +16,9 @@ set -e
 ########################################################################################################################
 
 # Constants
-PYTHON_PATH="/usr/local/bin/python3"
+# IMPORTANT: use venv interpreter directly; `/usr/local/bin/python3` symlink
+# does not reliably activate venv on Ubuntu images.
+PYTHON_PATH="/opt/venv/bin/python3"
 MAIN_SCRIPT="pytmbot/main.py"
 SALT_SCRIPT="pytmbot/utils/salt.py"
 
@@ -105,6 +107,13 @@ fix_docker_group_runtime() {
         CURRENT_DOCKER_GID=$(getent group docker | cut -d: -f3 2>/dev/null || echo "")
 
         log "INFO" "entrypoint" "Docker socket analysis" "{\"socket_gid\": $DOCKER_SOCKET_GID, \"container_gid\": \"$CURRENT_DOCKER_GID\"}"
+
+        # If user already belongs to the socket group (for example, root:gid=0), no remapping is needed.
+        SOCKET_GROUP_NAME=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1 2>/dev/null || echo "")
+        if [ -n "$SOCKET_GROUP_NAME" ] && id -nG | tr ' ' '\n' | grep -Fxq "$SOCKET_GROUP_NAME"; then
+            log "INFO" "entrypoint" "User already has Docker socket group access" "{\"group\": \"$SOCKET_GROUP_NAME\", \"gid\": $DOCKER_SOCKET_GID}"
+            return 0
+        fi
 
         # If GIDs don't match, we need to adjust
         if [ "$DOCKER_SOCKET_GID" != "$CURRENT_DOCKER_GID" ]; then
