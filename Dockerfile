@@ -65,14 +65,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
 
 COPY pytmbot ./pytmbot
 
-RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    set -eux && \
-    uv sync \
-        --frozen \
-        --no-dev \
-        --no-editable \
-        --no-install-project \
-        --python /usr/bin/python3 && \
+RUN set -eux && \
     if [ "$COMPILE_BYTECODE" = "1" ]; then \
         # Runtime uses PYTHONOPTIMIZE=1: compile a single opt-1 bytecode set
         # to avoid keeping duplicate non-optimized and optimized caches.
