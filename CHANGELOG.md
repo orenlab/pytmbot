@@ -17,8 +17,14 @@ All notable changes are documented in this file.
 
 - Docker and psutil pipelines optimized: reduced duplicate checks and fewer expensive roundtrips.
 - Logging pipeline redesigned: normalized event names, context deduplication, trace IDs, safer masking.
-- Runtime/build toolchain modernized (Python 3.13 alignment, pyproject workflow, CI/CD updates, tini-based container
-  startup).
+- Runtime/build toolchain modernized (Python 3.13 alignment, uv-based dependency workflow, CI/CD updates, tini-based
+  container startup).
+- Container image stack migrated to Ubuntu-based multi-stage builds with smaller runtime footprint and clearer layer
+  separation.
+- Release/dev image pipelines standardized to Buildx v0.24 cache flow (`gha` cache), SBOM/provenance and explicit
+  bytecode policy (`COMPILE_BYTECODE`).
+- Supported scheduled tag-rebuild scope narrowed to `0.3.0`, with tag-existence precheck to keep CI green before
+  release tag publication.
 - Container details/handlers flow reworked with improved pagination context and callback behavior.
 - Installer workflow refactored and documented for safer defaults.
 - Docker counters cache switched from permanent `lru_cache` to TTL-based targeted invalidation.
@@ -31,6 +37,8 @@ All notable changes are documented in this file.
 - 2FA flow now accepts plain code input, with proper input cleanup outside auth flow.
 - False `degraded` health status due to expired sessions in health stats.
 - Entrypoint health check behavior made deterministic and fail-fast.
+- Entrypoint Python interpreter path fixed to use `/opt/venv/bin/python3`, resolving missing-package edge cases in
+  container run configs.
 - Docker image update detection edge cases (same tag/new build ambiguity).
 - Polling conflict/restart edge cases and startup/shutdown stability issues.
 - Multiple ruff/mypy typing and lint regressions across core modules.
@@ -58,4 +66,4 @@ All notable changes are documented in this file.
 - Installer security model and new operational constraints explicitly documented.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
 
-[0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06a30a6
+[0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06bb1db
