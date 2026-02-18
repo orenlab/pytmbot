@@ -69,7 +69,7 @@ def handle_images_page(call: CallbackQuery, bot: TeleBot) -> None:
         called_user_id=target_user_id,
         require_admin=False,
         require_owner_match=True,
-        require_session=True,
+        require_session=False,
     )
     if not is_allowed:
         show_handler_info(

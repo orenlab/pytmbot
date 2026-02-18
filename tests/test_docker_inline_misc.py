@@ -117,6 +117,7 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = _raw_handler(images_page_module.handle_images_page)
     bot = _Bot()
     shown: list[str] = []
+    auth_kwargs: list[dict[str, object]] = []
 
     monkeypatch.setattr(images_page_module, "show_handler_info", lambda call, text, bot: shown.append(text))
 
@@ -134,22 +135,27 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert shown[-1] == "Invalid images pagination request."
 
     monkeypatch.setattr(images_page_module, "parse_page_callback_data", lambda data, prefix: (2, 11))
-    monkeypatch.setattr(
-        images_page_module,
-        "authorize_docker_callback_request",
-        lambda call, called_user_id, **kwargs: (False, "forbidden"),
-    )
+
+    def _deny_auth(call: object, called_user_id: object, **kwargs: object) -> tuple[bool, str]:
+        del call, called_user_id
+        auth_kwargs.append(kwargs)
+        return False, "forbidden"
+
+    monkeypatch.setattr(images_page_module, "authorize_docker_callback_request", _deny_auth)
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert shown[-1] == "Images: forbidden"
+    assert auth_kwargs[-1]["require_session"] is False
 
-    monkeypatch.setattr(
-        images_page_module,
-        "authorize_docker_callback_request",
-        lambda call, called_user_id, **kwargs: (True, ""),
-    )
+    def _allow_auth(call: object, called_user_id: object, **kwargs: object) -> tuple[bool, str]:
+        del call, called_user_id
+        auth_kwargs.append(kwargs)
+        return True, ""
+
+    monkeypatch.setattr(images_page_module, "authorize_docker_callback_request", _allow_auth)
     monkeypatch.setattr(images_page_module, "render_images_page", lambda page, user_id: ("images-page", "kbd"))
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "images-page"
+    assert auth_kwargs[-1]["require_session"] is False
 
 
 def test_prepare_context_for_render() -> None:
