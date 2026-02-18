@@ -1,0 +1,31 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Ruff (format)
+        entry: ruff format .
+        language: system
+        pass_filenames: false
+        types: [ python ]
+
+      - id: ruff-check
+        name: Ruff (lint)
+        entry: ruff check .
+        language: system
+        pass_filenames: false
+        types: [ python ]
+
+      - id: mypy
+        name: Mypy
+        entry: mypy .
+        language: system
+        pass_filenames: false
+        types: [ python ]
+
+      - id: codeclone
+        name: CodeClone
+        entry: codeclone
+        language: system
+        pass_filenames: false
+        args: [ ".", "--ci" ]
+        types: [ python ]
