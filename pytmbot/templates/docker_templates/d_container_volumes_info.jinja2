@@ -1,0 +1,27 @@
+{{ thought_balloon }} <b>Container Volumes:</b>
+
+{{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
+
+{% if mounts_count > 0 -%}
+{{ luggage_emoji }} <b>Mounts ({{ mounts_count }}):</b>
+
+{% for mount in mounts -%}
+<b>{{ loop.index }}.</b> <code>{{ mount.type }}</code>
+<code>Source:</code> {{ mount.source }}
+<code>Target:</code> {{ mount.destination }}
+<code>Mode:</code> {{ mount.mode }} | <code>Access:</code> {{ mount.access }}
+
+{% if not loop.last -%}
+<i>───────────────</i>
+
+{% endif -%}
+{% endfor -%}
+{% if hidden_mounts_count > 0 -%}
+<i>... and {{ hidden_mounts_count }} more mounts</i>
+
+{% endif -%}
+{% else -%}
+<b>No mounts configured for this container.</b>
+
+{% endif -%}
+{{ banjo }} <i>Container volume details retrieved.</i>

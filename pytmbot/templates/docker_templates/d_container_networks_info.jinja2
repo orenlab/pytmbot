@@ -1,0 +1,42 @@
+{{ thought_balloon }} <b>Container Networks:</b>
+
+{{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
+
+{{ globe_emoji }} <b>Network mode:</b> <code>{{ network_mode }}</code>
+
+{{ chart_emoji }} <b>Port bindings{% if ports_count > 0 %} ({{ ports_count }}){% endif %}:</b>
+{% if ports_count > 0 -%}
+{% for port in ports -%}
+<code>{{ port }}</code>
+{% endfor -%}
+{% if hidden_ports_count > 0 -%}
+<i>... and {{ hidden_ports_count }} more port bindings</i>
+{% endif -%}
+{% else -%}
+<code>No published ports</code>
+{% endif %}
+
+{{ network_emoji }} <b>Attached networks{% if networks_count > 0 %} ({{ networks_count }}){% endif %}:</b>
+{% if networks_count > 0 -%}
+{% for net in networks -%}
+<b>{{ net.name }}</b>
+<code>IP:</code> {{ net.ip_address }}
+<code>Gateway:</code> {{ net.gateway }}
+<code>MAC:</code> {{ net.mac_address }}
+{% if net.aliases -%}
+<code>Aliases:</code> {{ net.aliases | join(", ") }}
+{% endif -%}
+
+{% if not loop.last -%}
+<i>───────────────</i>
+
+{% endif -%}
+{% endfor -%}
+{% if hidden_networks_count > 0 -%}
+<i>... and {{ hidden_networks_count }} more networks</i>
+{% endif -%}
+{% else -%}
+<code>No custom networks attached</code>
+{% endif %}
+
+{{ banjo }} <i>Container network details retrieved.</i>

@@ -10,6 +10,11 @@ from telebot.types import CallbackQuery
 
 from pytmbot.globals import ButtonDataType, get_keyboards, settings
 from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
+from pytmbot.handlers.docker_handlers.inline.container_runtime_info import (
+    CONTAINER_EXTRA_ACTION_NETWORKS,
+    CONTAINER_EXTRA_ACTION_VOLUMES,
+    CONTAINER_EXTRA_CALLBACK_PREFIX,
+)
 from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
     parse_container_full_info_callback_data,
@@ -19,43 +24,14 @@ from pytmbot.handlers.handlers_util.docker import (
     get_comprehensive_container_details,
     get_emojis,
     show_handler_info,
+    validate_container_name,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 
 logger = Logger()
 button_data = ButtonDataType
 keyboards = get_keyboards()
-
-
-def validate_container_name(name: str) -> bool:
-    """Validate container name for security."""
-    if not name or not isinstance(name, str):
-        return False
-
-    if len(name) > MAX_CONTAINER_NAME_LENGTH:
-        return False
-
-    if not CONTAINER_NAME_PATTERN.match(name):
-        return False
-
-    dangerous_patterns = [
-        "..",
-        "/",
-        "\\",
-        "$",
-        "`",
-        ";",
-        "|",
-        "&",
-        "\n",
-        "\r",
-        "\t",
-        "\0",
-    ]
-
-    return not any(pattern in name for pattern in dangerous_patterns)
 
 
 @logger.catch()
@@ -148,6 +124,22 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
 
             keyboard_buttons.extend(
                 [
+                    button_data(
+                        text=f"{emojis.get('luggage', '🧳')} Volumes",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_VOLUMES}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
+                    button_data(
+                        text=f"{emojis.get('globe_with_meridians', '🌐')} Networks",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_NETWORKS}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
                     button_data(
                         text=f"{emojis.get('spiral_calendar', '📅')} Get logs",
                         callback_data=f"__get_logs__:open:{container_ref}:{call.from_user.id}",

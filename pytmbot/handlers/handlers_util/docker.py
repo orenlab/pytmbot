@@ -25,6 +25,7 @@ from pytmbot.adapters.docker.utils import (
 from pytmbot.globals import get_emoji_converter
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
+from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 from pytmbot.utils import (
     sanitize_logs,
     set_naturalsize,
@@ -34,6 +35,35 @@ from pytmbot.utils import (
 
 logger = Logger()
 em = get_emoji_converter()
+
+
+def validate_container_name(name: str) -> bool:
+    """Validate container name for callback-driven operations."""
+    if not name or not isinstance(name, str):
+        return False
+
+    if len(name) > MAX_CONTAINER_NAME_LENGTH:
+        return False
+
+    if not CONTAINER_NAME_PATTERN.match(name):
+        return False
+
+    dangerous_patterns = [
+        "..",
+        "/",
+        "\\",
+        "$",
+        "`",
+        ";",
+        "|",
+        "&",
+        "\n",
+        "\r",
+        "\t",
+        "\0",
+    ]
+
+    return not any(pattern in name for pattern in dangerous_patterns)
 
 
 @dataclass(frozen=True, slots=True)

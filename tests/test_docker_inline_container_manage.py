@@ -9,6 +9,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 import pytmbot.handlers.docker_handlers.inline.container_info as container_info_module
+import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime_info_module
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
 
 
@@ -78,6 +79,22 @@ def _prepare_handler_context(
     return handler, bot, shown
 
 
+def _assert_invalid_container_name_path(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    module: object,
+    handler: Callable[..., object],
+    bot: _Bot,
+    shown: list[str],
+    callback_data: str,
+    invalid_text: str,
+) -> None:
+    monkeypatch.setattr(module, "validate_container_name", lambda name: False)
+    handler(cast(CallbackQuery, _Call(data=callback_data)), cast(TeleBot, bot))
+    assert shown[-1] == invalid_text
+    monkeypatch.setattr(module, "validate_container_name", lambda name: True)
+
+
 def test_validate_container_name() -> None:
     assert container_info_module.validate_container_name("api-1") is True
     assert container_info_module.validate_container_name("") is False
@@ -121,14 +138,14 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         "authorize_docker_callback_request",
         lambda **kwargs: (True, ""),
     )
-    monkeypatch.setattr(
-        container_info_module, "validate_container_name", lambda name: False
-    )
-    handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid container name format"
-
-    monkeypatch.setattr(
-        container_info_module, "validate_container_name", lambda name: True
+    _assert_invalid_container_name_path(
+        monkeypatch,
+        module=container_info_module,
+        handler=handler,
+        bot=bot,
+        shown=shown,
+        callback_data="ok",
+        invalid_text="Invalid container name format",
     )
     monkeypatch.setattr(
         container_info_module, "get_comprehensive_container_details", lambda name: {}
@@ -191,6 +208,12 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     callbacks = cast(list[dict[str, str]], bot.edited_messages[-1]["reply_markup"])
     callback_data = [item["callback_data"] for item in callbacks]
     assert bot.edited_messages[-1]["text"] == "container-full"
+    assert any(
+        value.startswith("__container_extra__:volumes:") for value in callback_data
+    )
+    assert any(
+        value.startswith("__container_extra__:networks:") for value in callback_data
+    )
     assert any(value.startswith("__get_logs__") for value in callback_data)
     assert any(value.startswith("__manage__") for value in callback_data)
     assert any(value.startswith("__containers_page__") for value in callback_data)
@@ -226,6 +249,166 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     )
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
     assert shown[-1] == "An error occurred while processing request"
+
+
+def test_parse_container_extra_callback_data() -> None:
+    parsed = runtime_info_module.parse_container_extra_callback_data(
+        "__container_extra__:volumes:api:11"
+    )
+    assert parsed.action == "volumes"
+    assert parsed.container_name == "api"
+    assert parsed.user_id == 11
+
+    with pytest.raises(ValueError):
+        runtime_info_module.parse_container_extra_callback_data(None)
+    with pytest.raises(ValueError):
+        runtime_info_module.parse_container_extra_callback_data(
+            "__container_extra__:unknown:api:11"
+        )
+    with pytest.raises(ValueError):
+        runtime_info_module.parse_container_extra_callback_data(
+            "__container_extra__:volumes:api:not-int"
+        )
+
+
+def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler, bot, shown = _prepare_handler_context(
+        monkeypatch,
+        module=runtime_info_module,
+        handler_obj=runtime_info_module.handle_container_extra_info,
+    )
+
+    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
+    assert shown[-1] == "Invalid container details request"
+
+    monkeypatch.setattr(
+        runtime_info_module,
+        "authorize_docker_callback_request",
+        lambda call, called_user_id: (False, "denied"),
+    )
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert shown[-1] == "Container details: denied"
+
+    monkeypatch.setattr(
+        runtime_info_module,
+        "authorize_docker_callback_request",
+        lambda call, called_user_id: (True, ""),
+    )
+    _assert_invalid_container_name_path(
+        monkeypatch,
+        module=runtime_info_module,
+        handler=handler,
+        bot=bot,
+        shown=shown,
+        callback_data="__container_extra__:volumes:api:11",
+        invalid_text="Invalid container name format",
+    )
+    monkeypatch.setattr(
+        runtime_info_module, "get_container_full_details", lambda name: None
+    )
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert shown[-1] == "api: Container not found"
+
+    @dataclass
+    class _Container:
+        attrs: dict[str, object]
+
+    container_attrs: dict[str, object] = {
+        "Mounts": [
+            {
+                "Source": "/src",
+                "Destination": "/dst",
+                "Mode": "rw",
+                "Type": "bind",
+                "RW": True,
+            }
+        ],
+        "HostConfig": {"NetworkMode": "bridge"},
+        "NetworkSettings": {
+            "Ports": {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8080"}]},
+            "Networks": {
+                "bridge": {
+                    "IPAddress": "172.17.0.2",
+                    "Gateway": "172.17.0.1",
+                    "MacAddress": "aa:bb:cc:dd:ee:ff",
+                    "Aliases": ["api"],
+                }
+            },
+        },
+    }
+
+    monkeypatch.setattr(
+        runtime_info_module,
+        "get_container_full_details",
+        lambda name: _Container(attrs=container_attrs),
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "get_emojis",
+        lambda: {
+            "thought_balloon": "💭",
+            "package": "📦",
+            "banjo": "🪕",
+            "luggage": "🧳",
+            "globe_with_meridians": "🌐",
+            "chart_increasing": "📈",
+            "BACK_arrow": "⬅️",
+        },
+    )
+    monkeypatch.setattr(
+        runtime_info_module.Compiler,
+        "quick_render",
+        lambda template_name, **kwargs: template_name,
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "keyboards",
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
+    )
+
+    handler(
+        cast(
+            CallbackQuery,
+            _Call(data="__container_extra__:volumes:api:11", message=None),
+        ),
+        cast(TeleBot, bot),
+    )
+    assert shown[-1] == "Cannot render container details in this context"
+
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert bot.edited_messages[-1]["text"] == "d_container_volumes_info.jinja2"
+    volumes_callbacks = cast(
+        list[dict[str, str]],
+        bot.edited_messages[-1]["reply_markup"],
+    )
+    assert volumes_callbacks[0]["callback_data"] == "__get_full__:api:11"
+
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:networks:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert bot.edited_messages[-1]["text"] == "d_container_networks_info.jinja2"
 
 
 def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:

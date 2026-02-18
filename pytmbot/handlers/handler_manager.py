@@ -36,6 +36,10 @@ from .docker_handlers.inline.back import handle_back_to_containers
 from .docker_handlers.inline.container_info import (
     handle_containers_full_info,
 )
+from .docker_handlers.inline.container_runtime_info import (
+    CONTAINER_EXTRA_CALLBACK_PREFIX,
+    handle_container_extra_info,
+)
 from .docker_handlers.inline.image_updates import handle_image_updates
 from .docker_handlers.inline.images_page import handle_images_page
 from .docker_handlers.inline.logs import handle_get_logs
@@ -165,6 +169,13 @@ class InlineFilters:
         return call.data.startswith("__manage__")
 
     @staticmethod
+    def container_extra_info(call: CallbackQueryType) -> bool:
+        """Filter for 2FA-protected container runtime details callback."""
+        if call.data is None:
+            return False
+        return call.data.startswith(CONTAINER_EXTRA_CALLBACK_PREFIX)
+
+    @staticmethod
     def image_updates(call: CallbackQueryType) -> bool:
         """Filter for image updates callback."""
         if call.data is None:
@@ -289,6 +300,12 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(
                 callback=handle_manage_container,
                 filter_func=InlineFilters.manage_container,
+            )
+        ],
+        "container_extra_info": [
+            HandlerConfig(
+                callback=handle_container_extra_info,
+                filter_func=InlineFilters.container_extra_info,
             )
         ],
         "manage_action": [
