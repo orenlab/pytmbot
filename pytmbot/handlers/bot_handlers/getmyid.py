@@ -17,10 +17,15 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
     DeletionResult,
     DeletionStatus,
+    create_post_delete_navigation_callback,
     deletion_manager,
 )
 
 logger = Logger()
+GETMYID_DELETED_NAVIGATION_TEXT = (
+    "🧹 ID message was deleted for privacy.\n"
+    "Use the button below to return to the main menu."
+)
 
 
 def _deletion_callback(result: DeletionResult) -> None:
@@ -123,7 +128,12 @@ def handle_getmyid(
             message_id=sent_message.message_id,
             user_id=user_id,
             delay_seconds=auto_delete_delay,
-            callback=_deletion_callback,
+            callback=create_post_delete_navigation_callback(
+                _deletion_callback,
+                bot=bot,
+                chat_id=chat_id,
+                navigation_text=GETMYID_DELETED_NAVIGATION_TEXT,
+            ),
         )
 
         # Handle different deletion scheduling outcomes

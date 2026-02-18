@@ -16,6 +16,7 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
     DeletionResult,
     DeletionStatus,
+    create_post_delete_navigation_callback,
     deletion_manager,
 )
 from pytmbot.utils.totp import TwoFactorAuthenticator
@@ -23,9 +24,15 @@ from pytmbot.utils.totp import TwoFactorAuthenticator
 logger = Logger()
 em = get_emoji_converter()
 keyboards = get_keyboards()
+QR_DELETED_NAVIGATION_TEXT = (
+    "🧹 QR code message was deleted for security.\n"
+    "Use the button below to return to the main menu."
+)
 
 
-def _qr_deletion_callback(result: DeletionResult) -> None:
+def _qr_deletion_callback(
+    result: DeletionResult,
+) -> None:
     """
     Callback function executed after QR code message deletion attempt.
 
@@ -99,7 +106,12 @@ def handle_qr_code_message(
                 message_id=sent_message.message_id,
                 user_id=user_id,
                 delay_seconds=auto_delete_delay,
-                callback=_qr_deletion_callback,
+                callback=create_post_delete_navigation_callback(
+                    _qr_deletion_callback,
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
+                ),
             )
 
             # Handle different deletion scheduling outcomes
@@ -157,7 +169,12 @@ def handle_qr_code_message(
                 message_id=error_message.message_id,
                 user_id=user_id,
                 delay_seconds=15,  # Delete error messages faster
-                callback=_qr_deletion_callback,
+                callback=create_post_delete_navigation_callback(
+                    _qr_deletion_callback,
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
+                ),
             )
 
             logger.error(
@@ -180,7 +197,12 @@ def handle_qr_code_message(
                 message_id=error_message.message_id,
                 user_id=user_id,
                 delay_seconds=15,
-                callback=_qr_deletion_callback,
+                callback=create_post_delete_navigation_callback(
+                    _qr_deletion_callback,
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
+                ),
             )
         except Exception:
             logger.error(

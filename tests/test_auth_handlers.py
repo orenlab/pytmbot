@@ -13,6 +13,7 @@ from telebot.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 import pytmbot.handlers.auth_processing.auth_processing as auth_module
 import pytmbot.handlers.auth_processing.qrcode_processing as qrcode_module
 import pytmbot.handlers.auth_processing.twofa_processing as twofa_module
+import pytmbot.utils.message_deletion as message_deletion_module
 from pytmbot import exceptions
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
 
@@ -541,3 +542,33 @@ def test_qrcode_handler_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> Non
     with pytest.raises(exceptions.HandlingException) as exc_info:
         raw_qr(cast(Message, message), cast(TeleBot, bot), 60)
     assert exc_info.value.context.error_code == "HAND_021"
+
+
+def test_qrcode_deletion_callback_sends_back_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        message_deletion_module,
+        "_build_back_navigation_keyboard",
+        lambda: "back-kbd",
+    )
+    bot = _Bot()
+    callback = qrcode_module.create_post_delete_navigation_callback(
+        qrcode_module._qr_deletion_callback,
+        bot=cast(TeleBot, bot),
+        chat_id=555,
+        navigation_text=qrcode_module.QR_DELETED_NAVIGATION_TEXT,
+    )
+    callback(
+        DeletionResult(
+            status=DeletionStatus.SUCCESS,
+            message_id=101,
+            user_id=11,
+            pending_count=0,
+        ),
+    )
+
+    assert bot.sent_messages
+    assert bot.sent_messages[-1]["chat_id"] == 555
+    assert bot.sent_messages[-1]["reply_markup"] == "back-kbd"
+    assert "deleted for security" in str(bot.sent_messages[-1]["text"])

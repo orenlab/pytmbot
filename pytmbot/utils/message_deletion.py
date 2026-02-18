@@ -20,7 +20,7 @@ from typing import Any, Final
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
-from pytmbot.logs import BaseComponent
+from pytmbot.logs import BaseComponent, Logger
 
 # Type aliases for better readability
 type _UserID = int
@@ -561,6 +561,62 @@ class _MessageDeletionManager(BaseComponent):
         return f"<_MessageDeletionManager(pending={total_pending}, max_per_user={self._max_pending_per_user})>"
 
 
+_callback_logger = Logger()
+_DEFAULT_POST_DELETE_NAVIGATION_TEXT: Final[str] = (
+    "🧹 Temporary message was deleted for security.\n"
+    "Use the button below to return to the main menu."
+)
+
+
+def _build_back_navigation_keyboard() -> Any:
+    """Build back-to-main-menu keyboard lazily to avoid import side effects."""
+    from pytmbot.globals import get_keyboards
+
+    return get_keyboards().build_reply_keyboard(keyboard_type="back_keyboard")
+
+
+def create_post_delete_navigation_callback(
+    callback: Callable[[_DeletionResult], None] | None,
+    *,
+    bot: TeleBot,
+    chat_id: int,
+    navigation_text: str = _DEFAULT_POST_DELETE_NAVIGATION_TEXT,
+) -> Callable[[_DeletionResult], None]:
+    """
+    Wrap deletion callback to send a back-to-main-menu keyboard after successful deletion.
+
+    This keeps UX consistent when ephemeral bot messages are auto-removed.
+    """
+
+    def _wrapped(result: _DeletionResult) -> None:
+        callback_error: Exception | None = None
+
+        if callback is not None:
+            try:
+                callback(result)
+            except Exception as error:  # pragma: no cover - delegated to caller logs
+                callback_error = error
+
+        if result.status == _DeletionStatus.SUCCESS:
+            try:
+                bot.send_message(
+                    chat_id=chat_id,
+                    text=navigation_text,
+                    reply_markup=_build_back_navigation_keyboard(),
+                )
+            except Exception as error:
+                _callback_logger.warning(
+                    "bot.utils.message_deletion.send.navigation.fail",
+                    chat_id=chat_id,
+                    error=str(error),
+                )
+
+        if callback_error is not None:
+            raise callback_error
+
+    return _wrapped
+
+
 # Global singleton instance - this is the only public interface
 deletion_manager = _MessageDeletionManager()
 
@@ -569,4 +625,9 @@ DeletionResult = _DeletionResult
 DeletionStatus = _DeletionStatus
 
 # Export only the singleton instance
-__all__ = ["deletion_manager", "DeletionResult", "DeletionStatus"]
+__all__ = [
+    "deletion_manager",
+    "DeletionResult",
+    "DeletionStatus",
+    "create_post_delete_navigation_callback",
+]

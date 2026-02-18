@@ -27,6 +27,7 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
     DeletionResult,
     DeletionStatus,
+    create_post_delete_navigation_callback,
     deletion_manager,
 )
 
@@ -48,6 +49,10 @@ LOGS_EMPTY_MESSAGE: Final[str] = "No logs available for this container."
 LOGS_FILE_AUTO_DELETE_DELAY_SECONDS: Final[int] = 30
 LOGS_FILE_DELETION_NOTICE: Final[str] = (
     "This file will be automatically deleted in 30 seconds."
+)
+LOGS_FILE_DELETED_NAVIGATION_TEXT: Final[str] = (
+    "🧹 Logs file message was deleted for privacy.\n"
+    "Use the button below to return to the main menu."
 )
 
 
@@ -555,7 +560,12 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
         message_id=sent_message.message_id,
         user_id=requester_user_id,
         delay_seconds=LOGS_FILE_AUTO_DELETE_DELAY_SECONDS,
-        callback=_logs_file_deletion_callback,
+        callback=create_post_delete_navigation_callback(
+            _logs_file_deletion_callback,
+            bot=bot,
+            chat_id=chat_id,
+            navigation_text=LOGS_FILE_DELETED_NAVIGATION_TEXT,
+        ),
     )
 
     callback_text = f"Sent {filename}. Auto-delete in 30s."

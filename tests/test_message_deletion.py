@@ -245,3 +245,59 @@ def test_cleanup_stale_references(manager: Any) -> None:
     manager._cleanup_stale_references()
 
     assert manager.get_pending_count(6) == 0
+
+
+def test_create_post_delete_navigation_callback_sends_back_keyboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _NavBot:
+        def __init__(self) -> None:
+            self.messages: list[dict[str, object]] = []
+
+        def send_message(
+            self,
+            chat_id: int | str,
+            text: str,
+            **kwargs: object,
+        ) -> bool:
+            self.messages.append({"chat_id": int(chat_id), "text": text, **kwargs})
+            return True
+
+    bot = _NavBot()
+    callback_results: list[str] = []
+
+    monkeypatch.setattr(
+        message_deletion_module,
+        "_build_back_navigation_keyboard",
+        lambda: "back-kbd",
+    )
+
+    callback = message_deletion_module.create_post_delete_navigation_callback(
+        lambda result: callback_results.append(result.status.name),
+        bot=cast(TeleBot, bot),
+        chat_id=77,
+        navigation_text="deleted",
+    )
+
+    callback(
+        message_deletion_module.DeletionResult(
+            status=message_deletion_module.DeletionStatus.SUCCESS,
+            message_id=1,
+            user_id=1,
+            pending_count=0,
+        )
+    )
+    callback(
+        message_deletion_module.DeletionResult(
+            status=message_deletion_module.DeletionStatus.FAILED,
+            message_id=2,
+            user_id=1,
+            pending_count=0,
+            error_message="x",
+        )
+    )
+
+    assert callback_results == ["SUCCESS", "FAILED"]
+    assert len(bot.messages) == 1
+    assert bot.messages[0]["chat_id"] == 77
+    assert bot.messages[0]["reply_markup"] == "back-kbd"
