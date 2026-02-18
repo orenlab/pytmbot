@@ -52,6 +52,8 @@ class BotLauncher(logs.BaseComponent):
         self.shutdown_requested = threading.Event()
         self.start_time = datetime.now()
         self._shutdown_lock = threading.RLock()
+        self._shutdown_completed = False
+        self._bot_operations_stopped = False
         self._cleanup_registered = False
         self._sigint_count = 0
         self._sigint_lock = threading.Lock()
@@ -73,12 +75,15 @@ class BotLauncher(logs.BaseComponent):
 
     def _shutdown_bot_silently(self, *, silent: bool) -> None:
         """Stop polling and remove webhook with optional error handling."""
-        if not self.bot or not hasattr(self.bot, "bot") or not self.bot.bot:
-            return
+        with self._shutdown_lock:
+            if self._bot_operations_stopped:
+                return
+            self._bot_operations_stopped = True
 
         try:
-            self.bot.bot.stop_polling()
-            self.bot.bot.remove_webhook()
+            if self.bot and hasattr(self.bot, "bot") and self.bot.bot:
+                self.bot.bot.stop_polling()
+                self.bot.bot.remove_webhook()
             self._session_manager.shutdown()
         except Exception as e:
             if not silent:
@@ -124,7 +129,6 @@ class BotLauncher(logs.BaseComponent):
             with self.log_context(signal=sig_name) as log:
                 log.info("bot.launcher.initiated.signal.stop")
             self.shutdown_requested.set()
-            self._stop_bot_operations()
 
     @contextmanager
     def _managed_bot(self) -> Generator[PyTMBot, None, None]:
@@ -197,6 +201,8 @@ class BotLauncher(logs.BaseComponent):
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
                     log.warning("bot.launcher.stop.health.fail")
+            finally:
+                self._health_manager = None
 
     def _is_within_startup_grace_period(self) -> bool:
         """Check if we're still within the startup grace period."""
@@ -449,19 +455,15 @@ class BotLauncher(logs.BaseComponent):
         """Clean up bot resources."""
         if not self.bot:
             return
-
-        try:
-            self._stop_bot_operations()
-        except Exception as e:
-            with self.log_context(error=str(e)) as log:
-                log.warning("bot.launcher.cleanup.encountered.warn")
-        finally:
-            self.bot = None
+        self.bot = None
 
     def shutdown(self) -> None:
         """Graceful shutdown with timeout."""
         with self._shutdown_lock:
-            if not self.bot and not self._health_manager:
+            if self._shutdown_completed:
+                return
+            if not self.bot and not self._health_manager and self._bot_operations_stopped:
+                self._shutdown_completed = True
                 return
 
             try:
@@ -474,6 +476,7 @@ class BotLauncher(logs.BaseComponent):
 
                 with self.log_context() as log:
                     log.info("bot.launcher.stop.ok")
+                self._shutdown_completed = True
 
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
@@ -604,7 +607,7 @@ class BotLauncher(logs.BaseComponent):
                 log.error("bot.launcher.polling.fail")
             self.shutdown_requested.set()
 
-    def _handle_keyboard_interrupt(self) -> NoReturn:
+    def _handle_keyboard_interrupt(self) -> None:
         """Handle keyboard interrupt gracefully."""
         with self.log_context() as log:
             log.info("bot.launcher.keyboard.interrupt.info")
@@ -616,8 +619,6 @@ class BotLauncher(logs.BaseComponent):
         except Exception as e:
             with self.log_context(error=str(e), error_type=type(e).__name__) as log:
                 log.warning("bot.launcher.unexpected.fail")
-
-        sys.exit(0)
 
     def _handle_fatal_error(self, error: Exception) -> NoReturn:
         """Handle fatal errors with comprehensive logging."""
@@ -644,7 +645,7 @@ class BotLauncher(logs.BaseComponent):
 
         sys.exit(1)
 
-    def run(self) -> NoReturn:
+    def run(self) -> None:
         """Main entry point with comprehensive error handling."""
         try:
             # Setup phase
@@ -658,11 +659,6 @@ class BotLauncher(logs.BaseComponent):
             # Main execution
             self.run_main_loop()
             self.shutdown()
-
-            with self.log_context() as log:
-                log.info("bot.launcher.stop.ok")
-
-            sys.exit(0)
 
         except KeyboardInterrupt:
             self._handle_keyboard_interrupt()
@@ -684,7 +680,7 @@ def check_health() -> NoReturn:
             sys.exit(2)
 
 
-def main() -> NoReturn:
+def main() -> None:
     """Main entry point."""
     if args.health_check:
         check_health()

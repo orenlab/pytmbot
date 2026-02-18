@@ -53,13 +53,9 @@ def test_handle_sigint_graceful_then_forced(monkeypatch: pytest.MonkeyPatch) -> 
 def test_signal_handler_non_sigint_requests_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
-    called = {"stopped": False}
-
-    monkeypatch.setattr(launcher, "_stop_bot_operations", lambda: called.__setitem__("stopped", True))
     launcher._signal_handler(signal.SIGTERM, None)
 
     assert launcher.shutdown_requested.is_set() is True
-    assert called["stopped"] is True
 
 
 def test_setup_health_system_and_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -214,11 +210,7 @@ def test_run_success_and_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launcher, "validate_environment", lambda: None)
     monkeypatch.setattr(launcher, "run_main_loop", lambda: None)
     monkeypatch.setattr(launcher, "shutdown", lambda: None)
-    monkeypatch.setattr(main_module.sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
-
-    with pytest.raises(SystemExit) as exit_ok:
-        launcher.run()
-    assert exit_ok.value.code == 0
+    launcher.run()
 
     launcher2 = main_module.BotLauncher()
     monkeypatch.setattr(launcher2, "_register_cleanup", lambda: None)
@@ -481,9 +473,7 @@ def test_keyboard_interrupt_fatal_error_and_main_entrypoints(
         "shutdown",
         lambda: (_ for _ in ()).throw(ShutdownError("stop failed")),
     )
-    with pytest.raises(SystemExit) as interrupt_exit:
-        launcher._handle_keyboard_interrupt()
-    assert interrupt_exit.value.code == 0
+    launcher._handle_keyboard_interrupt()
 
     monkeypatch.setattr(
         launcher,
