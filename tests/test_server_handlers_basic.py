@@ -80,6 +80,69 @@ def _invoke_handler(
     typed_handler(message, bot)
 
 
+def _assert_memory_or_process_handler_paths(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    compiler: object,
+    handler: object,
+    adapter_method: str,
+    success_payload: object,
+    success_text: str,
+    expected_error_code: str,
+    message: Message,
+    bot: TeleBot,
+    messages: list[dict[str, object]],
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type("A", (), {adapter_method: lambda self: success_payload})(),
+    )
+    monkeypatch.setattr(
+        module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        module,
+        "keyboards",
+        type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
+    )
+    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: success_text)
+    _invoke_handler(handler, message, bot)
+    assert messages[-1]["text"] == success_text
+    assert messages[-1]["parse_mode"] == "HTML"
+    reply_markup = messages[-1]["reply_markup"]
+    assert isinstance(reply_markup, dict)
+    assert str(reply_markup["inline"]["callback_data"]).endswith(":777")
+
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type("A", (), {adapter_method: lambda self: None})(),
+    )
+    _invoke_handler(handler, message, bot)
+    assert "Some error occurred" in str(messages[-1]["text"])
+
+    monkeypatch.setattr(
+        module,
+        "psutil_adapter",
+        type(
+            "A",
+            (),
+            {
+                adapter_method: lambda self: (_ for _ in ()).throw(
+                    RuntimeError("handler fail")
+                )
+            },
+        )(),
+    )
+    with pytest.raises(HandlingException) as exc_info:
+        _invoke_handler(handler, message, bot)
+    assert exc_info.value.context.error_code == expected_error_code
+
+
 def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot, actions, messages = _build_bot(monkeypatch)
     message = _build_message(10)
@@ -168,70 +231,32 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     bot, _actions, messages = _build_bot(monkeypatch)
     message = _build_message(13, user_id=777)
 
-    # Memory handler
-    monkeypatch.setattr(
-        memory_module,
-        "psutil_adapter",
-        type("A", (), {"get_memory": lambda self: {"percent": 25.0}})(),
+    _assert_memory_or_process_handler_paths(
+        monkeypatch=monkeypatch,
+        module=memory_module,
+        compiler=memory_module.Compiler,
+        handler=memory_module.handle_memory,
+        adapter_method="get_memory",
+        success_payload={"percent": 25.0},
+        success_text="memory ok",
+        expected_error_code="HAND_006",
+        message=message,
+        bot=bot,
+        messages=messages,
     )
-    monkeypatch.setattr(memory_module, "button_data", lambda text, callback_data: {"text": text, "callback_data": callback_data})
-    monkeypatch.setattr(memory_module, "keyboards", type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})())
-    monkeypatch.setattr(memory_module.Compiler, "quick_render", lambda **_kwargs: "memory ok")
-    _invoke_handler(memory_module.handle_memory, message, bot)
-    assert messages[-1]["text"] == "memory ok"
-    assert messages[-1]["parse_mode"] == "HTML"
-    reply_markup = messages[-1]["reply_markup"]
-    assert isinstance(reply_markup, dict)
-    assert str(reply_markup["inline"]["callback_data"]).endswith(":777")
-
-    monkeypatch.setattr(
-        memory_module,
-        "psutil_adapter",
-        type("A", (), {"get_memory": lambda self: None})(),
+    _assert_memory_or_process_handler_paths(
+        monkeypatch=monkeypatch,
+        module=process_module,
+        compiler=process_module.Compiler,
+        handler=process_module.handle_process,
+        adapter_method="get_process_counts",
+        success_payload={"running": 3},
+        success_text="process ok",
+        expected_error_code="HAND_004",
+        message=message,
+        bot=bot,
+        messages=messages,
     )
-    _invoke_handler(memory_module.handle_memory, message, bot)
-    assert "Some error occurred" in str(messages[-1]["text"])
-
-    monkeypatch.setattr(
-        memory_module,
-        "psutil_adapter",
-        type("A", (), {"get_memory": lambda self: (_ for _ in ()).throw(RuntimeError("mem fail"))})(),
-    )
-    with pytest.raises(HandlingException) as mem_exc:
-        _invoke_handler(memory_module.handle_memory, message, bot)
-    assert mem_exc.value.context.error_code == "HAND_006"
-
-    # Process handler
-    monkeypatch.setattr(
-        process_module,
-        "psutil_adapter",
-        type("A", (), {"get_process_counts": lambda self: {"running": 3}})(),
-    )
-    monkeypatch.setattr(process_module, "button_data", lambda text, callback_data: {"text": text, "callback_data": callback_data})
-    monkeypatch.setattr(process_module, "keyboards", type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})())
-    monkeypatch.setattr(process_module.Compiler, "quick_render", lambda **_kwargs: "process ok")
-    _invoke_handler(process_module.handle_process, message, bot)
-    assert messages[-1]["text"] == "process ok"
-    process_markup = messages[-1]["reply_markup"]
-    assert isinstance(process_markup, dict)
-    assert str(process_markup["inline"]["callback_data"]).endswith(":777")
-
-    monkeypatch.setattr(
-        process_module,
-        "psutil_adapter",
-        type("A", (), {"get_process_counts": lambda self: None})(),
-    )
-    _invoke_handler(process_module.handle_process, message, bot)
-    assert "Some error occurred" in str(messages[-1]["text"])
-
-    monkeypatch.setattr(
-        process_module,
-        "psutil_adapter",
-        type("A", (), {"get_process_counts": lambda self: (_ for _ in ()).throw(RuntimeError("proc fail"))})(),
-    )
-    with pytest.raises(HandlingException) as proc_exc:
-        _invoke_handler(process_module.handle_process, message, bot)
-    assert proc_exc.value.context.error_code == "HAND_004"
 
 
 def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) -> None:

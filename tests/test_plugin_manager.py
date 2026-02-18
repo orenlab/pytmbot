@@ -121,13 +121,16 @@ def test_register_plugins_splits_input_and_filters_invalid_names(
     assert registered == ["monitor", "outline"]
 
 
-def test_register_plugin_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    manager = PluginManager()
-    bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-
+def _prepare_register_plugin_monkeypatch(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    base_permission: bool,
+) -> None:
     plugin_module = ModuleType("plugin_module")
-    config_module = _build_config_module(base_permission=True, need_host=False)
-
+    config_module = _build_config_module(
+        base_permission=base_permission,
+        need_host=False,
+    )
     monkeypatch.setattr(
         PluginManager,
         "_validate_plugin_name",
@@ -152,7 +155,7 @@ def test_register_plugin_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         PluginManager,
         "_extract_plugin_permissions",
-        lambda self, _module: PluginsPermissionsModel(base_permission=True),
+        lambda self, _module: PluginsPermissionsModel(base_permission=base_permission),
     )
     monkeypatch.setattr(
         PluginManager,
@@ -160,56 +163,32 @@ def test_register_plugin_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
         staticmethod(lambda _module: [_TestPlugin]),
     )
 
-    manager._register_plugin("test_plugin", bot)
-    assert _TestPlugin.registered_calls == 1
-    assert manager.is_plugin_loaded("test_plugin") is True
-    assert "test_plugin" in manager._plugin_instances
 
-
-def test_register_plugin_handles_permission_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("base_permission", "expected_registered", "expected_loaded"),
+    [
+        (True, 1, True),
+        (False, 0, False),
+    ],
+)
+def test_register_plugin_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    base_permission: bool,
+    expected_registered: int,
+    expected_loaded: bool,
+) -> None:
     manager = PluginManager()
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-    config_module = _build_config_module(base_permission=False, need_host=False)
-
-    monkeypatch.setattr(
-        PluginManager,
-        "_validate_plugin_name",
-        staticmethod(lambda _name: True),
-    )
-    monkeypatch.setattr(PluginManager, "_module_exists", lambda self, _name: True)
-    monkeypatch.setattr(
-        PluginManager,
-        "_import_module",
-        lambda self, _name: ModuleType("plugin"),
-    )
-    monkeypatch.setattr(
-        PluginManager,
-        "_import_module_config",
-        lambda self, _name: config_module,
-    )
-    monkeypatch.setattr(
-        PluginManager,
-        "_extract_plugin_info",
-        lambda self, _module: _PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            description="Test plugin",
-        ),
-    )
-    monkeypatch.setattr(
-        PluginManager,
-        "_extract_plugin_permissions",
-        lambda self, _module: PluginsPermissionsModel(base_permission=False),
-    )
-    monkeypatch.setattr(
-        PluginManager,
-        "_find_plugin_classes",
-        staticmethod(lambda _module: [_TestPlugin]),
+    _prepare_register_plugin_monkeypatch(
+        monkeypatch,
+        base_permission=base_permission,
     )
 
     manager._register_plugin("test_plugin", bot)
-    assert _TestPlugin.registered_calls == 0
-    assert manager.is_plugin_loaded("test_plugin") is False
+    assert _TestPlugin.registered_calls == expected_registered
+    assert manager.is_plugin_loaded("test_plugin") is expected_loaded
+    if expected_loaded:
+        assert "test_plugin" in manager._plugin_instances
 
 
 def test_cleanup_plugin_and_cleanup_all_plugins() -> None:

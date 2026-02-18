@@ -11,6 +11,7 @@ from telebot.types import CallbackQuery
 import pytmbot.handlers.server_handlers.inline.swap as swap_module
 import pytmbot.handlers.server_handlers.inline.top_process as top_process_module
 from pytmbot import exceptions
+from tests._callback_path_helpers import assert_standard_callback_auth_paths
 
 
 @dataclass
@@ -66,33 +67,19 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
     handler = _raw_handler(swap_module.handle_swap_info)
 
-    monkeypatch.setattr(
-        swap_module,
-        "parse_callback_target_user",
-        lambda data, prefix: (_ for _ in ()).throw(ValueError("bad")),
+    assert_standard_callback_auth_paths(
+        monkeypatch=monkeypatch,
+        module=swap_module,
+        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        bot=bot,
+        call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
+        invalid_data="bad",
+        valid_data="__swap_info__:17",
+        target_user_id=17,
+        invalid_text_contains="Invalid swap request format",
+        denied_text="denied",
+        missing_message_text_contains="Cannot render swap info",
     )
-    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert "Invalid swap request format" in str(bot.callback_answers[-1]["text"])
-
-    monkeypatch.setattr(swap_module, "parse_callback_target_user", lambda data, prefix: 17)
-    monkeypatch.setattr(
-        swap_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (False, "denied"),
-    )
-    handler(cast(CallbackQuery, _Call(data="__swap_info__:17")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "denied"
-
-    monkeypatch.setattr(
-        swap_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (True, ""),
-    )
-    handler(
-        cast(CallbackQuery, _Call(data="__swap_info__:17", message=None)),
-        cast(TeleBot, bot),
-    )
-    assert "Cannot render swap info" in str(bot.callback_answers[-1]["text"])
 
     monkeypatch.setattr(
         swap_module,
@@ -139,33 +126,19 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
     handler = _raw_handler(top_process_module.handle_process_info)
 
-    monkeypatch.setattr(
-        top_process_module,
-        "parse_callback_target_user",
-        lambda data, prefix: (_ for _ in ()).throw(ValueError("bad")),
+    assert_standard_callback_auth_paths(
+        monkeypatch=monkeypatch,
+        module=top_process_module,
+        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        bot=bot,
+        call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
+        invalid_data="bad",
+        valid_data="__process_info__:17",
+        target_user_id=17,
+        invalid_text_contains="Invalid process info request format",
+        denied_text="denied",
+        missing_message_text_contains="Cannot render process info",
     )
-    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert "Invalid process info request format" in str(bot.callback_answers[-1]["text"])
-
-    monkeypatch.setattr(top_process_module, "parse_callback_target_user", lambda data, prefix: 17)
-    monkeypatch.setattr(
-        top_process_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (False, "denied"),
-    )
-    handler(cast(CallbackQuery, _Call(data="__process_info__:17")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "denied"
-
-    monkeypatch.setattr(
-        top_process_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (True, ""),
-    )
-    handler(
-        cast(CallbackQuery, _Call(data="__process_info__:17", message=None)),
-        cast(TeleBot, bot),
-    )
-    assert "Cannot render process info" in str(bot.callback_answers[-1]["text"])
 
     monkeypatch.setattr(
         top_process_module,

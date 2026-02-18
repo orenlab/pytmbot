@@ -61,6 +61,23 @@ def _raw_handler(handler: object) -> Callable[..., object]:
     return cast(Callable[..., object], wrapped)
 
 
+def _prepare_handler_context(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    module: object,
+    handler_obj: object,
+) -> tuple[Callable[..., object], _Bot, list[str]]:
+    handler = _raw_handler(handler_obj)
+    bot = _Bot()
+    shown: list[str] = []
+    monkeypatch.setattr(
+        module,
+        "show_handler_info",
+        lambda call, text, bot=None: shown.append(text),
+    )
+    return handler, bot, shown
+
+
 def test_validate_container_name() -> None:
     assert container_info_module.validate_container_name("api-1") is True
     assert container_info_module.validate_container_name("") is False
@@ -69,11 +86,11 @@ def test_validate_container_name() -> None:
 
 
 def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    handler = _raw_handler(container_info_module.handle_containers_full_info)
-    bot = _Bot()
-    shown: list[str] = []
-
-    monkeypatch.setattr(container_info_module, "show_handler_info", lambda call, text, bot: shown.append(text))
+    handler, bot, shown = _prepare_handler_context(
+        monkeypatch,
+        module=container_info_module,
+        handler_obj=container_info_module.handle_containers_full_info,
+    )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
     assert shown[-1] == "Invalid request format"
@@ -185,11 +202,11 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    handler = _raw_handler(manage_module.handle_manage_container)
-    bot = _Bot()
-    shown: list[str] = []
-
-    monkeypatch.setattr(manage_module, "show_handler_info", lambda call, text, bot: shown.append(text))
+    handler, bot, shown = _prepare_handler_context(
+        monkeypatch,
+        module=manage_module,
+        handler_obj=manage_module.handle_manage_container,
+    )
 
     monkeypatch.setattr(
         manage_module,

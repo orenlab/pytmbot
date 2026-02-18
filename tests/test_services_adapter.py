@@ -46,6 +46,33 @@ def _raw_handle_services_status() -> Callable[[Message, TeleBot], Message | None
     return cast(Callable[[Message, TeleBot], Message | None], raw)
 
 
+def _patch_services_handler_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        services_module,
+        "settings",
+        type(
+            "_Settings",
+            (),
+            {
+                "access_control": type(
+                    "_Access",
+                    (),
+                    {"allowed_user_ids": [200]},
+                )()
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        ServicesAdapter,
+        "get_services_summary",
+        lambda self: {
+            "available_sources": ["systemd"],
+            "systemd": {"available": True},
+            "alpine": None,
+        },
+    )
+
+
 @dataclass
 class _DummyChat:
     id: int = 100
@@ -433,30 +460,7 @@ def test_handle_services_status_returns_no_sources_message(
 def test_handle_services_status_successful_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        services_module,
-        "settings",
-        type(
-            "_Settings",
-            (),
-            {
-                "access_control": type(
-                    "_Access",
-                    (),
-                    {"allowed_user_ids": [200]},
-                )()
-            },
-        )(),
-    )
-    monkeypatch.setattr(
-        ServicesAdapter,
-        "get_services_summary",
-        lambda self: {
-            "available_sources": ["systemd"],
-            "systemd": {"available": True},
-            "alpine": None,
-        },
-    )
+    _patch_services_handler_environment(monkeypatch)
     monkeypatch.setattr(
         services_module.Compiler,
         "quick_render",
@@ -482,30 +486,7 @@ def test_handle_services_status_successful_render(
 def test_handle_services_status_wraps_template_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        services_module,
-        "settings",
-        type(
-            "_Settings",
-            (),
-            {
-                "access_control": type(
-                    "_Access",
-                    (),
-                    {"allowed_user_ids": [200]},
-                )()
-            },
-        )(),
-    )
-    monkeypatch.setattr(
-        ServicesAdapter,
-        "get_services_summary",
-        lambda self: {
-            "available_sources": ["systemd"],
-            "systemd": {"available": True},
-            "alpine": None,
-        },
-    )
+    _patch_services_handler_environment(monkeypatch)
     monkeypatch.setattr(
         services_module.Compiler,
         "quick_render",

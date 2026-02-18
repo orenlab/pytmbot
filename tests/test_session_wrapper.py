@@ -287,12 +287,26 @@ def test_two_factor_auth_required_not_authorized(monkeypatch: pytest.MonkeyPatch
     assert "bot.session.user.not.warn" in auth_stub.events
 
 
-def test_two_factor_auth_required_unauthenticated(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("authenticated", "expired", "forwarded_key", "event_name", "handler_name"),
+    [
+        (False, False, "unauth", "bot.session.authentication.required.warn", "_handle_unauthenticated_user"),
+        (True, True, "expired", "bot.session.expired.warn", "_handle_expired_session"),
+    ],
+)
+def test_two_factor_auth_required_auth_state_branches(
+    monkeypatch: pytest.MonkeyPatch,
+    authenticated: bool,
+    expired: bool,
+    forwarded_key: str,
+    event_name: str,
+    handler_name: str,
+) -> None:
     message = _build_message(user_id=10, username="u10")
     bot = cast(TeleBot, object())
 
     auth_stub = _AuthComponentStub()
-    session_stub = _SessionManagerStub(authenticated=False, expired=False)
+    session_stub = _SessionManagerStub(authenticated=authenticated, expired=expired)
     monkeypatch.setattr(session_wrapper_module, "auth_component", auth_stub)
     monkeypatch.setattr(session_wrapper_module, "session_manager", session_stub)
     monkeypatch.setattr(session_wrapper_module, "is_valid_query", lambda query: True)
@@ -309,41 +323,11 @@ def test_two_factor_auth_required_unauthenticated(monkeypatch: pytest.MonkeyPatc
     )
 
     forwarded: list[str] = []
-    monkeypatch.setattr(session_wrapper_module, "_handle_unauthenticated_user", lambda auth_context, query, bot: forwarded.append("unauth"))
-
-    def _handler(query: Message, bot: TeleBot) -> str:
-        del query, bot
-        return "ok"
-
-    wrapped = session_wrapper_module.two_factor_auth_required(_handler)
-    assert wrapped(message, bot) is None
-    assert forwarded == ["unauth"]
-    assert "bot.session.authentication.required.warn" in auth_stub.events
-
-
-def test_two_factor_auth_required_expired(monkeypatch: pytest.MonkeyPatch) -> None:
-    message = _build_message(user_id=10, username="u10")
-    bot = cast(TeleBot, object())
-
-    auth_stub = _AuthComponentStub()
-    session_stub = _SessionManagerStub(authenticated=True, expired=True)
-    monkeypatch.setattr(session_wrapper_module, "auth_component", auth_stub)
-    monkeypatch.setattr(session_wrapper_module, "session_manager", session_stub)
-    monkeypatch.setattr(session_wrapper_module, "is_valid_query", lambda query: True)
-    monkeypatch.setattr(session_wrapper_module, "_is_user_authorized", lambda user_id: True)
     monkeypatch.setattr(
         session_wrapper_module,
-        "create_auth_context",
-        lambda query: session_wrapper_module.AuthContext(
-            user_id=10,
-            handler_type=session_wrapper_module.HandlerType.MESSAGE,
-            referer_handler="/y",
-            username="u10",
-        ),
+        handler_name,
+        lambda auth_context, query, bot: forwarded.append(forwarded_key),
     )
-
-    forwarded: list[str] = []
-    monkeypatch.setattr(session_wrapper_module, "_handle_expired_session", lambda auth_context, query, bot: forwarded.append("expired"))
 
     def _handler(query: Message, bot: TeleBot) -> str:
         del query, bot
@@ -351,8 +335,8 @@ def test_two_factor_auth_required_expired(monkeypatch: pytest.MonkeyPatch) -> No
 
     wrapped = session_wrapper_module.two_factor_auth_required(_handler)
     assert wrapped(message, bot) is None
-    assert forwarded == ["expired"]
-    assert "bot.session.expired.warn" in auth_stub.events
+    assert forwarded == [forwarded_key]
+    assert event_name in auth_stub.events
 
 
 def test_two_factor_auth_required_success(monkeypatch: pytest.MonkeyPatch) -> None:

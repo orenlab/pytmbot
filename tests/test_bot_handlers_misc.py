@@ -14,6 +14,7 @@ import pytmbot.handlers.bot_handlers.plugins as plugins_module
 import pytmbot.handlers.bot_handlers.updates as updates_module
 from pytmbot import exceptions
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
+from tests._callback_path_helpers import assert_standard_callback_auth_paths
 
 
 @dataclass
@@ -379,33 +380,19 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
     handler = _raw_handler(inline_update_module.handle_update_info)
 
-    monkeypatch.setattr(
-        inline_update_module,
-        "parse_callback_target_user",
-        lambda data, prefix: (_ for _ in ()).throw(ValueError("bad")),
+    assert_standard_callback_auth_paths(
+        monkeypatch=monkeypatch,
+        module=inline_update_module,
+        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        bot=bot,
+        call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
+        invalid_data="bad",
+        valid_data="__how_update__:101",
+        target_user_id=101,
+        invalid_text_contains="Invalid update info request format",
+        denied_text="denied",
+        missing_message_text_contains="Cannot render update info",
     )
-    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert "Invalid update info request format" in str(bot.callback_answers[-1]["text"])
-
-    monkeypatch.setattr(inline_update_module, "parse_callback_target_user", lambda data, prefix: 101)
-    monkeypatch.setattr(
-        inline_update_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (False, "denied"),
-    )
-    handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "denied"
-
-    monkeypatch.setattr(
-        inline_update_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (True, ""),
-    )
-    handler(
-        cast(CallbackQuery, _Call(data="__how_update__:101", message=None)),
-        cast(TeleBot, bot),
-    )
-    assert "Cannot render update info" in str(bot.callback_answers[-1]["text"])
 
     monkeypatch.setattr(inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update")
     handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))

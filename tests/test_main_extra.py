@@ -21,6 +21,55 @@ def _load_main_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     return importlib.reload(main_module)
 
 
+def _install_run_main_loop_stubs(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    main_module: ModuleType,
+    launcher: object,
+    polling_alive: bool,
+    should_log_health: Callable[[], bool] | None = None,
+) -> None:
+    bot_component = SimpleNamespace(
+        initialize_bot_core=lambda: SimpleNamespace(remove_webhook=lambda: None),
+        bot=SimpleNamespace(),
+        get_bot_session_statistics=lambda: {},
+    )
+
+    @contextmanager
+    def _managed() -> Generator[object, None, None]:
+        yield bot_component
+
+    class _ThreadStub:
+        def __init__(
+            self,
+            *,
+            target: Callable[..., object],
+            args: tuple[object, ...],
+            **kwargs: object,
+        ) -> None:
+            del kwargs
+            self._target = target
+            self._args = args
+            self._alive = polling_alive
+
+        def start(self) -> None:
+            self._target(*self._args)
+            if not polling_alive:
+                self._alive = False
+
+        def is_alive(self) -> bool:
+            return self._alive
+
+    monkeypatch.setattr(main_module.threading, "Thread", _ThreadStub)
+    monkeypatch.setattr(main_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(launcher, "_managed_bot", _managed)
+    monkeypatch.setattr(launcher, "setup_health_system", lambda: None)
+    monkeypatch.setattr(launcher, "start_health_monitoring", lambda: None)
+    monkeypatch.setattr(launcher, "_start_bot_polling", lambda _bot_instance: None)
+    if should_log_health is not None:
+        monkeypatch.setattr(launcher, "_should_log_health_status", should_log_health)
+
+
 def test_register_cleanup_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
@@ -227,43 +276,13 @@ def test_run_main_loop_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
 
-    bot_component = SimpleNamespace(
-        initialize_bot_core=lambda: SimpleNamespace(remove_webhook=lambda: None),
-        bot=SimpleNamespace(),
-        get_bot_session_statistics=lambda: {},
+    _install_run_main_loop_stubs(
+        monkeypatch=monkeypatch,
+        main_module=main_module,
+        launcher=launcher,
+        polling_alive=False,
     )
-
-    @contextmanager
-    def _managed() -> Generator[object, None, None]:
-        yield bot_component
-
-    class _ThreadStub:
-        def __init__(
-            self,
-            *,
-            target: Callable[..., object],
-            args: tuple[object, ...],
-            **kwargs: object,
-        ) -> None:
-            del kwargs
-            self._target = target
-            self._args = args
-            self._alive = False
-
-        def start(self) -> None:
-            self._target(*self._args)
-            self._alive = False
-
-        def is_alive(self) -> bool:
-            return self._alive
-
-    monkeypatch.setattr(main_module.threading, "Thread", _ThreadStub)
-    monkeypatch.setattr(main_module.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(launcher, "_managed_bot", _managed)
-    monkeypatch.setattr(launcher, "setup_health_system", lambda: None)
-    monkeypatch.setattr(launcher, "start_health_monitoring", lambda: None)
     monkeypatch.setattr(launcher, "log_health_status", lambda: None)
-    monkeypatch.setattr(launcher, "_start_bot_polling", lambda _bot_instance: None)
 
     launcher.run_main_loop()
 
@@ -417,45 +436,12 @@ def test_run_main_loop_keyboard_interrupt_breaks(monkeypatch: pytest.MonkeyPatch
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
 
-    bot_component = SimpleNamespace(
-        initialize_bot_core=lambda: SimpleNamespace(remove_webhook=lambda: None),
-        bot=SimpleNamespace(),
-        get_bot_session_statistics=lambda: {},
-    )
-
-    @contextmanager
-    def _managed() -> Generator[object, None, None]:
-        yield bot_component
-
-    class _ThreadStub:
-        def __init__(
-            self,
-            *,
-            target: Callable[..., object],
-            args: tuple[object, ...],
-            **kwargs: object,
-        ) -> None:
-            del kwargs
-            self._target = target
-            self._args = args
-            self._alive = True
-
-        def start(self) -> None:
-            self._target(*self._args)
-
-        def is_alive(self) -> bool:
-            return self._alive
-
-    monkeypatch.setattr(main_module.threading, "Thread", _ThreadStub)
-    monkeypatch.setattr(launcher, "_managed_bot", _managed)
-    monkeypatch.setattr(launcher, "setup_health_system", lambda: None)
-    monkeypatch.setattr(launcher, "start_health_monitoring", lambda: None)
-    monkeypatch.setattr(main_module.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(launcher, "_start_bot_polling", lambda _bot_instance: None)
-    monkeypatch.setattr(
-        launcher,
-        "_should_log_health_status",
-        lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
+    _install_run_main_loop_stubs(
+        monkeypatch=monkeypatch,
+        main_module=main_module,
+        launcher=launcher,
+        polling_alive=True,
+        should_log_health=lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
     )
 
     launcher.run_main_loop()

@@ -13,6 +13,7 @@ import pytmbot.handlers.docker_handlers.inline.image_updates as image_updates_mo
 import pytmbot.handlers.docker_handlers.inline.images_page as images_page_module
 import pytmbot.handlers.docker_handlers.inline.manage_action as manage_action_module
 from pytmbot.adapters.docker.updates import UpdaterStatus
+from tests._callback_path_helpers import assert_standard_callback_auth_paths
 
 
 @dataclass
@@ -185,33 +186,19 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = _raw_handler(image_updates_module.handle_image_updates)
     bot = _Bot()
 
-    monkeypatch.setattr(
-        image_updates_module,
-        "parse_callback_target_user",
-        lambda data, prefix: (_ for _ in ()).throw(ValueError("bad")),
+    assert_standard_callback_auth_paths(
+        monkeypatch=monkeypatch,
+        module=image_updates_module,
+        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        bot=bot,
+        call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
+        invalid_data="bad",
+        valid_data="__check_updates__:11",
+        target_user_id=11,
+        invalid_text_contains="Invalid image updates request format",
+        denied_text="deny",
+        missing_message_text_contains="Cannot render image updates",
     )
-    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert "Invalid image updates request format" in str(bot.callback_answers[-1]["text"])
-
-    monkeypatch.setattr(image_updates_module, "parse_callback_target_user", lambda data, prefix: 11)
-    monkeypatch.setattr(
-        image_updates_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (False, "deny"),
-    )
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "deny"
-
-    monkeypatch.setattr(
-        image_updates_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (True, ""),
-    )
-    handler(
-        cast(CallbackQuery, _Call(data="__check_updates__:11", message=None)),
-        cast(TeleBot, bot),
-    )
-    assert "Cannot render image updates" in str(bot.callback_answers[-1]["text"])
 
     class _UpdaterRateLimited:
         def initialize(self) -> None:

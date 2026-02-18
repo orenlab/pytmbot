@@ -119,6 +119,30 @@ class _DummyTeleBot:
         return
 
 
+def _set_bot_args(
+    bot: instance_module.PyTMBot,
+    *,
+    plugins: list[str],
+    webhook: str = "False",
+    socket_host: str = "127.0.0.1",
+) -> None:
+    bot.args = argparse.Namespace(
+        mode="dev",
+        webhook=webhook,
+        plugins=plugins,
+        socket_host=socket_host,
+    )
+
+
+def _build_bot_with_dummy_telebot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> instance_module.PyTMBot:
+    bot = instance_module.PyTMBot()
+    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
+    bot.bot = cast(TeleBot, _DummyTeleBot())
+    return bot
+
+
 def test_bot_session_create_populates_fields() -> None:
     session = instance_module.BotSession.create(mode="dev", webhook_enabled=False)
     assert len(session.session_id) == 8
@@ -733,10 +757,7 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
             del bot, kwargs
             raise RuntimeError("middleware failed")
 
-    bot = instance_module.PyTMBot()
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
 
     with pytest.raises(RuntimeError):
         bot._setup_middleware_chain([(_BrokenMiddleware, {})])
@@ -745,12 +766,12 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
     assert bot.get_middleware_stats("a") is None
     assert bot.get_middleware_stats("b") is None
 
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
+    _set_bot_args(bot, plugins=[], webhook="False")
     bot._load_plugins()
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=["", "  "])
+    _set_bot_args(bot, plugins=["", "  "], webhook="False")
     bot._load_plugins()
 
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=["one"])
+    _set_bot_args(bot, plugins=["one"], webhook="False")
     bot.plugin_manager = cast(
         instance_module.PluginManager,
         SimpleNamespace(
@@ -766,10 +787,7 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
 def test_register_handlers_and_initialize_failure_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = instance_module.PyTMBot()
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
 
     with pytest.raises(RuntimeError):
         bot._register_handler_group(
@@ -798,16 +816,8 @@ def test_register_handlers_and_initialize_failure_paths(
 def test_start_webhook_server_success_and_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = instance_module.PyTMBot()
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
-    bot.args = argparse.Namespace(
-        mode="dev",
-        webhook="True",
-        plugins=[],
-        socket_host="127.0.0.1",
-    )
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
+    _set_bot_args(bot, plugins=[], webhook="True")
     monkeypatch.setattr(
         instance_module,
         "settings",
@@ -854,11 +864,8 @@ def test_start_webhook_server_success_and_failures(
 def test_polling_error_and_loop_and_shutdown_branches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = instance_module.PyTMBot()
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
+    _set_bot_args(bot, plugins=[], webhook="False")
 
     with pytest.raises(RuntimeError):
         bot._handle_polling_error(MemoryError("oom"), consecutive_errors=0, current_sleep_time=1)
