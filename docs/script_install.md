@@ -33,9 +33,37 @@ Use fallback only when package installation is unavailable in your environment.
 
 ## Run Installer
 
+Recommended secure flow (verify hash before execution):
+
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/main/tools/install.sh)"
+curl -fsSLo /tmp/pytmbot-install.sh https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh
+echo "92fe4dac4b69498356ede495cb07aeab4e924a5e15c27a3a2211d55910ef5862  /tmp/pytmbot-install.sh" | sha256sum -c -
+sudo bash /tmp/pytmbot-install.sh
 ```
+
+If your system has no `sha256sum` (for example macOS), use:
+
+```bash
+shasum -a 256 /tmp/pytmbot-install.sh
+```
+
+Expected SHA256 (`tools/install.sh`, current `master`):
+
+```text
+92fe4dac4b69498356ede495cb07aeab4e924a5e15c27a3a2211d55910ef5862
+```
+
+Quick one-liner (convenient, but no local pre-execution hash verification):
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh)"
+```
+
+On startup, installer will stop and require explicit confirmation:
+
+1. Shows installer version, loaded source, official URL, and current SHA256
+2. Asks `Type YES if the hash matches documentation`
+3. Continues only after exact `YES`
 
 ## What Installer Asks For
 

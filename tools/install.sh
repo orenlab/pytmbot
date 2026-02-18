@@ -40,6 +40,8 @@ readonly SERVICE_NAME="pytmbot"
 
 # Installer version (kept in sync with generated configuration metadata)
 readonly INSTALLER_VERSION="0.3.0-dev"
+readonly INSTALLER_DOCS_URL="https://orenlab.github.io/pytmbot/docs/script_install.html"
+readonly INSTALLER_SCRIPT_URL="https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh"
 
 # Cleanup function for sensitive data
 cleanup() {
@@ -354,6 +356,106 @@ generate_auth_salt() {
 # Function to check if a command exists
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# Calculate SHA256 for a file with portable fallbacks.
+calculate_file_sha256() {
+  local file_path="$1"
+  if [ ! -f "$file_path" ]; then
+    return 1
+  fi
+
+  if command_exists sha256sum; then
+    sha256sum "$file_path" | awk '{print $1}'
+    return 0
+  fi
+
+  if command_exists shasum; then
+    shasum -a 256 "$file_path" | awk '{print $1}'
+    return 0
+  fi
+
+  if command_exists openssl; then
+    openssl dgst -sha256 "$file_path" | awk '{print $NF}'
+    return 0
+  fi
+
+  return 1
+}
+
+# Calculate SHA256 for a string payload with portable fallbacks.
+calculate_string_sha256() {
+  local payload="$1"
+
+  if command_exists sha256sum; then
+    printf "%s" "$payload" | sha256sum | awk '{print $1}'
+    return 0
+  fi
+
+  if command_exists shasum; then
+    printf "%s" "$payload" | shasum -a 256 | awk '{print $1}'
+    return 0
+  fi
+
+  if command_exists openssl; then
+    printf "%s" "$payload" | openssl dgst -sha256 | awk '{print $NF}'
+    return 0
+  fi
+
+  return 1
+}
+
+# Enforce installer integrity confirmation before any privileged actions.
+verify_installer_integrity_or_exit() {
+  local script_path="${BASH_SOURCE[0]:-}"
+  local script_source="inline payload (bash -c)"
+  local installer_hash=""
+  local user_confirmation=""
+
+  if [ -n "$script_path" ] && [ -f "$script_path" ]; then
+    script_source="$script_path"
+    installer_hash=$(calculate_file_sha256 "$script_path" 2>/dev/null || true)
+  elif [ -n "${BASH_EXECUTION_STRING:-}" ]; then
+    installer_hash=$(calculate_string_sha256 "$BASH_EXECUTION_STRING" 2>/dev/null || true)
+  fi
+
+  show_banner "Installer Integrity Verification"
+  print_section "MANDATORY SECURITY CHECK"
+
+  print_message "$BOLD$WHITE" "INSTALLER METADATA:"
+  print_message "$GRAY" "  • Version: $INSTALLER_VERSION"
+  print_message "$GRAY" "  • Loaded from: $script_source"
+  print_message "$GRAY" "  • Official source: $INSTALLER_SCRIPT_URL"
+  print_message "$GRAY" "  • Verification docs: $INSTALLER_DOCS_URL"
+  echo ""
+
+  if [ -n "$installer_hash" ]; then
+    print_message "$BOLD$WHITE" "CURRENT SHA256:"
+    print_message "$BOLD$YELLOW" "  $installer_hash"
+    log_to_file "INFO" "Installer SHA256: $installer_hash"
+  else
+    print_error "Unable to calculate installer SHA256 hash."
+    print_message "$WHITE" "Please run the secure file-based flow from docs and retry."
+    log_to_file "ERROR" "Installer SHA256 unavailable"
+    exit 1
+  fi
+
+  echo ""
+  print_message "$BOLD$WHITE" "REQUIRED ACTION:"
+  print_message "$GRAY" "  1) Open documentation and locate expected hash for current installer version"
+  print_message "$GRAY" "  2) Compare hash values symbol-by-symbol"
+  print_message "$GRAY" "  3) Continue only if values are identical"
+  echo ""
+  read -r -p "Type YES if the hash matches documentation: " user_confirmation
+  if [ "$user_confirmation" != "YES" ]; then
+    print_error "Installer verification failed or cancelled by user."
+    log_to_file "ERROR" "Installer hash verification not confirmed by user"
+    exit 1
+  fi
+
+  print_info "Installer hash verification confirmed"
+  log_to_file "INFO" "Installer hash verification confirmed by user"
+  echo ""
 }
 
 # Resolve pip executable inside a virtual environment.
@@ -1363,7 +1465,7 @@ update_local_pytmbot() {
   {
     cd "$INSTALL_DIR" || exit 1
     git fetch origin 2>/dev/null || exit 1
-    git reset --hard origin/main 2>/dev/null || exit 1
+    git reset --hard origin/master 2>/dev/null || exit 1
 
     # Update virtual environment using pip (pip3 fallback inside venv)
     if [ -f pyproject.toml ]; then
@@ -1526,7 +1628,7 @@ update_docker_pytmbot() {
     {
       # Update repository
       git fetch origin 2>/dev/null || exit 1
-      git reset --hard origin/main 2>/dev/null || exit 1
+      git reset --hard origin/master 2>/dev/null || exit 1
 
       # Restore configuration
       cp "$temp_config" "$CONFIG_FILE" 2>/dev/null || exit 1
@@ -2374,6 +2476,8 @@ update_menu() {
 
 # Script entry point
 main() {
+  verify_installer_integrity_or_exit
+
   # Initialize logging
   log_to_file "INFO" "pyTMBot Installer v${INSTALLER_VERSION} started"
   log_to_file "INFO" "System: $(uname -a 2>/dev/null || echo "Unknown")"
