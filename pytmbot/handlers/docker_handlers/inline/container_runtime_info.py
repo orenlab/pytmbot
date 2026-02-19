@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass
 from typing import Final
 
@@ -33,6 +34,7 @@ CONTAINER_EXTRA_CALLBACK_PREFIX: Final[str] = "__container_extra__"
 CONTAINER_EXTRA_ACTION_VOLUMES: Final[str] = "volumes"
 CONTAINER_EXTRA_ACTION_NETWORKS: Final[str] = "networks"
 _MAX_RENDER_ITEMS: Final[int] = 20
+_MAX_ALIAS_ITEMS: Final[int] = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +84,57 @@ def _safe_text(value: object, default: str = "N/A") -> str:
     text = str(value).strip()
     if not text:
         return default
-    return text.replace("\n", " ").replace("\r", " ")
+    sanitized = text.replace("\n", " ").replace("\r", " ")
+    return html.escape(sanitized, quote=True)
+
+
+def _safe_bool(value: object) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "N/A"
+
+
+def _dict_of_objects(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
+
+
+def _limited_strings(
+    raw: object, *, limit: int = _MAX_RENDER_ITEMS
+) -> tuple[list[str], int]:
+    if isinstance(raw, dict):
+        values = list(raw.keys())
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        return [], 0
+
+    cleaned = [_safe_text(item) for item in values if str(item).strip()]
+    limited = cleaned[:limit]
+    hidden = max(0, len(cleaned) - len(limited))
+    return limited, hidden
+
+
+def _short_identifier(value: object) -> str:
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return "-"
+    return _safe_text(raw[:12], default="-")
+
+
+def _collect_limited_entries(
+    values: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    collected: dict[str, dict[str, object]] = {}
+    for name, raw in values.items():
+        items, hidden = _limited_strings(raw)
+        collected[name] = {
+            "items": items,
+            "count": len(items),
+            "hidden": hidden,
+        }
+    return collected
 
 
 def _extract_container_attrs(container_details: object) -> dict[str, object]:
@@ -90,92 +142,183 @@ def _extract_container_attrs(container_details: object) -> dict[str, object]:
     return attrs if isinstance(attrs, dict) else {}
 
 
-def _extract_mounts(attrs: dict[str, object]) -> tuple[list[dict[str, str]], int]:
+def _extract_volume_context(attrs: dict[str, object]) -> dict[str, object]:
+    config = _dict_of_objects(attrs.get("Config"))
+    host_config = _dict_of_objects(attrs.get("HostConfig"))
+
     mounts_raw = attrs.get("Mounts", [])
-    if not isinstance(mounts_raw, list):
-        return [], 0
-
     parsed_mounts: list[dict[str, str]] = []
-    for mount in mounts_raw[:_MAX_RENDER_ITEMS]:
-        if not isinstance(mount, dict):
-            continue
-        rw_flag = mount.get("RW")
-        access = "rw" if rw_flag is True else "ro" if rw_flag is False else "n/a"
-        parsed_mounts.append(
-            {
-                "source": _safe_text(mount.get("Source")),
-                "destination": _safe_text(mount.get("Destination")),
-                "mode": _safe_text(mount.get("Mode"), default="-"),
-                "type": _safe_text(mount.get("Type"), default="bind"),
-                "access": access,
-            }
-        )
+    mounts_total = len(mounts_raw) if isinstance(mounts_raw, list) else 0
 
-    hidden_count = max(0, len(mounts_raw) - len(parsed_mounts))
-    return parsed_mounts, hidden_count
+    if isinstance(mounts_raw, list):
+        for mount in mounts_raw[:_MAX_RENDER_ITEMS]:
+            mount_data = _dict_of_objects(mount)
+            if not mount_data:
+                continue
+            rw_flag = mount_data.get("RW")
+            access = "rw" if rw_flag is True else "ro" if rw_flag is False else "n/a"
+            parsed_mounts.append(
+                {
+                    "type": _safe_text(mount_data.get("Type"), default="bind"),
+                    "name": _safe_text(mount_data.get("Name"), default="-"),
+                    "source": _safe_text(mount_data.get("Source")),
+                    "destination": _safe_text(mount_data.get("Destination")),
+                    "driver": _safe_text(mount_data.get("Driver"), default="-"),
+                    "mode": _safe_text(mount_data.get("Mode"), default="-"),
+                    "access": access,
+                    "propagation": _safe_text(
+                        mount_data.get("Propagation"),
+                        default="-",
+                    ),
+                }
+            )
+
+    volume_lists = _collect_limited_entries(
+        {
+            "declared_volumes": config.get("Volumes", {}),
+            "tmpfs_mounts": host_config.get("Tmpfs"),
+            "bind_specs": host_config.get("Binds"),
+            "volumes_from": host_config.get("VolumesFrom"),
+        }
+    )
+
+    return {
+        "mounts": parsed_mounts,
+        "mounts_count": len(parsed_mounts),
+        "mounts_total": mounts_total,
+        "hidden_mounts_count": max(0, mounts_total - len(parsed_mounts)),
+        "declared_volumes": volume_lists["declared_volumes"]["items"],
+        "declared_volumes_count": volume_lists["declared_volumes"]["count"],
+        "hidden_declared_volumes_count": volume_lists["declared_volumes"]["hidden"],
+        "tmpfs_mounts": volume_lists["tmpfs_mounts"]["items"],
+        "tmpfs_mounts_count": volume_lists["tmpfs_mounts"]["count"],
+        "hidden_tmpfs_mounts_count": volume_lists["tmpfs_mounts"]["hidden"],
+        "bind_specs": volume_lists["bind_specs"]["items"],
+        "bind_specs_count": volume_lists["bind_specs"]["count"],
+        "hidden_bind_specs_count": volume_lists["bind_specs"]["hidden"],
+        "volumes_from": volume_lists["volumes_from"]["items"],
+        "volumes_from_count": volume_lists["volumes_from"]["count"],
+        "hidden_volumes_from_count": volume_lists["volumes_from"]["hidden"],
+    }
 
 
 def _extract_network_context(attrs: dict[str, object]) -> dict[str, object]:
-    host_config = attrs.get("HostConfig", {})
-    network_settings = attrs.get("NetworkSettings", {})
-    if not isinstance(host_config, dict):
-        host_config = {}
-    if not isinstance(network_settings, dict):
-        network_settings = {}
+    host_config = _dict_of_objects(attrs.get("HostConfig"))
+    network_settings = _dict_of_objects(attrs.get("NetworkSettings"))
+    config = _dict_of_objects(attrs.get("Config"))
 
     ports_raw = network_settings.get("Ports", {})
-    port_rows: list[str] = []
+    port_rows: list[dict[str, object]] = []
     if isinstance(ports_raw, dict):
         for container_port, bindings in list(ports_raw.items())[:_MAX_RENDER_ITEMS]:
             port_label = _safe_text(container_port)
-            if isinstance(bindings, list) and bindings:
-                for binding in bindings:
-                    if not isinstance(binding, dict):
+            host_bindings: list[str] = []
+            if isinstance(bindings, list):
+                for binding in bindings[:_MAX_ALIAS_ITEMS]:
+                    binding_data = _dict_of_objects(binding)
+                    if not binding_data:
                         continue
-                    host_ip = _safe_text(binding.get("HostIp"), default="0.0.0.0")
-                    host_port = _safe_text(binding.get("HostPort"))
-                    port_rows.append(f"{port_label} -> {host_ip}:{host_port}")
-            else:
-                port_rows.append(f"{port_label} -> unbound")
-    hidden_ports_count = (
-        max(0, len(ports_raw) - _MAX_RENDER_ITEMS) if isinstance(ports_raw, dict) else 0
+                    host_ip = _safe_text(binding_data.get("HostIp"), default="0.0.0.0")
+                    host_port = _safe_text(binding_data.get("HostPort"))
+                    host_bindings.append(f"{host_ip}:{host_port}")
+            port_rows.append(
+                {
+                    "container_port": port_label,
+                    "host_bindings": host_bindings,
+                    "is_published": bool(host_bindings),
+                }
+            )
+
+    network_lists = _collect_limited_entries(
+        {
+            "exposed_ports": config.get("ExposedPorts", {}),
+            "dns_servers": host_config.get("Dns"),
+            "dns_search": host_config.get("DnsSearch"),
+            "dns_options": host_config.get("DnsOptions"),
+            "extra_hosts": host_config.get("ExtraHosts"),
+            "links": host_config.get("Links"),
+        }
     )
 
-    networks_raw = network_settings.get("Networks", {})
     network_rows: list[dict[str, object]] = []
+    networks_raw = network_settings.get("Networks", {})
     if isinstance(networks_raw, dict):
-        for network_name, config in list(networks_raw.items())[:_MAX_RENDER_ITEMS]:
-            cfg = config if isinstance(config, dict) else {}
+        for network_name, config_data in list(networks_raw.items())[:_MAX_RENDER_ITEMS]:
+            cfg = _dict_of_objects(config_data)
             aliases_raw = cfg.get("Aliases", [])
             aliases = (
                 [
                     _safe_text(alias)
-                    for alias in aliases_raw
+                    for alias in aliases_raw[:_MAX_ALIAS_ITEMS]
                     if isinstance(alias, str) and alias.strip()
                 ]
                 if isinstance(aliases_raw, list)
                 else []
             )
+            hidden_aliases_count = (
+                max(0, len(aliases_raw) - len(aliases))
+                if isinstance(aliases_raw, list)
+                else 0
+            )
             network_rows.append(
                 {
                     "name": _safe_text(network_name),
                     "ip_address": _safe_text(cfg.get("IPAddress")),
+                    "ip_prefix_len": _safe_text(cfg.get("IPPrefixLen")),
+                    "global_ipv6_address": _safe_text(cfg.get("GlobalIPv6Address")),
+                    "global_ipv6_prefix_len": _safe_text(
+                        cfg.get("GlobalIPv6PrefixLen")
+                    ),
                     "gateway": _safe_text(cfg.get("Gateway")),
+                    "ipv6_gateway": _safe_text(cfg.get("IPv6Gateway")),
                     "mac_address": _safe_text(cfg.get("MacAddress")),
+                    "endpoint_id": _short_identifier(cfg.get("EndpointID")),
+                    "network_id": _short_identifier(cfg.get("NetworkID")),
                     "aliases": aliases,
+                    "hidden_aliases_count": hidden_aliases_count,
                 }
             )
+
+    hidden_ports_count = (
+        max(0, len(ports_raw) - len(port_rows)) if isinstance(ports_raw, dict) else 0
+    )
     hidden_networks_count = (
         max(0, len(networks_raw) - len(network_rows))
         if isinstance(networks_raw, dict)
         else 0
     )
+    sandbox_id_short = _short_identifier(network_settings.get("SandboxID"))
+    global_ipv6_address = str(network_settings.get("GlobalIPv6Address") or "").strip()
 
     return {
         "network_mode": _safe_text(host_config.get("NetworkMode"), default="default"),
+        "hostname": _safe_text(config.get("Hostname"), default="-"),
+        "domainname": _safe_text(config.get("Domainname"), default="-"),
+        "sandbox_id": sandbox_id_short,
+        "bridge_name": _safe_text(network_settings.get("Bridge"), default="-"),
+        "publish_all_ports": _safe_bool(host_config.get("PublishAllPorts")),
+        "enable_ipv6": _safe_bool(bool(global_ipv6_address)),
         "ports": port_rows,
         "ports_count": len(port_rows),
         "hidden_ports_count": hidden_ports_count,
+        "exposed_ports": network_lists["exposed_ports"]["items"],
+        "exposed_ports_count": network_lists["exposed_ports"]["count"],
+        "hidden_exposed_ports_count": network_lists["exposed_ports"]["hidden"],
+        "dns_servers": network_lists["dns_servers"]["items"],
+        "dns_servers_count": network_lists["dns_servers"]["count"],
+        "hidden_dns_servers_count": network_lists["dns_servers"]["hidden"],
+        "dns_search": network_lists["dns_search"]["items"],
+        "dns_search_count": network_lists["dns_search"]["count"],
+        "hidden_dns_search_count": network_lists["dns_search"]["hidden"],
+        "dns_options": network_lists["dns_options"]["items"],
+        "dns_options_count": network_lists["dns_options"]["count"],
+        "hidden_dns_options_count": network_lists["dns_options"]["hidden"],
+        "extra_hosts": network_lists["extra_hosts"]["items"],
+        "extra_hosts_count": network_lists["extra_hosts"]["count"],
+        "hidden_extra_hosts_count": network_lists["extra_hosts"]["hidden"],
+        "links": network_lists["links"]["items"],
+        "links_count": network_lists["links"]["count"],
+        "hidden_links_count": network_lists["links"]["hidden"],
         "networks": network_rows,
         "networks_count": len(network_rows),
         "hidden_networks_count": hidden_networks_count,
@@ -245,13 +388,12 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
     }
 
     if parsed.action == CONTAINER_EXTRA_ACTION_VOLUMES:
-        mounts, hidden_mounts_count = _extract_mounts(attrs)
         rendered = Compiler.quick_render(
             template_name="d_container_volumes_info.jinja2",
             luggage_emoji=emojis.get("luggage", "🧳"),
-            mounts=mounts,
-            mounts_count=len(mounts),
-            hidden_mounts_count=hidden_mounts_count,
+            backpack_emoji=emojis.get("backpack", "🎒"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            **_extract_volume_context(attrs),
             **common_context,
         )
     else:
@@ -261,6 +403,7 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             globe_emoji=emojis.get("globe_with_meridians", "🌐"),
             chart_emoji=emojis.get("chart_increasing", "📈"),
             network_emoji=emojis.get("globe_with_meridians", "🌐"),
+            gear_emoji=emojis.get("gear", "⚙️"),
             **network_context,
             **common_context,
         )

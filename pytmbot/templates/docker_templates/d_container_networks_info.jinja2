@@ -2,12 +2,23 @@
 
 {{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
 
-{{ globe_emoji }} <b>Network mode:</b> <code>{{ network_mode }}</code>
+{{ gear_emoji }} <b>Runtime network summary:</b>
+<code>Mode:</code> {{ network_mode }}
+<code>Hostname:</code> {{ hostname }}{% if domainname != '-' %}.{{ domainname }}{% endif %}
+<code>Bridge:</code> {{ bridge_name }}
+<code>Sandbox ID:</code> {{ sandbox_id }}
+<code>Publish all ports:</code> {{ publish_all_ports }}
+<code>IPv6 enabled:</code> {{ enable_ipv6 }}
 
-{{ chart_emoji }} <b>Port bindings{% if ports_count > 0 %} ({{ ports_count }}){% endif %}:</b>
+{{ chart_emoji }} <b>Published ports{% if ports_count > 0 %} ({{ ports_count }}){% endif %}:</b>
 {% if ports_count > 0 -%}
 {% for port in ports -%}
-<code>{{ port }}</code>
+<code>{{ port.container_port }}</code>
+{% if port.is_published -%}
+<code>↳</code> {{ port.host_bindings | join(", ") }}
+{% else -%}
+<code>↳ unbound</code>
+{% endif %}
 {% endfor -%}
 {% if hidden_ports_count > 0 -%}
 <i>... and {{ hidden_ports_count }} more port bindings</i>
@@ -16,15 +27,43 @@
 <code>No published ports</code>
 {% endif %}
 
+<b>Exposed ports{% if exposed_ports_count > 0 %} ({{ exposed_ports_count }}){% endif %}:</b>
+{% if exposed_ports_count > 0 -%}
+<code>{{ exposed_ports | join(", ") }}</code>
+{% if hidden_exposed_ports_count > 0 -%}
+<i>... and {{ hidden_exposed_ports_count }} more exposed ports</i>
+{% endif -%}
+{% else -%}
+<code>none</code>
+{% endif %}
+
+{{ gear_emoji }} <b>DNS and host routing:</b>
+<code>DNS servers:</code> {% if dns_servers_count > 0 %}{{ dns_servers | join(", ") }}{% else %}none{% endif %}
+{% if hidden_dns_servers_count > 0 %}<i> (+{{ hidden_dns_servers_count }} more)</i>{% endif %}
+<code>DNS search:</code> {% if dns_search_count > 0 %}{{ dns_search | join(", ") }}{% else %}none{% endif %}
+{% if hidden_dns_search_count > 0 %}<i> (+{{ hidden_dns_search_count }} more)</i>{% endif %}
+<code>DNS options:</code> {% if dns_options_count > 0 %}{{ dns_options | join(", ") }}{% else %}none{% endif %}
+{% if hidden_dns_options_count > 0 %}<i> (+{{ hidden_dns_options_count }} more)</i>{% endif %}
+<code>Extra hosts:</code> {% if extra_hosts_count > 0 %}{{ extra_hosts | join(", ") }}{% else %}none{% endif %}
+{% if hidden_extra_hosts_count > 0 %}<i> (+{{ hidden_extra_hosts_count }} more)</i>{% endif %}
+<code>Links:</code> {% if links_count > 0 %}{{ links | join(", ") }}{% else %}none{% endif %}
+{% if hidden_links_count > 0 %}<i> (+{{ hidden_links_count }} more)</i>{% endif %}
+
 {{ network_emoji }} <b>Attached networks{% if networks_count > 0 %} ({{ networks_count }}){% endif %}:</b>
 {% if networks_count > 0 -%}
 {% for net in networks -%}
 <b>{{ net.name }}</b>
-<code>IP:</code> {{ net.ip_address }}
+<code>IPv4:</code> {{ net.ip_address }}/{{ net.ip_prefix_len }}
 <code>Gateway:</code> {{ net.gateway }}
+<code>IPv6:</code> {{ net.global_ipv6_address }}/{{ net.global_ipv6_prefix_len }}
+<code>IPv6 Gateway:</code> {{ net.ipv6_gateway }}
 <code>MAC:</code> {{ net.mac_address }}
+<code>Endpoint ID:</code> {{ net.endpoint_id }} | <code>Network ID:</code> {{ net.network_id }}
 {% if net.aliases -%}
 <code>Aliases:</code> {{ net.aliases | join(", ") }}
+{% if net.hidden_aliases_count > 0 -%}
+<i> (+{{ net.hidden_aliases_count }} more aliases)</i>
+{% endif -%}
 {% endif -%}
 
 {% if not loop.last -%}
