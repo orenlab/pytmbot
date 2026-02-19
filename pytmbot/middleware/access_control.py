@@ -50,9 +50,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         self.allowed_user_ids = frozenset(settings.access_control.allowed_user_ids)
 
         self._attempt_count: defaultdict[int, int] = defaultdict(int)
-        self._blocked_until: defaultdict[int, datetime] = defaultdict(
-            lambda: datetime.min
-        )
+        self._blocked_until: dict[int, datetime] = {}
         self._last_admin_notify: dict[int, datetime] = {}
 
         threading.Thread(
@@ -135,10 +133,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         # Check if user is currently blocked
         if self._should_block_request(user_id):
+            block_until = self._blocked_until.get(user_id)
             context = {
                 **base_context,
                 "operation": "access_blocked",
-                "block_expires": self._blocked_until[user_id].isoformat(),
+                "block_expires": (
+                    block_until.isoformat() if block_until is not None else "unknown"
+                ),
                 "block_reason": "max_attempts_exceeded",
             }
 
@@ -165,7 +166,19 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
     def _should_block_request(self, user_id: int) -> bool:
         """Check if user should be blocked based on time."""
-        return datetime.now() < self._blocked_until[user_id]
+        block_until = self._blocked_until.get(user_id)
+        if block_until is None:
+            return False
+
+        now = datetime.now()
+        if now < block_until:
+            return True
+
+        # Block has expired between cleanup cycles: clear stale state lazily.
+        del self._blocked_until[user_id]
+        self._attempt_count[user_id] = 0
+        self._last_admin_notify.pop(user_id, None)
+        return False
 
     def _handle_unauthorized_access(
         self,
@@ -397,7 +410,9 @@ class AccessControl(BaseMiddleware, BaseComponent):
                     self._last_admin_notify.pop(user_id, None)
 
                 if expired:
-                    cleanup_context["expired_user_ids"] = expired
+                    cleanup_context["expired_user_ids"] = [
+                        mask_user_id(user_id) for user_id in sorted(expired)
+                    ]
                     try:
                         with self.log_context(**cleanup_context) as logger:
                             logger.info("bot.access.expired.blocks.info")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 from telebot import TeleBot
@@ -72,6 +72,7 @@ def test_access_control_authorized_user_passes(monkeypatch: pytest.MonkeyPatch) 
 
     assert result is None
     assert bot.sent_messages == []
+    assert 42 not in middleware._blocked_until
 
 
 def test_access_control_unauthorized_attempts_and_blocking(
@@ -263,6 +264,71 @@ def test_access_control_periodic_cleanup_removes_expired_state(
     assert middleware._attempt_count[expired_user] == 0
     assert expired_user not in middleware._last_admin_notify
     assert active_user in middleware._blocked_until
+
+
+def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        access_control_module,
+        "settings",
+        SimpleNamespace(
+            access_control=SimpleNamespace(allowed_user_ids=[]),
+            chat_id=SimpleNamespace(global_chat_id=[999]),
+        ),
+    )
+    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    expired_user = 7263484885
+    middleware._blocked_until[expired_user] = datetime.now() - timedelta(seconds=1)
+
+    captured: list[tuple[str, dict[str, object]]] = []
+
+    class _Logger:
+        def __init__(self, ctx: dict[str, object]) -> None:
+            self._ctx = ctx
+
+        def info(self, message: str) -> None:
+            captured.append((message, self._ctx.copy()))
+
+        def debug(self, message: str) -> None:
+            captured.append((message, self._ctx.copy()))
+
+        def error(self, message: str) -> None:
+            captured.append((message, self._ctx.copy()))
+
+    class _Ctx:
+        def __init__(self, ctx: dict[str, object]) -> None:
+            self._ctx = ctx
+
+        def __enter__(self) -> _Logger:
+            return _Logger(self._ctx)
+
+        def __exit__(self, *_args: object) -> Literal[False]:
+            return False
+
+    monkeypatch.setattr(middleware, "log_context", lambda **kwargs: _Ctx(kwargs))
+
+    call_count = {"sleep": 0}
+
+    def _sleep(_seconds: float) -> None:
+        call_count["sleep"] += 1
+        if call_count["sleep"] > 1:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(access_control_module.time, "sleep", _sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        middleware._periodic_cleanup()
+
+    expired_logs = [
+        context
+        for message, context in captured
+        if message == "bot.access.expired.blocks.info"
+    ]
+    assert expired_logs
+    assert expired_logs[0]["expired_user_ids"] == ["726****885"]
 
 
 def test_access_control_post_process_paths(
