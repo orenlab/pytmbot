@@ -40,6 +40,8 @@ from .docker_handlers.inline.container_runtime_info import (
     CONTAINER_EXTRA_CALLBACK_PREFIX,
     handle_container_extra_info,
 )
+from .docker_handlers.inline.image_extra import handle_image_extra_info
+from .docker_handlers.inline.image_info import handle_image_info
 from .docker_handlers.inline.image_updates import handle_image_updates
 from .docker_handlers.inline.images_page import handle_images_page
 from .docker_handlers.inline.logs import handle_get_logs
@@ -191,6 +193,20 @@ class InlineFilters:
             return False
         return call.data.startswith("__images_page__")
 
+    @staticmethod
+    def image_info(call: CallbackQueryType) -> bool:
+        """Filter for image details callback."""
+        if call.data is None:
+            return False
+        return call.data.startswith("__image_info__")
+
+    @staticmethod
+    def image_extra(call: CallbackQueryType) -> bool:
+        """Filter for image history/usage callbacks."""
+        if call.data is None:
+            return False
+        return call.data.startswith("__image_extra__")
+
 
 @cache
 def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
@@ -322,6 +338,16 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         "images_page": [
             HandlerConfig(
                 callback=handle_images_page, filter_func=InlineFilters.images_page
+            )
+        ],
+        "image_info": [
+            HandlerConfig(
+                callback=handle_image_info, filter_func=InlineFilters.image_info
+            )
+        ],
+        "image_extra": [
+            HandlerConfig(
+                callback=handle_image_extra_info, filter_func=InlineFilters.image_extra
             )
         ],
     }

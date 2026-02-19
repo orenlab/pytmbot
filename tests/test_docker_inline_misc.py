@@ -9,6 +9,9 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 import pytmbot.handlers.docker_handlers.inline.back as back_module
+import pytmbot.handlers.docker_handlers.inline.image_callback as image_callback_module
+import pytmbot.handlers.docker_handlers.inline.image_extra as image_extra_module
+import pytmbot.handlers.docker_handlers.inline.image_info as image_info_module
 import pytmbot.handlers.docker_handlers.inline.image_updates as image_updates_module
 import pytmbot.handlers.docker_handlers.inline.images_page as images_page_module
 import pytmbot.handlers.docker_handlers.inline.manage_action as manage_action_module
@@ -79,6 +82,106 @@ def _assert_common_callback_context_errors(
     assert shown[-1] == missing_message_error
 
 
+def _collect_shown_messages(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    module: object,
+) -> list[str]:
+    shown: list[str] = []
+    target = module if hasattr(module, "show_handler_info") else image_callback_module
+    monkeypatch.setattr(
+        target,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
+    return shown
+
+
+def _patch_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    module: object,
+    auth_kwargs: list[dict[str, object]],
+    is_allowed: bool,
+    reason: str,
+) -> None:
+    def _authorize(
+        call: object,
+        called_user_id: object,
+        **kwargs: object,
+    ) -> tuple[bool, str]:
+        del call, called_user_id
+        auth_kwargs.append(kwargs)
+        return is_allowed, reason
+
+    target = (
+        module
+        if hasattr(module, "authorize_docker_callback_request")
+        else image_callback_module
+    )
+    monkeypatch.setattr(target, "authorize_docker_callback_request", _authorize)
+
+
+def _assert_image_details_callback_paths(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    handler: Callable[..., object],
+    bot: _Bot,
+    parse_attr: str,
+    parse_valid: Callable[[str], object],
+    valid_callback_data: str,
+    render_attr: str,
+    render_none: Callable[..., object],
+    render_success: Callable[..., tuple[str, str]],
+    success_text: str,
+) -> None:
+    shown = _collect_shown_messages(monkeypatch, module=module)
+    auth_kwargs: list[dict[str, object]] = []
+
+    _assert_common_callback_context_errors(
+        handler=handler,
+        bot=bot,
+        shown=shown,
+        missing_message_error="Cannot render image details in this context.",
+    )
+
+    handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
+    assert shown[-1] == "Invalid image details request."
+
+    monkeypatch.setattr(module, parse_attr, lambda data: None)
+    handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
+    assert shown[-1] == "Invalid image details request."
+
+    monkeypatch.setattr(module, parse_attr, parse_valid)
+
+    _patch_authorization(
+        monkeypatch,
+        module=module,
+        auth_kwargs=auth_kwargs,
+        is_allowed=False,
+        reason="denied",
+    )
+    handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
+    assert shown[-1] == "Images: denied"
+    assert auth_kwargs[-1]["require_session"] is False
+
+    _patch_authorization(
+        monkeypatch,
+        module=module,
+        auth_kwargs=auth_kwargs,
+        is_allowed=True,
+        reason="",
+    )
+    monkeypatch.setattr(module, render_attr, render_none)
+    handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
+    assert shown[-1] == "Image details are unavailable. Refresh the images list first."
+
+    monkeypatch.setattr(module, render_attr, render_success)
+    handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
+    assert bot.edited_messages[-1]["text"] == success_text
+
+
 def test_back_callback_parsing() -> None:
     assert back_module._parse_back_callback_data("back_to_containers") == (1, None)
     assert back_module._parse_back_callback_data("__containers_page__:2:44") == (2, 44)
@@ -138,14 +241,8 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = _raw_handler(images_page_module.handle_images_page)
     bot = _Bot()
-    shown: list[str] = []
+    shown = _collect_shown_messages(monkeypatch, module=images_page_module)
     auth_kwargs: list[dict[str, object]] = []
-
-    monkeypatch.setattr(
-        images_page_module,
-        "show_handler_info",
-        lambda call, text, bot: shown.append(text),
-    )
 
     _assert_common_callback_context_errors(
         handler=handler,
@@ -167,29 +264,23 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         images_page_module, "parse_page_callback_data", lambda data, prefix: (2, 11)
     )
 
-    def _deny_auth(
-        call: object, called_user_id: object, **kwargs: object
-    ) -> tuple[bool, str]:
-        del call, called_user_id
-        auth_kwargs.append(kwargs)
-        return False, "forbidden"
-
-    monkeypatch.setattr(
-        images_page_module, "authorize_docker_callback_request", _deny_auth
+    _patch_authorization(
+        monkeypatch,
+        module=images_page_module,
+        auth_kwargs=auth_kwargs,
+        is_allowed=False,
+        reason="forbidden",
     )
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert shown[-1] == "Images: forbidden"
     assert auth_kwargs[-1]["require_session"] is False
 
-    def _allow_auth(
-        call: object, called_user_id: object, **kwargs: object
-    ) -> tuple[bool, str]:
-        del call, called_user_id
-        auth_kwargs.append(kwargs)
-        return True, ""
-
-    monkeypatch.setattr(
-        images_page_module, "authorize_docker_callback_request", _allow_auth
+    _patch_authorization(
+        monkeypatch,
+        module=images_page_module,
+        auth_kwargs=auth_kwargs,
+        is_allowed=True,
+        reason="",
     )
     monkeypatch.setattr(
         images_page_module,
@@ -199,6 +290,45 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "images-page"
     assert auth_kwargs[-1]["require_session"] is False
+
+
+def test_handle_image_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler = _raw_handler(image_info_module.handle_image_info)
+    bot = _Bot()
+    _assert_image_details_callback_paths(
+        monkeypatch=monkeypatch,
+        module=image_info_module,
+        handler=handler,
+        bot=bot,
+        parse_attr="parse_image_info_callback_data",
+        parse_valid=lambda _data: (3, 11, 2),
+        valid_callback_data="__image_info__:3:11:2",
+        render_attr="render_image_details",
+        render_none=lambda image_index, page, user_id: None,
+        render_success=lambda image_index, page, user_id: ("image-details", "kbd"),
+        success_text="image-details",
+    )
+
+
+def test_handle_image_extra_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler = _raw_handler(image_extra_module.handle_image_extra_info)
+    bot = _Bot()
+    _assert_image_details_callback_paths(
+        monkeypatch=monkeypatch,
+        module=image_extra_module,
+        handler=handler,
+        bot=bot,
+        parse_attr="parse_image_extra_callback_data",
+        parse_valid=lambda _data: ("history", 3, 11, 2),
+        valid_callback_data="__image_extra__:history:3:11:2",
+        render_attr="render_image_extra_info",
+        render_none=lambda action, image_index, page, user_id: None,
+        render_success=lambda action, image_index, page, user_id: (
+            "image-extra",
+            "kbd",
+        ),
+        success_text="image-extra",
+    )
 
 
 def test_prepare_context_for_render() -> None:

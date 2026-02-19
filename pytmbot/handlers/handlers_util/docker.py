@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -230,6 +230,9 @@ def get_emojis() -> dict[str, str]:
         "herb",
         "spiral_calendar",
         "bullseye",
+        "stethoscope",
+        "shield",
+        "warning",
         "BACK_arrow",
     ]
     return {emoji_name: em.get_emoji(emoji_name) for emoji_name in emoji_names}
@@ -311,6 +314,88 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     return filtered_vars[:20]  # Limit to first 20 variables
 
 
+def _format_container_timestamp(raw_value: Any) -> str:
+    """Render ISO timestamp from Docker attrs to stable UTC string."""
+    if not isinstance(raw_value, str):
+        return "N/A"
+
+    value = raw_value.strip()
+    if not value or value == "0001-01-01T00:00:00Z":
+        return "N/A"
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return "N/A"
+
+    if parsed.tzinfo is None:
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _truncate_text(value: Any, limit: int = 160) -> str:
+    text = str(value).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3]}..."
+
+
+def _normalize_string_list(raw_value: Any, *, limit: int = 10) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+    cleaned = [str(item).strip() for item in raw_value if str(item).strip()]
+    return cleaned[:limit]
+
+
+def _extract_health_summary(state: dict[str, Any]) -> dict[str, Any]:
+    """Extract health check summary from Docker state attrs."""
+    health_data = state.get("Health", {})
+    if not isinstance(health_data, dict):
+        return {
+            "health_status": "N/A",
+            "health_failing_streak": 0,
+            "health_last_checked_at": "N/A",
+            "health_last_log": "N/A",
+        }
+
+    health_log = health_data.get("Log", [])
+    health_last_checked_at = "N/A"
+    health_last_log = "N/A"
+
+    if isinstance(health_log, list) and health_log:
+        last_record = health_log[-1]
+        if isinstance(last_record, dict):
+            health_last_checked_at = _format_container_timestamp(last_record.get("End"))
+            output = str(last_record.get("Output", "")).strip()
+            if output:
+                first_line = output.splitlines()[0]
+                health_last_log = _truncate_text(first_line)
+
+    return {
+        "health_status": str(health_data.get("Status", "N/A")),
+        "health_failing_streak": int(health_data.get("FailingStreak", 0) or 0),
+        "health_last_checked_at": health_last_checked_at,
+        "health_last_log": health_last_log,
+    }
+
+
+def _format_health_badge(status: object) -> str:
+    normalized = str(status).strip().lower()
+    if normalized == "healthy":
+        return "🟢 healthy"
+    if normalized == "unhealthy":
+        return "🔴 unhealthy"
+    if normalized == "starting":
+        return "🟡 starting"
+    return str(status).strip() or "N/A"
+
+
+def _has_no_new_privileges(security_options: list[str]) -> bool:
+    return any(
+        option.lower().startswith("no-new-privileges") for option in security_options
+    )
+
+
 def parse_container_basic_info(
     container_details: Any, attrs: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -330,6 +415,21 @@ def parse_container_basic_info(
 
         config = resolved_attrs.get("Config", {})
         state = resolved_attrs.get("State", {})
+        health_summary = _extract_health_summary(state)
+        health_summary_public = {
+            "health_status": health_summary.get("health_status", "N/A"),
+            "health_failing_streak": health_summary.get("health_failing_streak", 0),
+            "health_last_checked_at": health_summary.get(
+                "health_last_checked_at", "N/A"
+            ),
+            "health_badge": _format_health_badge(
+                health_summary.get("health_status", "N/A")
+            ),
+        }
+
+        running = bool(state.get("Running", False))
+        paused = bool(state.get("Paused", False))
+        restarting = bool(state.get("Restarting", False))
 
         # Image info (safe to display)
         image_info = config.get("Image", "unknown")
@@ -338,12 +438,17 @@ def parse_container_basic_info(
         image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
 
         # Calculate uptime
-        started_at = state.get("StartedAt", "")
-        uptime = (
-            set_naturaltime(datetime.fromisoformat(started_at.replace("Z", "+00:00")))
-            if started_at and started_at != "0001-01-01T00:00:00Z"
-            else "N/A"
-        )
+        started_at_raw = state.get("StartedAt", "")
+        uptime = "N/A"
+        if isinstance(started_at_raw, str) and started_at_raw:
+            try:
+                if started_at_raw != "0001-01-01T00:00:00Z":
+                    started_at_dt = datetime.fromisoformat(
+                        started_at_raw.replace("Z", "+00:00")
+                    )
+                    uptime = set_naturaltime(started_at_dt)
+            except ValueError:
+                uptime = "N/A"
 
         return {
             "id": resolved_attrs.get("Id", "")[:12],  # Short ID
@@ -351,14 +456,29 @@ def parse_container_basic_info(
             "image_name": image_name,
             "image_tag": image_tag,
             "status": state.get("Status", "unknown"),
-            "running": state.get("Running", False),
-            "paused": state.get("Paused", False),
-            "restarting": state.get("Restarting", False),
+            "status_badge": (
+                "🟢 Running"
+                if running
+                else "🟡 Paused"
+                if paused
+                else "🔄 Restarting"
+                if restarting
+                else "🔴 Stopped"
+            ),
+            "running": running,
+            "paused": paused,
+            "restarting": restarting,
             "restart_count": state.get("RestartCount", 0),
             "exit_code": state.get("ExitCode", 0),
-            "created": resolved_attrs.get("Created", ""),
-            "started_at": started_at,
+            "created": _format_container_timestamp(resolved_attrs.get("Created")),
+            "started_at": _format_container_timestamp(started_at_raw),
+            "finished_at": _format_container_timestamp(state.get("FinishedAt")),
+            "pid": state.get("Pid") or "N/A",
+            "oom_killed": bool(state.get("OOMKilled", False)),
+            "dead": bool(state.get("Dead", False)),
+            "state_error": _truncate_text(state.get("Error", "none") or "none"),
             "uptime": uptime,
+            **health_summary_public,
         }
     except Exception:
         logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
@@ -384,15 +504,28 @@ def parse_container_resources(
 
         host_config = resolved_attrs.get("HostConfig", {})
 
+        restart_policy = host_config.get("RestartPolicy", {})
+        if not isinstance(restart_policy, dict):
+            restart_policy = {}
+
         # Memory limits
         memory_limit = host_config.get("Memory", 0)
         memory_swap = host_config.get("MemorySwap", 0)
+        memory_reservation = host_config.get("MemoryReservation", 0)
+        pids_limit = host_config.get("PidsLimit", 0)
 
         # CPU limits
         cpu_shares = host_config.get("CpuShares", 0)
         cpu_quota = host_config.get("CpuQuota", 0)
         cpu_period = host_config.get("CpuPeriod", 0)
         cpuset_cpus = host_config.get("CpusetCpus", "")
+        nano_cpus = host_config.get("NanoCpus", 0)
+
+        pids_limit_display = "Unlimited"
+        if isinstance(pids_limit, int) and pids_limit > 0:
+            pids_limit_display = str(pids_limit)
+        elif isinstance(pids_limit, str) and pids_limit.strip():
+            pids_limit_display = pids_limit.strip()
 
         return {
             "memory_limit": set_naturalsize(memory_limit)
@@ -401,15 +534,20 @@ def parse_container_resources(
             "memory_swap": set_naturalsize(memory_swap)
             if memory_swap > 0
             else "No limit",
+            "memory_reservation": set_naturalsize(memory_reservation)
+            if memory_reservation > 0
+            else "No reservation",
             "cpu_shares": cpu_shares if cpu_shares > 0 else "Default (1024)",
             "cpu_quota": f"{cpu_quota}/{cpu_period}"
             if cpu_quota > 0 and cpu_period > 0
             else "No limit",
+            "cpus_limit": f"{nano_cpus / 1_000_000_000:.2f}"
+            if isinstance(nano_cpus, int) and nano_cpus > 0
+            else "No limit",
             "cpuset_cpus": cpuset_cpus if cpuset_cpus else "All CPUs",
-            "restart_policy": host_config.get("RestartPolicy", {}).get("Name", "no"),
-            "max_restart_count": host_config.get("RestartPolicy", {}).get(
-                "MaximumRetryCount", 0
-            ),
+            "restart_policy": restart_policy.get("Name", "no"),
+            "max_restart_count": restart_policy.get("MaximumRetryCount", 0),
+            "pids_limit": pids_limit_display,
         }
     except Exception:
         logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
@@ -437,13 +575,27 @@ def parse_container_network_info(
         host_config = resolved_attrs.get("HostConfig", {})
 
         # Port mappings (public info)
-        port_bindings = host_config.get("PortBindings", {})
+        port_bindings = network_settings.get("Ports", {})
+        if not isinstance(port_bindings, dict):
+            port_bindings = host_config.get("PortBindings", {})
+        if not port_bindings:
+            host_port_bindings = host_config.get("PortBindings", {})
+            if isinstance(host_port_bindings, dict):
+                port_bindings = host_port_bindings
+        if not isinstance(port_bindings, dict):
+            port_bindings = {}
+
         ports = []
+        bound_ports = 0
         for container_port, host_bindings in port_bindings.items():
             if host_bindings:
                 for binding in host_bindings:
-                    host_port = binding.get("HostPort", "auto")
-                    ports.append(f"{host_port}:{container_port}")
+                    if not isinstance(binding, dict):
+                        continue
+                    host_port = str(binding.get("HostPort", "auto"))
+                    host_ip = str(binding.get("HostIp", "0.0.0.0"))
+                    ports.append(f"{host_ip}:{host_port}->{container_port}")
+                    bound_ports += 1
             else:
                 ports.append(container_port)
 
@@ -457,7 +609,9 @@ def parse_container_network_info(
             "network_mode": network_mode,
             "ports": ports[:10],  # Limit display
             "networks": networks[:5],  # Limit display
-            "published_ports": len(ports),
+            "published_ports": bound_ports,
+            "declared_ports": len(ports),
+            "networks_count": len(networks),
         }
     except Exception:
         logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
@@ -510,6 +664,58 @@ def parse_container_environment(
         return {}
 
 
+def parse_container_runtime_info(
+    container_details: Any, attrs: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Extract runtime lifecycle and security metadata for container views."""
+    try:
+        resolved_attrs = (
+            attrs if attrs is not None else _extract_container_attrs(container_details)
+        )
+        state = resolved_attrs.get("State", {})
+        host_config = resolved_attrs.get("HostConfig", {})
+        config = resolved_attrs.get("Config", {})
+
+        security_opts = _normalize_string_list(host_config.get("SecurityOpt"), limit=8)
+        cap_add = _normalize_string_list(host_config.get("CapAdd"), limit=10)
+        cap_drop = _normalize_string_list(host_config.get("CapDrop"), limit=10)
+
+        health_summary = _extract_health_summary(state)
+
+        stop_timeout_value = host_config.get("StopTimeout")
+        stop_timeout = (
+            f"{stop_timeout_value}s"
+            if isinstance(stop_timeout_value, int) and stop_timeout_value >= 0
+            else "default"
+        )
+
+        return {
+            "created_at": _format_container_timestamp(resolved_attrs.get("Created")),
+            "started_at": _format_container_timestamp(state.get("StartedAt")),
+            "finished_at": _format_container_timestamp(state.get("FinishedAt")),
+            "pid": state.get("Pid") or "N/A",
+            "exit_code": state.get("ExitCode", "N/A"),
+            "state_error": _truncate_text(state.get("Error", "none") or "none"),
+            "oom_killed": bool(state.get("OOMKilled", False)),
+            "dead": bool(state.get("Dead", False)),
+            "privileged": bool(host_config.get("Privileged", False)),
+            "read_only_rootfs": bool(host_config.get("ReadonlyRootfs", False)),
+            "oom_kill_disable": bool(host_config.get("OomKillDisable", False)),
+            "init_process": bool(host_config.get("Init", False)),
+            "no_new_privileges": _has_no_new_privileges(security_opts),
+            "stop_signal": str(config.get("StopSignal", "SIGTERM")),
+            "stop_timeout": stop_timeout,
+            "security_opts": security_opts,
+            "cap_add": cap_add,
+            "cap_drop": cap_drop,
+            **health_summary,
+            "health_badge": _format_health_badge(health_summary.get("health_status")),
+        }
+    except Exception:
+        logger.error("bot.handler.handlers_util.docker.parsing.container.fail")
+        return {}
+
+
 def get_comprehensive_container_details(
     container_name: str,
 ) -> dict[str, Any] | None:
@@ -539,6 +745,7 @@ def get_comprehensive_container_details(
         resources = parse_container_resources(container_details, attrs=attrs)
         network_info = parse_container_network_info(container_details, attrs=attrs)
         environment = parse_container_environment(container_details, attrs=attrs)
+        runtime_info = parse_container_runtime_info(container_details, attrs=attrs)
 
         # Initialize runtime/stat fields
         stats: dict[str, Any] = {}
@@ -571,6 +778,23 @@ def get_comprehensive_container_details(
 
         cpu_stats = parse_container_cpu_stats(stats) if stats else {}
         network_stats = parse_container_network_stats(stats) if stats else {}
+        memory_headroom = "N/A"
+        if stats:
+            memory_snapshot = stats.get("memory_stats", {})
+            if isinstance(memory_snapshot, dict):
+                usage = memory_snapshot.get("usage", 0)
+                limit = memory_snapshot.get("limit", 0)
+                if (
+                    isinstance(usage, (int, float))
+                    and isinstance(limit, (int, float))
+                    and limit > 0
+                ):
+                    remaining = max(int(limit - usage), 0)
+                    remaining_percent = round((remaining / limit) * 100, 2)
+                    memory_headroom = (
+                        f"{set_naturalsize(remaining)} ({remaining_percent}%)"
+                    )
+        resources["memory_headroom"] = memory_headroom
 
         # Combine all data
         comprehensive_details = {
@@ -578,6 +802,7 @@ def get_comprehensive_container_details(
             "resources": resources,
             "network": network_info,
             "environment": environment,
+            "runtime": runtime_info,
             "stats": {
                 "memory": memory_stats,
                 "cpu": cpu_stats,

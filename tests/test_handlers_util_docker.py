@@ -23,6 +23,7 @@ from pytmbot.handlers.handlers_util.docker import (
     parse_container_network_info,
     parse_container_network_stats,
     parse_container_resources,
+    parse_container_runtime_info,
     sanitize_environment_variables,
     show_handler_info,
 )
@@ -223,8 +224,13 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     basic = parse_container_basic_info(container, attrs=attrs)
     assert basic["name"] == "pytmbot"
     assert basic["image_name"] == "orenlab/pytmbot"
-    assert basic["image_tag"] == "alpine-dev"
-    assert basic["uptime"] == "10 minutes ago"
+    assert (
+        basic["image_tag"],
+        basic["uptime"],
+        basic["status_badge"],
+        basic["health_badge"],
+    ) == ("alpine-dev", "10 minutes ago", "🟢 Running", "N/A")
+    assert "health_last_log" not in basic
 
     resources = parse_container_resources(container, attrs=attrs)
     assert resources["memory_limit"] == f"{attrs['HostConfig']['Memory']}B"
@@ -233,9 +239,10 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
 
     network = parse_container_network_info(container, attrs=attrs)
     assert network["network_mode"] == "bridge"
-    assert "8080:80/tcp" in network["ports"]
+    assert "0.0.0.0:8080->80/tcp" in network["ports"]
     assert "443/tcp" in network["ports"]
-    assert network["published_ports"] == 2
+    assert network["published_ports"] == 1
+    assert network["declared_ports"] == 2
 
     environment = parse_container_environment(container, attrs=attrs)
     assert environment["working_dir"] == "/opt/app"
@@ -245,6 +252,11 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any(
         "DB_PASSWORD=<HIDDEN>" in item for item in environment["environment_vars"]
     )
+
+    runtime = parse_container_runtime_info(container, attrs=attrs)
+    assert runtime["started_at"] == "2026-02-15 12:00:00 UTC"
+    assert runtime["stop_signal"] == "SIGTERM"
+    assert runtime["privileged"] is False
 
 
 def test_parse_container_memory_cpu_network_stats(
@@ -302,10 +314,12 @@ def test_parse_container_memory_cpu_network_stats(
             }
         }
     )
-    assert network["rx_bytes"] == "150B"
-    assert network["tx_bytes"] == "260B"
-    assert network["rx_dropped"] == 1
-    assert network["tx_errors"] == 5
+    assert (
+        network["rx_bytes"],
+        network["tx_bytes"],
+        network["rx_dropped"],
+        network["tx_errors"],
+    ) == ("150B", "260B", 1, 5)
 
 
 def test_normalize_memory_stats_parses_percent_variants() -> None:

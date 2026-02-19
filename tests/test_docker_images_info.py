@@ -29,17 +29,37 @@ def test_process_image_attrs_success() -> None:
         attrs={
             "Created": "2026-02-17T12:00:00.000000Z",
             "RepoTags": ["repo/app:1.0"],
+            "RepoDigests": ["repo/app@sha256:abc123"],
             "Architecture": "arm64",
+            "Variant": "v8",
             "Os": "linux",
             "Size": 1024,
+            "VirtualSize": 2048,
+            "SharedSize": 512,
+            "Parent": "sha256:parent1234567890",
+            "RootFS": {"Type": "layers", "Layers": ["sha256:layer1", "sha256:layer2"]},
             "Author": "dev",
             "DockerVersion": "29.2.0",
-            "ContainerConfig": {
+            "Config": {
                 "Labels": {"com.example": "value"},
                 "ExposedPorts": {"8080/tcp": {}},
                 "Env": ["A=1"],
                 "Entrypoint": ["python"],
                 "Cmd": ["main.py"],
+                "Shell": ["/bin/sh", "-c"],
+                "Volumes": {"/data": {}},
+                "User": "1000",
+                "WorkingDir": "/app",
+                "StopSignal": "SIGINT",
+                "Healthcheck": {
+                    "Test": [
+                        "CMD-SHELL",
+                        "curl -f http://localhost:8080/health || exit 1",
+                    ],
+                    "Interval": 30000000000,
+                    "Timeout": 10000000000,
+                    "Retries": 3,
+                },
             },
         },
     )
@@ -47,11 +67,32 @@ def test_process_image_attrs_success() -> None:
     details = images_info_module.process_image_attrs(image)
     assert details["id"] == "sha256:abc"
     assert details["name"] == "repo/app:1.0"
-    assert details["architecture"] == "arm64"
-    assert details["os"] == "linux"
-    assert details["author"] == "dev"
+    assert {
+        "architecture": details["architecture"],
+        "variant": details["variant"],
+        "os": details["os"],
+        "author": details["author"],
+    } == {
+        "architecture": "arm64",
+        "variant": "v8",
+        "os": "linux",
+        "author": "dev",
+    }
     assert details["labels"] == {"com.example": "value"}
     assert details["exposed_ports"] == ["8080/tcp"]
+    assert details["repo_digests"] == ["repo/app@sha256:abc123"]
+    assert details["repo_digests_count"] == 1
+    assert details["layers_count"] == 2
+    assert details["rootfs_type"] == "layers"
+    assert details["parent_id"] == "parent1234567890"
+    assert details["volumes"] == ["/data"]
+    assert details["user"] == "1000"
+    assert details["working_dir"] == "/app"
+    assert details["stop_signal"] == "SIGINT"
+    assert (
+        "test=CMD-SHELL curl -f http://localhost:8080/health || exit 1"
+        in details["healthcheck"]
+    )
 
 
 def test_process_image_attrs_handles_broken_attrs() -> None:
@@ -61,7 +102,10 @@ def test_process_image_attrs_handles_broken_attrs() -> None:
     details = images_info_module.process_image_attrs(image)
 
     assert details["id"] == "sha256:broken"
-    assert "error" in details
+    assert details["name"] == "<none>:<none>"
+    assert details["architecture"] == "N/A"
+    assert details["healthcheck"] == "none"
+    assert details["labels"] == {}
 
 
 def test_fetch_image_details_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -221,3 +265,71 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
         images_info_module.ImageOperationError, match="Failed to get image statistics"
     ):
         images_info_module.get_image_stats()
+
+
+def test_get_image_usage_success_and_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    image = SimpleNamespace(id="sha256:img")
+    containers = [
+        SimpleNamespace(
+            name="api",
+            short_id="abc123",
+            status="running",
+            image=SimpleNamespace(id="sha256:img"),
+            attrs={"State": {"Status": "running", "StartedAt": "2026-02-19T14:00:00Z"}},
+        ),
+        SimpleNamespace(
+            name="worker",
+            short_id="def456",
+            status="exited",
+            image=SimpleNamespace(id="sha256:img"),
+            attrs={"State": {"Status": "exited", "StartedAt": "2026-02-19T13:00:00Z"}},
+        ),
+        SimpleNamespace(
+            name="other",
+            short_id="zzz999",
+            status="running",
+            image=SimpleNamespace(id="sha256:other"),
+            attrs={"State": {"Status": "running", "StartedAt": "2026-02-19T12:00:00Z"}},
+        ),
+    ]
+    adapter = SimpleNamespace(
+        images=SimpleNamespace(get=lambda _image_id: image),
+        containers=SimpleNamespace(list=lambda all=True: containers),  # noqa: FBT002
+    )
+
+    @contextmanager
+    def _client_context() -> Iterator[object]:
+        yield adapter
+
+    monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
+
+    usage = images_info_module.get_image_usage("sha256:img")
+    assert usage["containers_count"] == 2
+    assert usage["running_count"] == 1
+    assert usage["stopped_count"] == 1
+    assert usage["containers"][0]["name"] == "api"
+
+    class _FailingContext:
+        def __enter__(self) -> object:
+            raise RuntimeError("boom")
+
+        def __exit__(
+            self,
+            _exc_type: type[BaseException] | None,
+            _exc: BaseException | None,
+            _tb: object,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", lambda: _FailingContext()
+    )
+
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Failed to get image usage"
+    ):
+        images_info_module.get_image_usage("sha256:img")

@@ -98,6 +98,8 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.container_extra_info(query) is False
     assert factory_module.InlineFilters.image_updates(query) is False
     assert factory_module.InlineFilters.images_page(query) is False
+    assert factory_module.InlineFilters.image_info(query) is False
+    assert factory_module.InlineFilters.image_extra(query) is False
 
     query.data = "__swap_info__:abc"
     assert factory_module.InlineFilters.swap_info(query) is True
@@ -119,6 +121,10 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.image_updates(query) is True
     query.data = "__images_page__:3:1"
     assert factory_module.InlineFilters.images_page(query) is True
+    query.data = "__image_info__:0:1:1"
+    assert factory_module.InlineFilters.image_info(query) is True
+    query.data = "__image_extra__:history:0:1:1"
+    assert factory_module.InlineFilters.image_extra(query) is True
 
 
 def test_handler_factories_are_cached_and_produce_handlers() -> None:
@@ -134,5 +140,7 @@ def test_handler_factories_are_cached_and_produce_handlers() -> None:
     assert "start" in message_handlers
     assert "get_logs" in inline_handlers
     assert "container_extra_info" in inline_handlers
+    assert "image_info" in inline_handlers
+    assert "image_extra" in inline_handlers
     assert all(isinstance(item, HandlerManager) for item in message_handlers["start"])
     assert all(isinstance(item, HandlerManager) for item in inline_handlers["get_logs"])

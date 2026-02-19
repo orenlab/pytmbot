@@ -1,0 +1,26 @@
+{{ context.emojis.thought_balloon }} <b>Image Usage:</b>
+
+{{ context.emojis.package }} <b>{{ context.image_name }}</b>
+{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id }}</code>
+
+{{ context.emojis.gear }} <b>Summary:</b>
+<code>Total containers:</code> {{ context.containers_count }}
+<code>Running:</code> {{ context.running_count }} | <code>Stopped:</code> {{ context.stopped_count }}
+
+<b>Containers{% if context.containers_count > 0 %} ({{ context.containers_count }}){% endif %}:</b>
+{% if context.containers -%}
+{% for container in context.containers -%}
+<code>{{ loop.index }}.</code> <b>{{ container.name }}</b> <code>{{ container.id }}</code>
+<code>Status:</code> {{ container.status }} | <code>Started:</code> {{ container.started_at }}
+{% if not loop.last -%}
+<i>───────────────</i>
+{% endif %}
+{% endfor -%}
+{% if context.hidden_containers_count > 0 -%}
+<i>... and {{ context.hidden_containers_count }} more containers</i>
+{% endif %}
+{% else -%}
+<code>No containers use this image</code>
+{% endif %}
+
+{{ context.emojis.minus }} <i>Image usage details retrieved.</i>

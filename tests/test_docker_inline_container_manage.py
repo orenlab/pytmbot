@@ -11,6 +11,7 @@ from telebot.types import CallbackQuery
 import pytmbot.handlers.docker_handlers.inline.container_info as container_info_module
 import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime_info_module
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
+from pytmbot.parsers.compiler import Compiler
 
 
 @dataclass
@@ -214,6 +215,9 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     assert any(
         value.startswith("__container_extra__:networks:") for value in callback_data
     )
+    assert any(
+        value.startswith("__container_extra__:runtime:") for value in callback_data
+    )
     assert any(value.startswith("__get_logs__") for value in callback_data)
     assert any(value.startswith("__manage__") for value in callback_data)
     assert any(value.startswith("__containers_page__") for value in callback_data)
@@ -269,6 +273,11 @@ def test_parse_container_extra_callback_data() -> None:
         runtime_info_module.parse_container_extra_callback_data(
             "__container_extra__:volumes:api:not-int"
         )
+
+    parsed_runtime = runtime_info_module.parse_container_extra_callback_data(
+        "__container_extra__:runtime:api:11"
+    )
+    assert parsed_runtime.action == "runtime"
 
 
 def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -409,6 +418,60 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         cast(TeleBot, bot),
     )
     assert bot.edited_messages[-1]["text"] == "d_container_networks_info.jinja2"
+
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:runtime:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert bot.edited_messages[-1]["text"] == "d_container_runtime_info.jinja2"
+
+
+def test_runtime_template_line_breaks_are_stable() -> None:
+    rendered = Compiler.quick_render(
+        template_name="d_container_runtime_info.jinja2",
+        thought_balloon="💭",
+        package_emoji="📦",
+        stethoscope_emoji="🩺",
+        chart_emoji="📈",
+        shield_emoji="🛡️",
+        gear_emoji="⚙️",
+        banjo="🪕",
+        container_name="pytmbot",
+        health_badge="🟢 healthy",
+        health_failing_streak=0,
+        health_last_checked_at="2026-02-19 12:48:58 UTC",
+        health_last_log="ok",
+        created_at="2026-02-19 12:48:53 UTC",
+        started_at="2026-02-19 12:48:53 UTC",
+        finished_at="N/A",
+        pid="123",
+        exit_code="0",
+        stop_signal="SIGTERM",
+        stop_timeout="default",
+        oom_killed="no",
+        dead="no",
+        state_error="none",
+        privileged="no",
+        read_only_rootfs="no",
+        oom_kill_disable="no",
+        no_new_privileges="yes",
+        init_process="no",
+        security_opts=["no-new-privileges:true"],
+        security_opts_count=1,
+        hidden_security_opts_count=0,
+        cap_add=[],
+        cap_add_count=0,
+        hidden_cap_add_count=0,
+        cap_drop=[],
+        cap_drop_count=0,
+        hidden_cap_drop_count=0,
+    )
+
+    assert "🟢 healthy\n<code>Failing streak:</code>" in rendered
+    assert "<code>PID:</code> 123\n<code>Exit code:</code> 0" in rendered
+    assert "<code>Stop signal:</code> SIGTERM\n<code>Stop timeout:</code> default" in (
+        rendered
+    )
 
 
 def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:

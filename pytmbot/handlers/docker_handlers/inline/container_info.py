@@ -12,6 +12,7 @@ from pytmbot.globals import ButtonDataType, get_keyboards, settings
 from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
 from pytmbot.handlers.docker_handlers.inline.container_runtime_info import (
     CONTAINER_EXTRA_ACTION_NETWORKS,
+    CONTAINER_EXTRA_ACTION_RUNTIME,
     CONTAINER_EXTRA_ACTION_VOLUMES,
     CONTAINER_EXTRA_CALLBACK_PREFIX,
 )
@@ -137,6 +138,14 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
                         callback_data=(
                             f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
                             f"{CONTAINER_EXTRA_ACTION_NETWORKS}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
+                    button_data(
+                        text=f"{emojis.get('stethoscope', '🩺')} Runtime",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_RUNTIME}:"
                             f"{container_ref}:{call.from_user.id}"
                         ),
                     ),

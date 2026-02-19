@@ -1,0 +1,53 @@
+{{ context.emojis.thought_balloon }} <b>Image Details:</b>
+
+{{ context.emojis.package }} <b>{{ context.image.name }}</b>
+{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image.id }}</code>
+
+{{ context.emojis.bookmark_tabs }} <b>Identity:</b>
+<code>Tags:</code> {{ context.image.tags | join(", ") if context.image.tags_count > 0 else "none" }}
+<code>Repo digests:</code> {{ context.image.repo_digests | join(", ") if context.image.repo_digests_count > 0 else "none" }}
+<code>Parent:</code> {{ context.image.parent_id }}
+
+{{ context.emojis.gear }} <b>Platform & Size:</b>
+<code>Platform:</code> {{ context.image.os }}/{{ context.image.architecture }}{% if context.image.variant != "N/A" %} ({{ context.image.variant }}){% endif %}
+<code>Size:</code> {{ context.image.size }} | <code>Virtual:</code> {{ context.image.virtual_size }}{% if context.image.shared_size != "N/A" %} | <code>Shared:</code> {{ context.image.shared_size }}{% endif %}
+<code>Layers:</code> {{ context.image.layers_count }} | <code>RootFS:</code> {{ context.image.rootfs_type }}
+<code>Created:</code> {{ context.image.created }}{% if context.image.created_at != "N/A" %} ({{ context.image.created_at }}){% endif %}
+
+{{ context.emojis.key }} <b>Runtime defaults:</b>
+<code>User:</code> {{ context.image.user }} | <code>WorkDir:</code> {{ context.image.working_dir }}
+<code>Stop signal:</code> {{ context.image.stop_signal }}
+<code>Entrypoint:</code> {{ context.image.entrypoint | join(" ") if context.image.entrypoint else "none" }}
+<code>Command:</code> {{ context.image.cmd | join(" ") if context.image.cmd else "none" }}
+<code>Shell:</code> {{ context.image.shell | join(" ") if context.image.shell else "none" }}
+<code>Healthcheck:</code> {{ context.image.healthcheck }}
+
+{{ context.emojis.electric_plug }} <b>Network & Storage:</b>
+<code>Exposed ports{% if context.image.exposed_ports_count > 0 %} ({{ context.image.exposed_ports_count }}){% endif %}:</code> {{ context.image.exposed_ports | join(", ") if context.image.exposed_ports_count > 0 else "none" }}
+<code>Declared volumes{% if context.image.volumes_count > 0 %} ({{ context.image.volumes_count }}){% endif %}:</code> {{ context.image.volumes | join(", ") if context.image.volumes_count > 0 else "none" }}
+<code>Env vars{% if context.image.env_variables_count > 0 %} ({{ context.image.env_variables_count }}){% endif %}:</code>
+{% if context.image.env_variables_count > 0 %}
+<pre>{% for env_var in context.image.env_variables %}{{ env_var }}
+{% endfor %}</pre>
+{% else %}
+<code>none</code>
+{% endif %}
+
+{{ context.emojis.label }} <b>Metadata:</b>
+<code>Author:</code> {{ context.image.author }}
+<code>Docker version:</code> {{ context.image.docker_version }}
+{% if context.image.comment != "N/A" %}<code>Comment:</code> {{ context.image.comment }}
+{% endif %}<code>Labels{% if context.image.label_count > 0 %} ({{ context.image.label_count }}){% endif %}:</code>
+{% if context.image.labels %}
+{% for label_key, label_value in context.image.labels.items() %}
+{% if label_key == "__truncated__" %}
+<i>... {{ label_value }}</i>
+{% else %}
+<code>{{ label_key }}</code>=<code>{{ label_value }}</code>
+{% endif %}
+{% endfor %}
+{% else %}
+<code>none</code>
+{% endif %}
+
+{{ context.emojis.minus }} <i>Image details retrieved.</i>

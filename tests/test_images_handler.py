@@ -50,6 +50,24 @@ def _raw_handler(handler: object) -> Callable[[Message, TeleBot], bool]:
     return cast(Callable[[Message, TeleBot], bool], wrapped)
 
 
+def _keyboard_callbacks(keyboard: object) -> list[str]:
+    return [
+        cast(str, item["callback_data"])
+        for item in cast(list[dict[str, object]], keyboard)
+    ]
+
+
+def _assert_rendered_text_and_get_callbacks(
+    rendered: tuple[str, object] | None,
+    *,
+    expected_text: str,
+) -> list[str]:
+    assert rendered is not None
+    text, keyboard = rendered
+    assert text == expected_text
+    return _keyboard_callbacks(keyboard)
+
+
 def test_truncate_helpers() -> None:
     assert images_module._truncate_text(None, max_length=5) == "N/A"
     assert images_module._truncate_text("abcdef", max_length=4) == "a..."
@@ -71,6 +89,9 @@ def test_compact_and_prepare_images_for_listing() -> None:
         "id": "sha256:" + "a" * 200,
         "name": "repo/image:tag",
         "tags": ["t1", "t2", "t3", "t4", "t5", "t6", "t7"],
+        "repo_digests": ["repo/image@sha256:abc", "repo/image@sha256:def"],
+        "layers_count": 6,
+        "healthcheck": "test=CMD curl",
         "labels": {"k": "v"},
         "cmd": ["python", "main.py"],
     }
@@ -78,6 +99,8 @@ def test_compact_and_prepare_images_for_listing() -> None:
     assert compact["name"] == "repo/image:tag"
     assert isinstance(compact["tags"], list)
     assert compact["tags"][-1] == "... +1 more"
+    assert compact["layers_count"] == 6
+    assert compact["repo_digests_count"] == 2
 
     prepared = images_module._prepare_images_for_listing([image])
     assert len(prepared) == 1
@@ -140,13 +163,17 @@ def test_render_paginated_images_fallback(monkeypatch: pytest.MonkeyPatch) -> No
         ),
     )
 
-    text, page, total_pages = images_module._render_paginated_images_text(
-        [{"id": 1}, {"id": 2}],
-        page=1,
+    text, page, total_pages, page_items, start_index = (
+        images_module._render_paginated_images_text(
+            [{"id": 1}, {"id": 2}],
+            page=1,
+        )
     )
     assert "Images view is too large" in text
     assert page == 1
     assert total_pages == 1
+    assert page_items == []
+    assert start_index == 0
 
 
 def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -180,6 +207,7 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
                         lambda key: {
                             "BACK_arrow": "⬅️",
                             "next_track_button": "⏭️",
+                            "package": "📦",
                         }[key]
                     )
                 },
@@ -187,17 +215,28 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         ),
     )
 
-    keyboard = images_module._build_images_keyboard(page=2, total_pages=3, user_id=7)
+    keyboard = images_module._build_images_keyboard(
+        page=2,
+        total_pages=3,
+        user_id=7,
+        page_items=[{"name": "repo/app:1.0"}],
+        start_index=4,
+    )
     callbacks = [
         cast(str, item["callback_data"])
         for item in cast(list[dict[str, object]], keyboard)
     ]
+    assert "__image_info__:4:7:2" in callbacks
     assert "__images_page__:1:7" in callbacks
     assert "__images_page__:3:7" in callbacks
     assert "__check_updates__:7" in callbacks
 
     keyboard_single = images_module._build_images_keyboard(
-        page=1, total_pages=1, user_id=7
+        page=1,
+        total_pages=1,
+        user_id=7,
+        page_items=[],
+        start_index=0,
     )
     callbacks_single = [
         cast(str, item["callback_data"])
@@ -212,12 +251,12 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         images_module,
         "_render_paginated_images_text",
-        lambda images, page: ("images-page", 1, 1),
+        lambda images, page: ("images-page", 1, 1, [{"name": "img"}], 0),
     )
     monkeypatch.setattr(
         images_module,
         "_build_images_keyboard",
-        lambda page, total_pages, user_id: "kbd",
+        lambda page, total_pages, user_id, page_items, start_index: "kbd",
     )
 
     rendered_text, rendered_keyboard = images_module.render_images_page(
@@ -270,3 +309,228 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         "error occurred while processing the command"
         in str(bot.sent_messages[-1]["text"]).lower()
     )
+
+
+def test_image_info_callback_helpers_and_details_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    callback_data = images_module.build_image_info_callback_data(
+        image_index=4,
+        user_id=11,
+        page=2,
+    )
+    assert callback_data == "__image_info__:4:11:2"
+    assert images_module.parse_image_info_callback_data(callback_data) == (4, 11, 2)
+    assert images_module.parse_image_info_callback_data("bad") is None
+    extra_callback = images_module.build_image_extra_callback_data(
+        action="history",
+        image_index=4,
+        user_id=11,
+        page=2,
+    )
+    assert extra_callback == "__image_extra__:history:4:11:2"
+    assert images_module.parse_image_extra_callback_data(extra_callback) == (
+        "history",
+        4,
+        11,
+        2,
+    )
+    assert (
+        images_module.parse_image_extra_callback_data("__image_extra__:bad:4:11:2")
+        is None
+    )
+
+    monkeypatch.setattr(
+        images_module,
+        "_load_images_data",
+        lambda: [
+            {
+                "id": "sha256:abc",
+                "name": "repo/app:1.0",
+                "tags": ["repo/app:1.0"],
+                "repo_digests": ["repo/app@sha256:abc"],
+                "architecture": "amd64",
+                "variant": "N/A",
+                "os": "linux",
+                "size": "1 MiB",
+                "virtual_size": "1 MiB",
+                "shared_size": "N/A",
+                "created": "a minute ago",
+                "created_at": "2026-02-19 00:00:00 UTC",
+                "author": "dev",
+                "docker_version": "29.2.0",
+                "comment": "N/A",
+                "parent_id": "N/A",
+                "rootfs_type": "layers",
+                "layers_count": 1,
+                "labels": {"com.example": "1"},
+                "label_count": 1,
+                "exposed_ports": ["8080/tcp"],
+                "env_variables": ["A=1"],
+                "entrypoint": ["python"],
+                "cmd": ["main.py"],
+                "shell": ["/bin/sh", "-c"],
+                "volumes": ["/data"],
+                "user": "root",
+                "working_dir": "/app",
+                "stop_signal": "SIGTERM",
+                "healthcheck": "none",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        images_module.Compiler,
+        "quick_render",
+        lambda template_name, context: template_name,
+    )
+    monkeypatch.setattr(
+        images_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        images_module,
+        "keyboards",
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
+    )
+    monkeypatch.setattr(
+        images_module,
+        "em",
+        cast(
+            object,
+            type("_Em", (), {"get_emoji": staticmethod(lambda key: "⬅️")})(),
+        ),
+    )
+
+    rendered = images_module.render_image_details(image_index=0, page=2, user_id=11)
+    details_callbacks = _assert_rendered_text_and_get_callbacks(
+        rendered,
+        expected_text="d_image_full_info.jinja2",
+    )
+    assert "__image_extra__:history:0:11:2" in details_callbacks
+    assert "__image_extra__:usage:0:11:2" in details_callbacks
+    assert "__images_page__:2:11" in details_callbacks
+
+    assert (
+        images_module.render_image_details(image_index=99, page=2, user_id=11) is None
+    )
+
+    monkeypatch.setattr(
+        images_module,
+        "get_image_history",
+        lambda image_id: [
+            {
+                "id": "sha256:layer1",
+                "created": "now",
+                "created_by": "RUN apk add curl",
+                "size": "1 KiB",
+                "comment": "",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        images_module,
+        "get_image_usage",
+        lambda image_id: {
+            "containers": [
+                {
+                    "name": "pytmbot",
+                    "id": "abc123",
+                    "status": "running",
+                    "started_at": "2026-02-19 15:00:00 UTC",
+                }
+            ],
+            "containers_count": 1,
+            "running_count": 1,
+            "stopped_count": 0,
+        },
+    )
+
+    history_rendered = images_module.render_image_extra_info(
+        action="history",
+        image_index=0,
+        page=2,
+        user_id=11,
+    )
+    history_callbacks = _assert_rendered_text_and_get_callbacks(
+        history_rendered,
+        expected_text="d_image_history_info.jinja2",
+    )
+    assert "__image_info__:0:11:2" in history_callbacks
+    assert "__images_page__:2:11" in history_callbacks
+
+    usage_rendered = images_module.render_image_extra_info(
+        action="usage",
+        image_index=0,
+        page=2,
+        user_id=11,
+    )
+    assert usage_rendered is not None
+    usage_text, _usage_keyboard = usage_rendered
+    assert usage_text == "d_image_usage_info.jinja2"
+
+
+def test_image_details_template_line_breaks_and_env_pre() -> None:
+    rendered = images_module.Compiler.quick_render(
+        "d_image_full_info.jinja2",
+        context={
+            "image": {
+                "name": "repo/app:1.0",
+                "id": "sha256:abc",
+                "tags_count": 1,
+                "tags": ["repo/app:1.0"],
+                "repo_digests_count": 1,
+                "repo_digests": ["repo/app@sha256:abc"],
+                "parent_id": "N/A",
+                "os": "linux",
+                "architecture": "amd64",
+                "variant": "N/A",
+                "size": "1 MiB",
+                "virtual_size": "1 MiB",
+                "shared_size": "N/A",
+                "layers_count": 1,
+                "rootfs_type": "layers",
+                "created": "now",
+                "created_at": "2026-02-19 15:00:00 UTC",
+                "user": "root",
+                "working_dir": "/app",
+                "stop_signal": "SIGTERM",
+                "entrypoint": ["python"],
+                "cmd": ["main.py"],
+                "shell": [],
+                "healthcheck": "none",
+                "exposed_ports_count": 1,
+                "exposed_ports": ["8080/tcp"],
+                "volumes_count": 0,
+                "volumes": [],
+                "env_variables_count": 2,
+                "env_variables": ["A=1", "B=2"],
+                "author": "N/A",
+                "docker_version": "N/A",
+                "comment": "N/A",
+                "label_count": 1,
+                "labels": {"k": "v"},
+            },
+            "emojis": {
+                "thought_balloon": "💭",
+                "package": "📦",
+                "spouting_whale": "🐳",
+                "bookmark_tabs": "📑",
+                "gear": "⚙️",
+                "key": "🔑",
+                "electric_plug": "🔌",
+                "label": "🏷️",
+                "minus": "➖",
+            },
+        },
+    )
+
+    assert "Tags:</code> repo/app:1.0\n<code>Repo digests:" in rendered
+    assert "<code>Env vars (2):</code>\n<pre>A=1\nB=2\n</pre>" in rendered

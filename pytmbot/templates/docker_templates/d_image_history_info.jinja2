@@ -1,0 +1,25 @@
+{{ context.emojis.thought_balloon }} <b>Image History:</b>
+
+{{ context.emojis.package }} <b>{{ context.image_name }}</b>
+{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id }}</code>
+
+<b>Layers{% if context.layers_count > 0 %} ({{ context.layers_count }}){% endif %}:</b>
+{% if context.layers -%}
+{% for layer in context.layers -%}
+<code>{{ loop.index }}.</code> <code>{{ layer.id }}</code>
+<code>Created:</code> {{ layer.created }} | <code>Size:</code> {{ layer.size }}
+<code>By:</code> {{ layer.created_by }}
+{% if layer.comment %}<code>Comment:</code> {{ layer.comment }}
+{% endif %}
+{% if not loop.last -%}
+<i>───────────────</i>
+{% endif %}
+{% endfor -%}
+{% if context.hidden_layers_count > 0 -%}
+<i>... and {{ context.hidden_layers_count }} more layers</i>
+{% endif %}
+{% else -%}
+<code>No history available</code>
+{% endif %}
+
+{{ context.emojis.minus }} <i>Image history retrieved.</i>

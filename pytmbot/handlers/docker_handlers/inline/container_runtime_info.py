@@ -19,6 +19,7 @@ from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_container_full_details,
     get_emojis,
+    parse_container_runtime_info,
     show_handler_info,
     validate_container_name,
 )
@@ -33,6 +34,7 @@ keyboards = get_keyboards()
 CONTAINER_EXTRA_CALLBACK_PREFIX: Final[str] = "__container_extra__"
 CONTAINER_EXTRA_ACTION_VOLUMES: Final[str] = "volumes"
 CONTAINER_EXTRA_ACTION_NETWORKS: Final[str] = "networks"
+CONTAINER_EXTRA_ACTION_RUNTIME: Final[str] = "runtime"
 _MAX_RENDER_ITEMS: Final[int] = 20
 _MAX_ALIAS_ITEMS: Final[int] = 8
 
@@ -56,7 +58,11 @@ def parse_container_extra_callback_data(
         raise ValueError("Invalid callback format")
 
     action = parts[1].strip().lower()
-    if action not in (CONTAINER_EXTRA_ACTION_VOLUMES, CONTAINER_EXTRA_ACTION_NETWORKS):
+    if action not in (
+        CONTAINER_EXTRA_ACTION_VOLUMES,
+        CONTAINER_EXTRA_ACTION_NETWORKS,
+        CONTAINER_EXTRA_ACTION_RUNTIME,
+    ):
         raise ValueError("Unsupported container extra action")
 
     container_name = parts[2].strip().lower()
@@ -325,6 +331,60 @@ def _extract_network_context(attrs: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _extract_runtime_context(attrs: dict[str, object]) -> dict[str, object]:
+    raw_runtime = parse_container_runtime_info(attrs)
+    security_opts, hidden_security_opts_count = _limited_strings(
+        raw_runtime.get("security_opts")
+    )
+    cap_add, hidden_cap_add_count = _limited_strings(raw_runtime.get("cap_add"))
+    cap_drop, hidden_cap_drop_count = _limited_strings(raw_runtime.get("cap_drop"))
+    cap_add_text = "none"
+    if cap_add:
+        cap_add_text = ", ".join(cap_add)
+        if hidden_cap_add_count > 0:
+            cap_add_text = f"{cap_add_text} (+{hidden_cap_add_count} more)"
+
+    cap_drop_text = "none"
+    if cap_drop:
+        cap_drop_text = ", ".join(cap_drop)
+        if hidden_cap_drop_count > 0:
+            cap_drop_text = f"{cap_drop_text} (+{hidden_cap_drop_count} more)"
+
+    return {
+        "created_at": _safe_text(raw_runtime.get("created_at")),
+        "started_at": _safe_text(raw_runtime.get("started_at")),
+        "finished_at": _safe_text(raw_runtime.get("finished_at")),
+        "health_status": _safe_text(raw_runtime.get("health_status")),
+        "health_badge": _safe_text(raw_runtime.get("health_badge")),
+        "health_failing_streak": int(raw_runtime.get("health_failing_streak", 0) or 0),
+        "health_last_checked_at": _safe_text(raw_runtime.get("health_last_checked_at")),
+        "health_last_log": _safe_text(raw_runtime.get("health_last_log")),
+        "pid": _safe_text(raw_runtime.get("pid"), default="-"),
+        "exit_code": _safe_text(raw_runtime.get("exit_code"), default="-"),
+        "state_error": _safe_text(raw_runtime.get("state_error"), default="none"),
+        "oom_killed": _safe_bool(raw_runtime.get("oom_killed")),
+        "dead": _safe_bool(raw_runtime.get("dead")),
+        "privileged": _safe_bool(raw_runtime.get("privileged")),
+        "read_only_rootfs": _safe_bool(raw_runtime.get("read_only_rootfs")),
+        "oom_kill_disable": _safe_bool(raw_runtime.get("oom_kill_disable")),
+        "no_new_privileges": _safe_bool(raw_runtime.get("no_new_privileges")),
+        "init_process": _safe_bool(raw_runtime.get("init_process")),
+        "stop_signal": _safe_text(raw_runtime.get("stop_signal"), default="SIGTERM"),
+        "stop_timeout": _safe_text(raw_runtime.get("stop_timeout"), default="default"),
+        "security_opts": security_opts,
+        "security_opts_count": len(security_opts),
+        "hidden_security_opts_count": hidden_security_opts_count,
+        "cap_add": cap_add,
+        "cap_add_count": len(cap_add),
+        "hidden_cap_add_count": hidden_cap_add_count,
+        "cap_add_text": cap_add_text,
+        "cap_drop": cap_drop,
+        "cap_drop_count": len(cap_drop),
+        "hidden_cap_drop_count": hidden_cap_drop_count,
+        "cap_drop_text": cap_drop_text,
+    }
+
+
 def _build_back_keyboard(
     container_name: str,
     user_id: int,
@@ -344,7 +404,7 @@ def _build_back_keyboard(
 @logger.session_decorator
 @two_factor_auth_required
 def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
-    """Handle 2FA-protected volumes/networks details for container."""
+    """Handle 2FA-protected runtime details for container."""
     try:
         parsed = parse_container_extra_callback_data(call.data)
     except ValueError:
@@ -396,7 +456,7 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             **_extract_volume_context(attrs),
             **common_context,
         )
-    else:
+    elif parsed.action == CONTAINER_EXTRA_ACTION_NETWORKS:
         network_context = _extract_network_context(attrs)
         rendered = Compiler.quick_render(
             template_name="d_container_networks_info.jinja2",
@@ -405,6 +465,17 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             network_emoji=emojis.get("globe_with_meridians", "🌐"),
             gear_emoji=emojis.get("gear", "⚙️"),
             **network_context,
+            **common_context,
+        )
+    else:
+        runtime_context = _extract_runtime_context(attrs)
+        rendered = Compiler.quick_render(
+            template_name="d_container_runtime_info.jinja2",
+            stethoscope_emoji=emojis.get("stethoscope", "🩺"),
+            gear_emoji=emojis.get("gear", "⚙️"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            shield_emoji=emojis.get("shield", "🛡️"),
+            **runtime_context,
             **common_context,
         )
 

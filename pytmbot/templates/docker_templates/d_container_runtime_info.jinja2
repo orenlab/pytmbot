@@ -1,0 +1,46 @@
+{{ thought_balloon }} <b>Container Runtime:</b>
+
+{{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
+
+{{ stethoscope_emoji }} <b>Health:</b>
+<code>Status:</code> {{ health_badge }}
+<code>Failing streak:</code> {{ health_failing_streak }}
+<code>Last check:</code> {{ health_last_checked_at }}
+<code>Last output:</code> {{ health_last_log }}
+
+{{ chart_emoji }} <b>Lifecycle:</b>
+<code>Created:</code> {{ created_at }}
+<code>Started:</code> {{ started_at }}
+<code>Finished:</code> {{ finished_at }}
+<code>PID:</code> {{ pid }}
+<code>Exit code:</code> {{ exit_code }}
+<code>Stop signal:</code> {{ stop_signal }}
+<code>Stop timeout:</code> {{ stop_timeout }}
+<code>OOM killed:</code> {{ oom_killed }}
+<code>Dead:</code> {{ dead }}
+<code>State error:</code> {{ state_error }}
+
+{{ shield_emoji }} <b>Security profile:</b>
+<code>Privileged:</code> {{ privileged }}
+<code>Read-only rootfs:</code> {{ read_only_rootfs }}
+<code>OOM kill disable:</code> {{ oom_kill_disable }}
+<code>No new privileges:</code> {{ no_new_privileges }}
+<code>Init process:</code> {{ init_process }}
+
+<code>Security options:</code>
+{% if security_opts_count > 0 %}
+{% for option in security_opts %}
+<code>{{ option }}</code>
+{% endfor %}
+{% if hidden_security_opts_count > 0 %}
+<i>... and {{ hidden_security_opts_count }} more security options</i>
+{% endif %}
+{% else %}
+<code>none</code>
+{% endif %}
+
+{{ gear_emoji }} <b>Linux capabilities:</b>
+<code>CapAdd:</code> {{ cap_add_text | default("none", true) }}
+<code>CapDrop:</code> {{ cap_drop_text | default("none", true) }}
+
+{{ banjo }} <i>Container runtime details retrieved.</i>
