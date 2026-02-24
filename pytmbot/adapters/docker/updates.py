@@ -13,7 +13,7 @@ from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum, auto
-from threading import RLock
+from threading import RLock, Thread
 from typing import Any, Final
 
 import aiohttp
@@ -391,6 +391,7 @@ class DockerImageUpdater(BaseComponent):
         self.analyzer = TagAnalyzer()
         self.rate_limiter = RateLimitHandler()
         self._cache_lock = RLock()
+        self._sync_loop: asyncio.AbstractEventLoop | None = None
 
         # Performance metrics
         self._stats = {
@@ -1051,7 +1052,7 @@ class DockerImageUpdater(BaseComponent):
         """Run update check and return dictionary response."""
         with self._log.context(action="to_dict"):
             try:
-                result = asyncio.run(self._check_updates())
+                result = self._run_check_updates_sync()
                 return result.to_dict()
             except Exception as e:
                 error_response = UpdaterResponse(
@@ -1139,5 +1140,39 @@ class DockerImageUpdater(BaseComponent):
         """Cleanup on garbage collection."""
         try:
             self.clear_cache()
+            if self._sync_loop is not None and not self._sync_loop.is_closed():
+                self._sync_loop.close()
         except Exception:
             pass  # Suppress exceptions during cleanup
+
+    def _run_check_updates_sync(self) -> UpdaterResponse:
+        """Run async updates check from sync context without creating a new loop each call."""
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is not None and running_loop.is_running():
+            result_holder: list[UpdaterResponse] = []
+            error_holder: list[Exception] = []
+
+            def _worker() -> None:
+                try:
+                    result_holder.append(asyncio.run(self._check_updates()))
+                except Exception as error:
+                    error_holder.append(error)
+
+            worker = Thread(target=_worker, name="docker_updates_sync_bridge")
+            worker.start()
+            worker.join()
+
+            if error_holder:
+                raise error_holder[0]
+            if not result_holder:
+                raise RuntimeError("Docker updates worker did not return a result")
+            return result_holder[0]
+
+        if self._sync_loop is None or self._sync_loop.is_closed():
+            self._sync_loop = asyncio.new_event_loop()
+
+        return self._sync_loop.run_until_complete(self._check_updates())

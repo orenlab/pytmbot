@@ -443,6 +443,8 @@ class HealthMonitor(BaseComponent):
         "_base_interval",
         "_thread",
         "_stop_event",
+        "_monitor_failures",
+        "_max_monitor_failures",
     )
 
     def __init__(self, max_history: int = 15) -> None:
@@ -456,6 +458,33 @@ class HealthMonitor(BaseComponent):
         self._base_interval = 120.0
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._monitor_failures = 0
+        self._max_monitor_failures = 3
+
+    def _publish_monitor_failure(self, error: Exception) -> None:
+        """Publish internal monitor failure as health degradation signal."""
+        now = time.time()
+        components = dict(self._latest.components) if self._latest else {}
+        components["health_monitor"] = HealthResult(
+            level=HealthLevel.CRITICAL,
+            component="health_monitor",
+            latency_ms=0.0,
+            details={
+                "error": "monitor_loop_failed",
+                "exception": str(error),
+                "consecutive_failures": self._monitor_failures,
+            },
+            timestamp=now,
+        )
+
+        health = SystemHealth(
+            overall=min(result.level for result in components.values()),
+            components=components,
+            timestamp=now,
+            check_duration_ms=0.0,
+        )
+        self._latest = health
+        self._history.append(health)
 
     def add_checker(self, checker: HealthChecker) -> None:
         """Add health checker."""
@@ -622,10 +651,15 @@ class HealthMonitor(BaseComponent):
                     interval = self._base_interval
 
                 previous_level = health.overall
+                self._monitor_failures = 0
 
             except Exception as e:
+                self._monitor_failures += 1
+                self._publish_monitor_failure(e)
                 with self.log_context(error=str(e)) as log:
                     log.error("bot.health.monitoring.fail")
+                    if self._monitor_failures >= self._max_monitor_failures:
+                        log.critical("bot.health.monitoring.degraded.fail")
                 interval = self._base_interval
 
             # Sleep with early exit

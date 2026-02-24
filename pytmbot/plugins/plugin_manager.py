@@ -290,14 +290,24 @@ class PluginManager:
             if instance and hasattr(instance, "cleanup"):
                 try:
                     instance.cleanup()
-                except Exception:
-                    logger.error("bot.plugins.plugin_manager.cleaning.plugin.fail")
+                except Exception as error:
+                    logger.error(
+                        "bot.plugins.plugin_manager.cleaning.plugin.fail",
+                        plugin_name=plugin_name,
+                        stage="instance_cleanup",
+                        error=str(error),
+                    )
 
             try:
                 self._plugin_instances.pop(plugin_name, None)
                 self._loaded_plugins.discard(plugin_name)
-            except Exception:
-                logger.error("bot.plugins.plugin_manager.cleaning.plugin.fail")
+            except Exception as error:
+                logger.error(
+                    "bot.plugins.plugin_manager.cleaning.plugin.fail",
+                    plugin_name=plugin_name,
+                    stage="registry_cleanup",
+                    error=str(error),
+                )
 
     def _register_plugin(self, plugin_name: str, bot: TeleBot | None = None) -> None:
         """Registers a single plugin with enhanced security and resource management."""

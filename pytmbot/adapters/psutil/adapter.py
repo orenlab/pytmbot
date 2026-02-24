@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 import concurrent.futures
 import os
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from datetime import datetime
@@ -45,10 +46,10 @@ def thread_safe_cache(
     """Thread-safe cache decorator with TTL for expensive operations."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        cache: dict[
+        cache: OrderedDict[
             tuple[tuple[Any, ...], tuple[tuple[str, Any], ...]],
             tuple[Any, float],
-        ] = {}
+        ] = OrderedDict()
         cache_lock = RLock()
 
         @wraps(func)
@@ -61,6 +62,7 @@ def thread_safe_cache(
                 if cache_key in cache:
                     result, timestamp = cache[cache_key]
                     if current_time - timestamp < ttl_seconds:
+                        cache.move_to_end(cache_key)
                         return result
 
                 # Clean expired entries
@@ -74,14 +76,18 @@ def thread_safe_cache(
 
                 # Limit cache size
                 if len(cache) >= maxsize:
-                    # Remove oldest entries
-                    oldest_key = min(cache.keys(), key=lambda k: cache[k][1])
-                    cache.pop(oldest_key, None)
+                    cache.popitem(last=False)
 
                 # Execute function and cache result
                 result = func(*args, **kwargs)
                 cache[cache_key] = (result, current_time)
                 return result
+
+        def cache_clear() -> None:
+            with cache_lock:
+                cache.clear()
+
+        wrapper.cache_clear = cache_clear  # type: ignore[attr-defined]
 
         return wrapper
 

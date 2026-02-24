@@ -43,12 +43,26 @@ if TYPE_CHECKING:
     running_in_docker: bool
 
 
-def _require_instance[T](value: object, expected_type: type[T], name: str) -> T:
+def _require_instance[T](
+    value: object,
+    expected_type: type[T],
+    name: str,
+    required_attrs: tuple[str, ...] = (),
+) -> T:
     """Validate dynamic imports from settings module and narrow their type."""
+    if value is None:
+        raise TypeError(f"'{name}' is not initialized")
     if not isinstance(value, expected_type):
         raise TypeError(
             f"Invalid type for '{name}': "
             f"expected {expected_type.__name__}, got {type(value).__name__}"
+        )
+    missing_attrs = [
+        attr for attr in required_attrs if getattr(value, attr, None) is None
+    ]
+    if missing_attrs:
+        raise ValueError(
+            f"'{name}' is missing required initialized fields: {', '.join(missing_attrs)}"
         )
     return value
 
@@ -63,7 +77,12 @@ __github_api_url__: Final[str] = (
 )
 
 # Settings - direct references to avoid unnecessary copies
-settings: SettingsModel = _require_instance(app_settings, SettingsModel, "settings")
+settings: SettingsModel = _require_instance(
+    app_settings,
+    SettingsModel,
+    "settings",
+    required_attrs=("bot_token", "access_control", "docker", "chat_id"),
+)
 var_config: VarConfig = _require_instance(app_var_config, VarConfig, "var_config")
 bot_commands_settings: BotCommandSettings = _require_instance(
     app_bot_command_settings,

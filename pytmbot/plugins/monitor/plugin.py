@@ -48,9 +48,18 @@ class MonitoringPlugin(PluginInterface):
             else keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
         )
 
+    @staticmethod
+    def _get_available_periods() -> list[str]:
+        """Get available monitoring sections from plugin keyboard config."""
+        return [
+            label
+            for label in config.KEYBOARD.values()
+            if label.strip().lower() != "back to main menu"
+        ]
+
     def handle_monitoring(self, message: Message) -> Message:
         """Handle monitoring command and return formatted response."""
-        available_periods = None  # TODO: Implement period fetching
+        available_periods = self._get_available_periods()
         keyboard = self._get_keyboard(available_periods)
 
         emojis = {

@@ -53,12 +53,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
         self._blocked_until: dict[int, datetime] = {}
         self._last_admin_notify: dict[int, datetime] = {}
         self._state_lock = threading.RLock()
-
-        threading.Thread(
+        self._cleanup_thread = threading.Thread(
             target=self._periodic_cleanup,
             daemon=True,
             name="access_control_cleanup",
-        ).start()
+        )
+
+        self._cleanup_thread.start()
 
         context = {
             "operation": "initialization",
@@ -107,15 +108,10 @@ class AccessControl(BaseMiddleware, BaseComponent):
         chat_id = message.chat.id
 
         if message.text:
-            message_preview = (
-                message.text
-                if len(message.text) <= 64
-                else f"{message.text[:61].rstrip()}..."
-            )
             debug_context = {
                 "user_id": mask_user_id(user_id),
                 "chat_id": chat_id,
-                "text": message_preview,
+                "text_length": len(message.text),
                 "cmd": message.text.lstrip().startswith("/"),
             }
 

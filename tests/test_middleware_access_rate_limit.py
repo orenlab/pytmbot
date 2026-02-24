@@ -363,7 +363,7 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
         if message == "bot.access.expired.blocks.info"
     ]
     assert expired_logs
-    assert expired_logs[0]["expired_user_ids"] == ["726****885"]
+    assert expired_logs[0]["expired_user_ids"] == ["72******85"]
 
 
 def test_access_control_post_process_paths(

@@ -5,6 +5,9 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import threading
+import time
+from collections import deque
 from datetime import datetime
 
 from telebot import TeleBot
@@ -30,6 +33,34 @@ em = get_emoji_converter()
 keyboards = get_keyboards()
 session_manager = get_session_manager()
 allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
+_TOTP_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_totp_attempt_times: dict[int, deque[float]] = {}
+_totp_attempt_lock = threading.RLock()
+
+
+def _totp_rate_limit_threshold() -> int:
+    """Compute burst limit for TOTP attempts inside a short window."""
+    return max(5, int(var_config.totp_max_attempts) * 2)
+
+
+def _consume_totp_attempt(user_id: int) -> bool:
+    """
+    Register TOTP attempt and return whether user exceeded burst limit.
+
+    Returns:
+        True when attempt should be rate-limited.
+    """
+    now = time.monotonic()
+    with _totp_attempt_lock:
+        attempts = _totp_attempt_times.setdefault(user_id, deque())
+        while attempts and now - attempts[0] > _TOTP_RATE_LIMIT_WINDOW_SECONDS:
+            attempts.popleft()
+
+        if len(attempts) >= _totp_rate_limit_threshold():
+            return True
+
+        attempts.append(now)
+        return False
 
 
 def _extract_totp_code(raw_text: str | None) -> str:
@@ -138,8 +169,12 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         _handle_blocked_user(message, bot)
         return
 
+    if _consume_totp_attempt(user_id):
+        _handle_rate_limited_totp_attempt(message, bot)
+        return
+
     attempts = session_manager.get_totp_attempts(user_id)
-    if attempts > var_config.totp_max_attempts:
+    if attempts >= var_config.totp_max_attempts:
         _handle_max_attempts_reached(message, bot)
         return
 
@@ -169,6 +204,25 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         session_manager.increment_totp_attempts(user_id=user_id)
         logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
         bot.reply_to(message, "Invalid TOTP code. Please try again.")
+
+
+def _handle_rate_limited_totp_attempt(message: Message, bot: TeleBot) -> None:
+    """Handle short-window TOTP burst attempts."""
+    if message.from_user is None:
+        return
+
+    user_id = message.from_user.id
+    session_manager.set_blocked_time(user_id=user_id, duration_minutes=1)
+    logger.warning(
+        "bot.handler.auth_processing.twofa_processing.totp.rate.limit.warn",
+        user_id=user_id,
+        window_seconds=_TOTP_RATE_LIMIT_WINDOW_SECONDS,
+        threshold=_totp_rate_limit_threshold(),
+    )
+    bot.reply_to(
+        message,
+        "Too many TOTP attempts. Please wait 1 minute and try again.",
+    )
 
 
 def _handle_blocked_user(message: Message, bot: TeleBot) -> None:

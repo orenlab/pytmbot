@@ -123,8 +123,6 @@ class PatternRegistry:
             r"\busername\b\s*[:=]\s*['\"]?@?([a-zA-Z0-9_]{3,})\b",
             # Optional explicit "@username" after "user=" or "user:"
             r"\buser\b\s*[:=]\s*@([a-zA-Z0-9_]{3,})\b",
-            # General long numeric IDs
-            r"\b\d{9,}\b",
         ]
 
         exclude_patterns = [
@@ -224,7 +222,6 @@ class DataMasker:
         """Clear the sanitization cache."""
         self._sanitization_cache.clear()
 
-    @lru_cache(maxsize=256)
     def mask_token(self, token: str) -> str:
         """Mask a token while preserving readability."""
         if not token:

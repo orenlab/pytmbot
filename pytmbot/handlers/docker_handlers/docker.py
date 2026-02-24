@@ -75,7 +75,7 @@ def __fetch_counters() -> dict[str, int]:
     return counters
 
 
-def __compile_message() -> str:
+def _compile_message() -> str:
     """
     Compile message and render a bot answer based on docker counters.
 
@@ -109,3 +109,8 @@ def __compile_message() -> str:
                 metadata={"exception": str(error)},
             )
         )
+
+
+def __compile_message() -> str:
+    """Backward-compatible wrapper for private legacy helper name."""
+    return _compile_message()

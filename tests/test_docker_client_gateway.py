@@ -5,7 +5,10 @@ from typing import Any
 
 import pytest
 
-from pytmbot.adapters.docker.client import docker_client_context
+from pytmbot.adapters.docker.client import (
+    docker_client_context,
+    reset_docker_client_context,
+)
 
 
 @dataclass
@@ -36,6 +39,7 @@ class _DummyAdapter:
 def test_docker_client_context_yields_client_and_closes_adapter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    reset_docker_client_context()
     adapter = _DummyAdapter()
     monkeypatch.setattr(
         "pytmbot.adapters.docker.client.DockerAdapter",
@@ -46,11 +50,13 @@ def test_docker_client_context_yields_client_and_closes_adapter(
         assert client.ok is True
 
     assert adapter.closed is True
+    reset_docker_client_context()
 
 
 def test_docker_client_context_closes_adapter_on_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    reset_docker_client_context()
     adapter = _DummyAdapter()
     monkeypatch.setattr(
         "pytmbot.adapters.docker.client.DockerAdapter",
@@ -62,3 +68,4 @@ def test_docker_client_context_closes_adapter_on_exception(
             raise RuntimeError("boom")
 
     assert adapter.closed is True
+    reset_docker_client_context()

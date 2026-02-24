@@ -7,6 +7,8 @@ also providing basic information about the status of local servers.
 
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from functools import wraps
 from threading import RLock
@@ -198,6 +200,24 @@ class ContainerManager:
                 for key, _ in oldest_keys:
                     del self._operation_history[key]
 
+    def _run_with_timeout(
+        self,
+        operation_name: str,
+        operation: Callable[[], None],
+        timeout_seconds: float | None = None,
+    ) -> None:
+        """Execute an operation with a strict timeout guard."""
+        timeout = timeout_seconds or self._max_operation_timeout
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(operation)
+            try:
+                future.result(timeout=timeout)
+            except FutureTimeoutError as error:
+                future.cancel()
+                raise TimeoutError(
+                    f"Container operation '{operation_name}' exceeded {timeout:.1f}s"
+                ) from error
+
     @staticmethod
     def _validate_container_state_for_operation(container: Any, operation: str) -> None:
         """Validate that container is in appropriate state for the operation."""
@@ -258,7 +278,12 @@ class ContainerManager:
 
                 logger.info("docker.containers.container.start", **context)
 
-                container.start()
+                start_timeout = float(
+                    getattr(
+                        settings.docker, "start_timeout", self._max_operation_timeout
+                    )
+                )
+                self._run_with_timeout("start", container.start, start_timeout)
 
                 # Verify the operation succeeded
                 container.reload()  # Refresh container state
@@ -321,7 +346,12 @@ class ContainerManager:
 
                 # Stop with timeout to prevent hanging
                 timeout = getattr(settings.docker, "stop_timeout", 10)
-                container.stop(timeout=timeout)
+                operation_timeout = max(
+                    float(timeout) + 5.0, self._max_operation_timeout
+                )
+                self._run_with_timeout(
+                    "stop", lambda: container.stop(timeout=timeout), operation_timeout
+                )
 
                 # Verify the operation succeeded
                 container.reload()
@@ -384,7 +414,14 @@ class ContainerManager:
 
                 # Restart with timeout
                 timeout = getattr(settings.docker, "restart_timeout", 10)
-                container.restart(timeout=timeout)
+                operation_timeout = max(
+                    float(timeout) + 5.0, self._max_operation_timeout
+                )
+                self._run_with_timeout(
+                    "restart",
+                    lambda: container.restart(timeout=timeout),
+                    operation_timeout,
+                )
 
                 # Verify the operation succeeded
                 container.reload()

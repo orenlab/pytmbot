@@ -196,10 +196,10 @@ def mask_user_id(user_id: int | None, visible: int = 3) -> str:
     if len(user_id_str) <= visible * 2:
         return "*" * len(user_id_str)
 
-    # For backward compatibility, use original logic but with safety checks
-    safe_visible = min(
-        visible, (len(user_id_str) - 4) // 2
-    )  # Ensure at least 4 chars are masked
+    # Keep at most 50% digits visible.
+    safe_visible = min(visible, max(1, len(user_id_str) // 4))
+    while len(user_id_str) - (safe_visible * 2) < (len(user_id_str) // 2):
+        safe_visible -= 1
 
     if safe_visible <= 0:
         return "*" * len(user_id_str)

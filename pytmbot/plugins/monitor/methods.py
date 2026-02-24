@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from typing import Any, Literal
 
 import psutil
@@ -39,6 +40,12 @@ logger = Logger()
 class SystemMonitorPlugin(PluginCore):
     """Plugin for monitoring system resources."""
 
+    DEFAULT_POLL_INTERVAL_SECONDS = 600
+    DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS = 300
+    DEFAULT_NOTIFICATION_RESET_WINDOW_SECONDS = 300
+    MAX_CHECK_INTERVAL_SECONDS = 30
+    MONITOR_THREAD_JOIN_TIMEOUT_SECONDS = 2
+
     __slots__ = (
         "bot",
         "monitor_settings",
@@ -60,6 +67,7 @@ class SystemMonitorPlugin(PluginCore):
         "_supervisor_thread",
         "_monitor_thread_lock",
         "_monitor_restart_count",
+        "_psutil_adapter",
     )
 
     def __init__(self, bot: TeleBot, event_threshold_duration: float = 20) -> None:
@@ -104,10 +112,13 @@ class SystemMonitorPlugin(PluginCore):
 
         # Set monitoring intervals
         self.check_interval = self.monitor_settings.check_interval[0]
-        self.poll_interval = 10 * 60  # 10 minutes
-        self.docker_counters_update_interval = 5 * 60  # 5 minutes
+        self.poll_interval = self.DEFAULT_POLL_INTERVAL_SECONDS
+        self.docker_counters_update_interval = (
+            self.DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS
+        )
 
         self.system_metrics = SystemMetrics()
+        self._psutil_adapter = PsutilAdapter()
         self._monitor_thread: threading.Thread | None = None
         self._supervisor_thread: threading.Thread | None = None
         self._monitor_thread_lock = threading.RLock()
@@ -242,110 +253,108 @@ class SystemMonitorPlugin(PluginCore):
         self._check_temperature_alerts(metrics["temperatures"])
         self._check_disk_alerts(metrics["disk_usage"])
 
+    def _find_active_event_id(self, event_type: str) -> str | None:
+        """Return unresolved event id by type."""
+        return next(
+            (
+                event_id
+                for event_id, event in self.state.active_events.items()
+                if event["type"] == event_type and not event["resolved"]
+            ),
+            None,
+        )
+
+    def _create_or_notify_event(
+        self,
+        event_type: str,
+        details: dict[str, Any],
+        message_builder: Callable[[str], str],
+    ) -> None:
+        """Create event if absent and send alert notification."""
+        event_id = self._find_active_event_id(event_type)
+        if event_id:
+            return
+
+        event_id = EventTracker.create_event(self.state, event_type, details)
+        self._send_notification(message_builder(event_id))
+
+    def _resolve_event_and_notify(self, event_type: str, label: str) -> None:
+        """Resolve all active events for type and send resolution notifications."""
+        for event_id, event in list(self.state.active_events.items()):
+            if event["type"] != event_type or event["resolved"]:
+                continue
+            duration = EventTracker.resolve_event(self.state, event_id)
+            if duration:
+                self._send_resolution_notification(label, duration)
+
     def _check_cpu_alert(self, usage: float) -> None:
         if usage > self.thresholds.cpu_usage:
-            event_id = next(
-                (
-                    eid
-                    for eid, event in self.state.active_events.items()
-                    if event["type"] == "cpu_usage" and not event["resolved"]
-                ),
-                None,
+            self._create_or_notify_event(
+                "cpu_usage",
+                {"usage": usage},
+                lambda event_id: self._format_cpu_alert(event_id, usage),
             )
-
-            if not event_id:
-                event_id = EventTracker.create_event(
-                    self.state, "cpu_usage", {"usage": usage}
-                )
-                self._send_notification(self._format_cpu_alert(event_id, usage))
         else:
-            for eid, event in list(self.state.active_events.items()):
-                if event["type"] == "cpu_usage" and not event["resolved"]:
-                    duration = EventTracker.resolve_event(self.state, eid)
-                    if duration:
-                        self._send_resolution_notification("CPU usage", duration)
+            self._resolve_event_and_notify("cpu_usage", "CPU usage")
 
     def _check_memory_alert(self, usage: float) -> None:
         if usage > self.thresholds.memory_usage:
-            event_id = next(
-                (
-                    eid
-                    for eid, event in self.state.active_events.items()
-                    if event["type"] == "memory_usage" and not event["resolved"]
-                ),
-                None,
+            self._create_or_notify_event(
+                "memory_usage",
+                {"usage": usage},
+                lambda event_id: self._format_memory_alert(event_id, usage),
             )
-
-            if not event_id:
-                event_id = EventTracker.create_event(
-                    self.state, "memory_usage", {"usage": usage}
-                )
-                self._send_notification(self._format_memory_alert(event_id, usage))
         else:
-            for eid, event in list(self.state.active_events.items()):
-                if event["type"] == "memory_usage" and not event["resolved"]:
-                    duration = EventTracker.resolve_event(self.state, eid)
-                    if duration:
-                        self._send_resolution_notification("Memory usage", duration)
+            self._resolve_event_and_notify("memory_usage", "Memory usage")
 
-    def _check_temperature_alerts(self, temperatures: dict) -> None:
+    def _check_temperature_alerts(
+        self, temperatures: dict[str, dict[str, float]]
+    ) -> None:
         for sensor, data in temperatures.items():
             threshold = getattr(self.thresholds, f"{sensor}_temp", 80.0)
             if data["current"] > threshold:
-                event_id = next(
-                    (
-                        eid
-                        for eid, event in self.state.active_events.items()
-                        if event["type"] == f"temp_{sensor}" and not event["resolved"]
-                    ),
-                    None,
-                )
+                event_type = f"temp_{sensor}"
 
-                if not event_id:
-                    event_id = EventTracker.create_event(
-                        self.state,
-                        f"temp_{sensor}",
-                        {"temperature": data["current"], "sensor": sensor},
+                def _build_temperature_alert(
+                    event_id: str,
+                    sensor_name: str = sensor,
+                    sensor_data: dict[str, float] = data,
+                ) -> str:
+                    return self._format_temperature_alert(
+                        event_id, sensor_name, sensor_data
                     )
-                    self._send_notification(
-                        self._format_temperature_alert(event_id, sensor, data)
-                    )
+
+                self._create_or_notify_event(
+                    event_type,
+                    {"temperature": data["current"], "sensor": sensor},
+                    _build_temperature_alert,
+                )
             else:
-                for eid, event in list(self.state.active_events.items()):
-                    if event["type"] == f"temp_{sensor}" and not event["resolved"]:
-                        duration = EventTracker.resolve_event(self.state, eid)
-                        if duration:
-                            self._send_resolution_notification(
-                                f"Temperature ({sensor})", duration
-                            )
+                self._resolve_event_and_notify(
+                    f"temp_{sensor}", f"Temperature ({sensor})"
+                )
 
     def _check_disk_alerts(self, disk_usage: dict[str, float]) -> None:
         for disk, usage in disk_usage.items():
             if usage > self.thresholds.disk_usage:
-                event_id = next(
-                    (
-                        eid
-                        for eid, event in self.state.active_events.items()
-                        if event["type"] == f"disk_{disk}" and not event["resolved"]
-                    ),
-                    None,
-                )
+                event_type = f"disk_{disk}"
 
-                if not event_id:
-                    event_id = EventTracker.create_event(
-                        self.state, f"disk_{disk}", {"usage": usage, "disk": disk}
+                def _build_disk_alert(
+                    event_id: str,
+                    disk_name: str = disk,
+                    disk_usage_value: float = usage,
+                ) -> str:
+                    return self._format_disk_alert(
+                        event_id, disk_name, disk_usage_value
                     )
-                    self._send_notification(
-                        self._format_disk_alert(event_id, disk, usage)
-                    )
+
+                self._create_or_notify_event(
+                    event_type,
+                    {"usage": usage, "disk": disk},
+                    _build_disk_alert,
+                )
             else:
-                for eid, event in list(self.state.active_events.items()):
-                    if event["type"] == f"disk_{disk}" and not event["resolved"]:
-                        duration = EventTracker.resolve_event(self.state, eid)
-                        if duration:
-                            self._send_resolution_notification(
-                                f"Disk usage ({disk})", duration
-                            )
+                self._resolve_event_and_notify(f"disk_{disk}", f"Disk usage ({disk})")
 
     def _process_docker_metrics(self, metrics: dict[str, Any]) -> None:
         current_time = time.time()
@@ -506,7 +515,7 @@ class SystemMonitorPlugin(PluginCore):
         reset_window = self.monitor_settings.reset_notification_count[0]
         if isinstance(reset_window, int) and reset_window > 0:
             return reset_window
-        return 300
+        return self.DEFAULT_NOTIFICATION_RESET_WINDOW_SECONDS
 
     def _maybe_reset_notification_budget(
         self, current_time: float | None = None
@@ -518,8 +527,18 @@ class SystemMonitorPlugin(PluginCore):
             self._reset_notification_count()
             self.state.next_notification_reset_at = 0.0
 
-    @staticmethod
-    def _format_cpu_alert(event_id: str, usage: float) -> str:
+    def _get_top_processes(self) -> list[TopProcess]:
+        """Collect top processes once through shared psutil adapter."""
+        try:
+            return self._psutil_adapter.get_top_processes(count=5)
+        except Exception as error:
+            logger.warning(
+                "bot.plugins.monitor.methods.top.processes.fail",
+                extra={"error": str(error)},
+            )
+            return []
+
+    def _format_cpu_alert(self, event_id: str, usage: float) -> str:
         """
         Format CPU alert message with top processes information.
 
@@ -530,13 +549,10 @@ class SystemMonitorPlugin(PluginCore):
         Returns:
             Formatted alert message with top processes
         """
-        adapter = PsutilAdapter()
-        top_processes = adapter.get_top_processes(count=5)
-        process_info = "\n".join(
-            f"  • {proc['name']} (PID: {proc['pid']}) - {proc['cpu_percent']:.1f}% CPU"
-            for proc in sorted(
-                top_processes, key=lambda x: x["cpu_percent"], reverse=True
-            )
+        process_info = self._format_process_info(
+            self._get_top_processes(),
+            resource_key="cpu_percent",
+            suffix="% CPU",
         )
 
         return (
@@ -547,8 +563,7 @@ class SystemMonitorPlugin(PluginCore):
             f"{process_info}"
         )
 
-    @staticmethod
-    def _format_memory_alert(event_id: str, usage: float) -> str:
+    def _format_memory_alert(self, event_id: str, usage: float) -> str:
         """
         Format memory alert message with top processes information.
 
@@ -559,13 +574,10 @@ class SystemMonitorPlugin(PluginCore):
         Returns:
             Formatted alert message with top processes
         """
-        adapter = PsutilAdapter()
-        top_processes = adapter.get_top_processes(count=5)
-        process_info = "\n".join(
-            f"  • {proc['name']} (PID: {proc['pid']}) - {proc['memory_percent']:.1f}% MEM"
-            for proc in sorted(
-                top_processes, key=lambda x: x["memory_percent"], reverse=True
-            )
+        process_info = self._format_process_info(
+            self._get_top_processes(),
+            resource_key="memory_percent",
+            suffix="% MEM",
         )
 
         return (
@@ -593,6 +605,8 @@ class SystemMonitorPlugin(PluginCore):
         Returns:
             Formatted string with process information
         """
+        if not processes:
+            return "  • N/A"
         return "\n".join(
             f"  • {proc['name']} (PID: {proc['pid']}) - "
             f"{proc[resource_key]:.1f}{suffix}"
@@ -657,7 +671,9 @@ class SystemMonitorPlugin(PluginCore):
         try:
             cpu_load = psutil.cpu_percent(interval=0.0)
             if cpu_load > self.thresholds.load:
-                new_interval = min(self.check_interval * 2, 30)
+                new_interval = min(
+                    self.check_interval * 2, self.MAX_CHECK_INTERVAL_SECONDS
+                )
                 if new_interval != self.check_interval:
                     self.check_interval = new_interval
                     logger.info(
@@ -685,7 +701,7 @@ class SystemMonitorPlugin(PluginCore):
                     and thread.is_alive()
                     and thread is not current_thread
                 ):
-                    thread.join(timeout=2)
+                    thread.join(timeout=self.MONITOR_THREAD_JOIN_TIMEOUT_SECONDS)
             logger.info("bot.plugins.monitor.methods.monitoring.stop")
         else:
             logger.warning("bot.plugins.monitor.methods.monitoring.not.warn")

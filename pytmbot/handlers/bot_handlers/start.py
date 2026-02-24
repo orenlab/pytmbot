@@ -19,8 +19,6 @@ logger = Logger()
 keyboards = get_keyboards()
 
 
-# commands=['help', 'start'])
-# @logger.session_decorator
 @logger.session_decorator
 def handle_start(message: Message, bot: TeleBot) -> None:
     try:

@@ -39,13 +39,39 @@ class ContainerInfoCache:
         self._cache: dict[str, tuple[dict, float]] = {}
         self._lock = RLock()
         self._ttl = ttl
+        self._max_entries = 100
+        self._cleanup_interval_seconds = 30.0
+        self._last_cleanup_timestamp = 0.0
+
+    def _cleanup_expired_entries(
+        self, current_time: float, *, force: bool = False
+    ) -> None:
+        """Cleanup expired entries with bounded cadence."""
+        should_cleanup = force or (
+            current_time - self._last_cleanup_timestamp
+            >= self._cleanup_interval_seconds
+        )
+        if not should_cleanup:
+            return
+
+        self._last_cleanup_timestamp = current_time
+        expired_keys = [
+            key
+            for key, (_value, timestamp) in self._cache.items()
+            if current_time - timestamp >= self._ttl
+        ]
+        for key in expired_keys:
+            self._cache.pop(key, None)
 
     def get(self, key: str) -> dict | None:
         """Get cached value if not expired."""
         with self._lock:
+            current_time = time.time()
+            self._cleanup_expired_entries(current_time)
+
             if key in self._cache:
                 value, timestamp = self._cache[key]
-                if time.time() - timestamp < self._ttl:
+                if current_time - timestamp < self._ttl:
                     return value
                 else:
                     # Remove expired entry
@@ -55,18 +81,17 @@ class ContainerInfoCache:
     def set(self, key: str, value: dict) -> None:
         """Set cached value with current timestamp."""
         with self._lock:
-            self._cache[key] = (value, time.time())
+            current_time = time.time()
+            self._cache[key] = (value, current_time)
+            self._cleanup_expired_entries(
+                current_time, force=len(self._cache) > self._max_entries
+            )
 
-            # Cleanup expired entries periodically
-            if len(self._cache) > 100:  # Arbitrary cleanup threshold
-                current_time = time.time()
-                expired_keys = [
-                    k
-                    for k, (_, ts) in self._cache.items()
-                    if current_time - ts >= self._ttl
-                ]
-                for k in expired_keys:
-                    del self._cache[k]
+            while len(self._cache) > self._max_entries:
+                oldest_key = min(
+                    self._cache, key=lambda cache_key: self._cache[cache_key][1]
+                )
+                self._cache.pop(oldest_key, None)
 
     def clear(self) -> None:
         """Clear all cached entries."""
@@ -161,10 +186,12 @@ def __aggregate_container_details(
             logger.debug("docker.containers.using.cached.debug", **context)
             return cached_details
 
-        attrs = container_details.attrs
+        attrs_raw = getattr(container_details, "attrs", {})
+        attrs = attrs_raw if isinstance(attrs_raw, dict) else {}
 
         # Safely parse created timestamp
-        created_str = attrs.get("Created", "")
+        created_str_value = attrs.get("Created", "")
+        created_str = created_str_value if isinstance(created_str_value, str) else ""
         try:
             if created_str:
                 created_at = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
@@ -180,8 +207,10 @@ def __aggregate_container_details(
             created_at = None
 
         # Safely get container state info
-        state_info = attrs.get("State", {})
-        started_at_str = state_info.get("StartedAt", "")
+        state_raw = attrs.get("State", {})
+        state_info = state_raw if isinstance(state_raw, dict) else {}
+        started_at_value = state_info.get("StartedAt", "")
+        started_at_str = started_at_value if isinstance(started_at_value, str) else ""
 
         # Parse start time
         run_at_display = "N/A"
@@ -200,13 +229,31 @@ def __aggregate_container_details(
                 )
 
         # Get image information safely
-        config = attrs.get("Config", {})
-        image_name = config.get("Image", "N/A")
+        config_raw = attrs.get("Config", {})
+        config = config_raw if isinstance(config_raw, dict) else {}
+        image_name_value = config.get("Image", "N/A")
+        image_name = image_name_value if isinstance(image_name_value, str) else "N/A"
 
         # Extract container name (remove leading slash)
-        container_name = attrs.get("Name", "").lstrip("/")
+        container_name_raw = attrs.get("Name", "")
+        container_name = (
+            container_name_raw.lstrip("/")
+            if isinstance(container_name_raw, str)
+            else ""
+        )
         if not container_name:
             container_name = container_id[:12]  # Fallback to short ID
+
+        health_raw = state_info.get("Health", {})
+        health = (
+            health_raw.get("Status", "N/A") if isinstance(health_raw, dict) else "N/A"
+        )
+        status_value = state_info.get("Status")
+        status = (
+            status_value
+            if isinstance(status_value, str) and status_value
+            else getattr(container_details, "status", "N/A")
+        )
 
         details = {
             "id": container_id,
@@ -216,11 +263,8 @@ def __aggregate_container_details(
                 created_at.strftime("%Y-%m-%d, %H:%M:%S") if created_at else "unknown"
             ),
             "run_at": run_at_display,
-            "status": state_info.get(
-                "Status",
-                getattr(container_details, "status", "N/A"),
-            ),
-            "health": state_info.get("Health", {}).get("Status", "N/A"),
+            "status": status,
+            "health": health,
             "exit_code": state_info.get("ExitCode"),
             "restart_count": attrs.get("RestartCount", 0),
         }
@@ -316,7 +360,8 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
         execution_time = time.time() - start_time
 
         # Sort results by container name for consistent ordering
-        container_details.sort(key=lambda x: x.get("name", "").lower())
+        if len(container_details) > 1:
+            container_details.sort(key=lambda x: x.get("name", "").lower())
 
         # Log comprehensive summary
         logger.info(

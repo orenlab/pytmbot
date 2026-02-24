@@ -166,8 +166,12 @@ class SessionManager(BaseComponent):
                     try:
                         self.clear_expired_sessions()
                     except Exception as e:
-                        log.exception(
-                            "bot.session.cleanup.fail", context={"error": str(e)}
+                        log.error(
+                            "bot.session.cleanup.fail",
+                            context={
+                                "error": str(e),
+                                "error_type": type(e).__name__,
+                            },
                         )
 
                     # Use shutdown event for interruptible sleep
@@ -284,6 +288,20 @@ class SessionManager(BaseComponent):
                     },
                 )
 
+    def _auto_unblock_if_due(self, user_id: int, session: _UserSession) -> bool:
+        """Unblock user when block timeout has elapsed."""
+        blocked_time = session.blocked_time
+        if blocked_time is None or datetime.now() <= blocked_time:
+            return False
+
+        session.blocked_time = None
+        if session.auth_state == self.state_fabric.BLOCKED:
+            session.auth_state = self.state_fabric.UNAUTHENTICATED
+
+        with self.log_context(user_id=user_id, action="auto_unblock") as log:
+            log.info("bot.session.user.automatically.deny")
+        return True
+
     def get_blocked_time(self, user_id: int) -> datetime | None:
         """Get user's blocked time."""
         with self.session_context(user_id) as session:
@@ -295,15 +313,7 @@ class SessionManager(BaseComponent):
             if session.is_blocked_now():
                 return True
 
-            # Auto-unblock if time has passed
-            if session.blocked_time and datetime.now() > session.blocked_time:
-                session.blocked_time = None
-                if session.auth_state == self.state_fabric.BLOCKED:
-                    session.auth_state = self.state_fabric.UNAUTHENTICATED
-
-                with self.log_context(user_id=user_id, action="auto_unblock") as log:
-                    log.info("bot.session.user.automatically.deny")
-
+            self._auto_unblock_if_due(user_id, session)
             return False
 
     # Session management
@@ -346,14 +356,8 @@ class SessionManager(BaseComponent):
         with self.session_context(user_id) as session:
             is_blocked = session.is_blocked_now()
 
-            # Auto-unblock if block period has passed.
-            if not is_blocked and session.blocked_time:
-                if session.auth_state == self.state_fabric.BLOCKED:
-                    session.auth_state = self.state_fabric.UNAUTHENTICATED
-                session.blocked_time = None
-
-                with self.log_context(user_id=user_id, action="auto_unblock") as log:
-                    log.info("bot.session.user.automatically.deny")
+            if not is_blocked:
+                self._auto_unblock_if_due(user_id, session)
 
             is_expired = session.is_expired(self.session_timeout)
             is_auth = (
