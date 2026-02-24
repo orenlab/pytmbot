@@ -705,16 +705,17 @@ class PsutilAdapter:
                 "shared": set_naturalsize(getattr(stats, "shared", 0)),
             }
 
+        zero_size = set_naturalsize(0)
         memory_fallback: MemoryStats = {
-            "total": "0 Bytes",
-            "available": "0 Bytes",
+            "total": zero_size,
+            "available": zero_size,
             "percent": 0.0,
-            "used": "0 Bytes",
-            "free": "0 Bytes",
-            "active": "0 Bytes",
-            "inactive": "0 Bytes",
-            "cached": "0 Bytes",
-            "shared": "0 Bytes",
+            "used": zero_size,
+            "free": zero_size,
+            "active": zero_size,
+            "inactive": zero_size,
+            "cached": zero_size,
+            "shared": zero_size,
         }
 
         result, execution_time_ms = self._safe_execute(
@@ -791,10 +792,11 @@ class PsutilAdapter:
             }
             return result
 
+        zero_size = set_naturalsize(0)
         swap_fallback: SwapStats = {
-            "total": "0 Bytes",
-            "used": "0 Bytes",
-            "free": "0 Bytes",
+            "total": zero_size,
+            "used": zero_size,
+            "free": zero_size,
             "percent": 0.0,
         }
         result, execution_time_ms = self._safe_execute(

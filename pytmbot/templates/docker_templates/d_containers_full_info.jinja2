@@ -33,7 +33,7 @@
 {% endif %}{{ gear_emoji }} <b>Runtime State:</b>
 <code>Health failing streak:</code> {{ health_failing_streak }}
 <code>Last health check:</code> {{ health_last_checked_at }}
-<code>OOM killed:</code> {% if oom_killed %}yes{% else %}no{% endif %} | <code>Dead:</code> {% if dead %}yes{% else %}no{% endif %}
+<code>OOM killed:</code> {% if oom_killed %}yes{% else %}no{% endif %} | <code>Dead:</code> {% if dead %}yes{% else %}no{% endif %}{{ '' }}
 <code>State error:</code> {{ state_error }}
 
 {{ network_emoji }} <b>Network:</b>

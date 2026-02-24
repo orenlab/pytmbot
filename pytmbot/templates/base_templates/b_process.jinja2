@@ -1,12 +1,12 @@
 {{ thought_balloon }} Here is:
 
-<b>System Process Information:</b>{% if context %}
+<b>System Process Information:</b>{% if context %}{{ '' }}
 
 
 {% for key, value in context.items() %}
 {{ horizontal_traffic_light }} <b>{{ key }}</b>: <code>{{ value }}</code>
 {% endfor %}{% else %}
-{{ warning }} <i>No process data available</i>{% endif %}
+{{ warning }} <i>No process data available</i>{% endif %}{{ '' }}
 
 
 {% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}

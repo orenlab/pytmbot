@@ -4,7 +4,7 @@
 
 {{ gear_emoji }} <b>Runtime network summary:</b>
 <code>Mode:</code> {{ network_mode }}
-<code>Hostname:</code> {{ hostname }}{% if domainname != '-' %}.{{ domainname }}{% endif %}
+<code>Hostname:</code> {{ hostname }}{% if domainname != '-' %}.{{ domainname }}{% endif %}{{ '' }}
 <code>Bridge:</code> {{ bridge_name }}
 <code>Sandbox ID:</code> {{ sandbox_id }}
 <code>Publish all ports:</code> {{ publish_all_ports }}
@@ -38,16 +38,16 @@
 {% endif %}
 
 {{ gear_emoji }} <b>DNS and host routing:</b>
-<code>DNS servers:</code> {% if dns_servers_count > 0 %}{{ dns_servers | join(", ") }}{% else %}none{% endif %}
-{% if hidden_dns_servers_count > 0 %}<i> (+{{ hidden_dns_servers_count }} more)</i>{% endif %}
-<code>DNS search:</code> {% if dns_search_count > 0 %}{{ dns_search | join(", ") }}{% else %}none{% endif %}
-{% if hidden_dns_search_count > 0 %}<i> (+{{ hidden_dns_search_count }} more)</i>{% endif %}
-<code>DNS options:</code> {% if dns_options_count > 0 %}{{ dns_options | join(", ") }}{% else %}none{% endif %}
-{% if hidden_dns_options_count > 0 %}<i> (+{{ hidden_dns_options_count }} more)</i>{% endif %}
-<code>Extra hosts:</code> {% if extra_hosts_count > 0 %}{{ extra_hosts | join(", ") }}{% else %}none{% endif %}
-{% if hidden_extra_hosts_count > 0 %}<i> (+{{ hidden_extra_hosts_count }} more)</i>{% endif %}
-<code>Links:</code> {% if links_count > 0 %}{{ links | join(", ") }}{% else %}none{% endif %}
-{% if hidden_links_count > 0 %}<i> (+{{ hidden_links_count }} more)</i>{% endif %}
+<code>DNS servers:</code> {% if dns_servers_count > 0 %}{{ dns_servers | join(", ") }}{% else %}none{% endif %}{{ '' }}
+{% if hidden_dns_servers_count > 0 %}<i> (+{{ hidden_dns_servers_count }} more)</i>{% endif %}{{ '' }}
+<code>DNS search:</code> {% if dns_search_count > 0 %}{{ dns_search | join(", ") }}{% else %}none{% endif %}{{ '' }}
+{% if hidden_dns_search_count > 0 %}<i> (+{{ hidden_dns_search_count }} more)</i>{% endif %}{{ '' }}
+<code>DNS options:</code> {% if dns_options_count > 0 %}{{ dns_options | join(", ") }}{% else %}none{% endif %}{{ '' }}
+{% if hidden_dns_options_count > 0 %}<i> (+{{ hidden_dns_options_count }} more)</i>{% endif %}{{ '' }}
+<code>Extra hosts:</code> {% if extra_hosts_count > 0 %}{{ extra_hosts | join(", ") }}{% else %}none{% endif %}{{ '' }}
+{% if hidden_extra_hosts_count > 0 %}<i> (+{{ hidden_extra_hosts_count }} more)</i>{% endif %}{{ '' }}
+<code>Links:</code> {% if links_count > 0 %}{{ links | join(", ") }}{% else %}none{% endif %}{{ '' }}
+{% if hidden_links_count > 0 %}<i> (+{{ hidden_links_count }} more)</i>{% endif %}{{ '' }}
 
 {{ network_emoji }} <b>Attached networks{% if networks_count > 0 %} ({{ networks_count }}){% endif %}:</b>
 {% if networks_count > 0 -%}

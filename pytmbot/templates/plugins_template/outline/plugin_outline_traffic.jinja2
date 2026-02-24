@@ -6,7 +6,7 @@
 {% if bytes_transferred %}
     Total Bytes Transferred:
     {% for user_id, bytes in bytes_transferred.items() %}{% set user_name = user_names.get(user_id, 'Unknown') %}
-        {{ minus }} <i>{{ user_name }} (User ID {{ user_id }}): {{ set_naturalsize(bytes) if bytes else 0 }}</i>
+        {{ minus }} <i>{{ user_name }} (User ID {{ user_id }}): {{ set_naturalsize(bytes if bytes else 0) }}</i>
     {% endfor %}
 {% else %}
     <i>No data available.</i>

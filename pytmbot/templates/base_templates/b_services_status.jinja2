@@ -11,7 +11,7 @@
 {% for service_name, status in services_data.systemd.critical_services.items() %}
 {% if status.exists %}
 {% if status.active == 'active' %}
-{{green_circle}} `{{ service_name }}`: {{status.active}}{% if status.enabled == 'enabled' %} (enabled){% endif %}
+{{green_circle}} `{{ service_name }}`: {{status.active}}{% if status.enabled == 'enabled' %} (enabled){% endif %}{{ '' }}
 {% elif status.active == 'failed' %}
 {{red_circle}} `{{ service_name }}`: {{status.active}}
 {% else %}

@@ -3,9 +3,9 @@
 {% for image in context.images -%}
 {{ context.emojis.package }} <b>{{ image.name }}</b>
 {{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ image.id }}</code>
-{{ context.emojis.bookmark_tabs }} <b>Tags{% if image.tags_count > 0 %} ({{ image.tags_count }}){% endif %}:</b> {% if image.tags_count > 0 %}<code>{{ image.tags | join(", ") }}</code>{% else %}<code>none</code>{% endif %}
+{{ context.emojis.bookmark_tabs }} <b>Tags{% if image.tags_count > 0 %} ({{ image.tags_count }}){% endif %}:</b> {% if image.tags_count > 0 %}<code>{{ image.tags | join(", ") }}</code>{% else %}<code>none</code>{% endif %}{{ '' }}
 {{ context.emojis.floppy_disk }} <b>Size:</b> {{ image.size }}
-{{ context.emojis.gear }} <b>Platform:</b> {{ image.os }}/{{ image.architecture }}{% if image.variant != 'N/A' %} ({{ image.variant }}){% endif %}
+{{ context.emojis.gear }} <b>Platform:</b> {{ image.os }}/{{ image.architecture }}{% if image.variant != 'N/A' %} ({{ image.variant }}){% endif %}{{ '' }}
 {{ context.emojis.mantelpiece_clock }} <b>Created:</b> {{ image.created }}
 {% if not loop.last %}
 

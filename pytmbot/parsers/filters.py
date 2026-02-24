@@ -11,6 +11,8 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
+from humanize import naturalsize as humanize_naturalsize
+
 
 def format_timestamp(value: str | int | Any) -> str:
     """
@@ -67,35 +69,20 @@ def format_bytes(value: Any) -> str:
         str: Formatted size (e.g., "1.5 GB") or error message
     """
     try:
-        # Convert to number
         if isinstance(value, str):
-            # Remove common suffixes if present
-            clean_value = (
-                value.lower()
-                .replace("b", "")
-                .replace("kb", "")
-                .replace("mb", "")
-                .replace("gb", "")
-                .strip()
-            )
-            size = float(clean_value)
+            cleaned_value = value.strip().lower()
+            for suffix in ("bytes", "byte", "kb", "mb", "gb", "tb", "pb", "b"):
+                cleaned_value = cleaned_value.removesuffix(suffix).strip()
+            size_value = int(float(cleaned_value))
         else:
-            size = float(value)
+            size_value = int(float(value))
 
-        if size < 0:
-            return "0 B"
-
-        units = ["B", "KB", "MB", "GB", "TB", "PB"]
-        unit_index = 0
-
-        while size >= 1024.0 and unit_index < len(units) - 1:
-            size /= 1024.0
-            unit_index += 1
-
-        if unit_index == 0:
-            return f"{int(size)} {units[unit_index]}"
-        else:
-            return f"{size:.1f} {units[unit_index]}"
+        formatted = humanize_naturalsize(max(0, size_value), binary=False)
+        return (
+            formatted.replace(" Bytes", " B")
+            .replace(" Byte", " B")
+            .replace(" kB", " KB")
+        )
 
     except (ValueError, TypeError, OverflowError):
         return f"Invalid size: {value}"

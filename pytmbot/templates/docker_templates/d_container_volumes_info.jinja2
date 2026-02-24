@@ -6,7 +6,7 @@
 {{ luggage_emoji }} <b>Active mounts (showing {{ mounts_count }} of {{ mounts_total }}):</b>
 
 {% for mount in mounts -%}
-<b>{{ loop.index }}.</b> <code>{{ mount.type }}</code> {% if mount.name != '-' %}<code>{{ mount.name }}</code>{% endif %}
+<b>{{ loop.index }}.</b> <code>{{ mount.type }}</code> {% if mount.name != '-' %}<code>{{ mount.name }}</code>{% endif %}{{ '' }}
 <code>Source:</code> {{ mount.source }}
 <code>Target:</code> {{ mount.destination }}
 <code>Access:</code> {{ mount.access }} | <code>Mode:</code> {{ mount.mode }} | <code>Propagation:</code> {{ mount.propagation }}

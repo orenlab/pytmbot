@@ -9,10 +9,10 @@
 <code>Parent:</code> {{ context.image.parent_id }}
 
 {{ context.emojis.gear }} <b>Platform & Size:</b>
-<code>Platform:</code> {{ context.image.os }}/{{ context.image.architecture }}{% if context.image.variant != "N/A" %} ({{ context.image.variant }}){% endif %}
-<code>Size:</code> {{ context.image.size }} | <code>Virtual:</code> {{ context.image.virtual_size }}{% if context.image.shared_size != "N/A" %} | <code>Shared:</code> {{ context.image.shared_size }}{% endif %}
+<code>Platform:</code> {{ context.image.os }}/{{ context.image.architecture }}{% if context.image.variant != "N/A" %} ({{ context.image.variant }}){% endif %}{{ '' }}
+<code>Size:</code> {{ context.image.size }} | <code>Virtual:</code> {{ context.image.virtual_size }}{% if context.image.shared_size != "N/A" %} | <code>Shared:</code> {{ context.image.shared_size }}{% endif %}{{ '' }}
 <code>Layers:</code> {{ context.image.layers_count }} | <code>RootFS:</code> {{ context.image.rootfs_type }}
-<code>Created:</code> {{ context.image.created }}{% if context.image.created_at != "N/A" %} ({{ context.image.created_at }}){% endif %}
+<code>Created:</code> {{ context.image.created }}{% if context.image.created_at != "N/A" %} ({{ context.image.created_at }}){% endif %}{{ '' }}
 
 {{ context.emojis.key }} <b>Runtime defaults:</b>
 <code>User:</code> {{ context.image.user }} | <code>WorkDir:</code> {{ context.image.working_dir }}

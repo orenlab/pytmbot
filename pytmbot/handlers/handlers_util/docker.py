@@ -969,9 +969,10 @@ def parse_container_network_stats(container_stats: dict) -> dict:
         }
     except Exception:
         logger.error("bot.handler.handlers_util.docker.parsing.network.fail")
+        zero_size = set_naturalsize(0)
         return {
-            "rx_bytes": "0 B",
-            "tx_bytes": "0 B",
+            "rx_bytes": zero_size,
+            "tx_bytes": zero_size,
             "rx_dropped": 0,
             "tx_dropped": 0,
             "rx_errors": 0,
