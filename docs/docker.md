@@ -202,9 +202,11 @@ Docker image entrypoint supports:
 | `--mode`         | `str`  | `prod`      | Bot mode: `dev` / `prod`.                                            |
 | `--log-level`    | `str`  | `INFO`      | Log level: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
 | `--log-format`   | `str`  | mode-based  | Log format: `human` / `json`.                                        |
-| `--plugins`      | `str`  | `""`        | Single plugin name in Docker entrypoint mode (for example: `monitor`). |
-| `--webhook`      | `flag` | `False`     | Enable webhook mode (no value required).                             |
+| `--colorize_logs`| `bool` | `True`      | Enable/disable colorized logs (`true`/`false`).                      |
+| `--plugins`      | `list` | `[]`        | Plugin list (for example: `--plugins monitor outline`).              |
+| `--webhook`      | `bool` | `False`     | Enable webhook mode (`--webhook` or `--webhook true/false`).         |
 | `--socket_host`  | `str`  | `127.0.0.1` | Socket host for webhook mode.                                        |
+| `--debug`        | `flag` | `False`     | Shortcut for `--mode dev --log-level DEBUG`.                         |
 | `--health_check` | `flag` | `False`     | Run health check and exit.                                           |
 | `--check-docker` | `flag` | `False`     | Check Docker socket/group access and exit.                           |
 | `--salt`         | `flag` | `False`     | Generate auth salt and exit.                                         |
@@ -238,7 +240,11 @@ Enable specific plugins:
 docker run ... orenlab/pytmbot:latest --plugins monitor
 ```
 
-Note: Docker entrypoint currently accepts one `--plugins` value.
+Enable multiple plugins:
+
+```bash
+docker run ... orenlab/pytmbot:latest --plugins monitor outline
+```
 
 Development mode with debug logging:
 

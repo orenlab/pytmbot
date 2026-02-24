@@ -172,14 +172,15 @@ class PyTMBot(BaseComponent):
 
         # Initialize session
         self._session = BotSession.create(
-            mode=self.args.mode, webhook_enabled=self.args.webhook == "True"
+            mode=self.args.mode,
+            webhook_enabled=self._normalize_bool_flag(self.args.webhook),
         )
 
         with self.log_context(
             session_id=self._session.session_id,
             version=__version__,
             mode=self._normalize_mode_value(self.args.mode),
-            webhook_mode=self.args.webhook == "True",
+            webhook_mode=self._normalize_bool_flag(self.args.webhook),
             plugins_enabled=bool(
                 self.args.plugins and any(p.strip() for p in self.args.plugins)
             ),
@@ -205,6 +206,13 @@ class PyTMBot(BaseComponent):
     def _normalize_mode_value(mode: Any) -> str:
         """Normalize enum-like mode values for compact log output."""
         return str(getattr(mode, "value", mode))
+
+    @staticmethod
+    def _normalize_bool_flag(value: Any) -> bool:
+        """Normalize CLI boolean-like values to strict bool."""
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"true", "1", "yes", "on"}
 
     def _change_state(self, new_state: BotState, reason: str = "") -> None:
         """Change bot state with logging."""
@@ -433,7 +441,7 @@ class PyTMBot(BaseComponent):
                         return False
 
             # Stop current operations safely
-            if self.args.webhook != "True":
+            if not self._normalize_bool_flag(self.args.webhook):
                 self._safe_stop_polling()
 
             # Brief pause before restart
@@ -795,7 +803,7 @@ class PyTMBot(BaseComponent):
             with self.log_context(
                 version=__version__,
                 mode=self._normalize_mode_value(self.args.mode),
-                webhook_enabled=self.args.webhook == "True",
+                webhook_enabled=self._normalize_bool_flag(self.args.webhook),
                 session_id=self._session.session_id if self._session else "unknown",
             ) as log:
                 log.info("bot.core.init.ok")
@@ -971,7 +979,7 @@ class PyTMBot(BaseComponent):
         """Launch the bot with appropriate method (webhook or polling)."""
         self.bot = self.initialize_bot_core()
 
-        webhook_enabled = self.args.webhook == "True"
+        webhook_enabled = self._normalize_bool_flag(self.args.webhook)
 
         with self.log_context(
             webhook_enabled=webhook_enabled,

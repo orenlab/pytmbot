@@ -395,6 +395,13 @@ class BotLauncher(logs.BaseComponent):
         """Normalize enum-like mode values for compact log output."""
         return str(getattr(mode, "value", mode))
 
+    @staticmethod
+    def _normalize_bool_flag(value: Any) -> bool:
+        """Normalize CLI boolean-like values to strict bool."""
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"true", "1", "yes", "on"}
+
     def _log_health_details(
         self, health_summary: dict, bot_session_metrics: dict | None
     ) -> None:
@@ -593,7 +600,7 @@ class BotLauncher(logs.BaseComponent):
     def _start_bot_polling(self, bot_instance: TeleBot) -> None:
         """Start bot polling in a separate method."""
         try:
-            webhook_enabled = args.webhook == "True"
+            webhook_enabled = self._normalize_bool_flag(args.webhook)
             bot_component = self.bot
             if bot_component is None:
                 raise RuntimeError("Bot component is not initialized")

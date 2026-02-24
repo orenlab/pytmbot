@@ -16,9 +16,9 @@ argument you can use when starting the bot.
 | `--log-level`     | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
 | `--log-format`    | `str`  | mode-based  | `human`, `json`                                          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.          |
 | `--colorize_logs` | `bool` | `True`      | `true`, `false`                                          | Enable or disable colorized logs in human format.                                              |
-| `--webhook`       | `bool` | `False`     | `True`, `False`                                          | Core CLI: explicit boolean value. Docker entrypoint: flag (`--webhook`) mapped to `True`.      |
+| `--webhook`       | `bool` | `False`     | `True`, `False`                                          | Core CLI: explicit boolean value. Docker entrypoint: supports both `--webhook` and `--webhook <bool>`. |
 | `--socket_host`   | `str`  | `127.0.0.1` | N/A                                                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
-| `--plugins`       | `list` | `[]`        | N/A                                                      | Core CLI supports multiple plugins. Docker entrypoint currently supports one plugin value.      |
+| `--plugins`       | `list` | `[]`        | N/A                                                      | Core CLI and Docker entrypoint both support multiple plugins.                                   |
 | `--debug`         | `flag` | `False`     | N/A                                                      | Shortcut for `--mode dev --log-level DEBUG`.                                                   |
 | `--salt`          | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: generate TOTP salt and exit.                                        |
 | `--health_check`  | `flag` | `False`     | N/A                                                      | Perform comprehensive health check and exit.                                                   |
@@ -209,7 +209,15 @@ services:
     command: --mode prod --log-level INFO --log-format json --plugins monitor
 ```
 
-Note: Docker entrypoint accepts a single `--plugins` value at this time.
+Example with multiple plugins:
+
+```bash
+docker run -d \
+  --name pytmbot \
+  -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --mode prod --plugins monitor outline
+```
 
 ### Webhook with Docker
 

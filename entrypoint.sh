@@ -31,6 +31,8 @@ PLUGINS=""
 WEBHOOK="False"
 SOCKET_HOST="127.0.0.1"
 HEALTH_CHECK="False"
+DEBUG="False"
+COLORIZE_LOGS="True"
 
 # Variables for process management
 child_pid=""
@@ -41,10 +43,12 @@ log() {
     _log_time=$(date "+%H:%M:%S")
 
     case "$1" in
+        "TRACE")   _log_formatted_level="TRACE   " ;;
         "DEBUG")   _log_formatted_level="DEBUG   " ;;
         "INFO")    _log_formatted_level="INFO    " ;;
         "WARNING") _log_formatted_level="WARNING " ;;
         "ERROR")   _log_formatted_level="ERROR   " ;;
+        "CRITICAL") _log_formatted_level="CRITICAL" ;;
         *)         _log_formatted_level="INFO    " ;;
     esac
 
@@ -184,6 +188,19 @@ validate_mode() {
     esac
 }
 
+# Function to validate boolean values
+validate_bool() {
+    case "$1" in
+        true|false|True|False|TRUE|FALSE|1|0|yes|no|on|off|YES|NO|ON|OFF)
+            return 0
+            ;;
+        *)
+            log "ERROR" "entrypoint" "Invalid boolean value" "{\"value\": \"$1\"}"
+            return 1
+            ;;
+    esac
+}
+
 # Function to check dependencies
 check_dependencies() {
     if ! command -v "$PYTHON_PATH" >/dev/null 2>&1; then
@@ -296,18 +313,48 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --plugins)
-            require_option_value "--plugins" "$2"
-            PLUGINS="$2"
-            shift 2
+            shift
+            PLUGINS=""
+            while [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; do
+                if [ -z "$PLUGINS" ]; then
+                    PLUGINS="$1"
+                else
+                    PLUGINS="$PLUGINS $1"
+                fi
+                shift
+            done
             ;;
         --webhook)
-            WEBHOOK="True"
-            shift
+            if [ $# -gt 1 ] && [ "${2#--}" = "$2" ]; then
+                require_option_value "--webhook" "$2"
+                if validate_bool "$2"; then
+                    WEBHOOK="$2"
+                else
+                    exit 1
+                fi
+                shift 2
+            else
+                WEBHOOK="True"
+                shift
+            fi
             ;;
         --socket_host)
             require_option_value "--socket_host" "$2"
             SOCKET_HOST="$2"
             shift 2
+            ;;
+        --colorize_logs)
+            require_option_value "--colorize_logs" "$2"
+            if validate_bool "$2"; then
+                COLORIZE_LOGS="$2"
+            else
+                exit 1
+            fi
+            shift 2
+            ;;
+        --debug)
+            DEBUG="True"
+            shift
             ;;
         --health_check)
             HEALTH_CHECK="True"
@@ -319,7 +366,7 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         *)
-            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --log-format, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
+            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --log-format, --colorize_logs, --debug, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
             exit 1
             ;;
     esac
@@ -335,7 +382,7 @@ fi
 
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
-log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\"}"
+log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\", \"colorize_logs\": \"$COLORIZE_LOGS\", \"debug\": \"$DEBUG\", \"plugins\": \"$PLUGINS\", \"webhook\": \"$WEBHOOK\", \"socket_host\": \"$SOCKET_HOST\"}"
 
 # Check dependencies
 check_dependencies
@@ -361,22 +408,30 @@ if [ "$SALT" = "True" ]; then
     child_pid=$!
 else
     log "INFO" "entrypoint" "Starting main application" "{\"script\": \"$MAIN_SCRIPT\"}"
+    set -- \
+        "$PYTHON_PATH" "$MAIN_SCRIPT" \
+        --log-level "$LOG_LEVEL" \
+        --mode "$MODE" \
+        --colorize_logs "$COLORIZE_LOGS" \
+        --webhook "$WEBHOOK" \
+        --socket_host "$SOCKET_HOST"
+
     if [ -n "$LOG_FORMAT" ]; then
-        $PYTHON_PATH "$MAIN_SCRIPT" \
-            --log-level "$LOG_LEVEL" \
-            --mode "$MODE" \
-            --log-format "$LOG_FORMAT" \
-            --plugins "$PLUGINS" \
-            --webhook "$WEBHOOK" \
-            --socket_host "$SOCKET_HOST" &
-    else
-        $PYTHON_PATH "$MAIN_SCRIPT" \
-            --log-level "$LOG_LEVEL" \
-            --mode "$MODE" \
-            --plugins "$PLUGINS" \
-            --webhook "$WEBHOOK" \
-            --socket_host "$SOCKET_HOST" &
+        set -- "$@" --log-format "$LOG_FORMAT"
     fi
+
+    if [ -n "$PLUGINS" ]; then
+        set -- "$@" --plugins
+        for _plugin in $PLUGINS; do
+            set -- "$@" "$_plugin"
+        done
+    fi
+
+    if [ "$DEBUG" = "True" ]; then
+        set -- "$@" --debug
+    fi
+
+    "$@" &
     child_pid=$!
 fi
 
