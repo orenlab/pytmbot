@@ -1,38 +1,23 @@
-{# templates/index.jinja2 #}
-
 Hello, *{{ first_name }}*! 👋
 
-I’m *pyTMbot*, a versatile Telegram bot designed for Docker management, server monitoring, and extending functionality through plugins. I support both polling and webhook modes and can be deployed on your host machine or inside a Docker container.
+I’m *pyTMbot* — Docker and server operations in Telegram.
 
-Here’s what I can do:
+*What I can do:*
 
-🐳 *Docker Management*
-- Start, stop, restart, and manage containers
-- Monitor real-time status of running/stopped containers
-- Access and search detailed container logs
-- Inspect and manage Docker images (tags, metadata)
-- *NEW*: Check for Docker image updates (compare local tags with Docker Hub)
+🐳 *Docker*
+- Containers and images management
+- Logs, runtime details, health and updates
 
-🖥️ *Server Monitoring*
-- Load average and system uptime
-- Memory and swap usage
-- Real-time sensor data
-- Process summary and control
-- Network and file system information
-- *NEW*: Quick system and Docker summary
+🖥️ *Server*
+- CPU, memory, load, filesystem, network, sensors, uptime
+- Quick View with inline drill-down (CPU/Memory/Disk/Sensors)
+- Health snapshot with runtime analytics
 
-🔌 *Plugin System*
-- Extend my functionality with custom plugins:
-  - *Monitor Plugin*: Track CPU, memory, disk usage, and Docker changes.
-  - *2FA Plugin*: Two-factor authentication via QR codes and TOTP.
-  - *Outline VPN Plugin*: Monitor your Outline VPN server.
+🧩 *Plugins*
+- Monitor, 2FA, Outline VPN
 
-🔖 *Additional Features*
-- Check for bot updates: `/check_bot_updates`
-- Emoji support for better interaction 😎
-- Templated responses powered by Jinja2
-- Extensive logging via Docker log aggregators
+🔧 *Service commands*
+- Bot updates: `/check_bot_updates`
+- Health summary: `/health`
 
-I’m constantly improving, so check back often for updates! If you have questions or suggestions, let me know. You can find me on [GitHub](https://github.com/orenlab/pytmbot/).
-
-Happy monitoring! 🚀
+Source: [GitHub](https://github.com/orenlab/pytmbot/)

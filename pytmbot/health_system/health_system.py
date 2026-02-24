@@ -866,8 +866,11 @@ class HealthStatus:
     _lock = threading.RLock()
 
     def __init__(self) -> None:
+        if getattr(self, "_initialized", False):
+            return
         self._manager: HealthManager | None = None
         self._lock = threading.RLock()
+        self._initialized = True
 
     def __new__(cls) -> HealthStatus:
         if cls._instance is None:
@@ -897,3 +900,11 @@ class HealthStatus:
     def update_health(self, is_healthy: bool) -> None:
         """Legacy method - no-op."""
         pass
+
+    def get_summary(self) -> dict[str, Any]:
+        """Return latest health summary for UI consumers."""
+        with self._lock:
+            manager = self._manager
+        if manager is None:
+            return {"status": "no_data"}
+        return manager.get_summary()

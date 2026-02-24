@@ -21,7 +21,6 @@ from functools import lru_cache, wraps
 from threading import RLock
 from time import monotonic_ns
 from typing import (
-    TYPE_CHECKING,
     Any,
     ClassVar,
     Final,
@@ -36,9 +35,6 @@ from loguru import logger
 from telebot.types import CallbackQuery, InlineQuery, Message, Update
 
 from pytmbot.utils.user_id_mask import mask_user_id_value
-
-if TYPE_CHECKING:
-    pass
 
 T = TypeVar("T")
 type TelegramObject = Update | Message | CallbackQuery | InlineQuery

@@ -129,6 +129,7 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.quickview_sensors(query) is False
     assert factory_module.InlineFilters.quickview_cpu(query) is False
     assert factory_module.InlineFilters.quickview_disk(query) is False
+    assert factory_module.InlineFilters.health_refresh(query) is False
 
     query.data = "__swap_info__:abc"
     assert factory_module.InlineFilters.swap_info(query) is True
@@ -186,6 +187,8 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.quickview_cpu(query) is True
     query.data = "__quickview_disk__:1"
     assert factory_module.InlineFilters.quickview_disk(query) is True
+    query.data = "__health_refresh__:1"
+    assert factory_module.InlineFilters.health_refresh(query) is True
 
 
 def test_handler_factories_are_cached_and_produce_handlers() -> None:
@@ -205,6 +208,7 @@ def test_handler_factories_are_cached_and_produce_handlers() -> None:
     assert "cpu_info" in inline_handlers
     assert "disk_io" in inline_handlers
     assert "quickview_overview" in inline_handlers
+    assert "health_refresh" in inline_handlers
     assert "container_extra_info" in inline_handlers
     assert "image_info" in inline_handlers
     assert "image_extra" in inline_handlers

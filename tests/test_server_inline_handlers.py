@@ -8,6 +8,7 @@ import pytest
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+import pytmbot.handlers.server_handlers.health_summary as health_module
 import pytmbot.handlers.server_handlers.inline.swap as swap_module
 import pytmbot.handlers.server_handlers.inline.top_process as top_process_module
 from pytmbot import exceptions
@@ -292,3 +293,87 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(exceptions.HandlingException) as exc_info:
         _invoke(handler, bot, data="__process_info__:17")
     assert exc_info.value.context.error_code == "HAND_010"
+
+
+def test_handle_system_health_refresh_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot, handler = _prepare_handler_with_auth_paths(
+        monkeypatch,
+        module=health_module,
+        handler_obj=health_module.handle_system_health_refresh,
+        invalid_data="bad",
+        valid_data="__health_refresh__:17",
+        invalid_text="Invalid health refresh request format.",
+        denied_text="denied",
+        missing_text_fragment="Cannot refresh health in this context.",
+    )
+    _patch_auth_success(monkeypatch, health_module)
+    monkeypatch.setattr(
+        health_module,
+        "_render_health_message",
+        lambda: "health-refresh-ok",
+    )
+    monkeypatch.setattr(
+        health_module,
+        "_build_health_keyboard",
+        lambda user_id: {"inline": user_id},
+    )
+
+    _invoke(handler, bot, data="__health_refresh__:17")
+    assert bot.edited_messages[-1]["text"] == "health-refresh-ok"
+    assert bot.callback_answers[-1]["text"] == "Health snapshot updated."
+
+    monkeypatch.setattr(
+        health_module,
+        "_render_health_message",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    with pytest.raises(exceptions.HandlingException) as exc_info:
+        _invoke(handler, bot, data="__health_refresh__:17")
+    assert exc_info.value.context.error_code == "HAND_HEALTH_002"
+
+
+def test_handle_system_health_refresh_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot, handler = _prepare_handler_with_auth_paths(
+        monkeypatch,
+        module=health_module,
+        handler_obj=health_module.handle_system_health_refresh,
+        invalid_data="bad",
+        valid_data="__health_refresh__:17",
+        invalid_text="Invalid health refresh request format.",
+        denied_text="denied",
+        missing_text_fragment="Cannot refresh health in this context.",
+    )
+    _patch_auth_success(monkeypatch, health_module)
+    monkeypatch.setattr(
+        health_module,
+        "_render_health_message",
+        lambda: "health-refresh-ok",
+    )
+    monkeypatch.setattr(
+        health_module,
+        "_build_health_keyboard",
+        lambda user_id: {"inline": user_id},
+    )
+
+    class _ApiTelegramExceptionStub(Exception):
+        def __init__(self, description: str, error_code: int = 400) -> None:
+            super().__init__(description)
+            self.description = description
+            self.error_code = error_code
+
+    monkeypatch.setattr(
+        health_module,
+        "ApiTelegramException",
+        _ApiTelegramExceptionStub,
+    )
+
+    def _raise_not_modified(**_kwargs: object) -> str:
+        raise _ApiTelegramExceptionStub(
+            "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message"
+        )
+
+    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
+    _invoke(handler, bot, data="__health_refresh__:17")
+    assert bot.callback_answers[-1]["text"] == "Health snapshot is already up to date."

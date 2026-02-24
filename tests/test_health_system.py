@@ -263,6 +263,7 @@ def test_health_manager_and_legacy_health_status() -> None:
     legacy = HealthStatus()
     legacy.set_manager(manager)
     assert legacy.last_health_check_result in {True, False}
+    assert isinstance(legacy.get_summary(), dict)
     legacy.last_health_check_result = True
     legacy.update_health(True)
 

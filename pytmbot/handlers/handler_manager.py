@@ -52,7 +52,11 @@ from .docker_handlers.inline.manage_action import (
 )
 from .server_handlers.cpu import handle_cpu
 from .server_handlers.filesystem import handle_file_system
-from .server_handlers.health_summary import handle_system_health
+from .server_handlers.health_summary import (
+    HEALTH_REFRESH_PREFIX,
+    handle_system_health,
+    handle_system_health_refresh,
+)
 from .server_handlers.inline.swap import handle_swap_info
 from .server_handlers.inline.system_views import (
     handle_cpu_info,
@@ -351,6 +355,14 @@ class InlineFilters:
             "__quickview_disk__:"
         )
 
+    @staticmethod
+    def health_refresh(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == HEALTH_REFRESH_PREFIX or call.data.startswith(
+            f"{HEALTH_REFRESH_PREFIX}:"
+        )
+
 
 @cache
 def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
@@ -581,6 +593,12 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(
                 callback=handle_quickview_disk,
                 filter_func=InlineFilters.quickview_disk,
+            )
+        ],
+        "health_refresh": [
+            HandlerConfig(
+                callback=handle_system_health_refresh,
+                filter_func=InlineFilters.health_refresh,
             )
         ],
     }
