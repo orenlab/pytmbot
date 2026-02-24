@@ -56,6 +56,10 @@ class SystemMonitorPlugin(PluginCore):
         "poll_interval",
         "docker_counters_update_interval",
         "system_metrics",
+        "_monitor_thread",
+        "_supervisor_thread",
+        "_monitor_thread_lock",
+        "_monitor_restart_count",
     )
 
     def __init__(self, bot: TeleBot, event_threshold_duration: float = 20) -> None:
@@ -104,6 +108,10 @@ class SystemMonitorPlugin(PluginCore):
         self.docker_counters_update_interval = 5 * 60  # 5 minutes
 
         self.system_metrics = SystemMetrics()
+        self._monitor_thread: threading.Thread | None = None
+        self._supervisor_thread: threading.Thread | None = None
+        self._monitor_thread_lock = threading.RLock()
+        self._monitor_restart_count = 0
 
     def _init_influxdb(self) -> None:
         try:
@@ -130,43 +138,83 @@ class SystemMonitorPlugin(PluginCore):
             raise
 
     def start_monitoring(self) -> None:
-        if not self.state.is_active:
-            self.state.is_active = True
-            retry_attempts = self.monitor_settings.retry_attempts[0]
-            retry_interval = self.monitor_settings.retry_interval[0]
+        if self.state.is_active:
+            return
 
-            for attempt in range(retry_attempts):
-                try:
-                    thread = threading.Thread(
-                        target=self._monitor_system,
-                        name="SystemMonitorThread",
+        self.state.is_active = True
+        self._monitor_restart_count = 0
+
+        retry_attempts = self.monitor_settings.retry_attempts[0]
+        retry_interval = max(1, self.monitor_settings.retry_interval[0])
+
+        for attempt in range(retry_attempts):
+            try:
+                with self._monitor_thread_lock:
+                    self._monitor_thread = self._spawn_monitor_thread()
+                    self._supervisor_thread = threading.Thread(
+                        target=self._supervise_monitoring,
+                        name="SystemMonitorSupervisorThread",
                         daemon=True,
                     )
-                    thread.start()
-                    with logger.context(
-                        context={
-                            "component": "monitoring",
-                            "action": "start",
-                            "attempt": attempt,
-                            "tracehold": self.monitor_settings.tracehold,
-                            "event_threshold_duration": {self.event_threshold_duration},
-                            "check_interval": self.check_interval,
-                            "poll_interval": self.poll_interval,
-                            "docker_counters_update_interval": self.docker_counters_update_interval,
-                            "is_docker": self.is_docker,
-                        }
-                    ) as log:
-                        log.info("bot.plugins.monitor.methods.monitoring.start")
-                    return
-                except Exception as e:
-                    logger.error("bot.plugins.monitor.methods.monitoring.start.fail", e)
-                    if attempt < retry_attempts - 1:
-                        time.sleep(retry_interval)
-                    else:
-                        self.state.is_active = False
-                        raise RuntimeError(
-                            "Failed to start monitoring after maximum attempts"
+                    self._supervisor_thread.start()
+
+                with logger.context(
+                    context={
+                        "component": "monitoring",
+                        "action": "start",
+                        "attempt": attempt,
+                        "tracehold": self.monitor_settings.tracehold,
+                        "event_threshold_duration": {self.event_threshold_duration},
+                        "check_interval": self.check_interval,
+                        "poll_interval": self.poll_interval,
+                        "docker_counters_update_interval": self.docker_counters_update_interval,
+                        "is_docker": self.is_docker,
+                    }
+                ) as log:
+                    log.info("bot.plugins.monitor.methods.monitoring.start")
+                return
+            except Exception as e:
+                logger.error("bot.plugins.monitor.methods.monitoring.start.fail", e)
+                if attempt < retry_attempts - 1:
+                    time.sleep(retry_interval)
+                else:
+                    self.state.is_active = False
+                    raise RuntimeError(
+                        "Failed to start monitoring after maximum attempts"
+                    )
+
+    def _spawn_monitor_thread(self) -> threading.Thread:
+        """Create and start monitor worker thread."""
+        thread = threading.Thread(
+            target=self._monitor_system,
+            name="SystemMonitorThread",
+            daemon=True,
+        )
+        thread.start()
+        return thread
+
+    def _supervise_monitoring(self) -> None:
+        """Watch monitor worker and restart it if it dies unexpectedly."""
+        retry_interval = max(1, self.monitor_settings.retry_interval[0])
+        while self.state.is_active:
+            try:
+                with self._monitor_thread_lock:
+                    monitor_thread = self._monitor_thread
+                    should_restart = (
+                        monitor_thread is None or not monitor_thread.is_alive()
+                    )
+                    if should_restart:
+                        self._monitor_thread = self._spawn_monitor_thread()
+                        self._monitor_restart_count += 1
+                        logger.warning(
+                            "bot.plugins.monitor.methods.monitoring.restarted.warn",
+                            extra={"restart_count": self._monitor_restart_count},
                         )
+            except Exception as e:
+                logger.error(
+                    "bot.plugins.monitor.methods.monitoring.supervisor.fail", e
+                )
+            time.sleep(retry_interval)
 
     def _monitor_system(self) -> None:
         while self.state.is_active:
@@ -427,6 +475,9 @@ class SystemMonitorPlugin(PluginCore):
         return sanitized_fields
 
     def _send_notification(self, message: str) -> None:
+        current_time = time.time()
+        self._maybe_reset_notification_budget(current_time)
+
         if self.state.notification_count >= self.monitor_settings.max_notifications[0]:
             if not self.state.max_notifications_reached:
                 logger.warning("bot.plugins.monitor.methods.maximum.notifications.warn")
@@ -443,10 +494,29 @@ class SystemMonitorPlugin(PluginCore):
             )
 
             self.state.notification_count += 1
-            self._schedule_notification_reset()
+            self.state.next_notification_reset_at = (
+                current_time + self._get_notification_reset_window_seconds()
+            )
 
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
+
+    def _get_notification_reset_window_seconds(self) -> int:
+        """Resolve notification reset window from settings with safe fallback."""
+        reset_window = self.monitor_settings.reset_notification_count[0]
+        if isinstance(reset_window, int) and reset_window > 0:
+            return reset_window
+        return 300
+
+    def _maybe_reset_notification_budget(
+        self, current_time: float | None = None
+    ) -> None:
+        """Reset notification counters lazily when reset deadline has passed."""
+        now = current_time if current_time is not None else time.time()
+        next_reset_at = self.state.next_notification_reset_at
+        if next_reset_at > 0 and now >= next_reset_at:
+            self._reset_notification_count()
+            self.state.next_notification_reset_at = 0.0
 
     @staticmethod
     def _format_cpu_alert(event_id: str, usage: float) -> str:
@@ -578,17 +648,6 @@ class SystemMonitorPlugin(PluginCore):
         )
         self._send_notification(message)
 
-    def _schedule_notification_reset(self) -> None:
-        try:
-            reset_thread = threading.Timer(
-                300,
-                self._reset_notification_count,  # 5 minutes
-            )
-            reset_thread.daemon = True
-            reset_thread.start()
-        except Exception as e:
-            logger.error("bot.plugins.monitor.methods.schedule.notification.fail", e)
-
     def _reset_notification_count(self) -> None:
         self.state.notification_count = 0
         self.state.max_notifications_reached = False
@@ -596,7 +655,7 @@ class SystemMonitorPlugin(PluginCore):
 
     def _adjust_check_interval(self) -> None:
         try:
-            cpu_load = psutil.cpu_percent(interval=1)
+            cpu_load = psutil.cpu_percent(interval=0.0)
             if cpu_load > self.thresholds.load:
                 new_interval = min(self.check_interval * 2, 30)
                 if new_interval != self.check_interval:
@@ -613,6 +672,20 @@ class SystemMonitorPlugin(PluginCore):
     def stop_monitoring(self) -> None:
         if self.state.is_active:
             self.state.is_active = False
+            with self._monitor_thread_lock:
+                monitor_thread = self._monitor_thread
+                supervisor_thread = self._supervisor_thread
+                self._monitor_thread = None
+                self._supervisor_thread = None
+
+            current_thread = threading.current_thread()
+            for thread in (monitor_thread, supervisor_thread):
+                if (
+                    thread is not None
+                    and thread.is_alive()
+                    and thread is not current_thread
+                ):
+                    thread.join(timeout=2)
             logger.info("bot.plugins.monitor.methods.monitoring.stop")
         else:
             logger.warning("bot.plugins.monitor.methods.monitoring.not.warn")

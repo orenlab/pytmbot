@@ -93,10 +93,12 @@ class DockerHostModel(BaseModel):
     Attributes:
         host (List[str]): List of Docker host URLs or IP addresses.
         debug_docker_client (bool): Enable debug logging for Docker client.
+        strict_access (bool): Fail fast when Docker is unavailable or misconfigured.
     """
 
     host: list[str] = Field(min_length=1)
     debug_docker_client: bool = False
+    strict_access: bool = False
 
 
 class InfluxDBModel(BaseModel):

@@ -5,14 +5,16 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import os
+import time
 import warnings
 from contextlib import suppress
 from datetime import datetime
-from functools import cached_property, lru_cache
+from functools import cached_property
 from pathlib import Path
-from threading import RLock
-from types import TracebackType
-from typing import Any, Final
+from threading import Lock, RLock
+from types import SimpleNamespace, TracebackType
+from typing import Any, Final, cast
 from uuid import uuid4
 
 import docker
@@ -23,6 +25,51 @@ from pytmbot.exceptions import DockerConnectionError
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
 from pytmbot.utils import sanitize_exception
+
+
+def _parse_bool_like(value: object) -> bool:
+    """Parse boolean-like values from env/config strings."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+class _UnavailableDockerCollection:
+    """Fallback Docker collection that safely degrades list operations."""
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def list(self, *_args: object, **_kwargs: object) -> list[object]:
+        raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
+
+    def get(self, *_args: object, **_kwargs: object) -> Any:
+        raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
+
+
+class _UnavailableDockerClient:
+    """Fallback client for non-strict mode when Docker is inaccessible."""
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+        self.api = SimpleNamespace(_version="unavailable")
+        self.containers = _UnavailableDockerCollection(reason)
+        self.images = _UnavailableDockerCollection(reason)
+
+    def ping(self) -> None:
+        raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
+
+    def version(self) -> dict[str, str]:
+        raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
+
+    def info(self) -> dict[str, str]:
+        raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
+
+    @staticmethod
+    def close() -> None:
+        return
 
 
 class DockerAdapter:
@@ -42,48 +89,109 @@ class DockerAdapter:
     _MIN_TIMEOUT: Final[int] = 5
     _MAX_TIMEOUT: Final[int] = 300
     _CONNECTION_TEST_TIMEOUT: Final[float] = 5.0
+    _CONNECTION_TEST_RETRIES: Final[int] = 3
+    _CONNECTION_TEST_BACKOFF_SECONDS: Final[float] = 0.5
     _HEALTH_CHECK_INTERVAL: Final[float] = 30.0
+    _STRICT_DOCKER_ACCESS_ENV: Final[str] = "STRICT_DOCKER_ACCESS"
+    _DOCKER_INFO_TTL_SECONDS: Final[float] = 30.0
 
     def __init__(self) -> None:
-        self._validate_configuration()
-
-        self._docker_url: str = str(settings.docker.host[0])
-        self._client: DockerClient | None = None
-        self._start_time: datetime = datetime.now()
         self._log = Logger()
         self._lock = RLock()  # Thread safety for client operations
+        self._create_lock = Lock()
+        self._client: DockerClient | _UnavailableDockerClient | None = None
+        self._start_time: datetime = datetime.now()
         self._connection_failures = 0
         self._last_health_check: datetime | None = None
         self._span_id: str | None = None
+        self._strict_docker_access = self._is_strict_docker_access_enabled()
+        self._configured_timeout = self._DEFAULT_TIMEOUT
+        self._disabled_reason: str | None = None
+        self._docker_url: str = ""
+        self._docker_info_cache: dict[str, Any] | None = None
+        self._docker_info_cached_at = 0.0
+        self._validate_configuration()
 
         # Initialize base context for all operations
         self._base_context = {
             "docker_url": self._docker_url,
             "adapter_id": id(self),
+            "strict_docker_access": self._strict_docker_access,
         }
 
-        self._perform_security_checks()
+        if self._disabled_reason:
+            self._log.warning(
+                "docker.adapter.disabled.warn",
+                reason=self._disabled_reason,
+                **self._base_context,
+            )
+        else:
+            self._perform_security_checks()
         self._log.trace("docker.adapter.init", **self._base_context)
+
+    def _is_strict_docker_access_enabled(self) -> bool:
+        """Resolve strict Docker access mode from env/config."""
+        env_value = os.getenv(self._STRICT_DOCKER_ACCESS_ENV)
+        if env_value is not None:
+            return _parse_bool_like(env_value)
+
+        docker_settings = getattr(settings, "docker", None)
+        return _parse_bool_like(getattr(docker_settings, "strict_access", False))
+
+    def _handle_configuration_issue(self, message: str) -> None:
+        """Handle configuration issue according to strict mode."""
+        if self._strict_docker_access:
+            raise ValueError(message)
+        self._disabled_reason = message
 
     def _validate_configuration(self) -> None:
         """Validate Docker configuration with comprehensive checks."""
-        if not hasattr(settings, "docker") or not settings.docker.host:
-            raise ValueError("Docker configuration is missing or invalid")
+        docker_settings = getattr(settings, "docker", None)
+        if docker_settings is None:
+            self._handle_configuration_issue("Docker configuration is missing")
+            return
 
-        if (
-            not isinstance(settings.docker.host, (list, tuple))
-            or not settings.docker.host
-        ):
-            raise ValueError("Docker host must be a non-empty list")
+        host_value = getattr(docker_settings, "host", None)
+        if not isinstance(host_value, (list, tuple)) or not host_value:
+            self._handle_configuration_issue("Docker host must be a non-empty list")
+            return
 
-        # Validate timeout if provided
-        timeout = getattr(settings.docker, "timeout", self._DEFAULT_TIMEOUT)
-        if not isinstance(timeout, int) or not (
-            self._MIN_TIMEOUT <= timeout <= self._MAX_TIMEOUT
-        ):
-            raise ValueError(
-                f"Docker timeout must be between {self._MIN_TIMEOUT} and {self._MAX_TIMEOUT} seconds"
+        docker_url = str(host_value[0]).strip()
+        if not docker_url:
+            self._handle_configuration_issue("Docker host URL cannot be empty")
+            return
+        self._docker_url = docker_url
+
+        # Validate timeout if provided; degrade to default in non-strict mode
+        timeout = getattr(docker_settings, "timeout", self._DEFAULT_TIMEOUT)
+        if not isinstance(timeout, int):
+            message = "Docker timeout must be an integer"
+            if self._strict_docker_access:
+                raise ValueError(message)
+            self._configured_timeout = self._DEFAULT_TIMEOUT
+            self._log.warning(
+                "docker.adapter.timeout.default.warn",
+                invalid_timeout=timeout,
+                fallback_timeout=self._DEFAULT_TIMEOUT,
             )
+            return
+
+        if not (self._MIN_TIMEOUT <= timeout <= self._MAX_TIMEOUT):
+            message = (
+                f"Docker timeout must be between {self._MIN_TIMEOUT} "
+                f"and {self._MAX_TIMEOUT} seconds"
+            )
+            if self._strict_docker_access:
+                raise ValueError(message)
+            self._configured_timeout = self._DEFAULT_TIMEOUT
+            self._log.warning(
+                "docker.adapter.timeout.default.warn",
+                invalid_timeout=timeout,
+                fallback_timeout=self._DEFAULT_TIMEOUT,
+            )
+            return
+
+        self._configured_timeout = timeout
 
     def _perform_security_checks(self) -> None:
         """Perform comprehensive security validation."""
@@ -145,12 +253,11 @@ class DockerAdapter:
     @cached_property
     def _timeout_config(self) -> dict[str, int]:
         """Get timeout configuration for Docker client with validation."""
-        timeout = getattr(settings.docker, "timeout", self._DEFAULT_TIMEOUT)
-
-        # Ensure timeout is within safe bounds
-        timeout = max(self._MIN_TIMEOUT, min(timeout, self._MAX_TIMEOUT))
-
-        return {"timeout": timeout}
+        timeout = max(
+            self._MIN_TIMEOUT,
+            min(self._configured_timeout, self._MAX_TIMEOUT),
+        )
+        return {"timeout": int(timeout)}
 
     def _get_context(
         self, action: str, extra: dict[str, Any] | None = None
@@ -219,29 +326,58 @@ class DockerAdapter:
 
     def _test_connection(self, client: DockerClient) -> dict[str, Any] | None:
         """Test Docker connection with timeout and error handling."""
-        try:
-            # Fast liveness check.
-            client.ping()
+        last_error: Exception | None = None
 
-            # Lightweight metadata call (cheaper than full info()).
-            version = client.version()
-            if not isinstance(version, dict):
-                version = {}
+        for attempt in range(self._CONNECTION_TEST_RETRIES):
+            try:
+                # Fast liveness check.
+                client.ping()
 
-            self._log.trace(
-                "docker.adapter.connection.test.ok",
-                docker_version=version.get("Version", "unknown"),
-                **self._base_context,
-            )
-            return version
+                # Lightweight metadata call (cheaper than full info()).
+                version = client.version()
+                if not isinstance(version, dict):
+                    version = {}
 
-        except Exception as e:
-            self._log.warning(
-                "docker.adapter.connection.test.fail",
-                error=sanitize_exception(e),
-                **self._base_context,
-            )
-            return None
+                self._log.trace(
+                    "docker.adapter.connection.test.ok",
+                    docker_version=version.get("Version", "unknown"),
+                    **self._base_context,
+                )
+                return version
+            except Exception as error:
+                last_error = error
+                if attempt >= self._CONNECTION_TEST_RETRIES - 1:
+                    break
+
+                backoff_seconds = self._CONNECTION_TEST_BACKOFF_SECONDS * (2**attempt)
+                self._log.warning(
+                    "docker.adapter.connection.test.retry.warn",
+                    attempt=attempt + 1,
+                    max_attempts=self._CONNECTION_TEST_RETRIES,
+                    backoff_seconds=backoff_seconds,
+                    error=sanitize_exception(error),
+                    **self._base_context,
+                )
+                time.sleep(backoff_seconds)
+
+        self._log.warning(
+            "docker.adapter.connection.test.fail",
+            error=sanitize_exception(last_error)
+            if last_error is not None
+            else "unknown",
+            **self._base_context,
+        )
+        return None
+
+    def _build_unavailable_client(self, reason: str) -> DockerClient:
+        """Build a fallback client for degraded non-strict mode."""
+        self._log.warning(
+            "docker.adapter.degraded.mode.warn",
+            reason=reason,
+            strict_docker_access=self._strict_docker_access,
+            **self._base_context,
+        )
+        return cast(DockerClient, _UnavailableDockerClient(reason))
 
     def _create_client(self) -> DockerClient:
         """Create and configure Docker client with enhanced security and error handling."""
@@ -332,19 +468,30 @@ class DockerAdapter:
 
         return False
 
-    @lru_cache(maxsize=1)
     def _get_docker_info(self) -> dict[str, Any]:
-        """Get Docker daemon information (cached)."""
+        """Get Docker daemon information with lock-protected TTL cache."""
+        now = datetime.now().timestamp()
+        with self._lock:
+            if (
+                self._docker_info_cache is not None
+                and now - self._docker_info_cached_at < self._DOCKER_INFO_TTL_SECONDS
+            ):
+                return dict(self._docker_info_cache)
+
         try:
             with self as client:
                 info = client.info()
-                return {
+                normalized = {
                     "version": info.get("ServerVersion", "unknown"),
                     "api_version": info.get("ApiVersion", "unknown"),
                     "kernel_version": info.get("KernelVersion", "unknown"),
                     "operating_system": info.get("OperatingSystem", "unknown"),
                     "architecture": info.get("Architecture", "unknown"),
                 }
+                with self._lock:
+                    self._docker_info_cache = dict(normalized)
+                    self._docker_info_cached_at = datetime.now().timestamp()
+                return normalized
         except Exception as e:
             self._log.warning(
                 "docker.adapter.get.info.fail",
@@ -355,33 +502,62 @@ class DockerAdapter:
 
     def __enter__(self) -> DockerClient:
         """Enter Docker context manager - create and return client with thread safety."""
-        with self._lock:
-            self._span_id = uuid4().hex[:8]
-            context = self._get_context("context_enter")
+        self._span_id = uuid4().hex[:8]
+        context = self._get_context("context_enter")
 
-            try:
-                # Recreate client if needed
-                if self._should_recreate_client():
-                    if self._client:
-                        with suppress(Exception):
-                            self._client.close()
-                        self._client = None
+        try:
+            with self._lock:
+                if self._disabled_reason and not self._strict_docker_access:
+                    if self._client is None:
+                        self._client = self._build_unavailable_client(
+                            self._disabled_reason
+                        )
+                    return cast(DockerClient, self._client)
 
-                    self._client = self._create_client()
+                if not self._should_recreate_client():
+                    if self._client is None:
+                        raise DockerConnectionError("Docker client is not initialized")
+                    self._log.trace("docker.adapter.context.entered.debug", **context)
+                    return cast(DockerClient, self._client)
 
-                # Log entry at debug level to avoid noise
-                self._log.trace("docker.adapter.context.entered.debug", **context)
-                if self._client is None:
-                    raise DockerConnectionError("Docker client is not initialized")
-                return self._client
+            # Slow path: create client outside the primary lock.
+            with self._create_lock:
+                with self._lock:
+                    if not self._should_recreate_client():
+                        if self._client is None:
+                            raise DockerConnectionError(
+                                "Docker client is not initialized"
+                            )
+                        self._log.trace(
+                            "docker.adapter.context.entered.debug", **context
+                        )
+                        return cast(DockerClient, self._client)
 
-            except Exception as e:
-                self._log.error(
-                    "docker.adapter.enter.context.fail",
-                    error=sanitize_exception(e),
-                    **context,
-                )
-                raise DockerConnectionError(f"Docker client init failed: {e}") from e
+                    old_client = self._client
+                    self._client = None
+
+                if old_client:
+                    with suppress(Exception):
+                        old_client.close()
+
+                created_client = self._create_client()
+
+                with self._lock:
+                    self._client = created_client
+                    self._log.trace("docker.adapter.context.entered.debug", **context)
+                    return cast(DockerClient, self._client)
+
+        except Exception as e:
+            if not self._strict_docker_access:
+                with self._lock:
+                    self._client = self._build_unavailable_client(sanitize_exception(e))
+                    return cast(DockerClient, self._client)
+            self._log.error(
+                "docker.adapter.enter.context.fail",
+                error=sanitize_exception(e),
+                **context,
+            )
+            raise DockerConnectionError(f"Docker client init failed: {e}") from e
 
     def __exit__(
         self,
@@ -484,6 +660,10 @@ class DockerAdapter:
                 ("https://", "tcp+tls://")
             ),
             "connection_failures": self._connection_failures,
+            "strict_docker_access": self._strict_docker_access,
+            "degraded_mode": isinstance(self._client, _UnavailableDockerClient)
+            or self._disabled_reason is not None,
+            "disabled_reason": self._disabled_reason,
             "last_health_check": (
                 self._last_health_check.isoformat() if self._last_health_check else None
             ),
@@ -499,10 +679,16 @@ class DockerAdapter:
 
     def close(self) -> None:
         """Explicitly close the Docker client connection."""
-        with self._lock:
-            if self._client is not None:
+        with self._create_lock:
+            with self._lock:
+                client = self._client
+                self._client = None
+                self._docker_info_cache = None
+                self._docker_info_cached_at = 0.0
+
+            if client is not None:
                 try:
-                    self._client.close()
+                    client.close()
                     self._log.trace(
                         "docker.adapter.client.connection.debug", **self._base_context
                     )
@@ -512,19 +698,22 @@ class DockerAdapter:
                         error=sanitize_exception(e),
                         **self._base_context,
                     )
-                finally:
-                    self._client = None
 
     def __del__(self) -> None:
         """Cleanup on garbage collection."""
         try:
             self.close()
-        except Exception:
-            pass  # Suppress exceptions during cleanup
+        except Exception as error:
+            with suppress(Exception):
+                self._log.warning(
+                    "docker.adapter.cleanup.fail",
+                    error=sanitize_exception(error),
+                    **self._base_context,
+                )
 
     def force_reconnect(self) -> None:
         """Force recreation of Docker client connection."""
+        self.close()
         with self._lock:
-            self.close()
             self._last_health_check = None
             self._log.info("docker.adapter.forced.client.info", **self._base_context)

@@ -119,6 +119,7 @@ def _docker_settings_stub() -> SimpleNamespace:
             key_path=None,
             ca_cert=True,
             debug_docker_client=False,
+            strict_access=False,
             stop_timeout=5,
             restart_timeout=5,
         ),
@@ -155,10 +156,13 @@ def test_docker_adapter_handles_invalid_config_and_connection_failures(
 ) -> None:
     import pytmbot.adapters.docker._adapter as docker_adapter_module
 
-    bad_settings = SimpleNamespace(docker=SimpleNamespace(host=[], timeout=30))
+    bad_settings = SimpleNamespace(
+        docker=SimpleNamespace(host=[], timeout=30, strict_access=False)
+    )
     monkeypatch.setattr(docker_adapter_module, "settings", bad_settings)
-    with pytest.raises(ValueError):
-        docker_adapter_module.DockerAdapter()
+    degraded_adapter = docker_adapter_module.DockerAdapter()
+    degraded_status = degraded_adapter.get_status()
+    assert degraded_status["degraded_mode"] is True
 
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     failing_client = _FakeDockerClient(ping_ok=False)
@@ -370,10 +374,26 @@ def test_docker_adapter_tls_config_and_timeout_validation(
     import pytmbot.adapters.docker._adapter as docker_adapter_module
 
     bad_timeout_settings = SimpleNamespace(
-        docker=SimpleNamespace(host=["unix:///var/run/docker.sock"], timeout=1),
+        docker=SimpleNamespace(
+            host=["unix:///var/run/docker.sock"],
+            timeout=1,
+            strict_access=False,
+        ),
         version="0.3.0-dev",
     )
     monkeypatch.setattr(docker_adapter_module, "settings", bad_timeout_settings)
+    adapter_with_default_timeout = docker_adapter_module.DockerAdapter()
+    assert adapter_with_default_timeout._timeout_config["timeout"] == 30
+
+    strict_bad_timeout_settings = SimpleNamespace(
+        docker=SimpleNamespace(
+            host=["unix:///var/run/docker.sock"],
+            timeout=1,
+            strict_access=True,
+        ),
+        version="0.3.0-dev",
+    )
+    monkeypatch.setattr(docker_adapter_module, "settings", strict_bad_timeout_settings)
     with pytest.raises(ValueError):
         docker_adapter_module.DockerAdapter()
 
@@ -386,6 +406,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
             ca_cert=True,
             verify_hostname=True,
             debug_docker_client=False,
+            strict_access=False,
         ),
         version="0.3.0-dev",
     )
@@ -436,7 +457,39 @@ def test_docker_adapter_health_check_and_exit_error_paths(
     assert adapter._client is None
 
     # Enter should wrap unexpected errors as DockerConnectionError.
+    adapter._strict_docker_access = True
     monkeypatch.setattr(adapter, "_should_recreate_client", lambda: False)
     adapter._client = None
     with pytest.raises(DockerConnectionError):
         adapter.__enter__()
+
+
+def test_docker_adapter_test_connection_retries_transient_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytmbot.adapters.docker._adapter as docker_adapter_module
+
+    class _FlakyPingClient(_FakeDockerClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.ping_calls = 0
+
+        def ping(self) -> None:
+            self.ping_calls += 1
+            if self.ping_calls < 3:
+                raise RuntimeError("transient ping failure")
+
+    monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
+    adapter = docker_adapter_module.DockerAdapter()
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(
+        docker_adapter_module.time, "sleep", lambda seconds: sleep_calls.append(seconds)
+    )
+
+    client = _FlakyPingClient()
+    version = adapter._test_connection(client)
+
+    assert version is not None
+    assert version.get("Version") == "29.2.0"
+    assert client.ping_calls == 3
+    assert sleep_calls == [0.5, 1.0]

@@ -63,6 +63,9 @@ def test_webhook_server_proxy_network_and_ip_resolution() -> None:
         host="127.0.0.1",
         port=8443,
     )
+    assert server.token not in server.webhook_path
+    assert server.webhook_path.startswith("/webhook/")
+    assert server.webhook_path.endswith("/")
 
     # No forwarded header -> direct client IP
     peer_ip, client_ip = server._resolve_client_ip(

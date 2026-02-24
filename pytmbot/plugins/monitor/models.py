@@ -52,6 +52,7 @@ class MonitoringState:
     is_active: bool = False
     notification_count: int = 0
     max_notifications_reached: bool = False
+    next_notification_reset_at: float = 0.0
     last_poll_time: float = 0.0
     docker_counters_last_updated: float = 0.0
     init_mode: bool = True

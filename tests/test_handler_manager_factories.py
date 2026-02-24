@@ -49,6 +49,19 @@ def test_handler_config_create_handler_populates_filters() -> None:
     assert handler.kwargs["func"] is _filter
 
 
+def test_handler_config_rejects_non_callable_values() -> None:
+    with pytest.raises(TypeError):
+        factory_module.HandlerConfig(
+            callback=cast(factory_module.HandlerCallback, "bad")
+        )
+
+    with pytest.raises(TypeError):
+        factory_module.HandlerConfig(
+            callback=lambda **_kwargs: None,
+            filter_func=cast(factory_module.FilterFunc, "bad"),
+        )
+
+
 @dataclass(slots=True)
 class _AccessControl:
     allowed_user_ids: set[int]

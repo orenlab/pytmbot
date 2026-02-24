@@ -45,6 +45,8 @@ class BotLauncher(logs.BaseComponent):
     MAIN_LOOP_TIMEOUT: Final[float] = 0.5
     STARTUP_GRACE_PERIOD: Final[int] = 30
     HEALTH_LOG_INTERVAL: Final[int] = 60  # Log health every 60 seconds
+    POLLING_RESTART_MAX_ATTEMPTS: Final[int] = 3
+    POLLING_RESTART_BACKOFF_SECONDS: Final[int] = 2
 
     def __init__(self) -> None:
         super().__init__("bot_launcher")
@@ -584,10 +586,40 @@ class BotLauncher(logs.BaseComponent):
                 daemon=True,
             )
             polling_thread.start()
+            polling_restart_attempts = 0
 
             # Main monitoring loop - wait for shutdown signal
-            while not self.shutdown_requested.is_set() and polling_thread.is_alive():
+            while not self.shutdown_requested.is_set():
                 try:
+                    if not polling_thread.is_alive():
+                        if (
+                            polling_restart_attempts
+                            >= self.POLLING_RESTART_MAX_ATTEMPTS
+                        ):
+                            with self.log_context(
+                                restart_attempts=polling_restart_attempts
+                            ) as log:
+                                log.error("bot.launcher.polling.restart.exceeded.fail")
+                            self.shutdown_requested.set()
+                            break
+
+                        polling_restart_attempts += 1
+                        with self.log_context(
+                            restart_attempt=polling_restart_attempts,
+                            max_attempts=self.POLLING_RESTART_MAX_ATTEMPTS,
+                        ) as log:
+                            log.warning("bot.launcher.polling.restarted.warn")
+
+                        time.sleep(self.POLLING_RESTART_BACKOFF_SECONDS)
+                        polling_thread = threading.Thread(
+                            target=self._start_bot_polling,
+                            args=(bot_instance,),
+                            name="BotPolling",
+                            daemon=True,
+                        )
+                        polling_thread.start()
+                        continue
+
                     # Periodic health status logging
                     if self._should_log_health_status():
                         self.log_health_status()
@@ -613,7 +645,15 @@ class BotLauncher(logs.BaseComponent):
 
             bot_instance.remove_webhook()
             if webhook_enabled:
-                bot_component._start_webhook_server()
+                try:
+                    bot_component._start_webhook_server()
+                except Exception as webhook_error:
+                    with self.log_context(
+                        error=str(webhook_error),
+                        fallback_mode="polling",
+                    ) as log:
+                        log.warning("bot.launcher.webhook.failover.polling.warn")
+                    bot_component._start_polling_loop(bot_instance)
             else:
                 bot_component._start_polling_loop(bot_instance)
         except Exception as error:

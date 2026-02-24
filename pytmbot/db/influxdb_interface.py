@@ -6,6 +6,9 @@ also providing basic information about the status of local servers.
 """
 
 import ipaddress
+import json
+import re
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -38,6 +41,11 @@ class InfluxDBConfig:
 
 class InfluxDBInterface(BaseComponent):
     """A class for interacting with InfluxDB for storing and retrieving monitoring data."""
+
+    _FLUX_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+    _FLUX_DURATION_PATTERN = re.compile(r"^-?\d+(ns|us|ms|s|m|h|d|w|mo|y)$")
+    _WRITE_RETRY_ATTEMPTS = 3
+    _WRITE_RETRY_BASE_BACKOFF_SECONDS = 0.25
 
     def __init__(self, config: InfluxDBConfig) -> None:
         """
@@ -148,6 +156,54 @@ class InfluxDBInterface(BaseComponent):
                 )
             )
         return self._query_api
+
+    @staticmethod
+    def _to_flux_string_literal(value: str) -> str:
+        """Return safe Flux string literal."""
+        return json.dumps(value)
+
+    def _sanitize_flux_identifier(self, value: str, field_name: str) -> str:
+        """Validate identifier-like value to prevent Flux injection."""
+        if not isinstance(value, str):
+            raise ValueError(f"{field_name} must be a string")
+
+        candidate = value.strip()
+        if not candidate:
+            raise ValueError(f"{field_name} cannot be empty")
+
+        if not self._FLUX_IDENTIFIER_PATTERN.fullmatch(candidate):
+            raise ValueError(f"Invalid {field_name} format")
+
+        return candidate
+
+    def _sanitize_flux_range_value(self, value: str, field_name: str) -> str:
+        """Validate and format Flux range values."""
+        if not isinstance(value, str):
+            raise ValueError(f"{field_name} must be a string")
+
+        candidate = value.strip()
+        if not candidate:
+            raise ValueError(f"{field_name} cannot be empty")
+
+        if candidate == "now()":
+            return candidate
+
+        if self._FLUX_DURATION_PATTERN.fullmatch(candidate):
+            return candidate
+
+        normalized = candidate.replace("Z", "+00:00")
+        try:
+            parsed_dt = datetime.fromisoformat(normalized)
+        except ValueError as error:
+            raise ValueError(f"Invalid {field_name} value") from error
+
+        if parsed_dt.tzinfo is None:
+            parsed_dt = parsed_dt.replace(tzinfo=UTC)
+        else:
+            parsed_dt = parsed_dt.astimezone(UTC)
+
+        iso_value = parsed_dt.isoformat().replace("+00:00", "Z")
+        return f'time(v: "{iso_value}")'
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the runtime context and ensure proper cleanup."""
@@ -288,7 +344,24 @@ class InfluxDBInterface(BaseComponent):
                     )
 
             write_api = self._require_write_api()
-            write_api.write(bucket=self._config.bucket, record=point)
+            for attempt in range(self._WRITE_RETRY_ATTEMPTS):
+                try:
+                    write_api.write(bucket=self._config.bucket, record=point)
+                    break
+                except Exception:
+                    if attempt >= self._WRITE_RETRY_ATTEMPTS - 1:
+                        raise
+                    backoff_seconds = self._WRITE_RETRY_BASE_BACKOFF_SECONDS * (
+                        2**attempt
+                    )
+                    with self.log_context(
+                        action="write_retry",
+                        retry_attempt=attempt + 1,
+                        max_attempts=self._WRITE_RETRY_ATTEMPTS,
+                        backoff_seconds=backoff_seconds,
+                    ) as log:
+                        log.warning("bot.db.influxdb_interface.write.retry.warn")
+                    time.sleep(backoff_seconds)
 
             # Success logging only in debug mode
             if self._config.debug_mode:
@@ -326,22 +399,32 @@ class InfluxDBInterface(BaseComponent):
         Raises:
             InfluxDBQueryError: If query operation fails
         """
-        query = (
-            f'from(bucket: "{self._config.bucket}") '
-            f"|> range(start: {start}, stop: {stop}) "
-            f'|> filter(fn: (r) => r._measurement == "{measurement}") '
-            f'|> filter(fn: (r) => r._field == "{field}") '
-            f'|> yield(name: "mean")'
-        )
-
         try:
+            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
+            safe_measurement = self._sanitize_flux_identifier(
+                measurement, "measurement"
+            )
+            safe_field = self._sanitize_flux_identifier(field, "field")
+            safe_start = self._sanitize_flux_range_value(start, "start")
+            safe_stop = self._sanitize_flux_range_value(stop, "stop")
+
+            query = (
+                f"from(bucket: {self._to_flux_string_literal(safe_bucket)}) "
+                f"|> range(start: {safe_start}, stop: {safe_stop}) "
+                f"|> filter(fn: (r) => r._measurement == "
+                f"{self._to_flux_string_literal(safe_measurement)}) "
+                f"|> filter(fn: (r) => r._field == "
+                f"{self._to_flux_string_literal(safe_field)}) "
+                f'|> yield(name: "mean")'
+            )
+
             # Log query execution only in debug mode
             if self._config.debug_mode:
                 with self.log_context(
                     action="query",
-                    measurement=measurement,
-                    field=field,
-                    time_range={"start": start, "stop": stop},
+                    measurement=safe_measurement,
+                    field=safe_field,
+                    time_range={"start": safe_start, "stop": safe_stop},
                 ) as log:
                     log.debug(
                         "bot.db.influxdb_interface.exec.query.debug",
@@ -391,12 +474,13 @@ class InfluxDBInterface(BaseComponent):
         Raises:
             InfluxDBQueryError: If retrieval fails
         """
-        query = (
-            'import "influxdata/influxdb/schema"\n'
-            f'schema.measurements(bucket: "{self._config.bucket}")'
-        )
-
         try:
+            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
+            query = (
+                'import "influxdata/influxdb/schema"\n'
+                f"schema.measurements(bucket: {self._to_flux_string_literal(safe_bucket)})"
+            )
+
             # Log only in debug mode
             if self._config.debug_mode:
                 with self.log_context(action="list_measurements") as log:
@@ -444,20 +528,25 @@ class InfluxDBInterface(BaseComponent):
         Raises:
             InfluxDBQueryError: If retrieval fails
         """
-        query = (
-            f'from(bucket: "{self._config.bucket}")'
-            f"|> range(start: -1h)"
-            f'|> filter(fn: (r) => r._measurement == "{measurement}")'
-            f'|> keep(columns: ["_field"])'
-            f'|> distinct(column: "_field")'
-            f'|> yield(name: "fields")'
-        )
-
         try:
+            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
+            safe_measurement = self._sanitize_flux_identifier(
+                measurement, "measurement"
+            )
+            query = (
+                f"from(bucket: {self._to_flux_string_literal(safe_bucket)})"
+                f"|> range(start: -1h)"
+                f"|> filter(fn: (r) => r._measurement == "
+                f"{self._to_flux_string_literal(safe_measurement)})"
+                f'|> keep(columns: ["_field"])'
+                f'|> distinct(column: "_field")'
+                f'|> yield(name: "fields")'
+            )
+
             # Log only in debug mode
             if self._config.debug_mode:
                 with self.log_context(
-                    action="list_fields", measurement=measurement
+                    action="list_fields", measurement=safe_measurement
                 ) as log:
                     log.debug(
                         "bot.db.influxdb_interface.fetch.fields.debug",
@@ -474,11 +563,14 @@ class InfluxDBInterface(BaseComponent):
             # Log success only in debug mode
             if self._config.debug_mode:
                 with self.log_context(
-                    action="list_fields", measurement=measurement
+                    action="list_fields", measurement=safe_measurement
                 ) as log:
                     log.debug(
                         "bot.db.influxdb_interface.fields.fetch.ok",
-                        extra={"measurement": measurement, "field_count": len(fields)},
+                        extra={
+                            "measurement": safe_measurement,
+                            "field_count": len(fields),
+                        },
                     )
 
             return fields

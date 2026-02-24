@@ -102,6 +102,11 @@ docker:
   # WARNING: Produces many logs when monitor plugin is enabled
   debug_docker_client: false  # true or false
 
+  # Strict Docker access mode (OPTIONAL)
+  # false = graceful degradation when Docker is unavailable
+  # true = fail fast on Docker access errors
+  strict_access: false
+
 ################################################################
 # Webhook Configuration (OPTIONAL)
 ################################################################
@@ -111,7 +116,7 @@ docker:
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
   # Must be accessible from the internet and have valid SSL
-  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/BOT_TOKEN/
+  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/
   url:
     - 'your-domain.com'  # Replace with your domain (without https:// and path)
 

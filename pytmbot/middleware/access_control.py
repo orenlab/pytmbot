@@ -52,6 +52,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         self._attempt_count: defaultdict[int, int] = defaultdict(int)
         self._blocked_until: dict[int, datetime] = {}
         self._last_admin_notify: dict[int, datetime] = {}
+        self._state_lock = threading.RLock()
 
         threading.Thread(
             target=self._periodic_cleanup,
@@ -133,7 +134,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         # Check if user is currently blocked
         if self._should_block_request(user_id):
-            block_until = self._blocked_until.get(user_id)
+            with self._state_lock:
+                block_until = self._blocked_until.get(user_id)
             context = {
                 **base_context,
                 "operation": "access_blocked",
@@ -166,19 +168,20 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
     def _should_block_request(self, user_id: int) -> bool:
         """Check if user should be blocked based on time."""
-        block_until = self._blocked_until.get(user_id)
-        if block_until is None:
+        with self._state_lock:
+            block_until = self._blocked_until.get(user_id)
+            if block_until is None:
+                return False
+
+            now = datetime.now()
+            if now < block_until:
+                return True
+
+            # Block has expired between cleanup cycles: clear stale state lazily.
+            del self._blocked_until[user_id]
+            self._attempt_count[user_id] = 0
+            self._last_admin_notify.pop(user_id, None)
             return False
-
-        now = datetime.now()
-        if now < block_until:
-            return True
-
-        # Block has expired between cleanup cycles: clear stale state lazily.
-        del self._blocked_until[user_id]
-        self._attempt_count[user_id] = 0
-        self._last_admin_notify.pop(user_id, None)
-        return False
 
     def _handle_unauthorized_access(
         self,
@@ -190,8 +193,9 @@ class AccessControl(BaseMiddleware, BaseComponent):
     ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
 
-        self._attempt_count[user_id] += 1
-        current_attempt = self._attempt_count[user_id]
+        with self._state_lock:
+            self._attempt_count[user_id] += 1
+            current_attempt = self._attempt_count[user_id]
         is_setup_command = self._is_setup_command(message)
 
         context = {
@@ -208,7 +212,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
         # Block user if max attempts reached
         if current_attempt >= self.MAX_ATTEMPTS:
             block_until = datetime.now() + timedelta(seconds=self.BLOCK_DURATION)
-            self._blocked_until[user_id] = block_until
+            with self._state_lock:
+                self._blocked_until[user_id] = block_until
 
             context.update(
                 {
@@ -263,7 +268,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
     ) -> None:
         """Notify admin about unauthorized access attempts."""
         now = datetime.now()
-        last_notified = self._last_admin_notify.get(user_id, datetime.min)
+        with self._state_lock:
+            last_notified = self._last_admin_notify.get(user_id, datetime.min)
 
         if (now - last_notified).total_seconds() < self.ADMIN_NOTIFY_SUPPRESSION:
             context = {
@@ -282,7 +288,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
                 logger.debug("bot.access.admin.notification.debug")
             return
 
-        self._last_admin_notify[user_id] = now
+        with self._state_lock:
+            self._last_admin_notify[user_id] = now
 
         masked_username = mask_username(username)
         masked_user_id = mask_user_id(user_id)
@@ -388,26 +395,29 @@ class AccessControl(BaseMiddleware, BaseComponent):
             try:
                 time.sleep(self.CLEANUP_INTERVAL)
                 now = datetime.now()
+                with self._state_lock:
+                    expired = [
+                        user_id
+                        for user_id, until in self._blocked_until.items()
+                        if now >= until
+                    ]
+                    total_blocked_users = len(self._blocked_until)
 
-                expired = [
-                    user_id
-                    for user_id, until in self._blocked_until.items()
-                    if now >= until
-                ]
+                    for user_id in expired:
+                        del self._blocked_until[user_id]
+                        self._attempt_count[user_id] = 0
+                        self._last_admin_notify.pop(user_id, None)
+
+                    active_blocks = len(self._blocked_until)
 
                 cleanup_context = {
                     **context,
                     "operation": "cleanup_execution",
                     "cleanup_timestamp": now.isoformat(),
-                    "total_blocked_users": len(self._blocked_until),
+                    "total_blocked_users": total_blocked_users,
                     "expired_count": len(expired),
-                    "active_blocks": len(self._blocked_until) - len(expired),
+                    "active_blocks": active_blocks,
                 }
-
-                for user_id in expired:
-                    del self._blocked_until[user_id]
-                    self._attempt_count[user_id] = 0
-                    self._last_admin_notify.pop(user_id, None)
 
                 if expired:
                     cleanup_context["expired_user_ids"] = [

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
 from types import FunctionType
 
 import pytest
@@ -70,7 +69,7 @@ def _get_webhook_endpoint(server: WebhookServer) -> FunctionType:
     for route in server.app.routes:
         methods: set[str] = set(getattr(route, "methods", set()))
         path = getattr(route, "path", "")
-        if path == server.webhook_path and "POST" in methods:
+        if path == server.WEBHOOK_ROUTE_PATH and "POST" in methods:
             endpoint = getattr(route, "endpoint", None)
             if isinstance(endpoint, FunctionType):
                 return endpoint
@@ -97,6 +96,7 @@ def test_webhook_endpoint_preserves_guard_status_codes(
 
     with pytest.raises(HTTPException) as token_exc:
         endpoint(
+            path_token=server.webhook_path_token,
             update=update,
             client_ip="149.154.167.220",
             x_telegram_bot_api_secret_token="invalid",
@@ -111,6 +111,7 @@ def test_webhook_endpoint_preserves_guard_status_codes(
     )
     with pytest.raises(HTTPException) as rate_exc:
         endpoint(
+            path_token=server.webhook_path_token,
             update=update,
             client_ip="149.154.167.220",
             x_telegram_bot_api_secret_token=server.secret_token,
@@ -133,6 +134,7 @@ def test_webhook_endpoint_value_error_and_unexpected_error_paths(
     )
     with pytest.raises(HTTPException) as value_error_exc:
         endpoint(
+            path_token=server.webhook_path_token,
             update=update,
             client_ip="149.154.167.220",
             x_telegram_bot_api_secret_token=server.secret_token,
@@ -147,6 +149,7 @@ def test_webhook_endpoint_value_error_and_unexpected_error_paths(
     )
     with pytest.raises(HTTPException) as runtime_exc:
         endpoint(
+            path_token=server.webhook_path_token,
             update=update,
             client_ip="149.154.167.220",
             x_telegram_bot_api_secret_token=server.secret_token,
@@ -155,15 +158,14 @@ def test_webhook_endpoint_value_error_and_unexpected_error_paths(
     assert runtime_exc.value.detail == "Internal server error"
 
 
-def test_webhook_endpoint_success_and_request_counter_reset() -> None:
+def test_webhook_endpoint_success_and_request_counter_increments() -> None:
     server = _build_server()
     endpoint = _get_webhook_endpoint(server)
 
-    server.request_counter = 1001
-    previous_restart = datetime.now() - timedelta(hours=1)
-    server.last_restart = previous_restart
+    server.request_counter = 100
 
     response = endpoint(
+        path_token=server.webhook_path_token,
         update=_build_update_model(),
         client_ip="149.154.167.220",
         x_telegram_bot_api_secret_token=server.secret_token,
@@ -172,5 +174,75 @@ def test_webhook_endpoint_success_and_request_counter_reset() -> None:
 
     assert response.status_code == 200
     assert parsed_body["status"] == "ok"
+    assert server.request_counter == 101
+
+
+def test_webhook_endpoint_returns_404_for_unknown_path() -> None:
+    server = _build_server()
+    endpoint = _get_webhook_endpoint(server)
+
+    with pytest.raises(HTTPException) as exc_info:
+        endpoint(
+            path_token="unknown-path-token",
+            update=_build_update_model(),
+            client_ip="149.154.167.220",
+            x_telegram_bot_api_secret_token=server.secret_token,
+        )
+
+    assert exc_info.value.status_code == 404
+
+
+def test_webhook_endpoint_rotates_credentials_at_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server = _build_server()
+    endpoint = _get_webhook_endpoint(server)
+    previous_path_token = server.webhook_path_token
+    previous_secret_token = server.secret_token
+    setup_calls: list[dict[str, object]] = []
+
+    def _fake_setup_webhook(
+        _self: object,
+        webhook_path: str,
+        *,
+        secret_token: str | None = None,
+        drop_pending_updates: bool = True,
+        reset_existing: bool = True,
+    ) -> None:
+        setup_calls.append(
+            {
+                "webhook_path": webhook_path,
+                "secret_token": secret_token,
+                "drop_pending_updates": drop_pending_updates,
+                "reset_existing": reset_existing,
+            }
+        )
+
+    monkeypatch.setattr(
+        type(server.webhook_manager), "setup_webhook", _fake_setup_webhook
+    )
+    monkeypatch.setattr(type(server), "WEBHOOK_ROTATION_REQUEST_THRESHOLD", 101)
+
+    server.request_counter = 100
+    response = endpoint(
+        path_token=previous_path_token,
+        update=_build_update_model(),
+        client_ip="149.154.167.220",
+        x_telegram_bot_api_secret_token=previous_secret_token,
+    )
+
+    assert response.status_code == 200
+    assert setup_calls
+    assert setup_calls[0]["drop_pending_updates"] is False
+    assert setup_calls[0]["reset_existing"] is False
+    assert server.webhook_path_token != previous_path_token
+    assert server.secret_token != previous_secret_token
     assert server.request_counter == 0
-    assert server.last_restart >= previous_restart
+
+    grace_response = endpoint(
+        path_token=previous_path_token,
+        update=_build_update_model(),
+        client_ip="149.154.167.220",
+        x_telegram_bot_api_secret_token=previous_secret_token,
+    )
+    assert grace_response.status_code == 200

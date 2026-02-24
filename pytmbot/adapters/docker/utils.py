@@ -25,6 +25,7 @@ from docker.models.containers import Container
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.exceptions import (
     ContainerNotFoundError,
+    DockerConnectionError,
     DockerOperationException,
     ErrorContext,
 )
@@ -780,6 +781,14 @@ def get_container_safely(
                 metadata={"container_id": container_id, "search_time": execution_time},
             )
         )
+    except DockerConnectionError:
+        execution_time = time.time() - start_time
+        logger.error(
+            "docker.utils.container.connection.fail",
+            execution_time=f"{execution_time:.3f}s",
+            **context,
+        )
+        raise
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(

@@ -85,6 +85,13 @@ class HandlerConfig:
     regexp: str | None = None
     filter_func: FilterFunc | None = None
 
+    def __post_init__(self) -> None:
+        """Validate callback and filter are callable."""
+        if not callable(self.callback):
+            raise TypeError("callback must be callable")
+        if self.filter_func is not None and not callable(self.filter_func):
+            raise TypeError("filter_func must be callable")
+
     def create_handler(self) -> HandlerManager:
         """Create a HandlerManager instance from the config."""
         kwargs: dict[str, Any] = {}

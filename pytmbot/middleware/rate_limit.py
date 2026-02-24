@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 from collections import defaultdict, deque
 from contextlib import suppress
 from datetime import datetime, timedelta
+from threading import RLock
 from typing import Any, Final, TypedDict
 
 from telebot import TeleBot
@@ -66,6 +67,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         self.period = period
         self.update_types = self.SUPPORTED_UPDATES
         self._user_requests: defaultdict[UserID, deque[Timestamp]] = defaultdict(deque)
+        self._state_lock = RLock()
 
         # Track rate limit violations for logging optimization
         self._violation_count: defaultdict[UserID, int] = defaultdict(int)
@@ -87,47 +89,50 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
 
     def _clean_old_requests(self, user_id: UserID, current_time: datetime) -> None:
         """Remove expired request timestamps for a user."""
-        requests = self._user_requests[user_id]
-        cutoff_time = current_time - self.period
-        initial_count = len(requests)
+        with self._state_lock:
+            requests = self._user_requests[user_id]
+            cutoff_time = current_time - self.period
+            initial_count = len(requests)
 
-        while requests and requests[0] < cutoff_time:
-            requests.popleft()
+            while requests and requests[0] < cutoff_time:
+                requests.popleft()
 
-        cleaned_count = initial_count - len(requests)
+            cleaned_count = initial_count - len(requests)
 
-        context = {
-            "operation": "cleanup_old_requests",
-            "user_id": user_id,
-            "initial_requests": initial_count,
-            "cleaned_requests": cleaned_count,
-            "remaining_requests": len(requests),
-            "cutoff_time": cutoff_time.isoformat(),
-            "current_time": current_time.isoformat(),
-        }
+            context = {
+                "operation": "cleanup_old_requests",
+                "user_id": user_id,
+                "initial_requests": initial_count,
+                "cleaned_requests": cleaned_count,
+                "remaining_requests": len(requests),
+                "cutoff_time": cutoff_time.isoformat(),
+                "current_time": current_time.isoformat(),
+            }
 
-        # Clean up empty user entries
-        if not requests:
-            with suppress(KeyError):
-                del self._user_requests[user_id]
-                # Also clean up violation tracking for inactive users
+            # Clean up empty user entries
+            if not requests:
                 with suppress(KeyError):
-                    del self._violation_count[user_id]
-                    del self._last_violation_log[user_id]
+                    del self._user_requests[user_id]
+                    # Also clean up violation tracking for inactive users
+                    with suppress(KeyError):
+                        del self._violation_count[user_id]
+                        del self._last_violation_log[user_id]
 
-                context.update({"user_cleaned": True, "violation_data_cleaned": True})
+                    context.update(
+                        {"user_cleaned": True, "violation_data_cleaned": True}
+                    )
 
-        if cleaned_count > 0:
-            with self.log_context(**context) as logger:
-                logger.trace("bot.rate_limit.cleaned.requests.debug")
+            if cleaned_count > 0:
+                with self.log_context(**context) as logger:
+                    logger.trace("bot.rate_limit.cleaned.requests.debug")
 
     def _is_rate_limited(self, user_id: UserID, current_time: datetime) -> bool:
         """Check if user has exceeded their rate limit."""
-        self._clean_old_requests(user_id, current_time)
-        current_requests = len(self._user_requests[user_id])
-        is_limited = current_requests >= self.limit
-
-        return is_limited
+        with self._state_lock:
+            self._clean_old_requests(user_id, current_time)
+            current_requests = len(self._user_requests[user_id])
+            is_limited = current_requests >= self.limit
+            return is_limited
 
     def _should_log_violation(self, user_id: UserID, current_time: datetime) -> bool:
         """
@@ -165,8 +170,12 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         user_id = user.id
 
         # Update violation tracking
-        self._violation_count[user_id] += 1
-        violation_count = self._violation_count[user_id]
+        with self._state_lock:
+            self._violation_count[user_id] += 1
+            violation_count = self._violation_count[user_id]
+            should_log = self._should_log_violation(user_id, current_time)
+            if should_log:
+                self._last_violation_log[user_id] = current_time
 
         context = {
             "operation": "rate_limit_violation",
@@ -184,8 +193,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         }
 
         # Log violation only if necessary (to avoid log spam)
-        if self._should_log_violation(user_id, current_time):
-            self._last_violation_log[user_id] = current_time
+        if should_log:
             context.update(
                 {
                     "violation_logged": True,
@@ -277,14 +285,15 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             return self._handle_rate_limit(message, user)
 
         # Track successful request
-        self._user_requests[user_id].append(current_time)
-        current_requests = len(self._user_requests[user_id])
+        with self._state_lock:
+            self._user_requests[user_id].append(current_time)
+            current_requests = len(self._user_requests[user_id])
 
-        # Reset violation count on successful request
-        violation_reset = False
-        if user_id in self._violation_count:
-            self._violation_count[user_id] = 0
-            violation_reset = True
+            # Reset violation count on successful request
+            violation_reset = False
+            if user_id in self._violation_count:
+                self._violation_count[user_id] = 0
+                violation_reset = True
 
         if violation_reset:
             context = {
@@ -338,22 +347,25 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             Dictionary with current statistics
         """
         current_time = datetime.now()
-        active_users = len(self._user_requests)
-        total_violations = sum(self._violation_count.values())
+        with self._state_lock:
+            active_users = len(self._user_requests)
+            total_violations = sum(self._violation_count.values())
 
-        # Calculate additional metrics
-        active_violations = sum(
-            1 for count in self._violation_count.values() if count > 0
-        )
-        max_violations = (
-            max(self._violation_count.values()) if self._violation_count else 0
-        )
+            # Calculate additional metrics
+            active_violations = sum(
+                1 for count in self._violation_count.values() if count > 0
+            )
+            max_violations = (
+                max(self._violation_count.values()) if self._violation_count else 0
+            )
 
-        # Calculate current request distribution
-        request_counts = [len(requests) for requests in self._user_requests.values()]
-        avg_requests = (
-            sum(request_counts) / len(request_counts) if request_counts else 0
-        )
+            # Calculate current request distribution
+            request_counts = [
+                len(requests) for requests in self._user_requests.values()
+            ]
+            avg_requests = (
+                sum(request_counts) / len(request_counts) if request_counts else 0
+            )
 
         stats = {
             "active_users": active_users,

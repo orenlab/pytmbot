@@ -33,6 +33,7 @@ SOCKET_HOST="127.0.0.1"
 HEALTH_CHECK="False"
 DEBUG="False"
 COLORIZE_LOGS="True"
+STRICT_DOCKER_ACCESS="${STRICT_DOCKER_ACCESS:-False}"
 
 # Variables for process management
 child_pid=""
@@ -382,14 +383,28 @@ fi
 
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
-log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\", \"colorize_logs\": \"$COLORIZE_LOGS\", \"debug\": \"$DEBUG\", \"plugins\": \"$PLUGINS\", \"webhook\": \"$WEBHOOK\", \"socket_host\": \"$SOCKET_HOST\"}"
+log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\", \"colorize_logs\": \"$COLORIZE_LOGS\", \"debug\": \"$DEBUG\", \"plugins\": \"$PLUGINS\", \"webhook\": \"$WEBHOOK\", \"socket_host\": \"$SOCKET_HOST\", \"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
 
 # Check dependencies
 check_dependencies
 
 # Fix Docker group if needed and check access
 fix_docker_group_runtime
-check_docker_access
+if ! check_docker_access; then
+    case "$STRICT_DOCKER_ACCESS" in
+        true|True|TRUE|1|yes|YES|on|ON)
+            log "ERROR" "entrypoint" "Docker access is required in strict mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            exit 1
+            ;;
+        false|False|FALSE|0|no|NO|off|OFF)
+            log "WARNING" "entrypoint" "Docker access unavailable, continuing in degraded mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            ;;
+        *)
+            log "WARNING" "entrypoint" "Invalid STRICT_DOCKER_ACCESS value, treating as false" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            log "WARNING" "entrypoint" "Docker access unavailable, continuing in degraded mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            ;;
+    esac
+fi
 
 # Handle health check
 if [ "$HEALTH_CHECK" = "True" ]; then

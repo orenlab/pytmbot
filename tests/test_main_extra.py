@@ -276,6 +276,18 @@ def test_start_bot_polling_paths_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     )
     launcher._start_bot_polling(bot_instance)
     assert calls["webhook"] == 1
+    assert calls["polling"] == 1
+
+    launcher.bot = SimpleNamespace(
+        _start_webhook_server=lambda: (_ for _ in ()).throw(RuntimeError("fail")),
+        _start_polling_loop=lambda _bot: calls.__setitem__(
+            "polling", calls["polling"] + 1
+        ),
+    )
+    launcher.shutdown_requested.clear()
+    launcher._start_bot_polling(bot_instance)
+    assert calls["polling"] == 2
+    assert launcher.shutdown_requested.is_set() is False
 
     launcher.bot = None
     launcher._start_bot_polling(bot_instance)
@@ -323,6 +335,33 @@ def test_run_main_loop_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launcher, "log_health_status", lambda: None)
 
     launcher.run_main_loop()
+
+
+def test_run_main_loop_restarts_polling_and_stops_after_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+
+    _install_run_main_loop_stubs(
+        monkeypatch=monkeypatch,
+        main_module=main_module,
+        launcher=launcher,
+        polling_alive=False,
+    )
+
+    calls = {"polling": 0}
+    monkeypatch.setattr(
+        launcher,
+        "_start_bot_polling",
+        lambda _bot_instance: calls.__setitem__("polling", calls["polling"] + 1),
+    )
+    monkeypatch.setattr(launcher, "log_health_status", lambda: None)
+
+    launcher.run_main_loop()
+
+    assert launcher.shutdown_requested.is_set() is True
+    assert calls["polling"] == launcher.POLLING_RESTART_MAX_ATTEMPTS + 1
 
 
 def test_shutdown_bot_silently_and_cleanup_paths(

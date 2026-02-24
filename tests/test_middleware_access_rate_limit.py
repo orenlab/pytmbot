@@ -226,6 +226,41 @@ def test_access_control_notify_admin_suppression_and_send_fail(
     assert bot.sent_messages == []
 
 
+def test_access_control_notify_admin_sends_outside_state_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        access_control_module,
+        "settings",
+        SimpleNamespace(
+            access_control=SimpleNamespace(allowed_user_ids=[]),
+            chat_id=SimpleNamespace(global_chat_id=[999]),
+        ),
+    )
+    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    lock_probe = {"was_available": False}
+
+    def _send_message(**kwargs: object) -> None:
+        _ = kwargs
+        acquired = middleware._state_lock.acquire(blocking=False)
+        lock_probe["was_available"] = acquired
+        if acquired:
+            middleware._state_lock.release()
+
+    monkeypatch.setattr(bot, "send_message", _send_message)
+    middleware._notify_admin(
+        user_id=111,
+        username="tester",
+        chat_id=1,
+        attempt=1,
+        is_setup_command=False,
+    )
+
+    assert lock_probe["was_available"] is True
+
+
 def test_access_control_periodic_cleanup_removes_expired_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -350,3 +385,29 @@ def test_access_control_post_process_paths(
     middleware.post_process(message, {}, None)
     middleware.post_process(message, {}, cast(Exception, CancelUpdate()))
     middleware.post_process(message, {"k": "v"}, RuntimeError("boom"))
+
+
+def test_rate_limit_send_message_outside_state_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    middleware = rate_limit_module.RateLimit(
+        cast(TeleBot, bot),
+        limit=1,
+        period=timedelta(seconds=10),
+    )
+    message = _build_message(user_id=55, text="spam")
+    lock_probe = {"was_available": False}
+
+    def _send_message(**kwargs: object) -> None:
+        _ = kwargs
+        acquired = middleware._state_lock.acquire(blocking=False)
+        lock_probe["was_available"] = acquired
+        if acquired:
+            middleware._state_lock.release()
+
+    monkeypatch.setattr(bot, "send_message", _send_message)
+    assert message.from_user is not None
+    middleware._handle_rate_limit(message, message.from_user)
+
+    assert lock_probe["was_available"] is True

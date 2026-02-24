@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import Message, ReplyKeyboardMarkup
 
+from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
@@ -74,7 +75,70 @@ class MonitoringPlugin(PluginInterface):
 
     def handle_cpu_usage(self, message: Message) -> Message:
         """Handle CPU usage request."""
-        raise NotImplementedError("CPU usage handling not implemented")
+        adapter = PsutilAdapter()
+
+        try:
+            cpu_stats = adapter.get_cpu_usage()
+            load_avg = adapter.get_load_average()
+            top_processes = adapter.get_top_processes(count=5)
+
+            cpu_percent = float(cpu_stats.get("cpu_percent", 0.0))
+            cpu_per_core = cpu_stats.get("cpu_percent_per_core", [])
+
+            per_core_preview = ", ".join(
+                f"#{index + 1}: {core_value:.1f}%"
+                for index, core_value in enumerate(cpu_per_core[:8])
+            )
+            if len(cpu_per_core) > 8:
+                per_core_preview = f"{per_core_preview}, ..."
+            if not per_core_preview:
+                per_core_preview = "N/A"
+
+            if top_processes:
+                top_lines = "\n".join(
+                    (
+                        f"• {proc['name']} (PID {proc['pid']}): "
+                        f"CPU {proc['cpu_percent']:.1f}%, "
+                        f"MEM {proc['memory_percent']:.1f}%"
+                    )
+                    for proc in top_processes
+                )
+            else:
+                top_lines = "• N/A"
+
+            text = "\n".join(
+                [
+                    f"{em.get_emoji('chart_increasing')} CPU usage snapshot",
+                    f"• Overall: {cpu_percent:.1f}%",
+                    f"• Cores: {len(cpu_per_core)}",
+                    f"• Per-core (first 8): {per_core_preview}",
+                    (
+                        f"• Load average: "
+                        f"{load_avg[0]:.2f} / {load_avg[1]:.2f} / {load_avg[2]:.2f}"
+                    ),
+                    "",
+                    "Top processes:",
+                    top_lines,
+                ]
+            )
+
+            keyboard = keyboards.build_reply_keyboard(
+                plugin_keyboard_data=config.KEYBOARD
+            )
+            return self.bot.send_message(
+                message.chat.id, text=text, reply_markup=keyboard
+            )
+
+        except Exception as error:
+            self.plugin_logger.error(
+                "bot.plugins.monitor.plugin.cpu.snapshot.fail", error=str(error)
+            )
+            return self.bot.send_message(
+                message.chat.id,
+                "⚠️ Failed to collect CPU usage metrics. Please try again.",
+            )
+        finally:
+            adapter.close()
 
     def register(self) -> None:
         """Register SystemMonitorPlugin and start monitoring."""

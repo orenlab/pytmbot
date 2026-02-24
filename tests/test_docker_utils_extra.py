@@ -11,7 +11,11 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 import pytmbot.adapters.docker.utils as docker_utils
-from pytmbot.exceptions import ContainerNotFoundError, DockerOperationException
+from pytmbot.exceptions import (
+    ContainerNotFoundError,
+    DockerConnectionError,
+    DockerOperationException,
+)
 
 
 @dataclass
@@ -219,6 +223,14 @@ def test_get_container_safely_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             "cid1234",
             docker_client=SimpleNamespace(
                 containers=_ContainersAPI(RuntimeError("boom"))
+            ),
+        )
+
+    with pytest.raises(DockerConnectionError):
+        docker_utils.get_container_safely(
+            "cid1234",
+            docker_client=SimpleNamespace(
+                containers=_ContainersAPI(DockerConnectionError("docker unavailable"))
             ),
         )
 

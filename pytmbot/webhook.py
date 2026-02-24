@@ -6,10 +6,11 @@ also providing basic information about the status of local servers.
 """
 
 import ipaddress
+import threading
 from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import time
 from typing import Annotated
 
@@ -212,14 +213,25 @@ class WebhookManager(BaseComponent):
         ) as log:
             log.debug("bot.webhook.manager.init")
 
-    def setup_webhook(self, webhook_path: str) -> None:
+    def setup_webhook(
+        self,
+        webhook_path: str,
+        *,
+        secret_token: str | None = None,
+        drop_pending_updates: bool = True,
+        reset_existing: bool = True,
+    ) -> None:
         webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
         webhook_settings = _get_webhook_config()
         cert_path = _first_secret(webhook_settings.cert)
+        if secret_token is not None:
+            self.secret_token = secret_token
 
         with self.log_context(
             action="setup_webhook",
             webhook_path=mask_token_in_message(webhook_path, self.bot.token),
+            drop_pending_updates=drop_pending_updates,
+            reset_existing=reset_existing,
         ) as log:
             try:
                 current_webhook = self.bot.get_webhook_info()
@@ -231,7 +243,8 @@ class WebhookManager(BaseComponent):
                     cert_present=bool(cert_path),
                 )
 
-                self.remove_webhook()
+                if reset_existing:
+                    self.remove_webhook()
 
                 self.bot.set_webhook(
                     url=webhook_url,
@@ -242,7 +255,7 @@ class WebhookManager(BaseComponent):
                         "inline_query",
                         "callback_query",
                     ],
-                    drop_pending_updates=True,
+                    drop_pending_updates=drop_pending_updates,
                     certificate=cert_path,
                     secret_token=self.secret_token,
                 )
@@ -287,7 +300,11 @@ class WebhookServer(BaseComponent):
         "last_restart",
         "telegram_ip_validator",
         "secret_token",
+        "webhook_path_token",
         "webhook_path",
+        "_accepted_webhook_credentials",
+        "_rotation_lock",
+        "_rotation_in_progress",
         "trusted_proxy_sources",
         "trusted_proxy_networks",
         "webhook_manager",
@@ -295,6 +312,9 @@ class WebhookServer(BaseComponent):
         "rate_limiter",
         "rate_limiter_404",
     )
+    WEBHOOK_ROUTE_PATH = "/webhook/{path_token}/"
+    WEBHOOK_ROTATION_REQUEST_THRESHOLD = 10_000
+    WEBHOOK_ROTATION_GRACE_PERIOD_SECONDS = 300
 
     def __init__(self, bot: TeleBot, token: str, host: str, port: int) -> None:
         super().__init__("webhook_server")
@@ -308,7 +328,13 @@ class WebhookServer(BaseComponent):
 
         # Generate secure webhook path and secret token
         self.secret_token = generate_secret_token()
-        self.webhook_path = f"/webhook/{generate_secret_token(16)}/{self.token}/"
+        self.webhook_path_token = self._generate_webhook_path_token()
+        self.webhook_path = self._build_webhook_path(self.webhook_path_token)
+        self._accepted_webhook_credentials: dict[str, tuple[str, datetime | None]] = {
+            self.webhook_path_token: (self.secret_token, None)
+        }
+        self._rotation_lock = threading.RLock()
+        self._rotation_in_progress = False
 
         with self.log_context(
             host=host,
@@ -347,7 +373,12 @@ class WebhookServer(BaseComponent):
             ) as log:
                 try:
                     log.info("bot.webhook.server.lifecycle.start")
-                    self.webhook_manager.setup_webhook(self.webhook_path)
+                    self.webhook_manager.setup_webhook(
+                        self.webhook_path,
+                        secret_token=self.secret_token,
+                        drop_pending_updates=True,
+                        reset_existing=True,
+                    )
                     yield
                 except Exception as e:
                     error_context = ErrorContext(
@@ -384,6 +415,111 @@ class WebhookServer(BaseComponent):
             (field for field in update_types if getattr(update, field) is not None),
             "unknown",
         )
+
+    @staticmethod
+    def _generate_webhook_path_token() -> str:
+        """Generate secure webhook path token."""
+        return generate_secret_token(16)
+
+    @staticmethod
+    def _build_webhook_path(path_token: str) -> str:
+        """Build webhook path from token."""
+        return f"/webhook/{path_token}/"
+
+    def _cleanup_expired_webhook_credentials(self, now: datetime) -> None:
+        """Cleanup expired webhook credentials from grace window."""
+        expired_path_tokens = [
+            path_token
+            for path_token, (
+                _,
+                expires_at,
+            ) in self._accepted_webhook_credentials.items()
+            if expires_at is not None and now >= expires_at
+        ]
+        for path_token in expired_path_tokens:
+            self._accepted_webhook_credentials.pop(path_token, None)
+
+    def _resolve_expected_secret(self, path_token: str) -> str | None:
+        """Resolve expected secret token for webhook path."""
+        now = datetime.now()
+        with self._rotation_lock:
+            self._cleanup_expired_webhook_credentials(now)
+            credentials = self._accepted_webhook_credentials.get(path_token)
+            if credentials is None:
+                return None
+            return credentials[0]
+
+    def _maybe_rotate_webhook(self) -> None:
+        """Rotate webhook path and secret after request threshold."""
+        previous_path_token: str | None = None
+        previous_secret_token: str | None = None
+
+        with self._rotation_lock:
+            if self.request_counter < self.WEBHOOK_ROTATION_REQUEST_THRESHOLD:
+                return
+            if self._rotation_in_progress:
+                return
+            self._rotation_in_progress = True
+            previous_path_token = self.webhook_path_token
+            previous_secret_token = self.secret_token
+
+        if previous_path_token is None or previous_secret_token is None:
+            with self._rotation_lock:
+                self._rotation_in_progress = False
+            return
+
+        new_path_token = self._generate_webhook_path_token()
+        new_secret_token = generate_secret_token()
+        new_webhook_path = self._build_webhook_path(new_path_token)
+
+        try:
+            self.webhook_manager.setup_webhook(
+                new_webhook_path,
+                secret_token=new_secret_token,
+                drop_pending_updates=False,
+                reset_existing=False,
+            )
+
+            rotated_at = datetime.now()
+            grace_deadline = rotated_at + timedelta(
+                seconds=self.WEBHOOK_ROTATION_GRACE_PERIOD_SECONDS
+            )
+
+            with self._rotation_lock:
+                self._accepted_webhook_credentials[previous_path_token] = (
+                    previous_secret_token,
+                    grace_deadline,
+                )
+                self._accepted_webhook_credentials[new_path_token] = (
+                    new_secret_token,
+                    None,
+                )
+                self.webhook_path_token = new_path_token
+                self.webhook_path = new_webhook_path
+                self.secret_token = new_secret_token
+                self.request_counter = 0
+                self.last_restart = rotated_at
+
+            with self.log_context(
+                action="webhook_rotation",
+                previous_webhook_path=mask_token_in_message(
+                    self._build_webhook_path(previous_path_token), self.token
+                ),
+                new_webhook_path=mask_token_in_message(new_webhook_path, self.token),
+                grace_period_seconds=self.WEBHOOK_ROTATION_GRACE_PERIOD_SECONDS,
+            ) as log:
+                log.info("bot.webhook.rotation.completed.ok")
+
+        except Exception as error:
+            with self.log_context(
+                action="webhook_rotation",
+                error_type=type(error).__name__,
+                error=str(error),
+            ) as log:
+                log.error("bot.webhook.rotation.fail")
+        finally:
+            with self._rotation_lock:
+                self._rotation_in_progress = False
 
     @staticmethod
     def _parse_proxy_networks(
@@ -514,8 +650,9 @@ class WebhookServer(BaseComponent):
                     _log.info("bot.webhook.ip.verified.ok")
                     return client_ip
 
-            @app.post(self.webhook_path)
+            @app.post(self.WEBHOOK_ROUTE_PATH)
             def process_webhook(
+                path_token: str,
                 update: UpdateModel,
                 client_ip: Annotated[str, Depends(verify_telegram_ip)],
                 x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None,
@@ -526,6 +663,17 @@ class WebhookServer(BaseComponent):
                     request_counter=self.request_counter,
                 ) as _log:
                     try:
+                        expected_secret = self._resolve_expected_secret(path_token)
+                        if expected_secret is None:
+                            if self.rate_limiter_404.is_rate_limited(client_ip):
+                                _log.warning("bot.webhook.rate.limit.warn")
+                                raise HTTPException(
+                                    status_code=429,
+                                    detail="Too many not found requests",
+                                )
+                            _log.warning("bot.webhook.404.request.warn")
+                            raise HTTPException(status_code=404, detail="Not found")
+
                         # Rate limiting check
                         if self.rate_limiter.is_rate_limited(client_ip):
                             _log.warning("bot.webhook.rate.limit.warn")
@@ -534,31 +682,20 @@ class WebhookServer(BaseComponent):
                             )
 
                         # Token verification
-                        if x_telegram_bot_api_secret_token != self.secret_token:
+                        if x_telegram_bot_api_secret_token != expected_secret:
                             _log.warning("bot.webhook.invalid.secret.warn")
                             raise HTTPException(
                                 status_code=403, detail="Invalid secret token"
                             )
 
                         # Update processing
-                        self.request_counter += 1
+                        with self._rotation_lock:
+                            self.request_counter += 1
+
                         update_dict = update.model_dump(
                             exclude_unset=True, by_alias=True
                         )
                         update_type = self._get_update_type(update)
-
-                        # Request counter threshold check
-                        if self.request_counter > 1000:
-                            _log.warning(
-                                "bot.webhook.request.threshold.warn",
-                                total_requests=self.request_counter,
-                                last_restart=self.last_restart.isoformat(),
-                                uptime=(
-                                    datetime.now() - self.last_restart
-                                ).total_seconds(),
-                            )
-                            self.request_counter = 0
-                            self.last_restart = datetime.now()
 
                         # Process update
                         with self.log_context(
@@ -570,6 +707,8 @@ class WebhookServer(BaseComponent):
                             update_obj = telebot.types.Update.de_json(update_dict)
                             self.bot.process_new_updates([update_obj])
                             update_log.debug("bot.webhook.update.processed.ok")
+
+                        self._maybe_rotate_webhook()
 
                         return JSONResponse(
                             status_code=200,
