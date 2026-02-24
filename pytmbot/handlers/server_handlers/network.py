@@ -6,17 +6,49 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import InlineKeyboardMarkup, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import get_emoji_converter, get_psutil_adapter
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    get_psutil_adapter,
+)
+from pytmbot.handlers.server_handlers.inline.common import (
+    build_user_bound_callback_data,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
 em = get_emoji_converter()
+keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
+
+NETWORK_INTERFACES_PREFIX = "__network_interfaces__"
+NETWORK_CONNECTIONS_PREFIX = "__network_connections__"
+NETWORK_OVERVIEW_PREFIX = "__network_overview__"
+
+
+def _build_network_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
+    buttons = [
+        button_data(
+            text="Interfaces",
+            callback_data=build_user_bound_callback_data(
+                NETWORK_INTERFACES_PREFIX, user_id
+            ),
+        ),
+        button_data(
+            text="Connections",
+            callback_data=build_user_bound_callback_data(
+                NETWORK_CONNECTIONS_PREFIX, user_id
+            ),
+        ),
+    ]
+    return keyboards.build_inline_keyboard(buttons)
 
 
 # regexp="Network
@@ -44,8 +76,15 @@ def handle_network(message: Message, bot: TeleBot) -> None:
         message_text = Compiler.quick_render(
             template_name="b_net_io.jinja2", context=network_statistics, **emojis
         )
+        user_id = message.from_user.id if message.from_user is not None else None
+        keyboard = _build_network_keyboard(user_id)
 
-        bot.send_message(message.chat.id, text=message_text, parse_mode="HTML")
+        bot.send_message(
+            message.chat.id,
+            text=message_text,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
         return None
 
     except Exception as error:

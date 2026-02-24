@@ -12,6 +12,11 @@
 │  ├─ 5 min:  {{ "{:>8.2f}".format(context.system.load_average[1]) if context.system.load_average and context.system.load_average[1] is not none else '{:>8}'.format('N/A') }}
 │  └─ 15 min: {{ "{:>8.2f}".format(context.system.load_average[2]) if context.system.load_average and context.system.load_average[2] is not none else '{:>8}'.format('N/A') }}
 │
+├─ ⚡ CPU
+│  ├─ Load:   {{ "{:>7.1f}%".format(context.system.cpu.cpu_percent) if context.system.cpu and context.system.cpu.cpu_percent is not none else '{:>8}'.format('N/A') }}
+│  ├─ Cores:  {{ "{:>8}".format(context.system.cpu.cpu_count if context.system.cpu and context.system.cpu.cpu_count is not none else 'N/A') }}
+│  └─ Freq:   {{ "{:>7.0f}MHz".format(context.system.cpu.frequency_mhz) if context.system.cpu and context.system.cpu.frequency_mhz is not none else '{:>8}'.format('N/A') }}
+│
 ├─ 🧠 Memory Usage
 │  ├─ Used:   {{ "{:>8}".format(context.system.memory.used) if context.system.memory and context.system.memory.used is not none else '{:>8}'.format('N/A') }}
 │  ├─ Free:   {{ "{:>8}".format(context.system.memory.free) if context.system.memory and context.system.memory.free is not none else '{:>8}'.format('N/A') }}

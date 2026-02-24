@@ -50,8 +50,28 @@ from .docker_handlers.inline.manage_action import (
     handle_manage_container_action,
     managing_action_fabric,
 )
+from .server_handlers.cpu import handle_cpu
 from .server_handlers.filesystem import handle_file_system
+from .server_handlers.health_summary import handle_system_health
 from .server_handlers.inline.swap import handle_swap_info
+from .server_handlers.inline.system_views import (
+    handle_cpu_info,
+    handle_cpu_per_core,
+    handle_cpu_times,
+    handle_disk_io,
+    handle_fan_speeds,
+    handle_filesystem_overview,
+    handle_network_connections,
+    handle_network_interfaces,
+    handle_network_overview,
+    handle_quickview_cpu,
+    handle_quickview_disk,
+    handle_quickview_memory,
+    handle_quickview_overview,
+    handle_quickview_sensors,
+    handle_sensors_overview,
+    handle_users_info,
+)
 from .server_handlers.inline.top_process import handle_process_info
 from .server_handlers.load_average import handle_load_average
 from .server_handlers.memory import handle_memory
@@ -141,6 +161,26 @@ class InlineFilters:
         )
 
     @staticmethod
+    def cpu_info(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__cpu_info__" or call.data.startswith("__cpu_info__:")
+
+    @staticmethod
+    def cpu_per_core(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__cpu_per_core__" or call.data.startswith(
+            "__cpu_per_core__:"
+        )
+
+    @staticmethod
+    def cpu_times(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__cpu_times__" or call.data.startswith("__cpu_times__:")
+
+    @staticmethod
     def update_info(call: CallbackQueryType) -> bool:
         """Filter for update info callback."""
         if call.data is None:
@@ -214,6 +254,104 @@ class InlineFilters:
             return False
         return call.data.startswith("__image_extra__")
 
+    @staticmethod
+    def network_overview(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__network_overview__" or call.data.startswith(
+            "__network_overview__:"
+        )
+
+    @staticmethod
+    def network_interfaces(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__network_interfaces__" or call.data.startswith(
+            "__network_interfaces__:"
+        )
+
+    @staticmethod
+    def network_connections(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__network_connections__" or call.data.startswith(
+            "__network_connections__:"
+        )
+
+    @staticmethod
+    def filesystem_overview(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__filesystem_overview__" or call.data.startswith(
+            "__filesystem_overview__:"
+        )
+
+    @staticmethod
+    def disk_io(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__disk_io__" or call.data.startswith("__disk_io__:")
+
+    @staticmethod
+    def users_info(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__users_info__" or call.data.startswith("__users_info__:")
+
+    @staticmethod
+    def sensors_overview(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__sensors_overview__" or call.data.startswith(
+            "__sensors_overview__:"
+        )
+
+    @staticmethod
+    def fan_speeds(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__fan_speeds__" or call.data.startswith("__fan_speeds__:")
+
+    @staticmethod
+    def quickview_overview(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__quickview_overview__" or call.data.startswith(
+            "__quickview_overview__:"
+        )
+
+    @staticmethod
+    def quickview_memory(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__quickview_memory__" or call.data.startswith(
+            "__quickview_memory__:"
+        )
+
+    @staticmethod
+    def quickview_sensors(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__quickview_sensors__" or call.data.startswith(
+            "__quickview_sensors__:"
+        )
+
+    @staticmethod
+    def quickview_cpu(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__quickview_cpu__" or call.data.startswith(
+            "__quickview_cpu__:"
+        )
+
+    @staticmethod
+    def quickview_disk(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == "__quickview_disk__" or call.data.startswith(
+            "__quickview_disk__:"
+        )
+
 
 @cache
 def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
@@ -248,6 +386,11 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
         ],
         "filesystem": [
             HandlerConfig(callback=handle_file_system, regexp="File system")
+        ],
+        "cpu": [HandlerConfig(callback=handle_cpu, regexp="CPU")],
+        "health": [
+            HandlerConfig(callback=handle_system_health, regexp="Health"),
+            HandlerConfig(callback=handle_system_health, commands=["health"]),
         ],
         "images": [
             HandlerConfig(callback=handle_images, commands=["images"]),
@@ -297,6 +440,19 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         "process_info": [
             HandlerConfig(
                 callback=handle_process_info, filter_func=InlineFilters.process_info
+            )
+        ],
+        "cpu_info": [
+            HandlerConfig(callback=handle_cpu_info, filter_func=InlineFilters.cpu_info)
+        ],
+        "cpu_per_core": [
+            HandlerConfig(
+                callback=handle_cpu_per_core, filter_func=InlineFilters.cpu_per_core
+            )
+        ],
+        "cpu_times": [
+            HandlerConfig(
+                callback=handle_cpu_times, filter_func=InlineFilters.cpu_times
             )
         ],
         "update_info": [
@@ -355,6 +511,78 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         "image_extra": [
             HandlerConfig(
                 callback=handle_image_extra_info, filter_func=InlineFilters.image_extra
+            )
+        ],
+        "network_overview": [
+            HandlerConfig(
+                callback=handle_network_overview,
+                filter_func=InlineFilters.network_overview,
+            )
+        ],
+        "network_interfaces": [
+            HandlerConfig(
+                callback=handle_network_interfaces,
+                filter_func=InlineFilters.network_interfaces,
+            )
+        ],
+        "network_connections": [
+            HandlerConfig(
+                callback=handle_network_connections,
+                filter_func=InlineFilters.network_connections,
+            )
+        ],
+        "filesystem_overview": [
+            HandlerConfig(
+                callback=handle_filesystem_overview,
+                filter_func=InlineFilters.filesystem_overview,
+            )
+        ],
+        "disk_io": [
+            HandlerConfig(callback=handle_disk_io, filter_func=InlineFilters.disk_io)
+        ],
+        "users_info": [
+            HandlerConfig(
+                callback=handle_users_info, filter_func=InlineFilters.users_info
+            )
+        ],
+        "sensors_overview": [
+            HandlerConfig(
+                callback=handle_sensors_overview,
+                filter_func=InlineFilters.sensors_overview,
+            )
+        ],
+        "fan_speeds": [
+            HandlerConfig(
+                callback=handle_fan_speeds, filter_func=InlineFilters.fan_speeds
+            )
+        ],
+        "quickview_overview": [
+            HandlerConfig(
+                callback=handle_quickview_overview,
+                filter_func=InlineFilters.quickview_overview,
+            )
+        ],
+        "quickview_memory": [
+            HandlerConfig(
+                callback=handle_quickview_memory,
+                filter_func=InlineFilters.quickview_memory,
+            )
+        ],
+        "quickview_sensors": [
+            HandlerConfig(
+                callback=handle_quickview_sensors,
+                filter_func=InlineFilters.quickview_sensors,
+            )
+        ],
+        "quickview_cpu": [
+            HandlerConfig(
+                callback=handle_quickview_cpu, filter_func=InlineFilters.quickview_cpu
+            )
+        ],
+        "quickview_disk": [
+            HandlerConfig(
+                callback=handle_quickview_disk,
+                filter_func=InlineFilters.quickview_disk,
             )
         ],
     }

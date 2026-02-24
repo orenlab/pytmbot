@@ -58,6 +58,15 @@ class _ExplodingAdapter:
     def get_memory(self) -> dict[str, object]:
         raise RuntimeError("memory error")
 
+    def get_cpu_usage(self) -> dict[str, object]:
+        raise RuntimeError("cpu error")
+
+    def get_cpu_frequency(self) -> dict[str, object]:
+        raise RuntimeError("cpu freq error")
+
+    def get_cpu_count(self) -> int:
+        raise RuntimeError("cpu count error")
+
     def get_process_counts(self) -> dict[str, object]:
         raise RuntimeError("proc error")
 
@@ -82,6 +91,9 @@ def test_quickview_metric_collectors_happy_paths(
     adapter = SimpleNamespace(
         get_uptime=lambda: "1h 10m",
         get_load_average=lambda: (0.1, 0.2, 0.3),
+        get_cpu_usage=lambda: {"cpu_percent": 5.0},
+        get_cpu_frequency=lambda: {"current_freq": 2000.0},
+        get_cpu_count=lambda: 8,
         get_memory=lambda: {"percent": 42.0},
         get_process_counts=lambda: {"running": 1, "sleeping": 3},
     )
@@ -92,6 +104,12 @@ def test_quickview_metric_collectors_happy_paths(
 
     assert quickview._get_uptime() == "1h 10m"
     assert quickview._get_load() == (0.1, 0.2, 0.3)
+    assert quickview._get_cpu() == {
+        "cpu_percent": 5.0,
+        "cpu_count": 8,
+        "physical_cpu_count": 8,
+        "frequency_mhz": 2000.0,
+    }
     assert quickview._get_memory() == {"percent": 42.0}
     assert quickview._get_processes() == {"running": 1, "sleeping": 3}
     assert quickview._get_docker() == {"containers_count": 2}
@@ -109,6 +127,7 @@ def test_quickview_metric_collectors_handle_failures(
 
     assert quickview._get_uptime() is None
     assert quickview._get_load() is None
+    assert quickview._get_cpu() is None
     assert quickview._get_memory() is None
     assert quickview._get_processes() is None
     assert quickview._get_docker() is None
@@ -117,6 +136,7 @@ def test_quickview_metric_collectors_handle_failures(
 def test_collect_metrics_skips_none_results(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(quickview, "_get_uptime", lambda: "up")
     monkeypatch.setattr(quickview, "_get_load", lambda: (1.0, 2.0, 3.0))
+    monkeypatch.setattr(quickview, "_get_cpu", lambda: None)
     monkeypatch.setattr(quickview, "_get_memory", lambda: None)
     monkeypatch.setattr(quickview, "_get_processes", lambda: {"running": 2})
     monkeypatch.setattr(quickview, "_get_docker", lambda: None)

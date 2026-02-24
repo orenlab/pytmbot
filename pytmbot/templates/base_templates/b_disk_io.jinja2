@@ -1,0 +1,12 @@
+{{ thought_balloon }} <b>Disk I/O Statistics:</b>
+
+{% if context.disks %}
+{% for disk in context.disks %}
+<b>{{ disk.device_name }}</b>
+<code>Read:</code> {{ disk.read_bytes }} (ops: {{ disk.read_count }}, time: {{ disk.read_time_ms }}ms)
+<code>Write:</code> {{ disk.write_bytes }} (ops: {{ disk.write_count }}, time: {{ disk.write_time_ms }}ms)
+
+{% endfor %}
+{% else %}
+No disk I/O counters available.
+{% endif %}

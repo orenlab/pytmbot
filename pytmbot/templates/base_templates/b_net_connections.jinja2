@@ -1,0 +1,14 @@
+{{ thought_balloon }} <b>Connections Summary:</b>
+
+<code>Total:</code> {{ context.total }}
+<code>TCP:</code> {{ context.tcp }}
+<code>UDP:</code> {{ context.udp }}
+
+{% if context.statuses %}
+<b>Status distribution:</b>
+{% for status, count in context.statuses.items() %}
+<code>{{ status }}:</code> {{ count }}
+{% endfor %}
+{% else %}
+No active connection status data available.
+{% endif %}

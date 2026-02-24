@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 import concurrent.futures
 import os
+import socket
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -21,10 +22,14 @@ import psutil
 
 from pytmbot.adapters.psutil.adapter_types import (
     CPUFrequencyStats,
+    CPUTimesPercentStats,
     CPUUsageStats,
+    DiskIOStats,
     DiskStats,
+    FanSpeedStats,
     LoadAverage,
     MemoryStats,
+    NetworkConnectionsSummary,
     NetworkInterfaceStats,
     NetworkIOStats,
     ProcessStats,
@@ -778,6 +783,61 @@ class PsutilAdapter:
         return result
 
     @thread_safe_cache(maxsize=1, ttl_seconds=5.0)
+    def get_disk_io_stats(self) -> list[DiskIOStats]:
+        """Get per-disk I/O counters. Cached for 5 seconds."""
+        context: dict[str, object] = {"action": "disk_io_stats"}
+
+        def _get_disk_io() -> list[DiskIOStats]:
+            try:
+                counters = self._psutil.disk_io_counters(perdisk=True)
+            except Exception as e:
+                logger.warning("bot.system.fetch.disk.io.fail", error=str(e), **context)
+                return []
+
+            if not counters:
+                return []
+
+            stats: list[DiskIOStats] = []
+            for device_name in sorted(counters):
+                device_stats = counters[device_name]
+                with suppress(Exception):
+                    read_time = int(round(float(getattr(device_stats, "read_time", 0))))
+                    write_time = int(
+                        round(float(getattr(device_stats, "write_time", 0)))
+                    )
+                    stats.append(
+                        {
+                            "device_name": str(device_name),
+                            "read_bytes": set_naturalsize(
+                                int(getattr(device_stats, "read_bytes", 0))
+                            ),
+                            "write_bytes": set_naturalsize(
+                                int(getattr(device_stats, "write_bytes", 0))
+                            ),
+                            "read_count": int(getattr(device_stats, "read_count", 0)),
+                            "write_count": int(getattr(device_stats, "write_count", 0)),
+                            "read_time_ms": read_time,
+                            "write_time_ms": write_time,
+                        }
+                    )
+            return stats
+
+        disk_io_fallback: list[DiskIOStats] = []
+        result, execution_time_ms = self._safe_execute(
+            "disk I/O stats",
+            _get_disk_io,
+            disk_io_fallback,
+            log_context=context,
+        )
+        self._log_operation_result(
+            "bot.system.disk.io.result",
+            execution_time_ms,
+            devices_count=len(result),
+            **context,
+        )
+        return result
+
+    @thread_safe_cache(maxsize=1, ttl_seconds=5.0)
     def get_swap_memory(self) -> SwapStats:
         """Get swap memory usage statistics. Cached for 5 seconds."""
         context: dict[str, object] = {"action": "swap_memory"}
@@ -858,6 +918,62 @@ class PsutilAdapter:
             "bot.system.sensors.temperature.result",
             execution_time_ms,
             sensors_count=len(result),
+            **context,
+        )
+        return result
+
+    @thread_safe_cache(maxsize=1, ttl_seconds=15.0)
+    def get_fan_speeds(self) -> list[FanSpeedStats]:
+        """Get fan speeds in RPM. Cached for 15 seconds."""
+        context: dict[str, object] = {"action": "fan_speeds"}
+
+        def _get_fans() -> list[FanSpeedStats]:
+            try:
+                fans = self._psutil.sensors_fans()
+            except (AttributeError, OSError):
+                return []
+            except Exception as e:
+                logger.warning("bot.system.fetch.fans.fail", error=str(e), **context)
+                return []
+
+            if not fans:
+                return []
+
+            fan_stats: list[FanSpeedStats] = []
+            for sensor_name, entries in fans.items():
+                if not entries:
+                    continue
+                for fan_entry in entries:
+                    with suppress(Exception):
+                        current_rpm = getattr(fan_entry, "current", None)
+                        if current_rpm is None:
+                            continue
+                        rpm_value = int(round(float(current_rpm)))
+                        if rpm_value < 0:
+                            continue
+                        label = str(getattr(fan_entry, "label", "")).strip() or "main"
+                        fan_stats.append(
+                            {
+                                "sensor_name": str(sensor_name),
+                                "label": label,
+                                "rpm": rpm_value,
+                            }
+                        )
+
+            fan_stats.sort(key=lambda item: (item["sensor_name"], item["label"]))
+            return fan_stats
+
+        fans_fallback: list[FanSpeedStats] = []
+        result, execution_time_ms = self._safe_execute(
+            "fan speeds",
+            _get_fans,
+            fans_fallback,
+            log_context=context,
+        )
+        self._log_operation_result(
+            "bot.system.fans.result",
+            execution_time_ms,
+            fans_count=len(result),
             **context,
         )
         return result
@@ -983,6 +1099,69 @@ class PsutilAdapter:
             execution_time_ms,
             bytes_sent=first_entry.get("bytes_sent") if first_entry else None,
             bytes_recv=first_entry.get("bytes_recv") if first_entry else None,
+            **context,
+        )
+        return result
+
+    @thread_safe_cache(maxsize=1, ttl_seconds=3.0)
+    def get_network_connections_summary(self) -> NetworkConnectionsSummary:
+        """Get a compact summary of active TCP/UDP connections."""
+        context: dict[str, object] = {"action": "network_connections_summary"}
+
+        def _get_connections() -> NetworkConnectionsSummary:
+            try:
+                connections = self._psutil.net_connections(kind="inet")
+            except TypeError:
+                # Fallback for psutil implementations without `kind` support.
+                connections = self._psutil.net_connections()
+            except Exception as e:
+                logger.warning(
+                    "bot.system.fetch.network.connections.fail",
+                    error=str(e),
+                    **context,
+                )
+                return {"total": 0, "tcp": 0, "udp": 0, "statuses": {}}
+
+            statuses: dict[str, int] = {}
+            tcp_count = 0
+            udp_count = 0
+
+            for connection in connections:
+                status = str(getattr(connection, "status", "UNKNOWN") or "UNKNOWN")
+                statuses[status] = statuses.get(status, 0) + 1
+
+                conn_type = getattr(connection, "type", None)
+                if conn_type == socket.SOCK_STREAM:
+                    tcp_count += 1
+                elif conn_type == socket.SOCK_DGRAM:
+                    udp_count += 1
+
+            return {
+                "total": len(connections),
+                "tcp": tcp_count,
+                "udp": udp_count,
+                "statuses": dict(sorted(statuses.items())),
+            }
+
+        connections_fallback: NetworkConnectionsSummary = {
+            "total": 0,
+            "tcp": 0,
+            "udp": 0,
+            "statuses": {},
+        }
+        result, execution_time_ms = self._safe_execute(
+            "network connections summary",
+            _get_connections,
+            connections_fallback,
+            timeout=self._DEFAULT_TIMEOUT,
+            log_context=context,
+        )
+        self._log_operation_result(
+            "bot.system.network.connections.result",
+            execution_time_ms,
+            total=result.get("total", 0),
+            tcp=result.get("tcp", 0),
+            udp=result.get("udp", 0),
             **context,
         )
         return result
@@ -1161,6 +1340,58 @@ class PsutilAdapter:
         )
         return result
 
+    @thread_safe_cache(maxsize=1, ttl_seconds=3.0)
+    def get_cpu_times_percent(self) -> CPUTimesPercentStats:
+        """Get CPU time distribution in percentages."""
+        context: dict[str, object] = {"action": "cpu_times_percent"}
+
+        def _get_cpu_times_percent() -> CPUTimesPercentStats:
+            try:
+                cpu_times = self._psutil.cpu_times_percent(interval=0.0)
+            except (AttributeError, OSError):
+                return {
+                    "user": 0.0,
+                    "system": 0.0,
+                    "idle": 0.0,
+                    "iowait": 0.0,
+                    "irq": 0.0,
+                    "softirq": 0.0,
+                }
+
+            return {
+                "user": round(float(getattr(cpu_times, "user", 0.0)), 1),
+                "system": round(float(getattr(cpu_times, "system", 0.0)), 1),
+                "idle": round(float(getattr(cpu_times, "idle", 0.0)), 1),
+                "iowait": round(float(getattr(cpu_times, "iowait", 0.0)), 1),
+                "irq": round(float(getattr(cpu_times, "irq", 0.0)), 1),
+                "softirq": round(float(getattr(cpu_times, "softirq", 0.0)), 1),
+            }
+
+        cpu_times_fallback: CPUTimesPercentStats = {
+            "user": 0.0,
+            "system": 0.0,
+            "idle": 0.0,
+            "iowait": 0.0,
+            "irq": 0.0,
+            "softirq": 0.0,
+        }
+        result, execution_time_ms = self._safe_execute(
+            "CPU times percent",
+            _get_cpu_times_percent,
+            cpu_times_fallback,
+            log_context=context,
+        )
+        self._log_operation_result(
+            "bot.system.cpu.times.result",
+            execution_time_ms,
+            user=result.get("user"),
+            system=result.get("system"),
+            idle=result.get("idle"),
+            iowait=result.get("iowait"),
+            **context,
+        )
+        return result
+
     def get_top_processes(self, count: int = 10) -> list[TopProcess]:
         """
         Get the top processes by CPU and memory usage.
@@ -1263,6 +1494,24 @@ class PsutilAdapter:
             "bot.system.cpu.count.result",
             execution_time_ms,
             cpu_cores=result,
+            **context,
+        )
+        return result
+
+    @lru_cache(maxsize=1)
+    def get_cpu_count_physical(self) -> int:
+        """Get the number of physical CPU cores. Cached permanently."""
+        context: dict[str, object] = {"action": "cpu_count_physical"}
+        result, execution_time_ms = self._safe_execute(
+            "CPU physical core count",
+            lambda: self._psutil.cpu_count(logical=False) or 1,
+            1,
+            log_context=context,
+        )
+        self._log_operation_result(
+            "bot.system.cpu.count.physical.result",
+            execution_time_ms,
+            physical_cores=result,
             **context,
         )
         return result

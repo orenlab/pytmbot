@@ -18,9 +18,8 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
-from pytmbot.handlers.handlers_util.callback_auth import (
-    authorize_callback_request,
-    parse_callback_target_user,
+from pytmbot.handlers.server_handlers.inline.common import (
+    authorize_user_bound_callback,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -35,36 +34,17 @@ running_in_docker = is_docker_environment()
 @logger.session_decorator
 def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
     """Handles the process_info command to display top CPU and memory consuming processes."""
-
-    try:
-        target_user_id = parse_callback_target_user(call.data or "", "__process_info__")
-    except ValueError:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text="Invalid process info request format.",
-            show_alert=True,
-        )
-        return None
-
-    is_allowed, deny_reason = authorize_callback_request(
+    is_allowed, _target_user_id = authorize_user_bound_callback(
         call,
-        target_user_id=target_user_id,
-        require_owner_match=target_user_id is not None,
+        bot,
+        prefix="__process_info__",
+        invalid_payload_text="Invalid process info request format.",
+        missing_message_text="Cannot render process info in this context.",
     )
     if not is_allowed:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text=deny_reason,
-            show_alert=True,
-        )
         return None
 
     if call.message is None:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text="Cannot render process info in this context.",
-            show_alert=True,
-        )
         return None
 
     emojis = {

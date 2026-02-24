@@ -8,18 +8,34 @@ also providing basic information about the status of local servers.
 from collections.abc import Callable
 
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import InlineKeyboardMarkup, Message
 
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import get_emoji_converter, get_psutil_adapter
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    get_psutil_adapter,
+)
+from pytmbot.handlers.server_handlers.inline.common import (
+    build_user_bound_callback_data,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
 em = get_emoji_converter()
+keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
+
+QUICKVIEW_OVERVIEW_PREFIX = "__quickview_overview__"
+QUICKVIEW_MEMORY_PREFIX = "__quickview_memory__"
+QUICKVIEW_SENSORS_PREFIX = "__quickview_sensors__"
+QUICKVIEW_CPU_PREFIX = "__quickview_cpu__"
+QUICKVIEW_DISK_PREFIX = "__quickview_disk__"
 
 
 def _get_uptime() -> str | None:
@@ -59,6 +75,29 @@ def _get_memory() -> dict[str, object] | None:
         return None
 
 
+def _get_cpu() -> dict[str, object] | None:
+    """Get CPU statistics."""
+    try:
+        cpu_stats = psutil_adapter.get_cpu_usage()
+        cpu_freq = psutil_adapter.get_cpu_frequency()
+        physical_count_getter = getattr(
+            psutil_adapter,
+            "get_cpu_count_physical",
+            lambda: psutil_adapter.get_cpu_count(),
+        )
+        if isinstance(cpu_stats, dict) and isinstance(cpu_freq, dict):
+            return {
+                "cpu_percent": float(cpu_stats.get("cpu_percent", 0.0)),
+                "cpu_count": int(psutil_adapter.get_cpu_count()),
+                "physical_cpu_count": int(physical_count_getter()),
+                "frequency_mhz": float(cpu_freq.get("current_freq", 0.0)),
+            }
+        return None
+    except Exception:
+        logger.error("bot.handler.server.quickview.get.cpu.fail")
+        return None
+
+
 def _get_processes() -> dict[str, object] | None:
     """Get process counts."""
     try:
@@ -95,6 +134,7 @@ def _collect_metrics() -> dict[str, object]:
     collectors: dict[str, Callable[[], object | None]] = {
         "uptime": _get_uptime,
         "load_average": _get_load,
+        "cpu": _get_cpu,
         "memory": _get_memory,
         "processes": _get_processes,
         "docker": _get_docker,
@@ -117,6 +157,76 @@ def _collect_metrics() -> dict[str, object]:
             )
 
     return metrics
+
+
+def _build_quickview_context(metrics: dict[str, object]) -> dict[str, object]:
+    """Build normalized context for quickview template."""
+    load_average_raw = metrics.get("load_average")
+    load_average: tuple[float, float, float] = (
+        load_average_raw
+        if (
+            isinstance(load_average_raw, tuple)
+            and len(load_average_raw) == 3
+            and all(isinstance(value, (int, float)) for value in load_average_raw)
+        )
+        else (0.0, 0.0, 0.0)
+    )
+    memory_stats = metrics.get("memory")
+    process_stats = metrics.get("processes")
+    cpu_stats = metrics.get("cpu")
+
+    context: dict[str, object] = {
+        "system": {
+            "uptime": metrics.get("uptime", "N/A"),
+            "load_average": load_average,
+            "cpu": cpu_stats if isinstance(cpu_stats, dict) else {},
+            "memory": memory_stats if isinstance(memory_stats, dict) else {},
+            "processes": process_stats if isinstance(process_stats, dict) else {},
+        }
+    }
+
+    docker_metrics = metrics.get("docker")
+    if isinstance(docker_metrics, dict):
+        context["docker"] = docker_metrics
+
+    return context
+
+
+def _build_quickview_keyboard(
+    user_id: int | None, *, on_overview: bool = False
+) -> InlineKeyboardMarkup:
+    overview_text = "🔄 Refresh data" if on_overview else "📊 Overview"
+    buttons = [
+        button_data(
+            text=overview_text,
+            callback_data=build_user_bound_callback_data(
+                QUICKVIEW_OVERVIEW_PREFIX, user_id
+            ),
+        ),
+        button_data(
+            text="💾 Memory",
+            callback_data=build_user_bound_callback_data(
+                QUICKVIEW_MEMORY_PREFIX, user_id
+            ),
+        ),
+        button_data(
+            text="🌡 Temp",
+            callback_data=build_user_bound_callback_data(
+                QUICKVIEW_SENSORS_PREFIX, user_id
+            ),
+        ),
+        button_data(
+            text="⚡ CPU",
+            callback_data=build_user_bound_callback_data(QUICKVIEW_CPU_PREFIX, user_id),
+        ),
+        button_data(
+            text="📂 Disk",
+            callback_data=build_user_bound_callback_data(
+                QUICKVIEW_DISK_PREFIX, user_id
+            ),
+        ),
+    ]
+    return keyboards.build_inline_keyboard(buttons)
 
 
 # regexp="Quick view|Quick status|qv"
@@ -147,40 +257,20 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
             )
             return
 
-        load_average_raw = metrics.get("load_average")
-        load_average: tuple[float, float, float] = (
-            load_average_raw
-            if (
-                isinstance(load_average_raw, tuple)
-                and len(load_average_raw) == 3
-                and all(isinstance(value, (int, float)) for value in load_average_raw)
-            )
-            else (0.0, 0.0, 0.0)
-        )
-        memory_stats = metrics.get("memory")
-        process_stats = metrics.get("processes")
-
-        # Prepare context for template
-        context: dict[str, object] = {
-            "system": {
-                "uptime": metrics.get("uptime", "N/A"),
-                "load_average": load_average,
-                "memory": memory_stats if isinstance(memory_stats, dict) else {},
-                "processes": process_stats if isinstance(process_stats, dict) else {},
-                "cpu": metrics.get("cpu", {}),
-            }
-        }
-
-        # Add Docker metrics if available
-        docker_metrics = metrics.get("docker")
-        if isinstance(docker_metrics, dict):
-            context["docker"] = docker_metrics
+        context = _build_quickview_context(metrics)
+        user_id = message.from_user.id if message.from_user is not None else None
+        keyboard = _build_quickview_keyboard(user_id, on_overview=True)
 
         bot_answer = Compiler.quick_render(
             template_name="b_quick_view.jinja2", context=context, **emojis
         )
 
-        bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
+        bot.send_message(
+            message.chat.id,
+            text=bot_answer,
+            parse_mode="Markdown",
+            reply_markup=keyboard,
+        )
 
     except Exception as error:
         bot.send_message(

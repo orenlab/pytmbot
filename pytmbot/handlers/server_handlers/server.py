@@ -45,6 +45,7 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             "thought_balloon": em.get_emoji("thought_balloon"),
             "battery": em.get_emoji("battery"),
             "desktop_computer": em.get_emoji("desktop_computer"),
+            "electric_plug": em.get_emoji("electric_plug"),
             "thermometer": em.get_emoji("thermometer"),
             "rocket": em.get_emoji("rocket"),
             "hourglass_not_done": em.get_emoji("hourglass_not_done"),

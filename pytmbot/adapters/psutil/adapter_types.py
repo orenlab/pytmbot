@@ -32,6 +32,16 @@ class DiskStats(TypedDict):
     percent: float
 
 
+class DiskIOStats(TypedDict):
+    device_name: str
+    read_bytes: str
+    write_bytes: str
+    read_count: int
+    write_count: int
+    read_time_ms: int
+    write_time_ms: int
+
+
 class SwapStats(TypedDict):
     total: str
     used: str
@@ -86,6 +96,28 @@ class CPUFrequencyStats(TypedDict):
 class CPUUsageStats(TypedDict):
     cpu_percent: float
     cpu_percent_per_core: list[float]
+
+
+class CPUTimesPercentStats(TypedDict):
+    user: float
+    system: float
+    idle: float
+    iowait: float
+    irq: float
+    softirq: float
+
+
+class NetworkConnectionsSummary(TypedDict):
+    total: int
+    tcp: int
+    udp: int
+    statuses: dict[str, int]
+
+
+class FanSpeedStats(TypedDict):
+    sensor_name: str
+    label: str
+    rpm: int
 
 
 class TopProcess(TypedDict):

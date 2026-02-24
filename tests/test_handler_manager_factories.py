@@ -103,6 +103,9 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     query = cast(CallbackQuery, SimpleNamespace(data=None))
     assert factory_module.InlineFilters.swap_info(query) is False
     assert factory_module.InlineFilters.process_info(query) is False
+    assert factory_module.InlineFilters.cpu_info(query) is False
+    assert factory_module.InlineFilters.cpu_per_core(query) is False
+    assert factory_module.InlineFilters.cpu_times(query) is False
     assert factory_module.InlineFilters.update_info(query) is False
     assert factory_module.InlineFilters.get_logs(query) is False
     assert factory_module.InlineFilters.containers_full_info(query) is False
@@ -113,11 +116,30 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.images_page(query) is False
     assert factory_module.InlineFilters.image_info(query) is False
     assert factory_module.InlineFilters.image_extra(query) is False
+    assert factory_module.InlineFilters.network_overview(query) is False
+    assert factory_module.InlineFilters.network_interfaces(query) is False
+    assert factory_module.InlineFilters.network_connections(query) is False
+    assert factory_module.InlineFilters.filesystem_overview(query) is False
+    assert factory_module.InlineFilters.disk_io(query) is False
+    assert factory_module.InlineFilters.users_info(query) is False
+    assert factory_module.InlineFilters.sensors_overview(query) is False
+    assert factory_module.InlineFilters.fan_speeds(query) is False
+    assert factory_module.InlineFilters.quickview_overview(query) is False
+    assert factory_module.InlineFilters.quickview_memory(query) is False
+    assert factory_module.InlineFilters.quickview_sensors(query) is False
+    assert factory_module.InlineFilters.quickview_cpu(query) is False
+    assert factory_module.InlineFilters.quickview_disk(query) is False
 
     query.data = "__swap_info__:abc"
     assert factory_module.InlineFilters.swap_info(query) is True
     query.data = "__process_info__:abc"
     assert factory_module.InlineFilters.process_info(query) is True
+    query.data = "__cpu_info__:abc"
+    assert factory_module.InlineFilters.cpu_info(query) is True
+    query.data = "__cpu_per_core__:abc"
+    assert factory_module.InlineFilters.cpu_per_core(query) is True
+    query.data = "__cpu_times__:abc"
+    assert factory_module.InlineFilters.cpu_times(query) is True
     query.data = "__how_update__"
     assert factory_module.InlineFilters.update_info(query) is True
     query.data = "__get_logs__:abc"
@@ -138,6 +160,32 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.image_info(query) is True
     query.data = "__image_extra__:history:0:1:1"
     assert factory_module.InlineFilters.image_extra(query) is True
+    query.data = "__network_overview__:1"
+    assert factory_module.InlineFilters.network_overview(query) is True
+    query.data = "__network_interfaces__:1"
+    assert factory_module.InlineFilters.network_interfaces(query) is True
+    query.data = "__network_connections__:1"
+    assert factory_module.InlineFilters.network_connections(query) is True
+    query.data = "__filesystem_overview__:1"
+    assert factory_module.InlineFilters.filesystem_overview(query) is True
+    query.data = "__disk_io__:1"
+    assert factory_module.InlineFilters.disk_io(query) is True
+    query.data = "__users_info__:1"
+    assert factory_module.InlineFilters.users_info(query) is True
+    query.data = "__sensors_overview__:1"
+    assert factory_module.InlineFilters.sensors_overview(query) is True
+    query.data = "__fan_speeds__:1"
+    assert factory_module.InlineFilters.fan_speeds(query) is True
+    query.data = "__quickview_overview__:1"
+    assert factory_module.InlineFilters.quickview_overview(query) is True
+    query.data = "__quickview_memory__:1"
+    assert factory_module.InlineFilters.quickview_memory(query) is True
+    query.data = "__quickview_sensors__:1"
+    assert factory_module.InlineFilters.quickview_sensors(query) is True
+    query.data = "__quickview_cpu__:1"
+    assert factory_module.InlineFilters.quickview_cpu(query) is True
+    query.data = "__quickview_disk__:1"
+    assert factory_module.InlineFilters.quickview_disk(query) is True
 
 
 def test_handler_factories_are_cached_and_produce_handlers() -> None:
@@ -151,7 +199,12 @@ def test_handler_factories_are_cached_and_produce_handlers() -> None:
     assert inline_handlers is factory_module.inline_handler_factory()
 
     assert "start" in message_handlers
+    assert "cpu" in message_handlers
+    assert "health" in message_handlers
     assert "get_logs" in inline_handlers
+    assert "cpu_info" in inline_handlers
+    assert "disk_io" in inline_handlers
+    assert "quickview_overview" in inline_handlers
     assert "container_extra_info" in inline_handlers
     assert "image_info" in inline_handlers
     assert "image_extra" in inline_handlers

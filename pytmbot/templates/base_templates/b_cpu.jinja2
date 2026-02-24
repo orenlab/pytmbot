@@ -1,0 +1,16 @@
+{{ thought_balloon }} <b>CPU Overview:</b>
+
+{{ electric_plug }} <b>Total usage:</b> <code>{{ "%.1f"|format(context.cpu_percent) }}%</code>
+<code>Logical cores:</code> {{ context.logical_cores }}
+<code>Physical cores:</code> {{ context.physical_cores }}
+
+<b>Frequency:</b>
+{% if context.current_freq_mhz > 0 %}
+<code>Current:</code> {{ "%.1f"|format(context.current_freq_mhz) }} MHz
+<code>Min:</code> {{ "%.1f"|format(context.min_freq_mhz) }} MHz
+<code>Max:</code> {{ "%.1f"|format(context.max_freq_mhz) }} MHz
+{% else %}
+<code>N/A</code>
+{% endif %}
+
+{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}

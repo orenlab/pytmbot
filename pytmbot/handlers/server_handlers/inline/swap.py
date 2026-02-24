@@ -11,9 +11,8 @@ from telebot.types import CallbackQuery
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_psutil_adapter
-from pytmbot.handlers.handlers_util.callback_auth import (
-    authorize_callback_request,
-    parse_callback_target_user,
+from pytmbot.handlers.server_handlers.inline.common import (
+    authorize_user_bound_callback,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -28,35 +27,17 @@ psutil_adapter = get_psutil_adapter()
 def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
     """Handles the swap_info command."""
 
-    try:
-        target_user_id = parse_callback_target_user(call.data or "", "__swap_info__")
-    except ValueError:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text="Invalid swap request format.",
-            show_alert=True,
-        )
-        return None
-
-    is_allowed, deny_reason = authorize_callback_request(
+    is_allowed, _target_user_id = authorize_user_bound_callback(
         call,
-        target_user_id=target_user_id,
-        require_owner_match=target_user_id is not None,
+        bot,
+        prefix="__swap_info__",
+        invalid_payload_text="Invalid swap request format.",
+        missing_message_text="Cannot render swap info in this context.",
     )
     if not is_allowed:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text=deny_reason,
-            show_alert=True,
-        )
         return None
 
     if call.message is None:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text="Cannot render swap info in this context.",
-            show_alert=True,
-        )
         return None
 
     emojis = {

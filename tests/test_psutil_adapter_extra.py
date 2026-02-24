@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -189,6 +190,41 @@ class _FakePsutil:
             dropout=0,
         )
 
+    def disk_io_counters(self, *, perdisk: bool) -> dict[str, SimpleNamespace]:
+        del perdisk
+        return {
+            "sda": SimpleNamespace(
+                read_bytes=1024,
+                write_bytes=2048,
+                read_count=10,
+                write_count=20,
+                read_time=30,
+                write_time=40,
+            )
+        }
+
+    def cpu_times_percent(self, *, interval: float) -> SimpleNamespace:
+        del interval
+        return SimpleNamespace(
+            user=10.0,
+            system=5.0,
+            idle=80.0,
+            iowait=2.0,
+            irq=1.0,
+            softirq=2.0,
+        )
+
+    def net_connections(self, kind: str = "inet") -> list[SimpleNamespace]:
+        del kind
+        return [
+            SimpleNamespace(status="ESTABLISHED", type=socket.SOCK_STREAM),
+            SimpleNamespace(status="LISTEN", type=socket.SOCK_STREAM),
+            SimpleNamespace(status="NONE", type=socket.SOCK_DGRAM),
+        ]
+
+    def sensors_fans(self) -> dict[str, list[SimpleNamespace]]:
+        return {"chassis": [SimpleNamespace(current=1200.0, label="fan1")]}
+
     def users(self) -> list[SimpleNamespace]:
         return [
             SimpleNamespace(name="den", terminal="tty", host="localhost", started=1.0)
@@ -219,8 +255,7 @@ class _FakePsutil:
         return 15.0
 
     def cpu_count(self, *, logical: bool) -> int | None:
-        del logical
-        return 8
+        return 8 if logical else 4
 
 
 def test_thread_safe_cache_respects_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -281,12 +316,17 @@ def test_psutil_adapter_core_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     uptime = adapter.get_uptime()
     process_counts = adapter.get_process_counts()
     network_io = adapter.get_net_io_counters()
+    disk_io = adapter.get_disk_io_stats()
+    connections_summary = adapter.get_network_connections_summary()
     users = adapter.get_users_info()
     net_stats = adapter.get_net_interface_stats()
     cpu_freq = adapter.get_cpu_frequency()
     cpu_usage = adapter.get_cpu_usage()
+    cpu_times = adapter.get_cpu_times_percent()
     top = adapter.get_top_processes(count=5)
     cpu_count = adapter.get_cpu_count()
+    cpu_count_physical = adapter.get_cpu_count_physical()
+    fans = adapter.get_fan_speeds()
     summary = adapter.get_system_summary()
 
     assert process_stats["pid"] == 123
@@ -299,12 +339,17 @@ def test_psutil_adapter_core_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(uptime, str)
     assert process_counts["total"] == 3
     assert network_io[0]["packets_sent"] == 11
+    assert disk_io[0]["device_name"] == "sda"
+    assert connections_summary["tcp"] == 2
     assert users[0]["username"] == "den"
     assert net_stats["eth0"]["ip_address"] == "127.0.0.1"
     assert cpu_freq["current_freq"] == 2800.0
     assert cpu_usage["cpu_percent"] == 15.0
+    assert cpu_times["iowait"] == 2.0
     assert top[0]["pid"] == 1
     assert cpu_count == 8
+    assert cpu_count_physical == 4
+    assert fans[0]["rpm"] == 1200
     assert "cpu" in summary
 
     adapter.clear_cache()

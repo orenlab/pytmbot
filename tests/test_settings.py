@@ -24,7 +24,9 @@ from pytmbot.settings import (
 
 def test_default_settings_factories_return_expected_keys() -> None:
     assert "rocket" in get_default_main_keyboard()
+    assert "stethoscope" in get_default_main_keyboard()
     assert "penguin" in get_default_server_keyboard()
+    assert "stethoscope" not in get_default_server_keyboard()
     assert "framed_picture" in get_default_docker_keyboard()
     assert "first_quarter_moon" in get_default_auth_keyboard()
     assert "BACK_arrow" in get_default_back_keyboard()

@@ -64,6 +64,7 @@ def get_default_main_keyboard() -> dict[str, str]:
         "spouting_whale": "Docker",
         "lollipop": "Plugins",
         "eyes": "Quick view",
+        "stethoscope": "Health",
         "mushroom": "About me",
     }
 
@@ -72,6 +73,7 @@ def get_default_server_keyboard() -> dict[str, str]:
     """Returns the default server keyboard configuration."""
     return {
         "low_battery": "Load average",
+        "electric_plug": "CPU",
         "pager": "Memory load",
         "stopwatch": "Sensors",
         "rocket": "Process",
@@ -118,6 +120,7 @@ def get_default_bot_commands() -> dict[str, str]:
         "/docker": "Launch the section about Docker",
         "/containers": "Get Containers info",
         "/images": "Get Images info",
+        "/health": "Get current system health snapshot",
         "/qrcode": "Get TOTP QR code for 2FA app",
         "/back": "Back to main menu",
         "/check_bot_updates": "Check for software updates",

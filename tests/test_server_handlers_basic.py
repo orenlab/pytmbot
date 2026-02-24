@@ -7,7 +7,9 @@ import pytest
 from telebot import TeleBot
 from telebot.types import Message
 
+import pytmbot.handlers.server_handlers.cpu as cpu_module
 import pytmbot.handlers.server_handlers.filesystem as filesystem_module
+import pytmbot.handlers.server_handlers.health_summary as health_module
 import pytmbot.handlers.server_handlers.load_average as load_average_module
 import pytmbot.handlers.server_handlers.memory as memory_module
 import pytmbot.handlers.server_handlers.network as network_module
@@ -78,6 +80,22 @@ def _invoke_handler(
 ) -> None:
     typed_handler = cast(Callable[[Message, TeleBot], None], handler)
     typed_handler(message, bot)
+
+
+def _assert_handler_renders_html(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    compiler: object,
+    handler: object,
+    message: Message,
+    bot: TeleBot,
+    messages: list[dict[str, object]],
+    expected_text: str,
+) -> None:
+    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: expected_text)
+    _invoke_handler(handler, message, bot)
+    assert messages[-1]["text"] == expected_text
+    assert messages[-1]["parse_mode"] == "HTML"
 
 
 def _assert_memory_or_process_handler_paths(
@@ -341,6 +359,129 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
         bot=bot,
         messages=messages,
     )
+
+
+def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot, _actions, messages = _build_bot(monkeypatch)
+    message = _build_message(15, user_id=777)
+
+    monkeypatch.setattr(
+        cpu_module,
+        "psutil_adapter",
+        type(
+            "A",
+            (),
+            {
+                "get_cpu_usage": lambda self: {"cpu_percent": 10.0},
+                "get_cpu_frequency": lambda self: {
+                    "current_freq": 2500.0,
+                    "min_freq": 1000.0,
+                    "max_freq": 3000.0,
+                },
+                "get_cpu_count": lambda self: 8,
+                "get_cpu_count_physical": lambda self: 4,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        cpu_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        cpu_module,
+        "keyboards",
+        type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
+    )
+    _assert_handler_renders_html(
+        monkeypatch=monkeypatch,
+        compiler=cpu_module.Compiler,
+        handler=cpu_module.handle_cpu,
+        message=message,
+        bot=bot,
+        messages=messages,
+        expected_text="cpu ok",
+    )
+    reply_markup = messages[-1]["reply_markup"]
+    assert isinstance(reply_markup, dict)
+    inline_buttons = reply_markup["inline"]
+    assert isinstance(inline_buttons, list)
+    assert str(inline_buttons[0]["callback_data"]).endswith(":777")
+
+    monkeypatch.setattr(
+        cpu_module,
+        "psutil_adapter",
+        type(
+            "B",
+            (),
+            {
+                "get_cpu_usage": lambda self: (_ for _ in ()).throw(
+                    RuntimeError("cpu fail")
+                )
+            },
+        )(),
+    )
+    with pytest.raises(HandlingException) as exc_info:
+        _invoke_handler(cpu_module.handle_cpu, message, bot)
+    assert exc_info.value.context.error_code == "HAND_CPU_001"
+
+
+def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot, _actions, messages = _build_bot(monkeypatch)
+    message = _build_message(16)
+
+    monkeypatch.setattr(
+        health_module,
+        "psutil_adapter",
+        type(
+            "A",
+            (),
+            {
+                "get_cpu_usage": lambda self: {"cpu_percent": 10.0},
+                "get_memory": lambda self: {"percent": 25.0},
+                "get_load_average": lambda self: (0.2, 0.2, 0.2),
+                "get_process_counts": lambda self: {"total": 3},
+                "get_cpu_count": lambda self: 4,
+                "get_uptime": lambda self: "1:00:00",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        health_module,
+        "fetch_docker_counters",
+        lambda: {
+            "containers_count": 4,
+            "running_containers": 3,
+            "stopped_containers": 1,
+            "images_count": 6,
+        },
+    )
+    _assert_handler_renders_html(
+        monkeypatch=monkeypatch,
+        compiler=health_module.Compiler,
+        handler=health_module.handle_system_health,
+        message=message,
+        bot=bot,
+        messages=messages,
+        expected_text="health ok",
+    )
+
+    monkeypatch.setattr(
+        health_module,
+        "psutil_adapter",
+        type(
+            "B",
+            (),
+            {
+                "get_cpu_usage": lambda self: (_ for _ in ()).throw(
+                    RuntimeError("health fail")
+                )
+            },
+        )(),
+    )
+    with pytest.raises(HandlingException) as exc_info:
+        _invoke_handler(health_module.handle_system_health, message, bot)
+    assert exc_info.value.context.error_code == "HAND_HEALTH_001"
     _assert_simple_handler_paths(
         monkeypatch=monkeypatch,
         module=filesystem_module,
