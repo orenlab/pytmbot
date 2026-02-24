@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .message_deletion import deletion_manager
     from .security import (
         generate_secret_token,
+        mask_ip_address,
         mask_token_in_message,
         mask_user_id,
         mask_username,
@@ -72,6 +73,7 @@ def __getattr__(name: str) -> object:
     if name in {
         "sanitize_exception",
         "generate_secret_token",
+        "mask_ip_address",
         "mask_token_in_message",
         "mask_username",
         "mask_user_id",
@@ -116,6 +118,7 @@ __all__ = [
     "get_environment_state",
     "sanitize_exception",
     "generate_secret_token",
+    "mask_ip_address",
     "mask_token_in_message",
     "mask_username",
     "mask_user_id",

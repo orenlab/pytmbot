@@ -236,7 +236,7 @@ def process_image_attrs(image: Image) -> dict[str, Any]:
             ),
             "healthcheck": healthcheck,
         }
-    except Exception as e:
+    except (AttributeError, KeyError, TypeError, ValueError) as e:
         logger.error(
             "docker.images.image.attributes.fail",
             image_id=image.short_id,

@@ -30,7 +30,7 @@ from pytmbot.logs import BaseComponent
 from pytmbot.models.settings_model import WebhookConfig as SettingsWebhookConfig
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
-from pytmbot.utils import generate_secret_token, mask_token_in_message
+from pytmbot.utils import generate_secret_token, mask_ip_address, mask_token_in_message
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 
@@ -702,9 +702,10 @@ class WebhookServer(BaseComponent):
             ) -> JSONResponse:
                 _ = exc
                 client_ip = request.client.host if request.client else "unknown"
+                masked_client_ip = mask_ip_address(client_ip)
                 with self.log_context(
                     action="handle_404",
-                    client_ip=client_ip,
+                    client_ip=masked_client_ip,
                     request_url=str(request.url),
                 ) as _log:
                     if self.rate_limiter_404.is_rate_limited(client_ip):
@@ -724,11 +725,13 @@ class WebhookServer(BaseComponent):
                 x_forwarded_for: Annotated[str | None, Header()] = None,
             ) -> str:
                 peer_ip, client_ip = self._resolve_client_ip(request, x_forwarded_for)
+                masked_client_ip = mask_ip_address(client_ip)
+                masked_peer_ip = mask_ip_address(peer_ip)
 
                 with self.log_context(
                     action="ip_verification",
-                    client_ip=client_ip,
-                    peer_ip=peer_ip,
+                    client_ip=masked_client_ip,
+                    peer_ip=masked_peer_ip,
                     has_forwarded_header=bool(x_forwarded_for),
                 ) as _log:
                     if not self.telegram_ip_validator.is_telegram_ip(client_ip):
@@ -749,9 +752,10 @@ class WebhookServer(BaseComponent):
                 client_ip: Annotated[str, Depends(verify_telegram_ip)],
                 x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None,
             ) -> JSONResponse:
+                masked_client_ip = mask_ip_address(client_ip)
                 with self.log_context(
                     action="webhook_processing",
-                    client_ip=client_ip,
+                    client_ip=masked_client_ip,
                     request_counter=self.request_counter,
                 ) as _log:
                     try:

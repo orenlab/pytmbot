@@ -14,6 +14,8 @@ from functools import wraps
 from threading import RLock
 from typing import Any, Final
 
+from docker.errors import DockerException
+
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
@@ -92,7 +94,6 @@ def validate_access(
 
             _rate_limits[user_id] = current_time
 
-        # Enhanced authorization check
         try:
             # Check if user is in allowed admins
             if user_id not in settings.access_control.allowed_admins_ids:
@@ -140,12 +141,7 @@ def validate_access(
                     )
                     raise PermissionError("Session expired. Please re-authenticate")
 
-            # Log successful authorization at debug level to avoid noise
-            logger.debug("docker.containers.container.access.debug", **context)
-            return func(self, user_id, container_ref, *args, **kwargs)
-
-        except Exception as e:
-            # Log failed authorization attempts
+        except (PermissionError, AttributeError, TypeError, ValueError) as e:
             logger.error(
                 "docker.containers.authorization.check.fail",
                 error=sanitize_exception(e),
@@ -153,6 +149,10 @@ def validate_access(
                 **context,
             )
             raise
+
+        # Log successful authorization at debug level to avoid noise
+        logger.debug("docker.containers.container.access.debug", **context)
+        return func(self, user_id, container_ref, *args, **kwargs)
 
     return wrapper
 
@@ -244,7 +244,7 @@ class ContainerManager:
                         f"Valid states: {valid_states[operation]}"
                     )
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             logger.warning(
                 "docker.containers.container.state.fail",
                 container_id=getattr(container, "id", "unknown"),
@@ -252,209 +252,152 @@ class ContainerManager:
             )
             # Don't raise - let the actual operation handle the error
 
-    @validate_access
-    def __start_container(
-        self, user_id: int, container_id: ContainerId
+    def _execute_lifecycle_operation(
+        self,
+        *,
+        user_id: int,
+        container_id: ContainerId,
+        operation: str,
+        context_action: str,
+        start_event: str,
+        success_event: str,
+        fail_event: str,
+        expected_statuses: set[str],
+        expected_status_description: str,
+        execute_operation: Callable[[Any], None],
     ) -> DockerResponse:
-        """Starts a Docker container with enhanced validation and monitoring."""
+        """Execute shared lifecycle operation flow for start/stop/restart."""
         container_ref = self._normalize_container_id(container_id)
         context = build_container_context(
             container_id=container_ref,
-            action="container_start",
+            action=context_action,
             user_id=user_id,
         )
-
         start_time = time.time()
 
         try:
             with docker_client_context() as adapter:
                 container = get_container_safely(container_ref, docker_client=adapter)
 
-                # Pre-operation validation
-                self._validate_container_state_for_operation(container, "start")
+                self._validate_container_state_for_operation(container, operation)
+                self._record_operation(operation, container_ref)
+                logger.info(start_event, **context)
 
-                # Record operation
-                self._record_operation("start", container_ref)
+                execute_operation(container)
 
-                logger.info("docker.containers.container.start", **context)
-
-                start_timeout = float(
-                    getattr(
-                        settings.docker, "start_timeout", self._max_operation_timeout
-                    )
-                )
-                self._run_with_timeout("start", container.start, start_timeout)
-
-                # Verify the operation succeeded
-                container.reload()  # Refresh container state
-                if container.status.lower() not in ["running", "restarting"]:
+                container.reload()
+                current_status = container.status.lower()
+                if current_status not in expected_statuses:
                     logger.error(
-                        "docker.containers.container.start.fail",
-                        expected_status="running",
+                        fail_event,
+                        expected_status=expected_status_description,
                         actual_status=container.status,
                         **context,
                     )
                     raise RuntimeError(
-                        f"Start operation failed, current status: {container.status}"
+                        f"{operation.capitalize()} operation failed, "
+                        f"current status: {container.status}"
                     )
 
                 execution_time = time.time() - start_time
 
             logger.info(
-                "docker.containers.container.start",
+                success_event,
                 execution_time=f"{execution_time:.2f}s",
                 final_status=container.status,
                 **context,
             )
             return None
 
-        except Exception as e:
+        except (
+            DockerException,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+        ) as e:
             execution_time = time.time() - start_time
             logger.error(
-                "docker.containers.container.start.fail",
+                fail_event,
                 error=sanitize_exception(e),
                 execution_time=f"{execution_time:.2f}s",
                 **context,
             )
             raise
+
+    @validate_access
+    def __start_container(
+        self, user_id: int, container_id: ContainerId
+    ) -> DockerResponse:
+        """Starts a Docker container with enhanced validation and monitoring."""
+        start_timeout = float(
+            getattr(settings.docker, "start_timeout", self._max_operation_timeout)
+        )
+        return self._execute_lifecycle_operation(
+            user_id=user_id,
+            container_id=container_id,
+            operation="start",
+            context_action="container_start",
+            start_event="docker.containers.container.start",
+            success_event="docker.containers.container.start.ok",
+            fail_event="docker.containers.container.start.fail",
+            expected_statuses={"running", "restarting"},
+            expected_status_description="running/restarting",
+            execute_operation=lambda container: self._run_with_timeout(
+                "start",
+                container.start,
+                start_timeout,
+            ),
+        )
 
     @validate_access
     def __stop_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Stops a Docker container with graceful shutdown and timeout handling."""
-        container_ref = self._normalize_container_id(container_id)
-        context = build_container_context(
-            container_id=container_ref,
-            action="container_stop",
+        timeout = getattr(settings.docker, "stop_timeout", 10)
+        operation_timeout = max(float(timeout) + 5.0, self._max_operation_timeout)
+        return self._execute_lifecycle_operation(
             user_id=user_id,
+            container_id=container_id,
+            operation="stop",
+            context_action="container_stop",
+            start_event="docker.containers.container.stop",
+            success_event="docker.containers.container.stop.ok",
+            fail_event="docker.containers.container.stop.fail",
+            expected_statuses={"exited", "stopped"},
+            expected_status_description="exited/stopped",
+            execute_operation=lambda container: self._run_with_timeout(
+                "stop",
+                lambda: container.stop(timeout=timeout),
+                operation_timeout,
+            ),
         )
-
-        start_time = time.time()
-
-        try:
-            with docker_client_context() as adapter:
-                container = get_container_safely(container_ref, docker_client=adapter)
-
-                # Pre-operation validation
-                self._validate_container_state_for_operation(container, "stop")
-
-                # Record operation
-                self._record_operation("stop", container_ref)
-
-                logger.info("docker.containers.container.stop", **context)
-
-                # Stop with timeout to prevent hanging
-                timeout = getattr(settings.docker, "stop_timeout", 10)
-                operation_timeout = max(
-                    float(timeout) + 5.0, self._max_operation_timeout
-                )
-                self._run_with_timeout(
-                    "stop", lambda: container.stop(timeout=timeout), operation_timeout
-                )
-
-                # Verify the operation succeeded
-                container.reload()
-                if container.status.lower() not in ["exited", "stopped"]:
-                    logger.error(
-                        "docker.containers.container.stop.fail",
-                        expected_status="exited/stopped",
-                        actual_status=container.status,
-                        **context,
-                    )
-                    raise RuntimeError(
-                        f"Stop operation failed, current status: {container.status}"
-                    )
-
-                execution_time = time.time() - start_time
-
-            logger.info(
-                "docker.containers.container.stop",
-                execution_time=f"{execution_time:.2f}s",
-                final_status=container.status,
-                **context,
-            )
-            return None
-
-        except Exception as e:
-            execution_time = time.time() - start_time
-            logger.error(
-                "docker.containers.container.stop.fail",
-                error=sanitize_exception(e),
-                execution_time=f"{execution_time:.2f}s",
-                **context,
-            )
-            raise
 
     @validate_access
     def __restart_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Restarts a Docker container with enhanced monitoring."""
-        container_ref = self._normalize_container_id(container_id)
-        context = build_container_context(
-            container_id=container_ref,
-            action="container_restart",
+        timeout = getattr(settings.docker, "restart_timeout", 10)
+        operation_timeout = max(float(timeout) + 5.0, self._max_operation_timeout)
+        return self._execute_lifecycle_operation(
             user_id=user_id,
+            container_id=container_id,
+            operation="restart",
+            context_action="container_restart",
+            start_event="docker.containers.restarting.container.start",
+            success_event="docker.containers.container.restarted.start",
+            fail_event="docker.containers.container.restart.fail",
+            expected_statuses={"running", "restarting"},
+            expected_status_description="running/restarting",
+            execute_operation=lambda container: self._run_with_timeout(
+                "restart",
+                lambda: container.restart(timeout=timeout),
+                operation_timeout,
+            ),
         )
-
-        start_time = time.time()
-
-        try:
-            with docker_client_context() as adapter:
-                container = get_container_safely(container_ref, docker_client=adapter)
-
-                # Pre-operation validation
-                self._validate_container_state_for_operation(container, "restart")
-
-                # Record operation
-                self._record_operation("restart", container_ref)
-
-                logger.info("docker.containers.restarting.container.start", **context)
-
-                # Restart with timeout
-                timeout = getattr(settings.docker, "restart_timeout", 10)
-                operation_timeout = max(
-                    float(timeout) + 5.0, self._max_operation_timeout
-                )
-                self._run_with_timeout(
-                    "restart",
-                    lambda: container.restart(timeout=timeout),
-                    operation_timeout,
-                )
-
-                # Verify the operation succeeded
-                container.reload()
-                if container.status.lower() not in ["running", "restarting"]:
-                    logger.error(
-                        "docker.containers.container.restart.fail",
-                        expected_status="running",
-                        actual_status=container.status,
-                        **context,
-                    )
-                    raise RuntimeError(
-                        f"Restart operation failed, current status: {container.status}"
-                    )
-
-                execution_time = time.time() - start_time
-
-            logger.info(
-                "docker.containers.container.restarted.start",
-                execution_time=f"{execution_time:.2f}s",
-                final_status=container.status,
-                **context,
-            )
-            return None
-
-        except Exception as e:
-            execution_time = time.time() - start_time
-            logger.error(
-                "docker.containers.container.restart.fail",
-                error=sanitize_exception(e),
-                execution_time=f"{execution_time:.2f}s",
-                **context,
-            )
-            raise
 
     @validate_access
     def __rename_container(
@@ -536,7 +479,14 @@ class ContainerManager:
             )
             return None
 
-        except Exception as e:
+        except (
+            DockerException,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+        ) as e:
             execution_time = time.time() - start_time
             logger.error(
                 "docker.containers.container.rename.fail",
@@ -626,7 +576,13 @@ class ContainerManager:
             # Already logged in validator, just re-raise
             raise
 
-        except Exception as e:
+        except (
+            DockerException,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+        ) as e:
             execution_time = time.time() - operation_start
             logger.error(
                 "docker.containers.container.management.fail",
@@ -693,7 +649,14 @@ class ContainerManager:
             )
             return status
 
-        except Exception as e:
+        except (
+            DockerException,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as e:
             logger.error(
                 "docker.containers.container.status.fail",
                 error=sanitize_exception(e),

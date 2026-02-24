@@ -11,6 +11,7 @@ import warnings
 from contextlib import suppress
 from datetime import datetime
 from functools import cached_property
+from inspect import signature
 from pathlib import Path
 from threading import Lock, RLock
 from types import SimpleNamespace, TracebackType
@@ -299,18 +300,31 @@ class DockerAdapter:
             cert_path = getattr(settings.docker, "cert_path", None)
             key_path = getattr(settings.docker, "key_path", None)
             ca_cert = getattr(settings.docker, "ca_cert", True)
-            getattr(settings.docker, "verify_hostname", True)
+            verify_hostname = bool(getattr(settings.docker, "verify_hostname", True))
+            if not ca_cert:
+                verify_hostname = False
 
             # Enhanced TLS configuration
-            tls_config = docker.tls.TLSConfig(
-                client_cert=(cert_path, key_path) if cert_path and key_path else None,
-                verify=ca_cert,
-            )
+            tls_kwargs: dict[str, Any] = {
+                "client_cert": (
+                    (cert_path, key_path) if cert_path and key_path else None
+                ),
+                "verify": ca_cert,
+            }
+            if "assert_hostname" in signature(docker.tls.TLSConfig.__init__).parameters:
+                tls_kwargs["assert_hostname"] = verify_hostname
+            elif not verify_hostname:
+                self._log.warning(
+                    "docker.adapter.tls.hostname.verify.unsupported.warn",
+                    **self._base_context,
+                )
+            tls_config = docker.tls.TLSConfig(**tls_kwargs)
 
             self._log.trace(
                 "docker.adapter.tls.config.debug",
                 has_client_cert=bool(cert_path and key_path),
                 verify_server=bool(ca_cert),
+                verify_hostname=verify_hostname,
                 **self._base_context,
             )
 

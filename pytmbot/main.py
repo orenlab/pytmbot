@@ -169,7 +169,7 @@ class BotLauncher(logs.BaseComponent):
             health_status.set_manager(self._health_manager)
 
             with self.log_context(
-                components=len(self._health_manager._monitor._checkers)
+                components=self._health_manager.monitor.checker_count
             ) as log:
                 log.info("bot.launcher.health.monitoring.init")
 

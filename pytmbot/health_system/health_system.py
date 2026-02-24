@@ -13,13 +13,20 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Protocol, override
+from typing import Any, Final, Protocol, override
 from weakref import ReferenceType, ref
 
 import telebot
 from telebot.apihelper import ApiTelegramException
 
 from pytmbot.logs import BaseComponent
+
+RESOURCE_MEMORY_CRITICAL_THRESHOLD: Final[float] = 90.0
+RESOURCE_MEMORY_UNHEALTHY_THRESHOLD: Final[float] = 80.0
+RESOURCE_MEMORY_DEGRADED_THRESHOLD: Final[float] = 70.0
+RESOURCE_CPU_CRITICAL_THRESHOLD: Final[float] = 95.0
+RESOURCE_CPU_UNHEALTHY_THRESHOLD: Final[float] = 90.0
+RESOURCE_CPU_DEGRADED_THRESHOLD: Final[float] = 80.0
 
 
 class HealthLevel(IntEnum):
@@ -329,11 +336,20 @@ class SystemResourceChecker(BaseHealthChecker):
             memory_percent = self._parse_percentage(stats.get("memory_percent", "0%"))
             cpu_percent = self._parse_percentage(stats.get("cpu", "0%"))
 
-            if memory_percent > 90 or cpu_percent > 95:
+            if (
+                memory_percent > RESOURCE_MEMORY_CRITICAL_THRESHOLD
+                or cpu_percent > RESOURCE_CPU_CRITICAL_THRESHOLD
+            ):
                 level = HealthLevel.CRITICAL
-            elif memory_percent > 80 or cpu_percent > 90:
+            elif (
+                memory_percent > RESOURCE_MEMORY_UNHEALTHY_THRESHOLD
+                or cpu_percent > RESOURCE_CPU_UNHEALTHY_THRESHOLD
+            ):
                 level = HealthLevel.UNHEALTHY
-            elif memory_percent > 70 or cpu_percent > 80:
+            elif (
+                memory_percent > RESOURCE_MEMORY_DEGRADED_THRESHOLD
+                or cpu_percent > RESOURCE_CPU_DEGRADED_THRESHOLD
+            ):
                 level = HealthLevel.DEGRADED
             else:
                 level = HealthLevel.HEALTHY
@@ -437,6 +453,7 @@ class HealthMonitor(BaseComponent):
         "_checkers",
         "_history",
         "_max_history",
+        "_state_lock",
         "_running",
         "_latest",
         "_intervals",
@@ -452,6 +469,7 @@ class HealthMonitor(BaseComponent):
         self._checkers: dict[str, HealthChecker] = {}
         self._history: deque[SystemHealth] = deque(maxlen=max_history)
         self._max_history = max_history
+        self._state_lock = threading.RLock()
         self._running = False
         self._latest: SystemHealth | None = None
         self._intervals: dict[str, float] = {}
@@ -464,7 +482,10 @@ class HealthMonitor(BaseComponent):
     def _publish_monitor_failure(self, error: Exception) -> None:
         """Publish internal monitor failure as health degradation signal."""
         now = time.time()
-        components = dict(self._latest.components) if self._latest else {}
+        with self._state_lock:
+            latest_snapshot = self._latest
+            consecutive_failures = self._monitor_failures
+        components = dict(latest_snapshot.components) if latest_snapshot else {}
         components["health_monitor"] = HealthResult(
             level=HealthLevel.CRITICAL,
             component="health_monitor",
@@ -472,7 +493,7 @@ class HealthMonitor(BaseComponent):
             details={
                 "error": "monitor_loop_failed",
                 "exception": str(error),
-                "consecutive_failures": self._monitor_failures,
+                "consecutive_failures": consecutive_failures,
             },
             timestamp=now,
         )
@@ -483,13 +504,15 @@ class HealthMonitor(BaseComponent):
             timestamp=now,
             check_duration_ms=0.0,
         )
-        self._latest = health
-        self._history.append(health)
+        with self._state_lock:
+            self._latest = health
+            self._history.append(health)
 
     def add_checker(self, checker: HealthChecker) -> None:
         """Add health checker."""
-        self._checkers[checker.name] = checker
-        self._intervals[checker.name] = checker.interval_seconds
+        with self._state_lock:
+            self._checkers[checker.name] = checker
+            self._intervals[checker.name] = checker.interval_seconds
 
         with self.log_context(checker=checker.name) as log:
             log.trace("bot.health.added.checker.debug")
@@ -498,27 +521,31 @@ class HealthMonitor(BaseComponent):
         """Perform health check on all components."""
         start_time = time.perf_counter()
         current_time = time.time()
+        with self._state_lock:
+            checkers_snapshot = list(self._checkers.items())
+            intervals_snapshot = dict(self._intervals)
+            latest_snapshot = self._latest
 
         # Determine which components need checking
         to_check = []
-        for name, checker in self._checkers.items():
-            interval = self._intervals[name]
+        for name, checker in checkers_snapshot:
+            interval = intervals_snapshot.get(name, checker.interval_seconds)
             last_check = 0.0
 
-            if self._latest and name in self._latest.components:
-                last_check = self._latest.components[name].timestamp
+            if latest_snapshot and name in latest_snapshot.components:
+                last_check = latest_snapshot.components[name].timestamp
 
             if (current_time - last_check) >= interval:
                 to_check.append((name, checker))
 
         # Use cached results if no checks needed
-        if not to_check and self._latest:
-            return self._latest
+        if not to_check and latest_snapshot:
+            return latest_snapshot
 
         # Start with previous results
         components = {}
-        if self._latest:
-            components.update(self._latest.components)
+        if latest_snapshot:
+            components.update(latest_snapshot.components)
 
         # Update checked components
         for name, checker in to_check:
@@ -553,42 +580,45 @@ class HealthMonitor(BaseComponent):
             check_duration_ms=duration,
         )
 
-        self._history.append(health)
-        self._latest = health
+        with self._state_lock:
+            self._history.append(health)
+            self._latest = health
 
         return health
 
     def start_monitoring(self, base_interval: float = 120.0) -> None:
         """Start continuous monitoring in a separate thread."""
-        if self._running:
-            with self.log_context() as log:
-                log.warning("bot.health.monitoring.already.ok")
-            return
+        with self._state_lock:
+            if self._running:
+                with self.log_context() as log:
+                    log.warning("bot.health.monitoring.already.ok")
+                return
 
-        self._base_interval = base_interval
-        self._running = True
-        self._stop_event.clear()
+            self._base_interval = base_interval
+            self._running = True
+            self._stop_event.clear()
+            checker_count = len(self._checkers)
+            thread = threading.Thread(
+                target=self._monitor_loop, name="HealthMonitor", daemon=True
+            )
+            self._thread = thread
 
-        self._thread = threading.Thread(
-            target=self._monitor_loop, name="HealthMonitor", daemon=True
-        )
-        self._thread.start()
-
-        with self.log_context(
-            checkers=len(self._checkers), interval=base_interval
-        ) as log:
+        thread.start()
+        with self.log_context(checkers=checker_count, interval=base_interval) as log:
             log.info("bot.health.monitoring.start")
 
     def stop_monitoring(self) -> None:
         """Stop monitoring."""
-        if not self._running:
-            return
+        with self._state_lock:
+            if not self._running:
+                return
 
-        self._running = False
-        self._stop_event.set()
+            self._running = False
+            self._stop_event.set()
+            thread = self._thread
 
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5.0)
+        if thread and thread.is_alive():
+            thread.join(timeout=5.0)
 
         with self.log_context() as log:
             log.info("bot.health.monitoring.stop")
@@ -600,7 +630,13 @@ class HealthMonitor(BaseComponent):
 
         previous_level: HealthLevel | None = None
 
-        while self._running and not self._stop_event.is_set():
+        while True:
+            with self._state_lock:
+                is_running = self._running
+                base_interval = self._base_interval
+            if not is_running or self._stop_event.is_set():
+                break
+
             try:
                 health = self.check_all()
                 is_first_check = previous_level is None
@@ -644,23 +680,26 @@ class HealthMonitor(BaseComponent):
 
                 # Adaptive interval
                 if health.overall <= HealthLevel.UNHEALTHY:
-                    interval = self._base_interval * 0.5
+                    interval = base_interval * 0.5
                 elif health.overall == HealthLevel.DEGRADED:
-                    interval = self._base_interval * 0.75
+                    interval = base_interval * 0.75
                 else:
-                    interval = self._base_interval
+                    interval = base_interval
 
                 previous_level = health.overall
-                self._monitor_failures = 0
+                with self._state_lock:
+                    self._monitor_failures = 0
 
             except Exception as e:
-                self._monitor_failures += 1
+                with self._state_lock:
+                    self._monitor_failures += 1
+                    failures = self._monitor_failures
+                    interval = self._base_interval
                 self._publish_monitor_failure(e)
                 with self.log_context(error=str(e)) as log:
                     log.error("bot.health.monitoring.fail")
-                    if self._monitor_failures >= self._max_monitor_failures:
+                    if failures >= self._max_monitor_failures:
                         log.critical("bot.health.monitoring.degraded.fail")
-                interval = self._base_interval
 
             # Sleep with early exit
             self._stop_event.wait(timeout=interval)
@@ -669,33 +708,45 @@ class HealthMonitor(BaseComponent):
             log.debug("bot.health.monitoring.loop.debug")
 
     @property
+    def checker_count(self) -> int:
+        """Get the number of registered checkers."""
+        with self._state_lock:
+            return len(self._checkers)
+
+    @property
     def latest(self) -> SystemHealth | None:
         """Get latest health status."""
-        return self._latest
+        with self._state_lock:
+            return self._latest
 
     @property
     def is_healthy(self) -> bool:
         """Quick health check."""
-        return self._latest is not None and self._latest.overall >= HealthLevel.DEGRADED
+        with self._state_lock:
+            latest = self._latest
+        return latest is not None and latest.overall >= HealthLevel.DEGRADED
 
     def get_summary(self) -> dict[str, Any]:
         """Get health summary for logging."""
-        if not self._latest:
+        with self._state_lock:
+            latest = self._latest
+
+        if not latest:
             return {"status": "no_data"}
 
         return {
-            "overall": str(self._latest.overall),
-            "health_ratio": self._latest.health_ratio,
-            "operational": self._latest.operational_count,
-            "total": self._latest.total_count,
-            "duration_ms": self._latest.check_duration_ms,
+            "overall": str(latest.overall),
+            "health_ratio": latest.health_ratio,
+            "operational": latest.operational_count,
+            "total": latest.total_count,
+            "duration_ms": latest.check_duration_ms,
             "components": {
                 name: {
                     "level": str(result.level),
                     "latency_ms": result.latency_ms,
                     "details": result.details,
                 }
-                for name, result in self._latest.components.items()
+                for name, result in latest.components.items()
             },
         }
 

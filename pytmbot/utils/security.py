@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import ipaddress
 import re
 import secrets
 
@@ -209,6 +210,46 @@ def mask_user_id(user_id: int | None, visible: int = 3) -> str:
         f"{'*' * (len(user_id_str) - safe_visible * 2)}"
         f"{user_id_str[-safe_visible:]}"
     )
+
+
+def mask_ip_address(
+    ip_value: str | None,
+    visible_ipv4_octets: int = 2,
+    visible_ipv6_groups: int = 2,
+) -> str:
+    """
+    Mask IP address while preserving a minimal prefix for diagnostics.
+
+    Args:
+        ip_value: Source IP string
+        visible_ipv4_octets: Number of leading IPv4 octets to keep
+        visible_ipv6_groups: Number of leading IPv6 groups to keep
+
+    Returns:
+        str: Masked IP, "unknown" for empty input, "invalid_ip" for invalid values
+    """
+    if ip_value is None:
+        return "unknown"
+
+    value = ip_value.strip()
+    if not value:
+        return "unknown"
+
+    try:
+        parsed_ip = ipaddress.ip_address(value)
+    except ValueError:
+        return "invalid_ip"
+
+    if isinstance(parsed_ip, ipaddress.IPv4Address):
+        octets = value.split(".")
+        safe_visible = min(4, max(0, visible_ipv4_octets))
+        masked_tail = ["*"] * max(0, 4 - safe_visible)
+        return ".".join(octets[:safe_visible] + masked_tail)
+
+    groups = parsed_ip.exploded.split(":")
+    safe_visible = min(8, max(0, visible_ipv6_groups))
+    masked_tail = ["****"] * max(0, 8 - safe_visible)
+    return ":".join(groups[:safe_visible] + masked_tail)
 
 
 def sanitize_sensitive_data(

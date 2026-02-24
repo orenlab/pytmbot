@@ -42,6 +42,13 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
     WARNING_MESSAGE: Final[str] = (
         "⚠️ You're sending messages too quickly. 🕒 Please slow down."
     )
+    VIOLATION_BACKOFF_INTERVALS: Final[tuple[timedelta, ...]] = (
+        timedelta(minutes=1),
+        timedelta(minutes=5),
+        timedelta(minutes=15),
+        timedelta(minutes=30),
+        timedelta(hours=1),
+    )
 
     def __init__(self, bot: TeleBot, *, limit: int, period: timedelta) -> None:
         """
@@ -164,17 +171,10 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         if violation_count == 0:
             return True
 
-        # Calculate backoff interval (exponential: 1min, 5min, 15min, 30min, 1hour)
-        backoff_intervals = [
-            timedelta(minutes=1),
-            timedelta(minutes=5),
-            timedelta(minutes=15),
-            timedelta(minutes=30),
-            timedelta(hours=1),
-        ]
-
-        interval_index = min(violation_count - 1, len(backoff_intervals) - 1)
-        backoff_interval = backoff_intervals[interval_index]
+        interval_index = min(
+            violation_count - 1, len(self.VIOLATION_BACKOFF_INTERVALS) - 1
+        )
+        backoff_interval = self.VIOLATION_BACKOFF_INTERVALS[interval_index]
         should_log = current_time - last_log_time >= backoff_interval
 
         return should_log

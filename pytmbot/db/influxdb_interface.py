@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
+from threading import RLock
 from typing import Any
 from urllib.parse import urlparse
 
@@ -60,10 +61,13 @@ class InfluxDBInterface(BaseComponent):
         super().__init__("InfluxDBInterface")
         self._config = config
         self._client: InfluxDBClient | None = None
-        self._write_api = None
-        self._query_api = None
+        self._write_api: Any | None = None
+        self._query_api: Any | None = None
         self._warning_shown = False
         self._initialized = False
+        self._cache_lock = RLock()
+        self._measurements_cache: list[str] | None = None
+        self._fields_cache: dict[str, list[str]] = {}
 
         # Validate configuration only once during initialization
         try:
@@ -213,6 +217,9 @@ class InfluxDBInterface(BaseComponent):
                 self._client = None
                 self._write_api = None
                 self._query_api = None
+                with self._cache_lock:
+                    self._measurements_cache = None
+                    self._fields_cache.clear()
 
                 # Log disconnect only in debug mode
                 if self._config.debug_mode:
@@ -226,7 +233,6 @@ class InfluxDBInterface(BaseComponent):
                 )
                 raise InfluxDBConnectionError(error_context) from e
 
-    @lru_cache(maxsize=128)
     def _is_local_url(self) -> bool:
         """
         Check if the InfluxDB URL is local using cached results.
@@ -367,6 +373,9 @@ class InfluxDBInterface(BaseComponent):
             if self._config.debug_mode:
                 with self.log_context(action="write") as log:
                     log.debug("bot.db.influxdb_interface.data.point.ok")
+            with self._cache_lock:
+                self._measurements_cache = None
+                self._fields_cache.clear()
 
         except Exception as e:
             # Always log errors
@@ -463,7 +472,6 @@ class InfluxDBInterface(BaseComponent):
             )
             raise InfluxDBQueryError(error_context) from e
 
-    @lru_cache(maxsize=32)
     def get_available_measurements(self) -> list[str]:
         """
         Retrieve available measurements from InfluxDB with caching.
@@ -474,6 +482,11 @@ class InfluxDBInterface(BaseComponent):
         Raises:
             InfluxDBQueryError: If retrieval fails
         """
+        with self._cache_lock:
+            cached_measurements = self._measurements_cache
+        if cached_measurements is not None:
+            return list(cached_measurements)
+
         try:
             safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
             query = (
@@ -504,6 +517,8 @@ class InfluxDBInterface(BaseComponent):
                         extra={"count": len(measurements)},
                     )
 
+            with self._cache_lock:
+                self._measurements_cache = list(measurements)
             return measurements
 
         except Exception as e:
@@ -514,7 +529,6 @@ class InfluxDBInterface(BaseComponent):
             )
             raise InfluxDBQueryError(error_context) from e
 
-    @lru_cache(maxsize=64)
     def get_available_fields(self, measurement: str) -> list[str]:
         """
         Retrieve available fields for a measurement with caching.
@@ -529,10 +543,15 @@ class InfluxDBInterface(BaseComponent):
             InfluxDBQueryError: If retrieval fails
         """
         try:
-            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
             safe_measurement = self._sanitize_flux_identifier(
                 measurement, "measurement"
             )
+            with self._cache_lock:
+                cached_fields = self._fields_cache.get(safe_measurement)
+            if cached_fields is not None:
+                return list(cached_fields)
+
+            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
             query = (
                 f"from(bucket: {self._to_flux_string_literal(safe_bucket)})"
                 f"|> range(start: -1h)"
@@ -573,6 +592,8 @@ class InfluxDBInterface(BaseComponent):
                         },
                     )
 
+            with self._cache_lock:
+                self._fields_cache[safe_measurement] = list(fields)
             return fields
 
         except Exception as e:

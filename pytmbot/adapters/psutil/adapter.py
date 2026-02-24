@@ -197,8 +197,10 @@ class PsutilAdapter:
 
     def __del__(self) -> None:
         """Best-effort cleanup on object destruction."""
-        with suppress(Exception):
+        try:
             self.close()
+        except (AttributeError, RuntimeError):
+            pass
 
     @staticmethod
     def _log_operation_result(

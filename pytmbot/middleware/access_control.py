@@ -254,7 +254,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             return None
 
         # Block non-setup commands
-        message_text = self._get_message_text(current_attempt)
+        message_text = self._get_message_text(current_attempt, self.MAX_ATTEMPTS)
         self.bot.send_message(chat_id=chat_id, text=message_text)
         return CancelUpdate()
 
@@ -478,19 +478,19 @@ class AccessControl(BaseMiddleware, BaseComponent):
             pass
 
     @staticmethod
-    @lru_cache(maxsize=8)
-    def _get_message_text(count: int) -> str:
+    @lru_cache(maxsize=16)
+    def _get_message_text(count: int, max_attempts: int) -> str:
         """Get appropriate message text based on attempt count."""
         messages = [
             (
                 "⛔🚫🚧 You don't have access to this service.\n"
-                f"💡 You have {3 - count} attempts remaining.\n"
+                f"💡 You have {max(0, max_attempts - count)} attempts remaining.\n"
                 f"🔧 Use `/getmyid` for setup information."
             ),
             (
                 "🙅‍ Sorry, but you still don't have access.\n"
                 "This is a security measure 🔥.\n"
-                f"💡 You have {3 - count} attempts remaining.\n"
+                f"💡 You have {max(0, max_attempts - count)} attempts remaining.\n"
                 f"🔧 Use `/getmyid` for setup information."
             ),
             (
