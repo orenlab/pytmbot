@@ -80,7 +80,6 @@ from .server_handlers.process import handle_process
 from .server_handlers.quickview import handle_quick_view
 from .server_handlers.sensors import handle_sensors
 from .server_handlers.server import handle_server
-from .server_handlers.services import handle_services_status
 from .server_handlers.uptime import handle_uptime
 
 # Modern type aliases
@@ -412,7 +411,6 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(callback=handle_server, commands=["server"]),
             HandlerConfig(callback=handle_server, regexp="Server"),
         ],
-        "services": [HandlerConfig(callback=handle_services_status, regexp="Services")],
         "qrcode": [
             HandlerConfig(
                 callback=handle_qr_code_message,
