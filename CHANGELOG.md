@@ -24,7 +24,8 @@ All notable changes are documented in this file.
 - `b_how_update.jinja2` migrated to Docker Compose update example; `b_index.jinja2` updated to reflect new server
   capabilities.
 - Size formatting normalized to `humanize`-based output across updated server/docker views.
-- User/chat ID masking unified across logs to one consistent format (`72******85` style for 10-digit IDs).
+- User/chat ID masking unified across logs to one consistent format (first 2 and last 2 digits visible for 10-digit
+  IDs).
 - Docker and psutil pipelines optimized: reduced duplicate checks and fewer expensive roundtrips.
 - Logging pipeline redesigned: normalized event names, context deduplication, trace IDs, safer masking.
 - Runtime/build toolchain modernized (Python 3.13 alignment, uv-based dependency workflow, CI/CD updates, tini-based
