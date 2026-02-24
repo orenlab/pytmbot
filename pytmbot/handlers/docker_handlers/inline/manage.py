@@ -15,6 +15,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_authorized_container_callback_context,
     show_handler_info,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
@@ -123,10 +124,11 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
         )
         return
 
-    bot.edit_message_text(
-        chat_id=callback_message.chat.id,
-        message_id=callback_message.message_id,
+    edit_callback_message_text(
+        call=call,
+        bot=bot,
         text=rendered_context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
+        not_modified_text="Container management view is already up to date.",
     )

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import pytest
-from docker.errors import ImageNotFound
+from docker.errors import APIError, ImageNotFound
 
 
 @dataclass
@@ -333,3 +333,168 @@ def test_get_image_usage_success_and_failure(
         images_info_module.ImageOperationError, match="Failed to get image usage"
     ):
         images_info_module.get_image_usage("sha256:img")
+
+
+def test_images_info_helpers_cover_edge_cases() -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    assert images_info_module._safe_labels({"": "skip", "ok": "1"}) == {"ok": "1"}  # noqa: SLF001
+    assert images_info_module._parse_created("   ") == (None, "N/A")  # noqa: SLF001
+    assert images_info_module._parse_created(".") == (None, "N/A")  # noqa: SLF001
+    assert images_info_module._parse_created("not-a-date") == (None, "N/A")  # noqa: SLF001
+    assert images_info_module._safe_id("   ") == "N/A"  # noqa: SLF001
+    assert images_info_module._safe_ns_duration(120_000_000_000) == "2.0m"  # noqa: SLF001
+    assert images_info_module._format_iso_timestamp(None) == "N/A"  # noqa: SLF001
+    assert images_info_module._format_iso_timestamp("0001-01-01T00:00:00Z") == "N/A"  # noqa: SLF001
+    assert images_info_module._format_iso_timestamp("not-iso") == "N/A"  # noqa: SLF001
+    assert (
+        images_info_module._format_healthcheck({"Healthcheck": {"Test": []}}) == "none"
+    )  # noqa: SLF001
+
+    health = images_info_module._format_healthcheck(  # noqa: SLF001
+        {
+            "Healthcheck": {
+                "Test": ["CMD", "true"],
+                "StartPeriod": 60_000_000_000,
+            }
+        }
+    )
+    assert "start_period=1.0m" in health
+
+
+def test_process_image_attrs_uses_image_tags_when_repo_tags_missing() -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    image = _FakeImage(
+        short_id="sha256:fallback",
+        tags=["repo/fallback:latest"],
+        attrs={
+            "Created": "2026-02-17T12:00:00Z",
+            "RepoTags": [],
+        },
+    )
+    details = images_info_module.process_image_attrs(image)
+    assert details["name"] == "repo/fallback:latest"
+
+
+def test_process_image_attrs_returns_error_payload_on_value_error() -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    class _BrokenImage:
+        short_id = "sha256:broken"
+        attrs: object = {}
+
+        @property
+        def tags(self) -> list[str]:
+            raise ValueError("broken tags")
+
+    details = images_info_module.process_image_attrs(_BrokenImage())
+    assert details["id"] == "sha256:broken"
+    assert "Failed to process image attributes" in details["error"]
+
+
+def test_fetch_image_details_wraps_api_and_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    class _ApiFailingContext:
+        def __enter__(self) -> object:
+            raise APIError("api down")
+
+        def __exit__(
+            self,
+            _exc_type: type[BaseException] | None,
+            _exc: BaseException | None,
+            _tb: object,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", lambda: _ApiFailingContext()
+    )
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Docker API error"
+    ):
+        images_info_module.fetch_image_details()
+
+    class _UnexpectedFailingContext:
+        def __enter__(self) -> object:
+            raise RuntimeError("unexpected")
+
+        def __exit__(
+            self,
+            _exc_type: type[BaseException] | None,
+            _exc: BaseException | None,
+            _tb: object,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", lambda: _UnexpectedFailingContext()
+    )
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Unexpected error"
+    ):
+        images_info_module.fetch_image_details()
+
+
+def test_get_image_history_wraps_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    adapter = SimpleNamespace(
+        images=SimpleNamespace(
+            get=lambda _image_id: (_ for _ in ()).throw(RuntimeError("history fail")),
+        )
+    )
+
+    @contextmanager
+    def _client_context() -> Iterator[object]:
+        yield adapter
+
+    monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
+
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Failed to get image history"
+    ):
+        images_info_module.get_image_history("img")
+
+
+def test_get_image_usage_handles_not_found_and_missing_image_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytmbot.adapters.docker.images_info as images_info_module
+
+    adapter_not_found = SimpleNamespace(
+        images=SimpleNamespace(
+            get=lambda _image_id: (_ for _ in ()).throw(ImageNotFound("not found")),
+        ),
+        containers=SimpleNamespace(list=lambda all=True: []),  # noqa: FBT002
+    )
+
+    @contextmanager
+    def _not_found_context() -> Iterator[object]:
+        yield adapter_not_found
+
+    monkeypatch.setattr(images_info_module, "docker_client_context", _not_found_context)
+    with pytest.raises(ImageNotFound):
+        images_info_module.get_image_usage("missing")
+
+    adapter_missing_id = SimpleNamespace(
+        images=SimpleNamespace(get=lambda _image_id: SimpleNamespace(id="")),
+        containers=SimpleNamespace(list=lambda all=True: []),  # noqa: FBT002
+    )
+
+    @contextmanager
+    def _missing_id_context() -> Iterator[object]:
+        yield adapter_missing_id
+
+    monkeypatch.setattr(
+        images_info_module, "docker_client_context", _missing_id_context
+    )
+    with pytest.raises(
+        images_info_module.ImageOperationError, match="Image id is unavailable"
+    ):
+        images_info_module.get_image_usage("sha256:none")

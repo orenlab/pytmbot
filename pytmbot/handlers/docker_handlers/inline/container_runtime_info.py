@@ -23,6 +23,7 @@ from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
     validate_container_name,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
@@ -479,9 +480,9 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             **common_context,
         )
 
-    bot.edit_message_text(
-        chat_id=callback_message.chat.id,
-        message_id=callback_message.message_id,
+    edit_callback_message_text(
+        call=call,
+        bot=bot,
         text=rendered,
         reply_markup=_build_back_keyboard(
             container_name=parsed.container_name,
@@ -489,5 +490,6 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             emojis=emojis,
         ),
         parse_mode="HTML",
+        not_modified_text="Container details are already up to date.",
     )
     return None

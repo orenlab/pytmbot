@@ -10,6 +10,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 import pytmbot.handlers.docker_handlers.inline.logs as logs_module
+import pytmbot.handlers.server_handlers.inline.common as inline_common_module
 from pytmbot.handlers.docker_handlers.inline.logs import (
     LOGS_ACTION_FILE,
     LOGS_ACTION_NAV,
@@ -25,6 +26,11 @@ from pytmbot.handlers.docker_handlers.inline.logs import (
     ParsedLogsCallback,
 )
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
+
+_NOT_MODIFIED_DESCRIPTION = (
+    "Bad Request: message is not modified: specified new message content and reply "
+    "markup are exactly the same as a current content and reply markup of the message"
+)
 
 
 @dataclass
@@ -427,10 +433,45 @@ def test_edit_logs_message_edits_with_clamped_index(
         page_index=10,
         emojis={},
     )
-    assert result == "edited"
+    assert result is True
     assert bot.edited[0]["chat_id"] == 10
     assert bot.edited[0]["message_id"] == 20
     assert bot.edited[0]["parse_mode"] == "HTML"
+
+
+def test_edit_logs_message_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _ApiTelegramExceptionStub(Exception):
+        def __init__(self, description: str, error_code: int = 400) -> None:
+            super().__init__(description)
+            self.description = description
+            self.error_code = error_code
+
+    monkeypatch.setattr(
+        inline_common_module, "ApiTelegramException", _ApiTelegramExceptionStub
+    )
+    monkeypatch.setattr(
+        logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False)
+    )
+    monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
+
+    bot = _DummyBot()
+    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(  # type: ignore[method-assign]
+        _ApiTelegramExceptionStub(_NOT_MODIFIED_DESCRIPTION)
+    )
+    call = _DummyCall(message=_DummyMessage(chat=_DummyChat(id=10), message_id=20))
+    session = _make_session(chunks=["new", "old"])
+
+    result = logs_module._edit_logs_message(
+        call=cast(CallbackQuery, call),
+        bot=cast(TeleBot, bot),
+        session=session,
+        page_index=0,
+        emojis={},
+    )
+    assert result is False
+    assert bot.callback_answers[-1]["text"] == "Logs view is already up to date."
 
 
 def test_get_session_or_show_error_when_expired(

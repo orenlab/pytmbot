@@ -12,9 +12,15 @@ import pytmbot.handlers.bot_handlers.getmyid as getmyid_module
 import pytmbot.handlers.bot_handlers.inline.update as inline_update_module
 import pytmbot.handlers.bot_handlers.plugins as plugins_module
 import pytmbot.handlers.bot_handlers.updates as updates_module
+import pytmbot.handlers.server_handlers.inline.common as inline_common_module
 from pytmbot import exceptions
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
+
+_NOT_MODIFIED_DESCRIPTION = (
+    "Bad Request: message is not modified: specified new message content and reply "
+    "markup are exactly the same as a current content and reply markup of the message"
+)
 
 
 @dataclass
@@ -448,3 +454,43 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         )
     assert exc_info.value.context.error_code == "HAND_019"
     assert "Some error occurred" in str(bot.edited_messages[-1]["text"])
+
+
+def test_handle_update_info_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    handler = _raw_handler(inline_update_module.handle_update_info)
+
+    monkeypatch.setattr(
+        inline_update_module,
+        "parse_callback_target_user",
+        lambda data, prefix: 101,
+    )
+    monkeypatch.setattr(
+        inline_update_module,
+        "authorize_callback_request",
+        lambda call, target_user_id, require_owner_match: (True, ""),
+    )
+    monkeypatch.setattr(
+        inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update"
+    )
+
+    class _ApiTelegramExceptionStub(Exception):
+        def __init__(self, description: str, error_code: int = 400) -> None:
+            super().__init__(description)
+            self.description = description
+            self.error_code = error_code
+
+    monkeypatch.setattr(
+        inline_common_module, "ApiTelegramException", _ApiTelegramExceptionStub
+    )
+    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(  # type: ignore[method-assign]
+        _ApiTelegramExceptionStub(_NOT_MODIFIED_DESCRIPTION)
+    )
+
+    handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
+    assert (
+        bot.callback_answers[-1]["text"]
+        == "Update instructions are already up to date."
+    )

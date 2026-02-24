@@ -377,7 +377,7 @@ def test_handle_system_health_refresh_ignores_not_modified(
         lambda user_id: {"inline": user_id},
     )
 
-    api_exception_stub = _install_api_exception_stub(monkeypatch, health_module)
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
     def _raise_not_modified(**_kwargs: object) -> str:
         raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)

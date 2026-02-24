@@ -17,6 +17,7 @@ import pytmbot.handlers.docker_handlers.inline.images_page as images_page_module
 import pytmbot.handlers.docker_handlers.inline.manage_action as manage_action_module
 from pytmbot.adapters.docker.updates import UpdaterStatus
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
+from tests._inline_edit_helpers import patch_not_modified_edit_error
 
 
 @dataclass
@@ -646,3 +647,195 @@ def test_manage_action_private_functions(monkeypatch: pytest.MonkeyPatch) -> Non
         cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
     )
     assert shown[-1] == "Restarting api: Unexpected error occurred"
+
+
+def test_handle_back_to_containers_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(back_module.handle_back_to_containers)
+    bot = _Bot()
+    monkeypatch.setattr(
+        back_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        back_module,
+        "get_list_of_containers_again",
+        lambda page, user_id: ("containers", "kbd"),
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(
+        cast(CallbackQuery, _Call(data="__containers_page__:1:11")), cast(TeleBot, bot)
+    )
+    assert bot.callback_answers[-1]["text"] == "Containers list is already up to date."
+
+
+def test_handle_images_page_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(images_page_module.handle_images_page)
+    bot = _Bot()
+    monkeypatch.setattr(
+        images_page_module,
+        "parse_page_callback_data",
+        lambda data, prefix: (2, 11),
+    )
+    monkeypatch.setattr(
+        images_page_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        images_page_module,
+        "render_images_page",
+        lambda page, user_id: ("images-page", "kbd"),
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
+    assert bot.callback_answers[-1]["text"] == "Images list is already up to date."
+
+
+@pytest.mark.parametrize(
+    ("module", "handler_obj", "callback_data", "parse_callback_name", "render_name"),
+    [
+        (
+            image_info_module,
+            image_info_module.handle_image_info,
+            "__get_image_info__:0:11:1",
+            "parse_image_info_callback_data",
+            "render_image_details",
+        ),
+        (
+            image_extra_module,
+            image_extra_module.handle_image_extra_info,
+            "__image_extra__:history:0:11:1",
+            "parse_image_extra_callback_data",
+            "render_image_extra_info",
+        ),
+    ],
+)
+def test_handle_image_details_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    handler_obj: object,
+    callback_data: str,
+    parse_callback_name: str,
+    render_name: str,
+) -> None:
+    handler = _raw_handler(handler_obj)
+    bot = _Bot()
+
+    monkeypatch.setattr(
+        module,
+        parse_callback_name,
+        lambda data: (
+            (0, 11, 1)
+            if parse_callback_name == "parse_image_info_callback_data"
+            else ("history", 0, 11, 1)
+        ),
+    )
+    monkeypatch.setattr(
+        image_callback_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(module, render_name, lambda **kwargs: ("image", "kbd"))
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(cast(CallbackQuery, _Call(data=callback_data)), cast(TeleBot, bot))
+    assert bot.callback_answers[-1]["text"] == "Image details are already up to date."
+
+
+def test_handle_image_updates_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(image_updates_module.handle_image_updates)
+    bot = _Bot()
+
+    monkeypatch.setattr(
+        image_updates_module,
+        "parse_callback_target_user",
+        lambda data, prefix: 11,
+    )
+    monkeypatch.setattr(
+        image_updates_module,
+        "authorize_callback_request",
+        lambda call, target_user_id, require_owner_match: (True, ""),
+    )
+
+    class _UpdaterSuccess:
+        def initialize(self) -> None:
+            return None
+
+        def to_dict(self) -> dict[str, object]:
+            return {
+                "status": UpdaterStatus.SUCCESS.name,
+                "message": "ok",
+                "data": {
+                    "repo-a": {
+                        "updates": [
+                            {
+                                "current_tag": "1.0.0",
+                                "created_at_local": "2026-02-17",
+                                "newer_tag": "1.0.1",
+                                "created_at_remote": "2026-02-18",
+                            }
+                        ]
+                    }
+                },
+            }
+
+    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
+    monkeypatch.setattr(
+        image_updates_module.Compiler,
+        "quick_render",
+        lambda **kwargs: "updates-rendered",
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
+    assert bot.callback_answers[-1]["text"] == "Image updates are already up to date."
+
+
+def test_restart_container_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    monkeypatch.setattr(
+        manage_action_module.container_manager,
+        "managing_container",
+        lambda user_id, container_name, action: None,
+    )
+    monkeypatch.setattr(
+        manage_action_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        manage_action_module,
+        "keyboards",
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    manage_action_module.__restart_container(
+        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
+    )
+    assert (
+        bot.callback_answers[-1]["text"] == "Restart result for api is already shown."
+    )

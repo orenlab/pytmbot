@@ -12,6 +12,7 @@ import pytmbot.handlers.docker_handlers.inline.container_info as container_info_
 import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime_info_module
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
 from pytmbot.parsers.compiler import Compiler
+from tests._inline_edit_helpers import patch_not_modified_edit_error
 
 
 @dataclass
@@ -78,6 +79,78 @@ def _prepare_handler_context(
         lambda call, text, bot=None: shown.append(text),
     )
     return handler, bot, shown
+
+
+@dataclass
+class _ManageAuthContext:
+    container_name: str = "api"
+    user_id: int = 11
+
+
+class _DockerContext:
+    def __enter__(self) -> str:
+        return "adapter"
+
+    def __exit__(
+        self,
+        exc_type: object,
+        exc: object,
+        tb: object,
+    ) -> Literal[False]:
+        return False
+
+
+def _patch_manage_view_render_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        manage_module, "docker_client_context", lambda: _DockerContext()
+    )
+    monkeypatch.setattr(
+        manage_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        manage_module,
+        "keyboards",
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
+    )
+    monkeypatch.setattr(
+        manage_module,
+        "em",
+        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})()),
+    )
+    monkeypatch.setattr(
+        manage_module.Compiler, "quick_render", lambda *args, **kwargs: "manage-ui"
+    )
+
+
+def _patch_manage_authorization_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        manage_module,
+        "get_authorized_container_callback_context",
+        lambda **kwargs: _ManageAuthContext(),
+    )
+
+
+def _patch_manage_container_state(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    state: str,
+) -> None:
+    monkeypatch.setattr(
+        manage_module,
+        "get_container_state",
+        lambda container_name, docker_client: state,
+    )
 
 
 def _assert_invalid_container_name_path(
@@ -488,63 +561,9 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
 
-    @dataclass
-    class _AuthContext:
-        container_name: str
-        user_id: int
-
-    monkeypatch.setattr(
-        manage_module,
-        "get_authorized_container_callback_context",
-        lambda **kwargs: _AuthContext(container_name="api", user_id=11),
-    )
-
-    class _DockerContext:
-        def __enter__(self) -> str:
-            return "adapter"
-
-        def __exit__(
-            self,
-            exc_type: object,
-            exc: object,
-            tb: object,
-        ) -> Literal[False]:
-            return False
-
-    monkeypatch.setattr(
-        manage_module, "docker_client_context", lambda: _DockerContext()
-    )
-    monkeypatch.setattr(
-        manage_module,
-        "button_data",
-        lambda text, callback_data: {"text": text, "callback_data": callback_data},
-    )
-    monkeypatch.setattr(
-        manage_module,
-        "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
-    )
-    monkeypatch.setattr(
-        manage_module,
-        "em",
-        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})()),
-    )
-    monkeypatch.setattr(
-        manage_module.Compiler, "quick_render", lambda *args, **kwargs: "manage-ui"
-    )
-
-    monkeypatch.setattr(
-        manage_module,
-        "get_container_state",
-        lambda container_name, docker_client: "running",
-    )
+    _patch_manage_authorization_context(monkeypatch)
+    _patch_manage_view_render_dependencies(monkeypatch)
+    _patch_manage_container_state(monkeypatch, state="running")
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
     running_callbacks = cast(
         list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
@@ -553,11 +572,7 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any(value.startswith("__stop__") for value in running_values)
     assert any(value.startswith("__restart__") for value in running_values)
 
-    monkeypatch.setattr(
-        manage_module,
-        "get_container_state",
-        lambda container_name, docker_client: "exited",
-    )
+    _patch_manage_container_state(monkeypatch, state="exited")
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
     stopped_callbacks = cast(
         list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
@@ -570,3 +585,145 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         cast(TeleBot, bot),
     )
     assert shown[-1] == "Managing api: Missing callback message"
+
+
+def test_handle_container_full_info_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(container_info_module.handle_containers_full_info)
+    bot = _Bot()
+
+    monkeypatch.setattr(
+        container_info_module,
+        "parse_container_full_info_callback_data",
+        lambda data: ("api", 11, 1),
+    )
+    monkeypatch.setattr(
+        container_info_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        container_info_module, "validate_container_name", lambda name: True
+    )
+    monkeypatch.setattr(
+        container_info_module,
+        "get_comprehensive_container_details",
+        lambda name: {"name": "api"},
+    )
+
+    class _Access:
+        allowed_admins_ids = [11]
+
+    class _Settings:
+        access_control = _Access()
+
+    monkeypatch.setattr(container_info_module, "settings", _Settings())
+    monkeypatch.setattr(
+        container_info_module,
+        "get_emojis",
+        lambda: {
+            "spiral_calendar": "📅",
+            "bullseye": "🎯",
+            "BACK_arrow": "⬅️",
+            "thought_balloon": "💭",
+            "package": "📦",
+            "gear": "⚙️",
+            "chart_increasing": "📈",
+            "globe_with_meridians": "🌐",
+            "herb": "🌿",
+            "banjo": "🪕",
+        },
+    )
+    monkeypatch.setattr(
+        container_info_module.Compiler,
+        "quick_render",
+        lambda **kwargs: "container-full",
+    )
+    monkeypatch.setattr(
+        container_info_module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        container_info_module,
+        "keyboards",
+        cast(
+            object,
+            type(
+                "_Kbd",
+                (),
+                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+            )(),
+        ),
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(cast(CallbackQuery, _Call(data="__get_full__:api:11")), cast(TeleBot, bot))
+    assert (
+        bot.callback_answers[-1]["text"] == "Container details are already up to date."
+    )
+
+
+def test_handle_container_extra_info_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(runtime_info_module.handle_container_extra_info)
+    bot = _Bot()
+    monkeypatch.setattr(
+        runtime_info_module,
+        "authorize_docker_callback_request",
+        lambda call, called_user_id: (True, ""),
+    )
+    monkeypatch.setattr(
+        runtime_info_module, "validate_container_name", lambda name: True
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "get_container_full_details",
+        lambda name: {"name": "api", "state": "running"},
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "get_emojis",
+        lambda: {"thought_balloon": "💭", "package": "📦", "banjo": "🪕"},
+    )
+    monkeypatch.setattr(
+        runtime_info_module.Compiler,
+        "quick_render",
+        lambda **kwargs: "runtime-info",
+    )
+    monkeypatch.setattr(
+        runtime_info_module,
+        "_build_back_keyboard",
+        lambda **kwargs: "kbd",
+    )
+
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(
+        cast(CallbackQuery, _Call(data="__container_extra__:runtime:api:11")),
+        cast(TeleBot, bot),
+    )
+    assert (
+        bot.callback_answers[-1]["text"] == "Container details are already up to date."
+    )
+
+
+def test_handle_manage_container_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(manage_module.handle_manage_container)
+    bot = _Bot()
+
+    _patch_manage_authorization_context(monkeypatch)
+    _patch_manage_view_render_dependencies(monkeypatch)
+    _patch_manage_container_state(monkeypatch, state="running")
+    patch_not_modified_edit_error(monkeypatch, bot)
+
+    handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
+    assert (
+        bot.callback_answers[-1]["text"]
+        == "Container management view is already up to date."
+    )

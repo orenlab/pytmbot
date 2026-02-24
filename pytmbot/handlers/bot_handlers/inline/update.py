@@ -15,6 +15,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -70,18 +71,22 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
             template_name="b_how_update.jinja2", **emojis
         )
 
-        return bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+        edit_callback_message_text(
+            call=call,
+            bot=bot,
             text=bot_answer,
             parse_mode="HTML",
+            not_modified_text="Update instructions are already up to date.",
         )
+        return None
     except Exception as error:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Some error occurred. Please try again later.",
-        )
+        if call.message is not None:
+            edit_callback_message_text(
+                call=call,
+                bot=bot,
+                text="Some error occurred. Please try again later.",
+                not_modified_text="Update instructions are already up to date.",
+            )
         raise exceptions.HandlingException(
             ErrorContext(
                 message="Failed handling update info",

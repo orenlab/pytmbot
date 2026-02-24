@@ -16,6 +16,7 @@ from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     show_handler_info,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 
 
 def handle_image_details_callback[ParsedT](
@@ -86,11 +87,12 @@ def handle_image_details_callback[ParsedT](
         return None
 
     context, inline_keyboard = rendered
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    edit_callback_message_text(
+        call=call,
+        bot=bot,
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
+        not_modified_text="Image details are already up to date.",
     )
     return None

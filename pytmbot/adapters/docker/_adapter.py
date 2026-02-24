@@ -388,10 +388,9 @@ class DockerAdapter:
         self._log.warning(
             "docker.adapter.degraded.mode.warn",
             reason=reason,
-            strict_docker_access=self._strict_docker_access,
             **self._base_context,
         )
-        return cast(DockerClient, _UnavailableDockerClient(reason))
+        return cast(DockerClient, cast(object, _UnavailableDockerClient(reason)))
 
     def _create_client(self) -> DockerClient:
         """Create and configure Docker client with enhanced security and error handling."""
@@ -526,13 +525,13 @@ class DockerAdapter:
                         self._client = self._build_unavailable_client(
                             self._disabled_reason
                         )
-                    return cast(DockerClient, self._client)
+                    return self._client
 
                 if not self._should_recreate_client():
                     if self._client is None:
                         raise DockerConnectionError("Docker client is not initialized")
                     self._log.trace("docker.adapter.context.entered.debug", **context)
-                    return cast(DockerClient, self._client)
+                    return self._client
 
             # Slow path: create client outside the primary lock.
             with self._create_lock:
@@ -545,7 +544,7 @@ class DockerAdapter:
                         self._log.trace(
                             "docker.adapter.context.entered.debug", **context
                         )
-                        return cast(DockerClient, self._client)
+                        return self._client
 
                     old_client = self._client
                     self._client = None
@@ -559,13 +558,13 @@ class DockerAdapter:
                 with self._lock:
                     self._client = created_client
                     self._log.trace("docker.adapter.context.entered.debug", **context)
-                    return cast(DockerClient, self._client)
+                    return self._client
 
         except Exception as e:
             if not self._strict_docker_access:
                 with self._lock:
                     self._client = self._build_unavailable_client(sanitize_exception(e))
-                    return cast(DockerClient, self._client)
+                    return self._client
             self._log.error(
                 "docker.adapter.enter.context.fail",
                 error=sanitize_exception(e),

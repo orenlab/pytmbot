@@ -13,6 +13,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -102,11 +103,12 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         template_name="d_updates.jinja2", **prepared_context
     )
 
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    edit_callback_message_text(
+        call=call,
+        bot=bot,
         text=formatted_context,
         parse_mode="Markdown",
+        not_modified_text="Image updates are already up to date.",
     )
     return None
 

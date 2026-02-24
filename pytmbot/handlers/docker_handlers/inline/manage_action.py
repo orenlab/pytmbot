@@ -16,6 +16,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_authorized_container_callback_context,
     show_handler_info,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.utils import split_string_into_octets
@@ -130,11 +131,12 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) 
             callback_data=f"__manage__:{container_name}:{user_id}",
         )
         keyboard = keyboards.build_inline_keyboard(keyboards_key)
-        bot.edit_message_text(
-            chat_id=callback_message.chat.id,
-            message_id=callback_message.message_id,
+        edit_callback_message_text(
+            call=call,
+            bot=bot,
             text=f"Restarting {container_name}: Success. State: running",
             reply_markup=keyboard,
+            not_modified_text=f"Restart result for {container_name} is already shown.",
         )
 
     _handle_container_action(

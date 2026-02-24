@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any, Final
 
 from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from pytmbot import exceptions
@@ -25,6 +24,7 @@ from pytmbot.globals import (
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
     build_user_bound_callback_data,
+    edit_callback_message_text,
 )
 from pytmbot.health_system import HealthStatus
 from pytmbot.logs import Logger
@@ -539,38 +539,21 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
     try:
         health_message = _render_health_message()
         keyboard = _build_health_keyboard(target_user_id)
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+        was_edited = edit_callback_message_text(
+            call=call,
+            bot=bot,
             text=health_message,
             parse_mode="HTML",
             reply_markup=keyboard,
+            not_modified_text="Health snapshot is already up to date.",
         )
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text="Health snapshot updated.",
-            show_alert=False,
-        )
-        return None
-    except ApiTelegramException as error:
-        error_description = getattr(error, "description", str(error))
-        if (
-            getattr(error, "error_code", None) == 400
-            and "message is not modified" in str(error_description).lower()
-        ):
+        if was_edited:
             bot.answer_callback_query(
                 callback_query_id=call.id,
-                text="Health snapshot is already up to date.",
+                text="Health snapshot updated.",
                 show_alert=False,
             )
-            return None
-        raise exceptions.HandlingException(
-            ErrorContext(
-                message="Failed handling health refresh",
-                error_code="HAND_HEALTH_002",
-                metadata={"exception": str(error)},
-            )
-        )
+        return None
     except Exception as error:
         raise exceptions.HandlingException(
             ErrorContext(

@@ -21,6 +21,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_sanitized_logs,
     show_handler_info,
 )
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
@@ -462,12 +463,13 @@ def _edit_logs_message(
         logs_truncated_for_telegram=was_truncated,
     )
 
-    return bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    return edit_callback_message_text(
+        call=call,
+        bot=bot,
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
+        not_modified_text="Logs view is already up to date.",
     )
 
 
