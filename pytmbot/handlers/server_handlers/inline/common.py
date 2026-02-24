@@ -8,7 +8,8 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.apihelper import ApiTelegramException
+from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
@@ -64,3 +65,64 @@ def authorize_user_bound_callback(
         return False, target_user_id
 
     return True, target_user_id
+
+
+def edit_callback_message_text(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    text: str,
+    parse_mode: str | None = None,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    not_modified_text: str = "View is already up to date.",
+) -> bool:
+    """Edit callback-bound message and treat Telegram 'not modified' as a no-op."""
+    if call.message is None:
+        return False
+
+    try:
+        if parse_mode is not None and reply_markup is not None:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                parse_mode=parse_mode,
+                reply_markup=reply_markup,
+            )
+        elif parse_mode is not None:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                parse_mode=parse_mode,
+            )
+        elif reply_markup is not None:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=reply_markup,
+            )
+        else:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+            )
+        return True
+    except ApiTelegramException as error:
+        error_description = getattr(error, "description", str(error))
+        is_not_modified = (
+            getattr(error, "error_code", None) == 400
+            and "message is not modified" in str(error_description).lower()
+        )
+        if not is_not_modified:
+            raise
+
+        if getattr(call, "id", None) is not None:
+            bot.answer_callback_query(
+                callback_query_id=call.id,
+                text=not_modified_text,
+                show_alert=False,
+            )
+        return False

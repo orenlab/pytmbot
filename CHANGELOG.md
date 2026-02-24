@@ -2,10 +2,13 @@
 
 All notable changes are documented in this file.
 
-## [0.3.0] - 2026-02-17
+## [0.3.0] - Unreleased
 
 ### Added
 
+- Server health summary flow in UI with refresh callback and richer operational snapshot.
+- Extended server inline views: CPU overview/per-core/times, network interfaces/connections, disk I/O, active users,
+  fan speeds, and quick-view drill-down pages.
 - Health monitoring subsystem with component-level checks and startup health reporting.
 - Configuration versioning with automatic migration (`config_version` handling).
 - Paginated Docker UI flows (containers/images/logs), including log export to file.
@@ -16,6 +19,12 @@ All notable changes are documented in this file.
 
 ### Changed
 
+- Quick-view navigation refined (clearer actions on current screen, less redundant controls).
+- Health screen wording and layout simplified for better readability; load section formatting clarified.
+- `b_how_update.jinja2` migrated to Docker Compose update example; `b_index.jinja2` updated to reflect new server
+  capabilities.
+- Size formatting normalized to `humanize`-based output across updated server/docker views.
+- User/chat ID masking unified across logs to one consistent format (`72******85` style for 10-digit IDs).
 - Docker and psutil pipelines optimized: reduced duplicate checks and fewer expensive roundtrips.
 - Logging pipeline redesigned: normalized event names, context deduplication, trace IDs, safer masking.
 - Runtime/build toolchain modernized (Python 3.13 alignment, uv-based dependency workflow, CI/CD updates, tini-based
@@ -35,6 +44,11 @@ All notable changes are documented in this file.
 
 ### Fixed
 
+- Closed pre-release hardening gaps across security/resilience/performance batches (webhook flow, middleware races,
+  Docker adapter behavior, monitoring/polling restart paths, and Influx sanitization/retry flows).
+- Resolved CPU/IO/memory hot-path regressions from recent changes (reduced blocking operations and cache conflicts).
+- Telegram `400 message is not modified` is now treated as no-op for all new server inline handlers added today
+  (`system_views`, `swap`, `top_process`) via a shared helper and test coverage.
 - Telegram `MESSAGE_TOO_LONG` failures during log rendering.
 - 2FA flow now accepts plain code input, with proper input cleanup outside auth flow.
 - Sensitive auto-deletion flows now keep UI navigation: after bot-driven deletion, users receive a `Back to main menu`
@@ -49,6 +63,10 @@ All notable changes are documented in this file.
 - Bot update version check now uses semantic version comparison instead of lexical string compare.
 - Docker Hub tag fetch flow cleaned up for namespaced repositories and duplicate 404 log noise.
 - Logging payload consistency improved by removing nested `extra={...}` records.
+
+### Removed
+
+- Removed experimental `Services` server handler, callbacks, and related UI button wiring.
 
 ### Security
 

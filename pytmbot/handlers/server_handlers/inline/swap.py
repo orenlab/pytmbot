@@ -13,6 +13,7 @@ from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_psutil_adapter
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
+    edit_callback_message_text,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -44,15 +45,16 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
         "thought_balloon": em.get_emoji("thought_balloon"),
         "paperclip": em.get_emoji("paperclip"),
     }
+    fallback_text = "Sorry, but i can't get swap memory values. Please try again later."
 
     try:
         swap_data = psutil_adapter.get_swap_memory()
 
         if swap_data is None:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text="Sorry, but i can't get swap memory values. Please try again later.",
+            edit_callback_message_text(
+                call,
+                bot,
+                text=fallback_text,
             )
             return None
 
@@ -60,17 +62,17 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
             template_name="b_swap.jinja2", context=swap_data, **emojis
         )
 
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+        edit_callback_message_text(
+            call,
+            bot,
             text=bot_answer,
         )
         return None
     except Exception as error:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Sorry, but i can't get swap memory values. Please try again later.",
+        edit_callback_message_text(
+            call,
+            bot,
+            text=fallback_text,
         )
         raise exceptions.HandlingException(
             ErrorContext(

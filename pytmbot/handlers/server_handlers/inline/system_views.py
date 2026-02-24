@@ -37,6 +37,7 @@ from pytmbot.handlers.server_handlers.filesystem import (
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
     build_user_bound_callback_data,
+    edit_callback_message_text,
 )
 from pytmbot.handlers.server_handlers.network import (
     NETWORK_CONNECTIONS_PREFIX,
@@ -83,14 +84,13 @@ def _edit_message(
     parse_mode: str,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
-    if call.message is None:
-        return
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
+    edit_callback_message_text(
+        call,
+        bot,
         text=text,
         parse_mode=parse_mode,
         reply_markup=reply_markup,
+        not_modified_text="View is already up to date.",
     )
 
 

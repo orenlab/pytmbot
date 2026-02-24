@@ -9,9 +9,16 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 import pytmbot.handlers.server_handlers.health_summary as health_module
+import pytmbot.handlers.server_handlers.inline.common as inline_common_module
 import pytmbot.handlers.server_handlers.inline.swap as swap_module
+import pytmbot.handlers.server_handlers.inline.system_views as system_views_module
 import pytmbot.handlers.server_handlers.inline.top_process as top_process_module
 from pytmbot import exceptions
+
+_NOT_MODIFIED_DESCRIPTION = (
+    "Bad Request: message is not modified: specified new message content and reply "
+    "markup are exactly the same as a current content and reply markup of the message"
+)
 
 
 @dataclass
@@ -186,6 +193,19 @@ def _patch_adapter_method(
     )
 
 
+def _install_api_exception_stub(
+    monkeypatch: pytest.MonkeyPatch, module: object
+) -> type[Exception]:
+    class _ApiTelegramExceptionStub(Exception):
+        def __init__(self, description: str, error_code: int = 400) -> None:
+            super().__init__(description)
+            self.description = description
+            self.error_code = error_code
+
+    monkeypatch.setattr(module, "ApiTelegramException", _ApiTelegramExceptionStub)
+    return _ApiTelegramExceptionStub
+
+
 def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot, handler = _prepare_handler_with_auth_paths(
         monkeypatch,
@@ -357,23 +377,101 @@ def test_handle_system_health_refresh_ignores_not_modified(
         lambda user_id: {"inline": user_id},
     )
 
-    class _ApiTelegramExceptionStub(Exception):
-        def __init__(self, description: str, error_code: int = 400) -> None:
-            super().__init__(description)
-            self.description = description
-            self.error_code = error_code
-
-    monkeypatch.setattr(
-        health_module,
-        "ApiTelegramException",
-        _ApiTelegramExceptionStub,
-    )
+    api_exception_stub = _install_api_exception_stub(monkeypatch, health_module)
 
     def _raise_not_modified(**_kwargs: object) -> str:
-        raise _ApiTelegramExceptionStub(
-            "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message"
-        )
+        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
     _invoke(handler, bot, data="__health_refresh__:17")
     assert bot.callback_answers[-1]["text"] == "Health snapshot is already up to date."
+
+
+def test_system_views_edit_message_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    call = cast(CallbackQuery, _Call())
+
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_not_modified(**_kwargs: object) -> str:
+        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
+
+    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
+    system_views_module._edit_message(
+        call,
+        cast(TeleBot, bot),
+        text="same",
+        parse_mode="HTML",
+        reply_markup=None,
+    )
+    assert bot.callback_answers[-1]["text"] == "View is already up to date."
+
+
+def test_system_views_edit_message_reraises_other_telegram_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    call = cast(CallbackQuery, _Call())
+
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_chat_not_found(**_kwargs: object) -> str:
+        raise api_exception_stub("chat not found", 400)
+
+    bot.edit_message_text = _raise_chat_not_found  # type: ignore[method-assign]
+    with pytest.raises(api_exception_stub):
+        system_views_module._edit_message(
+            call,
+            cast(TeleBot, bot),
+            text="will-fail",
+            parse_mode="HTML",
+            reply_markup=None,
+        )
+
+
+def test_handle_swap_info_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    handler = _raw_handler(swap_module.handle_swap_info)
+    _patch_auth_success(monkeypatch, swap_module)
+    _patch_adapter_method(
+        monkeypatch,
+        swap_module,
+        method_name="get_swap_memory",
+        implementation=lambda: None,
+    )
+
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_not_modified(**_kwargs: object) -> str:
+        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
+
+    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
+    _invoke(handler, bot, data="__swap_info__:17")
+    assert bot.callback_answers[-1]["text"] == "View is already up to date."
+
+
+def test_handle_process_info_ignores_not_modified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    handler = _raw_handler(top_process_module.handle_process_info)
+    _patch_auth_success(monkeypatch, top_process_module)
+    _patch_adapter_method(
+        monkeypatch,
+        top_process_module,
+        method_name="get_top_processes",
+        implementation=lambda count=10: [],
+    )
+
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_not_modified(**_kwargs: object) -> str:
+        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
+
+    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
+    _invoke(handler, bot, data="__process_info__:17")
+    assert bot.callback_answers[-1]["text"] == "View is already up to date."

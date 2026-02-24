@@ -20,6 +20,7 @@ from pytmbot.globals import (
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
+    edit_callback_message_text,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -52,15 +53,18 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
         "information": em.get_emoji("information"),
         "warning": em.get_emoji("warning"),
     }
+    fallback_text = (
+        "Sorry, but I can't get process information. Please try again later."
+    )
 
     try:
         processes_data = psutil_adapter.get_top_processes(count=10)
 
         if not processes_data:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text="Sorry, but I can't get process information. Please try again later.",
+            edit_callback_message_text(
+                call,
+                bot,
+                text=fallback_text,
             )
             return None
 
@@ -95,19 +99,19 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
             template_name="b_top_processes.jinja2", context=context, **emojis
         )
 
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+        edit_callback_message_text(
+            call,
+            bot,
             text=bot_answer,
             parse_mode="HTML",
         )
         return None
 
     except Exception as error:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Sorry, but I can't get process information. Please try again later.",
+        edit_callback_message_text(
+            call,
+            bot,
+            text=fallback_text,
         )
         raise exceptions.HandlingException(
             ErrorContext(
