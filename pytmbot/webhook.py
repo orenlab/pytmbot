@@ -68,6 +68,7 @@ class RateLimit(BaseComponent):
         "_last_cleanup_ts",
         "_state_lock",
         "_state_file",
+        "_state_loaded",
         "_last_state_persist_ts",
     )
 
@@ -98,8 +99,15 @@ class RateLimit(BaseComponent):
             self._last_cleanup_ts = 0.0
             self._state_lock = threading.RLock()
             self._state_file = state_file
+            self._state_loaded = False
             self._last_state_persist_ts = 0.0
-            self._restore_state()
+
+    def _ensure_state_loaded(self) -> None:
+        """Lazily restore persisted state on first access."""
+        if self._state_loaded:
+            return
+        self._restore_state()
+        self._state_loaded = True
 
     def _restore_state(self) -> None:
         """Load persisted bans from disk if available."""
@@ -205,6 +213,7 @@ class RateLimit(BaseComponent):
 
     def is_banned(self, client_ip: str) -> bool:
         with self._state_lock:
+            self._ensure_state_loaded()
             self._cleanup_state(time())
             with self.log_context(ip=client_ip, action="check_ban"):
                 if client_ip not in self.banned_ips:
@@ -223,6 +232,7 @@ class RateLimit(BaseComponent):
 
     def is_rate_limited(self, client_ip: str) -> bool:
         with self._state_lock:
+            self._ensure_state_loaded()
             current_time = time()
             self._cleanup_state(current_time)
 
@@ -252,7 +262,7 @@ class RateLimit(BaseComponent):
 
                 if len(request_times) >= self.ban_threshold:
                     self.banned_ips[client_ip] = datetime.now()
-                    self._persist_state(force=True)
+                    self._persist_state()
                     with self.log_context(action="ban_ip", ip=client_ip) as log:
                         log.warning("bot.webhook.ip.banned.warn")
                     return True

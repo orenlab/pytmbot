@@ -10,9 +10,8 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-import psutil
 from telebot import TeleBot
 
 from pytmbot.adapters.docker.containers_info import (
@@ -233,7 +232,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._adjust_check_interval()
 
                 # Collect and process metrics
-                metrics: dict[str, Any] = dict(self.system_metrics.collect_metrics())
+                metrics = cast(dict[str, Any], self.system_metrics.collect_metrics())
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
@@ -425,22 +424,15 @@ class SystemMonitorPlugin(PluginCore):
             logger.error("bot.plugins.monitor.methods.detect.changes.fail", e)
 
     def _record_metrics(self, fields: dict[str, Any]) -> None:
-        try:
-            metadata = SystemInfo.get_platform_metadata(self.is_docker)
-            sanitized_fields = self._sanitize_fields(fields)
+        metadata = dict(SystemInfo.get_platform_metadata(self.is_docker))
+        sanitized_fields = dict(self._sanitize_fields(fields))
+        if not self.influxdb_client.write_data_async(
+            "system_metrics", sanitized_fields, metadata
+        ):
+            logger.warning("bot.plugins.monitor.methods.metrics.skipped.warn")
+            return
 
-            with self.influxdb_client as client:
-                client.write_data("system_metrics", sanitized_fields, metadata)
-
-            logger.debug(
-                "bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields
-            )
-        except Exception as error:
-            logger.error(
-                "bot.plugins.monitor.methods.writing.metrics.fail",
-                error=str(error),
-                error_type=type(error).__name__,
-            )
+        logger.debug("bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields)
 
     @staticmethod
     def _sanitize_fields(fields: dict[str, Any]) -> dict[str, Any]:
@@ -673,7 +665,9 @@ class SystemMonitorPlugin(PluginCore):
 
     def _adjust_check_interval(self) -> None:
         try:
-            cpu_load = psutil.cpu_percent(interval=0.0)
+            cpu_load = float(
+                self._psutil_adapter.get_cpu_usage().get("cpu_percent", 0.0)
+            )
             if cpu_load > self.thresholds.load:
                 new_interval = min(
                     self.check_interval * 2, self.MAX_CHECK_INTERVAL_SECONDS
@@ -709,3 +703,5 @@ class SystemMonitorPlugin(PluginCore):
             logger.info("bot.plugins.monitor.methods.monitoring.stop")
         else:
             logger.warning("bot.plugins.monitor.methods.monitoring.not.warn")
+
+        self.influxdb_client.shutdown_async_writes(wait=False)

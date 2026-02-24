@@ -34,6 +34,7 @@ keyboards = get_keyboards()
 session_manager = get_session_manager()
 allowed_admins_ids = set(settings.access_control.allowed_admins_ids)
 _TOTP_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_TOTP_ATTEMPT_CACHE_COMPACT_THRESHOLD = 256
 _totp_attempt_times: dict[int, deque[float]] = {}
 _totp_attempt_lock = threading.RLock()
 
@@ -41,6 +42,27 @@ _totp_attempt_lock = threading.RLock()
 def _totp_rate_limit_threshold() -> int:
     """Compute burst limit for TOTP attempts inside a short window."""
     return max(5, int(var_config.totp_max_attempts) * 2)
+
+
+def _prune_stale_totp_attempts(now: float, *, current_user_id: int) -> None:
+    """Compact stale TOTP attempt buckets when the cache grows large."""
+    if len(_totp_attempt_times) <= _TOTP_ATTEMPT_CACHE_COMPACT_THRESHOLD:
+        return
+
+    stale_user_ids: list[int] = []
+    for tracked_user_id, tracked_attempts in _totp_attempt_times.items():
+        if tracked_user_id == current_user_id:
+            continue
+        while (
+            tracked_attempts
+            and now - tracked_attempts[0] > _TOTP_RATE_LIMIT_WINDOW_SECONDS
+        ):
+            tracked_attempts.popleft()
+        if not tracked_attempts:
+            stale_user_ids.append(tracked_user_id)
+
+    for stale_user_id in stale_user_ids:
+        _totp_attempt_times.pop(stale_user_id, None)
 
 
 def _consume_totp_attempt(user_id: int) -> bool:
@@ -60,6 +82,7 @@ def _consume_totp_attempt(user_id: int) -> bool:
             return True
 
         attempts.append(now)
+        _prune_stale_totp_attempts(now, current_user_id=user_id)
         return False
 
 

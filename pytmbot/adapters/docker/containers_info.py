@@ -29,7 +29,7 @@ logger = Logger()
 # Module-level constants
 CACHE_TTL: Final[int] = 60  # Cache TTL in seconds
 MAX_LOG_TAIL: Final[int] = 100  # Maximum log lines to fetch
-DOCKER_COUNTERS_CACHE_TTL: Final[float] = 5.0
+DOCKER_COUNTERS_CACHE_TTL: Final[float] = 30.0
 
 
 class ContainerInfoCache:

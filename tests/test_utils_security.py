@@ -64,7 +64,7 @@ def test_mask_token_in_message_handles_short_and_long_tokens() -> None:
 def test_mask_username_and_user_id() -> None:
     assert mask_username("test_user").startswith("tes")
     assert mask_username("x") == "*"
-    assert mask_user_id(123456789).startswith("12")
+    assert mask_user_id(123456789) == "12******89"
     assert mask_user_id(None) == "unknown"
 
 

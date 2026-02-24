@@ -36,7 +36,7 @@ def test_data_masker_compact_helpers() -> None:
     masker = DataMasker()
     assert masker.mask_token("abcdefghi").startswith("abcd")
     assert masker.mask_username("test_user").startswith("tes")
-    assert masker.mask_user_id(123456789).startswith("12")
+    assert masker.mask_user_id(123456789) == "12******89"
     assert masker.mask_chat_id(-4970000716).startswith("-497")
 
 

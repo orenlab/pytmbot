@@ -48,6 +48,7 @@ class BotLauncher(logs.BaseComponent):
     HEALTH_LOG_INTERVAL: Final[int] = 60  # Log health every 60 seconds
     POLLING_RESTART_MAX_ATTEMPTS: Final[int] = 3
     POLLING_RESTART_BACKOFF_SECONDS: Final[int] = 2
+    INITIAL_HEALTH_WAIT_TIMEOUT_SECONDS: Final[float] = 0.5
 
     def __init__(self) -> None:
         super().__init__("bot_launcher")
@@ -188,12 +189,21 @@ class BotLauncher(logs.BaseComponent):
         try:
             self._health_manager.start(base_interval=120.0)
 
-            # Wait a moment to verify startup
-            time.sleep(2)
-
         except Exception as e:
             with self.log_context(error=str(e)) as log:
                 log.error("bot.launcher.start.health.fail")
+
+    def _wait_for_initial_health(self, timeout_seconds: float) -> None:
+        """Wait briefly for first health snapshot without blocking startup for long."""
+        if not self._health_manager or timeout_seconds <= 0:
+            return
+
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            health_summary = self._health_manager.get_summary()
+            if health_summary.get("status") != "no_data":
+                return
+            time.sleep(0.05)
 
     def _stop_health_system(self) -> None:
         """Stop health monitoring system."""
@@ -570,8 +580,7 @@ class BotLauncher(logs.BaseComponent):
             # Start health monitoring
             self.start_health_monitoring()
 
-            # Wait for initial health check to complete
-            time.sleep(3)
+            self._wait_for_initial_health(self.INITIAL_HEALTH_WAIT_TIMEOUT_SECONDS)
 
             # Log initial health status
             if self._health_manager:

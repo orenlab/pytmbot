@@ -35,6 +35,8 @@ from uuid import uuid4
 from loguru import logger
 from telebot.types import CallbackQuery, InlineQuery, Message, Update
 
+from pytmbot.utils.user_id_mask import mask_user_id_value
+
 if TYPE_CHECKING:
     pass
 
@@ -265,12 +267,8 @@ class DataMasker:
         return f"{username[:safe_visible]}{'*' * mask_len}{username[-safe_visible:]}"
 
     def mask_user_id(self, user_id: int | None) -> str:
-        """Mask a user ID preserving some digits."""
-        if user_id is None:
-            return "[MASKED_ID]"
-
-        user_id_str = str(abs(user_id))
-        return self._mask_numeric_id(user_id_str, "[MASKED_ID]")
+        """Mask a user ID using a shared fixed-format strategy."""
+        return mask_user_id_value(user_id, unknown_placeholder="[MASKED_ID]")
 
     def mask_chat_id(self, chat_id: int | None) -> str:
         """Mask a chat ID preserving some digits."""

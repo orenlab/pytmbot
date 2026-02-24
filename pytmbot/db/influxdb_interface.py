@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import concurrent.futures
 import ipaddress
 import json
 import re
@@ -12,7 +13,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
-from threading import RLock
+from threading import BoundedSemaphore, RLock
 from typing import Any
 from urllib.parse import urlparse
 
@@ -47,6 +48,7 @@ class InfluxDBInterface(BaseComponent):
     _FLUX_DURATION_PATTERN = re.compile(r"^-?\d+(ns|us|ms|s|m|h|d|w|mo|y)$")
     _WRITE_RETRY_ATTEMPTS = 3
     _WRITE_RETRY_BASE_BACKOFF_SECONDS = 0.25
+    _ASYNC_WRITE_MAX_PENDING_TASKS = 16
 
     def __init__(self, config: InfluxDBConfig) -> None:
         """
@@ -66,8 +68,16 @@ class InfluxDBInterface(BaseComponent):
         self._warning_shown = False
         self._initialized = False
         self._cache_lock = RLock()
+        self._async_write_lock = RLock()
         self._measurements_cache: list[str] | None = None
         self._fields_cache: dict[str, list[str]] = {}
+        self._async_write_executor: concurrent.futures.ThreadPoolExecutor | None = (
+            concurrent.futures.ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix="influxdb_async_writer",
+            )
+        )
+        self._async_write_slots = BoundedSemaphore(self._ASYNC_WRITE_MAX_PENDING_TASKS)
 
         # Validate configuration only once during initialization
         try:
@@ -389,6 +399,70 @@ class InfluxDBInterface(BaseComponent):
                 },
             )
             raise InfluxDBWriteError(error_context) from e
+
+    def write_data_async(
+        self,
+        measurement: str,
+        fields: dict[str, float],
+        tags: dict[str, str] | None = None,
+    ) -> bool:
+        """Submit Influx write to a bounded background queue without blocking caller."""
+        if not self._async_write_slots.acquire(blocking=False):
+            with self.log_context(action="write_async", measurement=measurement) as log:
+                log.warning("bot.db.influxdb_interface.write.async.skipped.warn")
+            return False
+
+        fields_snapshot = dict(fields)
+        tags_snapshot = dict(tags) if tags is not None else None
+
+        def _write_task() -> None:
+            try:
+                with self:
+                    self.write_data(measurement, fields_snapshot, tags_snapshot)
+            except Exception as e:
+                with self.log_context(
+                    action="write_async",
+                    measurement=measurement,
+                    field_count=len(fields_snapshot),
+                    tag_count=len(tags_snapshot) if tags_snapshot else 0,
+                ) as log:
+                    log.warning(
+                        "bot.db.influxdb_interface.write.async.fail.warn",
+                        extra={"error": str(e), "error_type": type(e).__name__},
+                    )
+            finally:
+                self._async_write_slots.release()
+
+        with self._async_write_lock:
+            executor = self._async_write_executor
+            if executor is None:
+                executor = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix="influxdb_async_writer",
+                )
+                self._async_write_executor = executor
+
+        try:
+            executor.submit(_write_task)
+        except Exception as e:
+            self._async_write_slots.release()
+            with self.log_context(action="write_async", measurement=measurement) as log:
+                log.warning(
+                    "bot.db.influxdb_interface.write.async.submit.fail.warn",
+                    extra={"error": str(e), "error_type": type(e).__name__},
+                )
+            return False
+
+        return True
+
+    def shutdown_async_writes(self, *, wait: bool = True) -> None:
+        """Stop background writer and optionally wait for queued tasks."""
+        with self._async_write_lock:
+            executor = self._async_write_executor
+            if executor is None:
+                return
+            self._async_write_executor = None
+        executor.shutdown(wait=wait, cancel_futures=not wait)
 
     def query_data(
         self, measurement: str, start: str, stop: str, field: str

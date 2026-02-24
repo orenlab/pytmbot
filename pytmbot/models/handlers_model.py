@@ -28,7 +28,7 @@ def log_execution(func: CallbackType) -> CallbackType:
     return wrapper
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class HandlerManager:
     """
     Class for storing and managing callback functions and keyword arguments.

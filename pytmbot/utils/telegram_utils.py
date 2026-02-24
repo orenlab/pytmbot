@@ -126,13 +126,21 @@ def sanitize_logs(
     ]
 
     # Filter empty values for better efficiency
-    sensitive_info = [info for info in sensitive_info if info]
+    unique_sensitive_info = {
+        info for info in sensitive_info if info and info in container_logs
+    }
+    if not unique_sensitive_info:
+        return container_logs
 
-    # Mask sensitive information
-    for sensitive_value in sensitive_info:
-        if sensitive_value in container_logs:
-            container_logs = container_logs.replace(
-                sensitive_value, "*" * len(sensitive_value)
-            )
+    # Replace all sensitive fragments in a single pass to avoid N string copies.
+    pattern = re.compile(
+        "|".join(
+            re.escape(value)
+            for value in sorted(unique_sensitive_info, key=len, reverse=True)
+        )
+    )
+    container_logs = pattern.sub(
+        lambda match: "*" * len(match.group(0)), container_logs
+    )
 
     return container_logs

@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
@@ -35,6 +35,22 @@ from pytmbot.utils import (
 
 logger = Logger()
 em = get_emoji_converter()
+
+_SENSITIVE_ENV_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r".*password.*", re.IGNORECASE),
+    re.compile(r".*secret.*", re.IGNORECASE),
+    re.compile(r".*key.*", re.IGNORECASE),
+    re.compile(r".*token.*", re.IGNORECASE),
+    re.compile(r".*auth.*", re.IGNORECASE),
+    re.compile(r".*credential.*", re.IGNORECASE),
+    re.compile(r".*api.*key.*", re.IGNORECASE),
+    re.compile(r".*database.*url.*", re.IGNORECASE),
+    re.compile(r".*db.*password.*", re.IGNORECASE),
+    re.compile(r".*private.*", re.IGNORECASE),
+    re.compile(r".*ssl.*cert.*", re.IGNORECASE),
+    re.compile(r".*ssl.*key.*", re.IGNORECASE),
+    re.compile(r".*jwt.*", re.IGNORECASE),
+)
 
 
 def validate_container_name(name: str) -> bool:
@@ -204,7 +220,7 @@ def get_container_full_details(container_name: str) -> Any | None:
     return container_details
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=1)
 def get_emojis() -> dict[str, str]:
     """
     Return a dictionary of emojis with keys representing emoji names and values as emoji characters.
@@ -270,34 +286,14 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     if not env_list:
         return []
 
-    # Patterns for sensitive variables (case insensitive)
-    sensitive_patterns = [
-        r".*password.*",
-        r".*secret.*",
-        r".*key.*",
-        r".*token.*",
-        r".*auth.*",
-        r".*credential.*",
-        r".*api.*key.*",
-        r".*database.*url.*",
-        r".*db.*password.*",
-        r".*private.*",
-        r".*ssl.*cert.*",
-        r".*ssl.*key.*",
-        r".*jwt.*",
-    ]
-
-    # Compile patterns for efficiency
-    compiled_patterns = [
-        re.compile(pattern, re.IGNORECASE) for pattern in sensitive_patterns
-    ]
-
     filtered_vars = []
     for var in env_list:
         var_name = var.split("=", 1)[0] if "=" in var else var
 
         # Check if variable name matches any sensitive pattern
-        is_sensitive = any(pattern.match(var_name) for pattern in compiled_patterns)
+        is_sensitive = any(
+            pattern.match(var_name) for pattern in _SENSITIVE_ENV_PATTERNS
+        )
 
         if is_sensitive:
             filtered_vars.append(f"{var_name}=<HIDDEN>")

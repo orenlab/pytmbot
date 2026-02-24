@@ -76,6 +76,7 @@ class SessionManager(BaseComponent):
     _DEFAULT_SESSION_TIMEOUT: Final[int] = 10  # minutes
     _DEFAULT_MAX_TOTP_ATTEMPTS: Final[int] = 5
     _DEFAULT_BLOCK_DURATION: Final[int] = 10  # minutes
+    _MAX_SESSIONS: Final[int] = 10_000
 
     state_fabric: _StateFabric
     cleanup_interval: int
@@ -189,12 +190,63 @@ class SessionManager(BaseComponent):
         """Thread-safe session retrieval or creation."""
         with self._lock:
             if user_id not in self._user_sessions:
+                evicted_count = self._evict_sessions_if_needed()
                 self._user_sessions[user_id] = _UserSession()
 
                 with self.log_context(user_id=user_id, action="create_session") as log:
-                    log.debug("bot.session.create.user.debug")
+                    log.debug(
+                        "bot.session.create.user.debug",
+                        context={
+                            "evicted_sessions": evicted_count,
+                            "total_sessions": len(self._user_sessions),
+                        },
+                    )
 
             return self._user_sessions[user_id]
+
+    def _evict_sessions_if_needed(self) -> int:
+        """
+        Enforce hard cap for in-memory sessions.
+
+        Must be called with ``self._lock`` held.
+        """
+        overflow = len(self._user_sessions) - self._MAX_SESSIONS + 1
+        if overflow <= 0:
+            return 0
+
+        evicted = 0
+
+        expired_users = [
+            uid
+            for uid, session in self._user_sessions.items()
+            if session.is_expired(self.session_timeout)
+        ]
+        for uid in expired_users:
+            del self._user_sessions[uid]
+            evicted += 1
+
+        overflow = len(self._user_sessions) - self._MAX_SESSIONS + 1
+        if overflow <= 0:
+            return evicted
+
+        non_authenticated_users = [
+            uid
+            for uid, session in self._user_sessions.items()
+            if session.auth_state != self.state_fabric.AUTHENTICATED
+        ]
+        for uid in non_authenticated_users[:overflow]:
+            del self._user_sessions[uid]
+            evicted += 1
+
+        overflow = len(self._user_sessions) - self._MAX_SESSIONS + 1
+        if overflow <= 0:
+            return evicted
+
+        for uid in list(self._user_sessions.keys())[:overflow]:
+            del self._user_sessions[uid]
+            evicted += 1
+
+        return evicted
 
     @contextmanager
     def session_context(self, user_id: int) -> Generator[_UserSession, None, None]:

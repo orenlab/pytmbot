@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MethodType
 from typing import Any, cast
 
 import pytest
@@ -29,6 +30,12 @@ class _WriteAPIStub:
         self.calls += 1
         if self.calls <= self.failures_before_success:
             raise RuntimeError("temporary write failure")
+
+
+@dataclass
+class _ImmediateExecutorStub:
+    def submit(self, func: Any) -> None:
+        func()
 
 
 def _build_interface(
@@ -131,3 +138,47 @@ def test_write_data_raises_after_max_retries(monkeypatch: pytest.MonkeyPatch) ->
 
     assert write_api.calls == 3
     assert sleeps == [0.25, 0.5]
+
+
+def test_write_data_async_submits_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    interface, _query_api = _build_interface()
+    interface._async_write_executor = cast(Any, _ImmediateExecutorStub())
+
+    calls: list[tuple[str, dict[str, float], dict[str, str] | None]] = []
+
+    def _fake_write_data(
+        self: InfluxDBInterface,
+        measurement: str,
+        fields: dict[str, float],
+        tags: dict[str, str] | None = None,
+    ) -> None:
+        calls.append((measurement, dict(fields), dict(tags) if tags else None))
+
+    monkeypatch.setattr(
+        interface,
+        "write_data",
+        MethodType(_fake_write_data, interface),
+    )
+
+    submitted = interface.write_data_async(
+        "system_metrics",
+        {"cpu_usage": 12.5},
+        {"host": "local"},
+    )
+
+    assert submitted is True
+    assert calls == [("system_metrics", {"cpu_usage": 12.5}, {"host": "local"})]
+
+
+def test_write_data_async_returns_false_when_queue_is_full() -> None:
+    interface, _query_api = _build_interface()
+
+    for _ in range(interface._ASYNC_WRITE_MAX_PENDING_TASKS):
+        assert interface._async_write_slots.acquire(blocking=False)
+
+    try:
+        submitted = interface.write_data_async("system_metrics", {"cpu_usage": 12.5})
+        assert submitted is False
+    finally:
+        for _ in range(interface._ASYNC_WRITE_MAX_PENDING_TASKS):
+            interface._async_write_slots.release()

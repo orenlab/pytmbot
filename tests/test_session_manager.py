@@ -115,6 +115,23 @@ def test_referer_cleanup_stats_and_reset(monkeypatch: pytest.MonkeyPatch) -> Non
     assert manager.get_active_sessions_count() == 0
 
 
+def test_session_limit_evicts_non_authenticated_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = _create_manager(monkeypatch)
+    monkeypatch.setattr(manager, "_MAX_SESSIONS", 2, raising=False)
+
+    manager.set_auth_state(1, manager.state_fabric.AUTHENTICATED)
+    manager.set_login_time(1)
+    manager.get_auth_state(2)
+    manager.get_auth_state(3)
+
+    assert manager.get_active_sessions_count() == 2
+    assert 1 in manager._user_sessions
+    assert 2 not in manager._user_sessions
+    assert 3 in manager._user_sessions
+
+
 def test_shutdown_clears_state(monkeypatch: pytest.MonkeyPatch) -> None:
     manager = _create_manager(monkeypatch)
 

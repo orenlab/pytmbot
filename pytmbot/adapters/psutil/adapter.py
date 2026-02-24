@@ -6,8 +6,10 @@ also providing basic information about the status of local servers.
 """
 
 import concurrent.futures
+import heapq
 import os
 import socket
+import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -106,6 +108,9 @@ class PsutilAdapter:
     _DEFAULT_TIMEOUT = 2.0
     _MAX_CONCURRENT_WORKERS = 4
     _MAX_TOP_PROCESSES = 20
+    _CPU_WARMUP_INTERVAL_SECONDS = 1.0
+    _CPU_USAGE_SAMPLE_PERIOD_SECONDS = 5.0
+    _CPU_WARMUP_THREAD_JOIN_TIMEOUT_SECONDS = 1.5
     _MEMORY_ATTRS = frozenset(
         [
             "total",
@@ -123,10 +128,76 @@ class PsutilAdapter:
     def __init__(self) -> None:
         self._psutil = psutil
         self._lock = RLock()  # Thread safety for instance-level operations
+        self._cpu_usage_lock = RLock()
+        self._cpu_usage_snapshot: CPUUsageStats | None = None
+        self._cpu_warmup_stop_event = threading.Event()
+        self._cpu_warmup_thread: threading.Thread | None = None
         self._timeout_executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=2,
             thread_name_prefix="psutil_timeout",
         )
+        self._start_cpu_warmup()
+
+    def _start_cpu_warmup(self) -> None:
+        """Start background CPU sampling to avoid blocking request handlers."""
+        if self._cpu_warmup_thread and self._cpu_warmup_thread.is_alive():
+            return
+
+        self._cpu_warmup_stop_event.clear()
+        self._cpu_warmup_thread = threading.Thread(
+            target=self._cpu_warmup_worker,
+            name="PsutilCpuWarmup",
+            daemon=True,
+        )
+        self._cpu_warmup_thread.start()
+
+    def _cpu_warmup_worker(self) -> None:
+        """Collect CPU usage snapshots at a fixed cadence."""
+        with suppress(Exception):
+            self._psutil.cpu_percent(interval=0.0)
+            self._psutil.cpu_percent(interval=0.0, percpu=True)
+
+        while not self._cpu_warmup_stop_event.is_set():
+            sample_start = time.monotonic()
+            try:
+                per_core_raw = self._psutil.cpu_percent(
+                    interval=self._CPU_WARMUP_INTERVAL_SECONDS,
+                    percpu=True,
+                )
+                per_core_values = [
+                    round(float(value), 1)
+                    for value in per_core_raw
+                    if isinstance(value, (int, float))
+                ]
+                if per_core_values:
+                    overall = round(sum(per_core_values) / len(per_core_values), 1)
+                else:
+                    overall_raw = self._psutil.cpu_percent(interval=0.0)
+                    overall = (
+                        round(float(overall_raw), 1)
+                        if isinstance(overall_raw, (int, float))
+                        else 0.0
+                    )
+
+                snapshot: CPUUsageStats = {
+                    "cpu_percent": overall,
+                    "cpu_percent_per_core": per_core_values,
+                }
+                with self._cpu_usage_lock:
+                    self._cpu_usage_snapshot = snapshot
+            except Exception as error:
+                logger.debug(
+                    "bot.system.cpu.warmup.fail",
+                    error=str(error),
+                    error_type=type(error).__name__,
+                )
+
+            elapsed_seconds = time.monotonic() - sample_start
+            sleep_seconds = max(
+                0.0, self._CPU_USAGE_SAMPLE_PERIOD_SECONDS - elapsed_seconds
+            )
+            if self._cpu_warmup_stop_event.wait(timeout=sleep_seconds):
+                break
 
     def _safe_execute(
         self,
@@ -198,6 +269,15 @@ class PsutilAdapter:
 
     def close(self) -> None:
         """Release shared executor resources."""
+        self._cpu_warmup_stop_event.set()
+        warmup_thread = self._cpu_warmup_thread
+        if (
+            warmup_thread is not None
+            and warmup_thread.is_alive()
+            and warmup_thread is not threading.current_thread()
+        ):
+            warmup_thread.join(timeout=self._CPU_WARMUP_THREAD_JOIN_TIMEOUT_SECONDS)
+        self._cpu_warmup_thread = None
         self._timeout_executor.shutdown(wait=False, cancel_futures=True)
 
     def __del__(self) -> None:
@@ -377,8 +457,7 @@ class PsutilAdapter:
         """Get CPU-related process statistics with safe execution."""
 
         def _collect_cpu_stats() -> dict[str, object]:
-            # Use shorter interval for responsiveness in sync bot
-            cpu_percent = process.cpu_percent(interval=0.05)  # Reduced from 0.1
+            cpu_percent = process.cpu_percent(interval=0.0)
             cpu_times = process.cpu_times()
 
             stats: dict[str, object] = {
@@ -605,7 +684,7 @@ class PsutilAdapter:
 
             # Essential metrics with error handling
             with suppress(Exception):
-                cpu_percent = process.cpu_percent(interval=0.05)  # Reduced interval
+                cpu_percent = process.cpu_percent(interval=0.0)
                 summary["cpu"] = f"{cpu_percent:.1f}%"
 
             with suppress(Exception):
@@ -1302,23 +1381,43 @@ class PsutilAdapter:
     def get_cpu_usage(self) -> CPUUsageStats:
         """
         Get CPU usage statistics.
-
-        Note: Not cached due to the nature of CPU usage measurement requiring intervals.
         """
         context: dict[str, object] = {"action": "cpu_usage"}
 
         def _get_cpu_usage() -> CPUUsageStats:
-            # Use shorter interval for sync bot responsiveness
-            interval = 0.5  # Reduced from 1.0 second
+            with self._cpu_usage_lock:
+                cached_snapshot = self._cpu_usage_snapshot
+            if cached_snapshot is not None:
+                return {
+                    "cpu_percent": float(cached_snapshot["cpu_percent"]),
+                    "cpu_percent_per_core": list(
+                        cached_snapshot["cpu_percent_per_core"]
+                    ),
+                }
 
-            cpu_percent = self._psutil.cpu_percent(interval=interval)
-            cpu_per_core = self._psutil.cpu_percent(interval=0.1, percpu=True)
+            cpu_per_core_raw = self._psutil.cpu_percent(interval=0.0, percpu=True)
+            cpu_per_core = [
+                round(float(core), 1)
+                for core in cpu_per_core_raw
+                if isinstance(core, (int, float))
+            ]
+            if cpu_per_core and any(core > 0.0 for core in cpu_per_core):
+                cpu_percent = round(sum(cpu_per_core) / len(cpu_per_core), 1)
+            else:
+                cpu_percent_raw = self._psutil.cpu_percent(interval=0.0)
+                cpu_percent = (
+                    round(float(cpu_percent_raw), 1)
+                    if isinstance(cpu_percent_raw, (int, float))
+                    else 0.0
+                )
 
-            result: CPUUsageStats = {
-                "cpu_percent": round(cpu_percent, 1),
-                "cpu_percent_per_core": [round(core, 1) for core in cpu_per_core],
+            snapshot: CPUUsageStats = {
+                "cpu_percent": cpu_percent,
+                "cpu_percent_per_core": cpu_per_core,
             }
-            return result
+            with self._cpu_usage_lock:
+                self._cpu_usage_snapshot = snapshot
+            return snapshot
 
         cpu_usage_fallback: CPUUsageStats = {
             "cpu_percent": 0.0,
@@ -1328,7 +1427,7 @@ class PsutilAdapter:
             "CPU usage",
             _get_cpu_usage,
             cpu_usage_fallback,
-            timeout=2.0,  # Allow more time for CPU measurement
+            timeout=1.0,
             log_context=context,
         )
         self._log_operation_result(
@@ -1447,13 +1546,13 @@ class PsutilAdapter:
                 return [], 0, excluded_processes
 
             # Sort by combined CPU and memory usage (weighted average)
-            sorted_processes = sorted(
+            top_processes = heapq.nlargest(
+                count,
                 processes,
                 key=lambda p: p["cpu_percent"] * 0.6 + p["memory_percent"] * 0.4,
-                reverse=True,
             )
 
-            return sorted_processes[:count], len(processes), excluded_processes
+            return top_processes, len(processes), excluded_processes
 
         top_processes_fallback: tuple[list[TopProcess], int, int] = ([], 0, 0)
         result, execution_time_ms = self._safe_execute(

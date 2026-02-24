@@ -11,6 +11,7 @@ import secrets
 
 from pytmbot.models.settings_model import SettingsModel
 from pytmbot.settings import settings as app_settings
+from pytmbot.utils.user_id_mask import mask_user_id_value
 
 
 def _get_settings() -> SettingsModel:
@@ -171,45 +172,17 @@ def mask_username(username: str | None, visible: int = 3) -> str:
 
 def mask_user_id(user_id: int | None, visible: int = 3) -> str:
     """
-    Masks user ID while preserving some digits for identification.
+    Mask user ID using fixed format ``12******89``.
 
     Args:
         user_id: The user ID to mask (can be None)
-        visible: Number of digits to keep visible at start and end
+        visible: Deprecated compatibility argument (unused)
 
     Returns:
         str: Masked user ID or "unknown" if user_id is None
     """
-    if user_id is None:
-        return "unknown"
-
-    user_id_str = str(abs(user_id))  # Handle negative IDs
-
-    # Validate visible parameter
-    if visible < 0:
-        visible = 0
-
-    # For very short IDs, mask completely
-    if len(user_id_str) <= 6:
-        return "*" * len(user_id_str)
-
-    # Ensure we don't show too much of the ID
-    if len(user_id_str) <= visible * 2:
-        return "*" * len(user_id_str)
-
-    # Keep at most 50% digits visible.
-    safe_visible = min(visible, max(1, len(user_id_str) // 4))
-    while len(user_id_str) - (safe_visible * 2) < (len(user_id_str) // 2):
-        safe_visible -= 1
-
-    if safe_visible <= 0:
-        return "*" * len(user_id_str)
-
-    return (
-        f"{user_id_str[:safe_visible]}"
-        f"{'*' * (len(user_id_str) - safe_visible * 2)}"
-        f"{user_id_str[-safe_visible:]}"
-    )
+    del visible
+    return mask_user_id_value(user_id)
 
 
 def mask_ip_address(

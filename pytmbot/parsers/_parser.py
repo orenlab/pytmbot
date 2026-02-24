@@ -11,6 +11,7 @@ Use public interfaces from compiler.py instead.
 from __future__ import annotations
 
 import hashlib
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
@@ -38,7 +39,7 @@ _PLUGIN_TEMPLATE_BASE: Final[str] = "plugins_template"
 # Production-ready caching with TTL
 _template_cache: TTLCache[str, Template] = TTLCache(maxsize=100, ttl=3600)  # 1 hour TTL
 _result_cache: TTLCache[str, str] = TTLCache(
-    maxsize=50, ttl=1800
+    maxsize=15, ttl=1800
 )  # 30 min result cache
 _cache_lock = RLock()
 
@@ -185,6 +186,25 @@ def _load_template(template_name: str) -> Template:
 
 def _hash_context(context: dict[str, Any]) -> str | None:
     """Create hash of context for result caching."""
+
+    def _contains_dynamic_values(value: Any) -> bool:
+        if isinstance(value, (datetime, date)):
+            return True
+        if isinstance(value, float):
+            return True
+        if isinstance(value, dict):
+            return any(
+                _contains_dynamic_values(dict_key)
+                or _contains_dynamic_values(dict_value)
+                for dict_key, dict_value in value.items()
+            )
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return any(_contains_dynamic_values(item) for item in value)
+        return False
+
+    if any(_contains_dynamic_values(value) for value in context.values()):
+        return None
+
     # Simple hash for cacheable contexts
     try:
         context_str = str(sorted(context.items()))

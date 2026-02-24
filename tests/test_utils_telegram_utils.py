@@ -85,3 +85,22 @@ def test_sanitize_logs_handles_non_string_input() -> None:
     callback = SimpleNamespace(from_user=None, message=None)
     sanitized = telegram_utils.sanitize_logs(1234, callback, "TOKEN")  # type: ignore[arg-type]
     assert sanitized == "1234"
+
+
+def test_sanitize_logs_masks_overlapping_sensitive_values() -> None:
+    callback = _FakeCallback(
+        from_user=_FakeUser(
+            id=42,
+            username="TOKEN_EXT",
+            first_name="John",
+            last_name="Doe",
+        ),
+        message=_FakeMessage(
+            from_user=_FakeUser(id=42),
+            text=None,
+        ),
+    )
+    logs = "TOKEN TOKEN_EXT TOKEN"
+    sanitized = telegram_utils.sanitize_logs(logs, callback, "TOKEN")  # type: ignore[arg-type]
+    assert "TOKEN_EXT" not in sanitized
+    assert "TOKEN" not in sanitized
