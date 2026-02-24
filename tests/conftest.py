@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     """Normalize argv before test collection imports application modules."""
     del session
     sys.argv[:] = ["pytmbot-test"]
+    sample_config_path = Path(__file__).resolve().parents[1] / "pytmbot.yaml.sample"
+    os.environ["PYTMBOT_CONFIG_PATH"] = str(sample_config_path)
 
 
 @pytest.fixture(autouse=True)

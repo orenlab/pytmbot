@@ -48,6 +48,8 @@ All notable changes are documented in this file.
 
 ### Fixed
 
+- Tests no longer require a real `pytmbot.yaml`: pytest now uses `pytmbot.yaml.sample` via `PYTMBOT_CONFIG_PATH` in
+  test bootstrap/CI.
 - Closed pre-release hardening gaps across security/resilience/performance batches (webhook flow, middleware races,
   Docker adapter behavior, monitoring/polling restart paths, and Influx sanitization/retry flows).
 - Resolved CPU/IO/memory hot-path regressions from recent changes (reduced blocking operations and cache conflicts).

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,7 @@ def test_default_settings_factories_return_expected_keys() -> None:
 def test_get_config_file_path_points_to_project_yaml() -> None:
     config_path = _get_config_file_path()
     assert isinstance(config_path, Path)
-    assert config_path.name == "pytmbot.yaml"
+    assert config_path == Path(os.environ["PYTMBOT_CONFIG_PATH"]).resolve()
 
 
 def test_load_settings_from_yaml_reads_current_project_config() -> None:

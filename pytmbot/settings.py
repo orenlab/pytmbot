@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import os
 import re
 from functools import cache
 from pathlib import Path
@@ -22,6 +23,7 @@ MAX_CONTAINER_NAME_LENGTH: Final[int] = 253
 CONTAINER_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
 )
+CONFIG_PATH_ENV_VAR: Final[str] = "PYTMBOT_CONFIG_PATH"
 
 
 def _get_config_file_path() -> Path:
@@ -31,6 +33,9 @@ def _get_config_file_path() -> Path:
     Returns:
         Path: The path to the settings YAML file.
     """
+    env_config_path = os.getenv(CONFIG_PATH_ENV_VAR)
+    if env_config_path:
+        return Path(env_config_path).expanduser().resolve()
     return Path(__file__).parent.parent / "pytmbot.yaml"
 
 
