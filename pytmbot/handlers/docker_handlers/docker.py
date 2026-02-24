@@ -30,7 +30,7 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
         bot.send_chat_action(message.chat.id, "typing")
 
         # Compile the message to send to the bot
-        bot_answer: str = __compile_message()
+        bot_answer: str = _compile_message()
 
         reply_keyboard = keyboards.build_reply_keyboard(keyboard_type="docker_keyboard")
 
@@ -109,8 +109,3 @@ def _compile_message() -> str:
                 metadata={"exception": str(error)},
             )
         )
-
-
-def __compile_message() -> str:
-    """Backward-compatible wrapper for private legacy helper name."""
-    return _compile_message()

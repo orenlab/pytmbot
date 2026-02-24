@@ -1334,7 +1334,7 @@ requires-dist = [
     { name = "pygal", specifier = "==3.1.0" },
     { name = "pyotp", specifier = "==2.9.0" },
     { name = "pyoutlineapi", marker = "extra == 'pyoutlineapi'", specifier = "==0.4.0" },
-    { name = "pypng", specifier = ">=0.20220715.0,<0.20220716" },
+    { name = "pypng", specifier = "==0.20220715.0" },
     { name = "pytelegrambotapi", specifier = "==4.31.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "pyyaml", specifier = "==6.0.3" },

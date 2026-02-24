@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 import threading
-import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -35,6 +34,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
     BLOCK_DURATION: Final[int] = 3600  # seconds
     CLEANUP_INTERVAL: Final[int] = 3600  # seconds
     ADMIN_NOTIFY_SUPPRESSION: Final[int] = 300  # seconds
+    CLEANUP_THREAD_JOIN_TIMEOUT: Final[float] = 2.0
 
     # Commands that unauthorized users can use within their attempt limit
     SETUP_COMMANDS: Final[set[str]] = {
@@ -53,6 +53,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         self._blocked_until: dict[int, datetime] = {}
         self._last_admin_notify: dict[int, datetime] = {}
         self._state_lock = threading.RLock()
+        self._cleanup_stop_event = threading.Event()
         self._cleanup_thread = threading.Thread(
             target=self._periodic_cleanup,
             daemon=True,
@@ -188,10 +189,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
         base_context: dict[str, Any],
     ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
-
+        block_until: datetime | None = None
         with self._state_lock:
             self._attempt_count[user_id] += 1
             current_attempt = self._attempt_count[user_id]
+            if current_attempt >= self.MAX_ATTEMPTS:
+                block_until = datetime.now() + timedelta(seconds=self.BLOCK_DURATION)
+                self._blocked_until[user_id] = block_until
         is_setup_command = self._is_setup_command(message)
 
         context = {
@@ -207,14 +211,14 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         # Block user if max attempts reached
         if current_attempt >= self.MAX_ATTEMPTS:
-            block_until = datetime.now() + timedelta(seconds=self.BLOCK_DURATION)
-            with self._state_lock:
-                self._blocked_until[user_id] = block_until
-
             context.update(
                 {
                     "operation": "user_blocked",
-                    "block_until": block_until.isoformat(),
+                    "block_until": (
+                        block_until.isoformat()
+                        if block_until is not None
+                        else "unknown"
+                    ),
                     "block_duration": self.BLOCK_DURATION,
                     "block_reason": "max_attempts_exceeded",
                 }
@@ -264,10 +268,15 @@ class AccessControl(BaseMiddleware, BaseComponent):
     ) -> None:
         """Notify admin about unauthorized access attempts."""
         now = datetime.now()
+        time_since_last_notify = 0.0
         with self._state_lock:
             last_notified = self._last_admin_notify.get(user_id, datetime.min)
+            time_since_last_notify = (now - last_notified).total_seconds()
+            should_suppress = time_since_last_notify < self.ADMIN_NOTIFY_SUPPRESSION
+            if not should_suppress:
+                self._last_admin_notify[user_id] = now
 
-        if (now - last_notified).total_seconds() < self.ADMIN_NOTIFY_SUPPRESSION:
+        if should_suppress:
             context = {
                 "operation": "admin_notification",
                 "user_id": user_id,
@@ -276,16 +285,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
                 "attempt_number": attempt,
                 "notification_status": "suppressed",
                 "suppression_duration": self.ADMIN_NOTIFY_SUPPRESSION,
-                "time_since_last_notify": (now - last_notified).total_seconds(),
+                "time_since_last_notify": time_since_last_notify,
                 "is_setup_command": is_setup_command,
             }
 
             with self.log_context(**context) as logger:
                 logger.debug("bot.access.admin.notification.debug")
             return
-
-        with self._state_lock:
-            self._last_admin_notify[user_id] = now
 
         masked_username = mask_username(username)
         masked_user_id = mask_user_id(user_id)
@@ -364,6 +370,10 @@ class AccessControl(BaseMiddleware, BaseComponent):
             with self.log_context(**context) as logger:
                 logger.error("bot.access.admin.notification.fail")
 
+    def _wait_for_cleanup_interval(self) -> bool:
+        """Wait for cleanup interval; return True when shutdown was requested."""
+        return self._cleanup_stop_event.wait(timeout=self.CLEANUP_INTERVAL)
+
     def _periodic_cleanup(self) -> None:
         """Clean expired blocks and reset counters."""
         # Ensure logging is available in thread context
@@ -387,9 +397,10 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
             logging.info("bot.access.control.periodic.start")
 
-        while True:
+        while not self._cleanup_stop_event.is_set():
             try:
-                time.sleep(self.CLEANUP_INTERVAL)
+                if self._wait_for_cleanup_interval():
+                    break
                 now = datetime.now()
                 with self._state_lock:
                     expired = [
@@ -450,6 +461,21 @@ class AccessControl(BaseMiddleware, BaseComponent):
                     import logging
 
                     logging.error("bot.access.control.cleanup.fail")
+
+    def cleanup(self) -> None:
+        """Stop cleanup worker thread."""
+        self._cleanup_stop_event.set()
+        join = getattr(self._cleanup_thread, "join", None)
+        is_alive = getattr(self._cleanup_thread, "is_alive", None)
+        if callable(join) and callable(is_alive) and is_alive():
+            join(timeout=self.CLEANUP_THREAD_JOIN_TIMEOUT)
+
+    def __del__(self) -> None:
+        """Best-effort cleanup on object destruction."""
+        try:
+            self.cleanup()
+        except Exception:
+            pass
 
     @staticmethod
     @lru_cache(maxsize=8)

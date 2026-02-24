@@ -121,6 +121,8 @@ class WebhookConfig(TypedDict):
 DEFAULT_BASE_SLEEP_TIME: Final[int] = 10
 DEFAULT_MAX_SLEEP_TIME: Final[int] = 300
 POLLING_STOP_TIMEOUT: Final[int] = 30
+RATE_LIMIT_CIRCUIT_THRESHOLD: Final[int] = 3
+RATE_LIMIT_CIRCUIT_MAX_OPEN_SECONDS: Final[int] = 900
 
 DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
     (AccessControl, {}),
@@ -158,6 +160,8 @@ class PyTMBot(BaseComponent):
         "_state",
         "_session",
         "_shutdown_timeout_occurred",
+        "_rate_limit_consecutive",
+        "_rate_limit_open_until",
     )
 
     def __init__(self) -> None:
@@ -169,6 +173,8 @@ class PyTMBot(BaseComponent):
         self._state = BotState.UNINITIALIZED
         self._session: BotSession | None = None
         self._shutdown_timeout_occurred = False
+        self._rate_limit_consecutive = 0
+        self._rate_limit_open_until: datetime | None = None
 
         # Initialize session
         self._session = BotSession.create(
@@ -298,15 +304,65 @@ class PyTMBot(BaseComponent):
             case "conflict":
                 return self._handle_bot_conflict()
             case "rate_limited":
-                retry_after = getattr(error, "retry_after", 60)
-                with self.log_context(retry_after=retry_after) as log:
+                retry_after_raw = getattr(error, "retry_after", 60)
+                try:
+                    retry_after = int(retry_after_raw)
+                except (TypeError, ValueError):
+                    retry_after = 60
+                retry_after = max(1, min(retry_after, DEFAULT_MAX_SLEEP_TIME))
+
+                now = datetime.now()
+                if (
+                    self._rate_limit_open_until is not None
+                    and now < self._rate_limit_open_until
+                ):
+                    remaining = max(
+                        1, int((self._rate_limit_open_until - now).total_seconds())
+                    )
+                    with self.log_context(
+                        retry_after=retry_after,
+                        remaining=remaining,
+                        consecutive=self._rate_limit_consecutive,
+                    ) as log:
+                        log.warning("bot.core.rate.limit.circuit.open.warn")
+                    time.sleep(min(remaining, DEFAULT_MAX_SLEEP_TIME))
+                    return True
+
+                self._rate_limit_consecutive += 1
+
+                if self._rate_limit_consecutive >= RATE_LIMIT_CIRCUIT_THRESHOLD:
+                    open_seconds = min(
+                        retry_after * self._rate_limit_consecutive,
+                        RATE_LIMIT_CIRCUIT_MAX_OPEN_SECONDS,
+                    )
+                    self._rate_limit_open_until = now + timedelta(seconds=open_seconds)
+                    with self.log_context(
+                        retry_after=retry_after,
+                        open_seconds=open_seconds,
+                        consecutive=self._rate_limit_consecutive,
+                        threshold=RATE_LIMIT_CIRCUIT_THRESHOLD,
+                    ) as log:
+                        log.warning("bot.core.rate.limit.circuit.opened.warn")
+                    time.sleep(min(open_seconds, DEFAULT_MAX_SLEEP_TIME))
+                    return True
+
+                with self.log_context(
+                    retry_after=retry_after,
+                    consecutive=self._rate_limit_consecutive,
+                    threshold=RATE_LIMIT_CIRCUIT_THRESHOLD,
+                ) as log:
                     log.warning("bot.core.rate.limited.warn")
-                time.sleep(min(retry_after, 300))
+                time.sleep(min(retry_after, DEFAULT_MAX_SLEEP_TIME))
                 return True
             case "bad_gateway" | "service_unavailable":
                 return True
             case _:
                 return False
+
+    def _reset_rate_limit_circuit(self) -> None:
+        """Reset Telegram rate-limit circuit state after successful polling cycle."""
+        self._rate_limit_consecutive = 0
+        self._rate_limit_open_until = None
 
     def _graceful_conflict_resolution(self) -> bool:
         """Gracefully handle bot conflict by backing off."""
@@ -957,6 +1013,7 @@ class PyTMBot(BaseComponent):
 
                     current_sleep_time = DEFAULT_BASE_SLEEP_TIME
                     consecutive_errors = 0
+                    self._reset_rate_limit_circuit()
 
                 except Exception as error:
                     try:
@@ -1079,6 +1136,11 @@ class PyTMBot(BaseComponent):
             "webhook_enabled": self._session.webhook_enabled,
             "current_state": self._state.value,
             "shutdown_timeout_occurred": self._shutdown_timeout_occurred,
+            "rate_limit_consecutive": self._rate_limit_consecutive,
+            "rate_limit_circuit_open": (
+                self._rate_limit_open_until is not None
+                and datetime.now() < self._rate_limit_open_until
+            ),
         }
 
         # Add bot-specific stats if available

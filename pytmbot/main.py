@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Final, NoReturn
 from humanize import naturaltime
 
 from pytmbot import logs
+from pytmbot.adapters.docker.client import reset_docker_client_context
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.exceptions import ErrorContext, InitializationError, ShutdownError
 from pytmbot.health_system import HealthManager, HealthStatus, create_health_manager
@@ -87,6 +88,7 @@ class BotLauncher(logs.BaseComponent):
                 self.bot.bot.stop_polling()
                 self.bot.bot.remove_webhook()
             self._session_manager.shutdown()
+            reset_docker_client_context()
         except Exception as e:
             if not silent:
                 with self.log_context(error=str(e)) as log:

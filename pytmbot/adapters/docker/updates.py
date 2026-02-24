@@ -10,10 +10,11 @@ import json
 import re
 import time
 from collections.abc import Coroutine
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum, auto
-from threading import RLock, Thread
+from threading import Event, RLock, Thread, current_thread
 from typing import Any, Final
 
 import aiohttp
@@ -391,7 +392,10 @@ class DockerImageUpdater(BaseComponent):
         self.analyzer = TagAnalyzer()
         self.rate_limiter = RateLimitHandler()
         self._cache_lock = RLock()
-        self._sync_loop: asyncio.AbstractEventLoop | None = None
+        self._sync_bridge_lock = RLock()
+        self._sync_bridge_ready = Event()
+        self._sync_bridge_loop: asyncio.AbstractEventLoop | None = None
+        self._sync_bridge_thread: Thread | None = None
 
         # Performance metrics
         self._stats = {
@@ -401,6 +405,76 @@ class DockerImageUpdater(BaseComponent):
             "rate_limits": 0,
             "errors": 0,
         }
+
+    def _ensure_sync_bridge(self) -> None:
+        """Ensure persistent background loop exists for sync-to-async bridge."""
+        with self._sync_bridge_lock:
+            if (
+                self._sync_bridge_thread is not None
+                and self._sync_bridge_thread.is_alive()
+                and self._sync_bridge_loop is not None
+                and self._sync_bridge_loop.is_running()
+            ):
+                return
+
+            self._sync_bridge_ready.clear()
+
+            def _bridge_worker() -> None:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                with self._sync_bridge_lock:
+                    self._sync_bridge_loop = loop
+                self._sync_bridge_ready.set()
+                try:
+                    loop.run_forever()
+                finally:
+                    loop.close()
+
+            self._sync_bridge_thread = Thread(
+                target=_bridge_worker,
+                name="docker_updates_sync_bridge",
+                daemon=True,
+            )
+            self._sync_bridge_thread.start()
+
+        if not self._sync_bridge_ready.wait(timeout=2.0):
+            raise RuntimeError("Docker updates sync bridge failed to start")
+
+    def _get_cached_tags(
+        self, repo: str, current_time: float
+    ) -> list[EnhancedTagInfo] | None:
+        """Return cached tags for repository when TTL is valid."""
+        with self._cache_lock:
+            cached_entry = self.tag_cache.get(repo)
+            if cached_entry is None:
+                return None
+            cached_tags, timestamp = cached_entry
+            if current_time - timestamp < CACHE_TTL:
+                return cached_tags
+            self.tag_cache.pop(repo, None)
+            return None
+
+    def _set_cached_tags(
+        self, repo: str, tags_info: list[EnhancedTagInfo], current_time: float
+    ) -> None:
+        """Store repository tags in cache."""
+        with self._cache_lock:
+            self.tag_cache[repo] = (tags_info, current_time)
+
+    def _stop_sync_bridge(self) -> None:
+        """Stop and cleanup sync bridge resources."""
+        with self._sync_bridge_lock:
+            loop = self._sync_bridge_loop
+            thread = self._sync_bridge_thread
+            self._sync_bridge_loop = None
+            self._sync_bridge_thread = None
+
+        if loop is not None and loop.is_running():
+            with suppress(Exception):
+                loop.call_soon_threadsafe(loop.stop)
+
+        if thread is not None and thread.is_alive() and thread is not current_thread():
+            thread.join(timeout=2.0)
 
     def initialize(self) -> None:
         """Initialize with enhanced error handling."""
@@ -581,16 +655,12 @@ class DockerImageUpdater(BaseComponent):
             return []
 
         # Check cache
-        with self._cache_lock:
-            if repo in self.tag_cache:
-                cached_tags, timestamp = self.tag_cache[repo]
-                if time.time() - timestamp < CACHE_TTL:
-                    self._stats["cache_hits"] += 1
-                    self._log.debug("docker.updates.using.cached.debug")
-                    return cached_tags
-                else:
-                    # Remove expired cache
-                    del self.tag_cache[repo]
+        current_time = time.time()
+        cached_tags = self._get_cached_tags(repo, current_time)
+        if cached_tags is not None:
+            self._stats["cache_hits"] += 1
+            self._log.debug("docker.updates.using.cached.debug")
+            return cached_tags
 
         self._stats["cache_misses"] += 1
 
@@ -645,8 +715,7 @@ class DockerImageUpdater(BaseComponent):
 
         # Cache results (even empty results to avoid repeated failures)
         if tags_info or last_error:
-            with self._cache_lock:
-                self.tag_cache[repo] = (tags_info, time.time())
+            self._set_cached_tags(repo, tags_info, time.time())
 
         if not tags_info and last_error:
             self._log.warning("docker.updates.fetch.tags.fail")
@@ -1094,7 +1163,6 @@ class DockerImageUpdater(BaseComponent):
     def clear_cache(self) -> None:
         """Clear all cached data."""
         with self._cache_lock:
-            len(self.tag_cache)
             self.tag_cache.clear()
 
         # Reset stats
@@ -1140,39 +1208,16 @@ class DockerImageUpdater(BaseComponent):
         """Cleanup on garbage collection."""
         try:
             self.clear_cache()
-            if self._sync_loop is not None and not self._sync_loop.is_closed():
-                self._sync_loop.close()
+            self._stop_sync_bridge()
         except Exception:
             pass  # Suppress exceptions during cleanup
 
     def _run_check_updates_sync(self) -> UpdaterResponse:
-        """Run async updates check from sync context without creating a new loop each call."""
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-
-        if running_loop is not None and running_loop.is_running():
-            result_holder: list[UpdaterResponse] = []
-            error_holder: list[Exception] = []
-
-            def _worker() -> None:
-                try:
-                    result_holder.append(asyncio.run(self._check_updates()))
-                except Exception as error:
-                    error_holder.append(error)
-
-            worker = Thread(target=_worker, name="docker_updates_sync_bridge")
-            worker.start()
-            worker.join()
-
-            if error_holder:
-                raise error_holder[0]
-            if not result_holder:
-                raise RuntimeError("Docker updates worker did not return a result")
-            return result_holder[0]
-
-        if self._sync_loop is None or self._sync_loop.is_closed():
-            self._sync_loop = asyncio.new_event_loop()
-
-        return self._sync_loop.run_until_complete(self._check_updates())
+        """Run async updates check from sync context via persistent bridge loop."""
+        self._ensure_sync_bridge()
+        with self._sync_bridge_lock:
+            loop = self._sync_bridge_loop
+        if loop is None:
+            raise RuntimeError("Docker updates sync bridge is unavailable")
+        future = asyncio.run_coroutine_threadsafe(self._check_updates(), loop)
+        return future.result()

@@ -283,14 +283,15 @@ def test_access_control_periodic_cleanup_removes_expired_state(
     middleware._attempt_count[expired_user] = 2
     middleware._last_admin_notify[expired_user] = datetime.now()
 
-    call_count = {"sleep": 0}
+    call_count = {"wait": 0}
 
-    def _sleep(_seconds: float) -> None:
-        call_count["sleep"] += 1
-        if call_count["sleep"] > 1:
+    def _wait() -> bool:
+        call_count["wait"] += 1
+        if call_count["wait"] > 1:
             raise KeyboardInterrupt
+        return False
 
-    monkeypatch.setattr(access_control_module.time, "sleep", _sleep)
+    monkeypatch.setattr(middleware, "_wait_for_cleanup_interval", _wait)
 
     with pytest.raises(KeyboardInterrupt):
         middleware._periodic_cleanup()
@@ -345,14 +346,15 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
 
     monkeypatch.setattr(middleware, "log_context", lambda **kwargs: _Ctx(kwargs))
 
-    call_count = {"sleep": 0}
+    call_count = {"wait": 0}
 
-    def _sleep(_seconds: float) -> None:
-        call_count["sleep"] += 1
-        if call_count["sleep"] > 1:
+    def _wait() -> bool:
+        call_count["wait"] += 1
+        if call_count["wait"] > 1:
             raise KeyboardInterrupt
+        return False
 
-    monkeypatch.setattr(access_control_module.time, "sleep", _sleep)
+    monkeypatch.setattr(middleware, "_wait_for_cleanup_interval", _wait)
 
     with pytest.raises(KeyboardInterrupt):
         middleware._periodic_cleanup()

@@ -6,6 +6,8 @@ also providing basic information about the status of local servers.
 """
 
 import ipaddress
+import json
+import os
 import threading
 from collections import deque
 from collections.abc import AsyncGenerator
@@ -64,6 +66,9 @@ class RateLimit(BaseComponent):
         "_last_seen",
         "max_tracked_ips",
         "_last_cleanup_ts",
+        "_state_lock",
+        "_state_file",
+        "_last_state_persist_ts",
     )
 
     def __init__(
@@ -72,6 +77,7 @@ class RateLimit(BaseComponent):
         period: int,
         ban_threshold: int = 50,
         max_tracked_ips: int = 4096,
+        state_file: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -90,6 +96,65 @@ class RateLimit(BaseComponent):
             self._last_seen: dict[str, float] = {}
             self.max_tracked_ips = max(128, max_tracked_ips)
             self._last_cleanup_ts = 0.0
+            self._state_lock = threading.RLock()
+            self._state_file = state_file
+            self._last_state_persist_ts = 0.0
+            self._restore_state()
+
+    def _restore_state(self) -> None:
+        """Load persisted bans from disk if available."""
+        if not self._state_file:
+            return
+
+        try:
+            with open(self._state_file, encoding="utf-8") as state_stream:
+                payload = json.load(state_stream)
+        except FileNotFoundError:
+            return
+        except Exception:
+            return
+
+        if not isinstance(payload, dict):
+            return
+
+        now = datetime.now()
+        restored_bans = payload.get("banned_ips", {})
+        if not isinstance(restored_bans, dict):
+            return
+
+        for ip, iso_banned_at in restored_bans.items():
+            if not isinstance(ip, str) or not isinstance(iso_banned_at, str):
+                continue
+            try:
+                banned_at = datetime.fromisoformat(iso_banned_at)
+            except ValueError:
+                continue
+            if (now - banned_at).total_seconds() <= 3600:
+                self.banned_ips[ip] = banned_at
+                self._last_seen[ip] = time()
+
+    def _persist_state(self, *, force: bool = False) -> None:
+        """Persist current ban state to disk."""
+        if not self._state_file:
+            return
+
+        now_ts = time()
+        if not force and now_ts - self._last_state_persist_ts < 5.0:
+            return
+
+        self._last_state_persist_ts = now_ts
+        payload = {
+            "banned_ips": {
+                ip: banned_at.isoformat() for ip, banned_at in self.banned_ips.items()
+            },
+            "saved_at": datetime.now().isoformat(),
+        }
+        try:
+            with open(self._state_file, "w", encoding="utf-8") as state_stream:
+                json.dump(payload, state_stream)
+        except Exception:
+            # Best effort persistence only.
+            return
 
     def _drop_ip_state(self, client_ip: str) -> None:
         """Remove all in-memory state for an IP."""
@@ -135,63 +200,70 @@ class RateLimit(BaseComponent):
         while len(self._last_seen) > self.max_tracked_ips:
             self._evict_oldest_ip()
 
-    def is_banned(self, client_ip: str) -> bool:
-        self._cleanup_state(time())
-        with self.log_context(ip=client_ip, action="check_ban"):
-            if client_ip not in self.banned_ips:
-                return False
+        if expired_bans or stale_ips:
+            self._persist_state()
 
-            ban_time = self.banned_ips[client_ip]
-            if (datetime.now() - ban_time).total_seconds() > 3600:
-                with self.log_context(action="ban_expired", ip=client_ip) as log:
-                    log.info("bot.webhook.ban.expired.info")
-                del self.banned_ips[client_ip]
-                return False
-            with self.log_context(action="banned", ip=client_ip) as log:
-                log.warning("bot.webhook.request.banned.warn")
-            return True
+    def is_banned(self, client_ip: str) -> bool:
+        with self._state_lock:
+            self._cleanup_state(time())
+            with self.log_context(ip=client_ip, action="check_ban"):
+                if client_ip not in self.banned_ips:
+                    return False
+
+                ban_time = self.banned_ips[client_ip]
+                if (datetime.now() - ban_time).total_seconds() > 3600:
+                    with self.log_context(action="ban_expired", ip=client_ip) as log:
+                        log.info("bot.webhook.ban.expired.info")
+                    del self.banned_ips[client_ip]
+                    self._persist_state()
+                    return False
+                with self.log_context(action="banned", ip=client_ip) as log:
+                    log.warning("bot.webhook.request.banned.warn")
+                return True
 
     def is_rate_limited(self, client_ip: str) -> bool:
-        current_time = time()
-        self._cleanup_state(current_time)
+        with self._state_lock:
+            current_time = time()
+            self._cleanup_state(current_time)
 
-        if (
-            client_ip not in self.requests
-            and client_ip not in self._last_seen
-            and len(self._last_seen) >= self.max_tracked_ips
-        ):
-            self._evict_oldest_ip()
-        self._last_seen[client_ip] = current_time
+            if (
+                client_ip not in self.requests
+                and client_ip not in self._last_seen
+                and len(self._last_seen) >= self.max_tracked_ips
+            ):
+                self._evict_oldest_ip()
+            self._last_seen[client_ip] = current_time
 
-        with self.log_context(
-            ip=client_ip,
-            action="rate_check",
-            requests_count=len(self.requests.get(client_ip, [])),
-        ):
-            if self.is_banned(client_ip):
-                return True
+            with self.log_context(
+                ip=client_ip,
+                action="rate_check",
+                requests_count=len(self.requests.get(client_ip, [])),
+            ):
+                if self.is_banned(client_ip):
+                    return True
 
-            if client_ip not in self.requests:
-                self.requests[client_ip] = deque()
+                if client_ip not in self.requests:
+                    self.requests[client_ip] = deque()
 
-            request_times = self.requests[client_ip]
+                request_times = self.requests[client_ip]
 
-            while request_times and request_times[0] < current_time - self.period:
-                request_times.popleft()
+                while request_times and request_times[0] < current_time - self.period:
+                    request_times.popleft()
 
-            if len(request_times) >= self.ban_threshold:
-                self.banned_ips[client_ip] = datetime.now()
-                with self.log_context(action="ban_ip", ip=client_ip) as log:
-                    log.warning("bot.webhook.ip.banned.warn")
-                return True
+                if len(request_times) >= self.ban_threshold:
+                    self.banned_ips[client_ip] = datetime.now()
+                    self._persist_state(force=True)
+                    with self.log_context(action="ban_ip", ip=client_ip) as log:
+                        log.warning("bot.webhook.ip.banned.warn")
+                    return True
 
-            if len(request_times) >= self.limit:
-                with self.log_context(action="rate_limit", ip=client_ip) as log:
-                    log.warning("bot.webhook.rate.limit.warn")
-                return True
+                if len(request_times) >= self.limit:
+                    with self.log_context(action="rate_limit", ip=client_ip) as log:
+                        log.warning("bot.webhook.rate.limit.warn")
+                    return True
 
-            request_times.append(current_time)
-            return False
+                request_times.append(current_time)
+                return False
 
 
 class WebhookManager(BaseComponent):
@@ -360,8 +432,28 @@ class WebhookServer(BaseComponent):
             )
 
             self.app = self._create_app()
-            self.rate_limiter = RateLimit(limit=10, period=10, max_tracked_ips=4096)
-            self.rate_limiter_404 = RateLimit(limit=5, period=10, max_tracked_ips=1024)
+            enable_rate_state_persistence = "PYTEST_CURRENT_TEST" not in os.environ
+            state_prefix = f"/tmp/pytmbot_webhook_ratelimit_{self.port}"
+            self.rate_limiter = RateLimit(
+                limit=10,
+                period=10,
+                max_tracked_ips=4096,
+                state_file=(
+                    f"{state_prefix}_main.json"
+                    if enable_rate_state_persistence
+                    else None
+                ),
+            )
+            self.rate_limiter_404 = RateLimit(
+                limit=5,
+                period=10,
+                max_tracked_ips=1024,
+                state_file=(
+                    f"{state_prefix}_404.json"
+                    if enable_rate_state_persistence
+                    else None
+                ),
+            )
             log.info("bot.webhook.server.init.ok")
 
     def _create_app(self) -> FastAPI:

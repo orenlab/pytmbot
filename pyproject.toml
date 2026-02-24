@@ -14,7 +14,7 @@ keywords = [
     "server",
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: System Administrators",
     "Topic :: System :: Monitoring",
     "Topic :: Communications :: Chat",
@@ -40,7 +40,7 @@ dependencies = [
     "fastapi==0.129.0",
     "uvicorn==0.41.0",
     "influxdb-client==1.50.0",
-    "pypng>=0.20220715.0,<0.20220716",
+    "pypng==0.20220715.0",
     "qrcode>=8.2,<9",
     "aiohttp==3.13.3",
     "packaging==26.0",

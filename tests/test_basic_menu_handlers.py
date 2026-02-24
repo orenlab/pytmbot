@@ -212,7 +212,7 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
         "quick_render",
         lambda template_name, context, **kwargs: "docker-rendered",
     )
-    assert docker_module.__compile_message() == "docker-rendered"
+    assert docker_module._compile_message() == "docker-rendered"
 
     monkeypatch.setattr(
         docker_module,
@@ -235,7 +235,7 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
         ),
     )
     with pytest.raises(exceptions.TemplateError):
-        docker_module.__compile_message()
+        docker_module._compile_message()
 
     sent_payloads: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -245,7 +245,7 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     monkeypatch.setattr(
         docker_module,
-        "__compile_message",
+        "_compile_message",
         lambda: "docker-ui",
     )
     monkeypatch.setattr(
@@ -272,7 +272,7 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(
         docker_module,
-        "__compile_message",
+        "_compile_message",
         lambda: (_ for _ in ()).throw(RuntimeError("docker fail")),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:

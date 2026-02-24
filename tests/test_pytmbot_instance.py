@@ -6,6 +6,7 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import cast
 
@@ -179,6 +180,49 @@ def test_handle_critical_api_error_rate_limit_recovers_and_caps_sleep(
 
     assert bot._handle_critical_api_error(error, "rate_limited") is True
     assert sleeps == [300]
+
+
+def test_handle_critical_api_error_opens_rate_limit_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = instance_module.PyTMBot()
+    sleeps: list[int] = []
+    monkeypatch.setattr(
+        instance_module.time,
+        "sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+
+    for _ in range(instance_module.RATE_LIMIT_CIRCUIT_THRESHOLD):
+        assert (
+            bot._handle_critical_api_error(_RateLimitApiException(120), "rate_limited")
+            is True
+        )
+
+    assert sleeps == [120, 120, 300]
+    assert bot._rate_limit_open_until is not None
+    assert bot._rate_limit_consecutive == instance_module.RATE_LIMIT_CIRCUIT_THRESHOLD
+
+
+def test_handle_critical_api_error_respects_open_rate_limit_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = instance_module.PyTMBot()
+    bot._rate_limit_consecutive = instance_module.RATE_LIMIT_CIRCUIT_THRESHOLD
+    bot._rate_limit_open_until = datetime.now() + timedelta(seconds=42)
+    sleeps: list[int] = []
+    monkeypatch.setattr(
+        instance_module.time,
+        "sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+
+    assert (
+        bot._handle_critical_api_error(_RateLimitApiException(5), "rate_limited")
+        is True
+    )
+    assert len(sleeps) == 1
+    assert 1 <= sleeps[0] <= 42
 
 
 def test_safe_stop_polling_returns_true_when_bot_missing() -> None:

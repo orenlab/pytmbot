@@ -90,37 +90,19 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
     def _clean_old_requests(self, user_id: UserID, current_time: datetime) -> None:
         """Remove expired request timestamps for a user."""
         with self._state_lock:
-            requests = self._user_requests[user_id]
+            cleaned_count, remaining_count = self._clean_old_requests_locked(
+                user_id, current_time
+            )
             cutoff_time = current_time - self.period
-            initial_count = len(requests)
-
-            while requests and requests[0] < cutoff_time:
-                requests.popleft()
-
-            cleaned_count = initial_count - len(requests)
 
             context = {
                 "operation": "cleanup_old_requests",
                 "user_id": user_id,
-                "initial_requests": initial_count,
                 "cleaned_requests": cleaned_count,
-                "remaining_requests": len(requests),
+                "remaining_requests": remaining_count,
                 "cutoff_time": cutoff_time.isoformat(),
                 "current_time": current_time.isoformat(),
             }
-
-            # Clean up empty user entries
-            if not requests:
-                with suppress(KeyError):
-                    del self._user_requests[user_id]
-                    # Also clean up violation tracking for inactive users
-                    with suppress(KeyError):
-                        del self._violation_count[user_id]
-                        del self._last_violation_log[user_id]
-
-                    context.update(
-                        {"user_cleaned": True, "violation_data_cleaned": True}
-                    )
 
             if cleaned_count > 0:
                 with self.log_context(**context) as logger:
@@ -129,10 +111,43 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
     def _is_rate_limited(self, user_id: UserID, current_time: datetime) -> bool:
         """Check if user has exceeded their rate limit."""
         with self._state_lock:
-            self._clean_old_requests(user_id, current_time)
-            current_requests = len(self._user_requests[user_id])
+            _, current_requests = self._clean_old_requests_locked(user_id, current_time)
             is_limited = current_requests >= self.limit
             return is_limited
+
+    def _clean_old_requests_locked(
+        self, user_id: UserID, current_time: datetime
+    ) -> tuple[int, int]:
+        """
+        Cleanup stale timestamps with lock already held.
+
+        Returns:
+            Tuple of (cleaned_count, remaining_count).
+        """
+        requests = self._user_requests.get(user_id)
+        if not requests:
+            return 0, 0
+
+        cutoff_time = current_time - self.period
+        # Fast path: all timestamps still in active window.
+        if requests and requests[0] >= cutoff_time:
+            return 0, len(requests)
+
+        initial_count = len(requests)
+        while requests and requests[0] < cutoff_time:
+            requests.popleft()
+
+        cleaned_count = initial_count - len(requests)
+
+        if not requests:
+            with suppress(KeyError):
+                del self._user_requests[user_id]
+            with suppress(KeyError):
+                del self._violation_count[user_id]
+                del self._last_violation_log[user_id]
+            return cleaned_count, 0
+
+        return cleaned_count, len(requests)
 
     def _should_log_violation(self, user_id: UserID, current_time: datetime) -> bool:
         """

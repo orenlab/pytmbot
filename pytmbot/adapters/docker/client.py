@@ -47,10 +47,5 @@ def docker_client_context() -> Iterator[DockerClient]:
     overhead while still delegating connection lifecycle checks to DockerAdapter.
     """
     adapter = _get_thread_adapter()
-    try:
-        with adapter as client:
-            yield client
-    finally:
-        # Keep a single adapter per thread, but always release client resources
-        # when the context exits to preserve prior lifecycle guarantees.
-        adapter.close()
+    with adapter as client:
+        yield client

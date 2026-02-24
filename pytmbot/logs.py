@@ -241,7 +241,6 @@ class DataMasker:
         mask_len = token_len - visible_chars * 2
         return f"{token[:visible_chars]}{'*' * mask_len}{token[-visible_chars:]}"
 
-    @lru_cache(maxsize=256)
     def mask_username(self, username: str) -> str:
         """Mask a username leaving some characters visible."""
         if not username or not (clean_username := username.strip()):
@@ -265,7 +264,6 @@ class DataMasker:
         mask_len = username_len - safe_visible * 2
         return f"{username[:safe_visible]}{'*' * mask_len}{username[-safe_visible:]}"
 
-    @lru_cache(maxsize=256)
     def mask_user_id(self, user_id: int | None) -> str:
         """Mask a user ID preserving some digits."""
         if user_id is None:
@@ -274,7 +272,6 @@ class DataMasker:
         user_id_str = str(abs(user_id))
         return self._mask_numeric_id(user_id_str, "[MASKED_ID]")
 
-    @lru_cache(maxsize=256)
     def mask_chat_id(self, chat_id: int | None) -> str:
         """Mask a chat ID preserving some digits."""
         if chat_id is None:

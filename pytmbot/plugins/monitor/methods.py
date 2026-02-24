@@ -435,8 +435,12 @@ class SystemMonitorPlugin(PluginCore):
             logger.debug(
                 "bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields
             )
-        except Exception:
-            logger.exception("bot.plugins.monitor.methods.writing.metrics.fail")
+        except Exception as error:
+            logger.error(
+                "bot.plugins.monitor.methods.writing.metrics.fail",
+                error=str(error),
+                error_type=type(error).__name__,
+            )
 
     @staticmethod
     def _sanitize_fields(fields: dict[str, Any]) -> dict[str, Any]:

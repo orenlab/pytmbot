@@ -361,12 +361,24 @@ class PluginManager:
                 else:
                     logger.warning("bot.plugins.plugin_manager.plugin.does.warn")
 
-            except Exception:
-                logger.exception("bot.plugins.plugin_manager.unexpected.fail")
+            except Exception as error:
+                logger.error(
+                    "bot.plugins.plugin_manager.unexpected.fail",
+                    plugin_name=plugin_name,
+                    stage="register",
+                    error=str(error),
+                    error_type=type(error).__name__,
+                )
                 self._cleanup_plugin(plugin_name)
 
-        except Exception:
-            logger.exception("bot.plugins.plugin_manager.unexpected.fail")
+        except Exception as error:
+            logger.error(
+                "bot.plugins.plugin_manager.unexpected.fail",
+                plugin_name=plugin_name,
+                stage="prepare",
+                error=str(error),
+                error_type=type(error).__name__,
+            )
             self._cleanup_plugin(plugin_name)
 
     def register_plugins(
