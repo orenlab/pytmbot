@@ -42,7 +42,7 @@ class BotLauncher(logs.BaseComponent):
     """Main bot launcher with professional health system integration."""
 
     SHUTDOWN_TIMEOUT: Final[int] = 10
-    MIN_PYTHON_VERSION: Final[tuple[int, int]] = (3, 10)
+    MIN_PYTHON_VERSION: Final[tuple[int, int]] = (3, 12)
     MAIN_LOOP_TIMEOUT: Final[float] = 0.5
     STARTUP_GRACE_PERIOD: Final[int] = 30
     HEALTH_LOG_INTERVAL: Final[int] = 60  # Log health every 60 seconds

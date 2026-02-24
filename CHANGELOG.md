@@ -6,6 +6,8 @@ All notable changes are documented in this file.
 
 ### Added
 
+- GitHub Actions workflow `tests.yml` with test matrix for Python 3.12, 3.13, and 3.14, plus codeclone baseline check in
+  CI.
 - Server health summary flow in UI with refresh callback and richer operational snapshot.
 - Extended server inline views: CPU overview/per-core/times, network interfaces/connections, disk I/O, active users,
   fan speeds, and quick-view drill-down pages.
@@ -26,6 +28,7 @@ All notable changes are documented in this file.
 - Size formatting normalized to `humanize`-based output across updated server/docker views.
 - User/chat ID masking unified across logs to one consistent format (first 2 and last 2 digits visible for 10-digit
   IDs).
+- Runtime minimum Python version aligned to 3.12 for launcher validation and packaging constraints.
 - Docker and psutil pipelines optimized: reduced duplicate checks and fewer expensive roundtrips.
 - Logging pipeline redesigned: normalized event names, context deduplication, trace IDs, safer masking.
 - Runtime/build toolchain modernized (Python 3.13 alignment, uv-based dependency workflow, CI/CD updates, tini-based
