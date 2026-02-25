@@ -67,7 +67,7 @@ class ConflictResolutionStrategy(Enum):
     ABORT = "abort"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BotSession:
     """Immutable bot session information."""
 

@@ -45,6 +45,8 @@ class Compiler(BaseComponent):
             output = c.compile()
     """
 
+    __slots__ = ("template_name", "context", "trusted")
+
     TEMPLATE_TYPE_PREFIXES: Final[dict[str, TemplateType]] = {
         "a_": TemplateType.AUTH,
         "b_": TemplateType.BASE,

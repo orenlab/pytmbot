@@ -35,6 +35,15 @@ DOCKER_COUNTERS_CACHE_TTL: Final[float] = 30.0
 class ContainerInfoCache:
     """Thread-safe cache for container information with TTL."""
 
+    __slots__ = (
+        "_cache",
+        "_lock",
+        "_ttl",
+        "_max_entries",
+        "_cleanup_interval_seconds",
+        "_last_cleanup_timestamp",
+    )
+
     def __init__(self, ttl: int = CACHE_TTL):
         self._cache: dict[str, tuple[dict, float]] = {}
         self._lock = RLock()
@@ -87,7 +96,7 @@ class ContainerInfoCache:
                 current_time, force=len(self._cache) > self._max_entries
             )
 
-            while len(self._cache) > self._max_entries:
+            if len(self._cache) > self._max_entries:
                 oldest_key = min(
                     self._cache, key=lambda cache_key: self._cache[cache_key][1]
                 )
@@ -453,9 +462,9 @@ def fetch_container_logs(
         # Truncate if too large (safety measure)
         max_log_size = 10000  # 10KB limit
         if len(log_content) > max_log_size:
-            log_content = log_content[-max_log_size:]
             log_content = (
-                f"[LOG TRUNCATED - showing last {max_log_size} chars]\n" + log_content
+                f"[LOG TRUNCATED - showing last {max_log_size} chars]\n"
+                + log_content[-max_log_size:]
             )
 
         execution_time = time.time() - start_time

@@ -16,7 +16,7 @@ from pytmbot.utils import parse_cli_args, sanitize_exception
 logger = Logger()
 
 
-@dataclass
+@dataclass(slots=True)
 class ErrorContext:
     message: str
     error_code: str | None = None

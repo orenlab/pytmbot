@@ -15,7 +15,7 @@ class PluginCoreModel(BaseModel):
     """Core plugin configuration model"""
 
 
-@dataclass
+@dataclass(slots=True)
 @final
 class PluginsPermissionsModel:
     """Plugin permissions model"""

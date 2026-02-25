@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import itertools
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -22,6 +23,8 @@ from pytmbot.utils import mask_user_id
 class _StateFabric:
     """Class for managing user states."""
 
+    __slots__ = ()
+
     # Using Final for immutable constants
     AUTHENTICATED: Final[str] = "authenticated"
     PROCESSING: Final[str] = "processing"
@@ -36,7 +39,7 @@ class _StateFabric:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class _UserSession:
     """Represents a user session with type safety."""
 
@@ -65,6 +68,19 @@ class SessionManager(BaseComponent):
     Thread-safe session manager with modern Python practices.
     Implements singleton pattern with weak references for memory efficiency.
     """
+
+    __slots__ = (
+        "state_fabric",
+        "cleanup_interval",
+        "session_timeout",
+        "max_totp_attempts",
+        "block_duration",
+        "_user_sessions",
+        "_cleanup_thread",
+        "_shutdown_event",
+        "_initialized",
+        "__weakref__",
+    )
 
     # Class variables with proper typing
     _instances: ClassVar[WeakValueDictionary[str, SessionManager]] = (
@@ -243,7 +259,7 @@ class SessionManager(BaseComponent):
         if overflow <= 0:
             return evicted
 
-        for uid in list(self._user_sessions.keys())[:overflow]:
+        for uid in list(itertools.islice(self._user_sessions, overflow)):
             del self._user_sessions[uid]
             evicted += 1
 

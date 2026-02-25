@@ -42,7 +42,7 @@ class HealthLevel(IntEnum):
         return self.name.lower()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class HealthResult:
     """Immutable health check result."""
 
@@ -61,7 +61,7 @@ class HealthResult:
         return self.level <= HealthLevel.UNHEALTHY
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SystemHealth:
     """Complete system health snapshot."""
 
@@ -102,6 +102,8 @@ class HealthChecker(Protocol):
 
 class BaseHealthChecker(ABC):
     """Base class for health checkers with caching."""
+
+    __slots__ = ("_cache_ttl", "_last_check", "_cached_result", "_lock")
 
     def __init__(self, cache_ttl: float = 30.0) -> None:
         self._cache_ttl = cache_ttl
@@ -157,6 +159,8 @@ class BaseHealthChecker(ABC):
 
 class TelegramApiChecker(BaseHealthChecker):
     """Telegram API connectivity checker."""
+
+    __slots__ = ("_bot_ref",)
 
     def __init__(self, bot_ref: ReferenceType[telebot.TeleBot]) -> None:
         super().__init__(cache_ttl=25.0)
@@ -259,6 +263,8 @@ class TelegramApiChecker(BaseHealthChecker):
 class PollingChecker(BaseHealthChecker):
     """Polling state checker."""
 
+    __slots__ = ("_bot_ref",)
+
     def __init__(self, bot_ref: ReferenceType[telebot.TeleBot]) -> None:
         super().__init__(cache_ttl=15.0)
         self._bot_ref = bot_ref
@@ -313,6 +319,8 @@ class PollingChecker(BaseHealthChecker):
 
 class SystemResourceChecker(BaseHealthChecker):
     """System resource checker."""
+
+    __slots__ = ("_psutil_adapter",)
 
     def __init__(self, psutil_adapter: Any) -> None:
         super().__init__(cache_ttl=20.0)
@@ -405,6 +413,8 @@ class SystemResourceChecker(BaseHealthChecker):
 
 class SessionChecker(BaseHealthChecker):
     """Session manager checker."""
+
+    __slots__ = ("_session_manager",)
 
     def __init__(self, session_manager: Any) -> None:
         super().__init__(cache_ttl=18.0)
@@ -771,6 +781,8 @@ class HealthMonitor(BaseComponent):
 class HealthManager:
     """Simplified health manager that uses threading instead of asyncio."""
 
+    __slots__ = ("_monitor", "_started")
+
     def __init__(self, max_history: int = 15):
         self._monitor = HealthMonitor(max_history)
         self._started = False
@@ -878,6 +890,8 @@ def create_health_manager(
 # Legacy compatibility
 class HealthStatus:
     """Legacy compatibility singleton."""
+
+    __slots__ = ("_manager", "_state_lock", "_initialized")
 
     _instance: HealthStatus | None = None
     _instance_lock = threading.RLock()

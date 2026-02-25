@@ -45,6 +45,8 @@ class HandlerType(StrEnum):
 class AuthState:
     """Constants for authentication states."""
 
+    __slots__ = ()
+
     AUTHENTICATED: Final[str] = "authenticated"
     UNAUTHENTICATED: Final[str] = "unauthenticated"
     EXPIRED: Final[str] = "expired"
@@ -69,6 +71,8 @@ class AuthContext:
 
 class AuthComponent(BaseComponent):
     """Authentication component with integrated logging."""
+
+    __slots__ = ()
 
     def __init__(self) -> None:
         super().__init__("AuthComponent")

@@ -23,6 +23,15 @@ logger = logs.Logger()
 
 
 class PluginCore:
+    __slots__ = (
+        "settings",
+        "var_config",
+        "logger",
+        "keyboard",
+        "handler_models",
+        "session_manager",
+    )
+
     def __init__(self) -> None:
         self.settings = g.settings
         self.var_config = g.var_config
