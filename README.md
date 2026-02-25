@@ -2,8 +2,8 @@
 
 **pyTMbot** is a versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending
 its functionality through a modular plugin system. The bot supports both **polling** and **webhook** modes, offering
-flexibility based on your deployment requirements. Additionally, **pyTMbot** can be deployed either **directly on the
-host machine** or within a **Docker container**, providing flexibility in infrastructure setup.
+flexibility based on your deployment requirements. Starting with the current release line, **pyTMbot** is distributed
+and supported as a **Docker-first application**.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -61,15 +61,11 @@ Refer to [plugins.md](docs/plugins.md) for more information on adding and managi
 
 ## 🕸 Requirements
 
-Current **0.3.x** builds can run **either directly on the host machine or in a Docker container**. Both
-deployment methods provide full functionality, but there are slight differences in system access depending on the
-environment:
+Current **0.3.x** builds are supported in **Docker / Docker Compose** deployments.
 
-- **Host machine deployment:** Direct access to system resources like CPU, memory, and sensors. Recommended for cases
-  where precise and real-time system monitoring is critical.
-- **Docker container deployment:** Ideal for isolated environments or multi-bot setups. Certain low-level system access
-  may be restricted due to container isolation, but Docker management and most server monitoring features remain fully
-  functional.
+- **Docker Engine** 20.10+
+- **Docker Compose** v2.0+ (recommended)
+- Access to Docker socket for container-management features
 
 The bot supports two operational modes:
 
@@ -78,13 +74,12 @@ The bot supports two operational modes:
 - **Webhook Mode:** Optimized for real-time updates with reduced latency. Suitable for production environments,
   typically requiring an HTTPS server and a valid domain.
 
-To simplify the installation process, we provide an **`install.sh`** script that handles the setup, regardless of
-whether you choose to run **pyTMbot** on a host machine or within a Docker container. For full instructions on
-installation and configuration, refer to the [installation section](docs/installation.md).
-
 ## 🔌 Installation and Setup
 
-Refer to [installation.md](docs/installation.md) for full instructions on setting up the bot in your environment.
+Use Docker / Docker Compose setup guides:
+
+- [installation.md](docs/installation.md)
+- [docker.md](docs/docker.md)
 
 ## 🛡 Security
 
@@ -116,6 +111,7 @@ Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) fo
 
 ## 📚 Documentation
 
+- 📘 [Docs Index](docs/README.md)
 - 🔒 [Auth Control](docs/auth_control.md)
 - ⚙️ [CLI Args](docs/bot_cli_args.md)
 - 🐞 [Debugging](docs/debug.md)
@@ -123,7 +119,6 @@ Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) fo
 - 🛠️ [Installation](docs/installation.md)
 - 📦 [Plugins](docs/plugins.md)
 - 🗺️ [Roadmap](docs/roadmap.md)
-- 📜 [Scripts Installation](docs/script_install.md)
 - 🔐 [Security](docs/security.md)
 - ⚙️ [Settings](docs/settings.md)
 

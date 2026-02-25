@@ -77,6 +77,7 @@ All notable changes are documented in this file.
 ### Removed
 
 - Removed experimental `Services` server handler, callbacks, and related UI button wiring.
+- Removed legacy `tools/install.sh` host installer and its test coverage; installation is now Docker-only.
 
 ### Security
 
@@ -96,9 +97,9 @@ All notable changes are documented in this file.
 ### Documentation
 
 - Installation, Docker, settings, CLI args, plugins, and debug docs synchronized with actual runtime behavior.
-- Installer security model and new operational constraints explicitly documented.
-- `docs/script_install.md` now includes a secure hash-verification flow and expected installer SHA256 for `master`.
-- Updated `docs/script_install.md` with the latest `tools/install.sh` SHA256 value after installer updates.
+- Docker-only installation model documented across `README` and `docs/*`.
+- Added a docs index page (`docs/README.md`) as a single entry point.
+- `docs/script_install.md` converted to a deprecation notice for backward links.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
 
 [0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06bb1db

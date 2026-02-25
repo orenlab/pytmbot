@@ -6,6 +6,8 @@
 
 A secure, lightweight Docker container for pyTMbot - your Telegram-based monitoring and management solution.
 
+pyTMbot is Docker-only: Docker / Docker Compose is the only supported installation and runtime model.
+
 ## Quick Reference
 
 - **Maintained by**: [OrenLab Team](https://github.com/orenlab)
@@ -21,6 +23,7 @@ A secure, lightweight Docker container for pyTMbot - your Telegram-based monitor
 
 ## Security Features
 
+- Runs as non-root user (`pytmbot`) by default
 - Read-only container filesystem
 - Minimal base image footprint (Ubuntu LTS runtime)
 - Regular security updates
@@ -33,9 +36,8 @@ A secure, lightweight Docker container for pyTMbot - your Telegram-based monitor
 
 - Docker Engine 20.10+
 - Docker Compose v2.0+ (recommended)
-- 256MB RAM for optimal performance
-- 100MB free disk space
 - Internet connection for initial pull
+- For Docker-management features: mount `/var/run/docker.sock` as read-only
 
 ## Quick Start
 
@@ -123,7 +125,7 @@ networks:
         - subnet: 172.20.0.0/16
 ```
 
-## Configuration Requirements
+## Configuration
 
 ### General Bot Settings (Required)
 
@@ -135,104 +137,42 @@ networks:
 
 - **webhook_config**: Complete all parameters in the webhook configuration section
 - **trusted_proxy_ips**: Configure trusted reverse-proxy IPs/CIDRs when forwarded headers are used
-- **Security Note**: Bot cannot run on port 80 for security reasons. Use reverse proxy (Nginx, Nginx Proxy Manager, or
-  Traefik)
+- **Security Note**: Webhook server cannot run on privileged ports (`<1024`, including `80` and `443`). Use a reverse
+  proxy (Nginx, Nginx Proxy Manager, Traefik, etc.).
 
-### Plugin-Specific Configuration
+## Command Line Arguments
 
-- **Monitor Plugin**: Requires InfluxDB connection settings
-- **Outline Plugin**: Requires API URL and certificate paths
-
-## Production Deployment
-
-### Security Best Practices
-
-- Use `--mode prod` for production deployments
-- Set appropriate log levels (`INFO` or `ERROR` for production)
-- Configure webhook mode behind reverse proxy
-- Use read-only filesystem and dropped capabilities
-- Implement proper network isolation
-
-### Example Production Commands
-
-Standard production deployment:
-
-```bash
-docker run -d \
-  --name pytmbot \
-  --restart on-failure \
-  --env TZ="UTC" \
-  --volume /etc/pytmbot/config.yaml:/opt/app/pytmbot.yaml:ro \
-  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
-  --security-opt no-new-privileges \
-  --read-only \
-  --cap-drop ALL \
-  --pid host \
-  --memory 256m \
-  --cpu-shares 512 \
-  orenlab/pytmbot:latest --mode prod --log-level INFO
-```
-
-Webhook mode with reverse proxy:
-
-```bash
-docker run -d \
-  --name pytmbot \
-  --restart on-failure \
-  --env TZ="UTC" \
-  --volume /etc/pytmbot/config.yaml:/opt/app/pytmbot.yaml:ro \
-  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
-  --security-opt no-new-privileges \
-  --read-only \
-  --cap-drop ALL \
-  --pid host \
-  --memory 256m \
-  --cpu-shares 512 \
-  orenlab/pytmbot:latest --mode prod --webhook --socket_host 0.0.0.0
-```
-
-### Command Line Arguments
-
-For full core CLI reference, see [`docs/bot_cli_args.md`](bot_cli_args.md).
+For full core CLI reference, see
+[`docs/bot_cli_args.md`](https://github.com/orenlab/pytmbot/blob/master/docs/bot_cli_args.md).
 
 Docker image entrypoint supports:
 
-| Argument         | Type   | Default     | Description                                                          |
-|------------------|--------|-------------|----------------------------------------------------------------------|
-| `--mode`         | `str`  | `prod`      | Bot mode: `dev` / `prod`.                                            |
-| `--log-level`    | `str`  | `INFO`      | Log level: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
-| `--log-format`   | `str`  | mode-based  | Log format: `human` / `json`.                                        |
-| `--colorize_logs`| `bool` | `True`      | Enable/disable colorized logs (`true`/`false`).                      |
-| `--plugins`      | `list` | `[]`        | Plugin list (for example: `--plugins monitor outline`).              |
-| `--webhook`      | `bool` | `False`     | Enable webhook mode (`--webhook` or `--webhook true/false`).         |
-| `--socket_host`  | `str`  | `127.0.0.1` | Socket host for webhook mode.                                        |
-| `--debug`        | `flag` | `False`     | Shortcut for `--mode dev --log-level DEBUG`.                         |
-| `--health_check` | `flag` | `False`     | Run health check and exit.                                           |
-| `--check-docker` | `flag` | `False`     | Check Docker socket/group access and exit.                           |
-| `--salt`         | `flag` | `False`     | Generate auth salt and exit.                                         |
+| Argument          | Type   | Default     | Description                                                          |
+|-------------------|--------|-------------|----------------------------------------------------------------------|
+| `--mode`          | `str`  | `prod`      | Bot mode: `dev` / `prod`.                                            |
+| `--log-level`     | `str`  | `INFO`      | Log level: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `--log-format`    | `str`  | mode-based  | Log format: `human` / `json`.                                        |
+| `--colorize_logs` | `bool` | `True`      | Enable/disable colorized logs (`true`/`false`).                      |
+| `--plugins`       | `list` | `[]`        | Plugin list (for example: `--plugins monitor outline`).              |
+| `--webhook`       | `bool` | `False`     | Enable webhook mode (`--webhook` or `--webhook true/false`).         |
+| `--socket_host`   | `str`  | `127.0.0.1` | Socket host for webhook mode.                                        |
+| `--debug`         | `flag` | `False`     | Shortcut for `--mode dev --log-level DEBUG`.                         |
+| `--health_check`  | `flag` | `False`     | Run entrypoint health check and exit.                                |
+| `--check-docker`  | `flag` | `False`     | Entrypoint utility: check Docker socket access and exit.             |
+| `--salt`          | `flag` | `False`     | Entrypoint utility: generate auth salt and exit.                     |
 
 ## Plugin System
 
 pyTMbot supports various plugins to extend functionality:
 
-### Core Plugins
+### Available Plugins
 
-- **Monitor**: System and Docker container monitoring (requires InfluxDB)
-- **Outline**: Outline VPN management and monitoring
+- **Monitor**: System and Docker container monitoring (requires InfluxDB).
+  Configure `url`, `token`, `org`, `bucket`, and monitoring thresholds in the `monitor` config section.
+- **Outline**: Outline VPN management and monitoring.
+  Configure `api_url` and `cert` paths in the `outline` config section.
 
-### Plugin Configuration Requirements
-
-#### Monitor Plugin
-
-- **InfluxDB**: Required for Monitor Plugin functionality
-- **Configuration**: Set `url`, `token`, `org`, and `bucket` values in config
-- **Thresholds**: Adjust monitoring threshold values in the `monitor` section
-
-#### Outline Plugin
-
-- **API Configuration**: Set `api_url` and `cert` paths for Outline API access
-
-### Usage Examples
+### Plugin Usage
 
 Enable specific plugins:
 
@@ -252,37 +192,37 @@ Development mode with debug logging:
 docker run ... orenlab/pytmbot:latest --mode dev --log-level DEBUG --plugins monitor
 ```
 
-Webhook mode (requires reverse proxy):
+## Production Deployment
+
+### Security Best Practices
+
+- Use `--mode prod` for production deployments
+- Set appropriate log levels (`INFO` or `ERROR` for production)
+- Configure webhook mode behind reverse proxy
+- Use read-only filesystem and dropped capabilities
+- Implement proper network isolation
+- Enable `STRICT_DOCKER_ACCESS=True` in production if Docker access must be mandatory at startup
+- Treat Docker socket access as privileged host control and restrict deployment to trusted environments
+
+### Webhook Mode with Reverse Proxy
 
 ```bash
-docker run ... orenlab/pytmbot:latest --webhook --socket_host 0.0.0.0
+docker run -d \
+  --name pytmbot \
+  --restart on-failure \
+  --env TZ="UTC" \
+  --volume /etc/pytmbot/config.yaml:/opt/app/pytmbot.yaml:ro \
+  --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+  --security-opt no-new-privileges \
+  --read-only \
+  --cap-drop ALL \
+  --pid host \
+  --memory 256m \
+  --cpu-shares 512 \
+  orenlab/pytmbot:latest --mode prod --webhook --socket_host 0.0.0.0
 ```
 
-### Health Checks and Diagnostics
-
-Container health check:
-
-```bash
-docker run ... orenlab/pytmbot:latest --health_check
-```
-
-Docker access verification:
-
-```bash
-docker run ... orenlab/pytmbot:latest --check-docker
-```
-
-## Resource Limits
-
-The container is configured with the following resource limits for optimal performance:
-
-- **Memory**: 256MB (hard limit)
-- **CPU**: 512 shares (relative weight)
-- **Processes**: 65535 max
-- **File descriptors**: 20000 soft / 40000 hard
-- **Temporary storage**: 150MB total
-
-## Health Checks
+## Health Checks and Diagnostics
 
 The container includes built-in health checks that monitor:
 
@@ -290,23 +230,71 @@ The container includes built-in health checks that monitor:
 - Main script health path (`--health_check`)
 - Docker socket accessibility and permissions (when mounted)
 
+Run diagnostics:
+
+```bash
+# Container health check
+docker exec pytmbot ./entrypoint.sh --health_check
+
+# Docker access verification
+docker exec pytmbot ./entrypoint.sh --check-docker
+```
+
+## Resource Limits and Usage
+
+### Typical Resource Usage
+
+- **Memory**: ~80MB under normal load
+- **CPU**: Minimal under normal load
+- **Storage**: ~100MB (image size)
+- **Network**: Varies based on monitoring interval
+
+### Recommended Limits
+
+| Resource          | Recommended Limit       |
+|-------------------|-------------------------|
+| Memory            | 256MB (hard limit)      |
+| Swap              | 256MB                   |
+| CPU shares        | 512 (relative weight)   |
+| Processes         | 65535 max               |
+| File descriptors  | 20000 soft / 40000 hard |
+| Temporary storage | 150MB total (tmpfs)     |
+
+### Performance Tips
+
+- Use `restart: on-failure` instead of `unless-stopped` for better resource management
+- Enable log rotation to prevent disk space issues
+- Use tmpfs mounts for temporary data
+
 ## Upgrading
 
 ```bash
-# Pull latest version
-docker pull orenlab/pytmbot:latest
+# Pull latest image for the bot service
+docker compose pull pytmbot
 
-# Stop current container
-docker compose down
-
-# Start with new version
-docker compose up -d
+# Recreate containers with the updated image
+docker compose up -d pytmbot
 ```
 
 ## Reproducible Builds
 
 Each release image is built in an isolated GitHub Actions environment with pinned dependency versions. The build process
 is fully automated and reproducible. The GitHub Action source code is available in the repository.
+
+### Supply Chain Security
+
+All published images include:
+
+- **Provenance attestations** (`mode=max`): cryptographically signed metadata linking each image to its source commit,
+  build workflow, and builder identity. Verifiable via `docker buildx imagetools inspect`.
+- **SBOM (Software Bill of Materials)**: machine-readable inventory of all packages and dependencies included in the
+  image, enabling automated vulnerability scanning and license compliance checks.
+
+Verify provenance for a published image:
+
+```bash
+docker buildx imagetools inspect orenlab/pytmbot:latest --format "{{json .Provenance}}"
+```
 
 ### Build-time Bytecode
 
@@ -316,6 +304,7 @@ Official builds compile Python bytecode during image build to reduce cold-start 
 - `COMPILE_BYTECODE=0`: skip compilation (faster build, slightly slower startup).
 
 CI policy:
+
 - `ubuntu-dev` uses `COMPILE_BYTECODE=0` to keep development images smaller.
 - release images use `COMPILE_BYTECODE=1` for faster production startup.
 
@@ -326,8 +315,6 @@ docker build --build-arg COMPILE_BYTECODE=0 -t orenlab/pytmbot:local-dev .
 ```
 
 ## Troubleshooting
-
-### Common Issues
 
 1. **Configuration errors**:
    ```bash
@@ -340,7 +327,7 @@ docker build --build-arg COMPILE_BYTECODE=0 -t orenlab/pytmbot:local-dev .
 
 3. **Network connectivity**:
    ```bash
-   docker exec pytmbot ping -c 1 api.telegram.org
+   docker exec pytmbot python3 -c "import socket; socket.create_connection(('api.telegram.org', 443), 5); print('ok')"
    ```
 
 4. **Memory issues**:
@@ -354,31 +341,6 @@ docker build --build-arg COMPILE_BYTECODE=0 -t orenlab/pytmbot:local-dev .
 6. **Plugin loading issues**:
     - Verify plugin dependencies (InfluxDB for monitor plugin)
     - Check plugin-specific configuration sections
-
-7. **Docker group permissions**:
-   ```bash
-   docker exec pytmbot --check-docker
-   ```
-
-8. **Container health status**:
-   ```bash
-   docker exec pytmbot --health_check
-   ```
-
-## Performance Optimization
-
-- Use `restart: on-failure` instead of `unless-stopped` for better resource management
-- Set appropriate memory and CPU limits
-- Use isolated networks for security
-- Enable log rotation to prevent disk space issues
-- Use tmpfs mounts for temporary data
-
-## Resource Usage
-
-- **Memory**: ~80MB (256MB limit)
-- **CPU**: Minimal under normal load
-- **Storage**: ~100MB
-- **Network**: Varies based on monitoring interval
 
 ## Development
 

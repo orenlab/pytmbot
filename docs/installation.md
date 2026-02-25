@@ -1,22 +1,12 @@
 # 🚀 pyTMBot Installation and Setup Guide
 
-## 🔌 Installation Options
+pyTMBot is designed to run with Docker. This is the only supported installation method.
 
-You have several options for installing pyTMBot. Choose the method that best suits your needs:
+## 🐳 Install with Docker (Recommended)
 
-### 1. 🐳 **Use a Pre-built Docker Image from Docker Hub (Recommended)**
+Use the pre-built Docker image from Docker Hub and run pyTMBot via Docker Compose.
 
-You can run pyTMBot using a pre-built Docker image for a fast and simple setup. Follow
-the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
-
-### 2. 📜 **Use the `install.sh` script**
-
-The easiest way to get started is by using the **install.sh** script. Follow
-the [detailed instructions here](script_install.md) to quickly install and set up pyTMBot with minimal effort.
-
----
-
-Each method has its advantages depending on your environment and preferences. Follow the detailed instructions provided
-in the respective sections to complete your installation.
+- Docker setup guide: [docker.md](docker.md)
+- Docker Hub: [orenlab/pytmbot](https://hub.docker.com/r/orenlab/pytmbot)
 
 Happy monitoring! 🚀
