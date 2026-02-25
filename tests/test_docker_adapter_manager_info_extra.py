@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from docker.errors import DockerException
+from docker.errors import APIError, DockerException
 
 from pytmbot.exceptions import DockerConnectionError
 from pytmbot.models.docker_models import ContainerAction
@@ -580,6 +580,28 @@ def test_containers_info_retrieve_and_logs_error_branches(
     )
     with pytest.raises(containers_info_module.ContainerNotFoundError):
         containers_info_module.fetch_container_logs("missing", tail_lines=5)
+
+    def _unsupported_logs(**_kwargs: object) -> bytes:
+        raise APIError("configured logging driver does not support reading")
+
+    monkeypatch.setattr(
+        containers_info_module,
+        "get_container_safely",
+        lambda _cid, docker_client=None: SimpleNamespace(logs=_unsupported_logs),
+    )
+    with pytest.raises(containers_info_module.ContainerLogsUnavailableError):
+        containers_info_module.fetch_container_logs("cid", tail_lines=5)
+
+    def _api_logs_failure(**_kwargs: object) -> bytes:
+        raise APIError("transport failure")
+
+    monkeypatch.setattr(
+        containers_info_module,
+        "get_container_safely",
+        lambda _cid, docker_client=None: SimpleNamespace(logs=_api_logs_failure),
+    )
+    with pytest.raises(APIError, match="transport failure"):
+        containers_info_module.fetch_container_logs("cid", tail_lines=5)
 
     monkeypatch.setattr(
         containers_info_module,

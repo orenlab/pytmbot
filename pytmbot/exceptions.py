@@ -111,6 +111,10 @@ class ContainerNotFoundError(ContainerException):
     """Raised when a container cannot be found."""
 
 
+class ContainerLogsUnavailableError(ContainerException):
+    """Raised when container logs cannot be read with current logging driver."""
+
+
 class ImageException(DockerOperationException):
     """Base class for image related exceptions."""
 

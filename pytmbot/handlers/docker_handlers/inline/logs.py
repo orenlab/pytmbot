@@ -15,6 +15,7 @@ from typing import Any, Final, cast
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.exceptions import ContainerLogsUnavailableError
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
@@ -50,6 +51,10 @@ LOGS_EMPTY_MESSAGE: Final[str] = "No logs available for this container."
 LOGS_FILE_AUTO_DELETE_DELAY_SECONDS: Final[int] = 30
 LOGS_FILE_DELETION_NOTICE: Final[str] = (
     "This file will be automatically deleted in 30 seconds."
+)
+LOGS_UNSUPPORTED_DRIVER_MESSAGE: Final[str] = (
+    "This container does not provide readable logs "
+    "(configured Docker logging driver does not support reading)."
 )
 LOGS_FILE_DELETED_NAVIGATION_TEXT: Final[str] = (
     "🧹 Logs file message was deleted for privacy.\n"
@@ -481,7 +486,19 @@ def _open_logs_session(
     emojis: dict[str, str],
 ) -> Any:
     logger.info("bot.handler.docker.logging.user.getting.info")
-    logs = get_sanitized_logs(container_name, call, bot.token)
+    try:
+        logs = get_sanitized_logs(container_name, call, bot.token)
+    except ContainerLogsUnavailableError:
+        logger.info(
+            "bot.handler.docker.logging.logs.unavailable.info",
+            container_name=container_name,
+            reason="logging_driver_not_readable",
+        )
+        return show_handler_info(
+            call,
+            text=f"{container_name}: {LOGS_UNSUPPORTED_DRIVER_MESSAGE}",
+            bot=bot,
+        )
 
     if not logs:
         logger.error("bot.handler.docker.logging.getting.logs.fail")
@@ -674,7 +691,23 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
         ):
             return None
 
-        logs = get_sanitized_logs(old_session.container_name, call, bot.token)
+        try:
+            logs = get_sanitized_logs(old_session.container_name, call, bot.token)
+        except ContainerLogsUnavailableError:
+            logger.info(
+                "bot.handler.docker.logging.logs.unavailable.info",
+                container_name=old_session.container_name,
+                reason="logging_driver_not_readable",
+            )
+            show_handler_info(
+                call,
+                text=(
+                    f"{old_session.container_name}: {LOGS_UNSUPPORTED_DRIVER_MESSAGE}"
+                ),
+                bot=bot,
+            )
+            return None
+
         if not logs:
             logger.error("bot.handler.docker.logging.getting.logs.fail")
             show_handler_info(

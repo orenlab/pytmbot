@@ -11,6 +11,7 @@ from telebot.types import CallbackQuery
 
 import pytmbot.handlers.docker_handlers.inline.logs as logs_module
 import pytmbot.handlers.server_handlers.inline.common as inline_common_module
+from pytmbot.exceptions import ContainerLogsUnavailableError, ErrorContext
 from pytmbot.handlers.docker_handlers.inline.logs import (
     LOGS_ACTION_FILE,
     LOGS_ACTION_NAV,
@@ -112,6 +113,19 @@ def _raw_handle_get_logs() -> Callable[[CallbackQuery, TeleBot], None]:
     )
     second_layer = getattr(first_layer, "__wrapped__", first_layer)
     return cast(Callable[[CallbackQuery, TeleBot], None], second_layer)
+
+
+def _allow_logs_actions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        logs_module,
+        "authorize_docker_callback_request",
+        lambda call, called_user_id: (True, ""),
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "_validate_logs_session_access",
+        lambda **kwargs: True,
+    )
 
 
 def test_logs_session_store_create_get_and_expire(
@@ -639,19 +653,47 @@ def test_handle_get_logs_invalid_and_unsupported(
     assert shown[1] == "Unsupported logs action"
 
 
+def test_open_logs_session_handles_unsupported_logging_driver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shown: list[str] = []
+    monkeypatch.setattr(
+        logs_module,
+        "get_sanitized_logs",
+        lambda container_name, call, token: (_ for _ in ()).throw(
+            ContainerLogsUnavailableError(
+                ErrorContext(
+                    message="logs unavailable",
+                    error_code="DOCKER_010",
+                    metadata={"container_id": container_name},
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
+
+    logs_module._open_logs_session(
+        call=cast(CallbackQuery, _DummyCall()),
+        bot=cast(TeleBot, _DummyBot()),
+        container_name="amnezia-dns",
+        user_id=333,
+        emojis={},
+    )
+
+    assert shown == [
+        "amnezia-dns: This container does not provide readable logs "
+        "(configured Docker logging driver does not support reading)."
+    ]
+
+
 def test_handle_get_logs_routes_open_nav_refresh_and_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        logs_module,
-        "authorize_docker_callback_request",
-        lambda call, called_user_id: (True, ""),
-    )
-    monkeypatch.setattr(
-        logs_module,
-        "_validate_logs_session_access",
-        lambda **kwargs: True,
-    )
+    _allow_logs_actions(monkeypatch)
 
     opened: list[str] = []
     edited: list[int] = []
@@ -740,6 +782,57 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     assert sent_as_file == ["s1"]
     assert removed_sessions == ["s1"]
     assert created_sessions == [("api", 333)]
+
+
+def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_logs_actions(monkeypatch)
+
+    shown: list[str] = []
+    removed_sessions: list[str] = []
+    old_session = _make_session(session_id="s1", container_name="api", user_id=333)
+
+    monkeypatch.setattr(
+        logs_module,
+        "_get_session_or_show_error",
+        lambda call, session_id, bot: old_session if session_id == "s1" else None,
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "get_sanitized_logs",
+        lambda container_name, call, token: (_ for _ in ()).throw(
+            ContainerLogsUnavailableError(
+                ErrorContext(
+                    message="logs unavailable",
+                    error_code="DOCKER_010",
+                    metadata={"container_id": container_name},
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
+    monkeypatch.setattr(
+        logs_module._logs_sessions,
+        "remove",
+        lambda session_id: removed_sessions.append(session_id),
+    )
+
+    raw_handler = _raw_handle_get_logs()
+    raw_handler(
+        cast(CallbackQuery, _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")),
+        cast(TeleBot, _DummyBot()),
+    )
+
+    assert shown == [
+        "api: This container does not provide readable logs "
+        "(configured Docker logging driver does not support reading)."
+    ]
+    assert removed_sessions == []
 
 
 def test_send_logs_as_file_no_message_or_empty_logs_paths(

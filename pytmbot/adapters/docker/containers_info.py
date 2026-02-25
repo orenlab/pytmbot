@@ -10,6 +10,7 @@ from datetime import datetime
 from threading import RLock
 from typing import Any, Final
 
+from docker.errors import APIError
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker.client import docker_client_context
@@ -19,7 +20,9 @@ from pytmbot.adapters.docker.utils import (
     with_operation_logging,
 )
 from pytmbot.exceptions import (
+    ContainerLogsUnavailableError,
     ContainerNotFoundError,
+    ErrorContext,
 )
 from pytmbot.logs import Logger
 from pytmbot.utils import sanitize_exception, set_naturaltime
@@ -30,6 +33,9 @@ logger = Logger()
 CACHE_TTL: Final[int] = 60  # Cache TTL in seconds
 MAX_LOG_TAIL: Final[int] = 100  # Maximum log lines to fetch
 DOCKER_COUNTERS_CACHE_TTL: Final[float] = 30.0
+_LOGS_DRIVER_NOT_READABLE_MARKER: Final[str] = (
+    "configured logging driver does not support reading"
+)
 
 
 class ContainerInfoCache:
@@ -118,6 +124,11 @@ _container_cache = ContainerInfoCache()
 _docker_counters_cache: dict[str, int] | None = None
 _docker_counters_cached_at: float = 0.0
 _docker_counters_lock = RLock()
+
+
+def _is_logs_driver_not_readable_error(error: APIError) -> bool:
+    details = f"{error} {getattr(error, 'explanation', '')}".lower()
+    return _LOGS_DRIVER_NOT_READABLE_MARKER in details
 
 
 def _get_cached_docker_counters() -> dict[str, int] | None:
@@ -481,6 +492,25 @@ def fetch_container_logs(
 
     except ContainerNotFoundError:
         logger.warning("docker.containers.container.not.warn", **context)
+        raise
+
+    except APIError as error:
+        if _is_logs_driver_not_readable_error(error):
+            logger.info(
+                "docker.containers.container.logs.unavailable.info",
+                reason="logging_driver_not_readable",
+                **context,
+            )
+            raise ContainerLogsUnavailableError(
+                ErrorContext(
+                    message=f"Container logs unavailable for: {container_id}",
+                    error_code="DOCKER_010",
+                    metadata={
+                        "container_id": container_id,
+                        "reason": "logging_driver_not_readable",
+                    },
+                )
+            ) from error
         raise
 
     except Exception as e:
