@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import atexit
 import importlib
 import importlib.util
 import inspect
@@ -15,6 +16,7 @@ import weakref
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from threading import RLock
 from types import ModuleType
 
 from telebot import TeleBot
@@ -63,6 +65,9 @@ class PluginManager:
     __slots__ = ("_plugin_base_path", "_plugin_base_for_import", "_plugin_blacklist")
 
     _instance: PluginManager | None = None
+    _instance_lock = RLock()
+    _registry_lock = RLock()
+    _atexit_registered = False
     _index_keys: dict[str, str] = {}
     _plugin_names: dict[str, str] = {}
     _plugin_descriptions: dict[str, str] = {}
@@ -79,13 +84,16 @@ class PluginManager:
 
     def __new__(cls, *args: object, **kwargs: object) -> PluginManager:
         """Creates or retrieves the singleton instance of the PluginManager."""
-        if cls._instance is None:
-            try:
-                if cls._instance is None:
+        if cls._instance is not None:
+            return cls._instance
+
+        with cls._instance_lock:
+            if cls._instance is None:
+                try:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialize()
-            except Exception:
-                logger.error("bot.plugins.plugin_manager.create.plugin.fail")
+                except Exception:
+                    logger.error("bot.plugins.plugin_manager.create.plugin.fail")
         if cls._instance is None:
             raise RuntimeError("PluginManager initialization failed")
         return cls._instance
@@ -95,6 +103,18 @@ class PluginManager:
         self._plugin_base_path = Path("pytmbot/plugins")
         self._plugin_base_for_import = "pytmbot.plugins"
         self._load_blacklist()
+        cls = self.__class__
+        with cls._instance_lock:
+            if not cls._atexit_registered:
+                atexit.register(cls._cleanup_on_exit)
+                cls._atexit_registered = True
+
+    @classmethod
+    def _cleanup_on_exit(cls) -> None:
+        """Run plugin cleanup on interpreter shutdown."""
+        instance = cls._instance
+        if instance is not None:
+            instance.cleanup_all_plugins()
 
     def _load_blacklist(self) -> None:
         """Load blacklisted plugin patterns and names."""
@@ -243,10 +263,11 @@ class PluginManager:
             return False
 
         try:
-            if plugin_info.index_key:
-                cls._index_keys.update(plugin_info.index_key)
-            cls._plugin_names[plugin_info.name] = plugin_info.version
-            cls._plugin_descriptions[plugin_info.name] = plugin_info.description
+            with cls._registry_lock:
+                if plugin_info.index_key:
+                    cls._index_keys.update(plugin_info.index_key)
+                cls._plugin_names[plugin_info.name] = plugin_info.version
+                cls._plugin_descriptions[plugin_info.name] = plugin_info.description
             return True
         except Exception:
             logger.error("bot.plugins.plugin_manager.add.plugin.fail")
@@ -260,7 +281,8 @@ class PluginManager:
         Returns:
             dict[str, str]: A dictionary of index keys and their descriptions.
         """
-        return cls._index_keys
+        with cls._registry_lock:
+            return dict(cls._index_keys)
 
     @classmethod
     def get_plugin_names(cls) -> dict[str, str]:
@@ -270,7 +292,8 @@ class PluginManager:
         Returns:
             dict[str, str]: A dictionary of plugin names and their versions.
         """
-        return cls._plugin_names
+        with cls._registry_lock:
+            return dict(cls._plugin_names)
 
     @classmethod
     def get_plugin_descriptions(cls) -> dict[str, str]:
@@ -280,11 +303,13 @@ class PluginManager:
         Returns:
             dict[str, str]: A dictionary of plugin names and their descriptions.
         """
-        return cls._plugin_descriptions
+        with cls._registry_lock:
+            return dict(cls._plugin_descriptions)
 
     def _cleanup_plugin(self, plugin_name: str) -> None:
         """Performs cleanup operations for a plugin."""
-        ref = self._plugin_instances.get(plugin_name)
+        with self.__class__._registry_lock:
+            ref = self._plugin_instances.get(plugin_name)
         if ref:
             instance = ref()
             if instance and hasattr(instance, "cleanup"):
@@ -299,8 +324,9 @@ class PluginManager:
                     )
 
             try:
-                self._plugin_instances.pop(plugin_name, None)
-                self._loaded_plugins.discard(plugin_name)
+                with self.__class__._registry_lock:
+                    self._plugin_instances.pop(plugin_name, None)
+                    self._loaded_plugins.discard(plugin_name)
             except Exception as error:
                 logger.error(
                     "bot.plugins.plugin_manager.cleaning.plugin.fail",
@@ -352,11 +378,13 @@ class PluginManager:
                 if not self.add_plugin_info(plugin_info):
                     return
 
-                self._plugin_instances[plugin_name] = weakref.ref(plugin_instance)
+                with self.__class__._registry_lock:
+                    self._plugin_instances[plugin_name] = weakref.ref(plugin_instance)
 
                 if permissions.base_permission:
                     plugin_instance.register()
-                    self._loaded_plugins.add(plugin_name)
+                    with self.__class__._registry_lock:
+                        self._loaded_plugins.add(plugin_name)
                     logger.info("bot.plugins.plugin_manager.plugin.register.ok")
                 else:
                     logger.warning("bot.plugins.plugin_manager.plugin.does.warn")
@@ -397,18 +425,18 @@ class PluginManager:
 
     @classmethod
     def is_plugin_loaded(cls, plugin_name: str) -> bool:
-        return plugin_name in cls._loaded_plugins
+        with cls._registry_lock:
+            return plugin_name in cls._loaded_plugins
 
     def cleanup_all_plugins(self) -> None:
         """Cleanly shuts down all registered plugins."""
 
         try:
-            for plugin_name in list(self._loaded_plugins):
+            with self.__class__._registry_lock:
+                loaded_plugins = list(self._loaded_plugins)
+            for plugin_name in loaded_plugins:
                 self._cleanup_plugin(plugin_name)
-            self._loaded_plugins.clear()
+            with self.__class__._registry_lock:
+                self._loaded_plugins.clear()
         except Exception:
             logger.error("bot.plugins.plugin_manager.cleaning.fail")
-
-    def __del__(self) -> None:
-        """Ensure cleanup when the manager is destroyed."""
-        self.cleanup_all_plugins()

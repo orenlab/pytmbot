@@ -91,7 +91,8 @@ def test_compiler_template_type_detection() -> None:
     assert Compiler("b_menu.jinja2").template_type == TemplateType.BASE
     assert Compiler("d_stats.jinja2").template_type == TemplateType.DOCKER
     assert Compiler("plugin_metrics.jinja2").template_type == TemplateType.PLUGIN
-    assert Compiler("unknown.jinja2").template_type == TemplateType.DOCKER
+    with pytest.raises(TemplateError):
+        _ = Compiler("unknown.jinja2").template_type
 
 
 def test_compiler_compile_success_and_quick_render(

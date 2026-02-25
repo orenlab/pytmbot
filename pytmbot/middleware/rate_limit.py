@@ -151,6 +151,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
                 del self._user_requests[user_id]
             with suppress(KeyError):
                 del self._violation_count[user_id]
+            with suppress(KeyError):
                 del self._last_violation_log[user_id]
             return cleaned_count, 0
 
@@ -194,8 +195,8 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
 
         context = {
             "operation": "rate_limit_violation",
-            "user_id": user_id,
-            "username": user.username or "unknown",
+            "user_id": mask_user_id(user_id),
+            "username": mask_username(user.username) or "unknown",
             "user_is_bot": user.is_bot,
             "violation_count": violation_count,
             "limit": self.limit,
@@ -285,8 +286,8 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
 
         base_context = {
             "operation": "pre_process",
-            "user_id": user_id,
-            "username": user.username or "unknown",
+            "user_id": mask_user_id(user_id),
+            "username": mask_username(user.username) or "unknown",
             "user_is_bot": user.is_bot,
             "chat_id": message.chat.id,
             "chat_type": message.chat.type,

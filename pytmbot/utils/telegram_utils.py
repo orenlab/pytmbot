@@ -77,8 +77,8 @@ def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo
     callback_query = find_in_args(args, CallbackQuery) or find_in_kwargs(
         kwargs, CallbackQuery
     )
-    if callback_query and callback_query.message and callback_query.message.from_user:
-        user = callback_query.message.from_user
+    if callback_query and callback_query.from_user:
+        user = callback_query.from_user
         return InlineMessageInfo(
             username=user.username, user_id=user.id, is_bot=user.is_bot
         )

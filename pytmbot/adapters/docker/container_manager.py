@@ -54,6 +54,8 @@ def validate_access(
 
     # Rate limiting configuration
     min_operation_interval: Final[float] = 1.0  # Minimum seconds between operations
+    rate_limit_cache_ttl_seconds: Final[float] = 300.0
+    max_rate_limited_users: Final[int] = 2048
 
     @wraps(func)
     def wrapper(
@@ -79,6 +81,23 @@ def validate_access(
         # Rate limiting check
         with _lock:
             current_time = time.time()
+            stale_threshold = current_time - rate_limit_cache_ttl_seconds
+            if len(_rate_limits) > max_rate_limited_users:
+                stale_user_ids = [
+                    tracked_user_id
+                    for tracked_user_id, last_seen in _rate_limits.items()
+                    if last_seen < stale_threshold
+                ]
+                for stale_user_id in stale_user_ids:
+                    _rate_limits.pop(stale_user_id, None)
+
+                while len(_rate_limits) > max_rate_limited_users:
+                    oldest_user = min(
+                        _rate_limits,
+                        key=lambda tracked_user: _rate_limits[tracked_user],
+                    )
+                    _rate_limits.pop(oldest_user, None)
+
             last_operation = _rate_limits.get(user_id, 0)
 
             if current_time - last_operation < min_operation_interval:

@@ -79,14 +79,23 @@ class SystemMetrics:
     @staticmethod
     def _get_disk_usage() -> dict[str, float]:
         try:
-            return {
-                partition.device: psutil.disk_usage(partition.mountpoint).percent
-                for partition in psutil.disk_partitions(all=False)
-                if not any(
-                    excluded in partition.device
-                    for excluded in SystemMetrics.EXCLUDED_PARTITIONS
-                )
-            }
+            usage: dict[str, float] = {}
+            for partition in psutil.disk_partitions(all=False):
+                fstype = str(
+                    getattr(partition, "fstype", getattr(partition, "device", ""))
+                ).lower()
+                if any(
+                    excluded in fstype for excluded in SystemMetrics.EXCLUDED_PARTITIONS
+                ):
+                    continue
+
+                device = str(getattr(partition, "device", ""))
+                mountpoint = str(getattr(partition, "mountpoint", ""))
+                if not mountpoint:
+                    continue
+                key = device or mountpoint
+                usage[key] = psutil.disk_usage(mountpoint).percent
+            return usage
         except Exception:
             logger.error("bot.plugins.monitor.utils.disk.usage.fail", exc_info=True)
             return {}

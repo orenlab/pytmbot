@@ -183,19 +183,29 @@ class TelegramApiChecker(BaseHealthChecker):
 
         start_time = time.perf_counter()
         try:
-            # Use a simple timeout approach instead of signals
-            import concurrent.futures
+            result: dict[str, Any] = {}
 
-            def api_call() -> Any:
-                return bot.get_me()
-
-            # Use ThreadPoolExecutor with timeout
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(api_call)
+            def api_call() -> None:
                 try:
-                    bot_info = future.result(timeout=5.0)
-                except concurrent.futures.TimeoutError:
-                    raise TimeoutError("API call timeout")
+                    result["bot_info"] = bot.get_me()
+                except Exception as error:
+                    result["error"] = error
+
+            thread = threading.Thread(
+                target=api_call,
+                name="HealthTelegramApiCheck",
+                daemon=True,
+            )
+            thread.start()
+            thread.join(timeout=5.0)
+            if thread.is_alive():
+                raise TimeoutError("API call timeout")
+
+            error = result.get("error")
+            if isinstance(error, Exception):
+                raise error
+
+            bot_info = result.get("bot_info")
 
             latency = (time.perf_counter() - start_time) * 1000
 
@@ -274,20 +284,27 @@ class PollingChecker(BaseHealthChecker):
 
         start_time = time.perf_counter()
 
-        polling_active = getattr(bot, "polling", False)
-        polling_thread = getattr(bot, "_TeleBot__polling_thread", None)
+        polling_active = bool(getattr(bot, "polling", False))
+        polling_thread = getattr(bot, "polling_thread", None)
+        polling_thread_alive: bool | None = None
+        if polling_thread is not None:
+            is_alive = getattr(polling_thread, "is_alive", None)
+            if callable(is_alive):
+                polling_thread_alive = bool(is_alive())
 
         latency = (time.perf_counter() - start_time) * 1000
 
         if not polling_active:
             level = HealthLevel.UNHEALTHY
             details = {"polling_active": False}
-        elif polling_thread and not polling_thread.is_alive():
+        elif polling_thread_alive is False:
             level = HealthLevel.CRITICAL
-            details = {"polling_active": True, "thread_alive": False}
+            details = {"polling_active": True, "polling_thread_alive": False}
         else:
             level = HealthLevel.HEALTHY
-            details = {"polling_active": True, "thread_alive": True}
+            details = {"polling_active": True}
+            if polling_thread_alive is True:
+                details["polling_thread_alive"] = True
 
         return HealthResult(
             level=level, component=self.name, latency_ms=latency, details=details
@@ -568,8 +585,8 @@ class HealthMonitor(BaseComponent):
 
             # Don't let one bad component drag everything down
             healthy_count = sum(1 for level in levels if level >= HealthLevel.DEGRADED)
-            if healthy_count >= len(levels) * 0.7:
-                overall = max(overall, HealthLevel.DEGRADED)
+            if overall == HealthLevel.UNHEALTHY and healthy_count >= len(levels) * 0.7:
+                overall = HealthLevel.DEGRADED
 
         duration = (time.perf_counter() - start_time) * 1000
 
@@ -863,31 +880,31 @@ class HealthStatus:
     """Legacy compatibility singleton."""
 
     _instance: HealthStatus | None = None
-    _lock = threading.RLock()
+    _instance_lock = threading.RLock()
 
     def __init__(self) -> None:
         if getattr(self, "_initialized", False):
             return
         self._manager: HealthManager | None = None
-        self._lock = threading.RLock()
+        self._state_lock = threading.RLock()
         self._initialized = True
 
     def __new__(cls) -> HealthStatus:
         if cls._instance is None:
-            with cls._lock:
+            with cls._instance_lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
     def set_manager(self, manager: HealthManager) -> None:
         """Set health manager."""
-        with self._lock:
+        with self._state_lock:
             self._manager = manager
 
     @property
     def last_health_check_result(self) -> bool | None:
         """Legacy property."""
-        with self._lock:
+        with self._state_lock:
             if not self._manager:
                 return None
             return self._manager.is_healthy
@@ -903,7 +920,7 @@ class HealthStatus:
 
     def get_summary(self) -> dict[str, Any]:
         """Return latest health summary for UI consumers."""
-        with self._lock:
+        with self._state_lock:
             manager = self._manager
         if manager is None:
             return {"status": "no_data"}

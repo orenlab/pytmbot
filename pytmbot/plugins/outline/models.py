@@ -15,6 +15,7 @@ class OutlineVPN(PluginCoreModel):
 
     api_url: list[SecretStr]
     cert: list[SecretStr]
+    verify_tls: bool = True
 
 
 class OutlineServer(PluginCoreModel):
@@ -36,5 +37,5 @@ class OutlineKey(PluginCoreModel):
     port: int
     method: str
     access_url: str
-    used_bytes: int
+    used_bytes: int | None
     data_limit: int | None

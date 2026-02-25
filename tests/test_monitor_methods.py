@@ -73,7 +73,6 @@ def _build_monitor(
     )
     monitor.is_docker = True
     monitor.check_interval = 5
-    monitor.poll_interval = 600
     monitor.docker_counters_update_interval = 300
     monitor.system_metrics = cast(
         Any,
@@ -583,7 +582,7 @@ def test_monitor_cycle_and_stop_monitoring(monkeypatch: pytest.MonkeyPatch) -> N
     assert monitor._supervisor_thread is None
     assert monitor_thread.join_calls == [monitor.MONITOR_THREAD_JOIN_TIMEOUT_SECONDS]
     assert supervisor_thread.join_calls == [monitor.MONITOR_THREAD_JOIN_TIMEOUT_SECONDS]
-    assert shutdown_calls == [False]
+    assert shutdown_calls == [True]
 
 
 def test_start_monitoring_happy_path_and_failure(

@@ -20,7 +20,7 @@ def is_running_in_docker() -> bool:
             for line in f:
                 if "docker" in line:
                     return True
-    except FileNotFoundError:
+    except OSError:
         pass
     if "DOCKER_CONTAINER" in os.environ:
         return True

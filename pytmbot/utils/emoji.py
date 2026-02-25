@@ -6,13 +6,14 @@ also providing basic information about the status of local servers.
 """
 
 from functools import cached_property
+from importlib import import_module
 from typing import Any
 
 
 class EmojiConverter:
     @cached_property
     def emoji_library(self) -> Any:
-        return __import__("emoji")
+        return import_module("emoji")
 
     def get_emoji(self, emoji_name: str) -> str:
         emoji_str = f":{emoji_name}:"

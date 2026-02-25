@@ -224,7 +224,12 @@ class ConfigMigrator(logs.BaseComponent):
     @staticmethod
     def get_supported_versions() -> list[str]:
         """Get list of supported configuration versions."""
-        return ["0.2.2", "0.3.0-dev", "0.3.0"]
+        return ["0.2.2", "0.3.0.dev0", "0.3.0"]
+
+    @staticmethod
+    def _normalize_version_alias(version_value: str) -> str:
+        """Normalize version aliases to PEP 440 representation."""
+        return str(version.parse(version_value))
 
     @staticmethod
     def get_compatibility_matrix() -> dict[str, dict[str, str]]:
@@ -241,9 +246,9 @@ class ConfigMigrator(logs.BaseComponent):
                 "max_app": "0.2.2",
                 "description": "Legacy version (minimum supported)",
             },
-            "0.3.0-dev": {
-                "min_app": "0.3.0-dev",
-                "max_app": "0.3.0-dev",
+            "0.3.0.dev0": {
+                "min_app": "0.3.0.dev0",
+                "max_app": "0.3.0.dev0",
                 "description": "Development version with config versioning",
             },
             "0.3.0": {
@@ -270,7 +275,7 @@ class ConfigMigrator(logs.BaseComponent):
         """
         # Handle special case: no config version means legacy (0.2.2 compatibility)
         if config_version is None:
-            app_ver_clean = app_version.replace("-dev", "")
+            app_ver_clean = cls._normalize_version_alias(app_version)
             if version.parse(app_ver_clean) < version.parse("0.2.2"):
                 raise ConfigVersionError(
                     f"App version '{app_version}' is End-of-Life (< 0.2.2). "
@@ -279,7 +284,9 @@ class ConfigMigrator(logs.BaseComponent):
             return  # Legacy configs are allowed for 0.2.2+
 
         # Check for EOL versions FIRST, before checking compatibility matrix
-        config_ver_clean = config_version.replace("-dev", "")
+        normalized_config_version = cls._normalize_version_alias(config_version)
+        normalized_app_version = cls._normalize_version_alias(app_version)
+        config_ver_clean = normalized_config_version
         if version.parse(config_ver_clean) < version.parse("0.2.2"):
             raise ConfigVersionError(
                 f"Configuration version '{config_version}' is End-of-Life (< 0.2.2). "
@@ -289,7 +296,7 @@ class ConfigMigrator(logs.BaseComponent):
 
         matrix = cls.get_compatibility_matrix()
 
-        if config_version not in matrix:
+        if normalized_config_version not in matrix:
             supported = list(matrix.keys())
             raise ConfigVersionError(
                 f"Unsupported config version '{config_version}'. "
@@ -297,7 +304,7 @@ class ConfigMigrator(logs.BaseComponent):
             )
 
         # Config version should match app version exactly
-        if config_version != app_version:
+        if normalized_config_version != normalized_app_version:
             raise ConfigVersionError(
                 f"Config version '{config_version}' does not match "
                 f"app version '{app_version}'. They should be identical."
@@ -395,8 +402,8 @@ class SettingsModel(BaseSettings):
     plugins_config: PluginsConfig | None = None
     webhook_config: WebhookConfig | None = None
 
-    @classmethod
     @field_validator("config_version")
+    @classmethod
     def validate_config_version(cls, v: str | None) -> str | None:
         """
         Validate configuration version against application compatibility.
@@ -425,8 +432,8 @@ class SettingsModel(BaseSettings):
         except Exception as e:
             raise ValueError(f"Configuration version validation failed: {str(e)}")
 
-    @classmethod
     @model_validator(mode="before")
+    @classmethod
     def migrate_config_if_needed(cls, values: dict[str, Any]) -> dict[str, Any]:
         """
         Automatically add or update config_version field.
@@ -442,23 +449,35 @@ class SettingsModel(BaseSettings):
 
         # Create migrator instance for logging
         migrator = ConfigMigrator()
+        migrator.app_version = cls.app_version
 
-        # Handle legacy configs or version mismatches
-        match config_version:
-            case None:
-                with migrator.log_context(
-                    legacy_config=True, app_version=cls.app_version
-                ) as log:
-                    log.debug("bot.models.settings_model.no.config.debug")
-                values["config_version"] = cls.app_version
-            case version if version != cls.app_version:
-                with migrator.log_context(
-                    old_version=config_version,
-                    new_version=cls.app_version,
-                    migration_required=True,
-                ) as log:
-                    log.info("bot.models.settings_model.config.version.info")
-                values = migrator.migrate_config(values)
+        if config_version is None:
+            with migrator.log_context(
+                legacy_config=True, app_version=cls.app_version
+            ) as log:
+                log.debug("bot.models.settings_model.no.config.debug")
+            values["config_version"] = cls.app_version
+            return values
+
+        try:
+            normalized_config_version = ConfigMigrator._normalize_version_alias(
+                str(config_version)
+            )
+            normalized_app_version = ConfigMigrator._normalize_version_alias(
+                cls.app_version
+            )
+        except Exception:
+            normalized_config_version = str(config_version)
+            normalized_app_version = cls.app_version
+
+        if normalized_config_version != normalized_app_version:
+            with migrator.log_context(
+                old_version=config_version,
+                new_version=cls.app_version,
+                migration_required=True,
+            ) as log:
+                log.info("bot.models.settings_model.config.version.info")
+            values = migrator.migrate_config(values)
 
         return values
 

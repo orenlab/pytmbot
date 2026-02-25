@@ -129,25 +129,31 @@ class TelebotExceptionHandler(ExceptionHandler):
     def handle(self, exception: Exception) -> bool:
         """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
+        log_context: dict[str, Any] = {
+            "exception_type": type(exception).__name__,
+        }
 
         if isinstance(exception, BaseBotException):
-            exception.sanitized_message()
+            sanitized_message = exception.sanitized_message()
             error_context = exception.sanitized_context()
-
+            log_context["message"] = sanitized_message
+            log_context["error_code"] = error_context.error_code
             if error_context.metadata:
-                pass
+                log_context["metadata"] = error_context.metadata
         else:
-            sanitize_exception(exception)
+            log_context["message"] = sanitize_exception(exception)
 
         if log_level == "DEBUG":
             if isinstance(exception, BaseBotException):
-                logger.opt(exception=exception).debug("bot.exceptions.telebot.fail")
+                logger.opt(exception=exception).debug(
+                    "bot.exceptions.telebot.fail", **log_context
+                )
             else:
                 logger.bind(sensitive_exception=True).debug(
-                    "bot.exceptions.telebot.fail"
+                    "bot.exceptions.telebot.fail", **log_context
                 )
         else:
-            logger.error("bot.exceptions.telebot.fail")
+            logger.error("bot.exceptions.telebot.fail", **log_context)
 
         return True
 

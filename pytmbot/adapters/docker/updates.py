@@ -88,8 +88,8 @@ class UpdaterResponse:
 
     status: UpdaterStatus
     message: str
-    data: dict | None = None
-    metadata: dict | None = field(default_factory=dict)
+    data: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     execution_time: float | None = None
     repositories_processed: int = 0
     repositories_failed: int = 0
@@ -1009,7 +1009,10 @@ class DockerImageUpdater(BaseComponent):
                                 limited_updates = repo_updates[:MAX_UPDATES_PER_REPO]
 
                                 return repo, {
-                                    "updates": [u.to_dict() for u in limited_updates],
+                                    "updates": [
+                                        update.model_dump()
+                                        for update in limited_updates
+                                    ],
                                     "total_found": len(repo_updates),
                                     "remote_tags_count": len(remote_tags),
                                 }

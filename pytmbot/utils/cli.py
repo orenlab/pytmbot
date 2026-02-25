@@ -55,9 +55,7 @@ class CLIDefaults:
     WEBHOOK: Final[bool] = False
     SOCKET_HOST: Final[str] = "127.0.0.1"
     PLUGINS: Final[list[str]] = []
-    HEALTH_CHECK: Final[bool] = (
-        False  # Изменено на False, так как это флаг для запуска health check
-    )
+    HEALTH_CHECK: Final[bool] = False
 
 
 def _str_to_bool(value: str) -> bool:
@@ -216,7 +214,7 @@ Examples:
         help="List of plugins to load (default: none)",
     )
 
-    # Health check - исправлено: убран type и исправлен default
+    # Health check
     parser.add_argument(
         "--health_check",
         action="store_true",

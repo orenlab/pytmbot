@@ -218,9 +218,9 @@ class PsutilAdapter:
             timeout: Optional timeout in seconds
             log_context: Additional context for logging
         """
-        del operation
         start_time = time.perf_counter()
         span_context: dict[str, object] = dict(log_context or {})
+        span_context["operation"] = operation
         span_context["span_id"] = uuid4().hex[:8]
 
         try:

@@ -887,9 +887,12 @@ class Logger:
                 if secret and hasattr(secret, "get_secret_value"):
                     if secret_value := secret.get_secret_value():
                         self.add_secret_to_mask(secret_value)
-        except (AttributeError, IndexError, TypeError):
-            # If settings structure is different, continue silently
-            pass
+        except (AttributeError, IndexError, TypeError) as error:
+            logger.warning(
+                "bot.logs.masking.configuration.partial.warn",
+                error=str(error),
+                error_type=type(error).__name__,
+            )
 
     @lru_cache(maxsize=512)
     def _extract_update_data(

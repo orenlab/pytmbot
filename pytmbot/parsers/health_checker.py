@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 class TemplateParserChecker:
     """Simple health checker for template parsing system."""
 
-    def __init__(self, cache_ttl: float = 35.0):
-        self._cache_ttl = cache_ttl
+    def __init__(self, cache_ttl: float = 90.0):
+        self._cache_ttl = max(cache_ttl, 90.0)
         self._last_check = 0.0
         self._cached_result: HealthResult | None = None
 

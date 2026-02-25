@@ -11,8 +11,8 @@ from typing import TypedDict
 from pydantic import BaseModel
 
 
-class ContainersState:
-    """Class for container states."""
+class ContainersState(StrEnum):
+    """Container states with enum semantics for safer matching and typing."""
 
     running = "running"
     paused = "paused"
@@ -33,7 +33,7 @@ class TagInfo(BaseModel):
 
     name: str
     created_at: str  # ISO 8601 date format
-    digest: str | None
+    digest: str | None = None
 
 
 class UpdateInfo(BaseModel):
@@ -51,14 +51,6 @@ class UpdateInfo(BaseModel):
     created_at_local: str
     created_at_remote: str
     current_digest: str
-
-    def to_dict(self) -> dict[str, str]:
-        """Converts UpdateInfo to a dictionary.
-
-        Returns:
-            Dict[str, str]: Dictionary representation of the UpdateInfo instance.
-        """
-        return self.model_dump()  # Convert UpdateInfo to a dictionary
 
 
 type ContainerId = str | int

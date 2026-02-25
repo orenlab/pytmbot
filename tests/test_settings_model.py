@@ -120,18 +120,19 @@ def test_settings_model_migration_and_version_info(
     payload = _base_config()
 
     settings = SettingsModel.model_validate(payload)
-    assert settings.config_version is None
+    assert settings.config_version == "0.3.0-dev"
 
     info = settings.get_version_info()
-    assert info["is_legacy"] is True
+    assert info["is_legacy"] is False
+    assert info["is_deprecated"] is False
     assert settings.validate_full_compatibility() is True
 
     payload_with_mismatch = dict(payload)
     payload_with_mismatch["config_version"] = "0.2.2"
     upgraded = SettingsModel.model_validate(payload_with_mismatch)
-    assert upgraded.config_version == "0.2.2"
+    assert upgraded.config_version == "0.3.0-dev"
     upgraded_info = upgraded.get_version_info()
-    assert upgraded_info["is_deprecated"] is True
+    assert upgraded_info["is_deprecated"] is False
 
 
 def test_access_control_requires_admins_subset_of_allowed_users() -> None:

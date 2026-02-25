@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 import ipaddress
 import json
 import os
+import tempfile
 import threading
 from collections import deque
 from collections.abc import AsyncGenerator
@@ -25,6 +26,7 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 from pytmbot.exceptions import BotException, ErrorContext, InitializationError
+from pytmbot.globals import __version__ as app_version
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.models.settings_model import WebhookConfig as SettingsWebhookConfig
@@ -33,6 +35,7 @@ from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils import generate_secret_token, mask_ip_address, mask_token_in_message
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
+BAN_TTL_SECONDS = 3600
 
 
 def _get_webhook_config() -> SettingsWebhookConfig:
@@ -70,6 +73,7 @@ class RateLimit(BaseComponent):
         "_state_file",
         "_state_loaded",
         "_last_state_persist_ts",
+        "_ban_ttl_seconds",
     )
 
     def __init__(
@@ -98,9 +102,31 @@ class RateLimit(BaseComponent):
             self.max_tracked_ips = max(128, max_tracked_ips)
             self._last_cleanup_ts = 0.0
             self._state_lock = threading.RLock()
-            self._state_file = state_file
+            self._state_file = self._prepare_state_file(state_file)
             self._state_loaded = False
             self._last_state_persist_ts = 0.0
+            self._ban_ttl_seconds = BAN_TTL_SECONDS
+
+    def _prepare_state_file(self, state_file: str | None) -> str | None:
+        """Ensure state persistence directory is private to current user."""
+        if not state_file:
+            return None
+
+        state_path = os.path.abspath(state_file)
+        state_dir = os.path.dirname(state_path)
+        try:
+            os.makedirs(state_dir, mode=0o700, exist_ok=True)
+            os.chmod(state_dir, 0o700)
+            return state_path
+        except OSError as error:
+            with self.log_context(
+                action="prepare_state_file",
+                state_file=state_path,
+                error=str(error),
+                error_type=type(error).__name__,
+            ) as log:
+                log.warning("bot.webhook.state.file.prepare.fail.warn")
+            return None
 
     def _ensure_state_loaded(self) -> None:
         """Lazily restore persisted state on first access."""
@@ -119,7 +145,14 @@ class RateLimit(BaseComponent):
                 payload = json.load(state_stream)
         except FileNotFoundError:
             return
-        except Exception:
+        except Exception as error:
+            with self.log_context(
+                action="restore_state",
+                state_file=self._state_file,
+                error=str(error),
+                error_type=type(error).__name__,
+            ) as log:
+                log.warning("bot.webhook.state.restore.fail.warn")
             return
 
         if not isinstance(payload, dict):
@@ -137,7 +170,7 @@ class RateLimit(BaseComponent):
                 banned_at = datetime.fromisoformat(iso_banned_at)
             except ValueError:
                 continue
-            if (now - banned_at).total_seconds() <= 3600:
+            if (now - banned_at).total_seconds() <= self._ban_ttl_seconds:
                 self.banned_ips[ip] = banned_at
                 self._last_seen[ip] = time()
 
@@ -157,12 +190,33 @@ class RateLimit(BaseComponent):
             },
             "saved_at": datetime.now().isoformat(),
         }
+        state_dir = os.path.dirname(self._state_file)
+        tmp_state_path: str | None = None
         try:
-            with open(self._state_file, "w", encoding="utf-8") as state_stream:
+            fd, tmp_state_path = tempfile.mkstemp(
+                prefix=".pytmbot_ratelimit_",
+                suffix=".tmp",
+                dir=state_dir,
+                text=True,
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as state_stream:
                 json.dump(payload, state_stream)
-        except Exception:
-            # Best effort persistence only.
-            return
+            os.chmod(tmp_state_path, 0o600)
+            os.replace(tmp_state_path, self._state_file)
+            os.chmod(self._state_file, 0o600)
+        except Exception as error:
+            if tmp_state_path and os.path.exists(tmp_state_path):
+                try:
+                    os.unlink(tmp_state_path)
+                except OSError:
+                    pass
+            with self.log_context(
+                action="persist_state",
+                state_file=self._state_file,
+                error=str(error),
+                error_type=type(error).__name__,
+            ) as log:
+                log.warning("bot.webhook.state.persist.fail.warn")
 
     def _drop_ip_state(self, client_ip: str) -> None:
         """Remove all in-memory state for an IP."""
@@ -192,7 +246,7 @@ class RateLimit(BaseComponent):
         expired_bans = [
             ip
             for ip, banned_at in self.banned_ips.items()
-            if (now - banned_at).total_seconds() > 3600
+            if (now - banned_at).total_seconds() > self._ban_ttl_seconds
         ]
         for ip in expired_bans:
             self.banned_ips.pop(ip, None)
@@ -220,7 +274,7 @@ class RateLimit(BaseComponent):
                     return False
 
                 ban_time = self.banned_ips[client_ip]
-                if (datetime.now() - ban_time).total_seconds() > 3600:
+                if (datetime.now() - ban_time).total_seconds() > self._ban_ttl_seconds:
                     with self.log_context(action="ban_expired", ip=client_ip) as log:
                         log.info("bot.webhook.ban.expired.info")
                     del self.banned_ips[client_ip]
@@ -443,13 +497,15 @@ class WebhookServer(BaseComponent):
 
             self.app = self._create_app()
             enable_rate_state_persistence = "PYTEST_CURRENT_TEST" not in os.environ
-            state_prefix = f"/tmp/pytmbot_webhook_ratelimit_{self.port}"
+            state_dir = os.path.join(
+                "/tmp", "pytmbot_webhook_ratelimit", str(self.port)
+            )
             self.rate_limiter = RateLimit(
                 limit=10,
                 period=10,
                 max_tracked_ips=4096,
                 state_file=(
-                    f"{state_prefix}_main.json"
+                    os.path.join(state_dir, "main.json")
                     if enable_rate_state_persistence
                     else None
                 ),
@@ -459,7 +515,7 @@ class WebhookServer(BaseComponent):
                 period=10,
                 max_tracked_ips=1024,
                 state_file=(
-                    f"{state_prefix}_404.json"
+                    os.path.join(state_dir, "404.json")
                     if enable_rate_state_persistence
                     else None
                 ),
@@ -498,7 +554,7 @@ class WebhookServer(BaseComponent):
             docs_url=None,
             redoc_url=None,
             title="PyTMBot Webhook Server",
-            version="2.1.0",
+            version=app_version,
             lifespan=lifespan,
         )
 
@@ -713,10 +769,13 @@ class WebhookServer(BaseComponent):
                 _ = exc
                 client_ip = request.client.host if request.client else "unknown"
                 masked_client_ip = mask_ip_address(client_ip)
+                request_path = request.url.path.replace("\n", "\\n").replace(
+                    "\r", "\\r"
+                )
                 with self.log_context(
                     action="handle_404",
                     client_ip=masked_client_ip,
-                    request_url=str(request.url),
+                    request_path=request_path,
                 ) as _log:
                     if self.rate_limiter_404.is_rate_limited(client_ip):
                         _log.warning("bot.webhook.rate.limit.warn")

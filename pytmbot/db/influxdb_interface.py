@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
-from threading import BoundedSemaphore, RLock
+from threading import BoundedSemaphore, RLock, current_thread
 from typing import Any
 from urllib.parse import urlparse
 
@@ -81,7 +81,10 @@ class InfluxDBInterface(BaseComponent):
 
         # Validate configuration only once during initialization
         try:
-            if not all([config.url, config.token, config.org, config.bucket]):
+            if not all(
+                value.strip()
+                for value in (config.url, config.token, config.org, config.bucket)
+            ):
                 raise InfluxDBConfigError(
                     ErrorContext(
                         message="Invalid InfluxDB configuration",
@@ -221,6 +224,12 @@ class InfluxDBInterface(BaseComponent):
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the runtime context and ensure proper cleanup."""
+        should_shutdown_async = not current_thread().name.startswith(
+            "influxdb_async_writer"
+        )
+        if should_shutdown_async:
+            self.shutdown_async_writes(wait=True)
+
         if self._client:
             try:
                 self._client.close()

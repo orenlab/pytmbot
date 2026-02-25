@@ -91,8 +91,16 @@ class Compiler(BaseComponent):
             if self.template_name.startswith(prefix):
                 return template_type
 
-        # Unknown prefix - still valid, just unknown type
-        return TemplateType.DOCKER  # Default fallback
+        raise TemplateError(
+            ErrorContext(
+                message="Unknown template type prefix",
+                error_code="UNKNOWN_TEMPLATE_PREFIX",
+                metadata={
+                    "template_name": self.template_name,
+                    "supported_prefixes": list(self.TEMPLATE_TYPE_PREFIXES),
+                },
+            )
+        )
 
     def compile(self) -> str:
         """

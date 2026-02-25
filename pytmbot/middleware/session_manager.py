@@ -16,6 +16,7 @@ from typing import Any, ClassVar, Final
 from weakref import WeakValueDictionary
 
 from pytmbot.logs import BaseComponent
+from pytmbot.utils import mask_user_id
 
 
 class _StateFabric:
@@ -351,7 +352,7 @@ class SessionManager(BaseComponent):
             session.auth_state = self.state_fabric.UNAUTHENTICATED
 
         with self.log_context(user_id=user_id, action="auto_unblock") as log:
-            log.info("bot.session.user.automatically.deny")
+            log.info("bot.session.user.automatically.unblocked.ok")
         return True
 
     def get_blocked_time(self, user_id: int) -> datetime | None:
@@ -493,7 +494,9 @@ class SessionManager(BaseComponent):
                         "bot.session.expired.sessions.info",
                         context={
                             "cleared_count": len(expired_users),
-                            "expired_users": expired_users,
+                            "expired_users": [
+                                mask_user_id(user_id) for user_id in expired_users
+                            ],
                         },
                     )
 

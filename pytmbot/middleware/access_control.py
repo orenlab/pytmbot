@@ -279,8 +279,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
         if should_suppress:
             context = {
                 "operation": "admin_notification",
-                "user_id": user_id,
-                "username": username,
+                "user_id": mask_user_id(user_id),
+                "username": mask_username(username),
                 "chat_id": chat_id,
                 "attempt_number": attempt,
                 "notification_status": "suppressed",
@@ -298,8 +298,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         context = {
             "operation": "admin_notification",
-            "user_id": user_id,
-            "username": username,
+            "user_id": masked_user_id,
+            "username": masked_username,
             "masked_username": masked_username,
             "masked_user_id": masked_user_id,
             "chat_id": chat_id,

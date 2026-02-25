@@ -11,7 +11,11 @@ import base64
 import hashlib
 import io
 import re
-from typing import Final
+import secrets
+import threading
+import time
+from datetime import UTC, datetime
+from typing import ClassVar, Final
 
 import pyotp
 import qrcode
@@ -35,8 +39,18 @@ class TwoFactorAuthenticator(BaseComponent):
 
     # Regex pattern for validating TOTP codes (6 digits)
     TOTP_CODE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{6}$")
+    _REPLAY_WINDOW_STEPS: ClassVar[int] = 4
+    _MAX_TRACKED_CODES_PER_USER: ClassVar[int] = 64
+    _used_totp_codes: ClassVar[dict[int, set[tuple[str, int]]]] = {}
+    _used_totp_codes_lock: ClassVar[threading.RLock] = threading.RLock()
 
-    __slots__ = ("user_id", "username", "_salt", "_secret_cache")
+    __slots__ = (
+        "user_id",
+        "username",
+        "_salt",
+        "_secret_cache",
+        "_secret_key_material",
+    )
 
     def __init__(self, user_id: int, username: str) -> None:
         """Initialize the TwoFactorAuthenticator with user ID and username.
@@ -61,6 +75,17 @@ class TwoFactorAuthenticator(BaseComponent):
         self.user_id: int = user_id
         self.username: str = username.strip()
         self._salt: str = settings.access_control.auth_salt[0].get_secret_value()
+        prod_token_values = settings.bot_token.prod_token or []
+        dev_token_values = settings.bot_token.dev_bot_token or []
+        prod_token = (
+            prod_token_values[0].get_secret_value() if prod_token_values else ""
+        )
+        dev_token = dev_token_values[0].get_secret_value() if dev_token_values else ""
+        self._secret_key_material = "|".join(
+            segment for segment in (self._salt, prod_token, dev_token) if segment
+        )
+        if not self._secret_key_material:
+            raise TOTPError("Missing TOTP key material")
         self._secret_cache: str | None = None  # Cache for secret to avoid regeneration
 
     def _generate_secret(self) -> str:
@@ -79,11 +104,17 @@ class TwoFactorAuthenticator(BaseComponent):
             return self._secret_cache
 
         try:
-            # Concatenate the user ID, salt, and username
-            message = f"{self.user_id}{self._salt}{self.username}".encode()
-
-            # Hash the concatenated message using blake2b
-            hash_obj = hashlib.blake2b(message, digest_size=self.HASH_DIGEST_SIZE)
+            # Generate a deterministic user secret from private key material.
+            message = f"{self.user_id}:{self.username.lower()}".encode()
+            key_material = hashlib.blake2b(
+                self._secret_key_material.encode(),
+                digest_size=32,
+            ).digest()
+            hash_obj = hashlib.blake2b(
+                message,
+                key=key_material,
+                digest_size=self.HASH_DIGEST_SIZE,
+            )
 
             # Encode the hash digest as base32 and decode it to a string
             self._secret_cache = base64.b32encode(hash_obj.digest()).decode("ascii")
@@ -221,24 +252,69 @@ class TwoFactorAuthenticator(BaseComponent):
 
                 log.debug("bot.utils.totp.verification.start")
 
-                # Verify with some time window tolerance
-                is_valid = totp.verify(cleaned_code, valid_window=1)
+                current_step = int(time.time()) // self.TOTP_INTERVAL
+                matched_step = self._resolve_matching_step(
+                    totp=totp,
+                    code=cleaned_code,
+                    current_step=current_step,
+                )
 
-                if is_valid:
-                    log.info("bot.utils.totp.verification.ok")
-                    return True
-                else:
+                if matched_step is None:
                     log.warning(
                         "bot.utils.totp.verification.fail",
                         code_length=len(cleaned_code),
                     )
                     return False
 
+                if not self._register_code_usage(
+                    cleaned_code, matched_step, current_step
+                ):
+                    log.warning("bot.utils.totp.verification.replay.fail")
+                    return False
+
+                if matched_step is not None:
+                    log.info("bot.utils.totp.verification.ok")
+                    return True
+
             except Exception as e:
                 log.error("bot.utils.totp.critical.verification.fail")
                 raise TOTPError(
                     f"TOTP verification failed for user {self.username}: {e}"
                 ) from e
+
+    def _resolve_matching_step(
+        self, totp: pyotp.TOTP, code: str, current_step: int
+    ) -> int | None:
+        """Resolve the exact time-step for a code inside verification window."""
+        for step in range(current_step - 1, current_step + 2):
+            step_time = datetime.fromtimestamp(step * self.TOTP_INTERVAL, tz=UTC)
+            if totp.verify(code, for_time=step_time, valid_window=0):
+                return step
+        return None
+
+    def _register_code_usage(
+        self, code: str, matched_step: int, current_step: int
+    ) -> bool:
+        """Reject replayed TOTP codes and track successful code usage."""
+        min_step = current_step - self._REPLAY_WINDOW_STEPS
+        code_marker = (code, matched_step)
+
+        with self._used_totp_codes_lock:
+            user_entries = {
+                marker
+                for marker in self._used_totp_codes.get(self.user_id, set())
+                if marker[1] >= min_step
+            }
+            if code_marker in user_entries:
+                self._used_totp_codes[self.user_id] = user_entries
+                return False
+
+            user_entries.add(code_marker)
+            if len(user_entries) > self._MAX_TRACKED_CODES_PER_USER:
+                sorted_entries = sorted(user_entries, key=lambda marker: marker[1])
+                user_entries = set(sorted_entries[-self._MAX_TRACKED_CODES_PER_USER :])
+            self._used_totp_codes[self.user_id] = user_entries
+            return True
 
     def get_backup_codes(self, count: int = 10) -> list[str]:
         """Generate backup codes for the user.
@@ -264,16 +340,13 @@ class TwoFactorAuthenticator(BaseComponent):
             count=count,
         ) as log:
             try:
-                # Use the secret as seed for deterministic backup codes
-                secret = self._generate_secret()
+                # Ensure secret is initialized and validated before generating backup codes.
+                _ = self._generate_secret()
                 backup_codes = []
 
-                for i in range(count):
-                    # Generate deterministic backup code using secret + index
-                    seed = f"{secret}{i}".encode()
-                    code_hash = hashlib.blake2b(seed, digest_size=4).digest()
-                    code = base64.b32encode(code_hash).decode("ascii")[:8]  # 8 chars
-                    backup_codes.append(f"{code[:4]}-{code[4:]}")  # Format: XXXX-XXXX
+                for _ in range(count):
+                    code = base64.b32encode(secrets.token_bytes(5)).decode("ascii")[:8]
+                    backup_codes.append(f"{code[:4]}-{code[4:]}")
 
                 log.info("bot.utils.totp.generated.backup.info")
                 return backup_codes

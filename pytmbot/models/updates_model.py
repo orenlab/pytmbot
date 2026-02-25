@@ -151,7 +151,7 @@ class ChatJoinRequest(BaseModel):
 
 
 class UpdateModel(BaseModel):
-    update_id: int = Field(..., gt=0)
+    update_id: int = Field(..., ge=0)
     message: Message | None = None
     edited_message: Message | None = None
     channel_post: Message | None = None

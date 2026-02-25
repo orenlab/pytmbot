@@ -39,7 +39,6 @@ logger = Logger()
 class SystemMonitorPlugin(PluginCore):
     """Plugin for monitoring system resources."""
 
-    DEFAULT_POLL_INTERVAL_SECONDS = 600
     DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS = 300
     DEFAULT_NOTIFICATION_RESET_WINDOW_SECONDS = 300
     MAX_CHECK_INTERVAL_SECONDS = 30
@@ -59,7 +58,6 @@ class SystemMonitorPlugin(PluginCore):
         "influxdb_client",
         "is_docker",
         "check_interval",
-        "poll_interval",
         "docker_counters_update_interval",
         "system_metrics",
         "_monitor_thread",
@@ -110,8 +108,7 @@ class SystemMonitorPlugin(PluginCore):
         self.is_docker = is_running_in_docker()
 
         # Set monitoring intervals
-        self.check_interval = self.monitor_settings.check_interval[0]
-        self.poll_interval = self.DEFAULT_POLL_INTERVAL_SECONDS
+        self.check_interval = max(1, int(self.monitor_settings.check_interval[0]))
         self.docker_counters_update_interval = (
             self.DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS
         )
@@ -174,9 +171,8 @@ class SystemMonitorPlugin(PluginCore):
                         "action": "start",
                         "attempt": attempt,
                         "tracehold": self.monitor_settings.tracehold,
-                        "event_threshold_duration": {self.event_threshold_duration},
+                        "event_threshold_duration": self.event_threshold_duration,
                         "check_interval": self.check_interval,
-                        "poll_interval": self.poll_interval,
                         "docker_counters_update_interval": self.docker_counters_update_interval,
                         "is_docker": self.is_docker,
                     }
@@ -247,10 +243,14 @@ class SystemMonitorPlugin(PluginCore):
                 time.sleep(max(1, self.check_interval // 2))
 
     def _process_alerts(self, metrics: dict[str, Any]) -> None:
-        self._check_cpu_alert(metrics["cpu_usage"])
-        self._check_memory_alert(metrics["memory_usage"])
-        self._check_temperature_alerts(metrics["temperatures"])
-        self._check_disk_alerts(metrics["disk_usage"])
+        self._check_cpu_alert(float(metrics.get("cpu_usage", 0.0)))
+        self._check_memory_alert(float(metrics.get("memory_usage", 0.0)))
+        temperatures = metrics.get("temperatures")
+        if isinstance(temperatures, dict):
+            self._check_temperature_alerts(temperatures)
+        disk_usage = metrics.get("disk_usage")
+        if isinstance(disk_usage, dict):
+            self._check_disk_alerts(disk_usage)
 
     def _find_active_event_id(self, event_type: str) -> str | None:
         """Return unresolved event id by type."""
@@ -307,17 +307,20 @@ class SystemMonitorPlugin(PluginCore):
             self._resolve_event_and_notify("memory_usage", "Memory usage")
 
     def _check_temperature_alerts(
-        self, temperatures: dict[str, dict[str, float]]
+        self, temperatures: dict[str, dict[str, float | None]]
     ) -> None:
         for sensor, data in temperatures.items():
-            threshold = getattr(self.thresholds, f"{sensor}_temp", 80.0)
-            if data["current"] > threshold:
+            current_temp = data.get("current")
+            if not isinstance(current_temp, (int, float)):
+                continue
+            threshold = self._resolve_temperature_threshold(sensor)
+            if current_temp > threshold:
                 event_type = f"temp_{sensor}"
 
                 def _build_temperature_alert(
                     event_id: str,
                     sensor_name: str = sensor,
-                    sensor_data: dict[str, float] = data,
+                    sensor_data: dict[str, float | None] = data,
                 ) -> str:
                     return self._format_temperature_alert(
                         event_id, sensor_name, sensor_data
@@ -325,13 +328,24 @@ class SystemMonitorPlugin(PluginCore):
 
                 self._create_or_notify_event(
                     event_type,
-                    {"temperature": data["current"], "sensor": sensor},
+                    {"temperature": current_temp, "sensor": sensor},
                     _build_temperature_alert,
                 )
             else:
                 self._resolve_event_and_notify(
                     f"temp_{sensor}", f"Temperature ({sensor})"
                 )
+
+    def _resolve_temperature_threshold(self, sensor: str) -> float:
+        """Map psutil sensor names to configured monitor thresholds."""
+        sensor_key = sensor.lower()
+        if "gpu" in sensor_key or "amdgpu" in sensor_key or "nvidia" in sensor_key:
+            return self.thresholds.gpu_temp
+        if "nvme" in sensor_key or "disk" in sensor_key or "ssd" in sensor_key:
+            return self.thresholds.disk_temp
+        if "pch" in sensor_key:
+            return self.thresholds.pch_temp
+        return self.thresholds.cpu_temp
 
     def _check_disk_alerts(self, disk_usage: dict[str, float]) -> None:
         for disk, usage in disk_usage.items():
@@ -479,15 +493,23 @@ class SystemMonitorPlugin(PluginCore):
             logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
         return sanitized_fields
 
-    def _send_notification(self, message: str) -> None:
+    def _send_notification(
+        self, message: str, *, count_towards_budget: bool = True
+    ) -> None:
         current_time = time.time()
-        self._maybe_reset_notification_budget(current_time)
+        if count_towards_budget:
+            self._maybe_reset_notification_budget(current_time)
 
-        if self.state.notification_count >= self.monitor_settings.max_notifications[0]:
-            if not self.state.max_notifications_reached:
-                logger.warning("bot.plugins.monitor.methods.maximum.notifications.warn")
-                self.state.max_notifications_reached = True
-            return
+            if (
+                self.state.notification_count
+                >= self.monitor_settings.max_notifications[0]
+            ):
+                if not self.state.max_notifications_reached:
+                    logger.warning(
+                        "bot.plugins.monitor.methods.maximum.notifications.warn"
+                    )
+                    self.state.max_notifications_reached = True
+                return
 
         try:
             self.bot.send_message(
@@ -498,10 +520,11 @@ class SystemMonitorPlugin(PluginCore):
                 extra={"message": str(message)},
             )
 
-            self.state.notification_count += 1
-            self.state.next_notification_reset_at = (
-                current_time + self._get_notification_reset_window_seconds()
-            )
+            if count_towards_budget:
+                self.state.notification_count += 1
+                self.state.next_notification_reset_at = (
+                    current_time + self._get_notification_reset_window_seconds()
+                )
 
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
@@ -610,11 +633,17 @@ class SystemMonitorPlugin(PluginCore):
         )
 
     @staticmethod
-    def _format_temperature_alert(event_id: str, sensor: str, data: dict) -> str:
+    def _format_temperature_alert(
+        event_id: str, sensor: str, data: dict[str, float | None]
+    ) -> str:
+        current_temp = data.get("current")
+        current_temp_display = (
+            f"{current_temp:.1f}°C" if isinstance(current_temp, (int, float)) else "N/A"
+        )
         return (
             f"🌡️ <b>High Temperature Alert - {sensor}</b>\n"
             f"Event ID: {event_id}\n"
-            f"Current: {data['current']:.1f}°C"
+            f"Current: {current_temp_display}"
         )
 
     @staticmethod
@@ -656,7 +685,11 @@ class SystemMonitorPlugin(PluginCore):
         message = (
             f"✅ <b>{event_type} has normalized</b>\nDuration: {int(duration)} seconds"
         )
-        self._send_notification(message)
+        try:
+            self._send_notification(message, count_towards_budget=False)
+        except TypeError:
+            # Keep compatibility with monkeypatched call-sites in tests.
+            self._send_notification(message)
 
     def _reset_notification_count(self) -> None:
         self.state.notification_count = 0
@@ -679,11 +712,14 @@ class SystemMonitorPlugin(PluginCore):
                         extra={"cpu_load": cpu_load, "new_interval": new_interval},
                     )
             else:
-                self.check_interval = self.monitor_settings.check_interval[0]
+                self.check_interval = max(
+                    1, int(self.monitor_settings.check_interval[0])
+                )
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.adjust.check.fail", e)
 
     def stop_monitoring(self) -> None:
+        was_active = self.state.is_active
         if self.state.is_active:
             self.state.is_active = False
             with self._monitor_thread_lock:
@@ -704,4 +740,5 @@ class SystemMonitorPlugin(PluginCore):
         else:
             logger.warning("bot.plugins.monitor.methods.monitoring.not.warn")
 
-        self.influxdb_client.shutdown_async_writes(wait=False)
+        if was_active:
+            self.influxdb_client.shutdown_async_writes(wait=True)

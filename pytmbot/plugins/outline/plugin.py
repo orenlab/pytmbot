@@ -19,7 +19,6 @@ from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.utils import set_naturalsize
 
-plugin_methods = PluginMethods()
 plugin = PluginCore()
 em = get_emoji_converter()
 keyboards = get_keyboards()
@@ -34,6 +33,13 @@ class OutlinePlugin(PluginInterface):
         """
         super().__init__(bot)
         self.plugin_logger = plugin.logger
+        self._plugin_methods: PluginMethods | None = None
+
+    def _get_plugin_methods(self) -> PluginMethods:
+        """Lazily initialize Outline methods to avoid import-time side effects."""
+        if self._plugin_methods is None:
+            self._plugin_methods = PluginMethods()
+        return self._plugin_methods
 
     @staticmethod
     def _get_first_name(message: Message) -> str:
@@ -192,7 +198,7 @@ class OutlinePlugin(PluginInterface):
         )
         :return: A dictionary with the action data or None if an error occurs.
         """
-        data = plugin_methods.outline_action_manager(action=action)
+        data = self._get_plugin_methods().outline_action_manager(action=action)
         if isinstance(data, str):
             try:
                 parsed_data = json.loads(data)
@@ -209,6 +215,23 @@ class OutlinePlugin(PluginInterface):
             dumped_data = data.model_dump()
             if isinstance(dumped_data, dict):
                 return {str(key): value for key, value in dumped_data.items()}
+        elif isinstance(data, list):
+            normalized_items: list[dict[str, Any]] = []
+            for item in data:
+                if isinstance(item, dict):
+                    normalized_items.append(
+                        {str(key): value for key, value in item.items()}
+                    )
+                    continue
+
+                model_dump = getattr(item, "model_dump", None)
+                if callable(model_dump):
+                    dumped_item = model_dump()
+                    if isinstance(dumped_item, dict):
+                        normalized_items.append(
+                            {str(key): value for key, value in dumped_item.items()}
+                        )
+            return {"accessKeys": normalized_items}
         else:
             self.plugin_logger.error("bot.plugins.outline.plugin.expected.string.fail")
         return None

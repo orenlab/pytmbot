@@ -171,11 +171,11 @@ def test_polling_checker_states() -> None:
     assert unhealthy.level == HealthLevel.UNHEALTHY
 
     object.__setattr__(bot, "polling", True)
-    bot._TeleBot__polling_thread = _DeadThread()
+    object.__setattr__(bot, "polling_thread", _DeadThread())
     critical = checker._perform_check()
     assert critical.level == HealthLevel.CRITICAL
 
-    bot._TeleBot__polling_thread = threading.current_thread()
+    object.__setattr__(bot, "polling_thread", threading.current_thread())
     healthy = checker._perform_check()
     assert healthy.level == HealthLevel.HEALTHY
 
@@ -239,9 +239,9 @@ def test_health_monitor_check_summary_and_lifecycle() -> None:
         )
     )
     system_health = monitor.check_all()
-    assert system_health.overall == HealthLevel.DEGRADED
+    assert system_health.overall == HealthLevel.CRITICAL
     summary = monitor.get_summary()
-    assert summary["overall"] == "degraded"
+    assert summary["overall"] == "critical"
     assert summary["total"] == 4
 
     monitor.start_monitoring(base_interval=0.01)

@@ -26,6 +26,10 @@ def test_find_in_args_and_kwargs_returns_first_match() -> None:
 
 def test_set_naturalsize_and_naturaltime_return_strings() -> None:
     assert "KiB" in set_naturalsize(2048)
+    assert set_naturalsize(None) == "0 Bytes"
+    assert set_naturalsize(-1) == "0 Bytes"
+    with pytest.raises(TypeError):
+        set_naturalsize("bad")  # type: ignore[arg-type]
     assert isinstance(set_naturaltime(datetime.now(UTC)), str)
 
 
@@ -36,3 +40,10 @@ def test_split_string_into_octets_returns_lowercase_slice() -> None:
 def test_split_string_into_octets_raises_for_invalid_index() -> None:
     with pytest.raises(IndexError):
         split_string_into_octets("a:b", octet_index=5)
+
+
+def test_split_string_into_octets_validates_inputs() -> None:
+    with pytest.raises(ValueError):
+        split_string_into_octets("")
+    with pytest.raises(ValueError):
+        split_string_into_octets("a:b", delimiter="")

@@ -11,6 +11,7 @@ Use public interfaces from compiler.py instead.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -186,6 +187,8 @@ def _load_template(template_name: str) -> Template:
 
 def _hash_context(context: dict[str, Any]) -> str | None:
     """Create hash of context for result caching."""
+    if any(not isinstance(key, str) for key in context):
+        return None
 
     def _contains_dynamic_values(value: Any) -> bool:
         if isinstance(value, (datetime, date)):
@@ -205,11 +208,40 @@ def _hash_context(context: dict[str, Any]) -> str | None:
     if any(_contains_dynamic_values(value) for value in context.values()):
         return None
 
-    # Simple hash for cacheable contexts
+    def _normalize_for_hash(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                str(dict_key): _normalize_for_hash(dict_value)
+                for dict_key, dict_value in sorted(
+                    value.items(), key=lambda item: str(item[0])
+                )
+            }
+        if isinstance(value, (list, tuple)):
+            return [_normalize_for_hash(item) for item in value]
+        if isinstance(value, (set, frozenset)):
+            normalized_set = [_normalize_for_hash(item) for item in value]
+            return sorted(
+                normalized_set,
+                key=lambda item: json.dumps(
+                    item, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+                ),
+            )
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        return value
+
+    # Stable hash for cacheable contexts
     try:
-        context_str = str(sorted(context.items()))
-        return hashlib.md5(context_str.encode()).hexdigest()[:16]
-    except (TypeError, ValueError):
+        normalized_context = _normalize_for_hash(context)
+        context_json = json.dumps(
+            normalized_context,
+            sort_keys=True,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return hashlib.blake2b(context_json.encode(), digest_size=8).hexdigest()
+    except (TypeError, ValueError, OverflowError):
         # If context not hashable, don't cache
         return None
 

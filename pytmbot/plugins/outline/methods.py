@@ -30,7 +30,11 @@ class PluginMethods(PluginCore):
         cert_secret = self.plugin_config.cert[0]
         self.api_url = api_url_secret.get_secret_value()
         self.cert = cert_secret.get_secret_value()
-        self.client = PyOutlineWrapper(self.api_url, self.cert, verify_tls=False)
+        self.client = PyOutlineWrapper(
+            self.api_url,
+            self.cert,
+            verify_tls=bool(getattr(self.plugin_config, "verify_tls", True)),
+        )
 
     def _fetch_server_information(self) -> OutlineServer:
         """

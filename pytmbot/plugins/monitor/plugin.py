@@ -32,12 +32,13 @@ class MonitoringPlugin(PluginInterface):
         bot (TeleBot): An instance of TeleBot to interact with Telegram API.
     """
 
-    __slots__ = ("plugin_logger", "config", "__weakref__")
+    __slots__ = ("plugin_logger", "config", "_monitor_plugin", "__weakref__")
 
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
         self.plugin_logger = plugin.logger
+        self._monitor_plugin: SystemMonitorPlugin | None = None
 
     @staticmethod
     def _get_keyboard(available_periods: list | None = None) -> ReplyKeyboardMarkup:
@@ -152,8 +153,8 @@ class MonitoringPlugin(PluginInterface):
     def register(self) -> None:
         """Register SystemMonitorPlugin and start monitoring."""
         try:
-            monitor_plugin = SystemMonitorPlugin(bot=self.bot)
-            monitor_plugin.start_monitoring()
+            self._monitor_plugin = SystemMonitorPlugin(bot=self.bot)
+            self._monitor_plugin.start_monitoring()
 
             self.bot.register_message_handler(
                 self.handle_monitoring, regexp="Monitoring"
@@ -165,6 +166,16 @@ class MonitoringPlugin(PluginInterface):
                 "bot.plugins.monitor.plugin.register.monitoring.fail"
             )
             raise
+
+    def cleanup(self) -> None:
+        """Stop monitor plugin workers during plugin manager cleanup."""
+        monitor_plugin = self._monitor_plugin
+        if monitor_plugin is None:
+            return
+        try:
+            monitor_plugin.stop_monitoring()
+        finally:
+            self._monitor_plugin = None
 
 
 __all__ = ["MonitoringPlugin"]

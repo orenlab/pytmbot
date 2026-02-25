@@ -17,6 +17,7 @@ class TelegramIPValidator:
     """Validates if an IP address belongs to Telegram's network ranges."""
 
     _MAX_VALIDATED_IPS = 4096
+    _MAX_REJECTED_IPS = 4096
 
     def __init__(self) -> None:
         self.ipv4_ranges = [
@@ -41,6 +42,8 @@ class TelegramIPValidator:
 
         self.validated_ips: set[str] = set()
         self._validated_ip_order: deque[str] = deque()
+        self.rejected_ips: set[str] = set()
+        self._rejected_ip_order: deque[str] = deque()
 
     def _remember_validated_ip(self, ip_str: str) -> None:
         """Store validated IP in a bounded in-memory cache."""
@@ -54,9 +57,23 @@ class TelegramIPValidator:
         self.validated_ips.add(ip_str)
         self._validated_ip_order.append(ip_str)
 
+    def _remember_rejected_ip(self, ip_str: str) -> None:
+        """Store non-Telegram IP in a bounded negative cache."""
+        if ip_str in self.rejected_ips:
+            return
+
+        if len(self.rejected_ips) >= self._MAX_REJECTED_IPS:
+            oldest_ip = self._rejected_ip_order.popleft()
+            self.rejected_ips.discard(oldest_ip)
+
+        self.rejected_ips.add(ip_str)
+        self._rejected_ip_order.append(ip_str)
+
     def is_telegram_ip(self, ip_str: str) -> bool:
         if ip_str in self.validated_ips:
             return True
+        if ip_str in self.rejected_ips:
+            return False
 
         try:
             ip = ipaddress.ip_address(ip_str)
@@ -70,6 +87,7 @@ class TelegramIPValidator:
                 if ip in network:
                     self._remember_validated_ip(ip_str)
                     return True
+            self._remember_rejected_ip(ip_str)
             return False
 
         except ValueError:

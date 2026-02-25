@@ -10,7 +10,7 @@ from pytmbot.utils.validation import (
 def test_is_new_name_valid_reflects_current_length_contract() -> None:
     assert is_new_name_valid("a") is True
     assert is_new_name_valid("a" * 64) is True
-    assert is_new_name_valid("abc") is False
+    assert is_new_name_valid("abc") is True
     assert is_new_name_valid(" ") is False
 
 

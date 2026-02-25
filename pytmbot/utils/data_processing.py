@@ -30,8 +30,15 @@ def find_in_kwargs(kwargs: dict[str, Any], target_type: type) -> Any | None:
     )
 
 
-def set_naturalsize(size: int) -> str:
-    return humanize_naturalsize(size, binary=True)
+def set_naturalsize(size: int | float | None) -> str:
+    if size is None:
+        normalized_size = 0
+    elif isinstance(size, bool) or not isinstance(size, (int, float)):
+        raise TypeError("size must be int, float, or None")
+    else:
+        normalized_size = int(size) if size > 0 else 0
+
+    return humanize_naturalsize(normalized_size, binary=True)
 
 
 def set_naturaltime(timestamp: datetime) -> str:
@@ -41,6 +48,10 @@ def set_naturaltime(timestamp: datetime) -> str:
 def split_string_into_octets(
     input_string: str, delimiter: str = ":", octet_index: int = 1
 ) -> str:
+    if not input_string:
+        raise ValueError("input_string cannot be empty")
+    if not delimiter:
+        raise ValueError("delimiter cannot be empty")
     octets = input_string.split(delimiter)
     if not (0 <= octet_index < len(octets)):
         raise IndexError("Octet index out of range")

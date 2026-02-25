@@ -55,6 +55,7 @@ class BotLauncher(logs.BaseComponent):
         self.bot: PyTMBot | None = None
         self.shutdown_requested = threading.Event()
         self.start_time = datetime.now()
+        self._start_monotonic = time.monotonic()
         self._shutdown_lock = threading.RLock()
         self._shutdown_completed = False
         self._bot_operations_stopped = False
@@ -220,7 +221,7 @@ class BotLauncher(logs.BaseComponent):
 
     def _is_within_startup_grace_period(self) -> bool:
         """Check if we're still within the startup grace period."""
-        uptime_seconds = (datetime.now() - self.start_time).total_seconds()
+        uptime_seconds = time.monotonic() - self._start_monotonic
         return uptime_seconds < self.STARTUP_GRACE_PERIOD
 
     def _should_log_health_status(self) -> bool:
@@ -588,8 +589,6 @@ class BotLauncher(logs.BaseComponent):
 
             # Now start the actual bot polling (this will block)
             # Start polling in a separate thread so we can monitor it
-            import threading
-
             polling_thread = threading.Thread(
                 target=self._start_bot_polling,
                 args=(bot_instance,),
