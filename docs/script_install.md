@@ -37,7 +37,7 @@ Recommended secure flow (verify hash before execution):
 
 ```bash
 curl -fsSLo /tmp/pytmbot-install.sh https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh
-echo "57a5314266327da8be95f819d95cab6ca6d30749e7fdd04854f7331f1802c327  /tmp/pytmbot-install.sh" | sha256sum -c -
+echo "da6999e5ba85fc36e75eb258c45ebf1b42c603d135863e6a682053c9293ace53  /tmp/pytmbot-install.sh" | sha256sum -c -
 sudo bash /tmp/pytmbot-install.sh
 ```
 
@@ -50,7 +50,7 @@ shasum -a 256 /tmp/pytmbot-install.sh
 Expected SHA256 (`tools/install.sh`, current `master`):
 
 ```text
-57a5314266327da8be95f819d95cab6ca6d30749e7fdd04854f7331f1802c327
+da6999e5ba85fc36e75eb258c45ebf1b42c603d135863e6a682053c9293ace53
 ```
 
 Quick one-liner (convenient, but no local pre-execution hash verification):

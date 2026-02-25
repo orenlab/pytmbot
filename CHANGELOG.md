@@ -18,6 +18,7 @@ All notable changes are documented in this file.
 - Secure message deletion manager with scheduled cleanup flow.
 - `/getmyid` command and stronger access-control middleware behavior.
 - CLI support for log format selection (`--log-format human|json`).
+- Dedicated regression tests for installer and Outline plugin flows.
 
 ### Changed
 
@@ -41,10 +42,13 @@ All notable changes are documented in this file.
   release tag publication.
 - Container details/handlers flow reworked with improved pagination context and callback behavior.
 - Installer workflow refactored and documented for safer defaults.
+- Installer now supports explicit non-interactive/test-mode execution for CI and scripted runs.
 - Local installer dependency setup switched to `pip` with `pip3` fallback in virtualenv (no host `uv` bootstrap).
 - Docker counters cache switched from permanent `lru_cache` to TTL-based targeted invalidation.
 - `quick_view` metric collection simplified to reduce threadpool overhead on hot path.
 - Rate-limit request buffer moved to `deque` for O(1) cleanup.
+- Outline plugin migrated to `pyoutlineapi` `0.4.0` with updated client integration flow.
+- Selected high-churn runtime classes moved to `__slots__` to reduce per-instance memory overhead.
 
 ### Fixed
 
@@ -94,6 +98,7 @@ All notable changes are documented in this file.
 - Installation, Docker, settings, CLI args, plugins, and debug docs synchronized with actual runtime behavior.
 - Installer security model and new operational constraints explicitly documented.
 - `docs/script_install.md` now includes a secure hash-verification flow and expected installer SHA256 for `master`.
+- Updated `docs/script_install.md` with the latest `tools/install.sh` SHA256 value after installer updates.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
 
 [0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06bb1db
