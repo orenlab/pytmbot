@@ -49,6 +49,47 @@ class OutlinePlugin(PluginInterface):
             return from_user.first_name
         return "User"
 
+    @staticmethod
+    def _pick_value(data: dict[str, Any], *keys: str) -> Any:
+        """Pick first non-None value by key variants."""
+        for key in keys:
+            value = data.get(key)
+            if value is not None:
+                return value
+        return None
+
+    def _normalize_server_context(self, server_info: dict[str, Any]) -> dict[str, Any]:
+        """Normalize server payload from different pyoutlineapi response schemas."""
+        return {
+            "name": self._pick_value(server_info, "name"),
+            "metricsEnabled": bool(
+                self._pick_value(server_info, "metricsEnabled", "metrics_enabled")
+            ),
+            "createdTimestampMs": self._pick_value(
+                server_info,
+                "createdTimestampMs",
+                "created_timestamp_ms",
+            ),
+            "portForNewAccessKeys": self._pick_value(
+                server_info,
+                "portForNewAccessKeys",
+                "port_for_new_access_keys",
+            ),
+        }
+
+    def _extract_transferred_bytes(self, traffic: dict[str, Any]) -> dict[str, Any]:
+        """Normalize transfer metrics key naming across client versions."""
+        raw_transferred = self._pick_value(
+            traffic,
+            "bytesTransferredByUserId",
+            "bytes_transferred_by_user_id",
+        )
+        if not isinstance(raw_transferred, dict):
+            return {}
+        return {
+            str(user_id): bytes_used for user_id, bytes_used in raw_transferred.items()
+        }
+
     def outline_handler(self, message: Message) -> None:
         """
         Handles the '/outline' command by sending a compiled response
@@ -94,11 +135,12 @@ class OutlinePlugin(PluginInterface):
                 "Error: Unable to process server information.",
                 parse_mode="HTML",
             )
+        server_context = self._normalize_server_context(server_info)
 
         response = self._compile_template(
             template_name="plugin_outline_server_info.jinja2",
             first_name=self._get_first_name(message),
-            context=server_info,
+            context=server_context,
             **emojis,
         )
         return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
@@ -155,7 +197,7 @@ class OutlinePlugin(PluginInterface):
                 parse_mode="HTML",
             )
 
-        bytes_transferred = traffic.get("bytesTransferredByUserId", {})
+        bytes_transferred = self._extract_transferred_bytes(traffic)
         user_names = self._get_user_names()
 
         if user_names is None:
@@ -204,6 +246,14 @@ class OutlinePlugin(PluginInterface):
                 parsed_data = json.loads(data)
                 if isinstance(parsed_data, dict):
                     return {str(key): value for key, value in parsed_data.items()}
+                if isinstance(parsed_data, list):
+                    parsed_items: list[dict[str, Any]] = []
+                    for item in parsed_data:
+                        if isinstance(item, dict):
+                            parsed_items.append(
+                                {str(key): value for key, value in item.items()}
+                            )
+                    return {"accessKeys": parsed_items}
                 return None
             except json.JSONDecodeError:
                 self.plugin_logger.error(
@@ -215,23 +265,29 @@ class OutlinePlugin(PluginInterface):
             dumped_data = data.model_dump()
             if isinstance(dumped_data, dict):
                 return {str(key): value for key, value in dumped_data.items()}
+            if isinstance(dumped_data, list):
+                dumped_items: list[dict[str, Any]] = []
+                for item in dumped_data:
+                    if isinstance(item, dict):
+                        dumped_items.append(
+                            {str(key): value for key, value in item.items()}
+                        )
+                return {"accessKeys": dumped_items}
         elif isinstance(data, list):
-            normalized_items: list[dict[str, Any]] = []
+            list_items: list[dict[str, Any]] = []
             for item in data:
                 if isinstance(item, dict):
-                    normalized_items.append(
-                        {str(key): value for key, value in item.items()}
-                    )
+                    list_items.append({str(key): value for key, value in item.items()})
                     continue
 
                 model_dump = getattr(item, "model_dump", None)
                 if callable(model_dump):
                     dumped_item = model_dump()
                     if isinstance(dumped_item, dict):
-                        normalized_items.append(
+                        list_items.append(
                             {str(key): value for key, value in dumped_item.items()}
                         )
-            return {"accessKeys": normalized_items}
+            return {"accessKeys": list_items}
         else:
             self.plugin_logger.error("bot.plugins.outline.plugin.expected.string.fail")
         return None
@@ -244,7 +300,16 @@ class OutlinePlugin(PluginInterface):
         """
         user_info = self._get_action_data(action="key_information")
         if user_info:
-            return {key["id"]: key["name"] for key in user_info.get("accessKeys", [])}
+            users: dict[str, str] = {}
+            for key in user_info.get("accessKeys", []):
+                if not isinstance(key, dict):
+                    continue
+                key_id = self._pick_value(key, "id", "key_id")
+                key_name = key.get("name")
+                if key_id is None or not isinstance(key_name, str):
+                    continue
+                users[str(key_id)] = key_name
+            return users
         return None
 
     def _compile_template(

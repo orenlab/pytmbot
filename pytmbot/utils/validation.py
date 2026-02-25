@@ -5,9 +5,11 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-MIN_CONTAINER_NAME_LENGTH = 1
-MAX_CONTAINER_NAME_LENGTH = 64
-MIN_DEV_VERSION_LENGTH = 7
+from typing import Final
+
+MIN_CONTAINER_NAME_LENGTH: Final[int] = 1
+MAX_CONTAINER_NAME_LENGTH: Final[int] = 64
+MIN_DEV_VERSION_LENGTH: Final[int] = 7
 
 
 def is_new_name_valid(new_name: str) -> bool:

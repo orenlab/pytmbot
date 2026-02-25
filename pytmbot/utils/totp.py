@@ -272,9 +272,8 @@ class TwoFactorAuthenticator(BaseComponent):
                     log.warning("bot.utils.totp.verification.replay.fail")
                     return False
 
-                if matched_step is not None:
-                    log.info("bot.utils.totp.verification.ok")
-                    return True
+                log.info("bot.utils.totp.verification.ok")
+                return True
 
             except Exception as e:
                 log.error("bot.utils.totp.critical.verification.fail")
