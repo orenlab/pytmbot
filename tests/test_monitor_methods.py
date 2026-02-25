@@ -161,7 +161,11 @@ def test_supervisor_restarts_dead_monitor_thread(
         monitor.state.is_active = False
         return _LiveThread()
 
-    monkeypatch.setattr(monitor, "_spawn_monitor_thread", _spawn)
+    monkeypatch.setattr(
+        SystemMonitorPlugin,
+        "_spawn_monitor_thread",
+        lambda self: _spawn(),
+    )
     monkeypatch.setattr(monitor_methods_module.time, "sleep", lambda _seconds: None)
 
     monitor._supervise_monitoring()
@@ -215,7 +219,11 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
     assert monitor._find_active_event_id("memory_usage") is None
 
     notifications: list[str] = []
-    monkeypatch.setattr(monitor, "_send_notification", notifications.append)
+    monkeypatch.setattr(
+        SystemMonitorPlugin,
+        "_send_notification",
+        lambda self, text: notifications.append(text),
+    )
     monitor._create_or_notify_event(
         "cpu_usage", {"usage": 90.0}, lambda event_id: f"event:{event_id}"
     )
@@ -264,9 +272,9 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
     )
     resolved: list[tuple[str, float]] = []
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_send_resolution_notification",
-        lambda event_type, duration: resolved.append((event_type, duration)),
+        lambda self, event_type, duration: resolved.append((event_type, duration)),
     )
     monitor._resolve_event_and_notify("cpu_usage", "CPU usage")
     assert resolved == [("CPU usage", 12.5)]
@@ -283,16 +291,16 @@ def test_alert_checks_route_to_create_or_resolve(
     created: list[tuple[str, dict[str, Any]]] = []
     resolved: list[tuple[str, str]] = []
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_create_or_notify_event",
-        lambda event_type, details, message_builder: created.append(
+        lambda self, event_type, details, message_builder: created.append(
             (event_type, details)
         ),
     )
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_resolve_event_and_notify",
-        lambda event_type, label: resolved.append((event_type, label)),
+        lambda self, event_type, label: resolved.append((event_type, label)),
     )
 
     monitor._check_cpu_alert(71.0)
@@ -341,11 +349,11 @@ def test_process_docker_metrics_and_detect_changes(
     detected: list[
         tuple[dict[str, int], list[dict[str, Any]], list[dict[str, Any]]]
     ] = []
-    original_detect_changes = monitor._detect_docker_changes
+    original_detect_changes = SystemMonitorPlugin._detect_docker_changes
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_detect_docker_changes",
-        lambda counts, containers, images: detected.append(
+        lambda self, counts, containers, images: detected.append(
             (counts, containers, images)
         ),
     )
@@ -356,15 +364,25 @@ def test_process_docker_metrics_and_detect_changes(
     assert metrics["docker_containers_count"] == 2
     assert metrics["docker_images_count"] == 3
     assert detected
-    monkeypatch.setattr(monitor, "_detect_docker_changes", original_detect_changes)
+    monkeypatch.setattr(
+        SystemMonitorPlugin,
+        "_detect_docker_changes",
+        original_detect_changes,
+    )
 
     monitor.state.init_mode = True
     container_notifs: list[dict[str, Any]] = []
     image_notifs: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        monitor, "_send_container_notification", container_notifs.append
+        SystemMonitorPlugin,
+        "_send_container_notification",
+        lambda self, details: container_notifs.append(details),
     )
-    monkeypatch.setattr(monitor, "_send_image_notification", image_notifs.append)
+    monkeypatch.setattr(
+        SystemMonitorPlugin,
+        "_send_image_notification",
+        lambda self, details: image_notifs.append(details),
+    )
     monitor._detect_docker_changes(
         {"containers_count": 1, "images_count": 1},
         [{"id": "c1", "name": "api"}],
@@ -426,9 +444,9 @@ def test_record_metrics_writes_sanitized_data(monkeypatch: pytest.MonkeyPatch) -
 def test_alert_formatting_and_notifications(monkeypatch: pytest.MonkeyPatch) -> None:
     monitor, _bot = _build_monitor()
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_get_top_processes",
-        lambda: [
+        lambda self: [
             {"pid": 7, "name": "python", "cpu_percent": 55.0, "memory_percent": 12.0}
         ],
     )
@@ -448,7 +466,11 @@ def test_alert_formatting_and_notifications(monkeypatch: pytest.MonkeyPatch) -> 
     assert process_info.splitlines()[0].startswith("  • b")
 
     messages: list[str] = []
-    monkeypatch.setattr(monitor, "_send_notification", messages.append)
+    monkeypatch.setattr(
+        SystemMonitorPlugin,
+        "_send_notification",
+        lambda self, text: messages.append(text),
+    )
     monkeypatch.setattr(
         monitor_methods_module, "set_naturalsize", lambda value: "2 MiB"
     )
@@ -518,31 +540,36 @@ def test_monitor_cycle_and_stop_monitoring(monkeypatch: pytest.MonkeyPatch) -> N
     monitor.check_interval = 4
     called: list[str] = []
     monkeypatch.setattr(
-        monitor, "_adjust_check_interval", lambda: called.append("adjust")
+        SystemMonitorPlugin,
+        "_adjust_check_interval",
+        lambda self: called.append("adjust"),
     )
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_process_docker_metrics",
-        lambda metrics: called.append("docker"),
+        lambda self, metrics: called.append("docker"),
     )
     monkeypatch.setattr(
-        monitor, "_record_metrics", lambda metrics: called.append("record")
+        SystemMonitorPlugin,
+        "_record_metrics",
+        lambda self, metrics: called.append("record"),
     )
 
-    def _process_alerts(metrics: dict[str, Any]) -> None:
+    def _process_alerts(self: SystemMonitorPlugin, metrics: dict[str, Any]) -> None:
+        del self, metrics
         called.append("alerts")
         monitor.state.is_active = False
 
-    monkeypatch.setattr(monitor, "_process_alerts", _process_alerts)
+    monkeypatch.setattr(SystemMonitorPlugin, "_process_alerts", _process_alerts)
     monkeypatch.setattr(monitor_methods_module.time, "sleep", lambda seconds: None)
     monitor._monitor_system()
     assert called == ["adjust", "docker", "record", "alerts"]
 
     monitor.state.is_active = True
     monkeypatch.setattr(
-        monitor,
+        SystemMonitorPlugin,
         "_adjust_check_interval",
-        lambda: (_ for _ in ()).throw(RuntimeError("cycle-fail")),
+        lambda self: (_ for _ in ()).throw(RuntimeError("cycle-fail")),
     )
     monkeypatch.setattr(
         monitor_methods_module.time,
@@ -601,7 +628,9 @@ def test_start_monitoring_happy_path_and_failure(
             self.started = True
 
     monkeypatch.setattr(
-        monitor, "_spawn_monitor_thread", lambda: cast(Any, _ThreadStub())
+        SystemMonitorPlugin,
+        "_spawn_monitor_thread",
+        lambda self: cast(Any, _ThreadStub()),
     )
     monkeypatch.setattr(
         monitor_methods_module.threading,
@@ -633,9 +662,9 @@ def test_start_monitoring_happy_path_and_failure(
     failing_monitor.monitor_settings.retry_attempts = [2]
     failing_monitor.monitor_settings.retry_interval = [1]
     monkeypatch.setattr(
-        failing_monitor,
+        SystemMonitorPlugin,
         "_spawn_monitor_thread",
-        lambda: (_ for _ in ()).throw(RuntimeError("spawn fail")),
+        lambda self: (_ for _ in ()).throw(RuntimeError("spawn fail")),
     )
     monkeypatch.setattr(monitor_methods_module.time, "sleep", lambda seconds: None)
     with pytest.raises(

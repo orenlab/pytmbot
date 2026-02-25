@@ -220,17 +220,16 @@ class MemoryStatsProvider:
 
             usage, limit = None, None
 
-            # Check cgroups v2
-            if Path(cgroup_v2_paths[0]).exists():
-                try:
-                    usage = int(Path(cgroup_v2_paths[0]).read_text().strip())
-                    limit_str = Path(cgroup_v2_paths[1]).read_text().strip()
-                    limit = int(limit_str) if limit_str != "max" else None
-                except (FileNotFoundError, ValueError, PermissionError):
-                    usage, limit = None, None
+            # Check cgroups v2 (EAFP: no redundant stat() before read)
+            try:
+                usage = int(Path(cgroup_v2_paths[0]).read_text().strip())
+                limit_str = Path(cgroup_v2_paths[1]).read_text().strip()
+                limit = int(limit_str) if limit_str != "max" else None
+            except (FileNotFoundError, ValueError, PermissionError):
+                usage, limit = None, None
 
             # Check cgroups v1 if v2 failed
-            if usage is None and Path(cgroup_v1_paths[0]).exists():
+            if usage is None:
                 try:
                     usage = int(Path(cgroup_v1_paths[0]).read_text().strip())
                     limit = int(Path(cgroup_v1_paths[1]).read_text().strip())

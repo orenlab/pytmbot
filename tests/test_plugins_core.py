@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -8,6 +9,7 @@ from uuid import uuid4
 import pytest
 import yaml
 
+import pytmbot.plugins.plugins_core as plugins_core_module
 from pytmbot.plugins.models import PluginCoreModel
 from pytmbot.plugins.plugins_core import PluginCore
 
@@ -15,6 +17,13 @@ from pytmbot.plugins.plugins_core import PluginCore
 class _PluginCfg(PluginCoreModel):
     enabled: bool
     retries: int
+
+
+@pytest.fixture(autouse=True)
+def _clear_plugin_config_cache() -> Generator[None, None, None]:
+    plugins_core_module._plugin_config_cache.clear()
+    yield
+    plugins_core_module._plugin_config_cache.clear()
 
 
 def test_get_config_path_resolves_existing_file_and_fails_for_missing() -> None:
@@ -42,7 +51,9 @@ def test_load_plugin_external_config_and_yaml_failures(
     config_file = tmp_path / "plugin.yml"
     config_file.write_text("enabled: true\nretries: 3\n", encoding="utf-8")
     monkeypatch.setattr(
-        core, "_PluginCore__get_config_path", lambda config_name: str(config_file)
+        PluginCore,
+        "_PluginCore__get_config_path",
+        lambda self, config_name: str(config_file),
     )
 
     loaded = cast(
@@ -54,14 +65,19 @@ def test_load_plugin_external_config_and_yaml_failures(
     invalid_config = tmp_path / "invalid.yml"
     invalid_config.write_text("enabled: [\n", encoding="utf-8")
     monkeypatch.setattr(
-        core, "_PluginCore__get_config_path", lambda config_name: str(invalid_config)
+        PluginCore,
+        "_PluginCore__get_config_path",
+        lambda self, config_name: str(invalid_config),
     )
     with pytest.raises(yaml.YAMLError):
         core.load_plugin_external_config("invalid.yml", _PluginCfg)
 
     monkeypatch.setattr(
-        core, "_PluginCore__get_config_path", lambda config_name: str(config_file)
+        PluginCore,
+        "_PluginCore__get_config_path",
+        lambda self, config_name: str(config_file),
     )
+    plugins_core_module._plugin_config_cache.pop("plugin.yml", None)
     monkeypatch.setattr(
         yaml,
         "safe_load",

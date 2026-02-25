@@ -203,7 +203,6 @@ class RateLimit(BaseComponent):
                 json.dump(payload, state_stream)
             os.chmod(tmp_state_path, 0o600)
             os.replace(tmp_state_path, self._state_file)
-            os.chmod(self._state_file, 0o600)
         except Exception as error:
             if tmp_state_path and os.path.exists(tmp_state_path):
                 try:

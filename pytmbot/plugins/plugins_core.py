@@ -21,6 +21,10 @@ from pytmbot.plugins.models import PluginCoreModel
 
 logger = logs.Logger()
 
+# Module-level cache for YAML plugin configs: config files don't change at runtime,
+# repeated open()+yaml.safe_load() on each plugin command invocation is unnecessary I/O.
+_plugin_config_cache: dict[str, Any] = {}
+
 
 class PluginCore:
     __slots__ = (
@@ -74,11 +78,15 @@ class PluginCore:
         Returns:
             PluginCoreModel: An instance of the config_model class with the configuration data.
         """
+        if config_name in _plugin_config_cache:
+            return config_model(**_plugin_config_cache[config_name])
+
         config_path = self.__get_config_path(config_name)
         try:
             with open(config_path) as f:
                 config_data = yaml.safe_load(f)
 
+            _plugin_config_cache[config_name] = config_data
             self.logger.debug("bot.plugins.plugins_core.load.plugin.debug")
 
             return config_model(**config_data)

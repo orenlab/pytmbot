@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Generator
 from typing import cast
 
 import pyotp
@@ -9,6 +10,15 @@ import pytest
 import pytmbot.utils.totp as totp_module
 from pytmbot.exceptions import QRCodeError, TOTPError
 from pytmbot.utils.totp import TwoFactorAuthenticator
+
+
+@pytest.fixture(autouse=True)
+def _reset_totp_replay_registry() -> Generator[None, None, None]:
+    with TwoFactorAuthenticator._used_totp_codes_lock:
+        TwoFactorAuthenticator._used_totp_codes.clear()
+    yield
+    with TwoFactorAuthenticator._used_totp_codes_lock:
+        TwoFactorAuthenticator._used_totp_codes.clear()
 
 
 def test_totp_authenticator_rejects_invalid_inputs() -> None:
@@ -115,8 +125,7 @@ def test_totp_verify_and_backup_codes_error_paths(
     assert auth.verify_totp_code(cast(str, 123456)) is False
 
     class _BrokenTOTP:
-        def verify(self, _code: str, valid_window: int) -> bool:
-            del valid_window
+        def verify(self, _code: str, *_args: object, **_kwargs: object) -> bool:
             raise RuntimeError("verify failed")
 
     monkeypatch.setattr(

@@ -119,7 +119,7 @@ def test_session_limit_evicts_non_authenticated_first(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manager = _create_manager(monkeypatch)
-    monkeypatch.setattr(manager, "_MAX_SESSIONS", 2, raising=False)
+    monkeypatch.setattr(session_manager_module.SessionManager, "_MAX_SESSIONS", 2)
 
     manager.set_auth_state(1, manager.state_fabric.AUTHENTICATED)
     manager.set_login_time(1)

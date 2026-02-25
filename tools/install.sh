@@ -18,7 +18,6 @@ readonly YELLOW='\033[1;33m'
 readonly CYAN='\033[1;36m'
 readonly WHITE='\033[1;37m'
 readonly BLUE='\033[0;34m'
-readonly PURPLE='\033[0;35m'
 readonly GRAY='\033[0;37m'
 readonly BOLD='\033[1m'
 readonly NC='\033[0m' # No Color
@@ -42,6 +41,15 @@ readonly SERVICE_NAME="pytmbot"
 readonly INSTALLER_VERSION="0.3.0-dev"
 readonly INSTALLER_DOCS_URL="https://orenlab.github.io/pytmbot/docs/script_install.html"
 readonly INSTALLER_SCRIPT_URL="https://raw.githubusercontent.com/orenlab/pytmbot/refs/heads/master/tools/install.sh"
+readonly SERVICE_FILE_PATH="${PYTMBOT_SYSTEMD_SERVICE_FILE:-/etc/systemd/system/${SERVICE_NAME}.service}"
+
+# Runtime flags (can be overridden via CLI args and/or env variables)
+RUNTIME_NON_INTERACTIVE="${PYTMBOT_NONINTERACTIVE:-0}"
+RUNTIME_ASSUME_YES="${PYTMBOT_ASSUME_YES:-0}"
+RUNTIME_TEST_MODE="${PYTMBOT_TEST_MODE:-0}"
+RUNTIME_CONFIRM_INTEGRITY="${PYTMBOT_CONFIRM_INTEGRITY:-}"
+RUNTIME_INSTALL_ACTION="${PYTMBOT_INSTALL_ACTION:-menu}"
+RUNTIME_DOCKER_INSTALL_METHOD="${PYTMBOT_DOCKER_INSTALL_METHOD:-}"
 
 # Cleanup function for sensitive data
 cleanup() {
@@ -62,10 +70,6 @@ cleanup_on_interrupt() {
   cleanup
   exit 130  # Standard exit code for Ctrl+C
 }
-
-# Set up signal handlers
-trap cleanup EXIT
-trap cleanup_on_interrupt INT TERM
 
 # Separate UI output and logging
 print_message() {
@@ -155,6 +159,218 @@ show_spinner() {
   printf "\r\033[K"
 }
 
+is_truthy() {
+  local raw_value="${1:-}"
+  local normalized
+  normalized=$(printf "%s" "$raw_value" | tr '[:upper:]' '[:lower:]')
+  case "$normalized" in
+    1|y|yes|true|on)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+to_lower() {
+  printf "%s" "${1:-}" | tr '[:upper:]' '[:lower:]'
+}
+
+to_upper() {
+  printf "%s" "${1:-}" | tr '[:lower:]' '[:upper:]'
+}
+
+is_non_interactive() {
+  is_truthy "$RUNTIME_NON_INTERACTIVE"
+}
+
+is_assume_yes() {
+  is_truthy "$RUNTIME_ASSUME_YES"
+}
+
+is_test_mode() {
+  is_truthy "$RUNTIME_TEST_MODE"
+}
+
+setup_signal_handlers() {
+  trap cleanup EXIT
+  trap cleanup_on_interrupt INT TERM
+}
+
+show_usage() {
+  cat << 'EOF'
+Usage: tools/install.sh [OPTIONS]
+
+Options:
+  --non-interactive            Run without prompts (requires env values for required fields)
+  --yes                        Auto-confirm yes/no prompts in non-interactive mode
+  --test-mode                  Skip destructive system actions where possible
+  --confirm-integrity YES      Confirm integrity check without prompt
+  --action ACTION              menu|docker|local|update|uninstall
+  --docker-method METHOD       prebuilt|source (used with --action docker)
+  --help                       Show this help and exit
+
+Environment overrides:
+  PYTMBOT_NONINTERACTIVE=1
+  PYTMBOT_ASSUME_YES=1
+  PYTMBOT_TEST_MODE=1
+  PYTMBOT_CONFIRM_INTEGRITY=YES
+  PYTMBOT_INSTALL_ACTION=menu|docker|local|update|uninstall
+  PYTMBOT_DOCKER_INSTALL_METHOD=prebuilt|source
+  PYTMBOT_PROD_TOKEN=...
+  PYTMBOT_GLOBAL_CHAT_ID=...
+  PYTMBOT_ALLOWED_USER_IDS=1,2,...
+  PYTMBOT_ALLOWED_ADMINS_IDS=1,2,...
+  PYTMBOT_PLUGIN_CHOICE=1|2|3|none
+  PYTMBOT_LOG_LEVEL=INFO|ERROR|DEBUG
+EOF
+}
+
+parse_cli_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --non-interactive)
+        RUNTIME_NON_INTERACTIVE=1
+        shift
+        ;;
+      --yes)
+        RUNTIME_ASSUME_YES=1
+        shift
+        ;;
+      --test-mode)
+        RUNTIME_TEST_MODE=1
+        shift
+        ;;
+      --confirm-integrity)
+        if [[ $# -lt 2 ]]; then
+          print_error "--confirm-integrity requires a value (YES)"
+          exit 2
+        fi
+        RUNTIME_CONFIRM_INTEGRITY="$2"
+        shift 2
+        ;;
+      --action)
+        if [[ $# -lt 2 ]]; then
+          print_error "--action requires one of: menu|docker|local|update|uninstall"
+          exit 2
+        fi
+        RUNTIME_INSTALL_ACTION="$2"
+        shift 2
+        ;;
+      --docker-method)
+        if [[ $# -lt 2 ]]; then
+          print_error "--docker-method requires one of: prebuilt|source"
+          exit 2
+        fi
+        RUNTIME_DOCKER_INSTALL_METHOD="$2"
+        shift 2
+        ;;
+      --help|-h)
+        show_usage
+        exit 0
+        ;;
+      *)
+        print_error "Unknown option: $1"
+        show_usage
+        exit 2
+        ;;
+    esac
+  done
+}
+
+confirm_prompt() {
+  local prompt="$1"
+  local default_choice="${2:-N}" # Y or N
+  local response=""
+
+  if is_non_interactive; then
+    if is_assume_yes; then
+      return 0
+    fi
+    [[ "$(to_upper "$default_choice")" == "Y" ]]
+    return $?
+  fi
+
+  read -r -p "$prompt" response
+  if [[ -z "$response" ]]; then
+    response="$default_choice"
+  fi
+
+  [[ "$(to_lower "$response")" =~ ^y(es)?$ ]]
+}
+
+read_prompt_value() {
+  local output_var="$1"
+  local prompt="$2"
+  local env_name="$3"
+  local default_value="${4:-}"
+  local required="${5:-0}"
+  local secret="${6:-0}"
+  local value="${!env_name:-}"
+
+  if [[ -z "$value" ]]; then
+    if is_non_interactive; then
+      value="$default_value"
+      if [[ "$required" == "1" && -z "$value" ]]; then
+        print_error "Missing required value: $env_name"
+        return 1
+      fi
+    else
+      if [[ "$secret" == "1" ]]; then
+        read -r -s -p "$prompt" value
+        echo
+      else
+        read -r -p "$prompt" value
+      fi
+      if [[ -z "$value" && -n "$default_value" ]]; then
+        value="$default_value"
+      fi
+    fi
+  fi
+
+  printf -v "$output_var" "%s" "$value"
+  return 0
+}
+
+systemctl_safe() {
+  if is_test_mode; then
+    log_to_file "TEST" "Skipping systemctl command: systemctl $*"
+    return 0
+  fi
+  systemctl "$@"
+}
+
+run_docker_safe() {
+  if is_test_mode; then
+    log_to_file "TEST" "Skipping docker command: docker $*"
+    return 0
+  fi
+  docker "$@"
+}
+
+run_docker_compose_safe() {
+  if is_test_mode; then
+    log_to_file "TEST" "Skipping docker compose command: docker compose $*"
+    return 0
+  fi
+  docker compose "$@"
+}
+
+run_package_manager_safe() {
+  if is_test_mode; then
+    log_to_file "TEST" "Skipping package manager command: $*"
+    return 0
+  fi
+  "$@"
+}
+
+run_user_mgmt_safe() {
+  if is_test_mode; then
+    log_to_file "TEST" "Skipping user/group management command: $*"
+    return 0
+  fi
+  "$@"
+}
+
 # Validation functions with better error messages
 validate_telegram_token() {
   local token="$1"
@@ -228,8 +444,7 @@ check_system_requirements() {
 
   if [ "$total_ram" -lt "$min_ram_mb" ]; then
     print_warn "Low RAM detected: ${total_ram}MB (recommended: ${min_ram_mb}MB+)"
-    read -r -p "Continue anyway? [y/N]: " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    if ! confirm_prompt "Continue anyway? [y/N]: " "N"; then
       exit 1
     fi
   fi
@@ -240,8 +455,7 @@ check_system_requirements() {
 
   if [ "$available_disk" -lt "$min_disk_mb" ]; then
     print_warn "Low disk space: ${available_disk}MB available (recommended: ${min_disk_mb}MB+)"
-    read -r -p "Continue anyway? [y/N]: " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    if ! confirm_prompt "Continue anyway? [y/N]: " "N"; then
       exit 1
     fi
   fi
@@ -468,7 +682,16 @@ verify_installer_integrity_or_exit() {
   print_message "$GRAY" "  2) Compare the docs-comparison hash symbol-by-symbol"
   print_message "$GRAY" "  3) Continue only if values are identical"
   echo ""
-  read -r -p "Type YES if the hash matches documentation: " user_confirmation
+  if [[ "${RUNTIME_CONFIRM_INTEGRITY}" == "YES" ]]; then
+    user_confirmation="YES"
+  elif is_non_interactive; then
+    print_error "Non-interactive mode requires --confirm-integrity YES or PYTMBOT_CONFIRM_INTEGRITY=YES"
+    log_to_file "ERROR" "Installer hash verification missing in non-interactive mode"
+    exit 1
+  else
+    read -r -p "Type YES if the hash matches documentation: " user_confirmation
+  fi
+
   if [ "$user_confirmation" != "YES" ]; then
     print_error "Installer verification failed or cancelled by user."
     log_to_file "ERROR" "Installer hash verification not confirmed by user"
@@ -527,23 +750,27 @@ get_os_id() {
 
 # Install Docker Compose plugin from trusted package sources.
 install_docker_compose_plugin_securely() {
+  if is_test_mode; then
+    print_warn "Test mode enabled: skipping Docker Compose plugin installation"
+    return 0
+  fi
+
   local os_id
   os_id=$(get_os_id)
 
   case "$os_id" in
     ubuntu|debian)
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update -y 2>/dev/null || return 1
-      apt-get install -y docker-compose-plugin 2>/dev/null || return 1
+      DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null || return 1
+      DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y docker-compose-plugin 2>/dev/null || return 1
       ;;
     centos|rhel)
-      yum install -y docker-compose-plugin 2>/dev/null || return 1
+      run_package_manager_safe yum install -y docker-compose-plugin 2>/dev/null || return 1
       ;;
     fedora)
-      dnf install -y docker-compose-plugin 2>/dev/null || return 1
+      run_package_manager_safe dnf install -y docker-compose-plugin 2>/dev/null || return 1
       ;;
     arch)
-      pacman -S --noconfirm docker-compose 2>/dev/null || return 1
+      run_package_manager_safe pacman -S --noconfirm docker-compose 2>/dev/null || return 1
       ;;
     *)
       return 1
@@ -563,12 +790,18 @@ create_pytmbot_user() {
   show_banner "Creating User Account"
   print_info "Ensuring user 'pytmbot' exists and is in the 'docker' group..."
 
+  if is_test_mode; then
+    mkdir -p "$INSTALL_DIR" 2>/dev/null || true
+    print_warn "Test mode enabled: skipping user/group management"
+    return 0
+  fi
+
   # Create user if it doesn't exist (safe check)
   if ! id "pytmbot" >/dev/null 2>&1; then
     print_info "Creating system user 'pytmbot'..."
 
     {
-      useradd --system --no-create-home --shell /usr/sbin/nologin --comment "pyTMBot Service User" pytmbot 2>/dev/null || true
+      run_user_mgmt_safe useradd --system --no-create-home --shell /usr/sbin/nologin --comment "pyTMBot Service User" pytmbot 2>/dev/null || true
       mkdir -p "$INSTALL_DIR" 2>/dev/null || true
       chown pytmbot:pytmbot "$INSTALL_DIR" 2>/dev/null || true
       chmod 750 "$INSTALL_DIR" 2>/dev/null || true
@@ -592,8 +825,7 @@ create_pytmbot_user() {
   # Check Docker installation
   if ! command_exists docker; then
     echo ""
-    read -r -p "${RED}Docker is not installed. Would you like to install Docker? [y/N]: ${NC}" install_docker
-    if [[ "${install_docker,,}" =~ ^[y]$ ]]; then
+    if confirm_prompt "${RED}Docker is not installed. Would you like to install Docker? [y/N]: ${NC}" "N"; then
       install_docker_securely
     else
       print_error "Docker is required for pyTMBot. Aborting installation."
@@ -606,7 +838,7 @@ create_pytmbot_user() {
   # Add user to docker group (safe check)
   if ! groups pytmbot 2>/dev/null | grep -q '\bdocker\b'; then
     print_info "Adding user 'pytmbot' to 'docker' group..."
-    if usermod -aG docker pytmbot 2>/dev/null; then
+    if run_user_mgmt_safe usermod -aG docker pytmbot 2>/dev/null; then
       print_info "User 'pytmbot' added to 'docker' group successfully"
     else
       print_error "Failed to add user to docker group"
@@ -621,6 +853,11 @@ create_pytmbot_user() {
 install_docker_securely() {
   show_banner "Docker Installation"
 
+  if is_test_mode; then
+    print_warn "Test mode enabled: skipping Docker installation"
+    return 0
+  fi
+
   local os_id
   os_id=$(get_os_id)
   local allow_unverified_script="${PYTMBOT_ALLOW_UNVERIFIED_DOCKER_SCRIPT:-false}"
@@ -630,19 +867,18 @@ install_docker_securely() {
   {
     case "$os_id" in
       ubuntu|debian)
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -y 2>/dev/null || exit 1
-        apt-get install -y docker.io 2>/dev/null || exit 1
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null || exit 1
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y docker.io 2>/dev/null || exit 1
         ;;
       centos|rhel)
-        yum install -y docker 2>/dev/null || exit 1
+        run_package_manager_safe yum install -y docker 2>/dev/null || exit 1
         ;;
       fedora)
-        dnf install -y docker 2>/dev/null || exit 1
+        run_package_manager_safe dnf install -y docker 2>/dev/null || exit 1
         ;;
       arch)
-        pacman -Syu --noconfirm 2>/dev/null || exit 1
-        pacman -S --noconfirm docker 2>/dev/null || exit 1
+        run_package_manager_safe pacman -Syu --noconfirm 2>/dev/null || exit 1
+        run_package_manager_safe pacman -S --noconfirm docker 2>/dev/null || exit 1
         ;;
       *)
         exit 2
@@ -657,20 +893,20 @@ install_docker_securely() {
 
   # Try to start Docker service if systemd is available.
   if command_exists systemctl; then
-    systemctl enable docker 2>/dev/null || true
-    systemctl start docker 2>/dev/null || true
+    systemctl_safe enable docker 2>/dev/null || true
+    systemctl_safe start docker 2>/dev/null || true
   fi
 
   # Verify package-based installation.
   if [ $pkg_status -eq 0 ] && command_exists docker; then
-    if ! command_exists systemctl || systemctl is-active --quiet docker 2>/dev/null; then
+    if ! command_exists systemctl || systemctl_safe is-active --quiet docker 2>/dev/null; then
       print_info "Docker installed and running successfully"
       return 0
     fi
   fi
 
   # Fallback path for distributions where package installation is unavailable.
-  if [[ "${allow_unverified_script,,}" != "true" ]]; then
+  if [[ "$(to_lower "$allow_unverified_script")" != "true" ]]; then
     print_error "Docker package installation failed or unsupported for OS: ${os_id}"
     print_info "Fallback to get.docker.com is disabled by default for supply-chain safety"
     print_info "If you accept the risk, run with: PYTMBOT_ALLOW_UNVERIFIED_DOCKER_SCRIPT=true"
@@ -708,8 +944,7 @@ install_docker_securely() {
   script_size=$(stat -c%s "$docker_script" 2>/dev/null || stat -f%z "$docker_script" 2>/dev/null || echo "unknown")
   print_warn "Downloaded script size: ${script_size} bytes (unverified)"
 
-  read -r -p "Continue with unverified Docker script execution? [y/N]: " confirm
-  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  if ! confirm_prompt "Continue with unverified Docker script execution? [y/N]: " "N"; then
     rm -f "$docker_script" 2>/dev/null || true
     print_error "Docker installation cancelled by user"
     exit 1
@@ -718,8 +953,8 @@ install_docker_securely() {
   {
     bash "$docker_script" 2>/dev/null || exit 1
     if command_exists systemctl; then
-      systemctl enable docker 2>/dev/null || true
-      systemctl start docker 2>/dev/null || true
+      systemctl_safe enable docker 2>/dev/null || true
+      systemctl_safe start docker 2>/dev/null || true
     fi
   } >> "$LOG_FILE" 2>&1 &
 
@@ -731,7 +966,7 @@ install_docker_securely() {
   rm -f "$docker_script" 2>/dev/null || true
 
   if [ $docker_status -eq 0 ] && command_exists docker; then
-    if ! command_exists systemctl || systemctl is-active --quiet docker 2>/dev/null; then
+    if ! command_exists systemctl || systemctl_safe is-active --quiet docker 2>/dev/null; then
       print_info "Docker installed and running successfully"
       return 0
     fi
@@ -813,11 +1048,16 @@ configure_bot() {
   # Production token (required)
   local prod_token=""
   while true; do
-    read -r -s -p "🤖 Enter production bot token [REQUIRED]: " prod_token
-    echo
+    if ! read_prompt_value prod_token "🤖 Enter production bot token [REQUIRED]: " "PYTMBOT_PROD_TOKEN" "" 1 1; then
+      print_error "Production bot token is required"
+      exit 1
+    fi
 
     if [[ -z "$prod_token" ]]; then
       print_error "Production bot token is required"
+      if is_non_interactive; then
+        exit 1
+      fi
       continue
     fi
 
@@ -827,13 +1067,15 @@ configure_bot() {
     else
       print_error "Invalid token format. Expected: 1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ"
       echo ""
+      if is_non_interactive; then
+        exit 1
+      fi
     fi
   done
 
   # Development token (optional)
   local dev_token=""
-  read -r -s -p "🔧 Enter development bot token [OPTIONAL - press Enter to skip]: " dev_token
-  echo
+  read_prompt_value dev_token "🔧 Enter development bot token [OPTIONAL - press Enter to skip]: " "PYTMBOT_DEV_TOKEN" "" 0 1 || true
 
   if [[ -n "$dev_token" ]]; then
     if validate_telegram_token "$dev_token"; then
@@ -858,12 +1100,18 @@ configure_bot() {
   # Chat ID for notifications
   local global_chat_id=""
   while true; do
-    read -r -p "💬 Enter chat ID for notifications [REQUIRED]: " global_chat_id
+    if ! read_prompt_value global_chat_id "💬 Enter chat ID for notifications [REQUIRED]: " "PYTMBOT_GLOBAL_CHAT_ID" "" 1 0; then
+      print_error "Chat ID is required"
+      exit 1
+    fi
 
     if [[ -z "$global_chat_id" ]]; then
       print_error "Chat ID is required"
       print_message "$GRAY" "   For private chat: use your user ID (positive number)"
       print_message "$GRAY" "   For group chat: use group ID (negative number, starts with -)"
+      if is_non_interactive; then
+        exit 1
+      fi
       continue
     fi
 
@@ -878,17 +1126,26 @@ configure_bot() {
       print_error "Invalid chat ID format. Should be a number, optionally starting with '-'"
       print_message "$GRAY" "   Examples: 123456789 (private) or -1001234567890 (group)"
       echo ""
+      if is_non_interactive; then
+        exit 1
+      fi
     fi
   done
 
   # Allowed user IDs
   local allowed_user_ids=""
   while true; do
-    read -r -p "👤 Enter allowed user IDs [REQUIRED, comma-separated]: " allowed_user_ids
+    if ! read_prompt_value allowed_user_ids "👤 Enter allowed user IDs [REQUIRED, comma-separated]: " "PYTMBOT_ALLOWED_USER_IDS" "" 1 0; then
+      print_error "At least one user ID is required"
+      exit 1
+    fi
 
     if [[ -z "$allowed_user_ids" ]]; then
       print_error "At least one user ID is required"
       print_message "$GRAY" "   Example: 123456789,987654321"
+      if is_non_interactive; then
+        exit 1
+      fi
       continue
     fi
 
@@ -901,17 +1158,26 @@ configure_bot() {
       print_error "Invalid user ID format. Should be comma-separated numbers"
       print_message "$GRAY" "   Example: 123456789,987654321"
       echo ""
+      if is_non_interactive; then
+        exit 1
+      fi
     fi
   done
 
   # Admin IDs
   local allowed_admins_ids=""
   while true; do
-    read -r -p "👑 Enter admin user IDs [REQUIRED, comma-separated]: " allowed_admins_ids
+    if ! read_prompt_value allowed_admins_ids "👑 Enter admin user IDs [REQUIRED, comma-separated]: " "PYTMBOT_ALLOWED_ADMINS_IDS" "" 1 0; then
+      print_error "At least one admin ID is required"
+      exit 1
+    fi
 
     if [[ -z "$allowed_admins_ids" ]]; then
       print_error "At least one admin ID is required"
       print_message "$GRAY" "   Admins have access to sensitive commands"
+      if is_non_interactive; then
+        exit 1
+      fi
       continue
     fi
 
@@ -923,6 +1189,9 @@ configure_bot() {
     else
       print_error "Invalid admin ID format. Should be comma-separated numbers"
       echo ""
+      if is_non_interactive; then
+        exit 1
+      fi
     fi
   done
 
@@ -935,7 +1204,7 @@ configure_bot() {
   echo ""
 
   local docker_host=""
-  read -r -p "🔌 Docker socket path [press Enter for default]: " docker_host
+  read_prompt_value docker_host "🔌 Docker socket path [press Enter for default]: " "PYTMBOT_DOCKER_HOST" "unix:///var/run/docker.sock" 0 0 || true
   docker_host="${docker_host:-unix:///var/run/docker.sock}"
   print_info "Using Docker socket: $docker_host"
 
@@ -954,7 +1223,7 @@ configure_bot() {
   local cert=""
   local cert_key=""
 
-  read -r -p "🌍 Enter your domain for webhooks [OPTIONAL - press Enter to skip]: " webhook_url
+  read_prompt_value webhook_url "🌍 Enter your domain for webhooks [OPTIONAL - press Enter to skip]: " "PYTMBOT_WEBHOOK_URL" "" 0 0 || true
 
   if [[ -n "$webhook_url" ]]; then
     # If user provided webhook URL, ask for related settings
@@ -966,7 +1235,7 @@ configure_bot() {
       print_info "Webhook URL accepted: $webhook_url"
 
       # Webhook port
-      read -r -p "🔌 Webhook port [press Enter for 8443]: " webhook_port
+      read_prompt_value webhook_port "🔌 Webhook port [press Enter for 8443]: " "PYTMBOT_WEBHOOK_PORT" "8443" 0 0 || true
       webhook_port="${webhook_port:-8443}"
       if validate_port "$webhook_port"; then
         print_info "Webhook port: $webhook_port"
@@ -976,7 +1245,7 @@ configure_bot() {
       fi
 
       # Local port
-      read -r -p "🏠 Local port [press Enter for 5001]: " local_port
+      read_prompt_value local_port "🏠 Local port [press Enter for 5001]: " "PYTMBOT_LOCAL_PORT" "5001" 0 0 || true
       local_port="${local_port:-5001}"
       if validate_port "$local_port"; then
         print_info "Local port: $local_port"
@@ -986,8 +1255,8 @@ configure_bot() {
       fi
 
       # SSL certificates (optional for webhooks)
-      read -r -p "🔐 SSL certificate path [OPTIONAL]: " cert
-      read -r -p "🔑 SSL certificate key path [OPTIONAL]: " cert_key
+      read_prompt_value cert "🔐 SSL certificate path [OPTIONAL]: " "PYTMBOT_CERT_PATH" "" 0 0 || true
+      read_prompt_value cert_key "🔑 SSL certificate key path [OPTIONAL]: " "PYTMBOT_CERT_KEY_PATH" "" 0 0 || true
 
       if [[ -n "$cert" && -n "$cert_key" ]]; then
         print_info "SSL certificates configured"
@@ -1018,23 +1287,23 @@ configure_bot() {
   local influxdb_bucket="pytmbot"
   local influxdb_debug="false"
 
-  read -r -p "📈 InfluxDB URL [OPTIONAL - press Enter to skip]: " influxdb_url
+  read_prompt_value influxdb_url "📈 InfluxDB URL [OPTIONAL - press Enter to skip]: " "PYTMBOT_INFLUXDB_URL" "" 0 0 || true
 
   if [[ -n "$influxdb_url" ]]; then
     if validate_url "$influxdb_url"; then
       print_info "InfluxDB URL: $influxdb_url"
 
-      read -r -s -p "🔑 InfluxDB token: " influxdb_token
-      echo
+      read_prompt_value influxdb_token "🔑 InfluxDB token: " "PYTMBOT_INFLUXDB_TOKEN" "" 0 1 || true
 
-      read -r -p "🏢 InfluxDB organization [press Enter for 'pytmbot_monitor']: " influxdb_org
+      read_prompt_value influxdb_org "🏢 InfluxDB organization [press Enter for 'pytmbot_monitor']: " "PYTMBOT_INFLUXDB_ORG" "pytmbot_monitor" 0 0 || true
       influxdb_org="${influxdb_org:-pytmbot_monitor}"
 
-      read -r -p "🪣 InfluxDB bucket [press Enter for 'pytmbot']: " influxdb_bucket
+      read_prompt_value influxdb_bucket "🪣 InfluxDB bucket [press Enter for 'pytmbot']: " "PYTMBOT_INFLUXDB_BUCKET" "pytmbot" 0 0 || true
       influxdb_bucket="${influxdb_bucket:-pytmbot}"
 
-      read -r -p "🐛 Enable InfluxDB debug mode? [y/N]: " debug_choice
-      if [[ "${debug_choice,,}" =~ ^[y]$ ]]; then
+      local debug_choice=""
+      read_prompt_value debug_choice "🐛 Enable InfluxDB debug mode? [y/N]: " "PYTMBOT_INFLUXDB_DEBUG" "N" 0 0 || true
+      if is_truthy "$debug_choice"; then
         influxdb_debug="true"
       fi
 
@@ -1281,7 +1550,8 @@ EOF
 create_service() {
   show_banner "Systemd Service Creation"
 
-  local service_file="/etc/systemd/system/$SERVICE_NAME.service"
+  local service_file="$SERVICE_FILE_PATH"
+  mkdir -p "$(dirname "$service_file")" 2>/dev/null || true
 
   if [ -f "$service_file" ]; then
     print_warn "Service file exists. Creating backup..."
@@ -1306,26 +1576,41 @@ create_service() {
   echo ""
 
   local plugins=""
+  local plugin_choice=""
+  local plugins_input="${PYTMBOT_PLUGINS:-${PYTMBOT_PLUGIN_CHOICE:-}}"
   while true; do
-    read -r -p "Select plugins (1/2/3): " plugin_choice
-    case "$plugin_choice" in
-      1)
+    if is_non_interactive; then
+      plugin_choice="${plugins_input:-2}"
+    else
+      read -r -p "Select plugins (1/2/3): " plugin_choice
+    fi
+
+    case "$(to_lower "$plugin_choice")" in
+      1|outline)
         plugins="outline"
         print_info "Outline plugin selected"
         break
         ;;
-      2)
+      2|monitor)
         plugins="monitor"
         print_info "Monitor plugin selected"
         break
         ;;
-      3)
+      3|both|"outline monitor"|"monitor outline")
         plugins="outline monitor"
         print_info "Both plugins selected"
         break
         ;;
+      none|0)
+        plugins=""
+        print_info "Plugins disabled"
+        break
+        ;;
       *)
-        print_error "Invalid choice. Please select 1, 2, or 3."
+        print_error "Invalid plugin choice. Please select 1, 2, 3, outline, monitor, both, or none."
+        if is_non_interactive; then
+          exit 1
+        fi
         ;;
     esac
   done
@@ -1338,10 +1623,15 @@ create_service() {
   print_message "$GRAY" "DEBUG - Verbose logging (for troubleshooting)"
   echo ""
 
-  local log_level="INFO"
+  local log_level="${PYTMBOT_LOG_LEVEL:-INFO}"
   while true; do
-    read -r -p "Select logging level [INFO/ERROR/DEBUG, press Enter for INFO]: " log_level
-    log_level="${log_level:-INFO}"
+    if is_non_interactive; then
+      log_level="${PYTMBOT_LOG_LEVEL:-INFO}"
+    else
+      read -r -p "Select logging level [INFO/ERROR/DEBUG, press Enter for INFO]: " log_level
+      log_level="${log_level:-INFO}"
+    fi
+    log_level="$(to_upper "$log_level")"
     case "$log_level" in
       INFO|ERROR|DEBUG)
         print_info "Log level set to: $log_level"
@@ -1349,6 +1639,9 @@ create_service() {
         ;;
       *)
         print_error "Invalid logging level. Please choose INFO, ERROR, or DEBUG."
+        if is_non_interactive; then
+          exit 1
+        fi
         ;;
     esac
   done
@@ -1428,7 +1721,7 @@ update_local_pytmbot() {
 
   # Check if service is running
   local service_was_running=false
-  if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+  if command_exists systemctl && systemctl_safe is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     service_was_running=true
     print_info "Service is currently running"
   fi
@@ -1463,7 +1756,7 @@ update_local_pytmbot() {
   if [ "$service_was_running" = true ]; then
     print_info "Stopping pyTMBot service..."
     {
-      systemctl stop "$SERVICE_NAME" 2>/dev/null || exit 1
+      systemctl_safe stop "$SERVICE_NAME" 2>/dev/null || exit 1
     } >> "$LOG_FILE" 2>&1 &
 
     local stop_pid=$!
@@ -1538,14 +1831,14 @@ update_local_pytmbot() {
   if [ "$service_was_running" = true ]; then
     print_info "Starting pyTMBot service..."
     {
-      systemctl daemon-reload 2>/dev/null || true
-      systemctl start "$SERVICE_NAME" 2>/dev/null || exit 1
+      systemctl_safe daemon-reload 2>/dev/null || true
+      systemctl_safe start "$SERVICE_NAME" 2>/dev/null || exit 1
 
       # Wait for service to start
       sleep 5
 
       # Verify service is running
-      if ! systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+      if command_exists systemctl && ! systemctl_safe is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         exit 1
       fi
     } >> "$LOG_FILE" 2>&1 &
@@ -1565,8 +1858,7 @@ update_local_pytmbot() {
   fi
 
   # Remove backup if update was successful
-  read -r -p "Update completed successfully. Remove backup? [y/N]: " remove_backup
-  if [[ "${remove_backup,,}" =~ ^[y]$ ]]; then
+  if confirm_prompt "Update completed successfully. Remove backup? [y/N]: " "N"; then
     rm -rf "$backup_dir" 2>/dev/null || true
     print_info "Backup removed"
   else
@@ -1576,13 +1868,17 @@ update_local_pytmbot() {
   echo ""
   print_message "$BOLD$GREEN" "LOCAL UPDATE COMPLETED!"
   echo ""
-  print_message "$WHITE" "Service Status:"
-  systemctl status "$SERVICE_NAME" --no-pager -l 2>/dev/null || true
-  echo ""
-  print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
-  print_message "$WHITE" "• Check logs: journalctl -u $SERVICE_NAME -f"
-  print_message "$WHITE" "• Restart service: systemctl restart $SERVICE_NAME"
-  print_message "$WHITE" "• Check config: sudo nano $CONFIG_FILE"
+  if command_exists systemctl; then
+    print_message "$WHITE" "Service Status:"
+    systemctl_safe status "$SERVICE_NAME" --no-pager -l 2>/dev/null || true
+    echo ""
+    print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
+    print_message "$WHITE" "• Check logs: journalctl -u $SERVICE_NAME -f"
+    print_message "$WHITE" "• Restart service: systemctl restart $SERVICE_NAME"
+    print_message "$WHITE" "• Check config: sudo nano $CONFIG_FILE"
+  else
+    print_warn "systemctl is not available; service status is skipped"
+  fi
   echo ""
 }
 
@@ -1602,16 +1898,20 @@ update_docker_pytmbot() {
     exit 1
   }
 
+  if is_test_mode; then
+    print_warn "Test mode enabled: simulating Docker update flow"
+  fi
+
   # Check if container is running
   local container_was_running=false
-  if docker ps --format "{{.Names}}" | grep -q "pytmbot"; then
+  if ! is_test_mode && run_docker_safe ps --format "{{.Names}}" | grep -q "pytmbot"; then
     container_was_running=true
     print_info "Container is currently running"
   fi
 
   # Determine update method based on docker-compose.yml
   local image_name
-  image_name=$(docker compose config --images 2>/dev/null | head -n1 | tr -d '[:space:]')
+  image_name=$(run_docker_compose_safe config --images 2>/dev/null | head -n1 | tr -d '[:space:]')
   if [[ -z "$image_name" ]]; then
     image_name=$(grep "image:" docker-compose.yml | awk '{print $2}' | head -n1 | tr -d '[:space:]')
   fi
@@ -1621,8 +1921,8 @@ update_docker_pytmbot() {
     print_info "Updating pre-built Docker image..."
 
     {
-      docker compose pull 2>/dev/null || exit 1
-      docker compose up -d 2>/dev/null || exit 1
+      run_docker_compose_safe pull 2>/dev/null || exit 1
+      run_docker_compose_safe up -d 2>/dev/null || exit 1
     } >> "$LOG_FILE" 2>&1 &
 
     local update_pid=$!
@@ -1657,8 +1957,8 @@ update_docker_pytmbot() {
       rm -f "$temp_config" 2>/dev/null || true
 
       # Rebuild and restart
-      docker compose build 2>/dev/null || exit 1
-      docker compose up -d 2>/dev/null || exit 1
+      run_docker_compose_safe build 2>/dev/null || exit 1
+      run_docker_compose_safe up -d 2>/dev/null || exit 1
 
     } >> "$LOG_FILE" 2>&1 &
 
@@ -1677,12 +1977,14 @@ update_docker_pytmbot() {
 
   # Verify container is running
   sleep 5
-  if docker ps --format "{{.Names}}" | grep -q "pytmbot"; then
+  if is_test_mode || run_docker_safe ps --format "{{.Names}}" | grep -q "pytmbot"; then
     echo ""
     print_message "$BOLD$GREEN" "DOCKER UPDATE COMPLETED!"
     echo ""
-    print_message "$WHITE" "Container Status:"
-    docker ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+    if ! is_test_mode; then
+      print_message "$WHITE" "Container Status:"
+      run_docker_safe ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+    fi
     echo ""
     print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
     print_message "$WHITE" "• Check logs: docker logs pytmbot -f"
@@ -1712,7 +2014,7 @@ uninstall_pytmbot() {
   local has_systemd=false
   local has_docker=false
 
-  if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
+  if [ -f "$SERVICE_FILE_PATH" ]; then
     has_systemd=true
     install_type="systemd service"
   fi
@@ -1749,16 +2051,14 @@ uninstall_pytmbot() {
   print_message "$GRAY" "• Configuration files"
   echo ""
 
-  read -r -p "Are you sure you want to continue? [y/N]: " confirm
-  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  if ! confirm_prompt "Are you sure you want to continue? [y/N]: " "N"; then
     print_info "Uninstall cancelled"
     exit 0
   fi
 
   # Ask about configuration backup
   local backup_file=""
-  read -r -p "Create backup of configuration before removal? [Y/n]: " backup_config
-  if [[ ! "${backup_config,,}" =~ ^[n]$ ]]; then
+  if confirm_prompt "Create backup of configuration before removal? [Y/n]: " "Y"; then
     backup_file="/tmp/pytmbot_config_backup_$(date +%Y%m%d_%H%M%S).yaml"
     if [ -f "$CONFIG_FILE" ]; then
       cp "$CONFIG_FILE" "$backup_file" 2>/dev/null && {
@@ -1771,10 +2071,12 @@ uninstall_pytmbot() {
   if [ "$has_systemd" = true ]; then
     print_info "Removing systemd service..."
     {
-      systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-      systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-      rm -f "/etc/systemd/system/$SERVICE_NAME.service" 2>/dev/null || true
-      systemctl daemon-reload 2>/dev/null || true
+      systemctl_safe stop "$SERVICE_NAME" 2>/dev/null || true
+      systemctl_safe disable "$SERVICE_NAME" 2>/dev/null || true
+      if ! is_test_mode; then
+        rm -f "$SERVICE_FILE_PATH" 2>/dev/null || true
+      fi
+      systemctl_safe daemon-reload 2>/dev/null || true
     } >> "$LOG_FILE" 2>&1 &
 
     local systemd_pid=$!
@@ -1788,11 +2090,11 @@ uninstall_pytmbot() {
     print_info "Removing Docker containers and images..."
     {
       cd "$INSTALL_DIR" 2>/dev/null || true
-      docker compose down --rmi all --volumes --remove-orphans 2>/dev/null || true
+      run_docker_compose_safe down --rmi all --volumes --remove-orphans 2>/dev/null || true
 
       # Remove any remaining pytmbot containers/images
-      docker ps -a --filter "name=pytmbot" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
-      docker images --filter "reference=*pytmbot*" --format "{{.ID}}" | xargs -r docker rmi -f 2>/dev/null || true
+      run_docker_safe ps -a --filter "name=pytmbot" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+      run_docker_safe images --filter "reference=*pytmbot*" --format "{{.ID}}" | xargs -r docker rmi -f 2>/dev/null || true
 
     } >> "$LOG_FILE" 2>&1 &
 
@@ -1806,7 +2108,9 @@ uninstall_pytmbot() {
   if [ -d "$INSTALL_DIR" ]; then
     print_info "Removing installation directory..."
     {
-      rm -rf "$INSTALL_DIR" 2>/dev/null || exit 1
+      if ! is_test_mode; then
+        rm -rf "$INSTALL_DIR" 2>/dev/null || exit 1
+      fi
     } >> "$LOG_FILE" 2>&1 &
 
     local dir_pid=$!
@@ -1822,12 +2126,11 @@ uninstall_pytmbot() {
   fi
 
   # Remove user account
-  read -r -p "Remove pytmbot user account? [Y/n]: " remove_user
-  if [[ ! "${remove_user,,}" =~ ^[n]$ ]]; then
+  if confirm_prompt "Remove pytmbot user account? [Y/n]: " "Y"; then
     if id "pytmbot" >/dev/null 2>&1; then
       print_info "Removing user account..."
       {
-        userdel pytmbot 2>/dev/null || true
+        run_user_mgmt_safe userdel pytmbot 2>/dev/null || true
       } >> "$LOG_FILE" 2>&1 &
 
       local user_pid=$!
@@ -1838,10 +2141,11 @@ uninstall_pytmbot() {
   fi
 
   # Clean up logs
-  read -r -p "Remove log files? [Y/n]: " remove_logs
-  if [[ ! "${remove_logs,,}" =~ ^[n]$ ]]; then
+  if confirm_prompt "Remove log files? [Y/n]: " "Y"; then
     {
-      rm -f "$LOG_DIR"/pytmbot*.log 2>/dev/null || true
+      if ! is_test_mode; then
+        rm -f "$LOG_DIR"/pytmbot*.log 2>/dev/null || true
+      fi
     } >> "$LOG_FILE" 2>&1 &
 
     local log_pid=$!
@@ -1877,23 +2181,22 @@ install_python_user() {
  {
    case "$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null || echo ubuntu)" in
      ubuntu|debian)
-       export DEBIAN_FRONTEND=noninteractive
-       apt-get update -y 2>/dev/null
-       apt-get install -y software-properties-common 2>/dev/null
+       DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null
+       DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y software-properties-common 2>/dev/null
        if ! grep -q "deadsnakes/ppa" /etc/apt/sources.list.d/* 2>/dev/null; then
-         add-apt-repository ppa:deadsnakes/ppa -y 2>/dev/null
-         apt-get update -y 2>/dev/null
+         run_package_manager_safe add-apt-repository ppa:deadsnakes/ppa -y 2>/dev/null
+         DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null
        fi
-       apt-get install -y python3.13 python3.13-venv python3.13-dev python3-pip 2>/dev/null
+       DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y python3.13 python3.13-venv python3.13-dev python3-pip 2>/dev/null
        ;;
      centos|rhel)
-       dnf install -y python3.13 python3.13-pip 2>/dev/null
+       run_package_manager_safe dnf install -y python3.13 python3.13-pip 2>/dev/null
        ;;
      fedora)
-       dnf install -y python3.13 python3.13-pip 2>/dev/null
+       run_package_manager_safe dnf install -y python3.13 python3.13-pip 2>/dev/null
        ;;
      arch)
-       pacman -Syu --noconfirm python python-pip 2>/dev/null
+       run_package_manager_safe pacman -Syu --noconfirm python python-pip 2>/dev/null
        ;;
      *)
        echo "Unsupported OS for automatic Python installation" >&2
@@ -1935,8 +2238,7 @@ check_python_version() {
  done
 
  print_warn "Python version $python_version is insufficient. Required: $REQUIRED_PYTHON+"
- read -r -p "Would you like to install Python 3.13? [y/N]: " install_python
- if [[ "${install_python,,}" =~ ^[y]$ ]]; then
+ if confirm_prompt "Would you like to install Python 3.13? [y/N]: " "N"; then
    install_python_user
  else
    print_error "Python 3.13+ is required. Aborting."
@@ -2000,16 +2302,16 @@ install_local() {
   check_system_requirements
 
   # Create rollback script
-  local rollback_script="/tmp/pytmbot_rollback_$.sh"
-  cat > "$rollback_script" << 'EOF'
+  local rollback_script="/tmp/pytmbot_rollback_$$.sh"
+  cat > "$rollback_script" << EOF
 #!/bin/bash
 echo "Rolling back pyTMBot installation..."
 systemctl stop pytmbot 2>/dev/null || true
 systemctl disable pytmbot 2>/dev/null || true
-rm -f /etc/systemd/system/pytmbot.service
+rm -f "$SERVICE_FILE_PATH"
 systemctl daemon-reload 2>/dev/null || true
 userdel pytmbot 2>/dev/null || true
-rm -rf /opt/pytmbot 2>/dev/null || true
+rm -rf "$INSTALL_DIR" 2>/dev/null || true
 echo "Rollback completed"
 EOF
   chmod +x "$rollback_script" 2>/dev/null || true
@@ -2028,21 +2330,20 @@ EOF
   {
     case "$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null || echo ubuntu)" in
       ubuntu|debian)
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -y 2>/dev/null
-        apt-get install -y python3 python3-pip python3-venv git curl software-properties-common 2>/dev/null
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y python3 python3-pip python3-venv git curl software-properties-common 2>/dev/null
         ;;
       centos|rhel)
-        yum update -y 2>/dev/null
-        yum install -y python3 python3-pip git curl 2>/dev/null
+        run_package_manager_safe yum update -y 2>/dev/null
+        run_package_manager_safe yum install -y python3 python3-pip git curl 2>/dev/null
         ;;
       fedora)
-        dnf update -y 2>/dev/null
-        dnf install -y python3 python3-pip git curl 2>/dev/null
+        run_package_manager_safe dnf update -y 2>/dev/null
+        run_package_manager_safe dnf install -y python3 python3-pip git curl 2>/dev/null
         ;;
       arch)
-        pacman -Syu --noconfirm 2>/dev/null
-        pacman -S --noconfirm python python-pip git curl 2>/dev/null
+        run_package_manager_safe pacman -Syu --noconfirm 2>/dev/null
+        run_package_manager_safe pacman -S --noconfirm python python-pip git curl 2>/dev/null
         ;;
       *)
         echo "Unsupported operating system" >&2
@@ -2074,15 +2375,15 @@ EOF
   # Start service
   print_info "Starting pyTMBot service..."
   {
-    systemctl daemon-reload 2>/dev/null
-    systemctl enable "$SERVICE_NAME" 2>/dev/null
-    systemctl start "$SERVICE_NAME" 2>/dev/null
+    systemctl_safe daemon-reload 2>/dev/null
+    systemctl_safe enable "$SERVICE_NAME" 2>/dev/null
+    systemctl_safe start "$SERVICE_NAME" 2>/dev/null
 
     # Wait for service to start
     sleep 5
 
     # Verify service is running
-    if ! systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    if command_exists systemctl && ! systemctl_safe is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
       journalctl -u "$SERVICE_NAME" --no-pager -n 20 2>/dev/null
       exit 1
     fi
@@ -2102,14 +2403,18 @@ EOF
     echo ""
     print_message "$BOLD$GREEN" "INSTALLATION COMPLETED!"
     echo ""
-    print_message "$WHITE" "Service Status:"
-    systemctl status "$SERVICE_NAME" --no-pager -l 2>/dev/null || true
-    echo ""
-    print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
-    print_message "$WHITE" "• Check logs: journalctl -u $SERVICE_NAME -f"
-    print_message "$WHITE" "• Restart service: systemctl restart $SERVICE_NAME"
-    print_message "$WHITE" "• Stop service: systemctl stop $SERVICE_NAME"
-    print_message "$WHITE" "• Edit config: sudo nano $CONFIG_FILE"
+    if command_exists systemctl; then
+      print_message "$WHITE" "Service Status:"
+      systemctl_safe status "$SERVICE_NAME" --no-pager -l 2>/dev/null || true
+      echo ""
+      print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
+      print_message "$WHITE" "• Check logs: journalctl -u $SERVICE_NAME -f"
+      print_message "$WHITE" "• Restart service: systemctl restart $SERVICE_NAME"
+      print_message "$WHITE" "• Stop service: systemctl stop $SERVICE_NAME"
+      print_message "$WHITE" "• Edit config: sudo nano $CONFIG_FILE"
+    else
+      print_warn "systemctl is not available; service status is skipped"
+    fi
     echo ""
     print_message "$BOLD$CYAN" "Next steps:"
     print_message "$GRAY" "1. Test your bot by sending a message to it on Telegram"
@@ -2134,21 +2439,20 @@ install_bot_in_docker() {
   {
     case "$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null || echo ubuntu)" in
       ubuntu|debian)
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -y 2>/dev/null
-        apt-get install -y git curl 2>/dev/null
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get update -y 2>/dev/null
+        DEBIAN_FRONTEND=noninteractive run_package_manager_safe apt-get install -y git curl 2>/dev/null
         ;;
       centos|rhel)
-        yum update -y 2>/dev/null
-        yum install -y git curl 2>/dev/null
+        run_package_manager_safe yum update -y 2>/dev/null
+        run_package_manager_safe yum install -y git curl 2>/dev/null
         ;;
       fedora)
-        dnf update -y 2>/dev/null
-        dnf install -y git curl 2>/dev/null
+        run_package_manager_safe dnf update -y 2>/dev/null
+        run_package_manager_safe dnf install -y git curl 2>/dev/null
         ;;
       arch)
-        pacman -Syu --noconfirm 2>/dev/null
-        pacman -S --noconfirm git curl 2>/dev/null
+        run_package_manager_safe pacman -Syu --noconfirm 2>/dev/null
+        run_package_manager_safe pacman -S --noconfirm git curl 2>/dev/null
         ;;
       *)
         echo "Unsupported operating system" >&2
@@ -2178,7 +2482,7 @@ install_bot_in_docker() {
   fi
 
   # Check for Docker Compose plugin
-  if ! docker compose version >/dev/null 2>&1; then
+  if ! run_docker_compose_safe version >/dev/null 2>&1; then
     print_info "Installing Docker Compose plugin from package manager..."
     {
       install_docker_compose_plugin_securely || exit 1
@@ -2188,7 +2492,7 @@ install_bot_in_docker() {
     show_spinner $compose_pid "Installing Docker Compose plugin"
     wait $compose_pid
     local compose_status=$?
-    if [ $compose_status -ne 0 ] || ! docker compose version >/dev/null 2>&1; then
+    if [ $compose_status -ne 0 ] || ! run_docker_compose_safe version >/dev/null 2>&1; then
       print_error "Failed to install Docker Compose plugin"
       print_info "Install docker-compose-plugin manually for your distribution and re-run installer"
       exit 1
@@ -2216,14 +2520,30 @@ install_bot_in_docker() {
   print_message "$GRAY" "   - For advanced users"
   echo ""
 
-  local choice
+  local choice=""
   while true; do
-    read -r -p "Choose installation method [1/2]: " choice
+    if is_non_interactive; then
+      case "$(to_lower "$RUNTIME_DOCKER_INSTALL_METHOD")" in
+        source|2) choice="2" ;;
+        ""|prebuilt|1) choice="1" ;;
+        *)
+          print_error "Invalid --docker-method value: ${RUNTIME_DOCKER_INSTALL_METHOD}"
+          exit 2
+          ;;
+      esac
+    else
+      read -r -p "Choose installation method [1/2]: " choice
+    fi
+
     case "$choice" in
       1) install_prebuilt_docker; break ;;
       2) install_docker_from_source; break ;;
       *) print_error "Invalid choice. Please select 1 or 2." ;;
     esac
+
+    if is_non_interactive; then
+      exit 1
+    fi
   done
 }
 
@@ -2305,8 +2625,8 @@ EOF
   print_info "Starting Docker container..."
   {
     cd "$INSTALL_DIR" || exit 1
-    docker compose pull 2>/dev/null || exit 1
-    docker compose up -d 2>/dev/null || exit 1
+    run_docker_compose_safe pull 2>/dev/null || exit 1
+    run_docker_compose_safe up -d 2>/dev/null || exit 1
   } >> "$LOG_FILE" 2>&1 &
 
   local start_pid=$!
@@ -2317,14 +2637,16 @@ EOF
   if [ $start_status -eq 0 ]; then
     # Verify container is running
     sleep 5
-    if docker ps --format "table {{.Names}}" | grep -q "pytmbot"; then
+    if is_test_mode || run_docker_safe ps --format "table {{.Names}}" | grep -q "pytmbot"; then
       print_info "Docker container started successfully"
 
       echo ""
       print_message "$BOLD$GREEN" "DOCKER INSTALLATION COMPLETED!"
       echo ""
-      print_message "$WHITE" "Container Status:"
-      docker ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+      if ! is_test_mode; then
+        print_message "$WHITE" "Container Status:"
+        run_docker_safe ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+      fi
       echo ""
       print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
       print_message "$WHITE" "• Check logs: docker logs pytmbot -f"
@@ -2359,8 +2681,8 @@ install_docker_from_source() {
   print_info "Building and starting Docker container..."
   {
     cd "$INSTALL_DIR" || exit 1
-    docker compose build 2>/dev/null || exit 1
-    docker compose up -d 2>/dev/null || exit 1
+    run_docker_compose_safe build 2>/dev/null || exit 1
+    run_docker_compose_safe up -d 2>/dev/null || exit 1
   } >> "$LOG_FILE" 2>&1 &
 
   local build_pid=$!
@@ -2371,14 +2693,16 @@ install_docker_from_source() {
   if [ $build_status -eq 0 ]; then
     # Verify container is running
     sleep 5
-    if docker ps --format "table {{.Names}}" | grep -q "pytmbot"; then
+    if is_test_mode || run_docker_safe ps --format "table {{.Names}}" | grep -q "pytmbot"; then
       print_info "Docker container built and started successfully"
 
       echo ""
       print_message "$BOLD$GREEN" "DOCKER BUILD COMPLETED!"
       echo ""
-      print_message "$WHITE" "Container Status:"
-      docker ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+      if ! is_test_mode; then
+        print_message "$WHITE" "Container Status:"
+        run_docker_safe ps --filter "name=pytmbot" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
+      fi
       echo ""
       print_message "$BOLD$YELLOW" "USEFUL COMMANDS:"
       print_message "$WHITE" "• Check logs: docker logs pytmbot -f"
@@ -2408,8 +2732,7 @@ main_menu() {
   print_message "$GRAY" "🆔 Your Telegram user ID and chat ID"
   echo ""
 
-  read -r -p "Do you have all required information? [y/N]: " ready
-  if [[ ! "$ready" =~ ^[Yy]$ ]]; then
+  if ! confirm_prompt "Do you have all required information? [y/N]: " "N"; then
     print_info "Please gather the required information and run the script again"
     print_message "$GRAY" "To get your user ID: send any message to @userinfobot on Telegram"
     exit 0
@@ -2459,7 +2782,7 @@ update_menu() {
   # Detect installation type
   local install_type=""
 
-  if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ] && [ -d "$INSTALL_DIR" ]; then
+  if [ -f "$SERVICE_FILE_PATH" ] && [ -d "$INSTALL_DIR" ]; then
     install_type="local"
   elif [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
     install_type="docker"
@@ -2476,8 +2799,7 @@ update_menu() {
     "local")
       print_message "$WHITE" "📦 Local installation (systemd service)"
       echo ""
-      read -r -p "Proceed with local update? [Y/n]: " confirm
-      if [[ ! "${confirm,,}" =~ ^[n]$ ]]; then
+      if confirm_prompt "Proceed with local update? [Y/n]: " "Y"; then
         update_local_pytmbot
       else
         print_info "Update cancelled"
@@ -2486,8 +2808,7 @@ update_menu() {
     "docker")
       print_message "$WHITE" "🐳 Docker installation"
       echo ""
-      read -r -p "Proceed with Docker update? [Y/n]: " confirm
-      if [[ ! "${confirm,,}" =~ ^[n]$ ]]; then
+      if confirm_prompt "Proceed with Docker update? [Y/n]: " "Y"; then
         update_docker_pytmbot
       else
         print_info "Update cancelled"
@@ -2496,8 +2817,39 @@ update_menu() {
   esac
 }
 
+run_selected_action() {
+  case "$(to_lower "$RUNTIME_INSTALL_ACTION")" in
+    menu)
+      if is_non_interactive; then
+        print_error "Non-interactive mode requires --action (docker|local|update|uninstall)"
+        exit 2
+      fi
+      main_menu
+      ;;
+    docker)
+      install_bot_in_docker
+      ;;
+    local)
+      install_local
+      ;;
+    update)
+      update_menu
+      ;;
+    uninstall)
+      uninstall_pytmbot
+      ;;
+    *)
+      print_error "Unknown action: $RUNTIME_INSTALL_ACTION"
+      show_usage
+      exit 2
+      ;;
+  esac
+}
+
 # Script entry point
 main() {
+  parse_cli_args "$@"
+  setup_signal_handlers
   verify_installer_integrity_or_exit
 
   # Initialize logging
@@ -2509,12 +2861,13 @@ main() {
   check_root
   validate_install_dir
 
-  # Show main menu
-  main_menu
+  run_selected_action
 
   print_info "Process completed"
   log_to_file "INFO" "Process completed"
 }
 
-# Run main function
-main "$@"
+# Run main function only when script is executed directly.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
