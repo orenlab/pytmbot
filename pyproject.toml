@@ -37,7 +37,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "pygal>=3.1.0",
     "pytelegrambotapi>=4.31.0",
-    "fastapi>=0.129.0",
+    "fastapi>=0.135.0",
     "uvicorn>=0.41.0",
     "influxdb-client>=1.50.0",
     "pypng>=0.20220715.0",
@@ -116,6 +116,8 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+strict = true
+files = ["pytmbot", "tests"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

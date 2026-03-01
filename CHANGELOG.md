@@ -9,8 +9,8 @@ All notable changes are documented in this file.
 - GitHub Actions workflow `tests.yml` with test matrix for Python 3.12, 3.13, and 3.14, plus codeclone baseline check in
   CI.
 - Server health summary flow in UI with refresh callback and richer operational snapshot.
-- Extended server inline views: CPU overview/per-core/times, network interfaces/connections, disk I/O, active users,
-  fan speeds, and quick-view drill-down pages.
+- Extended server inline views: CPU overview/per-core/times, network interfaces/connections, disk I/O, active users, fan
+  speeds, and quick-view drill-down pages.
 - Health monitoring subsystem with component-level checks and startup health reporting.
 - Configuration versioning with automatic migration (`config_version` handling).
 - Paginated Docker UI flows (containers/images/logs), including log export to file.
@@ -18,7 +18,7 @@ All notable changes are documented in this file.
 - Secure message deletion manager with scheduled cleanup flow.
 - `/getmyid` command and stronger access-control middleware behavior.
 - CLI support for log format selection (`--log-format human|json`).
-- Dedicated regression tests for installer and Outline plugin flows.
+- Dedicated regression tests for Outline plugin flows.
 
 ### Changed
 
@@ -38,12 +38,9 @@ All notable changes are documented in this file.
   separation.
 - Release/dev image pipelines standardized to Buildx v0.24 cache flow (`gha` cache), SBOM/provenance and explicit
   bytecode policy (`COMPILE_BYTECODE`).
-- Supported scheduled tag-rebuild scope narrowed to `0.3.0`, with tag-existence precheck to keep CI green before
-  release tag publication.
+- Supported scheduled tag-rebuild scope narrowed to `0.3.0`, with tag-existence precheck to keep CI green before release
+  tag publication.
 - Container details/handlers flow reworked with improved pagination context and callback behavior.
-- Installer workflow refactored and documented for safer defaults.
-- Installer now supports explicit non-interactive/test-mode execution for CI and scripted runs.
-- Local installer dependency setup switched to `pip` with `pip3` fallback in virtualenv (no host `uv` bootstrap).
 - Docker counters cache switched from permanent `lru_cache` to TTL-based targeted invalidation.
 - `quick_view` metric collection simplified to reduce threadpool overhead on hot path.
 - Rate-limit request buffer moved to `deque` for O(1) cleanup.
@@ -52,13 +49,14 @@ All notable changes are documented in this file.
 
 ### Fixed
 
-- Tests no longer require a real `pytmbot.yaml`: pytest now uses `pytmbot.yaml.sample` via `PYTMBOT_CONFIG_PATH` in
-  test bootstrap/CI.
+- Docker logs rendering fails gracefully when the container uses an unsupported logging driver; UI fallback added.
+- Tests no longer require a real `pytmbot.yaml`: pytest now uses `pytmbot.yaml.sample` via `PYTMBOT_CONFIG_PATH` in test
+  bootstrap/CI.
 - Closed pre-release hardening gaps across security/resilience/performance batches (webhook flow, middleware races,
   Docker adapter behavior, monitoring/polling restart paths, and Influx sanitization/retry flows).
 - Resolved CPU/IO/memory hot-path regressions from recent changes (reduced blocking operations and cache conflicts).
-- Telegram `400 message is not modified` is now treated as no-op for all new server inline handlers added today
-  (`system_views`, `swap`, `top_process`) via a shared helper and test coverage.
+- Telegram `400 message is not modified` is now treated as no-op for all new server inline handlers (`system_views`,
+  `swap`, `top_process`) via a shared helper and test coverage.
 - Telegram `MESSAGE_TOO_LONG` failures during log rendering.
 - 2FA flow now accepts plain code input, with proper input cleanup outside auth flow.
 - Sensitive auto-deletion flows now keep UI navigation: after bot-driven deletion, users receive a `Back to main menu`
@@ -76,8 +74,8 @@ All notable changes are documented in this file.
 
 ### Removed
 
-- Removed experimental `Services` server handler, callbacks, and related UI button wiring.
-- Removed legacy `tools/install.sh` host installer and its test coverage; installation is now Docker-only.
+- Experimental `Services` server handler, callbacks, and related UI button wiring.
+- Legacy `tools/install.sh` host installer and its test coverage; installation is now Docker-only.
 
 ### Security
 
@@ -88,11 +86,6 @@ All notable changes are documented in this file.
 - Uvicorn wildcard forwarded headers trust removed (`proxy_headers=False` by default in webhook mode).
 - Webhook and Telegram IP caches are now bounded to mitigate memory growth under hostile traffic.
 - Webhook error logging now keeps only minimal update metadata (`update_id`/`update_type`) instead of full payload.
-- Installer hardening:
-    - safer install-dir validation,
-    - package-manager Docker/Compose installation by default,
-    - unverified `get.docker.com` fallback moved to explicit opt-in,
-    - mandatory startup SHA256 integrity gate with explicit `YES` confirmation against published hash.
 
 ### Documentation
 
@@ -102,4 +95,4 @@ All notable changes are documented in this file.
 - `docs/script_install.md` converted to a deprecation notice for backward links.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
 
-[0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...06bb1db
+[0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...b264229
