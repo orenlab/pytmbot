@@ -76,11 +76,18 @@ from .server_handlers.inline.system_views import (
     handle_sensors_overview,
     handle_users_info,
 )
-from .server_handlers.inline.top_process import handle_process_info
+from .server_handlers.inline.top_process import (
+    handle_process_info,
+    handle_process_overview,
+)
 from .server_handlers.load_average import handle_load_average
 from .server_handlers.memory import handle_memory
 from .server_handlers.network import handle_network
-from .server_handlers.process import handle_process
+from .server_handlers.process import (
+    PROCESS_INFO_FROM_PROCESS_PREFIX,
+    PROCESS_OVERVIEW_PREFIX,
+    handle_process,
+)
 from .server_handlers.quickview import handle_quick_view
 from .server_handlers.sensors import handle_sensors
 from .server_handlers.server import handle_server
@@ -159,8 +166,19 @@ class InlineFilters:
         """Filter for process info callback."""
         if call.data is None:
             return False
-        return call.data == "__process_info__" or call.data.startswith(
-            "__process_info__:"
+        return (
+            call.data == "__process_info__"
+            or call.data.startswith("__process_info__:")
+            or call.data == PROCESS_INFO_FROM_PROCESS_PREFIX
+            or call.data.startswith(f"{PROCESS_INFO_FROM_PROCESS_PREFIX}:")
+        )
+
+    @staticmethod
+    def process_overview(call: CallbackQueryType) -> bool:
+        if call.data is None:
+            return False
+        return call.data == PROCESS_OVERVIEW_PREFIX or call.data.startswith(
+            f"{PROCESS_OVERVIEW_PREFIX}:"
         )
 
     @staticmethod
@@ -450,6 +468,12 @@ def _get_inline_handler_configs() -> dict[str, list[HandlerConfig]]:
         "process_info": [
             HandlerConfig(
                 callback=handle_process_info, filter_func=InlineFilters.process_info
+            )
+        ],
+        "process_overview": [
+            HandlerConfig(
+                callback=handle_process_overview,
+                filter_func=InlineFilters.process_overview,
             )
         ],
         "cpu_info": [

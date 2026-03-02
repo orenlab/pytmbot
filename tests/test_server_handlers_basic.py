@@ -161,10 +161,19 @@ def _assert_memory_or_process_handler_paths(
     assert messages[-1]["text"] == success_text
     assert messages[-1]["parse_mode"] == "HTML"
     inline_payload = _extract_inline_payload(messages[-1])
-    assert isinstance(inline_payload, dict)
-    callback_data = inline_payload.get("callback_data")
-    assert isinstance(callback_data, str)
-    assert callback_data.endswith(":777")
+    callback_data_values: list[str] = []
+    if isinstance(inline_payload, dict):
+        callback_data = inline_payload.get("callback_data")
+        if isinstance(callback_data, str):
+            callback_data_values.append(callback_data)
+    elif isinstance(inline_payload, list):
+        callback_data_values.extend(
+            str(item.get("callback_data"))
+            for item in inline_payload
+            if isinstance(item, dict) and isinstance(item.get("callback_data"), str)
+        )
+    assert callback_data_values
+    assert all(value.endswith(":777") for value in callback_data_values)
 
     monkeypatch.setattr(
         module,

@@ -8,7 +8,7 @@ also providing basic information about the status of local servers.
 import datetime
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.adapters.psutil.adapter_types import TopProcess
@@ -18,10 +18,19 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
-from pytmbot.handlers.server_handlers.cpu import build_cpu_detail_keyboard
+from pytmbot.handlers.server_handlers.cpu import (
+    PROCESS_INFO_PREFIX,
+    build_cpu_detail_keyboard,
+)
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
     edit_callback_message_text,
+)
+from pytmbot.handlers.server_handlers.process import (
+    PROCESS_INFO_FROM_PROCESS_PREFIX,
+    PROCESS_OVERVIEW_PREFIX,
+    build_process_overview_keyboard,
+    render_process_overview_text,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -31,17 +40,53 @@ em = get_emoji_converter()
 psutil_adapter = get_psutil_adapter()
 running_in_docker = is_docker_environment()
 
+_PROCESS_INFO_INVALID_PAYLOAD_TEXT = "Invalid process info request format."
+_PROCESS_INFO_MISSING_MESSAGE_TEXT = "Cannot render process info in this context."
+
+
+def _is_process_origin_callback(callback_data: str | None) -> bool:
+    if callback_data is None:
+        return False
+    return (
+        callback_data == PROCESS_INFO_FROM_PROCESS_PREFIX
+        or callback_data.startswith(f"{PROCESS_INFO_FROM_PROCESS_PREFIX}:")
+    )
+
+
+def _authorize_process_info_callback(
+    call: CallbackQuery, bot: TeleBot
+) -> tuple[bool, int | None, bool]:
+    is_process_origin = _is_process_origin_callback(call.data)
+    callback_prefix = (
+        PROCESS_INFO_FROM_PROCESS_PREFIX if is_process_origin else PROCESS_INFO_PREFIX
+    )
+    is_allowed, target_user_id = authorize_user_bound_callback(
+        call,
+        bot,
+        prefix=callback_prefix,
+        invalid_payload_text=_PROCESS_INFO_INVALID_PAYLOAD_TEXT,
+        missing_message_text=_PROCESS_INFO_MISSING_MESSAGE_TEXT,
+    )
+    return is_allowed, target_user_id, is_process_origin
+
+
+def _build_process_info_keyboard(
+    target_user_id: int | None, *, from_process_command: bool
+) -> InlineKeyboardMarkup:
+    if from_process_command:
+        return build_process_overview_keyboard(
+            target_user_id,
+            include_back_to_process=True,
+        )
+    return build_cpu_detail_keyboard(target_user_id, include_back_to_cpu=True)
+
 
 # func=lambda call: call.data == '__process_info__'
 @logger.session_decorator
 def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
     """Handles the process_info command to display top CPU and memory consuming processes."""
-    is_allowed, target_user_id = authorize_user_bound_callback(
-        call,
-        bot,
-        prefix="__process_info__",
-        invalid_payload_text="Invalid process info request format.",
-        missing_message_text="Cannot render process info in this context.",
+    is_allowed, target_user_id, is_process_origin = _authorize_process_info_callback(
+        call, bot
     )
     if not is_allowed:
         return None
@@ -49,7 +94,9 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
     if call.message is None:
         return None
 
-    keyboard = build_cpu_detail_keyboard(target_user_id, include_back_to_cpu=True)
+    keyboard = _build_process_info_keyboard(
+        target_user_id, from_process_command=is_process_origin
+    )
 
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
@@ -123,6 +170,58 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
             ErrorContext(
                 message="Failed handling inline process info",
                 error_code="HAND_010",
+                metadata={"exception": str(error)},
+            )
+        )
+
+
+@logger.session_decorator
+def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
+    is_allowed, target_user_id = authorize_user_bound_callback(
+        call,
+        bot,
+        prefix=PROCESS_OVERVIEW_PREFIX,
+        invalid_payload_text="Invalid process overview request format.",
+        missing_message_text="Cannot render process overview in this context.",
+    )
+    if not is_allowed:
+        return None
+
+    if call.message is None:
+        return None
+
+    keyboard = build_process_overview_keyboard(target_user_id)
+
+    try:
+        message_text = render_process_overview_text()
+        if message_text is None:
+            edit_callback_message_text(
+                call,
+                bot,
+                text="⚠️ Some error occurred. Please try again later(",
+                reply_markup=keyboard,
+            )
+            return None
+
+        edit_callback_message_text(
+            call,
+            bot,
+            text=message_text,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        return None
+    except Exception as error:
+        edit_callback_message_text(
+            call,
+            bot,
+            text="⚠️ An error occurred while processing the command.",
+            reply_markup=keyboard,
+        )
+        raise exceptions.HandlingException(
+            ErrorContext(
+                message="Failed handling process overview",
+                error_code="HAND_011",
                 metadata={"exception": str(error)},
             )
         )

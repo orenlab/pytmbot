@@ -332,6 +332,20 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         expected_callbacks=["__cpu_info__:17", "__process_info__:17"],
     )
 
+    _invoke(handler, bot, data="__process_info_process__:17")
+    process_origin_markup = bot.edited_messages[-1].get("reply_markup")
+    assert_reply_markup_has_callbacks(
+        process_origin_markup,
+        expected_callbacks=["__process_overview__:17", "__process_info_process__:17"],
+    )
+    assert process_origin_markup is not None
+    process_origin_callbacks = [
+        getattr(button, "callback_data", "")
+        for row in getattr(process_origin_markup, "keyboard", [])
+        for button in row
+    ]
+    assert "__cpu_info__:17" not in process_origin_callbacks
+
     _patch_adapter_method(
         monkeypatch,
         top_process_module,
@@ -529,3 +543,46 @@ def test_handle_process_info_ignores_not_modified(
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
     _invoke(handler, bot, data="__process_info__:17")
     assert bot.callback_answers[-1]["text"] == "View is already up to date."
+
+
+def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot, handler = _prepare_handler_with_auth_paths(
+        monkeypatch,
+        module=top_process_module,
+        handler_obj=top_process_module.handle_process_overview,
+        invalid_data="bad",
+        valid_data="__process_overview__:17",
+        invalid_text="Invalid process overview request format.",
+        denied_text="denied",
+        missing_text_fragment="Cannot render process overview in this context.",
+    )
+    _patch_auth_success(monkeypatch, top_process_module)
+    monkeypatch.setattr(
+        top_process_module, "render_process_overview_text", lambda: None
+    )
+    _invoke(handler, bot, data="__process_overview__:17")
+    assert "some error occurred" in str(bot.edited_messages[-1]["text"]).lower()
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__process_info_process__:17"],
+    )
+
+    monkeypatch.setattr(
+        top_process_module, "render_process_overview_text", lambda: "process-overview"
+    )
+    _invoke(handler, bot, data="__process_overview__:17")
+    assert bot.edited_messages[-1]["text"] == "process-overview"
+    assert bot.edited_messages[-1]["parse_mode"] == "HTML"
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__process_info_process__:17"],
+    )
+
+    monkeypatch.setattr(
+        top_process_module,
+        "render_process_overview_text",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    with pytest.raises(exceptions.HandlingException) as exc_info:
+        _invoke(handler, bot, data="__process_overview__:17")
+    assert exc_info.value.context.error_code == "HAND_011"

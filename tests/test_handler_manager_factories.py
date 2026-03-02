@@ -106,6 +106,7 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     query = cast(CallbackQuery, SimpleNamespace(data=None))
     assert factory_module.InlineFilters.swap_info(query) is False
     assert factory_module.InlineFilters.process_info(query) is False
+    assert factory_module.InlineFilters.process_overview(query) is False
     assert factory_module.InlineFilters.cpu_info(query) is False
     assert factory_module.InlineFilters.cpu_per_core(query) is False
     assert factory_module.InlineFilters.cpu_times(query) is False
@@ -138,6 +139,10 @@ def test_admin_filter_and_inline_filters(monkeypatch: pytest.MonkeyPatch) -> Non
     assert factory_module.InlineFilters.swap_info(query) is True
     query.data = "__process_info__:abc"
     assert factory_module.InlineFilters.process_info(query) is True
+    query.data = "__process_info_process__:abc"
+    assert factory_module.InlineFilters.process_info(query) is True
+    query.data = "__process_overview__:abc"
+    assert factory_module.InlineFilters.process_overview(query) is True
     query.data = "__cpu_info__:abc"
     assert factory_module.InlineFilters.cpu_info(query) is True
     query.data = "__cpu_per_core__:abc"
@@ -209,6 +214,7 @@ def test_handler_factories_are_cached_and_produce_handlers() -> None:
     assert "health" in message_handlers
     assert "get_logs" in inline_handlers
     assert "cpu_info" in inline_handlers
+    assert "process_overview" in inline_handlers
     assert "disk_io" in inline_handlers
     assert "quickview_overview" in inline_handlers
     assert "health_refresh" in inline_handlers
