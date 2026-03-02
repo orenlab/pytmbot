@@ -19,6 +19,8 @@ All notable changes are documented in this file.
 - `/getmyid` command and stronger access-control middleware behavior.
 - CLI support for log format selection (`--log-format human|json`).
 - Dedicated regression tests for Outline plugin flows.
+- `UpdateDedup` middleware for duplicate-delivery protection (`update_id`/`callback_query.id`) with bounded TTL cache and
+  low-overhead O(1) checks.
 
 ### Changed
 
