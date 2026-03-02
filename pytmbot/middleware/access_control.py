@@ -7,9 +7,10 @@ also providing basic information about the status of local servers.
 
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Any, Final
+from typing import Final
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -42,7 +43,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
     }
 
     def __init__(self, bot: TeleBot) -> None:
-        BaseMiddleware.__init__(self)
+        base_middleware_init: Callable[[BaseMiddleware], None] = BaseMiddleware.__init__
+        base_middleware_init(self)
         BaseComponent.__init__(self)
         self.bot = bot
         self.update_types = ["message"]
@@ -89,7 +91,33 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         return command in self.SETUP_COMMANDS
 
-    def pre_process(self, message: Message, data: Any) -> CancelUpdate | None:
+    @staticmethod
+    def _resolve_user_label(message: Message) -> str:
+        """Resolve best-effort user label for logs/alerts."""
+        user = message.from_user
+        if user is None:
+            return "unknown"
+
+        username = getattr(user, "username", None)
+        if isinstance(username, str):
+            normalized_username = username.strip()
+            if normalized_username:
+                return normalized_username
+
+        first_name = getattr(user, "first_name", None)
+        last_name = getattr(user, "last_name", None)
+        name_parts: list[str] = []
+        if isinstance(first_name, str) and first_name.strip():
+            name_parts.append(first_name.strip())
+        if isinstance(last_name, str) and last_name.strip():
+            name_parts.append(last_name.strip())
+
+        if name_parts:
+            return " ".join(name_parts)
+
+        return "unknown"
+
+    def pre_process(self, message: Message, data: object) -> CancelUpdate | None:
         user = message.from_user
         if not user:
             context = {
@@ -105,7 +133,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             return CancelUpdate()
 
         user_id = user.id
-        username = user.username or "unknown"
+        username = self._resolve_user_label(message)
         chat_id = message.chat.id
 
         if message.text:
@@ -186,7 +214,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         username: str,
         chat_id: int,
         message: Message,
-        base_context: dict[str, Any],
+        base_context: dict[str, object],
     ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
         block_until: datetime | None = None
@@ -502,7 +530,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-        self, message: Message, data: dict[str, Any], exception: Exception | None
+        self, message: Message, data: dict[str, object], exception: Exception | None
     ) -> None:
         """Post-process message handling."""
         if not exception or isinstance(exception, CancelUpdate):
@@ -523,7 +551,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             context.update(
                 {
                     "user_id": mask_user_id(message.from_user.id),
-                    "username": mask_username(message.from_user.username or "unknown"),
+                    "username": mask_username(self._resolve_user_label(message)),
                     "user_is_bot": message.from_user.is_bot,
                 }
             )

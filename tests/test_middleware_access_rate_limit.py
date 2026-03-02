@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
 from typing import Literal, cast
 
 import pytest
@@ -13,20 +13,24 @@ from telebot.types import Message
 import pytmbot.middleware.access_control as access_control_module
 import pytmbot.middleware.rate_limit as rate_limit_module
 
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+
 
 @dataclass
 class _BotStub:
     should_fail_send: bool = False
-    sent_messages: list[dict[str, object]] = field(default_factory=list)
+    sent_messages: list[_PayloadDict] = field(default_factory=list)
 
-    def send_message(self, **kwargs: object) -> None:
+    def send_message(self, **kwargs: _PayloadValue) -> None:
         if self.should_fail_send:
             raise RuntimeError("send failed")
-        self.sent_messages.append(kwargs)
+        self.sent_messages.append(dict(kwargs))
 
 
 class _NoopThread:
-    def __init__(self, **_kwargs: object) -> None:
+    def __init__(self, **_kwargs: _PayloadValue) -> None:
         return
 
     def start(self) -> None:
@@ -38,12 +42,20 @@ def _build_message(
     user_id: int,
     text: str,
     chat_id: int = 100,
-    username: str = "user",
+    username: str | None = "user",
+    first_name: str | None = None,
+    last_name: str | None = None,
 ) -> Message:
     return cast(
         Message,
         SimpleNamespace(
-            from_user=SimpleNamespace(id=user_id, username=username, is_bot=False),
+            from_user=SimpleNamespace(
+                id=user_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                is_bot=False,
+            ),
             chat=SimpleNamespace(id=chat_id, type="private"),
             message_id=1,
             text=text,
@@ -242,7 +254,7 @@ def test_access_control_notify_admin_sends_outside_state_lock(
     middleware = access_control_module.AccessControl(cast(TeleBot, bot))
     lock_probe = {"was_available": False}
 
-    def _send_message(**kwargs: object) -> None:
+    def _send_message(**kwargs: _PayloadValue) -> None:
         _ = kwargs
         acquired = middleware._state_lock.acquire(blocking=False)
         lock_probe["was_available"] = acquired
@@ -259,6 +271,38 @@ def test_access_control_notify_admin_sends_outside_state_lock(
     )
 
     assert lock_probe["was_available"] is True
+
+
+def test_access_control_admin_notification_uses_name_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        access_control_module,
+        "settings",
+        SimpleNamespace(
+            access_control=SimpleNamespace(allowed_user_ids=[]),
+            chat_id=SimpleNamespace(global_chat_id=[999]),
+        ),
+    )
+
+    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    message = _build_message(
+        user_id=777,
+        text="not-allowed",
+        username=None,
+        first_name="Firstname",
+        last_name="Tester",
+    )
+
+    result = middleware.pre_process(message, {})
+
+    assert isinstance(result, CancelUpdate)
+    assert len(bot.sent_messages) == 2  # admin + user warning
+    admin_text = cast(str, bot.sent_messages[0]["text"])
+    assert "un***wn" not in admin_text
+    assert "Fir" in admin_text or "Tes" in admin_text
 
 
 def test_access_control_periodic_cleanup_removes_expired_state(
@@ -319,10 +363,10 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
     expired_user = 7263484885
     middleware._blocked_until[expired_user] = datetime.now() - timedelta(seconds=1)
 
-    captured: list[tuple[str, dict[str, object]]] = []
+    captured: list[tuple[str, _PayloadDict]] = []
 
     class _Logger:
-        def __init__(self, ctx: dict[str, object]) -> None:
+        def __init__(self, ctx: _PayloadDict) -> None:
             self._ctx = ctx
 
         def info(self, message: str) -> None:
@@ -335,13 +379,19 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
             captured.append((message, self._ctx.copy()))
 
     class _Ctx:
-        def __init__(self, ctx: dict[str, object]) -> None:
+        def __init__(self, ctx: _PayloadDict) -> None:
             self._ctx = ctx
 
         def __enter__(self) -> _Logger:
             return _Logger(self._ctx)
 
-        def __exit__(self, *_args: object) -> Literal[False]:
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            tb: TracebackType | None,
+        ) -> Literal[False]:
+            del exc_type, exc, tb
             return False
 
     monkeypatch.setattr(middleware, "log_context", lambda **kwargs: _Ctx(kwargs))
@@ -401,7 +451,7 @@ def test_rate_limit_send_message_outside_state_lock(
     message = _build_message(user_id=55, text="spam")
     lock_probe = {"was_available": False}
 
-    def _send_message(**kwargs: object) -> None:
+    def _send_message(**kwargs: _PayloadValue) -> None:
         _ = kwargs
         acquired = middleware._state_lock.acquire(blocking=False)
         lock_probe["was_available"] = acquired
