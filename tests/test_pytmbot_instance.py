@@ -353,6 +353,13 @@ def test_setup_middleware_chain_and_stats(monkeypatch: pytest.MonkeyPatch) -> No
     assert bot.get_middleware_stats("MissingMiddleware") is None
 
 
+def test_default_middlewares_start_with_update_dedup() -> None:
+    middleware_names = [
+        middleware[0].__name__ for middleware in instance_module.DEFAULT_MIDDLEWARES
+    ]
+    assert middleware_names[0] == "UpdateDedup"
+
+
 def test_register_handler_chain_registers_message_and_callback_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

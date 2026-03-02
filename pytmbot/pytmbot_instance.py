@@ -41,6 +41,7 @@ from pytmbot.handlers.handler_manager import (
 from pytmbot.logs import BaseComponent, Logger
 from pytmbot.middleware.access_control import AccessControl
 from pytmbot.middleware.rate_limit import RateLimit
+from pytmbot.middleware.update_dedup import UpdateDedup
 from pytmbot.models.handlers_model import HandlerManager
 from pytmbot.plugins.plugin_manager import PluginManager
 from pytmbot.utils import get_environment_state, parse_cli_args, sanitize_exception
@@ -124,6 +125,7 @@ RATE_LIMIT_CIRCUIT_THRESHOLD: Final[int] = 3
 RATE_LIMIT_CIRCUIT_MAX_OPEN_SECONDS: Final[int] = 900
 
 DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
+    (UpdateDedup, {"ttl_seconds": 120.0, "max_entries": 8192}),
     (AccessControl, {}),
     (RateLimit, {"limit": 8, "period": timedelta(seconds=10)}),
 ]
