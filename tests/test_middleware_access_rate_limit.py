@@ -29,6 +29,39 @@ class _BotStub:
         self.sent_messages.append(dict(kwargs))
 
 
+@dataclass
+class _CapturedLogger:
+    context: _PayloadDict
+    sink: list[tuple[str, _PayloadDict]]
+
+    def info(self, message: str) -> None:
+        self.sink.append((message, self.context.copy()))
+
+    def debug(self, message: str) -> None:
+        self.sink.append((message, self.context.copy()))
+
+    def error(self, message: str) -> None:
+        self.sink.append((message, self.context.copy()))
+
+
+@dataclass
+class _CapturedContext:
+    context: _PayloadDict
+    sink: list[tuple[str, _PayloadDict]]
+
+    def __enter__(self) -> _CapturedLogger:
+        return _CapturedLogger(self.context, self.sink)
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
+        del exc_type, exc, tb
+        return False
+
+
 class _NoopThread:
     def __init__(self, **_kwargs: _PayloadValue) -> None:
         return
@@ -85,6 +118,19 @@ def _build_access_control_middleware(
         ),
     )
     return access_control_module.AccessControl(cast(TeleBot, bot))
+
+
+def _install_log_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    middleware: access_control_module.AccessControl,
+) -> list[tuple[str, _PayloadDict]]:
+    captured: list[tuple[str, _PayloadDict]] = []
+    monkeypatch.setattr(
+        middleware,
+        "log_context",
+        lambda **kwargs: _CapturedContext(cast(_PayloadDict, kwargs), captured),
+    )
+    return captured
 
 
 def test_access_control_authorized_user_passes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -297,6 +343,32 @@ def test_access_control_admin_notification_uses_name_fallback(
     assert "Fir" in admin_text or "Tes" in admin_text
 
 
+def test_access_control_admin_notification_masks_admin_chat_id_in_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    middleware = _build_access_control_middleware(
+        monkeypatch, bot, admin_chat_id=-4970000716
+    )
+    captured = _install_log_capture(monkeypatch, middleware)
+
+    middleware._notify_admin(
+        user_id=123456789,
+        username="unknown_user",
+        chat_id=5334652113,
+        attempt=1,
+        is_setup_command=False,
+    )
+
+    info_logs = [
+        context
+        for message, context in captured
+        if message == "bot.access.admin.notification.info"
+    ]
+    assert info_logs
+    assert info_logs[0]["admin_chat_id"] == "-497****716"
+
+
 def test_access_control_periodic_cleanup_removes_expired_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -337,38 +409,7 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
     expired_user = 7263484885
     middleware._blocked_until[expired_user] = datetime.now() - timedelta(seconds=1)
 
-    captured: list[tuple[str, _PayloadDict]] = []
-
-    class _Logger:
-        def __init__(self, ctx: _PayloadDict) -> None:
-            self._ctx = ctx
-
-        def info(self, message: str) -> None:
-            captured.append((message, self._ctx.copy()))
-
-        def debug(self, message: str) -> None:
-            captured.append((message, self._ctx.copy()))
-
-        def error(self, message: str) -> None:
-            captured.append((message, self._ctx.copy()))
-
-    class _Ctx:
-        def __init__(self, ctx: _PayloadDict) -> None:
-            self._ctx = ctx
-
-        def __enter__(self) -> _Logger:
-            return _Logger(self._ctx)
-
-        def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc: BaseException | None,
-            tb: TracebackType | None,
-        ) -> Literal[False]:
-            del exc_type, exc, tb
-            return False
-
-    monkeypatch.setattr(middleware, "log_context", lambda **kwargs: _Ctx(kwargs))
+    captured = _install_log_capture(monkeypatch, middleware)
 
     call_count = {"wait": 0}
 

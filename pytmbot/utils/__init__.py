@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from .message_deletion import deletion_manager
     from .security import (
         generate_secret_token,
+        mask_chat_id,
         mask_ip_address,
         mask_token_in_message,
         mask_user_id,
@@ -85,6 +86,7 @@ def __getattr__(name: str) -> object:
         "generate_secret_token",
         "mask_ip_address",
         "mask_token_in_message",
+        "mask_chat_id",
         "mask_username",
         "mask_user_id",
     }:
@@ -134,6 +136,7 @@ __all__ = [
     "generate_secret_token",
     "mask_ip_address",
     "mask_token_in_message",
+    "mask_chat_id",
     "mask_username",
     "mask_user_id",
     "get_message_full_info",

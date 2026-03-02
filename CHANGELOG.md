@@ -46,6 +46,8 @@ All notable changes are documented in this file.
 - Rate-limit request buffer moved to `deque` for O(1) cleanup.
 - Outline plugin migrated to `pyoutlineapi` `0.4.0` with updated client integration flow.
 - Selected high-churn runtime classes moved to `__slots__` to reduce per-instance memory overhead.
+- Type system hardening completed for `mypy --strict` (runtime modules + tests), with unified conversion helpers and reduced
+  ad-hoc typing logic.
 
 ### Fixed
 
@@ -71,6 +73,10 @@ All notable changes are documented in this file.
 - Bot update version check now uses semantic version comparison instead of lexical string compare.
 - Docker Hub tag fetch flow cleaned up for namespaced repositories and duplicate 404 log noise.
 - Logging payload consistency improved by removing nested `extra={...}` records.
+- Callback edit flows now preserve navigation keyboards across update/swap/image update handlers and handle Telegram `429`
+  edit throttling without breaking UI interaction.
+- Access-control admin notification logs now mask `admin_chat_id` to avoid exposing raw chat identifiers in structured
+  records.
 
 ### Removed
 

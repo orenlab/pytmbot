@@ -18,7 +18,7 @@ from telebot.types import Message
 
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
-from pytmbot.utils import mask_user_id, mask_username
+from pytmbot.utils import mask_chat_id, mask_user_id, mask_username
 
 
 class AccessControl(BaseMiddleware, BaseComponent):
@@ -333,7 +333,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             "chat_id": chat_id,
             "attempt_number": attempt,
             "notification_status": "sending",
-            "admin_chat_id": settings.chat_id.global_chat_id[0],
+            "admin_chat_id": mask_chat_id(settings.chat_id.global_chat_id[0]),
             "is_setup_command": is_setup_command,
         }
 

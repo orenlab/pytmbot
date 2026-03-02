@@ -6,6 +6,7 @@ import pytest
 
 from pytmbot.utils.security import (
     generate_secret_token,
+    mask_chat_id,
     mask_token_in_message,
     mask_user_id,
     mask_username,
@@ -66,6 +67,8 @@ def test_mask_username_and_user_id() -> None:
     assert mask_username("x") == "*"
     assert mask_user_id(123456789) == "12******89"
     assert mask_user_id(None) == "unknown"
+    assert mask_chat_id(-4970000716) == "-497****716"
+    assert mask_chat_id(None) == "unknown"
 
 
 def test_sanitize_sensitive_data_masks_explicit_values_and_patterns() -> None:

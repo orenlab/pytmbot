@@ -185,6 +185,41 @@ def mask_user_id(user_id: int | None, visible: int = 3) -> str:
     return mask_user_id_value(user_id)
 
 
+def mask_chat_id(chat_id: int | None, visible: int = 3) -> str:
+    """
+    Mask chat ID while preserving sign and limited edge digits.
+
+    Args:
+        chat_id: Chat ID to mask (can be None)
+        visible: Number of edge digits to preserve on both sides
+
+    Returns:
+        str: Masked chat ID or "unknown" when chat_id is None
+    """
+    if chat_id is None:
+        return "unknown"
+
+    safe_visible = max(0, visible)
+    is_negative = chat_id < 0
+    chat_id_str = str(abs(chat_id))
+
+    if len(chat_id_str) <= 6 or len(chat_id_str) <= safe_visible * 2:
+        masked = "*" * len(chat_id_str)
+    else:
+        visible_edge = min(safe_visible, (len(chat_id_str) - 4) // 2)
+        if visible_edge <= 0:
+            masked = "*" * len(chat_id_str)
+        else:
+            mask_len = len(chat_id_str) - visible_edge * 2
+            masked = (
+                f"{chat_id_str[:visible_edge]}"
+                f"{'*' * mask_len}"
+                f"{chat_id_str[-visible_edge:]}"
+            )
+
+    return f"-{masked}" if is_negative else masked
+
+
 def mask_ip_address(
     ip_value: str | None,
     visible_ipv4_octets: int = 2,
