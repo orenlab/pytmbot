@@ -52,7 +52,27 @@ def _build_cpu_overview_context() -> dict[str, object]:
 
 
 def _build_cpu_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
+    return build_cpu_detail_keyboard(user_id, include_back_to_cpu=False)
+
+
+def build_cpu_detail_keyboard(
+    user_id: int | None,
+    *,
+    include_back_to_cpu: bool = True,
+) -> InlineKeyboardMarkup:
     buttons = [
+        *(
+            [
+                button_data(
+                    text="Back to CPU",
+                    callback_data=build_user_bound_callback_data(
+                        CPU_INFO_PREFIX, user_id
+                    ),
+                )
+            ]
+            if include_back_to_cpu
+            else []
+        ),
         button_data(
             text="Per-core load",
             callback_data=build_user_bound_callback_data(CPU_PER_CORE_PREFIX, user_id),

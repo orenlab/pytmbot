@@ -6,21 +6,39 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import get_emoji_converter
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
-from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
+from pytmbot.handlers.server_handlers.inline.common import (
+    build_user_bound_callback_data,
+    edit_callback_message_text,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
 em = get_emoji_converter()
+button_data = ButtonDataType
+keyboards = get_keyboards()
+
+UPDATE_INFO_CALLBACK_PREFIX = "__how_update__"
+
+
+def _build_update_info_keyboard(target_user_id: int | None) -> InlineKeyboardMarkup:
+    return keyboards.build_inline_keyboard(
+        button_data(
+            text="How update?",
+            callback_data=build_user_bound_callback_data(
+                UPDATE_INFO_CALLBACK_PREFIX, target_user_id
+            ),
+        )
+    )
 
 
 # func=lambda call: call.data == '__how_update__'
@@ -37,7 +55,9 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
         None
     """
     try:
-        target_user_id = parse_callback_target_user(call.data or "", "__how_update__")
+        target_user_id = parse_callback_target_user(
+            call.data or "", UPDATE_INFO_CALLBACK_PREFIX
+        )
     except ValueError:
         return bot.answer_callback_query(
             callback_query_id=call.id,
@@ -76,6 +96,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
             bot=bot,
             text=bot_answer,
             parse_mode="HTML",
+            reply_markup=_build_update_info_keyboard(target_user_id),
             not_modified_text="Update instructions are already up to date.",
         )
         return None
@@ -85,6 +106,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
                 call=call,
                 bot=bot,
                 text="Some error occurred. Please try again later.",
+                reply_markup=_build_update_info_keyboard(target_user_id),
                 not_modified_text="Update instructions are already up to date.",
             )
         raise exceptions.HandlingException(

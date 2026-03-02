@@ -7,6 +7,8 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import re
+
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
@@ -15,6 +17,36 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+
+_RETRY_AFTER_PATTERN = re.compile(r"retry after\s+(\d+)", re.IGNORECASE)
+
+
+def _extract_retry_after_seconds(error: ApiTelegramException) -> int | None:
+    retry_after_raw = getattr(error, "retry_after", None)
+    if isinstance(retry_after_raw, (int, float)):
+        retry_after = int(retry_after_raw)
+        return retry_after if retry_after > 0 else None
+
+    result_json = getattr(error, "result_json", None)
+    if isinstance(result_json, dict):
+        parameters = result_json.get("parameters")
+        if isinstance(parameters, dict):
+            retry_after_obj = parameters.get("retry_after")
+            if isinstance(retry_after_obj, (int, float)):
+                retry_after = int(retry_after_obj)
+                return retry_after if retry_after > 0 else None
+
+    error_description = getattr(error, "description", str(error))
+    if isinstance(error_description, str):
+        match = _RETRY_AFTER_PATTERN.search(error_description)
+        if match:
+            try:
+                retry_after = int(match.group(1))
+            except ValueError:
+                return None
+            return retry_after if retry_after > 0 else None
+
+    return None
 
 
 def build_user_bound_callback_data(prefix: str, user_id: int | None) -> str:
@@ -111,6 +143,21 @@ def edit_callback_message_text(
             )
         return True
     except ApiTelegramException as error:
+        if getattr(error, "error_code", None) == 429:
+            retry_after = _extract_retry_after_seconds(error)
+            if getattr(call, "id", None) is not None:
+                callback_text = (
+                    "Telegram API is rate limited. Try again shortly."
+                    if retry_after is None
+                    else f"Telegram API is rate limited. Try again in {retry_after}s."
+                )
+                bot.answer_callback_query(
+                    callback_query_id=call.id,
+                    text=callback_text,
+                    show_alert=False,
+                )
+            return False
+
         error_description = getattr(error, "description", str(error))
         is_not_modified = (
             getattr(error, "error_code", None) == 400
