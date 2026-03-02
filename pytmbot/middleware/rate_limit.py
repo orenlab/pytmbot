@@ -6,10 +6,11 @@ also providing basic information about the status of local servers.
 """
 
 from collections import defaultdict, deque
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime, timedelta
 from threading import RLock
-from typing import Any, Final, TypedDict
+from typing import Final, TypedDict
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
@@ -30,7 +31,25 @@ class RateLimitConfig(TypedDict):
     period: timedelta
 
 
-class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
+class RequestDistribution(TypedDict):
+    min: int
+    max: int
+    total: int
+
+
+class RateLimitStats(TypedDict):
+    active_users: int
+    total_violations: int
+    active_violations: int
+    max_violations_per_user: int
+    average_requests_per_user: float
+    limit: int
+    period_seconds: float
+    timestamp: str
+    request_distribution: RequestDistribution
+
+
+class RateLimit(BaseMiddleware, BaseComponent):
     """
     Middleware for rate limiting user requests to prevent DDoS attacks.
 
@@ -67,7 +86,8 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         if period <= timedelta():
             raise ValueError("Time period must be positive")
 
-        BaseMiddleware.__init__(self)
+        base_middleware_init: Callable[[BaseMiddleware], None] = BaseMiddleware.__init__
+        base_middleware_init(self)
         BaseComponent.__init__(self)
         self.bot = bot
         self.limit = limit
@@ -252,7 +272,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
 
         return CancelUpdate()
 
-    def pre_process(self, message: Message, data: Any) -> CancelUpdate | None:
+    def pre_process(self, message: Message, data: object) -> CancelUpdate | None:
         """
         Process incoming message and enforce rate limiting.
 
@@ -325,7 +345,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         return None
 
     def post_process(
-        self, message: Message, data: Any, exception: Exception | None
+        self, message: Message, data: object, exception: Exception | None
     ) -> None:
         """Post-process message after main middleware execution."""
         if not exception:
@@ -340,7 +360,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
             "chat_id": message.chat.id,
             "chat_type": message.chat.type,
             "has_data": bool(data),
-            "data_keys": list(data.keys()) if data else [],
+            "data_keys": list(data.keys()) if isinstance(data, dict) else [],
         }
 
         if message.from_user:
@@ -355,7 +375,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
         with self.log_context(**context) as logger:
             logger.error("bot.rate_limit.rate.limit.fail")
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> RateLimitStats:
         """
         Get rate limiting statistics for monitoring.
 
@@ -383,7 +403,7 @@ class RateLimit(BaseMiddleware, BaseComponent):  # type: ignore[misc]
                 sum(request_counts) / len(request_counts) if request_counts else 0
             )
 
-        stats = {
+        stats: RateLimitStats = {
             "active_users": active_users,
             "total_violations": total_violations,
             "active_violations": active_violations,

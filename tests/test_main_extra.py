@@ -12,6 +12,8 @@ import pytest
 from pytmbot.exceptions import ShutdownError
 from pytmbot.utils.cli import parse_cli_args
 
+type _ThreadKwarg = str | int | float | bool | None
+
 
 def _load_main_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     parse_cli_args.cache_clear()
@@ -25,7 +27,7 @@ def _install_run_main_loop_stubs(
     *,
     monkeypatch: pytest.MonkeyPatch,
     main_module: ModuleType,
-    launcher: object,
+    launcher: SimpleNamespace,
     polling_alive: bool,
     should_log_health: Callable[[], bool] | None = None,
 ) -> None:
@@ -36,16 +38,16 @@ def _install_run_main_loop_stubs(
     )
 
     @contextmanager
-    def _managed() -> Generator[object, None, None]:
+    def _managed() -> Generator[SimpleNamespace, None, None]:
         yield bot_component
 
     class _ThreadStub:
         def __init__(
             self,
             *,
-            target: Callable[..., object],
-            args: tuple[object, ...],
-            **kwargs: object,
+            target: Callable[..., None],
+            args: tuple[SimpleNamespace, ...],
+            **kwargs: _ThreadKwarg,
         ) -> None:
             del kwargs
             self._target = target
@@ -73,7 +75,7 @@ def _install_run_main_loop_stubs(
 def test_register_cleanup_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
-    calls: list[object] = []
+    calls: list[Callable[[], None]] = []
     monkeypatch.setattr(main_module.atexit, "register", lambda fn: calls.append(fn))
 
     launcher._register_cleanup()
@@ -124,7 +126,7 @@ def test_setup_health_system_and_lifecycle(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     class _HealthStatusStub:
-        def set_manager(self, _manager: object) -> None:
+        def set_manager(self, _manager: SimpleNamespace) -> None:
             return
 
     monkeypatch.setattr(main_module, "create_health_manager", lambda **kwargs: manager)

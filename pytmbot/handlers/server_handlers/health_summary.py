@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-from typing import Any, Final
+from typing import Final
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, Message
@@ -29,6 +29,7 @@ from pytmbot.handlers.server_handlers.inline.common import (
 from pytmbot.health_system import HealthStatus
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils import to_float, to_int
 
 logger = Logger()
 em = get_emoji_converter()
@@ -118,33 +119,11 @@ def _worst_level(*levels: str) -> str:
 
 
 def _to_int(value: object, default: int = 0) -> int:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    if isinstance(value, str):
-        with_sanitized = value.strip()
-        if with_sanitized:
-            try:
-                return int(with_sanitized)
-            except ValueError:
-                return default
-    return default
+    return to_int(value, default)
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
-    if isinstance(value, bool):
-        return float(int(value))
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        candidate = value.strip().rstrip("%")
-        if candidate:
-            try:
-                return float(candidate)
-            except ValueError:
-                return default
-    return default
+    return to_float(value, default, strip_percent=True)
 
 
 def _normalize_monitor_level(raw_level: object) -> str:
@@ -160,7 +139,7 @@ def _format_component_label(component: str) -> str:
 
 def _sanitize_component_insights(
     component: str,
-    details: dict[str, Any],
+    details: dict[str, object],
 ) -> list[str]:
     insights: list[str] = []
 

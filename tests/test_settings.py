@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-import yaml  # type: ignore[import-untyped]
+import yaml
 from pydantic import SecretStr, ValidationError
 
 import pytmbot.settings as settings_module

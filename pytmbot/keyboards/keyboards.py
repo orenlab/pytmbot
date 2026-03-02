@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -53,6 +54,16 @@ def _resolve_keyboard_settings() -> KeyboardSettings:
     if not isinstance(current_settings, KeyboardSettings):
         raise KeyboardError("Keyboard settings are not initialized")
     return current_settings
+
+
+def _new_inline_keyboard_markup(
+    *, row_width: int | None = None
+) -> InlineKeyboardMarkup:
+    """Create InlineKeyboardMarkup via typed wrapper around telebot factory."""
+    factory: Callable[..., InlineKeyboardMarkup] = InlineKeyboardMarkup
+    if row_width is None:
+        return factory()
+    return factory(row_width=row_width)
 
 
 class Keyboards:
@@ -125,7 +136,7 @@ class Keyboards:
                 callback_data=data[: self.MAX_CALLBACK_DATA_LENGTH],
             )
 
-            keyboard = InlineKeyboardMarkup()
+            keyboard = _new_inline_keyboard_markup()
             keyboard.add(button)
             return keyboard
 
@@ -290,7 +301,7 @@ class Keyboards:
                 )
                 raise KeyboardError("All buttons must be ButtonData instances")
 
-            keyboard = InlineKeyboardMarkup(row_width=self.INLINE_ROW_WIDTH)
+            keyboard = _new_inline_keyboard_markup(row_width=self.INLINE_ROW_WIDTH)
             buttons = [
                 InlineKeyboardButton(
                     text=btn.text,

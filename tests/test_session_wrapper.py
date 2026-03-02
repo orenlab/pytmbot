@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import SimpleNamespace, TracebackType
 from typing import Literal, cast
 
 import pytest
@@ -9,24 +11,30 @@ from telebot.types import CallbackQuery, Message
 
 import pytmbot.middleware.session_wrapper as session_wrapper_module
 
+type _LogValue = str | int | float | bool | None
+type _PayloadValue = (
+    str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
+)
+type _PayloadDict = dict[str, _PayloadValue]
+
 
 @dataclass
 class _LogStub:
     events: list[str]
 
-    def debug(self, message: str, **kwargs: object) -> None:
+    def debug(self, message: str, **kwargs: _LogValue) -> None:
         del kwargs
         self.events.append(message)
 
-    def warning(self, message: str, **kwargs: object) -> None:
+    def warning(self, message: str, **kwargs: _LogValue) -> None:
         del kwargs
         self.events.append(message)
 
-    def error(self, message: str, **kwargs: object) -> None:
+    def error(self, message: str, **kwargs: _LogValue) -> None:
         del kwargs
         self.events.append(message)
 
-    def success(self, message: str, **kwargs: object) -> None:
+    def success(self, message: str, **kwargs: _LogValue) -> None:
         del kwargs
         self.events.append(message)
 
@@ -40,9 +48,9 @@ class _LogContext:
 
     def __exit__(
         self,
-        exc_type: object,
-        exc: object,
-        tb: object,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> Literal[False]:
         del exc_type, exc, tb
         return False
@@ -52,7 +60,7 @@ class _LogContext:
 class _AuthComponentStub:
     events: list[str] = field(default_factory=list)
 
-    def log_context(self, **kwargs: object) -> _LogContext:
+    def log_context(self, **kwargs: _LogValue) -> _LogContext:
         del kwargs
         return _LogContext(self.events)
 
@@ -93,7 +101,7 @@ class _FakeCallback:
 
 @dataclass
 class _SettingsStub:
-    access_control: object
+    access_control: _AccessControlStub
 
 
 @dataclass
@@ -105,7 +113,7 @@ class _AccessControlStub:
 def _build_message(
     *, user_id: int = 101, username: str = "tester", text: str = "/start"
 ) -> Message:
-    payload = {
+    payload: _PayloadDict = {
         "message_id": 1,
         "date": 1,
         "chat": {"id": 10, "type": "private"},
@@ -117,7 +125,8 @@ def _build_message(
         },
         "text": text,
     }
-    message_obj = Message.de_json(payload)
+    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
+    message_obj = message_from_json(payload)
     if not isinstance(message_obj, Message):
         raise AssertionError("Expected Message instance")
     return message_obj
@@ -189,7 +198,7 @@ def test_handle_unauthorized_and_access_denied_helpers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     message = _build_message()
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     monkeypatch.setattr(session_wrapper_module, "is_valid_query", lambda query: False)
     with pytest.raises(TypeError):
@@ -241,7 +250,7 @@ def test_unauthenticated_and_expired_helper_actions(
         username="u77",
     )
     query = _build_message(user_id=77, username="u77", text="/containers")
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     session_wrapper_module._handle_unauthenticated_user(auth_context, query, bot)
     assert session_stub.referer_calls == [
@@ -263,14 +272,14 @@ def test_two_factor_auth_required_type_error() -> None:
     wrapped = session_wrapper_module.two_factor_auth_required(_handler)
 
     with pytest.raises(TypeError):
-        wrapped(cast(Message, object()), cast(TeleBot, object()))
+        wrapped(cast(Message, 0), cast(TeleBot, 0))
 
 
 def test_two_factor_auth_required_auth_context_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     message = _build_message()
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     auth_stub = _AuthComponentStub()
     monkeypatch.setattr(session_wrapper_module, "auth_component", auth_stub)
@@ -300,7 +309,7 @@ def test_two_factor_auth_required_not_authorized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     message = _build_message(user_id=999, username="x")
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     auth_stub = _AuthComponentStub()
     monkeypatch.setattr(session_wrapper_module, "auth_component", auth_stub)
@@ -358,7 +367,7 @@ def test_two_factor_auth_required_auth_state_branches(
     handler_name: str,
 ) -> None:
     message = _build_message(user_id=10, username="u10")
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     auth_stub = _AuthComponentStub()
     session_stub = _SessionManagerStub(authenticated=authenticated, expired=expired)
@@ -398,7 +407,7 @@ def test_two_factor_auth_required_auth_state_branches(
 
 def test_two_factor_auth_required_success(monkeypatch: pytest.MonkeyPatch) -> None:
     message = _build_message(user_id=10, username="u10")
-    bot = cast(TeleBot, object())
+    bot = cast(TeleBot, SimpleNamespace())
 
     auth_stub = _AuthComponentStub()
     session_stub = _SessionManagerStub(authenticated=True, expired=False)

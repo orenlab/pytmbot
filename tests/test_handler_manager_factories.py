@@ -10,12 +10,15 @@ from telebot.types import CallbackQuery, Message
 import pytmbot.handlers.handler_manager as factory_module
 from pytmbot.models.handlers_model import HandlerManager
 
+type _ArgValue = str | int | float | bool | None
+type _ArgDict = dict[str, _ArgValue]
+
 
 def test_handler_manager_model_execute_and_repr() -> None:
-    calls: dict[str, object] = {}
+    calls: _ArgDict = {}
 
-    def _callback(**kwargs: object) -> str:
-        calls.update(kwargs)
+    def _callback(**kwargs: _ArgValue) -> str:
+        calls.update(dict(kwargs))
         return "ok"
 
     manager = HandlerManager(callback=_callback, kwargs={"a": 1})
@@ -30,10 +33,10 @@ def test_handler_manager_model_execute_and_repr() -> None:
 
 
 def test_handler_config_create_handler_populates_filters() -> None:
-    def _callback(**_kwargs: object) -> None:
+    def _callback(**_kwargs: _ArgValue) -> None:
         return None
 
-    def _filter(message: object) -> bool:
+    def _filter(message: Message | None) -> bool:
         return bool(message)
 
     config = factory_module.HandlerConfig(

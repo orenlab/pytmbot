@@ -13,13 +13,14 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Final, Protocol, override
+from typing import Final, Protocol, override, runtime_checkable
 from weakref import ReferenceType, ref
 
 import telebot
 from telebot.apihelper import ApiTelegramException
 
 from pytmbot.logs import BaseComponent
+from pytmbot.utils import to_float
 
 RESOURCE_MEMORY_CRITICAL_THRESHOLD: Final[float] = 90.0
 RESOURCE_MEMORY_UNHEALTHY_THRESHOLD: Final[float] = 80.0
@@ -50,7 +51,7 @@ class HealthResult:
     component: str
     latency_ms: float
     timestamp: float = field(default_factory=time.time)
-    details: dict[str, Any] = field(default_factory=dict)
+    details: dict[str, object] = field(default_factory=dict)
 
     @property
     def is_operational(self) -> bool:
@@ -98,6 +99,24 @@ class HealthChecker(Protocol):
     def interval_seconds(self) -> float: ...
 
     def check_sync(self) -> HealthResult: ...
+
+
+class SessionStatsProvider(Protocol):
+    def get_session_stats(self) -> dict[str, int]: ...
+
+
+class ProcessHealthAdapter(Protocol):
+    def get_current_process_health_summary(self) -> dict[str, object]: ...
+
+
+class _HealthCheckerRegistry(Protocol):
+    def add_checker(self, checker: HealthChecker) -> None: ...
+
+
+@runtime_checkable
+class BotIdentity(Protocol):
+    id: int
+    username: str | None
 
 
 class BaseHealthChecker(ABC):
@@ -187,7 +206,7 @@ class TelegramApiChecker(BaseHealthChecker):
 
         start_time = time.perf_counter()
         try:
-            result: dict[str, Any] = {}
+            result: dict[str, object] = {}
 
             def api_call() -> None:
                 try:
@@ -231,7 +250,14 @@ class TelegramApiChecker(BaseHealthChecker):
                 level=level,
                 component=self.name,
                 latency_ms=latency,
-                details={"bot_id": bot_info.id, "username": bot_info.username},
+                details=(
+                    {
+                        "bot_id": bot_info.id,
+                        "username": bot_info.username or "unknown",
+                    }
+                    if isinstance(bot_info, BotIdentity)
+                    else {"bot_id": "unknown", "username": "unknown"}
+                ),
             )
 
         except (TimeoutError, OSError):
@@ -302,14 +328,14 @@ class PollingChecker(BaseHealthChecker):
 
         if not polling_active:
             level = HealthLevel.UNHEALTHY
-            details = {"polling_active": False}
+            details: dict[str, object] = {"polling_active": False}
         elif polling_thread_alive is False:
             level = HealthLevel.CRITICAL
             details = {"polling_active": True, "polling_thread_alive": False}
         else:
             level = HealthLevel.HEALTHY
             details = {"polling_active": True}
-            if polling_thread_alive is True:
+            if polling_thread_alive:
                 details["polling_thread_alive"] = True
 
         return HealthResult(
@@ -322,7 +348,7 @@ class SystemResourceChecker(BaseHealthChecker):
 
     __slots__ = ("_psutil_adapter",)
 
-    def __init__(self, psutil_adapter: Any) -> None:
+    def __init__(self, psutil_adapter: ProcessHealthAdapter | None) -> None:
         super().__init__(cache_ttl=20.0)
         self._psutil_adapter = psutil_adapter
 
@@ -400,15 +426,10 @@ class SystemResourceChecker(BaseHealthChecker):
             )
 
     @staticmethod
-    def _parse_percentage(value: str | float) -> float:
-        if isinstance(value, (int, float)):
-            return float(value)
-        if isinstance(value, str) and value.endswith("%"):
-            try:
-                return float(value[:-1])
-            except ValueError:
-                return 0.0
-        return 0.0
+    def _parse_percentage(value: object) -> float:
+        if isinstance(value, str) and not value.endswith("%"):
+            return 0.0
+        return to_float(value, 0.0, strip_percent=True)
 
 
 class SessionChecker(BaseHealthChecker):
@@ -416,7 +437,7 @@ class SessionChecker(BaseHealthChecker):
 
     __slots__ = ("_session_manager",)
 
-    def __init__(self, session_manager: Any) -> None:
+    def __init__(self, session_manager: SessionStatsProvider | None) -> None:
         super().__init__(cache_ttl=18.0)
         self._session_manager = session_manager
 
@@ -460,7 +481,10 @@ class SessionChecker(BaseHealthChecker):
                     level = HealthLevel.HEALTHY
 
             return HealthResult(
-                level=level, component=self.name, latency_ms=latency, details=stats
+                level=level,
+                component=self.name,
+                latency_ms=latency,
+                details=dict(stats),
             )
 
         except Exception as e:
@@ -753,7 +777,7 @@ class HealthMonitor(BaseComponent):
             latest = self._latest
         return latest is not None and latest.overall >= HealthLevel.DEGRADED
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> dict[str, object]:
         """Get health summary for logging."""
         with self._state_lock:
             latest = self._latest
@@ -821,7 +845,7 @@ class HealthManager:
         """Quick health check."""
         return self._monitor.is_healthy
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> dict[str, object]:
         """Get health summary."""
         return self._monitor.get_summary()
 
@@ -831,59 +855,50 @@ class HealthManager:
 
 
 # Factory functions
-def create_health_monitor(
+def _configure_health_checks(
+    target: _HealthCheckerRegistry,
     bot: telebot.TeleBot,
-    session_manager: Any | None = None,
-    psutil_adapter: Any | None = None,
-) -> HealthMonitor:
-    """Create configured health monitor."""
-    monitor = HealthMonitor()
-
+    session_manager: SessionStatsProvider | None = None,
+    psutil_adapter: ProcessHealthAdapter | None = None,
+) -> None:
+    """Register core health checkers for monitor/manager factories."""
     bot_ref = ref(bot)
-    monitor.add_checker(TelegramApiChecker(bot_ref))
-    monitor.add_checker(PollingChecker(bot_ref))
+    target.add_checker(TelegramApiChecker(bot_ref))
+    target.add_checker(PollingChecker(bot_ref))
 
     if session_manager:
-        monitor.add_checker(SessionChecker(session_manager))
+        target.add_checker(SessionChecker(session_manager))
 
     if psutil_adapter:
-        monitor.add_checker(SystemResourceChecker(psutil_adapter))
+        target.add_checker(SystemResourceChecker(psutil_adapter))
 
     try:
         from pytmbot.parsers.health_checker import TemplateParserChecker
 
-        monitor.add_checker(TemplateParserChecker())
+        target.add_checker(TemplateParserChecker())
     except ImportError:
         pass  # Parser не доступен
 
+
+def create_health_monitor(
+    bot: telebot.TeleBot,
+    session_manager: SessionStatsProvider | None = None,
+    psutil_adapter: ProcessHealthAdapter | None = None,
+) -> HealthMonitor:
+    """Create configured health monitor."""
+    monitor = HealthMonitor()
+    _configure_health_checks(monitor, bot, session_manager, psutil_adapter)
     return monitor
 
 
 def create_health_manager(
     bot: telebot.TeleBot,
-    session_manager: Any | None = None,
-    psutil_adapter: Any | None = None,
+    session_manager: SessionStatsProvider | None = None,
+    psutil_adapter: ProcessHealthAdapter | None = None,
 ) -> HealthManager:
     """Create configured health manager."""
     manager = HealthManager()
-
-    bot_ref = ref(bot)
-    manager.add_checker(TelegramApiChecker(bot_ref))
-    manager.add_checker(PollingChecker(bot_ref))
-
-    if session_manager:
-        manager.add_checker(SessionChecker(session_manager))
-
-    if psutil_adapter:
-        manager.add_checker(SystemResourceChecker(psutil_adapter))
-
-    try:
-        from pytmbot.parsers.health_checker import TemplateParserChecker
-
-        manager.add_checker(TemplateParserChecker())
-    except ImportError:
-        pass  # Parser не доступен
-
+    _configure_health_checks(manager, bot, session_manager, psutil_adapter)
     return manager
 
 
@@ -932,7 +947,7 @@ class HealthStatus:
         """Legacy method - no-op."""
         pass
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> dict[str, object]:
         """Return latest health summary for UI consumers."""
         with self._state_lock:
             manager = self._manager

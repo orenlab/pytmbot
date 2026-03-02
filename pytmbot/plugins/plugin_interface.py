@@ -40,7 +40,7 @@ class PluginInterface(ABC):
         - Command handlers
         - Message handlers
         - Callback query handlers
-        - Any other necessary bot interactions
+        - Other necessary bot interactions
 
         Raises:
             RuntimeError: If registration fails due to bot API issues.

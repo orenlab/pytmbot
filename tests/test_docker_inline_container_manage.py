@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import ModuleType, TracebackType
 from typing import Literal, cast
 
 import pytest
@@ -11,8 +12,18 @@ from telebot.types import CallbackQuery
 import pytmbot.handlers.docker_handlers.inline.container_info as container_info_module
 import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime_info_module
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
+from pytmbot.handlers.handlers_util.docker import validate_container_name
 from pytmbot.parsers.compiler import Compiler
 from tests._inline_edit_helpers import patch_not_modified_edit_error
+
+type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
+type _RawHandlerInput = (
+    Callable[..., _CallbackHandler | None]
+    | Callable[..., None]
+    | Callable[[Callable[..., None]], Callable[..., None]]
+)
+type _Value = str | int | float | bool | None | dict[str, _Value] | list[_Value]
+type _ValueDict = dict[str, _Value]
 
 
 @dataclass
@@ -41,35 +52,35 @@ class _Call:
 
 @dataclass
 class _Bot:
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
-    edited_messages: list[dict[str, object]] = field(default_factory=list)
+    callback_answers: list[_ValueDict] = field(default_factory=list)
+    edited_messages: list[_ValueDict] = field(default_factory=list)
 
-    def answer_callback_query(self, callback_query_id: str, **kwargs: object) -> bool:
-        payload: dict[str, object] = {
+    def answer_callback_query(self, callback_query_id: str, **kwargs: _Value) -> bool:
+        payload: _ValueDict = {
             "callback_query_id": callback_query_id,
             **kwargs,
         }
         self.callback_answers.append(payload)
         return True
 
-    def edit_message_text(self, **kwargs: object) -> str:
-        self.edited_messages.append(kwargs)
+    def edit_message_text(self, **kwargs: _Value) -> str:
+        self.edited_messages.append(cast(_ValueDict, dict(kwargs)))
         return "edited"
 
 
-def _raw_handler(handler: object) -> Callable[..., object]:
+def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     wrapped = handler
     for _ in range(3):
         wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(Callable[..., object], wrapped)
+    return cast(_CallbackHandler, wrapped)
 
 
 def _prepare_handler_context(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    module: object,
-    handler_obj: object,
-) -> tuple[Callable[..., object], _Bot, list[str]]:
+    module: ModuleType,
+    handler_obj: _RawHandlerInput,
+) -> tuple[_CallbackHandler, _Bot, list[str]]:
     handler = _raw_handler(handler_obj)
     bot = _Bot()
     shown: list[str] = []
@@ -93,10 +104,11 @@ class _DockerContext:
 
     def __exit__(
         self,
-        exc_type: object,
-        exc: object,
-        tb: object,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> Literal[False]:
+        del exc_type, exc, tb
         return False
 
 
@@ -114,22 +126,21 @@ def _patch_manage_view_render_dependencies(
     monkeypatch.setattr(
         manage_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
     monkeypatch.setattr(
         manage_module,
         "em",
-        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})()),
+        type("_Em", (), {"get_emoji": staticmethod(lambda key: key)})(),
     )
     monkeypatch.setattr(
-        manage_module.Compiler, "quick_render", lambda *args, **kwargs: "manage-ui"
+        Compiler,
+        "quick_render",
+        lambda *args, **kwargs: "manage-ui",
     )
 
 
@@ -156,8 +167,8 @@ def _patch_manage_container_state(
 def _assert_invalid_container_name_path(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    module: object,
-    handler: Callable[..., object],
+    module: ModuleType,
+    handler: _CallbackHandler,
     bot: _Bot,
     shown: list[str],
     callback_data: str,
@@ -170,10 +181,10 @@ def _assert_invalid_container_name_path(
 
 
 def test_validate_container_name() -> None:
-    assert container_info_module.validate_container_name("api-1") is True
-    assert container_info_module.validate_container_name("") is False
-    assert container_info_module.validate_container_name("../etc") is False
-    assert container_info_module.validate_container_name("bad|name") is False
+    assert validate_container_name("api-1") is True
+    assert validate_container_name("") is False
+    assert validate_container_name("../etc") is False
+    assert validate_container_name("bad|name") is False
 
 
 def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -256,7 +267,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         },
     )
     monkeypatch.setattr(
-        container_info_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "container-full",
     )
@@ -268,14 +279,11 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         container_info_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
 
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
@@ -320,7 +328,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda name: {"name": "api"},
     )
     monkeypatch.setattr(
-        container_info_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("render fail")),
     )
@@ -399,9 +407,9 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
 
     @dataclass
     class _Container:
-        attrs: dict[str, object]
+        attrs: dict[str, _Value]
 
-    container_attrs: dict[str, object] = {
+    container_attrs: dict[str, _Value] = {
         "Mounts": [
             {
                 "Source": "/src",
@@ -444,7 +452,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         },
     )
     monkeypatch.setattr(
-        runtime_info_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, **kwargs: template_name,
     )
@@ -456,14 +464,11 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(
         runtime_info_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
 
     handler(
@@ -636,7 +641,7 @@ def test_handle_container_full_info_ignores_not_modified(
         },
     )
     monkeypatch.setattr(
-        container_info_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "container-full",
     )
@@ -648,14 +653,11 @@ def test_handle_container_full_info_ignores_not_modified(
     monkeypatch.setattr(
         container_info_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
 
     patch_not_modified_edit_error(monkeypatch, bot)
@@ -690,7 +692,7 @@ def test_handle_container_extra_info_ignores_not_modified(
         lambda: {"thought_balloon": "💭", "package": "📦", "banjo": "🪕"},
     )
     monkeypatch.setattr(
-        runtime_info_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "runtime-info",
     )

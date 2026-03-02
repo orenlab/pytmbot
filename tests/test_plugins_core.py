@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 import pytest
 import yaml
 
 import pytmbot.plugins.plugins_core as plugins_core_module
+from pytmbot.keyboards.keyboards import Keyboards
 from pytmbot.plugins.models import PluginCoreModel
 from pytmbot.plugins.plugins_core import PluginCore
 
@@ -28,7 +28,9 @@ def _clear_plugin_config_cache() -> Generator[None, None, None]:
 
 def test_get_config_path_resolves_existing_file_and_fails_for_missing() -> None:
     core = PluginCore()
-    get_config_path = cast(Any, core)._PluginCore__get_config_path
+    method_name = "_PluginCore__get_config_path"
+    get_config_path_obj = getattr(core, method_name)
+    get_config_path = cast(Callable[[str], str], get_config_path_obj)
 
     with pytest.raises(FileNotFoundError):
         get_config_path("definitely-missing-plugin-config.yaml")
@@ -51,8 +53,7 @@ def test_load_plugin_external_config_and_yaml_failures(
     config_file = tmp_path / "plugin.yml"
     config_file.write_text("enabled: true\nretries: 3\n", encoding="utf-8")
     monkeypatch.setattr(
-        PluginCore,
-        "_PluginCore__get_config_path",
+        "pytmbot.plugins.plugins_core.PluginCore._PluginCore__get_config_path",
         lambda self, config_name: str(config_file),
     )
 
@@ -65,16 +66,14 @@ def test_load_plugin_external_config_and_yaml_failures(
     invalid_config = tmp_path / "invalid.yml"
     invalid_config.write_text("enabled: [\n", encoding="utf-8")
     monkeypatch.setattr(
-        PluginCore,
-        "_PluginCore__get_config_path",
+        "pytmbot.plugins.plugins_core.PluginCore._PluginCore__get_config_path",
         lambda self, config_name: str(invalid_config),
     )
     with pytest.raises(yaml.YAMLError):
         core.load_plugin_external_config("invalid.yml", _PluginCfg)
 
     monkeypatch.setattr(
-        PluginCore,
-        "_PluginCore__get_config_path",
+        "pytmbot.plugins.plugins_core.PluginCore._PluginCore__get_config_path",
         lambda self, config_name: str(config_file),
     )
     plugins_core_module._plugin_config_cache.pop("plugin.yml", None)
@@ -87,21 +86,23 @@ def test_load_plugin_external_config_and_yaml_failures(
         core.load_plugin_external_config("plugin.yml", _PluginCfg)
 
 
-def test_build_plugin_keyboard_delegates_to_keyboards() -> None:
+def test_build_plugin_keyboard_delegates_to_keyboards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     core = PluginCore()
     calls: list[dict[str, str]] = []
 
     def _build_reply_keyboard(
+        self: Keyboards,
         plugin_keyboard_data: dict[str, str] | None = None,
     ) -> str:
+        del self
         if plugin_keyboard_data is not None:
             calls.append(plugin_keyboard_data)
         return "kbd"
 
-    cast(Any, core).keyboard = SimpleNamespace(
-        build_reply_keyboard=_build_reply_keyboard
-    )
+    monkeypatch.setattr(Keyboards, "build_reply_keyboard", _build_reply_keyboard)
 
     keyboard = core.build_plugin_keyboard({"A": "a"})
-    assert keyboard == "kbd"
+    assert cast(str, keyboard) == "kbd"
     assert calls == [{"A": "a"}]

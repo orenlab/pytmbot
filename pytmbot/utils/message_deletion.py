@@ -15,10 +15,11 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Final
+from typing import Final
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
+from telebot.types import ReplyKeyboardMarkup
 
 from pytmbot.logs import BaseComponent, Logger
 
@@ -312,7 +313,7 @@ class _MessageDeletionManager(BaseComponent):
 
                 # Check if already scheduled
                 if task_key in self._active_tasks:
-                    with self._update_stats("already_scheduled"):
+                    with self._update_stats(stat_name="already_scheduled"):
                         log.warning("bot.utils.message_deletion.duplicate.deletion.ok")
                         return _DeletionResult(
                             status=_DeletionStatus.ALREADY_SCHEDULED,
@@ -324,7 +325,7 @@ class _MessageDeletionManager(BaseComponent):
 
                 # Check if limit is exceeded
                 if current_pending >= self._max_pending_per_user:
-                    with self._update_stats("limit_exceeded"):
+                    with self._update_stats(stat_name="limit_exceeded"):
                         log.warning("bot.utils.message_deletion.deletion.limit.warn")
                         return _DeletionResult(
                             status=_DeletionStatus.LIMIT_EXCEEDED,
@@ -366,7 +367,7 @@ class _MessageDeletionManager(BaseComponent):
             )
             deletion_thread.start()
 
-            with self._update_stats("scheduled"):
+            with self._update_stats(stat_name="scheduled"):
                 log.info("bot.utils.message_deletion.deletion.scheduled.ok")
 
                 return _DeletionResult(
@@ -408,7 +409,7 @@ class _MessageDeletionManager(BaseComponent):
                 # Attempt deletion
                 bot.delete_message(task.chat_id, task.message_id)
 
-                with self._update_stats("completed"):
+                with self._update_stats(stat_name="completed"):
                     result = _DeletionResult(
                         status=_DeletionStatus.SUCCESS,
                         message_id=task.message_id,
@@ -523,7 +524,7 @@ class _MessageDeletionManager(BaseComponent):
 
         return stats
 
-    def get_system_status(self) -> dict[str, Any]:
+    def get_system_status(self) -> dict[str, object]:
         """
         Get comprehensive system status information.
 
@@ -568,7 +569,7 @@ _DEFAULT_POST_DELETE_NAVIGATION_TEXT: Final[str] = (
 )
 
 
-def _build_back_navigation_keyboard() -> Any:
+def _build_back_navigation_keyboard() -> ReplyKeyboardMarkup:
     """Build back-to-main-menu keyboard lazily to avoid import side effects."""
     from pytmbot.globals import get_keyboards
 

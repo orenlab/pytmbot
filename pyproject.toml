@@ -63,7 +63,10 @@ dev = [
     "pytest-cov>=7.0.0,<8",
     "mypy>=1.0.0,<2",
     "codeclone>=1.4.2,<2",
+    "types-cachetools>=6.2.0.20251022,<7",
     "types-PyYAML>=6.0.12,<7",
+    "types-python-dateutil>=2.9.0.20260302,<3",
+    "types-requests>=2.32.4.20250913,<3",
     "pre-commit>=4.5.1",
 ]
 

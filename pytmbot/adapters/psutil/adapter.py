@@ -17,7 +17,7 @@ from contextlib import suppress
 from datetime import datetime
 from functools import lru_cache, wraps
 from threading import RLock
-from typing import Any, TypeVar
+from typing import ParamSpec, TypeVar
 from uuid import uuid4
 
 import psutil
@@ -44,23 +44,24 @@ from pytmbot.logs import Logger
 from pytmbot.utils import set_naturalsize
 
 logger = Logger()
+P = ParamSpec("P")
 R = TypeVar("R")
 
 
 def thread_safe_cache(
     maxsize: int = 128, ttl_seconds: float = 5.0
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Thread-safe cache decorator with TTL for expensive operations."""
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         cache: OrderedDict[
-            tuple[tuple[Any, ...], tuple[tuple[str, Any], ...]],
-            tuple[Any, float],
+            tuple[tuple[object, ...], tuple[tuple[str, object], ...]],
+            tuple[R, float],
         ] = OrderedDict()
         cache_lock = RLock()
 
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             # Create cache key including both args and kwargs
             cache_key = (args, tuple(sorted(kwargs.items())))
             current_time = time.time()
@@ -291,7 +292,7 @@ class PsutilAdapter:
     def _log_operation_result(
         event: str,
         execution_time_ms: float,
-        **context: Any,
+        **context: object,
     ) -> None:
         """Log a single operation result line with semantic level by latency."""
         payload = {**context, "ms": round(execution_time_ms, 2)}
@@ -303,7 +304,7 @@ class PsutilAdapter:
     def _log_trace_operation_result(
         event: str,
         execution_time_ms: float,
-        **context: Any,
+        **context: object,
     ) -> None:
         """Log low-priority periodic operation results on TRACE."""
         payload = {**context, "ms": round(execution_time_ms, 2)}

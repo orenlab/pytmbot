@@ -8,9 +8,9 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import os
-from typing import Any
 
 import yaml
+from telebot.types import ReplyKeyboardMarkup
 
 from pytmbot import globals as g
 from pytmbot import logs
@@ -23,7 +23,7 @@ logger = logs.Logger()
 
 # Module-level cache for YAML plugin configs: config files don't change at runtime,
 # repeated open()+yaml.safe_load() on each plugin command invocation is unnecessary I/O.
-_plugin_config_cache: dict[str, Any] = {}
+_plugin_config_cache: dict[str, dict[str, object]] = {}
 
 
 class PluginCore:
@@ -85,6 +85,10 @@ class PluginCore:
         try:
             with open(config_path) as f:
                 config_data = yaml.safe_load(f)
+            if not isinstance(config_data, dict):
+                raise ValueError(
+                    f"Invalid plugin config format for {config_name}: expected mapping"
+                )
 
             _plugin_config_cache[config_name] = config_data
             self.logger.debug("bot.plugins.plugins_core.load.plugin.debug")
@@ -97,7 +101,9 @@ class PluginCore:
             self.logger.error("bot.plugins.plugins_core.load.plugin.fail")
             raise
 
-    def build_plugin_keyboard(self, plugin_keyboard_data: dict[str, str]) -> Any:
+    def build_plugin_keyboard(
+        self, plugin_keyboard_data: dict[str, str]
+    ) -> ReplyKeyboardMarkup:
         """
         Builds a reply keyboard for the plugin.
 
@@ -105,7 +111,7 @@ class PluginCore:
             plugin_keyboard_data (dict[str, str]): Data to build the keyboard.
 
         Returns:
-            Any: The constructed reply keyboard.
+            ReplyKeyboardMarkup: The constructed reply keyboard.
         """
         return self.keyboard.build_reply_keyboard(
             plugin_keyboard_data=plugin_keyboard_data

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from docker.errors import NotFound
@@ -16,6 +17,10 @@ from pytmbot.exceptions import (
     DockerConnectionError,
     DockerOperationException,
 )
+
+type _StatsValue = int | dict[str, int]
+type _StatsDict = dict[str, _StatsValue]
+type _ObjectDict = dict[str, object]
 
 
 @dataclass
@@ -46,7 +51,7 @@ class _ContainerStub:
 
     def stats(
         self, *, stream: bool, one_shot: bool = False
-    ) -> dict[str, object] | Iterator[dict[str, object]]:
+    ) -> _StatsDict | Iterator[_StatsDict]:
         if stream:
             return {}
         if one_shot:
@@ -82,7 +87,7 @@ def test_container_state_cache_expiry_and_stats(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = [100.0]
-    monkeypatch.setattr(docker_utils.time, "time", lambda: clock[0])
+    monkeypatch.setattr("pytmbot.adapters.docker.utils.time.time", lambda: clock[0])
 
     cache = docker_utils.ContainerStateCache(ttl=1.0, max_size=2)
     cache.set("c1", "running")
@@ -98,18 +103,20 @@ def test_get_container_stats_snapshot_handles_one_shot_and_iterator() -> None:
     class _IteratorContainer(_ContainerStub):
         def stats(
             self, *, stream: bool, one_shot: bool = False
-        ) -> Iterator[dict[str, object]]:
+        ) -> Iterator[_StatsDict]:
             del stream, one_shot
             return iter([{"memory_stats": {"usage": 5, "limit": 10}}])
 
     iterator_container = cast(Container, _IteratorContainer())
     snapshot = docker_utils.get_container_stats_snapshot(iterator_container)
-    assert snapshot["memory_stats"]["usage"] == 5
+    memory_stats = snapshot.get("memory_stats")
+    assert isinstance(memory_stats, dict)
+    assert memory_stats.get("usage") == 5
 
 
 def test_get_container_stats_snapshot_handles_errors() -> None:
     class _BrokenContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
+        def stats(self, *, stream: bool, one_shot: bool = False) -> _StatsDict:
             del stream, one_shot
             raise RuntimeError("boom")
 
@@ -178,7 +185,7 @@ def test_get_container_state_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None
     calls = {"count": 0}
 
     def _get_container(
-        container_id: str, docker_client: object | None = None
+        container_id: str, docker_client: SimpleNamespace | None = None
     ) -> Container:
         del docker_client
         calls["count"] += 1
@@ -196,7 +203,7 @@ def test_get_container_state_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_get_container_safely_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     class _ContainersAPI:
-        def __init__(self, result: object) -> None:
+        def __init__(self, result: Container | Exception) -> None:
             self._result = result
 
         def get(self, _container_id: str) -> Container:
@@ -241,7 +248,7 @@ def test_get_container_safely_uses_context_manager(
     container = cast(Container, _ContainerStub())
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace(containers=SimpleNamespace(get=lambda _cid: container))
 
     monkeypatch.setattr(docker_utils, "docker_client_context", _client_context)
@@ -283,7 +290,7 @@ def test_get_container_basic_info_and_fallback(monkeypatch: pytest.MonkeyPatch) 
 
     class _BadContainer(_ContainerStub):
         @property
-        def name(self) -> str:  # type: ignore[override]
+        def name(self) -> str:
             raise RuntimeError("bad")
 
         @name.setter
@@ -307,7 +314,9 @@ def test_sanitize_and_validate_helpers() -> None:
         }
     )
     assert sanitized["password"] == "[REDACTED]"
-    assert sanitized["nested"]["api_key"] == "[REDACTED]"
+    nested = sanitized.get("nested")
+    assert isinstance(nested, dict)
+    assert nested.get("api_key") == "[REDACTED]"
     assert sanitized["plain"] == "ok"
 
     context = docker_utils.build_container_context("cid1234", "action", token="secret")
@@ -335,7 +344,7 @@ def test_sanitize_and_validate_helpers() -> None:
 def test_operation_tracker_history_and_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
     tracker = docker_utils.ContainerOperationTracker()
     clock = [100.0]
-    monkeypatch.setattr(docker_utils.time, "time", lambda: clock[0])
+    monkeypatch.setattr("pytmbot.adapters.docker.utils.time.time", lambda: clock[0])
 
     tracker.record_operation("cid1234", "restart")
     clock[0] = 120.0
@@ -366,7 +375,7 @@ def test_container_state_and_decorator_validation_errors() -> None:
 
 def test_state_cache_cleanup_when_full(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [100.0]
-    monkeypatch.setattr(docker_utils.time, "time", lambda: clock[0])
+    monkeypatch.setattr("pytmbot.adapters.docker.utils.time.time", lambda: clock[0])
     cache = docker_utils.ContainerStateCache(ttl=1.0, max_size=1)
 
     cache._cache["old"] = docker_utils.CacheEntry(data="running", timestamp=90.0)  # noqa: SLF001
@@ -383,13 +392,11 @@ def test_memory_stats_provider_branches(monkeypatch: pytest.MonkeyPatch) -> None
         "/sys/fs/cgroup/memory/docker/cid/memory.limit_in_bytes": "2048",
     }
     monkeypatch.setattr(
-        docker_utils.Path,
-        "exists",
+        "pytmbot.adapters.docker.utils.Path.exists",
         lambda self: str(self) in path_map,
     )
     monkeypatch.setattr(
-        docker_utils.Path,
-        "read_text",
+        "pytmbot.adapters.docker.utils.Path.read_text",
         lambda self: path_map[str(self)],
     )
 
@@ -412,27 +419,26 @@ def test_memory_stats_provider_branches(monkeypatch: pytest.MonkeyPatch) -> None
     assert docker_utils.MemoryStatsProvider.from_cgroups("cid") is None
 
     monkeypatch.setattr(
-        docker_utils.Path,
-        "exists",
+        "pytmbot.adapters.docker.utils.Path.exists",
         lambda self: str(self).startswith("/sys/fs/cgroup/"),
     )
     monkeypatch.setattr(
-        docker_utils.Path,
-        "read_text",
+        "pytmbot.adapters.docker.utils.Path.read_text",
         lambda self: (_ for _ in ()).throw(RuntimeError("fs failed")),
     )
     assert docker_utils.MemoryStatsProvider.from_cgroups("cid") is None
 
     run_result = SimpleNamespace(returncode=0, stdout="1.0MiB / 2.0MiB,50.0%")
-    monkeypatch.setattr(docker_utils.subprocess, "run", lambda *a, **k: run_result)
+    monkeypatch.setattr(
+        "pytmbot.adapters.docker.utils.subprocess.run", lambda *a, **k: run_result
+    )
     cli_stats = docker_utils.MemoryStatsProvider.from_docker_cli("cid")
     assert cli_stats and cli_stats["mem_percent"] == "50.0%"
 
     monkeypatch.setattr(
-        docker_utils.subprocess,
-        "run",
+        "pytmbot.adapters.docker.utils.subprocess.run",
         lambda *a, **k: (_ for _ in ()).throw(
-            docker_utils.subprocess.TimeoutExpired(cmd="docker", timeout=1.0)
+            subprocess.TimeoutExpired(cmd="docker", timeout=1.0)
         ),
     )
     assert docker_utils.MemoryStatsProvider.from_docker_cli("cid") is None
@@ -448,11 +454,11 @@ def test_memory_stats_provider_branches(monkeypatch: pytest.MonkeyPatch) -> None
     inspect_stats = docker_utils.MemoryStatsProvider.from_inspect(inspect_container)
     assert inspect_stats and inspect_stats["mem_limit"] == "No Limit"
 
-    inspect_container.attrs = cast(dict[str, object], None)
+    inspect_container.attrs = cast(dict[str, str], None)
     assert docker_utils.MemoryStatsProvider.from_inspect(inspect_container) is None
 
     class _BrokenStatsContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
+        def stats(self, *, stream: bool, one_shot: bool = False) -> _StatsDict:
             del stream, one_shot
             raise RuntimeError("no stats")
 
@@ -482,7 +488,7 @@ def test_stats_snapshot_and_state_check_error_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _TypeErrorContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
+        def stats(self, *, stream: bool, one_shot: bool = False) -> _StatsDict:
             if one_shot:
                 raise TypeError("one_shot unsupported")
             del stream
@@ -491,10 +497,12 @@ def test_stats_snapshot_and_state_check_error_paths(
     type_error_snapshot = docker_utils.get_container_stats_snapshot(
         cast(Container, _TypeErrorContainer())
     )
-    assert type_error_snapshot["memory_stats"]["usage"] == 7
+    type_error_memory_stats = type_error_snapshot.get("memory_stats")
+    assert isinstance(type_error_memory_stats, dict)
+    assert type_error_memory_stats.get("usage") == 7
 
     class _OneShotErrorContainer(_ContainerStub):
-        def stats(self, *, stream: bool, one_shot: bool = False) -> dict[str, object]:
+        def stats(self, *, stream: bool, one_shot: bool = False) -> _StatsDict:
             if one_shot:
                 raise RuntimeError("one_shot disabled")
             del stream
@@ -503,7 +511,9 @@ def test_stats_snapshot_and_state_check_error_paths(
     one_shot_snapshot = docker_utils.get_container_stats_snapshot(
         cast(Container, _OneShotErrorContainer())
     )
-    assert one_shot_snapshot["memory_stats"]["usage"] == 9
+    one_shot_memory_stats = one_shot_snapshot.get("memory_stats")
+    assert isinstance(one_shot_memory_stats, dict)
+    assert one_shot_memory_stats.get("usage") == 9
 
     with pytest.raises(ValueError):
         docker_utils.check_container_state("")
@@ -568,7 +578,9 @@ def test_stats_snapshot_and_state_check_error_paths(
         [RuntimeError("transient"), "running"]
     )
 
-    def _flaky_state(_container_name: str, docker_client: object | None = None) -> str:
+    def _flaky_state(
+        _container_name: str, docker_client: SimpleNamespace | None = None
+    ) -> str:
         del docker_client
         next_value = next(attempts)
         if isinstance(next_value, Exception):
@@ -600,7 +612,7 @@ def test_logging_helpers_and_get_container_state_errors(
 
     assert _debug_ok() == "ok"
 
-    context: dict[str, object] = {}
+    context: _ObjectDict = {}
     docker_utils._log_operation_success("op", context, 1.0, [1], 0.5)  # noqa: SLF001
     assert context["result_size"] == 1
     docker_utils._log_operation_success("op", context, 0.3, {"a": 1}, 0.5)  # noqa: SLF001
@@ -641,7 +653,7 @@ def test_basic_info_sanitize_context_and_validation_edges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with pytest.raises(ValueError):
-        docker_utils.get_container_basic_info(None)  # type: ignore[arg-type]
+        docker_utils.get_container_basic_info(cast(Container, None))
 
     running_container = cast(Container, _ContainerStub(status="running"))
     monkeypatch.setattr(
@@ -652,9 +664,7 @@ def test_basic_info_sanitize_context_and_validation_edges(
     info = docker_utils.get_container_basic_info(running_container)
     assert "mem_usage" not in info
 
-    assert (
-        docker_utils.sanitize_kwargs_for_logging(cast(dict[str, object], "bad")) == {}
-    )
+    assert docker_utils.sanitize_kwargs_for_logging(cast(_ObjectDict, "bad")) == {}
     sanitized = docker_utils.sanitize_kwargs_for_logging(
         {
             "long_text": "x" * 250,
@@ -663,8 +673,12 @@ def test_basic_info_sanitize_context_and_validation_edges(
             "big_dict": {str(i): i for i in range(25)},
         }
     )
-    assert "[TRUNCATED:" in sanitized["long_text"]
-    assert sanitized["entropy"].startswith("[REDACTED:")
+    long_text = sanitized.get("long_text")
+    assert isinstance(long_text, str)
+    assert "[TRUNCATED:" in long_text
+    entropy = sanitized.get("entropy")
+    assert isinstance(entropy, str)
+    assert entropy.startswith("[REDACTED:")
     assert sanitized["small_list"] == [1, 2]
     assert sanitized["big_dict"] == "[DICT:25 keys]"
 
@@ -784,7 +798,7 @@ def test_operation_tracker_limits_cleanup_and_global_wrappers() -> None:
 
         def get_recent_operations(
             self, container_id: str, since_seconds: float = 3600
-        ) -> list[dict[str, Any]]:
+        ) -> list[_ObjectDict]:
             calls["history"] = (container_id, since_seconds)
             return [{"operation": "start", "count": 1}]
 

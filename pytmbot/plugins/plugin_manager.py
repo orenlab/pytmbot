@@ -38,8 +38,8 @@ class _PluginInfo:
         name (str): The name of the plugin.
         version (str): The version of the plugin.
         description (str): A brief description of the plugin.
-        commands (Optional[dict[str, str]]): A dictionary mapping command names to descriptions.
-        index_key (Optional[dict[str, str]]): A dictionary mapping index keys to descriptions.
+        commands (dict[str, str] | None): A dictionary mapping command names to descriptions.
+        index_key (dict[str, str] | None): A dictionary mapping index keys to descriptions.
         resource_limits (dict): Resource limits for the plugin (memory, CPU, etc.)
     """
 

@@ -60,8 +60,7 @@ def __fetch_counters() -> dict[str, int]:
     Fetch Docker counters.
 
     Returns:
-        Optional[Dict[str, int]]: A dictionary containing Docker counters, or None if the counters cannot be
-        fetched.
+        dict[str, int]: A dictionary containing Docker counters.
     """
     raw_counters = fetch_docker_counters()
     if not isinstance(raw_counters, dict):
@@ -83,8 +82,7 @@ def _compile_message() -> str:
         : The DockerHandler object.
 
     Returns:
-        dict[str, str] | str | Any: The compiled bot answer based on docker counters or N/A if no counters
-        are found.
+        str: The compiled bot answer based on docker counters.
     """
     docker_counters = __fetch_counters()
     if docker_counters is None:

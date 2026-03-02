@@ -11,6 +11,10 @@ from telebot.types import Message
 import pytmbot.plugins.monitor.plugin as monitor_plugin_module
 from pytmbot.plugins.monitor.plugin import MonitoringPlugin
 
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+
 
 @dataclass
 class _Chat:
@@ -23,11 +27,11 @@ class _Message:
 
 
 def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent_messages: list[dict[str, object]] = []
+    sent_messages: list[_PayloadDict] = []
     adapter_closed = {"value": False}
 
     class _Adapter:
-        def get_cpu_usage(self) -> dict[str, object]:
+        def get_cpu_usage(self) -> _PayloadDict:
             return {"cpu_percent": 12.3, "cpu_percent_per_core": [10.0, 14.6]}
 
         @staticmethod
@@ -35,7 +39,7 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
             return (0.12, 0.34, 0.56)
 
         @staticmethod
-        def get_top_processes(count: int = 5) -> list[dict[str, object]]:
+        def get_top_processes(count: int = 5) -> list[_PayloadDict]:
             assert count == 5
             return [
                 {
@@ -54,29 +58,24 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         monitor_plugin_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {
-                    "build_reply_keyboard": staticmethod(
-                        lambda plugin_keyboard_data=None: "monitor-kbd"
-                    )
-                },
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {
+                "build_reply_keyboard": staticmethod(
+                    lambda plugin_keyboard_data=None: "monitor-kbd"
+                )
+            },
+        )(),
     )
     monkeypatch.setattr(
         monitor_plugin_module,
         "em",
-        cast(
-            object, type("_Em", (), {"get_emoji": staticmethod(lambda _name: "📈")})()
-        ),
+        type("_Em", (), {"get_emoji": staticmethod(lambda _name: "📈")})(),
     )
 
     def _fake_send_message(
-        self: TeleBot, chat_id: int, text: str, **kwargs: object
+        self: TeleBot, chat_id: int, text: str, **kwargs: _PayloadValue
     ) -> Message:
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return cast(Message, SimpleNamespace(ok=True))
@@ -98,12 +97,12 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_handle_cpu_usage_failure_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sent_messages: list[dict[str, object]] = []
+    sent_messages: list[_PayloadDict] = []
     adapter_closed = {"value": False}
 
     class _Adapter:
         @staticmethod
-        def get_cpu_usage() -> dict[str, object]:
+        def get_cpu_usage() -> _PayloadDict:
             raise RuntimeError("cpu snapshot failed")
 
         @staticmethod
@@ -113,7 +112,7 @@ def test_handle_cpu_usage_failure_fallback(
     monkeypatch.setattr(monitor_plugin_module, "PsutilAdapter", _Adapter)
 
     def _fake_send_message(
-        self: TeleBot, chat_id: int, text: str, **kwargs: object
+        self: TeleBot, chat_id: int, text: str, **kwargs: _PayloadValue
     ) -> Message:
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return cast(Message, SimpleNamespace(ok=True))

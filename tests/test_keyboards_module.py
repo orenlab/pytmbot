@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -15,7 +15,7 @@ from pytmbot.settings import KeyboardSettings
 def _flatten_reply_texts(markup: ReplyKeyboardMarkup) -> list[str]:
     texts: list[str] = []
     for row in markup.keyboard:
-        for button in cast(Iterable[object], row):
+        for button in row:
             if isinstance(button, str):
                 texts.append(button)
                 continue
@@ -35,7 +35,7 @@ def _flatten_reply_texts(markup: ReplyKeyboardMarkup) -> list[str]:
 def _flatten_inline_callback_data(markup: InlineKeyboardMarkup) -> list[str]:
     callbacks: list[str] = []
     for row in markup.keyboard:
-        for button in cast(Iterable[object], row):
+        for button in row:
             callback_data = getattr(button, "callback_data", None)
             if isinstance(callback_data, str):
                 callbacks.append(callback_data)
@@ -50,7 +50,7 @@ def test_button_data_validation_errors() -> None:
 
 
 def test_resolve_keyboard_settings_type_guard(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(keyboards_module, "keyboard_settings", object())
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", SimpleNamespace())
     with pytest.raises(KeyboardError):
         keyboards_module._resolve_keyboard_settings()
 
@@ -108,7 +108,7 @@ def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
 
     with pytest.raises(KeyboardError):
         keyboard.build_inline_keyboard(
-            cast(list[ButtonData], [ButtonData("A", "ok"), object()])
+            cast(list[ButtonData], [ButtonData("A", "ok"), cast(ButtonData, "bad")])
         )
 
 

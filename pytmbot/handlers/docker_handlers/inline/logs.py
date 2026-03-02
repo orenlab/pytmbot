@@ -10,10 +10,10 @@ import io
 import time
 from dataclasses import dataclass
 from threading import RLock
-from typing import Any, Final, cast
+from typing import Final
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot.exceptions import ContainerLogsUnavailableError
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
@@ -162,14 +162,11 @@ def _render_logs_template(
     logs: str, container_name: str, emojis: dict[str, str]
 ) -> str:
     """Render logs template with provided context."""
-    return cast(
-        str,
-        Compiler.quick_render(
-            "d_logs.jinja2",
-            emojis=emojis,
-            logs=logs,
-            container_name=container_name,
-        ),
+    return Compiler.quick_render(
+        "d_logs.jinja2",
+        emojis=emojis,
+        logs=logs,
+        container_name=container_name,
     )
 
 
@@ -375,7 +372,7 @@ def _render_logs_page(
 
 def _build_logs_keyboard(
     session: LogsSession, current_page: int, total_pages: int
-) -> Any:
+) -> InlineKeyboardMarkup:
     """Build logs keyboard with navigation and actions."""
     keyboard_buttons = []
 
@@ -437,7 +434,7 @@ def _edit_logs_message(
     session: LogsSession,
     page_index: int,
     emojis: dict[str, str],
-) -> Any:
+) -> bool:
     if call.message is None:
         logger.warning("bot.handler.docker.logging.cannot.render.warn")
         return show_handler_info(
@@ -484,7 +481,7 @@ def _open_logs_session(
     container_name: str,
     user_id: int,
     emojis: dict[str, str],
-) -> Any:
+) -> bool:
     logger.info("bot.handler.docker.logging.user.getting.info")
     try:
         logs = get_sanitized_logs(container_name, call, bot.token)
@@ -537,14 +534,14 @@ def _get_session_or_show_error(
     return session
 
 
-def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) -> Any:
+def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) -> bool:
     if not _validate_logs_session_access(
         call=call,
         bot=bot,
         session=session,
         requested_action=LOGS_ACTION_FILE,
     ):
-        return None
+        return False
 
     if call.message is None:
         logger.warning("bot.handler.docker.logging.cannot.send.warn")

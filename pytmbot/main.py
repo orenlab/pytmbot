@@ -14,11 +14,11 @@ import signal
 import sys
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import datetime
 from types import FrameType
-from typing import TYPE_CHECKING, Any, Final, NoReturn
+from typing import TYPE_CHECKING, Final, NoReturn
 
 from humanize import naturaltime
 
@@ -87,7 +87,8 @@ class BotLauncher(logs.BaseComponent):
 
         try:
             if self.bot and hasattr(self.bot, "bot") and self.bot.bot:
-                self.bot.bot.stop_polling()
+                stop_polling: Callable[[], object] = self.bot.bot.stop_polling
+                stop_polling()
                 self.bot.bot.remove_webhook()
             self._session_manager.shutdown()
             reset_docker_client_context()
@@ -251,7 +252,8 @@ class BotLauncher(logs.BaseComponent):
             return
 
         health_summary = self._health_manager.get_summary()
-        overall_status = health_summary.get("overall", "offline")
+        overall_value = health_summary.get("overall")
+        overall_status = overall_value if isinstance(overall_value, str) else "offline"
         has_state_changed = (
             self._previous_health_level is not None
             and self._previous_health_level != overall_status
@@ -298,9 +300,9 @@ class BotLauncher(logs.BaseComponent):
 
     def _log_bot_startup_completion(
         self,
-        health_summary: dict,
+        health_summary: dict[str, object],
         uptime_display: str,
-        bot_session_metrics: dict | None,
+        bot_session_metrics: dict[str, object] | None,
     ) -> None:
         """Log bot startup completion with essential metrics."""
         log_context = {
@@ -349,18 +351,21 @@ class BotLauncher(logs.BaseComponent):
     def _log_main_health_status(
         self,
         overall_status: str,
-        health_summary: dict,
+        health_summary: dict[str, object],
         uptime_display: str,
         log_level: str,
     ) -> None:
         """Log main health status with key metrics."""
-        components = health_summary.get("components", {})
+        raw_components = health_summary.get("components")
+        components = raw_components if isinstance(raw_components, dict) else {}
 
         # Create component status summary
         component_status = {}
         critical_issues = []
 
         for name, component in components.items():
+            if not isinstance(component, dict):
+                continue
             level = component.get("level", "unknown")
             latency = component.get("latency_ms", 0)
 
@@ -406,28 +411,32 @@ class BotLauncher(logs.BaseComponent):
             getattr(log, log_level)("bot.launcher.health.status")
 
     @staticmethod
-    def _normalize_mode_value(mode: Any) -> str:
+    def _normalize_mode_value(mode: object) -> str:
         """Normalize enum-like mode values for compact log output."""
         return str(getattr(mode, "value", mode))
 
     @staticmethod
-    def _normalize_bool_flag(value: Any) -> bool:
+    def _normalize_bool_flag(value: object) -> bool:
         """Normalize CLI boolean-like values to strict bool."""
         if isinstance(value, bool):
             return value
         return str(value).strip().lower() in {"true", "1", "yes", "on"}
 
     def _log_health_details(
-        self, health_summary: dict, bot_session_metrics: dict | None
+        self,
+        health_summary: dict[str, object],
+        bot_session_metrics: dict[str, object] | None,
     ) -> None:
         """Log detailed health information when needed."""
-        components = health_summary.get("components", {})
+        raw_components = health_summary.get("components")
+        components = raw_components if isinstance(raw_components, dict) else {}
 
         # Log component details for non-healthy components
-        unhealthy_components = {
+        unhealthy_components: dict[str, dict[str, object]] = {
             name: component
             for name, component in components.items()
-            if component.get("level") not in ("healthy",)
+            if isinstance(component, dict)
+            and component.get("level") not in ("healthy",)
         }
 
         if unhealthy_components:
@@ -443,9 +452,14 @@ class BotLauncher(logs.BaseComponent):
 
         # Log session and rate limit stats only if there's activity
         if bot_session_metrics:
-            rate_stats = bot_session_metrics.get("rate_limit_stats", {})
-            active_users = rate_stats.get("active_users", 0)
-            total_violations = rate_stats.get("total_violations", 0)
+            rate_stats_raw = bot_session_metrics.get("rate_limit_stats", {})
+            rate_stats = rate_stats_raw if isinstance(rate_stats_raw, dict) else {}
+            active_users_raw = rate_stats.get("active_users", 0)
+            total_violations_raw = rate_stats.get("total_violations", 0)
+            active_users = active_users_raw if isinstance(active_users_raw, int) else 0
+            total_violations = (
+                total_violations_raw if isinstance(total_violations_raw, int) else 0
+            )
 
             if active_users > 0 or total_violations > 0:
                 with self.log_context(

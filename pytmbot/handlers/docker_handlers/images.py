@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping, Sequence
 from threading import RLock
-from typing import Any, Final
+from typing import Final
 
 from telebot import TeleBot
 from telebot.types import InlineKeyboardMarkup, Message
@@ -58,8 +58,13 @@ DETAIL_MAX_LABEL_VALUE_LENGTH: Final[int] = 180
 DETAIL_MAX_HISTORY_ITEMS: Final[int] = 12
 DETAIL_MAX_USAGE_ITEMS: Final[int] = 12
 
+type ImageData = dict[str, object]
+type ImageList = list[ImageData]
+type HistoryEntry = dict[str, object]
+type UsageData = dict[str, object]
+
 _images_cache_lock = RLock()
-_images_cache: tuple[list[dict[str, Any]], float] | None = None
+_images_cache: tuple[ImageList, float] | None = None
 
 
 def _get_images_emojis() -> dict[str, str]:
@@ -84,7 +89,7 @@ def _get_images_emojis() -> dict[str, str]:
     }
 
 
-def _truncate_text(value: Any, *, max_length: int) -> str:
+def _truncate_text(value: object, *, max_length: int) -> str:
     raw = str(value) if value is not None else "N/A"
     if len(raw) <= max_length:
         return raw
@@ -92,7 +97,7 @@ def _truncate_text(value: Any, *, max_length: int) -> str:
 
 
 def _truncate_list(
-    value: Any,
+    value: object,
     *,
     max_items: int = MAX_LIST_FIELD_ITEMS,
     max_item_length: int = MAX_LIST_ITEM_LENGTH,
@@ -110,7 +115,7 @@ def _truncate_list(
 
 
 def _truncate_labels(
-    value: Any,
+    value: object,
     *,
     max_items: int = MAX_LABEL_ITEMS,
     max_key_length: int = MAX_LABEL_KEY_LENGTH,
@@ -131,14 +136,14 @@ def _truncate_labels(
     return normalized
 
 
-def _safe_positive_int(value: Any, *, default: int = 0) -> int:
+def _safe_positive_int(value: object, *, default: int = 0) -> int:
     if isinstance(value, int) and value >= 0:
         return value
     return default
 
 
 def _compact_image(
-    image: dict[str, Any],
+    image: ImageData,
     *,
     max_text_length: int,
     max_list_items: int,
@@ -146,7 +151,7 @@ def _compact_image(
     max_label_items: int,
     max_label_key_length: int,
     max_label_value_length: int,
-) -> dict[str, Any]:
+) -> ImageData:
     tags_raw = image.get("tags", [])
     tags_total = len(tags_raw) if isinstance(tags_raw, Sequence) else 0
     tags = _truncate_list(
@@ -280,7 +285,7 @@ def _compact_image(
     }
 
 
-def _compact_image_for_listing(image: dict[str, Any]) -> dict[str, Any]:
+def _compact_image_for_listing(image: ImageData) -> ImageData:
     """Compact large image fields so list output always fits Telegram limits."""
     return _compact_image(
         image,
@@ -293,7 +298,7 @@ def _compact_image_for_listing(image: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _compact_image_for_details(image: dict[str, Any]) -> dict[str, Any]:
+def _compact_image_for_details(image: ImageData) -> ImageData:
     """Compact image fields for detailed image view."""
     return _compact_image(
         image,
@@ -306,13 +311,13 @@ def _compact_image_for_details(image: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _prepare_images_for_listing(images: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _prepare_images_for_listing(images: ImageList) -> ImageList:
     return [
         _compact_image_for_listing(image) for image in images if isinstance(image, dict)
     ]
 
 
-def _load_images_data() -> list[dict[str, Any]]:
+def _load_images_data() -> ImageList:
     """Load image list with short-lived cache to speed up pagination navigation."""
     global _images_cache
 
@@ -341,7 +346,7 @@ def _load_images_data() -> list[dict[str, Any]]:
 
 
 def _render_images_page_text(
-    page_items: list[dict[str, Any]],
+    page_items: ImageList,
     *,
     page: int,
     total_pages: int,
@@ -363,11 +368,11 @@ def _render_images_page_text(
 
 
 def _render_paginated_images_text(
-    images: list[dict[str, Any]],
+    images: ImageList,
     *,
     page: int,
     initial_page_size: int = IMAGES_DEFAULT_PAGE_SIZE,
-) -> tuple[str, int, int, list[dict[str, Any]], int]:
+) -> tuple[str, int, int, ImageList, int]:
     page_size = min(max(1, initial_page_size), max(1, len(images)))
 
     while page_size >= 1:
@@ -462,7 +467,7 @@ def parse_image_extra_callback_data(
 
 
 def _make_image_details_button_label(
-    image: dict[str, Any],
+    image: ImageData,
     *,
     image_position: int,
 ) -> str:
@@ -475,7 +480,7 @@ def _build_images_keyboard(
     page: int,
     total_pages: int,
     user_id: int,
-    page_items: list[dict[str, Any]],
+    page_items: ImageList,
     start_index: int,
 ) -> InlineKeyboardMarkup:
     keyboard_buttons = []
@@ -530,7 +535,7 @@ def _build_images_keyboard(
     return keyboards.build_inline_keyboard(keyboard_buttons)
 
 
-def _get_image_details_data(*, image_index: int) -> dict[str, Any] | None:
+def _get_image_details_data(*, image_index: int) -> ImageData | None:
     images = _load_images_data()
     if image_index < 0 or image_index >= len(images):
         return None
@@ -541,7 +546,7 @@ def _get_image_details_data(*, image_index: int) -> dict[str, Any] | None:
     return _compact_image_for_details(image)
 
 
-def _get_image_raw_data(*, image_index: int) -> dict[str, Any] | None:
+def _get_image_raw_data(*, image_index: int) -> ImageData | None:
     images = _load_images_data()
     if image_index < 0 or image_index >= len(images):
         return None
@@ -550,7 +555,7 @@ def _get_image_raw_data(*, image_index: int) -> dict[str, Any] | None:
     return image if isinstance(image, dict) else None
 
 
-def _render_image_details_text(image: dict[str, Any]) -> str:
+def _render_image_details_text(image: ImageData) -> str:
     return Compiler.quick_render(
         template_name="d_image_full_info.jinja2",
         context={
@@ -640,7 +645,7 @@ def render_image_details(
 
 
 def _compact_image_history_entries(
-    history: list[dict[str, Any]],
+    history: list[HistoryEntry],
 ) -> tuple[list[dict[str, str]], int]:
     compact_rows: list[dict[str, str]] = []
     for row in history[:DETAIL_MAX_HISTORY_ITEMS]:
@@ -665,7 +670,7 @@ def _render_image_history_text(
     *,
     image_name: str,
     image_id: str,
-    history: list[dict[str, Any]],
+    history: list[HistoryEntry],
 ) -> str:
     rows, hidden_count = _compact_image_history_entries(history)
     return Compiler.quick_render(
@@ -682,7 +687,7 @@ def _render_image_history_text(
 
 
 def _compact_image_usage_rows(
-    containers: list[dict[str, Any]],
+    containers: list[dict[str, object]],
 ) -> tuple[list[dict[str, str]], int]:
     rows: list[dict[str, str]] = []
     for item in containers[:DETAIL_MAX_USAGE_ITEMS]:
@@ -706,7 +711,7 @@ def _render_image_usage_text(
     *,
     image_name: str,
     image_id: str,
-    usage: dict[str, Any],
+    usage: UsageData,
 ) -> str:
     raw_containers = usage.get("containers", [])
     containers = raw_containers if isinstance(raw_containers, list) else []

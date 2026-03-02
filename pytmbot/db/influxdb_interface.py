@@ -10,15 +10,19 @@ import ipaddress
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from threading import BoundedSemaphore, RLock, current_thread
-from typing import Any
+from types import TracebackType
+from typing import Protocol
 from urllib.parse import urlparse
 
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.influxdb_client import InfluxDBClient
+from influxdb_client.client.query_api import QueryApi
+from influxdb_client.client.write.point import Point
+from influxdb_client.client.write_api import SYNCHRONOUS, WriteApi
 
 from pytmbot.exceptions import (
     ErrorContext,
@@ -39,6 +43,17 @@ class InfluxDBConfig:
     org: str
     bucket: str
     debug_mode: bool = False
+
+
+type InfluxRecordValue = int | float | str | bool | None
+
+
+class _InfluxRecordProtocol(Protocol):
+    """Protocol for minimal InfluxDB record surface used by this module."""
+
+    def get_time(self) -> datetime: ...
+
+    def get_value(self) -> InfluxRecordValue: ...
 
 
 class InfluxDBInterface(BaseComponent):
@@ -63,8 +78,8 @@ class InfluxDBInterface(BaseComponent):
         super().__init__("InfluxDBInterface")
         self._config = config
         self._client: InfluxDBClient | None = None
-        self._write_api: Any | None = None
-        self._query_api: Any | None = None
+        self._write_api: WriteApi | None = None
+        self._query_api: QueryApi | None = None
         self._warning_shown = False
         self._initialized = False
         self._cache_lock = RLock()
@@ -130,7 +145,8 @@ class InfluxDBInterface(BaseComponent):
     def __enter__(self) -> "InfluxDBInterface":
         """Enter the runtime context and initialize the client connection."""
         try:
-            self._client = InfluxDBClient(
+            client_factory: Callable[..., InfluxDBClient] = InfluxDBClient
+            self._client = client_factory(
                 url=self._config.url, token=self._config.token, org=self._config.org
             )
             self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
@@ -152,7 +168,7 @@ class InfluxDBInterface(BaseComponent):
             )
             raise InfluxDBConnectionError(error_context) from e
 
-    def _require_write_api(self) -> Any:
+    def _require_write_api(self) -> WriteApi:
         """Return initialized write API or raise connection error."""
         if self._write_api is None:
             raise InfluxDBConnectionError(
@@ -163,7 +179,7 @@ class InfluxDBInterface(BaseComponent):
             )
         return self._write_api
 
-    def _require_query_api(self) -> Any:
+    def _require_query_api(self) -> QueryApi:
         """Return initialized query API or raise connection error."""
         if self._query_api is None:
             raise InfluxDBConnectionError(
@@ -178,6 +194,25 @@ class InfluxDBInterface(BaseComponent):
     def _to_flux_string_literal(value: str) -> str:
         """Return safe Flux string literal."""
         return json.dumps(value)
+
+    @staticmethod
+    def _extract_record_time(record: _InfluxRecordProtocol) -> datetime:
+        """Safely extract timestamp from an InfluxDB record."""
+        try:
+            record_time = record.get_time()
+        except AttributeError as error:
+            raise ValueError("Influx record does not expose get_time()") from error
+        if not isinstance(record_time, datetime):
+            raise ValueError("Influx record time is not a datetime value")
+        return record_time
+
+    @staticmethod
+    def _extract_record_value(record: _InfluxRecordProtocol) -> InfluxRecordValue:
+        """Safely extract value from an InfluxDB record."""
+        try:
+            return record.get_value()
+        except AttributeError as error:
+            raise ValueError("Influx record does not expose get_value()") from error
 
     def _sanitize_flux_identifier(self, value: str, field_name: str) -> str:
         """Validate identifier-like value to prevent Flux injection."""
@@ -222,7 +257,12 @@ class InfluxDBInterface(BaseComponent):
         iso_value = parsed_dt.isoformat().replace("+00:00", "Z")
         return f'time(v: "{iso_value}")'
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the runtime context and ensure proper cleanup."""
         should_shutdown_async = not current_thread().name.startswith(
             "influxdb_async_writer"
@@ -232,7 +272,8 @@ class InfluxDBInterface(BaseComponent):
 
         if self._client:
             try:
-                self._client.close()
+                close_client: Callable[[], None] = self._client.close
+                close_client()
                 self._client = None
                 self._write_api = None
                 self._query_api = None
@@ -336,20 +377,26 @@ class InfluxDBInterface(BaseComponent):
         Args:
             measurement: The measurement name
             fields: Dictionary of field names and values
-            tags: Optional dictionary of tags
+            tags: Dictionary of tags (dict[str, str] | None)
 
         Raises:
             InfluxDBWriteError: If write operation fails
         """
         try:
-            point = Point(measurement).time(datetime.now(UTC))
+            point_factory: Callable[[str], Point] = Point
+            point = point_factory(measurement)
+
+            set_point_time: Callable[[datetime], Point] = point.time
+            point = set_point_time(datetime.now(UTC))
 
             if tags:
                 for tag_key, tag_value in tags.items():
-                    point = point.tag(tag_key, tag_value)
+                    set_point_tag: Callable[[str, str], Point] = point.tag
+                    point = set_point_tag(tag_key, tag_value)
 
             for field_key, field_value in fields.items():
-                point = point.field(field_key, field_value)
+                set_point_field: Callable[[str, float], Point] = point.field
+                point = set_point_field(field_key, field_value)
 
             # Log write operations only in debug mode to avoid noise
             if self._config.debug_mode:
@@ -526,11 +573,14 @@ class InfluxDBInterface(BaseComponent):
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
 
-            results = [
-                (record.get_time(), record.get_value())
-                for table in tables
-                for record in table.records
-            ]
+            results: list[tuple[datetime, float]] = []
+            for table in tables:
+                records = getattr(table, "records", ())
+                for record in records:
+                    record_time = self._extract_record_time(record)
+                    value_raw = self._extract_record_value(record)
+                    if isinstance(value_raw, (int, float)):
+                        results.append((record_time, float(value_raw)))
 
             # Log successful query only in debug mode
             if self._config.debug_mode:
@@ -588,9 +638,13 @@ class InfluxDBInterface(BaseComponent):
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
 
-            measurements = [
-                record.get_value() for table in tables for record in table.records
-            ]
+            measurements: list[str] = []
+            for table in tables:
+                records = getattr(table, "records", ())
+                for record in records:
+                    value = self._extract_record_value(record)
+                    if isinstance(value, str):
+                        measurements.append(value)
 
             # Log success only in debug mode
             if self._config.debug_mode:
@@ -658,9 +712,13 @@ class InfluxDBInterface(BaseComponent):
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
 
-            fields = [
-                record.get_value() for table in tables for record in table.records
-            ]
+            fields: list[str] = []
+            for table in tables:
+                records = getattr(table, "records", ())
+                for record in records:
+                    value = self._extract_record_value(record)
+                    if isinstance(value, str):
+                        fields.append(value)
 
             # Log success only in debug mode
             if self._config.debug_mode:

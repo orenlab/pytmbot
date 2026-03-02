@@ -1,21 +1,27 @@
 from __future__ import annotations
 
+import concurrent.futures
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, cast
+from typing import cast
 
 import pytest
+from influxdb_client.client.query_api import QueryApi
+from influxdb_client.client.write_api import WriteApi
 
-import pytmbot.db.influxdb_interface as influx_module
 from pytmbot.db.influxdb_interface import InfluxDBConfig, InfluxDBInterface
 from pytmbot.exceptions import InfluxDBQueryError, InfluxDBWriteError
+
+type _RecordScalar = str | int | float | bool | None
+type _Record = dict[str, _RecordScalar]
 
 
 @dataclass
 class _QueryAPIStub:
     calls: list[tuple[str, str]]
 
-    def query(self, query: str, org: str) -> list[Any]:
+    def query(self, query: str, org: str) -> list[_Record]:
         self.calls.append((query, org))
         return []
 
@@ -25,7 +31,7 @@ class _WriteAPIStub:
     failures_before_success: int
     calls: int = 0
 
-    def write(self, bucket: str, record: object) -> None:
+    def write(self, bucket: str, record: _Record | str) -> None:
         del bucket, record
         self.calls += 1
         if self.calls <= self.failures_before_success:
@@ -34,7 +40,7 @@ class _WriteAPIStub:
 
 @dataclass
 class _ImmediateExecutorStub:
-    def submit(self, func: Any) -> None:
+    def submit(self, func: Callable[[], None]) -> None:
         func()
 
 
@@ -51,7 +57,7 @@ def _build_interface(
         )
     )
     query_api = _QueryAPIStub(calls=[])
-    interface._query_api = cast(Any, query_api)
+    interface._query_api = cast(QueryApi, query_api)
     return interface, query_api
 
 
@@ -112,10 +118,11 @@ def test_get_available_fields_rejects_injected_measurement() -> None:
 def test_write_data_retries_and_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     interface, _query_api = _build_interface()
     write_api = _WriteAPIStub(failures_before_success=2)
-    interface._write_api = cast(Any, write_api)
+    interface._write_api = cast(WriteApi, write_api)
     sleeps: list[float] = []
     monkeypatch.setattr(
-        influx_module.time, "sleep", lambda seconds: sleeps.append(seconds)
+        "pytmbot.db.influxdb_interface.time.sleep",
+        lambda seconds: sleeps.append(seconds),
     )
 
     interface.write_data("system_metrics", {"cpu_usage": 12.5})
@@ -127,10 +134,11 @@ def test_write_data_retries_and_succeeds(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_write_data_raises_after_max_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     interface, _query_api = _build_interface()
     write_api = _WriteAPIStub(failures_before_success=10)
-    interface._write_api = cast(Any, write_api)
+    interface._write_api = cast(WriteApi, write_api)
     sleeps: list[float] = []
     monkeypatch.setattr(
-        influx_module.time, "sleep", lambda seconds: sleeps.append(seconds)
+        "pytmbot.db.influxdb_interface.time.sleep",
+        lambda seconds: sleeps.append(seconds),
     )
 
     with pytest.raises(InfluxDBWriteError):
@@ -142,7 +150,10 @@ def test_write_data_raises_after_max_retries(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_write_data_async_submits_task(monkeypatch: pytest.MonkeyPatch) -> None:
     interface, _query_api = _build_interface()
-    interface._async_write_executor = cast(Any, _ImmediateExecutorStub())
+    interface._async_write_executor = cast(
+        concurrent.futures.ThreadPoolExecutor,
+        _ImmediateExecutorStub(),
+    )
 
     calls: list[tuple[str, dict[str, float], dict[str, str] | None]] = []
 

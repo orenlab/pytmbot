@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from telebot.types import CallbackQuery, Message
 
@@ -15,6 +15,7 @@ from pytmbot.utils.data_processing import find_in_args, find_in_kwargs
 type OptionalStr = str | None
 type OptionalInt = int | None
 type OptionalBool = bool | None
+type SanitizedLogInput = str | bytes | int | float | bool | None
 
 
 class MessageInfo(NamedTuple):
@@ -39,7 +40,7 @@ class InlineMessageInfo(NamedTuple):
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
 
-def get_message_full_info(*args: Any, **kwargs: Any) -> MessageInfo:
+def get_message_full_info(*args: object, **kwargs: object) -> MessageInfo:
     """
     Extracts full message information from arguments.
 
@@ -63,7 +64,7 @@ def get_message_full_info(*args: Any, **kwargs: Any) -> MessageInfo:
     return MessageInfo(None, None, None, None, None)
 
 
-def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo:
+def get_inline_message_full_info(*args: object, **kwargs: object) -> InlineMessageInfo:
     """
     Extracts full inline message information from arguments.
 
@@ -86,7 +87,7 @@ def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo
 
 
 def sanitize_logs(
-    container_logs: str | Any, callback_query: CallbackQuery, token: str
+    container_logs: SanitizedLogInput, callback_query: CallbackQuery, token: str
 ) -> str:
     """
     Sanitizes container logs by removing ANSI escape sequences

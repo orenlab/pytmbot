@@ -12,9 +12,10 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from functools import wraps
 from threading import RLock
-from typing import Any, Final
+from typing import Final
 
 from docker.errors import DockerException
+from docker.models.containers import Container
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
@@ -238,7 +239,9 @@ class ContainerManager:
                 ) from error
 
     @staticmethod
-    def _validate_container_state_for_operation(container: Any, operation: str) -> None:
+    def _validate_container_state_for_operation(
+        container: Container, operation: str
+    ) -> None:
         """Validate that container is in appropriate state for the operation."""
         try:
             current_status = container.status.lower()
@@ -283,7 +286,7 @@ class ContainerManager:
         fail_event: str,
         expected_statuses: set[str],
         expected_status_description: str,
-        execute_operation: Callable[[Any], None],
+        execute_operation: Callable[[Container], None],
     ) -> DockerResponse:
         """Execute shared lifecycle operation flow for start/stop/restart."""
         container_ref = self._normalize_container_id(container_id)
@@ -612,7 +615,7 @@ class ContainerManager:
             raise
 
     @staticmethod
-    def get_container_status(container_id: ContainerId) -> dict[str, Any]:
+    def get_container_status(container_id: ContainerId) -> dict[str, object]:
         """Get comprehensive container status information for monitoring."""
         container_ref = ContainerManager._normalize_container_id(container_id)
         context = build_container_context(

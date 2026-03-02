@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 
 import pytest
 from telebot import TeleBot
@@ -28,12 +29,17 @@ from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
 
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+type _ObjectDict = dict[str, object]
+
 
 def _build_bot(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TeleBot, list[dict[str, object]]]:
+) -> tuple[TeleBot, list[_PayloadDict]]:
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-    answers: list[dict[str, object]] = []
+    answers: list[_PayloadDict] = []
 
     def _answer_callback_query(
         callback_query_id: int,
@@ -59,18 +65,20 @@ def _build_bot(
 @dataclass
 class _FakeContainer:
     status: str
-    attrs: dict[str, Any]
-    stats: object | None = None
+    attrs: _ObjectDict
+    stats: _ObjectDict | None = None
 
 
 def _build_callback_query(data: str, user_id: int = 101) -> CallbackQuery:
-    user = User(
+    user_ctor = cast(Callable[..., User], User)
+    user = user_ctor(
         id=user_id,
         is_bot=False,
         first_name="Test",
         username="test_user",
     )
-    return CallbackQuery(
+    callback_query_ctor = cast(Callable[..., CallbackQuery], CallbackQuery)
+    return callback_query_ctor(
         id=1,
         from_user=user,
         data=data,
@@ -79,7 +87,7 @@ def _build_callback_query(data: str, user_id: int = 101) -> CallbackQuery:
     )
 
 
-def _container_attrs() -> dict[str, Any]:
+def _container_attrs() -> _ObjectDict:
     return {
         "Id": "abcdef1234567890",
         "Name": "/pytmbot",
@@ -198,7 +206,7 @@ def test_extract_container_attrs_for_supported_shapes() -> None:
     assert _extract_container_attrs({"attrs": attrs}) == attrs
     assert _extract_container_attrs(attrs) == attrs
     assert _extract_container_attrs({"attrs": "invalid"}) == {}
-    assert _extract_container_attrs(object()) == {}
+    assert _extract_container_attrs(("invalid",)) == {}
 
 
 def test_sanitize_environment_variables_masks_and_limits() -> None:
@@ -233,14 +241,16 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "health_last_log" not in basic
 
     resources = parse_container_resources(container, attrs=attrs)
-    assert resources["memory_limit"] == f"{attrs['HostConfig']['Memory']}B"
+    assert resources["memory_limit"] == f"{1024 * 1024 * 512}B"
     assert resources["cpu_quota"] == "200000/100000"
     assert resources["restart_policy"] == "always"
 
     network = parse_container_network_info(container, attrs=attrs)
     assert network["network_mode"] == "bridge"
-    assert "0.0.0.0:8080->80/tcp" in network["ports"]
-    assert "443/tcp" in network["ports"]
+    ports = network.get("ports")
+    assert isinstance(ports, list)
+    assert "0.0.0.0:8080->80/tcp" in ports
+    assert "443/tcp" in ports
     assert network["published_ports"] == 1
     assert network["declared_ports"] == 2
 
@@ -249,8 +259,10 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     assert environment["user"] == "pytmbot"
     assert environment["entrypoint"] == "tini -s -- ./entrypoint.sh"
     assert environment["env_count"] == 3
+    env_vars = environment.get("environment_vars")
+    assert isinstance(env_vars, list)
     assert any(
-        "DB_PASSWORD=<HIDDEN>" in item for item in environment["environment_vars"]
+        isinstance(item, str) and "DB_PASSWORD=<HIDDEN>" in item for item in env_vars
     )
 
     runtime = parse_container_runtime_info(container, attrs=attrs)
@@ -328,7 +340,7 @@ def test_normalize_memory_stats_parses_percent_variants() -> None:
     )
     assert normalized["mem_percent"] == 12.5
     assert normalize_memory_stats({}) == {}
-    assert normalize_memory_stats({"mem_percent": object()})["mem_percent"] == "N/A"
+    assert normalize_memory_stats({"mem_percent": "invalid"})["mem_percent"] == "N/A"
 
 
 def test_get_sanitized_logs_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -388,9 +400,17 @@ def test_get_comprehensive_container_details_paths(
     details = get_comprehensive_container_details("pytmbot")
     assert details is not None
     assert details["name"] == "pytmbot"
-    assert details["stats"]["memory"]["mem_usage"] == "256B"
-    assert isinstance(details["stats"]["cpu"]["cpu_percent"], float)
-    assert details["stats"]["network"]["rx_bytes"] == "10B"
+    stats = details.get("stats")
+    assert isinstance(stats, dict)
+    memory_stats = stats.get("memory")
+    assert isinstance(memory_stats, dict)
+    assert memory_stats.get("mem_usage") == "256B"
+    cpu_stats = stats.get("cpu")
+    assert isinstance(cpu_stats, dict)
+    assert isinstance(cpu_stats.get("cpu_percent"), float)
+    network_stats = stats.get("network")
+    assert isinstance(network_stats, dict)
+    assert network_stats.get("rx_bytes") == "10B"
 
     # Force runtime memory parsing miss to cover fallback provider path
     monkeypatch.setattr(
@@ -401,4 +421,8 @@ def test_get_comprehensive_container_details_paths(
     monkeypatch.setattr(docker_utils, "parse_container_memory_stats", lambda _stats: {})
     fallback_details = get_comprehensive_container_details("pytmbot")
     assert fallback_details is not None
-    assert fallback_details["stats"]["memory"]["mem_percent"] == 9.0
+    fallback_stats = fallback_details.get("stats")
+    assert isinstance(fallback_stats, dict)
+    fallback_memory = fallback_stats.get("memory")
+    assert isinstance(fallback_memory, dict)
+    assert fallback_memory.get("mem_percent") == 9.0

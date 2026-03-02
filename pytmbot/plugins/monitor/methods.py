@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
-from typing import Any, Literal, cast
+from collections.abc import Callable, Mapping, Sequence
+from typing import Literal
 
 from telebot import TeleBot
 
@@ -23,10 +23,9 @@ from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.db.influxdb_interface import InfluxDBConfig, InfluxDBInterface
 from pytmbot.logs import Logger
-from pytmbot.plugins.monitor.models import ResourceThresholds
+from pytmbot.plugins.monitor.models import MonitoringState, ResourceThresholds
 from pytmbot.plugins.monitor.utils import (
     EventTracker,
-    MonitoringState,
     SystemInfo,
     SystemMetrics,
 )
@@ -92,8 +91,8 @@ class SystemMonitorPlugin(PluginCore):
         )
 
         # Docker monitoring state
-        self._previous_container_hashes: dict[str, dict] = {}
-        self._previous_image_hashes: dict[str, dict] = {}
+        self._previous_container_hashes: dict[str, Mapping[str, object]] = {}
+        self._previous_image_hashes: dict[str, Mapping[str, object]] = {}
         self._previous_counts: dict[str, int] = {
             "containers_count": 0,
             "images_count": 0,
@@ -228,7 +227,7 @@ class SystemMonitorPlugin(PluginCore):
                 self._adjust_check_interval()
 
                 # Collect and process metrics
-                metrics = cast(dict[str, Any], self.system_metrics.collect_metrics())
+                metrics: dict[str, object] = dict(self.system_metrics.collect_metrics())
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
@@ -242,9 +241,15 @@ class SystemMonitorPlugin(PluginCore):
                 logger.error("bot.plugins.monitor.methods.monitoring.cycle.fail", e)
                 time.sleep(max(1, self.check_interval // 2))
 
-    def _process_alerts(self, metrics: dict[str, Any]) -> None:
-        self._check_cpu_alert(float(metrics.get("cpu_usage", 0.0)))
-        self._check_memory_alert(float(metrics.get("memory_usage", 0.0)))
+    def _process_alerts(self, metrics: dict[str, object]) -> None:
+        cpu_usage = metrics.get("cpu_usage")
+        if isinstance(cpu_usage, (int, float)):
+            self._check_cpu_alert(float(cpu_usage))
+
+        memory_usage = metrics.get("memory_usage")
+        if isinstance(memory_usage, (int, float)):
+            self._check_memory_alert(float(memory_usage))
+
         temperatures = metrics.get("temperatures")
         if isinstance(temperatures, dict):
             self._check_temperature_alerts(temperatures)
@@ -266,7 +271,7 @@ class SystemMonitorPlugin(PluginCore):
     def _create_or_notify_event(
         self,
         event_type: str,
-        details: dict[str, Any],
+        details: dict[str, object],
         message_builder: Callable[[str], str],
     ) -> None:
         """Create event if absent and send alert notification."""
@@ -369,7 +374,7 @@ class SystemMonitorPlugin(PluginCore):
             else:
                 self._resolve_event_and_notify(f"disk_{disk}", f"Disk usage ({disk})")
 
-    def _process_docker_metrics(self, metrics: dict[str, Any]) -> None:
+    def _process_docker_metrics(self, metrics: dict[str, object]) -> None:
         current_time = time.time()
         if (
             current_time - self.state.docker_counters_last_updated
@@ -393,12 +398,21 @@ class SystemMonitorPlugin(PluginCore):
     def _detect_docker_changes(
         self,
         new_counts: dict[str, int],
-        new_containers: list[dict[str, Any]],
-        new_images: list[dict[str, Any]],
+        new_containers: Sequence[Mapping[str, object]],
+        new_images: Sequence[Mapping[str, object]],
     ) -> None:
         try:
-            new_container_hashes = {cont["id"]: cont for cont in new_containers}
-            new_image_hashes = {img["id"]: img for img in new_images}
+            new_container_hashes: dict[str, Mapping[str, object]] = {}
+            for container in new_containers:
+                container_id = container.get("id")
+                if isinstance(container_id, str):
+                    new_container_hashes[container_id] = container
+
+            new_image_hashes: dict[str, Mapping[str, object]] = {}
+            for image in new_images:
+                image_id = image.get("id")
+                if isinstance(image_id, str):
+                    new_image_hashes[image_id] = image
 
             if self.state.init_mode:
                 # During initialization, add all current containers and images to known sets
@@ -437,11 +451,19 @@ class SystemMonitorPlugin(PluginCore):
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.detect.changes.fail", e)
 
-    def _record_metrics(self, fields: dict[str, Any]) -> None:
-        metadata = dict(SystemInfo.get_platform_metadata(self.is_docker))
-        sanitized_fields = dict(self._sanitize_fields(fields))
+    def _record_metrics(self, fields: dict[str, object]) -> None:
+        metadata = {
+            key: str(value)
+            for key, value in SystemInfo.get_platform_metadata(self.is_docker).items()
+        }
+        sanitized_fields = self._sanitize_fields(fields)
+        numeric_fields = self._extract_numeric_fields(sanitized_fields)
+        if not numeric_fields:
+            logger.warning("bot.plugins.monitor.methods.metrics.empty.warn")
+            return
+
         if not self.influxdb_client.write_data_async(
-            "system_metrics", sanitized_fields, metadata
+            "system_metrics", numeric_fields, metadata
         ):
             logger.warning("bot.plugins.monitor.methods.metrics.skipped.warn")
             return
@@ -449,8 +471,10 @@ class SystemMonitorPlugin(PluginCore):
         logger.debug("bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields)
 
     @staticmethod
-    def _sanitize_fields(fields: dict[str, Any]) -> dict[str, Any]:
-        sanitized_fields: dict[str, Any] = {}
+    def _sanitize_fields(
+        fields: dict[str, object],
+    ) -> dict[str, int | float | str | bool | None]:
+        sanitized_fields: dict[str, int | float | str | bool | None] = {}
         for key, value in fields.items():
             if isinstance(value, (int, float, str, bool, type(None))):
                 sanitized_fields[key] = value
@@ -461,13 +485,13 @@ class SystemMonitorPlugin(PluginCore):
                     {
                         f"{key}_{sub_key}": sub_value
                         for sub_key, sub_value in value.items()
-                        if isinstance(sub_value, (int, float))
+                        if isinstance(sub_value, (int, float, bool))
                     }
                 )
                 unsupported = {
                     sub_key: sub_value
                     for sub_key, sub_value in value.items()
-                    if not isinstance(sub_value, (int, float))
+                    if not isinstance(sub_value, (int, float, bool))
                 }
                 for _sub_key, _sub_value in unsupported.items():
                     logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
@@ -478,13 +502,13 @@ class SystemMonitorPlugin(PluginCore):
                     {
                         f"{key}_{i + 1}m": item
                         for i, item in enumerate(value)
-                        if isinstance(item, (int, float))
+                        if isinstance(item, (int, float, bool))
                     }
                 )
                 unsupported_tuple_items = [
                     (i, item)
                     for i, item in enumerate(value)
-                    if not isinstance(item, (int, float))
+                    if not isinstance(item, (int, float, bool))
                 ]
                 for _i, _item in unsupported_tuple_items:
                     logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
@@ -492,6 +516,18 @@ class SystemMonitorPlugin(PluginCore):
 
             logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
         return sanitized_fields
+
+    @staticmethod
+    def _extract_numeric_fields(
+        fields: Mapping[str, int | float | str | bool | None],
+    ) -> dict[str, float]:
+        numeric_fields: dict[str, float] = {}
+        for key, value in fields.items():
+            if isinstance(value, bool):
+                numeric_fields[key] = float(int(value))
+            elif isinstance(value, (int, float)):
+                numeric_fields[key] = float(value)
+        return numeric_fields
 
     def _send_notification(
         self, message: str, *, count_towards_budget: bool = True
@@ -654,29 +690,50 @@ class SystemMonitorPlugin(PluginCore):
             f"Current Usage: {usage:.1f}%"
         )
 
-    def _send_container_notification(self, container: dict) -> None:
+    def _send_container_notification(self, container: Mapping[str, object]) -> None:
+        container_name = str(container.get("name", "unknown"))
+        image_name = str(container.get("image", "unknown"))
+        created_at = str(container.get("created", "unknown"))
+        running_since = str(container.get("run_at", "unknown"))
+        status = str(container.get("status", "unknown"))
+        networks = str(container.get("networks", "N/A"))
+        ports = str(container.get("ports", "N/A"))
+
         message = (
             "🚨 <b>Security Alert: New Docker Container Detected</b> 🚨\n"
-            f"📦 <b>Name:</b> <i>{container['name']}</i>\n"
-            f"🖼️ <b>Image:</b> <i>{container['image']}</i>\n"
-            f"🕒 <b>Created:</b> <i>{container['created']}</i>\n"
-            f"🚀 <b>Running Since:</b> <i>{container['run_at']}</i>\n"
-            f"📊 <b>Status:</b> <i>{container['status']}</i>\n"
-            f"🔍 <b>Networks:</b> <i>{container.get('networks', 'N/A')}</i>\n"
-            f"🔌 <b>Ports:</b> <i>{container.get('ports', 'N/A')}</i>\n"
+            f"📦 <b>Name:</b> <i>{container_name}</i>\n"
+            f"🖼️ <b>Image:</b> <i>{image_name}</i>\n"
+            f"🕒 <b>Created:</b> <i>{created_at}</i>\n"
+            f"🚀 <b>Running Since:</b> <i>{running_since}</i>\n"
+            f"📊 <b>Status:</b> <i>{status}</i>\n"
+            f"🔍 <b>Networks:</b> <i>{networks}</i>\n"
+            f"🔌 <b>Ports:</b> <i>{ports}</i>\n"
             "⚠️ Please verify this container's authenticity and permissions."
         )
         self._send_notification(message)
 
-    def _send_image_notification(self, image: dict) -> None:
+    def _send_image_notification(self, image: Mapping[str, object]) -> None:
+        image_id = str(image.get("id", "unknown"))[:12]
+        image_tags_raw = image.get("tags")
+        image_tags = (
+            ", ".join(str(tag) for tag in image_tags_raw)
+            if isinstance(image_tags_raw, list)
+            else "None"
+        )
+        architecture = str(image.get("architecture", "unknown"))
+        os_name = str(image.get("os", "unknown"))
+        size_value = image.get("size")
+        size_in_bytes = size_value if isinstance(size_value, (int, float)) else 0
+        created_at = str(image.get("created", "unknown"))
+
         message = (
             "🚨 <b>Security Alert: New Docker Image Detected</b> 🚨\n"
-            f"🖼️ <b>ID:</b> <i>{image['id'][:12]}</i>\n"
-            f"🏷️ <b>Tags:</b> <i>{', '.join(image['tags']) or 'None'}</i>\n"
-            f"🔧 <b>Architecture:</b> <i>{image['architecture']}</i>\n"
-            f"💻 <b>OS:</b> <i>{image['os']}</i>\n"
-            f"📦 <b>Size:</b> <i>{set_naturalsize(image['size'])}</i>\n"
-            f"🕒 <b>Created:</b> <i>{image['created']}</i>\n"
+            f"🖼️ <b>ID:</b> <i>{image_id}</i>\n"
+            f"🏷️ <b>Tags:</b> <i>{image_tags}</i>\n"
+            f"🔧 <b>Architecture:</b> <i>{architecture}</i>\n"
+            f"💻 <b>OS:</b> <i>{os_name}</i>\n"
+            f"📦 <b>Size:</b> <i>{set_naturalsize(size_in_bytes)}</i>\n"
+            f"🕒 <b>Created:</b> <i>{created_at}</i>\n"
             "⚠️ Please verify this image's authenticity and source."
         )
         self._send_notification(message)
@@ -698,8 +755,10 @@ class SystemMonitorPlugin(PluginCore):
 
     def _adjust_check_interval(self) -> None:
         try:
-            cpu_load = float(
-                self._psutil_adapter.get_cpu_usage().get("cpu_percent", 0.0)
+            cpu_data = self._psutil_adapter.get_cpu_usage()
+            raw_cpu_load = cpu_data.get("cpu_percent", 0.0)
+            cpu_load = (
+                float(raw_cpu_load) if isinstance(raw_cpu_load, (int, float)) else 0.0
             )
             if cpu_load > self.thresholds.load:
                 new_interval = min(

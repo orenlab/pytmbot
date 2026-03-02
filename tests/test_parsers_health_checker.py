@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import builtins
-from typing import Any
+from types import ModuleType
 
 import pytest
 
-import pytmbot.parsers.health_checker as health_checker_module
 from pytmbot.health_system import HealthLevel
 from pytmbot.parsers.health_checker import TemplateParserChecker
+
+type _ImportValue = str | int | float | bool | None
 
 
 def test_template_parser_checker_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -36,8 +37,11 @@ def test_template_parser_checker_uses_cache(monkeypatch: pytest.MonkeyPatch) -> 
         "pytmbot.parsers.validation.get_validation_stats",
         _fake_validation_stats,
     )
-    monkeypatch.setattr(health_checker_module.time, "time", _fake_time)
-    monkeypatch.setattr(health_checker_module.time, "perf_counter", _fake_perf_counter)
+    monkeypatch.setattr("pytmbot.parsers.health_checker.time.time", _fake_time)
+    monkeypatch.setattr(
+        "pytmbot.parsers.health_checker.time.perf_counter",
+        _fake_perf_counter,
+    )
 
     first = checker.check_sync()
     now["value"] = 1005.0
@@ -92,11 +96,11 @@ def test_template_parser_checker_returns_offline_on_import_error(
 
     def _fake_import(
         name: str,
-        globals_dict: dict[str, Any] | None = None,
-        locals_dict: dict[str, Any] | None = None,
+        globals_dict: dict[str, _ImportValue] | None = None,
+        locals_dict: dict[str, _ImportValue] | None = None,
         fromlist: tuple[str, ...] = (),
         level: int = 0,
-    ) -> Any:
+    ) -> ModuleType:
         if name == "pytmbot.parsers._parser":
             raise ImportError("parser unavailable")
         return real_import(name, globals_dict, locals_dict, fromlist, level)
@@ -120,4 +124,6 @@ def test_template_parser_checker_returns_critical_on_runtime_error(
     result = checker.check_sync()
 
     assert result.level == HealthLevel.CRITICAL
-    assert "failed to read parser cache" in result.details["error"]
+    error_message = result.details["error"]
+    assert isinstance(error_message, str)
+    assert "failed to read parser cache" in error_message

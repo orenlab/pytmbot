@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Final
+from typing import Final
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
@@ -27,10 +27,13 @@ from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_requ
 from pytmbot.logs import Logger
 from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 from pytmbot.utils import (
+    as_object_dict,
     sanitize_logs,
     set_naturalsize,
     set_naturaltime,
     split_string_into_octets,
+    to_float,
+    to_int,
 )
 
 logger = Logger()
@@ -188,7 +191,19 @@ def get_authorized_container_callback_context(
     )
 
 
-def _extract_container_attrs(container_details: Any) -> dict[str, Any]:
+def _as_dict(value: object) -> dict[str, object]:
+    return as_object_dict(value)
+
+
+def _to_float(value: object, default: float = 0.0) -> float:
+    return to_float(value, default)
+
+
+def _to_int(value: object, default: int = 0) -> int:
+    return to_int(value, default, allow_float_string=True)
+
+
+def _extract_container_attrs(container_details: object) -> dict[str, object]:
     """Normalize container input to attrs dictionary once."""
     attrs = getattr(container_details, "attrs", None)
     if isinstance(attrs, dict):
@@ -204,7 +219,7 @@ def _extract_container_attrs(container_details: Any) -> dict[str, Any]:
     return {}
 
 
-def get_container_full_details(container_name: str) -> Any | None:
+def get_container_full_details(container_name: str) -> object | None:
     """
     Retrieve the full details of a container.
 
@@ -212,7 +227,7 @@ def get_container_full_details(container_name: str) -> Any | None:
         container_name (str): The name of the container.
 
     Returns:
-        Any | None: Docker container object or None.
+        object | None: Docker container object or None.
     """
     # Use a local variable to store the lowercased container name
     lower_container_name = container_name.lower()
@@ -310,7 +325,7 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     return filtered_vars[:20]  # Limit to first 20 variables
 
 
-def _format_container_timestamp(raw_value: Any) -> str:
+def _format_container_timestamp(raw_value: object) -> str:
     """Render ISO timestamp from Docker attrs to stable UTC string."""
     if not isinstance(raw_value, str):
         return "N/A"
@@ -329,24 +344,24 @@ def _format_container_timestamp(raw_value: Any) -> str:
     return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def _truncate_text(value: Any, limit: int = 160) -> str:
+def _truncate_text(value: object, limit: int = 160) -> str:
     text = str(value).strip()
     if len(text) <= limit:
         return text
     return f"{text[: limit - 3]}..."
 
 
-def _normalize_string_list(raw_value: Any, *, limit: int = 10) -> list[str]:
+def _normalize_string_list(raw_value: object, *, limit: int = 10) -> list[str]:
     if not isinstance(raw_value, list):
         return []
     cleaned = [str(item).strip() for item in raw_value if str(item).strip()]
     return cleaned[:limit]
 
 
-def _extract_health_summary(state: dict[str, Any]) -> dict[str, Any]:
+def _extract_health_summary(state: dict[str, object]) -> dict[str, object]:
     """Extract health check summary from Docker state attrs."""
-    health_data = state.get("Health", {})
-    if not isinstance(health_data, dict):
+    health_data = _as_dict(state.get("Health", {}))
+    if not health_data:
         return {
             "health_status": "N/A",
             "health_failing_streak": 0,
@@ -369,7 +384,7 @@ def _extract_health_summary(state: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "health_status": str(health_data.get("Status", "N/A")),
-        "health_failing_streak": int(health_data.get("FailingStreak", 0) or 0),
+        "health_failing_streak": _to_int(health_data.get("FailingStreak", 0), 0),
         "health_last_checked_at": health_last_checked_at,
         "health_last_log": health_last_log,
     }
@@ -393,8 +408,8 @@ def _has_no_new_privileges(security_options: list[str]) -> bool:
 
 
 def parse_container_basic_info(
-    container_details: Any, attrs: dict[str, Any] | None = None
-) -> dict[str, Any]:
+    container_details: object, attrs: dict[str, object] | None = None
+) -> dict[str, object]:
     """
     Extract basic container information from container details.
 
@@ -409,8 +424,8 @@ def parse_container_basic_info(
             attrs if attrs is not None else _extract_container_attrs(container_details)
         )
 
-        config = resolved_attrs.get("Config", {})
-        state = resolved_attrs.get("State", {})
+        config = _as_dict(resolved_attrs.get("Config", {}))
+        state = _as_dict(resolved_attrs.get("State", {}))
         health_summary = _extract_health_summary(state)
         health_summary_public = {
             "health_status": health_summary.get("health_status", "N/A"),
@@ -428,7 +443,7 @@ def parse_container_basic_info(
         restarting = bool(state.get("Restarting", False))
 
         # Image info (safe to display)
-        image_info = config.get("Image", "unknown")
+        image_info = str(config.get("Image", "unknown"))
         image_parts = image_info.split(":")
         image_name = image_parts[0] if image_parts else "unknown"
         image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
@@ -447,8 +462,8 @@ def parse_container_basic_info(
                 uptime = "N/A"
 
         return {
-            "id": resolved_attrs.get("Id", "")[:12],  # Short ID
-            "name": resolved_attrs.get("Name", "").lstrip("/"),
+            "id": str(resolved_attrs.get("Id", ""))[:12],  # Short ID
+            "name": str(resolved_attrs.get("Name", "")).lstrip("/"),
             "image_name": image_name,
             "image_tag": image_tag,
             "status": state.get("Status", "unknown"),
@@ -482,8 +497,8 @@ def parse_container_basic_info(
 
 
 def parse_container_resources(
-    container_details: Any, attrs: dict[str, Any] | None = None
-) -> dict[str, Any]:
+    container_details: object, attrs: dict[str, object] | None = None
+) -> dict[str, object]:
     """
     Extract container resource configuration and limits.
 
@@ -498,24 +513,22 @@ def parse_container_resources(
             attrs if attrs is not None else _extract_container_attrs(container_details)
         )
 
-        host_config = resolved_attrs.get("HostConfig", {})
+        host_config = _as_dict(resolved_attrs.get("HostConfig", {}))
 
-        restart_policy = host_config.get("RestartPolicy", {})
-        if not isinstance(restart_policy, dict):
-            restart_policy = {}
+        restart_policy = _as_dict(host_config.get("RestartPolicy", {}))
 
         # Memory limits
-        memory_limit = host_config.get("Memory", 0)
-        memory_swap = host_config.get("MemorySwap", 0)
-        memory_reservation = host_config.get("MemoryReservation", 0)
+        memory_limit = _to_int(host_config.get("Memory", 0), 0)
+        memory_swap = _to_int(host_config.get("MemorySwap", 0), 0)
+        memory_reservation = _to_int(host_config.get("MemoryReservation", 0), 0)
         pids_limit = host_config.get("PidsLimit", 0)
 
         # CPU limits
-        cpu_shares = host_config.get("CpuShares", 0)
-        cpu_quota = host_config.get("CpuQuota", 0)
-        cpu_period = host_config.get("CpuPeriod", 0)
-        cpuset_cpus = host_config.get("CpusetCpus", "")
-        nano_cpus = host_config.get("NanoCpus", 0)
+        cpu_shares = _to_int(host_config.get("CpuShares", 0), 0)
+        cpu_quota = _to_int(host_config.get("CpuQuota", 0), 0)
+        cpu_period = _to_int(host_config.get("CpuPeriod", 0), 0)
+        cpuset_cpus = str(host_config.get("CpusetCpus", ""))
+        nano_cpus = _to_int(host_config.get("NanoCpus", 0), 0)
 
         pids_limit_display = "Unlimited"
         if isinstance(pids_limit, int) and pids_limit > 0:
@@ -538,11 +551,11 @@ def parse_container_resources(
             if cpu_quota > 0 and cpu_period > 0
             else "No limit",
             "cpus_limit": f"{nano_cpus / 1_000_000_000:.2f}"
-            if isinstance(nano_cpus, int) and nano_cpus > 0
+            if nano_cpus > 0
             else "No limit",
             "cpuset_cpus": cpuset_cpus if cpuset_cpus else "All CPUs",
-            "restart_policy": restart_policy.get("Name", "no"),
-            "max_restart_count": restart_policy.get("MaximumRetryCount", 0),
+            "restart_policy": str(restart_policy.get("Name", "no")),
+            "max_restart_count": _to_int(restart_policy.get("MaximumRetryCount", 0), 0),
             "pids_limit": pids_limit_display,
         }
     except Exception:
@@ -551,8 +564,8 @@ def parse_container_resources(
 
 
 def parse_container_network_info(
-    container_details: Any, attrs: dict[str, Any] | None = None
-) -> dict[str, Any]:
+    container_details: object, attrs: dict[str, object] | None = None
+) -> dict[str, object]:
     """
     Extract container network configuration (safe subset).
 
@@ -567,8 +580,8 @@ def parse_container_network_info(
             attrs if attrs is not None else _extract_container_attrs(container_details)
         )
 
-        network_settings = resolved_attrs.get("NetworkSettings", {})
-        host_config = resolved_attrs.get("HostConfig", {})
+        network_settings = _as_dict(resolved_attrs.get("NetworkSettings", {}))
+        host_config = _as_dict(resolved_attrs.get("HostConfig", {}))
 
         # Port mappings (public info)
         port_bindings = network_settings.get("Ports", {})
@@ -596,10 +609,11 @@ def parse_container_network_info(
                 ports.append(container_port)
 
         # Network mode
-        network_mode = host_config.get("NetworkMode", "default")
+        network_mode = str(host_config.get("NetworkMode", "default"))
 
         # Connected networks (names only, not IPs for security)
-        networks = list(network_settings.get("Networks", {}).keys())
+        networks_data = _as_dict(network_settings.get("Networks", {}))
+        networks = [str(name) for name in networks_data]
 
         return {
             "network_mode": network_mode,
@@ -615,12 +629,13 @@ def parse_container_network_info(
 
 
 def parse_container_environment(
-    container_details: Any, attrs: dict[str, Any] | None = None
-) -> dict[str, Any]:
+    container_details: object, attrs: dict[str, object] | None = None
+) -> dict[str, object]:
     """
     Extract and sanitize container environment information.
 
     Args:
+        attrs: details attributes
         container_details: Container object or dictionary
 
     Returns:
@@ -631,21 +646,32 @@ def parse_container_environment(
             attrs if attrs is not None else _extract_container_attrs(container_details)
         )
 
-        config = resolved_attrs.get("Config", {})
+        config = _as_dict(resolved_attrs.get("Config", {}))
 
         # Environment variables (sanitized)
-        env_vars = config.get("Env", [])
+        env_vars_obj = config.get("Env", [])
+        env_vars = (
+            [str(item) for item in env_vars_obj]
+            if isinstance(env_vars_obj, list)
+            else []
+        )
         safe_env_vars = sanitize_environment_variables(env_vars)
 
         # Working directory
-        working_dir = config.get("WorkingDir", "/")
+        working_dir = str(config.get("WorkingDir", "/"))
 
         # User
-        user = config.get("User", "root")
+        user = str(config.get("User", "root"))
 
         # Command and args (safe to display)
-        cmd = config.get("Cmd", [])
-        entrypoint = config.get("Entrypoint", [])
+        cmd_obj = config.get("Cmd", [])
+        cmd = [str(item) for item in cmd_obj] if isinstance(cmd_obj, list) else []
+        entrypoint_obj = config.get("Entrypoint", [])
+        entrypoint = (
+            [str(item) for item in entrypoint_obj]
+            if isinstance(entrypoint_obj, list)
+            else []
+        )
 
         return {
             "environment_vars": safe_env_vars,
@@ -661,16 +687,16 @@ def parse_container_environment(
 
 
 def parse_container_runtime_info(
-    container_details: Any, attrs: dict[str, Any] | None = None
-) -> dict[str, Any]:
+    container_details: object, attrs: dict[str, object] | None = None
+) -> dict[str, object]:
     """Extract runtime lifecycle and security metadata for container views."""
     try:
         resolved_attrs = (
             attrs if attrs is not None else _extract_container_attrs(container_details)
         )
-        state = resolved_attrs.get("State", {})
-        host_config = resolved_attrs.get("HostConfig", {})
-        config = resolved_attrs.get("Config", {})
+        state = _as_dict(resolved_attrs.get("State", {}))
+        host_config = _as_dict(resolved_attrs.get("HostConfig", {}))
+        config = _as_dict(resolved_attrs.get("Config", {}))
 
         security_opts = _normalize_string_list(host_config.get("SecurityOpt"), limit=8)
         cap_add = _normalize_string_list(host_config.get("CapAdd"), limit=10)
@@ -714,7 +740,7 @@ def parse_container_runtime_info(
 
 def get_comprehensive_container_details(
     container_name: str,
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     """
     Get comprehensive container details with enhanced parsing and security.
 
@@ -744,7 +770,7 @@ def get_comprehensive_container_details(
         runtime_info = parse_container_runtime_info(container_details, attrs=attrs)
 
         # Initialize runtime/stat fields
-        stats: dict[str, Any] = {}
+        stats: dict[str, object] = {}
         memory_stats: dict[str, str | float] = {}
         is_running = (
             hasattr(container_details, "status")
@@ -814,7 +840,7 @@ def get_comprehensive_container_details(
 
 
 def normalize_memory_stats(
-    raw_memory_stats: dict[str, Any],
+    raw_memory_stats: dict[str, object] | dict[str, str],
 ) -> dict[str, str | float]:
     """Normalize memory stats to template-compatible values."""
     if not raw_memory_stats:
@@ -836,14 +862,14 @@ def normalize_memory_stats(
         mem_percent = "N/A"
 
     return {
-        "mem_usage": raw_memory_stats.get("mem_usage", "N/A"),
-        "mem_limit": raw_memory_stats.get("mem_limit", "N/A"),
+        "mem_usage": str(raw_memory_stats.get("mem_usage", "N/A")),
+        "mem_limit": str(raw_memory_stats.get("mem_limit", "N/A")),
         "mem_percent": mem_percent,
     }
 
 
 def parse_container_memory_stats(
-    container_stats: dict[str, Any],
+    container_stats: dict[str, object],
 ) -> dict[str, str | float]:
     """
     Parse the memory statistics of a container with enhanced formatting.
@@ -856,11 +882,11 @@ def parse_container_memory_stats(
     """
     try:
         # Retrieve the memory statistics from the container_stats dictionary
-        memory_stats = container_stats.get("memory_stats", {})
+        memory_stats = _as_dict(container_stats.get("memory_stats", {}))
 
         # Calculate the memory usage and limit
-        usage = memory_stats.get("usage", 0)
-        limit = memory_stats.get("limit", 0)
+        usage = _to_int(memory_stats.get("usage", 0), 0)
+        limit = _to_int(memory_stats.get("limit", 0), 0)
 
         if usage == 0 and limit == 0:
             return {}
@@ -883,7 +909,7 @@ def parse_container_memory_stats(
 
 
 def parse_container_cpu_stats(
-    container_stats: dict[str, Any],
+    container_stats: dict[str, object],
 ) -> dict[str, int | float]:
     """
     Parse the CPU statistics of a container with enhanced calculations.
@@ -895,33 +921,38 @@ def parse_container_cpu_stats(
         Dict: A dictionary with CPU usage statistics.
     """
     try:
-        cpu_stats = container_stats.get("cpu_stats", {})
-        precpu_stats = container_stats.get("precpu_stats", {})
+        cpu_stats = _as_dict(container_stats.get("cpu_stats", {}))
+        precpu_stats = _as_dict(container_stats.get("precpu_stats", {}))
 
         # Get throttling data
-        throttling_data = cpu_stats.get("throttling_data", {})
+        throttling_data = _as_dict(cpu_stats.get("throttling_data", {}))
 
         # Calculate CPU percentage
-        cpu_usage = cpu_stats.get("cpu_usage", {})
-        precpu_usage = precpu_stats.get("cpu_usage", {})
+        cpu_usage = _as_dict(cpu_stats.get("cpu_usage", {}))
+        precpu_usage = _as_dict(precpu_stats.get("cpu_usage", {}))
 
-        cpu_total = cpu_usage.get("total_usage", 0)
-        precpu_total = precpu_usage.get("total_usage", 0)
+        cpu_total = _to_float(cpu_usage.get("total_usage", 0), 0.0)
+        precpu_total = _to_float(precpu_usage.get("total_usage", 0), 0.0)
 
-        system_cpu = cpu_stats.get("system_cpu_usage", 0)
-        pre_system_cpu = precpu_stats.get("system_cpu_usage", 0)
+        system_cpu = _to_float(cpu_stats.get("system_cpu_usage", 0), 0.0)
+        pre_system_cpu = _to_float(precpu_stats.get("system_cpu_usage", 0), 0.0)
 
         cpu_percent = 0.0
         if system_cpu > pre_system_cpu and cpu_total > precpu_total:
             cpu_delta = cpu_total - precpu_total
             system_delta = system_cpu - pre_system_cpu
-            num_cpus = len(cpu_usage.get("percpu_usage", [1]))
+            percpu_usage = cpu_usage.get("percpu_usage", [1])
+            num_cpus = len(percpu_usage) if isinstance(percpu_usage, list) else 1
+            if num_cpus < 1:
+                num_cpus = 1
             cpu_percent = (cpu_delta / system_delta) * num_cpus * 100.0
 
         return {
-            "periods": throttling_data.get("periods", 0),
-            "throttled_periods": throttling_data.get("throttled_periods", 0),
-            "throttling_data": throttling_data.get("throttled_time", 0),
+            "periods": _to_int(throttling_data.get("periods", 0), 0),
+            "throttled_periods": _to_int(
+                throttling_data.get("throttled_periods", 0), 0
+            ),
+            "throttling_data": _to_int(throttling_data.get("throttled_time", 0), 0),
             "cpu_percent": round(cpu_percent, 2),
         }
     except Exception:
@@ -934,7 +965,9 @@ def parse_container_cpu_stats(
         }
 
 
-def parse_container_network_stats(container_stats: dict) -> dict:
+def parse_container_network_stats(
+    container_stats: dict[str, object],
+) -> dict[str, int | str]:
     """
     Parse the network statistics of a container with enhanced formatting.
 
@@ -945,15 +978,23 @@ def parse_container_network_stats(container_stats: dict) -> dict:
         Dict: A dictionary with network statistics.
     """
     try:
-        networks = container_stats.get("networks", {})
+        networks_raw = container_stats.get("networks", {})
+        if isinstance(networks_raw, dict):
+            networks = [
+                net_info
+                for net_info in networks_raw.values()
+                if isinstance(net_info, dict)
+            ]
+        else:
+            networks = []
 
         # Sum all network interfaces
-        total_rx_bytes = sum(net.get("rx_bytes", 0) for net in networks.values())
-        total_tx_bytes = sum(net.get("tx_bytes", 0) for net in networks.values())
-        total_rx_dropped = sum(net.get("rx_dropped", 0) for net in networks.values())
-        total_tx_dropped = sum(net.get("tx_dropped", 0) for net in networks.values())
-        total_rx_errors = sum(net.get("rx_errors", 0) for net in networks.values())
-        total_tx_errors = sum(net.get("tx_errors", 0) for net in networks.values())
+        total_rx_bytes = sum(int(net.get("rx_bytes", 0) or 0) for net in networks)
+        total_tx_bytes = sum(int(net.get("tx_bytes", 0) or 0) for net in networks)
+        total_rx_dropped = sum(int(net.get("rx_dropped", 0) or 0) for net in networks)
+        total_tx_dropped = sum(int(net.get("tx_dropped", 0) or 0) for net in networks)
+        total_rx_errors = sum(int(net.get("rx_errors", 0) or 0) for net in networks)
+        total_tx_errors = sum(int(net.get("tx_errors", 0) or 0) for net in networks)
 
         return {
             "rx_bytes": set_naturalsize(total_rx_bytes),

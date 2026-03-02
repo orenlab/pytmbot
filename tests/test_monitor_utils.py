@@ -196,7 +196,9 @@ def test_event_tracker_create_and_resolve(monkeypatch: pytest.MonkeyPatch) -> No
     state = MonitoringState()
     monkeypatch.setattr(monitor_utils_module, "uuid4", lambda: "event-id")
     timestamps = iter([100.0, 101.0, 140.0])
-    monkeypatch.setattr(monitor_utils_module.time, "time", lambda: next(timestamps))
+    monkeypatch.setattr(
+        "pytmbot.plugins.monitor.utils.time.time", lambda: next(timestamps)
+    )
 
     event_id = EventTracker.create_event(state, "cpu", {"usage": 95.0})
     assert event_id == "event-id"
@@ -213,20 +215,18 @@ def test_system_info_metadata_success_and_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        monitor_utils_module.platform,
-        "uname",
+        "pytmbot.plugins.monitor.utils.platform.uname",
         lambda: SimpleNamespace(node="host-a", system="Linux", machine="x86_64"),
     )
     monkeypatch.setattr(
-        monitor_utils_module.platform, "python_version", lambda: "3.12.0"
+        "pytmbot.plugins.monitor.utils.platform.python_version", lambda: "3.12.0"
     )
     metadata = SystemInfo.get_platform_metadata(is_docker=True)
     assert metadata["system"] == "docker"
     assert metadata["hostname"] == "host-a"
 
     monkeypatch.setattr(
-        monitor_utils_module.platform,
-        "uname",
+        "pytmbot.plugins.monitor.utils.platform.uname",
         lambda: (_ for _ in ()).throw(RuntimeError("uname-fail")),
     )
     fallback = SystemInfo.get_platform_metadata(is_docker=False)

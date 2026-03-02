@@ -15,18 +15,18 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache, wraps
 from threading import RLock
 from time import monotonic_ns
+from types import TracebackType
 from typing import (
-    Any,
+    TYPE_CHECKING,
     ClassVar,
     Final,
     Protocol,
     TypeVar,
-    cast,
     runtime_checkable,
 )
 from uuid import uuid4
@@ -35,6 +35,11 @@ from loguru import logger
 from telebot.types import CallbackQuery, InlineQuery, Message, Update
 
 from pytmbot.utils.user_id_mask import mask_user_id_value
+
+if TYPE_CHECKING:
+    from loguru import Logger as LoguruLogger
+else:
+    LoguruLogger = object
 
 T = TypeVar("T")
 type TelegramObject = Update | Message | CallbackQuery | InlineQuery
@@ -495,33 +500,41 @@ class SecureLoggerFilter:
     def __init__(self, masker: DataMasker) -> None:
         self.masker = masker
 
-    def __call__(self, record: Any) -> bool:
+    def __call__(self, record: object) -> bool:
         """Filter and sanitize log records."""
         if not isinstance(record, dict):
             return True
 
         if message := record.get("message"):
-            record["message"] = self.masker.sanitize_text(message)
+            record["message"] = self.masker.sanitize_text(str(message))
 
         if extra := record.get("extra"):
-            record["extra"] = self._sanitize_extra(
-                extra,
-                module_name=record.get("module"),
-                logger_name=record.get("name"),
-                message=record.get("message"),
-            )
+            if isinstance(extra, dict):
+                module_name_raw = record.get("module")
+                logger_name_raw = record.get("name")
+                message_raw = record.get("message")
+                record["extra"] = self._sanitize_extra(
+                    extra,
+                    module_name=module_name_raw
+                    if isinstance(module_name_raw, str)
+                    else None,
+                    logger_name=logger_name_raw
+                    if isinstance(logger_name_raw, str)
+                    else None,
+                    message=message_raw if isinstance(message_raw, str) else None,
+                )
 
         return True
 
     def _sanitize_extra(
         self,
-        extra: dict[str, Any],
+        extra: dict[str, object],
         module_name: str | None = None,
         logger_name: str | None = None,
         message: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Sanitize and normalize extra fields."""
-        normalized: dict[str, Any] = {}
+        normalized: dict[str, object] = {}
         component = extra.get("component")
         action = extra.get("action")
         normalized_message = self._normalize_identifier(message or "")
@@ -575,7 +588,7 @@ class SecureLoggerFilter:
         return self._order_extra(normalized)
 
     @classmethod
-    def _normalize_duration_value(cls, value: Any) -> Any:
+    def _normalize_duration_value(cls, value: object) -> object:
         """Normalize textual duration values to numeric milliseconds."""
         if isinstance(value, int | float):
             return round(float(value), 2)
@@ -594,7 +607,7 @@ class SecureLoggerFilter:
         return round(number, 2)
 
     @staticmethod
-    def _merge_extra_values(existing: Any, new: Any) -> Any:
+    def _merge_extra_values(existing: object, new: object) -> object:
         """Merge values for colliding normalized keys."""
         unknown_values = {"", "unknown", "n/a", "none"}
         if isinstance(existing, str) and existing.lower() in unknown_values:
@@ -612,9 +625,9 @@ class SecureLoggerFilter:
         return existing
 
     @classmethod
-    def _order_extra(cls, extra: dict[str, Any]) -> dict[str, Any]:
+    def _order_extra(cls, extra: dict[str, object]) -> dict[str, object]:
         """Return consistently ordered extra payload."""
-        ordered: dict[str, Any] = {}
+        ordered: dict[str, object] = {}
         for key in cls._EXTRA_ORDER:
             if key in extra:
                 ordered[key] = extra[key]
@@ -669,7 +682,7 @@ class SecureLoggerFilter:
         candidates.discard("")
         return normalized_component in candidates
 
-    def _sanitize_value(self, key: str, value: Any, depth: int = 0) -> Any:
+    def _sanitize_value(self, key: str, value: object, depth: int = 0) -> object:
         """Sanitize and compact value recursively to reduce log noise."""
         if depth > 2:
             return "[truncated]"
@@ -704,7 +717,7 @@ class SecureLoggerFilter:
         if isinstance(value, dict):
             items = list(value.items())
             limited_items = items[: self._MAX_COLLECTION_ITEMS]
-            result: dict[str, Any] = {
+            result: dict[str, object] = {
                 str(k): self._sanitize_value(str(k), v, depth + 1)
                 for k, v in limited_items
             }
@@ -735,13 +748,13 @@ class Logger:
 
     __slots__ = ("_logger", "_masker", "_filter", "_initialized")
 
-    _logger: Any
+    _logger: LoguruLogger
     _masker: DataMasker
     _filter: SecureLoggerFilter
     _initialized: bool
     _instance: Logger | None = None
     _lock: Final[RLock] = RLock()
-    _context_data: ClassVar[ContextVar[dict[str, Any] | None]] = ContextVar(
+    _context_data: ClassVar[ContextVar[dict[str, object] | None]] = ContextVar(
         "logger_context_data", default=None
     )
 
@@ -783,20 +796,30 @@ class Logger:
 
         self._configure_logger(log_level, log_format)
 
-    def _json_sink(self, message: Any) -> None:
+    def _json_sink(self, message: object) -> None:
         """Render compact structured JSON logs."""
-        record = message.record
-        timestamp = record["time"].astimezone(UTC).isoformat(timespec="milliseconds")
-        payload: dict[str, Any] = {
+        record = getattr(message, "record", None)
+        if not isinstance(record, dict):
+            return
+
+        record_time = record.get("time")
+        if isinstance(record_time, datetime):
+            timestamp = record_time.astimezone(UTC).isoformat(timespec="milliseconds")
+        else:
+            timestamp = datetime.now(UTC).isoformat(timespec="milliseconds")
+
+        payload: dict[str, object] = {
             "ts": timestamp.replace("+00:00", "Z"),
-            "level": record["level"].name,
+            "level": getattr(record.get("level"), "name", "INFO"),
             "module": record.get("module"),
             "msg": record.get("message"),
         }
 
-        for key, value in record.get("extra", {}).items():
-            if value is not None and key not in payload:
-                payload[key] = value
+        extra = record.get("extra")
+        if isinstance(extra, dict):
+            for key, value in extra.items():
+                if value is not None and key not in payload:
+                    payload[key] = value
 
         sys.stdout.write(
             f"{json.dumps(payload, ensure_ascii=False, default=str, separators=(',', ':'))}\n"
@@ -806,15 +829,19 @@ class Logger:
         """Configure the logger with optimized settings."""
         self._logger.remove()
 
-        def default_filter(record: dict[str, Any]) -> bool:
-            return "sensitive_exception" not in record.get(
-                "extra", {}
-            ) and self._filter(record)
+        def default_filter(record: object) -> bool:
+            if not isinstance(record, dict):
+                return True
+            extra = record.get("extra")
+            has_sensitive = isinstance(extra, dict) and "sensitive_exception" in extra
+            return (not has_sensitive) and self._filter(record)
 
-        def sensitive_filter(record: dict[str, Any]) -> bool:
-            return "sensitive_exception" in record.get("extra", {}) and self._filter(
-                record
-            )
+        def sensitive_filter(record: object) -> bool:
+            if not isinstance(record, dict):
+                return False
+            extra = record.get("extra")
+            has_sensitive = isinstance(extra, dict) and "sensitive_exception" in extra
+            return has_sensitive and self._filter(record)
 
         if log_format == "json":
             self._logger.add(
@@ -872,16 +899,27 @@ class Logger:
         """Add a chat ID that should be masked in all logs."""
         self._masker.add_chat_id(chat_id)
 
-    def configure_masking_from_settings(self, settings: Any) -> None:
+    def configure_masking_from_settings(self, settings: object) -> None:
         """Configure masking based on application settings."""
         try:
-            # Add bot tokens to masking
-            secrets_to_mask = [
-                settings.bot_token.prod_token[0],
-                settings.bot_token.dev_bot_token[0],
-                settings.plugins_config.outline.api_url[0],
-                settings.plugins_config.outline.cert[0],
-            ]
+            bot_token = getattr(settings, "bot_token", None)
+            plugins_config = getattr(settings, "plugins_config", None)
+            outline = getattr(plugins_config, "outline", None)
+
+            secrets_to_mask: list[object] = []
+            prod_token = getattr(bot_token, "prod_token", [])
+            dev_bot_token = getattr(bot_token, "dev_bot_token", [])
+            outline_api_url = getattr(outline, "api_url", [])
+            outline_cert = getattr(outline, "cert", [])
+
+            if isinstance(prod_token, list) and prod_token:
+                secrets_to_mask.append(prod_token[0])
+            if isinstance(dev_bot_token, list) and dev_bot_token:
+                secrets_to_mask.append(dev_bot_token[0])
+            if isinstance(outline_api_url, list) and outline_api_url:
+                secrets_to_mask.append(outline_api_url[0])
+            if isinstance(outline_cert, list) and outline_cert:
+                secrets_to_mask.append(outline_cert[0])
 
             for secret in secrets_to_mask:
                 if secret and hasattr(secret, "get_secret_value"):
@@ -901,7 +939,7 @@ class Logger:
         update_type: str,
         chat_id: int | None,
         user_id: int | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Extract relevant data from Telegram update objects (cached version)."""
         return {
             "update": update_type,
@@ -910,10 +948,10 @@ class Logger:
             "user_id": user_id,
         }
 
-    def _get_update_data(self, update: TelegramObject) -> dict[str, Any]:
+    def _get_update_data(self, update: TelegramObject) -> dict[str, object]:
         """Extract relevant data from Telegram update objects."""
         update_id = None
-        obj: Any = update
+        obj: object = update
 
         if isinstance(update, Update):
             update_id = update.update_id
@@ -939,7 +977,7 @@ class Logger:
         return self._extract_update_data(update_id, update_type, chat_id, user_id)
 
     @contextmanager
-    def context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+    def context(self, **kwargs: object) -> Generator[Logger, None, None]:
         """Context manager for temporarily binding additional data to the logger."""
         current_context = self._context_data.get() or {}
         context_update = {
@@ -949,7 +987,7 @@ class Logger:
             context_update["trace_id"] = current_context["trace_id"]
 
         merged_context = {**current_context, **context_update}
-        token: Token[dict[str, Any] | None] = self._context_data.set(merged_context)
+        token: Token[dict[str, object] | None] = self._context_data.set(merged_context)
         try:
             yield self
         finally:
@@ -962,7 +1000,7 @@ class Logger:
 
         def decorator(f: Callable[..., T]) -> Callable[..., T]:
             @wraps(f)
-            def wrapper(*args: Any, **kwargs: Any) -> T:
+            def wrapper(*args: object, **kwargs: object) -> T:
                 telegram_object = self._find_telegram_object(args)
                 context = self._build_context(f.__name__, telegram_object)
                 return self._execute_with_logging(f, args, kwargs, context)
@@ -971,7 +1009,28 @@ class Logger:
 
         return decorator(func) if func else decorator
 
-    def _find_telegram_object(self, args: tuple[Any, ...]) -> TelegramObject | None:
+    def catch[**P, R](self) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """
+        Typed catch decorator for handler wrappers.
+
+        This version intentionally supports ``@logger.catch()`` usage,
+        which is the only call pattern used in this project.
+        """
+
+        def decorator(func: Callable[P, R]) -> Callable[P, R]:
+            @wraps(func)
+            def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+                try:
+                    return func(*args, **kwargs)
+                except Exception:
+                    self.exception("bot.logger.catch.decorator.fail")
+                    raise
+
+            return wrapper
+
+        return decorator
+
+    def _find_telegram_object(self, args: tuple[object, ...]) -> TelegramObject | None:
         """Find a Telegram object in function arguments."""
         return next(
             (
@@ -984,9 +1043,9 @@ class Logger:
 
     def _build_context(
         self, func_name: str, telegram_object: TelegramObject | None
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Build context dictionary for logging."""
-        context: dict[str, Any] = {"handler": func_name}
+        context: dict[str, object] = {"handler": func_name}
 
         if telegram_object:
             # Extract sensitive data for masking BEFORE getting update data
@@ -1020,16 +1079,19 @@ class Logger:
     def _execute_with_logging(
         self,
         func: Callable[..., T],
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-        context: dict[str, Any],
+        args: tuple[object, ...],
+        kwargs: dict[str, object],
+        context: dict[str, object],
     ) -> T:
         """Execute function with timing and error logging."""
         func_name = func.__name__
         start_time = monotonic_ns()
         inherited_context = self._context_data.get() or {}
+        inherited_trace_id = inherited_context.get("trace_id")
         trace_id = (
-            cast(str | None, inherited_context.get("trace_id")) or uuid4().hex[:12]
+            inherited_trace_id
+            if isinstance(inherited_trace_id, str) and inherited_trace_id
+            else uuid4().hex[:12]
         )
         context_with_handler = {**context, "handler": func_name}
         handler_event = self._handler_event_name(func_name)
@@ -1060,7 +1122,7 @@ class Logger:
                 )
                 raise
 
-    def sanitize_and_log(self, level: str, message: str, **kwargs: Any) -> None:
+    def sanitize_and_log(self, level: str, message: str, **kwargs: object) -> None:
         """Manual sanitization and logging of a message."""
         sanitized_message = self._masker.sanitize_text(message)
         sanitized_kwargs = {
@@ -1071,14 +1133,85 @@ class Logger:
             sanitized_message, **sanitized_kwargs
         )
 
-    def _get_bound_logger(self) -> Any:
+    def _get_bound_logger(self) -> LoguruLogger:
         """Get logger with current context bound in a thread-safe way."""
         context = self._context_data.get() or {}
         return self._logger.bind(**context) if context else self._logger
 
-    def __getattr__(self, name: str) -> Any:
+    def bind(self, **kwargs: object) -> LoguruLogger:
+        """Expose bound logger for chained structured logging."""
+        return self._get_bound_logger().bind(**kwargs)
+
+    def opt(self, **kwargs: object) -> LoguruLogger:
+        """Expose loguru opt() for exception-aware logging."""
+        exception = kwargs.get("exception")
+        record = bool(kwargs.get("record", False))
+        lazy = bool(kwargs.get("lazy", False))
+        colors = bool(kwargs.get("colors", False))
+        raw = bool(kwargs.get("raw", False))
+        capture = bool(kwargs.get("capture", True))
+        depth_raw = kwargs.get("depth", 0)
+        if isinstance(depth_raw, int):
+            depth = depth_raw
+        elif isinstance(depth_raw, float):
+            depth = int(depth_raw)
+        elif isinstance(depth_raw, str):
+            try:
+                depth = int(depth_raw.strip())
+            except ValueError:
+                depth = 0
+        else:
+            depth = 0
+        ansi = bool(kwargs.get("ansi", False))
+
+        exception_arg: (
+            bool
+            | tuple[
+                type[BaseException] | None, BaseException | None, TracebackType | None
+            ]
+            | BaseException
+            | None
+        )
+        if isinstance(exception, bool | BaseException) or exception is None:
+            exception_arg = exception
+        elif (
+            isinstance(exception, tuple)
+            and len(exception) == 3
+            and (
+                exception[0] is None
+                or isinstance(exception[0], type)
+                and issubclass(exception[0], BaseException)
+            )
+            and (exception[1] is None or isinstance(exception[1], BaseException))
+            and (exception[2] is None or isinstance(exception[2], TracebackType))
+        ):
+            exception_arg = (
+                exception[0],
+                exception[1],
+                exception[2],
+            )
+        else:
+            exception_arg = None
+
+        return self._get_bound_logger().opt(
+            exception=exception_arg,
+            record=record,
+            lazy=lazy,
+            colors=colors,
+            raw=raw,
+            capture=capture,
+            depth=depth,
+            ansi=ansi,
+        )
+
+    def __getattr__(self, name: str) -> Callable[..., object]:
         """Proxy attributes to the internal logger."""
-        return getattr(self._get_bound_logger(), name)
+
+        def _proxy(*args: object, **kwargs: object) -> object:
+            target = getattr(self._get_bound_logger(), name)
+            return target(*args, **kwargs)
+
+        return _proxy
 
 
 class BaseComponent:
@@ -1091,7 +1224,7 @@ class BaseComponent:
         self._log = Logger()
 
     @contextmanager
-    def log_context(self, **kwargs: Any) -> Generator[Logger, None, None]:
+    def log_context(self, **kwargs: object) -> Generator[Logger, None, None]:
         """Context manager for logging with additional data."""
         component = kwargs.pop("component", self.component_name) or self.component_name
         with self._log.context(component=component, **kwargs) as log:

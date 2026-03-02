@@ -5,9 +5,11 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
+
+type JSONPrimitive = str | int | float | bool | None
+type JSONValue = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
+type JSONObject = dict[str, JSONValue]
 
 
 class InlineKeyboardButton(BaseModel):
@@ -93,7 +95,7 @@ class ShippingQuery(BaseModel):
     id: str
     from_user: User = Field(..., alias="from")
     invoice_payload: str
-    shipping_address: dict[str, Any]
+    shipping_address: JSONObject
     model_config = ConfigDict(extra="allow")
 
 
@@ -116,7 +118,7 @@ class PollAnswer(BaseModel):
 class Poll(BaseModel):
     id: str
     question: str
-    options: list[dict[str, Any]]
+    options: list[JSONObject]
     is_closed: bool
     is_anonymous: bool
     type: str
@@ -136,7 +138,7 @@ class ChatMemberUpdated(BaseModel):
     date: int
     old_chat_member: ChatMember
     new_chat_member: ChatMember
-    invite_link: dict[str, Any] | None = None
+    invite_link: JSONObject | None = None
     model_config = ConfigDict(extra="allow")
 
 
@@ -146,7 +148,7 @@ class ChatJoinRequest(BaseModel):
     user_chat_id: int
     date: int
     bio: str | None = None
-    invite_link: dict[str, Any] | None = None
+    invite_link: JSONObject | None = None
     model_config = ConfigDict(extra="allow")
 
 

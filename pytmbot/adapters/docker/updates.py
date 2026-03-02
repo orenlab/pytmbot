@@ -9,17 +9,17 @@ import asyncio
 import json
 import re
 import time
-from collections.abc import Coroutine
+from collections.abc import Coroutine, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum, auto
 from threading import Event, RLock, Thread, current_thread
-from typing import Any, Final
+from typing import Final
 
 import aiohttp
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
-from dateutil.parser import ParserError, isoparse  # type: ignore[import-untyped]
+from dateutil.parser import ParserError, isoparse
 from packaging import version
 from packaging.version import InvalidVersion
 
@@ -30,7 +30,7 @@ from pytmbot.utils import sanitize_exception
 
 # Type Aliases
 type LocalImageInfo = dict[str, list[dict[str, str | None]]]
-type UpdateResult = dict[str, dict[str, list[dict]]]
+type UpdateResult = dict[str, dict[str, list[dict[str, object]]]]
 
 # Module constants for better maintainability
 DEFAULT_TIMEOUT: Final[int] = 15
@@ -88,13 +88,13 @@ class UpdaterResponse:
 
     status: UpdaterStatus
     message: str
-    data: dict[str, Any] | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    data: Mapping[str, object] | None = None
+    metadata: dict[str, object] = field(default_factory=dict)
     execution_time: float | None = None
     repositories_processed: int = 0
     repositories_failed: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Convert response to dictionary for serialization."""
         return {
             "status": self.status.name,
@@ -305,7 +305,7 @@ class TagAnalyzer:
             )
 
 
-def normalize_created_at(created: Any) -> str | None:
+def normalize_created_at(created: object) -> str | None:
     """Enhanced timestamp normalization with validation."""
     try:
         if isinstance(created, (int, float)):
@@ -329,7 +329,7 @@ def normalize_created_at(created: Any) -> str | None:
         return None
 
 
-def dict_to_tag_info(info: dict) -> TagInfo:
+def dict_to_tag_info(info: Mapping[str, object]) -> TagInfo:
     """Enhanced conversion with validation."""
     if not isinstance(info, dict):
         raise ValueError("Info must be a dictionary")
@@ -339,10 +339,22 @@ def dict_to_tag_info(info: dict) -> TagInfo:
         if field_name not in info:
             raise ValueError(f"Missing required field: {field_name}")
 
+    created_at_raw = info["created_at"]
+    digest_raw = info["digest"]
+
+    created_at = created_at_raw if isinstance(created_at_raw, str) else ""
+    digest: str | None
+    if digest_raw is None:
+        digest = None
+    elif isinstance(digest_raw, str):
+        digest = digest_raw
+    else:
+        digest = str(digest_raw)
+
     return TagInfo(
         name=str(info["tag"]) if info["tag"] is not None else "",
-        created_at=info["created_at"] or "",
-        digest=info["digest"],
+        created_at=created_at,
+        digest=digest,
     )
 
 
@@ -544,10 +556,12 @@ class DockerImageUpdater(BaseComponent):
 
         return local_images
 
-    def _extract_digest(self, image: Any) -> str | None:
+    def _extract_digest(self, image: object) -> str | None:
         """Enhanced digest extraction with validation."""
         try:
-            repo_digests = image.attrs.get("RepoDigests", [])
+            image_attrs_raw = getattr(image, "attrs", None)
+            image_attrs = image_attrs_raw if isinstance(image_attrs_raw, dict) else {}
+            repo_digests = image_attrs.get("RepoDigests", [])
             if not repo_digests or not isinstance(repo_digests, list):
                 return None
 
@@ -567,12 +581,16 @@ class DockerImageUpdater(BaseComponent):
             return None
 
     def _process_image_tags(
-        self, image: Any, digest: str | None, local_images: LocalImageInfo
+        self, image: object, digest: str | None, local_images: LocalImageInfo
     ) -> None:
         """Enhanced tag processing with validation."""
-        created_at = normalize_created_at(image.attrs.get("Created"))
+        image_attrs_raw = getattr(image, "attrs", None)
+        image_attrs = image_attrs_raw if isinstance(image_attrs_raw, dict) else {}
+        created_at = normalize_created_at(image_attrs.get("Created"))
 
-        for tag in image.tags:
+        image_tags_raw = getattr(image, "tags", ())
+        image_tags = image_tags_raw if isinstance(image_tags_raw, list) else []
+        for tag in image_tags:
             try:
                 if not isinstance(tag, str) or not tag.strip():
                     continue
@@ -962,8 +980,8 @@ class DockerImageUpdater(BaseComponent):
                     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REPOS)
 
                     async def process_repo(
-                        repo: str, local_tags: list[dict]
-                    ) -> tuple[str, dict]:
+                        repo: str, local_tags: Sequence[dict[str, str | None]]
+                    ) -> tuple[str, dict[str, object]]:
                         async with semaphore:
                             try:
                                 remote_tags = await self._fetch_remote_tags(
@@ -1050,7 +1068,9 @@ class DockerImageUpdater(BaseComponent):
                                 }
 
                     # Execute all repository processing tasks
-                    tasks: list[Coroutine[Any, Any, tuple[str, dict[str, Any]]]] = [
+                    tasks: list[
+                        Coroutine[object, object, tuple[str, dict[str, object]]]
+                    ] = [
                         process_repo(repo, local_tags)
                         for repo, local_tags in self.local_images.items()
                     ]
@@ -1120,7 +1140,7 @@ class DockerImageUpdater(BaseComponent):
                 repositories_failed=repositories_failed,
             )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Run update check and return dictionary response."""
         with self._log.context(action="to_dict"):
             try:
@@ -1139,7 +1159,7 @@ class DockerImageUpdater(BaseComponent):
         with self._log.context(action="to_json"):
             return json.dumps(self.to_dict(), indent=4, ensure_ascii=False)
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get comprehensive statistics about the updater."""
         with self._cache_lock:
             cache_stats = {
@@ -1179,7 +1199,7 @@ class DockerImageUpdater(BaseComponent):
 
         self._log.info("docker.updates.cleared.cache.info")
 
-    def validate_configuration(self) -> dict[str, Any]:
+    def validate_configuration(self) -> dict[str, object]:
         """Validate current configuration and return issues."""
         issues = []
 

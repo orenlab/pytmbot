@@ -13,6 +13,10 @@ from telebot.types import Update
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.webhook import WebhookServer
 
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+
 
 class _FakeBot(TeleBot):
     def __init__(self, token: str) -> None:
@@ -24,7 +28,7 @@ class _FakeBot(TeleBot):
         return
 
 
-def _build_update_payload() -> dict[str, object]:
+def _build_update_payload() -> _PayloadDict:
     return {
         "update_id": 1,
         "message": {
@@ -199,10 +203,10 @@ def test_webhook_endpoint_rotates_credentials_at_threshold(
     endpoint = _get_webhook_endpoint(server)
     previous_path_token = server.webhook_path_token
     previous_secret_token = server.secret_token
-    setup_calls: list[dict[str, object]] = []
+    setup_calls: list[_PayloadDict] = []
 
     def _fake_setup_webhook(
-        _self: object,
+        _self: WebhookServer,
         webhook_path: str,
         *,
         secret_token: str | None = None,

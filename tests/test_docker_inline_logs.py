@@ -32,6 +32,9 @@ _NOT_MODIFIED_DESCRIPTION = (
     "Bad Request: message is not modified: specified new message content and reply "
     "markup are exactly the same as a current content and reply markup of the message"
 )
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
 
 
 @dataclass
@@ -66,27 +69,27 @@ class _SentDocument:
 @dataclass
 class _DummyBot:
     token: str = "12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"
-    edited: list[dict[str, object]] = field(default_factory=list)
-    documents: list[dict[str, object]] = field(default_factory=list)
-    messages: list[dict[str, object]] = field(default_factory=list)
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
+    edited: list[_PayloadDict] = field(default_factory=list)
+    documents: list[_PayloadDict] = field(default_factory=list)
+    messages: list[_PayloadDict] = field(default_factory=list)
+    callback_answers: list[_PayloadDict] = field(default_factory=list)
 
-    def edit_message_text(self, **kwargs: object) -> str:
-        self.edited.append(kwargs)
+    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
+        self.edited.append(dict(kwargs))
         return "edited"
 
-    def send_document(self, **kwargs: object) -> _SentDocument:
-        self.documents.append(kwargs)
+    def send_document(self, **kwargs: _PayloadValue) -> _SentDocument:
+        self.documents.append(dict(kwargs))
         return _SentDocument()
 
-    def send_message(self, chat_id: int, text: str, **kwargs: object) -> str:
-        payload: dict[str, object] = {"chat_id": chat_id, "text": text, **kwargs}
+    def send_message(self, chat_id: int, text: str, **kwargs: _PayloadValue) -> str:
+        payload: _PayloadDict = {"chat_id": chat_id, "text": text, **kwargs}
         self.messages.append(payload)
         return "message-sent"
 
-    def answer_callback_query(self, **kwargs: object) -> str:
-        self.callback_answers.append(kwargs)
-        return "callback-answered"
+    def answer_callback_query(self, **kwargs: _PayloadValue) -> bool:
+        self.callback_answers.append(dict(kwargs))
+        return True
 
 
 def _make_session(
@@ -132,15 +135,21 @@ def test_logs_session_store_create_get_and_expire(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LogsSessionStore(ttl_seconds=5)
-    monkeypatch.setattr(logs_module.time, "time", lambda: 10.0)
-    monkeypatch.setattr(logs_module.time, "time_ns", lambda: 99)
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.time.time", lambda: 10.0
+    )
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.time.time_ns", lambda: 99
+    )
 
     created = store.create("web", 1, "logs", ["logs"])
     loaded = store.get(created.session_id)
     assert loaded is not None
     assert loaded.session_id == created.session_id
 
-    monkeypatch.setattr(logs_module.time, "time", lambda: 20.0)
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.time.time", lambda: 20.0
+    )
     assert store.get(created.session_id) is None
 
 
@@ -156,7 +165,9 @@ def test_logs_session_store_create_handles_id_collision(
         "_generate_session_id",
         staticmethod(lambda _container, _user: next(generated)),
     )
-    monkeypatch.setattr(logs_module.time, "time", lambda: 1.0)
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.time.time", lambda: 1.0
+    )
 
     session = store.create("web", 1, "abc", ["abc"])
     assert session.session_id == "new-id"
@@ -392,9 +403,10 @@ def test_build_logs_keyboard_contains_navigation_and_actions(
     )
     session = _make_session(session_id="sid-1", container_name="api", user_id=77)
 
-    buttons = logs_module._build_logs_keyboard(
+    buttons_obj = logs_module._build_logs_keyboard(
         session=session, current_page=1, total_pages=3
     )
+    buttons = cast(list[dict[str, str]], buttons_obj)
     callbacks = [button["callback_data"] for button in buttons]
     assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:0:77" in callbacks
     assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:2:77" in callbacks
@@ -519,8 +531,7 @@ def test_send_logs_as_file_scheduled_auto_deletion(
         lambda **kwargs: True,
     )
     monkeypatch.setattr(
-        logs_module.deletion_manager,
-        "schedule_deletion",
+        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
         lambda **kwargs: DeletionResult(
             status=DeletionStatus.SCHEDULED,
             message_id=int(kwargs["message_id"]),
@@ -539,7 +550,7 @@ def test_send_logs_as_file_scheduled_auto_deletion(
         bot=cast(TeleBot, bot),
         session=session,
     )
-    assert result == "callback-answered"
+    assert result is True
     assert bot.documents
     assert LOGS_FILE_DELETION_NOTICE in str(bot.documents[0]["caption"])
     assert str(bot.documents[0]["visible_file_name"]).endswith("-logs.txt")
@@ -555,8 +566,7 @@ def test_send_logs_as_file_handles_limit_exceeded(
         lambda **kwargs: True,
     )
     monkeypatch.setattr(
-        logs_module.deletion_manager,
-        "schedule_deletion",
+        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
         lambda **kwargs: DeletionResult(
             status=DeletionStatus.LIMIT_EXCEEDED,
             message_id=int(kwargs["message_id"]),
@@ -589,8 +599,7 @@ def test_send_logs_as_file_handles_unexpected_schedule_status(
         lambda **kwargs: True,
     )
     monkeypatch.setattr(
-        logs_module.deletion_manager,
-        "schedule_deletion",
+        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
         lambda **kwargs: DeletionResult(
             status=DeletionStatus.FAILED,
             message_id=int(kwargs["message_id"]),
@@ -896,7 +905,10 @@ def test_send_logs_as_file_includes_expected_schedule_delay(
             pending_count=1,
         )
 
-    monkeypatch.setattr(logs_module.deletion_manager, "schedule_deletion", _schedule)
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
+        _schedule,
+    )
     bot = _DummyBot()
     call = _DummyCall(
         from_user=_DummyUser(id=77), message=_DummyMessage(chat=_DummyChat(id=9))

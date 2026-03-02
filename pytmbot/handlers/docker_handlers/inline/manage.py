@@ -101,7 +101,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "cross_mark": em.get_emoji("cross_mark"),
         "briefcase": em.get_emoji("briefcase"),
         "anxious_face_with_sweat": em.get_emoji("anxious_face_with_sweat"),

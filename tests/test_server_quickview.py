@@ -3,22 +3,34 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from telebot import TeleBot
 from telebot.types import Message
 
 import pytmbot.handlers.server_handlers.quickview as quickview
+from pytmbot.adapters.psutil.adapter_types import (
+    CPUFrequencyStats,
+    CPUUsageStats,
+    MemoryStats,
+    ProcessStats,
+)
 from pytmbot.exceptions import HandlingException
+from pytmbot.parsers.compiler import Compiler
+
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+type _RenderedMessage = dict[str, int | str | None]
 
 
 def _build_bot(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TeleBot, list[tuple[int, str]], list[dict[str, object]]]:
+) -> tuple[TeleBot, list[tuple[int, str]], list[_RenderedMessage]]:
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
     actions: list[tuple[int, str]] = []
-    messages: list[dict[str, object]] = []
+    messages: list[_RenderedMessage] = []
 
     def _send_chat_action(
         chat_id: int | str,
@@ -35,10 +47,14 @@ def _build_bot(
         chat_id: int | str,
         text: str,
         parse_mode: str | None = None,
-        **kwargs: object,
-    ) -> dict[str, object]:
+        **kwargs: _PayloadValue,
+    ) -> _RenderedMessage:
         del kwargs
-        payload = {"chat_id": int(chat_id), "text": text, "parse_mode": parse_mode}
+        payload: _RenderedMessage = {
+            "chat_id": int(chat_id),
+            "text": text,
+            "parse_mode": parse_mode,
+        }
         messages.append(payload)
         return payload
 
@@ -55,31 +71,32 @@ class _ExplodingAdapter:
     def get_load_average(self) -> tuple[float, float, float]:
         raise RuntimeError("load error")
 
-    def get_memory(self) -> dict[str, object]:
+    def get_memory(self) -> MemoryStats:
         raise RuntimeError("memory error")
 
-    def get_cpu_usage(self) -> dict[str, object]:
+    def get_cpu_usage(self) -> CPUUsageStats:
         raise RuntimeError("cpu error")
 
-    def get_cpu_frequency(self) -> dict[str, object]:
+    def get_cpu_frequency(self) -> CPUFrequencyStats:
         raise RuntimeError("cpu freq error")
 
     def get_cpu_count(self) -> int:
         raise RuntimeError("cpu count error")
 
-    def get_process_counts(self) -> dict[str, object]:
+    def get_process_counts(self) -> ProcessStats:
         raise RuntimeError("proc error")
 
 
 def _build_message(chat_id: int = 1) -> Message:
-    payload = {
+    payload: _PayloadDict = {
         "message_id": 1,
         "date": 1,
         "chat": {"id": chat_id, "type": "private"},
         "from": {"id": 101, "is_bot": False, "first_name": "Test"},
         "text": "quick view",
     }
-    message_obj = Message.de_json(payload)
+    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
+    message_obj = message_from_json(payload)
     if not isinstance(message_obj, Message):
         raise AssertionError("Expected Message instance")
     return message_obj
@@ -165,14 +182,14 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
         },
     )
 
-    render_calls: dict[str, Any] = {}
+    render_calls: _PayloadDict = {}
 
-    def _fake_render(template_name: str, **context: Any) -> str:
+    def _fake_render(template_name: str, **context: _PayloadValue) -> str:
         render_calls["template_name"] = template_name
         render_calls["context"] = context
         return "quickview text"
 
-    monkeypatch.setattr(quickview.Compiler, "quick_render", _fake_render)
+    monkeypatch.setattr(Compiler, "quick_render", _fake_render)
 
     handler = cast(Callable[[Message, TeleBot], None], quickview.handle_quick_view)
     handler(message, bot)
@@ -181,9 +198,16 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert messages[-1]["text"] == "quickview text"
     assert messages[-1]["parse_mode"] == "Markdown"
     assert render_calls["template_name"] == "b_quick_view.jinja2"
-    system_context = render_calls["context"]["context"]["system"]
+    render_context = render_calls["context"]
+    assert isinstance(render_context, dict)
+    template_context = render_context.get("context")
+    assert isinstance(template_context, dict)
+    system_context = template_context.get("system")
+    assert isinstance(system_context, dict)
     assert system_context["uptime"] == "2h"
-    assert render_calls["context"]["context"]["docker"]["containers_count"] == 1
+    docker_context = template_context.get("docker")
+    assert isinstance(docker_context, dict)
+    assert docker_context["containers_count"] == 1
 
 
 def test_handle_quick_view_no_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -206,7 +230,7 @@ def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None
         lambda: {"uptime": "1h", "load_average": (0.1, 0.2, 0.3)},
     )
     monkeypatch.setattr(
-        quickview.Compiler,
+        Compiler,
         "quick_render",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("render failed")),
     )

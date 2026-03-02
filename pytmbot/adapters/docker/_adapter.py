@@ -15,7 +15,7 @@ from inspect import signature
 from pathlib import Path
 from threading import Lock, RLock
 from types import SimpleNamespace, TracebackType
-from typing import Any, Final, cast
+from typing import Final
 from uuid import uuid4
 
 import docker
@@ -46,7 +46,7 @@ class _UnavailableDockerCollection:
     def list(self, *_args: object, **_kwargs: object) -> list[object]:
         raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
 
-    def get(self, *_args: object, **_kwargs: object) -> Any:
+    def get(self, *_args: object, **_kwargs: object) -> object:
         raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
 
 
@@ -71,6 +71,9 @@ class _UnavailableDockerClient:
     @staticmethod
     def close() -> None:
         return
+
+
+type DockerClientLike = DockerClient | _UnavailableDockerClient
 
 
 class DockerAdapter:
@@ -100,7 +103,7 @@ class DockerAdapter:
         self._log = Logger()
         self._lock = RLock()  # Thread safety for client operations
         self._create_lock = Lock()
-        self._client: DockerClient | _UnavailableDockerClient | None = None
+        self._client: DockerClientLike | None = None
         self._start_time: datetime = datetime.now()
         self._connection_failures = 0
         self._last_health_check: datetime | None = None
@@ -109,7 +112,7 @@ class DockerAdapter:
         self._configured_timeout = self._DEFAULT_TIMEOUT
         self._disabled_reason: str | None = None
         self._docker_url: str = ""
-        self._docker_info_cache: dict[str, Any] | None = None
+        self._docker_info_cache: dict[str, object] | None = None
         self._docker_info_cached_at = 0.0
         self._validate_configuration()
 
@@ -261,8 +264,8 @@ class DockerAdapter:
         return {"timeout": int(timeout)}
 
     def _get_context(
-        self, action: str, extra: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+        self, action: str, extra: dict[str, object] | None = None
+    ) -> dict[str, object]:
         """Build context dictionary for logging with consistent structure."""
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
 
@@ -278,7 +281,7 @@ class DockerAdapter:
 
         if extra:
             # Sanitize any potentially sensitive information
-            safe_extra = {}
+            safe_extra: dict[str, object] = {}
             for key, value in extra.items():
                 if any(
                     sensitive in key.lower()
@@ -305,7 +308,7 @@ class DockerAdapter:
                 verify_hostname = False
 
             # Enhanced TLS configuration
-            tls_kwargs: dict[str, Any] = {
+            tls_kwargs: dict[str, object] = {
                 "client_cert": (
                     (cert_path, key_path) if cert_path and key_path else None
                 ),
@@ -338,7 +341,7 @@ class DockerAdapter:
             )
             raise
 
-    def _test_connection(self, client: DockerClient) -> dict[str, Any] | None:
+    def _test_connection(self, client: DockerClient) -> dict[str, object] | None:
         """Test Docker connection with timeout and error handling."""
         last_error: Exception | None = None
 
@@ -383,14 +386,14 @@ class DockerAdapter:
         )
         return None
 
-    def _build_unavailable_client(self, reason: str) -> DockerClient:
+    def _build_unavailable_client(self, reason: str) -> _UnavailableDockerClient:
         """Build a fallback client for degraded non-strict mode."""
         self._log.warning(
             "docker.adapter.degraded.mode.warn",
             reason=reason,
             **self._base_context,
         )
-        return cast(DockerClient, cast(object, _UnavailableDockerClient(reason)))
+        return _UnavailableDockerClient(reason)
 
     def _create_client(self) -> DockerClient:
         """Create and configure Docker client with enhanced security and error handling."""
@@ -481,7 +484,7 @@ class DockerAdapter:
 
         return False
 
-    def _get_docker_info(self) -> dict[str, Any]:
+    def _get_docker_info(self) -> dict[str, object]:
         """Get Docker daemon information with lock-protected TTL cache."""
         now = datetime.now().timestamp()
         with self._lock:
@@ -513,7 +516,7 @@ class DockerAdapter:
             )
             return {}
 
-    def __enter__(self) -> DockerClient:
+    def __enter__(self) -> DockerClientLike:
         """Enter Docker context manager - create and return client with thread safety."""
         self._span_id = uuid4().hex[:8]
         context = self._get_context("context_enter")
@@ -661,7 +664,7 @@ class DockerAdapter:
             )
             return False
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> dict[str, object]:
         """Get comprehensive Docker adapter status information."""
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
 

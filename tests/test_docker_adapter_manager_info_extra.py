@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from types import SimpleNamespace
-from typing import Any, cast
+from types import ModuleType, SimpleNamespace, TracebackType
+from typing import Never, cast
 
+import docker
 import pytest
 from docker.errors import APIError, DockerException
 
-from pytmbot.exceptions import DockerConnectionError
+from pytmbot.exceptions import (
+    ContainerLogsUnavailableError,
+    ContainerNotFoundError,
+    DockerConnectionError,
+)
 from pytmbot.models.docker_models import ContainerAction
+
+type _Value = str | int | float | bool | None | dict[str, _Value] | list[_Value]
 
 
 class _FakeDockerClient:
@@ -53,7 +60,7 @@ class _ManagedContainer:
     status: str = "running"
 
     def __post_init__(self) -> None:
-        self.attrs: dict[str, object] = {
+        self.attrs: dict[str, _Value] = {
             "Created": "2026-01-01T00:00:00Z",
             "State": {
                 "StartedAt": "2026-01-01T00:00:01Z",
@@ -80,7 +87,7 @@ class _ManagedContainer:
     def start(self) -> None:
         self.status = "running"
         self.attrs["State"] = {
-            **cast(dict[str, object], self.attrs["State"]),
+            **cast(dict[str, _Value], self.attrs["State"]),
             "Status": "running",
         }
 
@@ -88,7 +95,7 @@ class _ManagedContainer:
         del timeout
         self.status = "stopped"
         self.attrs["State"] = {
-            **cast(dict[str, object], self.attrs["State"]),
+            **cast(dict[str, _Value], self.attrs["State"]),
             "Status": "stopped",
         }
 
@@ -96,7 +103,7 @@ class _ManagedContainer:
         del timeout
         self.status = "running"
         self.attrs["State"] = {
-            **cast(dict[str, object], self.attrs["State"]),
+            **cast(dict[str, _Value], self.attrs["State"]),
             "Status": "running",
         }
 
@@ -107,7 +114,7 @@ class _ManagedContainer:
     def reload(self) -> None:
         return
 
-    def logs(self, **_kwargs: object) -> bytes:
+    def logs(self, **_kwargs: _Value) -> bytes:
         return b"line1\nline2\n"
 
 
@@ -136,7 +143,9 @@ def test_docker_adapter_context_health_and_status(
     fake_client = _FakeDockerClient()
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     monkeypatch.setattr(
-        docker_adapter_module.docker, "DockerClient", lambda **kwargs: fake_client
+        docker,
+        "DockerClient",
+        lambda **kwargs: fake_client,
     )
 
     adapter = docker_adapter_module.DockerAdapter()
@@ -168,7 +177,9 @@ def test_docker_adapter_handles_invalid_config_and_connection_failures(
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     failing_client = _FakeDockerClient(ping_ok=False)
     monkeypatch.setattr(
-        docker_adapter_module.docker, "DockerClient", lambda **kwargs: failing_client
+        docker,
+        "DockerClient",
+        lambda **kwargs: failing_client,
     )
     adapter = docker_adapter_module.DockerAdapter()
     assert adapter.health_check() is False
@@ -206,7 +217,7 @@ def test_container_manager_manage_actions_and_status(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(
@@ -277,7 +288,7 @@ def test_containers_info_retrieve_logs_counters_and_cache(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield fake_adapter
 
     monkeypatch.setattr(
@@ -313,7 +324,7 @@ def test_fetch_full_container_details_returns_none_for_not_found(
     import pytmbot.adapters.docker.containers_info as containers_info_module
     from pytmbot.exceptions import ErrorContext
 
-    error = containers_info_module.ContainerNotFoundError(
+    error = ContainerNotFoundError(
         ErrorContext(
             message="missing",
             error_code="DOCKER_001",
@@ -327,7 +338,7 @@ def test_fetch_full_container_details_returns_none_for_not_found(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(
@@ -344,30 +355,31 @@ def test_containers_info_cache_paths_and_counters_ttl(
     cache = containers_info_module.ContainerInfoCache(ttl=1)
 
     # Force cleanup path that removes expired entries.
-    cache._cache["expired"] = ({"ok": True}, 0.0)  # noqa: SLF001
+    cache._cache["expired"] = ({"ok": "true"}, 0.0)  # noqa: SLF001
     cache._cleanup_expired_entries(10.0, force=True)  # noqa: SLF001
     assert "expired" not in cache._cache  # noqa: SLF001
 
     # Expired read path in get().
-    cache._cache["old"] = ({"value": 1}, 0.0)  # noqa: SLF001
-    monkeypatch.setattr(containers_info_module.time, "time", lambda: 10.0)
+    cache._cache["old"] = ({"value": "1"}, 0.0)  # noqa: SLF001
+    monkeypatch.setattr(
+        "pytmbot.adapters.docker.containers_info.time.time", lambda: 10.0
+    )
     assert cache.get("old") is None
 
     # Fresh read path in get().
-    cache._cache["fresh"] = ({"value": 2}, 10.0)  # noqa: SLF001
-    assert cache.get("fresh") == {"value": 2}
+    cache._cache["fresh"] = ({"value": "2"}, 10.0)  # noqa: SLF001
+    assert cache.get("fresh") == {"value": "2"}
 
     # Max entries eviction path in set().
     cache_eviction = containers_info_module.ContainerInfoCache(ttl=100)
     cache_eviction._max_entries = 1  # noqa: SLF001
     eviction_times = iter([20.0, 21.0])
     monkeypatch.setattr(
-        containers_info_module.time,
-        "time",
+        "pytmbot.adapters.docker.containers_info.time.time",
         lambda: next(eviction_times),
     )
-    cache_eviction.set("first", {"value": 1})
-    cache_eviction.set("second", {"value": 2})
+    cache_eviction.set("first", {"value": "1"})
+    cache_eviction.set("second", {"value": "2"})
     assert cache_eviction.size() == 1
     assert "second" in cache_eviction._cache  # noqa: SLF001
 
@@ -378,8 +390,7 @@ def test_containers_info_cache_paths_and_counters_ttl(
     containers_info_module._store_docker_counters({"containers_count": 1})  # noqa: SLF001
     cached_at = containers_info_module._docker_counters_cached_at  # noqa: SLF001
     monkeypatch.setattr(
-        containers_info_module.time,
-        "monotonic",
+        "pytmbot.adapters.docker.containers_info.time.monotonic",
         lambda: cached_at + containers_info_module.DOCKER_COUNTERS_CACHE_TTL + 1,
     )
     assert containers_info_module._get_cached_docker_counters() is None  # noqa: SLF001
@@ -432,7 +443,7 @@ def test_containers_info_aggregate_details_edge_and_error_paths(
     )
     assert no_created["created"] == "unknown"
 
-    not_found = containers_info_module.ContainerNotFoundError(
+    not_found = ContainerNotFoundError(
         ErrorContext(
             message="missing",
             error_code="DOCKER_001",
@@ -444,7 +455,7 @@ def test_containers_info_aggregate_details_edge_and_error_paths(
         "get_container_safely",
         lambda _cid, docker_client=None: (_ for _ in ()).throw(not_found),
     )
-    with pytest.raises(containers_info_module.ContainerNotFoundError):
+    with pytest.raises(ContainerNotFoundError):
         containers_info_module.__aggregate_container_details(  # noqa: SLF001
             "missing",
             docker_client=SimpleNamespace(),
@@ -474,7 +485,7 @@ def test_containers_info_retrieve_and_logs_error_branches(
     )  # noqa: FBT002
 
     @contextmanager
-    def _empty_context() -> Iterator[object]:
+    def _empty_context() -> Iterator[SimpleNamespace]:
         yield empty_adapter
 
     monkeypatch.setattr(containers_info_module, "docker_client_context", _empty_context)
@@ -492,12 +503,12 @@ def test_containers_info_retrieve_and_logs_error_branches(
     )
 
     @contextmanager
-    def _multi_context() -> Iterator[object]:
+    def _multi_context() -> Iterator[SimpleNamespace]:
         yield multi_adapter
 
     monkeypatch.setattr(containers_info_module, "docker_client_context", _multi_context)
 
-    not_found = containers_info_module.ContainerNotFoundError(
+    not_found = ContainerNotFoundError(
         ErrorContext(
             message="missing",
             error_code="DOCKER_001",
@@ -506,8 +517,8 @@ def test_containers_info_retrieve_and_logs_error_branches(
     )
 
     def _aggregate(
-        container_ref: object,
-        docker_client: object | None = None,
+        container_ref: SimpleNamespace,
+        docker_client: SimpleNamespace | None = None,
     ) -> dict[str, str]:
         del docker_client
         identifier = str(getattr(container_ref, "short_id", ""))
@@ -526,14 +537,14 @@ def test_containers_info_retrieve_and_logs_error_branches(
     assert [row["name"] for row in rows] == ["alpha", "Zulu"]
 
     class _FailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("list failure")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -558,7 +569,7 @@ def test_containers_info_retrieve_and_logs_error_branches(
     )
 
     @contextmanager
-    def _logs_context() -> Iterator[object]:
+    def _logs_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(containers_info_module, "docker_client_context", _logs_context)
@@ -566,7 +577,7 @@ def test_containers_info_retrieve_and_logs_error_branches(
     assert content.startswith("[LOG TRUNCATED")
     assert len(content) > 10_000
 
-    not_found_for_logs = containers_info_module.ContainerNotFoundError(
+    not_found_for_logs = ContainerNotFoundError(
         ErrorContext(
             message="missing",
             error_code="DOCKER_001",
@@ -578,10 +589,10 @@ def test_containers_info_retrieve_and_logs_error_branches(
         "get_container_safely",
         lambda _cid, docker_client=None: (_ for _ in ()).throw(not_found_for_logs),
     )
-    with pytest.raises(containers_info_module.ContainerNotFoundError):
+    with pytest.raises(ContainerNotFoundError):
         containers_info_module.fetch_container_logs("missing", tail_lines=5)
 
-    def _unsupported_logs(**_kwargs: object) -> bytes:
+    def _unsupported_logs(**_kwargs: _Value) -> bytes:
         raise APIError("configured logging driver does not support reading")
 
     monkeypatch.setattr(
@@ -589,10 +600,10 @@ def test_containers_info_retrieve_and_logs_error_branches(
         "get_container_safely",
         lambda _cid, docker_client=None: SimpleNamespace(logs=_unsupported_logs),
     )
-    with pytest.raises(containers_info_module.ContainerLogsUnavailableError):
+    with pytest.raises(ContainerLogsUnavailableError):
         containers_info_module.fetch_container_logs("cid", tail_lines=5)
 
-    def _api_logs_failure(**_kwargs: object) -> bytes:
+    def _api_logs_failure(**_kwargs: _Value) -> bytes:
         raise APIError("transport failure")
 
     monkeypatch.setattr(
@@ -620,14 +631,14 @@ def test_containers_info_counters_and_full_details_error_paths(
     import pytmbot.adapters.docker.containers_info as containers_info_module
 
     class _FailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("docker unavailable")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -640,7 +651,7 @@ def test_containers_info_counters_and_full_details_error_paths(
         containers_info_module.fetch_docker_counters(force_refresh=True)
 
     @contextmanager
-    def _context() -> Iterator[object]:
+    def _context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(containers_info_module, "docker_client_context", _context)
@@ -735,7 +746,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
     assert adapter._create_tls_config() is not None
 
     monkeypatch.setattr(
-        docker_adapter_module.docker.tls,
+        docker.tls,
         "TLSConfig",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("tls boom")),
     )
@@ -758,7 +769,7 @@ def test_docker_adapter_health_check_and_exit_error_paths(
 
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     monkeypatch.setattr(
-        docker_adapter_module.docker,
+        docker,
         "DockerClient",
         lambda **_kwargs: _EmptyInfoClient(),
     )
@@ -849,7 +860,10 @@ def test_strict_and_non_strict_configuration_validation_paths(
         ),
     )
     bad_timeout_adapter = docker_adapter_module.DockerAdapter()
-    assert bad_timeout_adapter.get_status()["timeout_config"]["timeout"] == 30
+    status = bad_timeout_adapter.get_status()
+    timeout_config = status.get("timeout_config")
+    assert isinstance(timeout_config, dict)
+    assert timeout_config.get("timeout") == 30
 
 
 def test_security_checks_and_tls_path_warnings(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -922,7 +936,7 @@ def test_create_tls_config_hostname_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda fn: SimpleNamespace(parameters={}),
     )
     monkeypatch.setattr(
-        docker_adapter_module.docker.tls,
+        docker.tls,
         "TLSConfig",
         lambda **kwargs: SimpleNamespace(**kwargs),
     )
@@ -957,7 +971,7 @@ def test_internal_adapter_paths_for_client_recreation_and_cache(
         adapter._create_client()
 
     adapter._client = cast(
-        object,
+        _FakeDockerClient,
         SimpleNamespace(ping=lambda: (_ for _ in ()).throw(RuntimeError("ping fail"))),
     )
     adapter._last_health_check = None
@@ -1096,20 +1110,20 @@ def test_remaining_adapter_branches_for_strict_tls_and_health(
             version="0.3.0-dev",
         ),
     )
-    captured_tls_kwargs: dict[str, object] = {}
+    captured_tls_kwargs: dict[str, str | int | float | bool | None] = {}
 
-    def _capture_tls_config(**kwargs: object) -> SimpleNamespace:
+    def _capture_tls_config(
+        **kwargs: str | int | float | bool | None,
+    ) -> SimpleNamespace:
         captured_tls_kwargs.update(kwargs)
         return SimpleNamespace()
 
     monkeypatch.setattr(
         docker_adapter_module,
         "signature",
-        lambda fn: SimpleNamespace(parameters={"assert_hostname": object()}),
+        lambda fn: SimpleNamespace(parameters={"assert_hostname": True}),
     )
-    monkeypatch.setattr(
-        docker_adapter_module.docker.tls, "TLSConfig", _capture_tls_config
-    )
+    monkeypatch.setattr(docker.tls, "TLSConfig", _capture_tls_config)
     tls_adapter = docker_adapter_module.DockerAdapter()
     assert tls_adapter._create_tls_config() is not None
     assert captured_tls_kwargs.get("assert_hostname") is True
@@ -1139,7 +1153,7 @@ def test_enter_slow_path_raises_when_client_missing_after_double_check(
 
 def _patch_container_manager_access(
     monkeypatch: pytest.MonkeyPatch,
-    container_manager_module: object,
+    container_manager_module: ModuleType,
     *,
     allowed_admins_ids: list[int],
     is_authenticated: bool,
@@ -1210,7 +1224,9 @@ def test_container_manager_access_validation_branches(
         created_at=0.0,
         max_session_age=1,
     )
-    monkeypatch.setattr(container_manager_module.time, "time", lambda: 100.0)
+    monkeypatch.setattr(
+        "pytmbot.adapters.docker.container_manager.time.time", lambda: 100.0
+    )
     with pytest.raises(PermissionError, match="Session expired"):
         manager.managing_container(1003, "cid", "start")
 
@@ -1251,7 +1267,7 @@ def test_container_manager_lifecycle_and_status_error_paths(
     mismatch_container = _ManagedContainer(status="exited")
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(
@@ -1303,7 +1319,7 @@ def test_container_manager_rename_and_dispatch_error_paths(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace()
 
     monkeypatch.setattr(
@@ -1315,8 +1331,11 @@ def test_container_manager_rename_and_dispatch_error_paths(
         "get_container_safely",
         lambda _cid, docker_client=None: base_container,
     )
-    manager_any: Any = manager
-    rename_container = manager_any._ContainerManager__rename_container
+    method_name = "_ContainerManager__rename_container"
+    rename_container = cast(
+        Callable[[int, str, str], None],
+        getattr(manager, method_name),
+    )
 
     # Validation branches.
     with pytest.raises(ValueError):
@@ -1372,9 +1391,9 @@ def test_container_manager_rename_and_dispatch_error_paths(
 
     with monkeypatch.context() as local_patch:
         local_patch.setattr(
-            container_manager_module.ContainerAction,
+            ContainerAction,
             "from_str",
-            lambda _action: cast(ContainerAction, object()),
+            lambda _action: cast(ContainerAction, "unknown"),
         )
         with pytest.raises(ValueError, match="Invalid action"):
             manager.managing_container(3001, "cid", "start")
@@ -1409,7 +1428,8 @@ def test_docker_adapter_test_connection_retries_transient_failures(
     adapter = docker_adapter_module.DockerAdapter()
     sleep_calls: list[float] = []
     monkeypatch.setattr(
-        docker_adapter_module.time, "sleep", lambda seconds: sleep_calls.append(seconds)
+        "pytmbot.adapters.docker._adapter.time.sleep",
+        lambda seconds: sleep_calls.append(seconds),
     )
 
     client = _FlakyPingClient()

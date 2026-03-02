@@ -37,7 +37,7 @@ def handle_echo(message: Message, bot: TeleBot) -> None:
     """
     try:
         bot.send_chat_action(message.chat.id, "typing")
-        emojis: dict = {
+        emojis: dict[str, str] = {
             "thought_balloon": em.get_emoji("thought_balloon"),
         }
 

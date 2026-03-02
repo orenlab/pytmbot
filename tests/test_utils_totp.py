@@ -7,7 +7,6 @@ from typing import cast
 import pyotp
 import pytest
 
-import pytmbot.utils.totp as totp_module
 from pytmbot.exceptions import QRCodeError, TOTPError
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
@@ -77,8 +76,7 @@ def test_totp_secret_generation_and_uri_failures(
     auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
 
     monkeypatch.setattr(
-        totp_module.hashlib,
-        "blake2b",
+        "pytmbot.utils.totp.hashlib.blake2b",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("hash error")),
     )
     with pytest.raises(TOTPError):
@@ -110,8 +108,7 @@ def test_totp_qr_code_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda self: "otpauth://totp/test",
     )
     monkeypatch.setattr(
-        totp_module.qrcode,
-        "make",
+        "pytmbot.utils.totp.qrcode.make",
         lambda _uri: (_ for _ in ()).throw(RuntimeError("qr failed")),
     )
     with pytest.raises(QRCodeError):
@@ -125,12 +122,11 @@ def test_totp_verify_and_backup_codes_error_paths(
     assert auth.verify_totp_code(cast(str, 123456)) is False
 
     class _BrokenTOTP:
-        def verify(self, _code: str, *_args: object, **_kwargs: object) -> bool:
+        def verify(self, _code: str, *_args: str, **_kwargs: str) -> bool:
             raise RuntimeError("verify failed")
 
     monkeypatch.setattr(
-        totp_module.pyotp,
-        "TOTP",
+        "pytmbot.utils.totp.pyotp.TOTP",
         lambda *_args, **_kwargs: _BrokenTOTP(),
     )
     with pytest.raises(TOTPError):

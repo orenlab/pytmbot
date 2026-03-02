@@ -3,20 +3,27 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
+from typing import Never
 
 import pytest
 from docker.errors import APIError, ImageNotFound
+
+from pytmbot.exceptions import DockerConnectionError, ImageOperationError
+
+type _JsonValue = (
+    str | int | float | bool | None | dict[str, _JsonValue] | list[_JsonValue]
+)
 
 
 @dataclass
 class _FakeImage:
     short_id: str
     tags: list[str]
-    attrs: object
-    _history: list[dict[str, object]] = field(default_factory=list)
+    attrs: _JsonValue
+    _history: list[dict[str, _JsonValue]] = field(default_factory=list)
 
-    def history(self) -> list[dict[str, object]]:
+    def history(self) -> list[dict[str, _JsonValue]]:
         return self._history
 
 
@@ -89,9 +96,10 @@ def test_process_image_attrs_success() -> None:
     assert details["user"] == "1000"
     assert details["working_dir"] == "/app"
     assert details["stop_signal"] == "SIGINT"
+    healthcheck = details["healthcheck"]
+    assert isinstance(healthcheck, str)
     assert (
-        "test=CMD-SHELL curl -f http://localhost:8080/health || exit 1"
-        in details["healthcheck"]
+        "test=CMD-SHELL curl -f http://localhost:8080/health || exit 1" in healthcheck
     )
 
 
@@ -124,7 +132,7 @@ def test_fetch_image_details_success(monkeypatch: pytest.MonkeyPatch) -> None:
     adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
@@ -140,14 +148,14 @@ def test_fetch_image_details_wraps_connection_error(
     import pytmbot.adapters.docker.images_info as images_info_module
 
     class _FailingContext:
-        def __enter__(self) -> object:
-            raise images_info_module.DockerConnectionError("down")
+        def __enter__(self) -> Never:
+            raise DockerConnectionError("down")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -155,9 +163,7 @@ def test_fetch_image_details_wraps_connection_error(
         images_info_module, "docker_client_context", lambda: _FailingContext()
     )
 
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Failed to connect"
-    ):
+    with pytest.raises(ImageOperationError, match="Failed to connect"):
         images_info_module.fetch_image_details()
 
 
@@ -186,7 +192,7 @@ def test_get_image_history_success(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
@@ -207,7 +213,7 @@ def test_get_image_history_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
@@ -234,7 +240,7 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
@@ -243,17 +249,19 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     assert stats["total_images"] == 2
     assert stats["tagged_images"] == 1
     assert stats["untagged_images"] == 1
-    assert set(stats["architectures"]) == {"amd64", "arm64"}
+    architectures = stats["architectures"]
+    assert isinstance(architectures, list)
+    assert set(architectures) == {"amd64", "arm64"}
 
     class _FailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("boom")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -261,9 +269,7 @@ def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) ->
         images_info_module, "docker_client_context", lambda: _FailingContext()
     )
 
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Failed to get image statistics"
-    ):
+    with pytest.raises(ImageOperationError, match="Failed to get image statistics"):
         images_info_module.get_image_stats()
 
 
@@ -302,7 +308,7 @@ def test_get_image_usage_success_and_failure(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
@@ -311,17 +317,22 @@ def test_get_image_usage_success_and_failure(
     assert usage["containers_count"] == 2
     assert usage["running_count"] == 1
     assert usage["stopped_count"] == 1
-    assert usage["containers"][0]["name"] == "api"
+    usage_containers = usage.get("containers")
+    assert isinstance(usage_containers, list)
+    assert usage_containers
+    first_container = usage_containers[0]
+    assert isinstance(first_container, dict)
+    assert first_container.get("name") == "api"
 
     class _FailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("boom")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -329,9 +340,7 @@ def test_get_image_usage_success_and_failure(
         images_info_module, "docker_client_context", lambda: _FailingContext()
     )
 
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Failed to get image usage"
-    ):
+    with pytest.raises(ImageOperationError, match="Failed to get image usage"):
         images_info_module.get_image_usage("sha256:img")
 
 
@@ -382,7 +391,7 @@ def test_process_image_attrs_returns_error_payload_on_value_error() -> None:
 
     class _BrokenImage:
         short_id = "sha256:broken"
-        attrs: object = {}
+        attrs: dict[str, _JsonValue] = {}
 
         @property
         def tags(self) -> list[str]:
@@ -390,7 +399,9 @@ def test_process_image_attrs_returns_error_payload_on_value_error() -> None:
 
     details = images_info_module.process_image_attrs(_BrokenImage())
     assert details["id"] == "sha256:broken"
-    assert "Failed to process image attributes" in details["error"]
+    error_message = details["error"]
+    assert isinstance(error_message, str)
+    assert "Failed to process image attributes" in error_message
 
 
 def test_fetch_image_details_wraps_api_and_unexpected_errors(
@@ -399,43 +410,39 @@ def test_fetch_image_details_wraps_api_and_unexpected_errors(
     import pytmbot.adapters.docker.images_info as images_info_module
 
     class _ApiFailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise APIError("api down")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
     monkeypatch.setattr(
         images_info_module, "docker_client_context", lambda: _ApiFailingContext()
     )
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Docker API error"
-    ):
+    with pytest.raises(ImageOperationError, match="Docker API error"):
         images_info_module.fetch_image_details()
 
     class _UnexpectedFailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("unexpected")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
     monkeypatch.setattr(
         images_info_module, "docker_client_context", lambda: _UnexpectedFailingContext()
     )
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Unexpected error"
-    ):
+    with pytest.raises(ImageOperationError, match="Unexpected error"):
         images_info_module.fetch_image_details()
 
 
@@ -451,14 +458,12 @@ def test_get_image_history_wraps_unexpected_errors(
     )
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield adapter
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
 
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Failed to get image history"
-    ):
+    with pytest.raises(ImageOperationError, match="Failed to get image history"):
         images_info_module.get_image_history("img")
 
 
@@ -475,7 +480,7 @@ def test_get_image_usage_handles_not_found_and_missing_image_id(
     )
 
     @contextmanager
-    def _not_found_context() -> Iterator[object]:
+    def _not_found_context() -> Iterator[SimpleNamespace]:
         yield adapter_not_found
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _not_found_context)
@@ -488,13 +493,11 @@ def test_get_image_usage_handles_not_found_and_missing_image_id(
     )
 
     @contextmanager
-    def _missing_id_context() -> Iterator[object]:
+    def _missing_id_context() -> Iterator[SimpleNamespace]:
         yield adapter_missing_id
 
     monkeypatch.setattr(
         images_info_module, "docker_client_context", _missing_id_context
     )
-    with pytest.raises(
-        images_info_module.ImageOperationError, match="Image id is unavailable"
-    ):
+    with pytest.raises(ImageOperationError, match="Image id is unavailable"):
         images_info_module.get_image_usage("sha256:none")

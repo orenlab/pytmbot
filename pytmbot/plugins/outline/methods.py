@@ -11,12 +11,44 @@ import asyncio
 import threading
 from collections.abc import Callable, Coroutine
 from importlib import import_module
-from typing import Any, Literal, TypeVar, cast
+from types import TracebackType
+from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 from pytmbot.plugins.plugins_core import PluginCore
 
-type OutlinePayload = dict[str, Any] | list[dict[str, Any]]
+type OutlinePayload = dict[str, object] | list[dict[str, object]]
 T = TypeVar("T")
+
+
+@runtime_checkable
+class _AsyncOutlineClient(Protocol):
+    async def __aenter__(self) -> _AsyncOutlineClient: ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool | None: ...
+
+
+type _AsyncOutlineClientFactory = Callable[..., _AsyncOutlineClient]
+
+
+def _wrap_async_client_factory(
+    constructor: Callable[..., object],
+) -> _AsyncOutlineClientFactory:
+    """Wrap dynamic constructor with runtime protocol validation."""
+
+    def _factory(*args: object, **kwargs: object) -> _AsyncOutlineClient:
+        client = constructor(*args, **kwargs)
+        if not isinstance(client, _AsyncOutlineClient):
+            raise TypeError(
+                "Resolved AsyncOutlineClient does not implement async context manager protocol"
+            )
+        return client
+
+    return _factory
 
 
 class PluginMethods(PluginCore):
@@ -46,13 +78,13 @@ class PluginMethods(PluginCore):
         self.cert = cert_secret.get_secret_value()
         self.verify_tls = bool(getattr(self.plugin_config, "verify_tls", True))
         self._async_client_cls = self._resolve_async_client_class()
-        self._legacy_client: Any | None = None
+        self._legacy_client: object | None = None
 
         if self._async_client_cls is None:
             self._legacy_client = self._build_legacy_client()
 
     @staticmethod
-    def _resolve_async_client_class() -> type[Any] | None:
+    def _resolve_async_client_class() -> _AsyncOutlineClientFactory | None:
         """
         Resolve AsyncOutlineClient for pyoutlineapi>=0.4.0.
         Falls back to pyoutlineapi.client module when needed.
@@ -61,7 +93,7 @@ class PluginMethods(PluginCore):
             module = import_module("pyoutlineapi")
             async_client = getattr(module, "AsyncOutlineClient", None)
             if callable(async_client):
-                return cast(type[Any], async_client)
+                return _wrap_async_client_factory(async_client)
         except ImportError:
             pass
 
@@ -69,13 +101,13 @@ class PluginMethods(PluginCore):
             client_module = import_module("pyoutlineapi.client")
             async_client = getattr(client_module, "AsyncOutlineClient", None)
             if callable(async_client):
-                return cast(type[Any], async_client)
+                return _wrap_async_client_factory(async_client)
         except ImportError:
             pass
 
         return None
 
-    def _build_legacy_client(self) -> Any:
+    def _build_legacy_client(self) -> object:
         """Build legacy sync client for pyoutlineapi<0.4.0."""
         try:
             client_module = import_module("pyoutlineapi.client")
@@ -97,33 +129,34 @@ class PluginMethods(PluginCore):
             verify_tls=self.verify_tls,
         )
 
-    def _create_async_client(self) -> Any:
+    def _create_async_client(self) -> _AsyncOutlineClient:
         """Create AsyncOutlineClient instance with compatibility-friendly arguments."""
-        if self._async_client_cls is None:
+        client_factory = self._async_client_cls
+        if client_factory is None:
             raise RuntimeError("Async outline client is not initialized")
 
         try:
-            return self._async_client_cls(
+            return client_factory(
                 api_url=self.api_url,
                 cert_sha256=self.cert,
                 json_format=True,
             )
         except TypeError:
             # Positional fallback for client variants that do not expose keyword args.
-            return self._async_client_cls(
+            return client_factory(
                 self.api_url,
                 self.cert,
                 json_format=True,
             )
 
     @staticmethod
-    def _normalize_payload(payload: Any) -> OutlinePayload:
+    def _normalize_payload(payload: object) -> OutlinePayload:
         """Normalize pyoutlineapi responses to dict/list[dict] payloads."""
         if isinstance(payload, dict):
             return {str(key): value for key, value in payload.items()}
 
         if isinstance(payload, list):
-            normalized_items: list[dict[str, Any]] = []
+            normalized_items: list[dict[str, object]] = []
             for item in payload:
                 if isinstance(item, dict):
                     normalized_items.append(
@@ -148,7 +181,9 @@ class PluginMethods(PluginCore):
         raise TypeError(f"Unsupported outline payload type: {type(payload)!r}")
 
     @staticmethod
-    def _run_coroutine(coroutine_factory: Callable[[], Coroutine[Any, Any, T]]) -> T:
+    def _run_coroutine(
+        coroutine_factory: Callable[[], Coroutine[object, object, T]],
+    ) -> T:
         """Execute coroutine from sync context with running-loop fallback."""
         try:
             return asyncio.run(coroutine_factory())
@@ -220,7 +255,7 @@ class PluginMethods(PluginCore):
             return self._execute_async_action(async_methods)
         return self._execute_legacy_action(legacy_method)
 
-    def _fetch_server_information(self) -> dict[str, Any]:
+    def _fetch_server_information(self) -> dict[str, object]:
         """
         Fetches server information from the Outline API.
 
@@ -235,7 +270,7 @@ class PluginMethods(PluginCore):
             raise TypeError("Server information payload must be a dict")
         return payload
 
-    def _fetch_traffic_information(self) -> dict[str, Any]:
+    def _fetch_traffic_information(self) -> dict[str, object]:
         """
         Fetches traffic information from the Outline API.
 

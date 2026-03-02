@@ -150,8 +150,7 @@ def test_webhook_start_exception_mapping(
         lambda: SimpleNamespace(cert=None, cert_key=None),
     )
     monkeypatch.setattr(
-        webhook_module.uvicorn,
-        "run",
+        "pytmbot.webhook.uvicorn.run",
         lambda *args, **kwargs: (_ for _ in ()).throw(error),
     )
 

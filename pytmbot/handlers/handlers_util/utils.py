@@ -44,8 +44,8 @@ def send_telegram_message(
         text: Message text
         reply_markup: Keyboard markup
         parse_mode: Formatting mode
-        link_preview_options: Optional Telegram link preview settings
-        reply_to_message_id: Optional ID of a message to reply to
+        link_preview_options: Telegram link preview settings (LinkPreviewOptions | None)
+        reply_to_message_id: ID of a message to reply to (int | None)
 
     Returns:
         bool: True if the message was sent successfully

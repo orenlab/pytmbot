@@ -41,7 +41,9 @@ class MonitoringPlugin(PluginInterface):
         self._monitor_plugin: SystemMonitorPlugin | None = None
 
     @staticmethod
-    def _get_keyboard(available_periods: list | None = None) -> ReplyKeyboardMarkup:
+    def _get_keyboard(
+        available_periods: list[str] | None = None,
+    ) -> ReplyKeyboardMarkup:
         """Generate appropriate keyboard based on available periods."""
         return (
             keyboards.build_reply_keyboard(keyboard_type="back_keyboard")

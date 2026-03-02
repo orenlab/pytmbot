@@ -13,7 +13,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, ClassVar, Final
+from typing import ClassVar, Final
 from weakref import WeakValueDictionary
 
 from pytmbot.logs import BaseComponent
@@ -522,7 +522,7 @@ class SessionManager(BaseComponent):
         with self._lock:
             return len(self._user_sessions)
 
-    def get_session_stats(self) -> dict[str, Any]:
+    def get_session_stats(self) -> dict[str, int]:
         """Get comprehensive session statistics.
 
         Evicts expired sessions inline to avoid stale data polluting

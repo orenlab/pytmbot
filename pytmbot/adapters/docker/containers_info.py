@@ -8,8 +8,9 @@ also providing basic information about the status of local servers.
 import time
 from datetime import datetime
 from threading import RLock
-from typing import Any, Final
+from typing import Final
 
+from docker import DockerClient
 from docker.errors import APIError
 from docker.models.containers import Container
 
@@ -51,7 +52,7 @@ class ContainerInfoCache:
     )
 
     def __init__(self, ttl: int = CACHE_TTL):
-        self._cache: dict[str, tuple[dict, float]] = {}
+        self._cache: dict[str, tuple[dict[str, str], float]] = {}
         self._lock = RLock()
         self._ttl = ttl
         self._max_entries = 100
@@ -78,7 +79,7 @@ class ContainerInfoCache:
         for key in expired_keys:
             self._cache.pop(key, None)
 
-    def get(self, key: str) -> dict | None:
+    def get(self, key: str) -> dict[str, str] | None:
         """Get cached value if not expired."""
         with self._lock:
             current_time = time.time()
@@ -93,7 +94,7 @@ class ContainerInfoCache:
                     del self._cache[key]
         return None
 
-    def set(self, key: str, value: dict) -> None:
+    def set(self, key: str, value: dict[str, str]) -> None:
         """Set cached value with current timestamp."""
         with self._lock:
             current_time = time.time()
@@ -166,7 +167,7 @@ def _clear_docker_counters_cache() -> None:
 @with_operation_logging("aggregate_container_details")
 def __aggregate_container_details(
     container_ref: str | Container,
-    docker_client: Any | None = None,
+    docker_client: DockerClient | None = None,
 ) -> dict[str, str]:
     """
     Aggregates details of a Docker container into a dictionary with enhanced error handling.
@@ -646,7 +647,7 @@ def clear_container_cache() -> None:
     logger.info("docker.containers.container.cache.info")
 
 
-def get_cache_stats() -> dict[str, Any]:
+def get_cache_stats() -> dict[str, object]:
     """Get cache statistics for monitoring."""
     cached_counters = _get_cached_docker_counters()
     return {

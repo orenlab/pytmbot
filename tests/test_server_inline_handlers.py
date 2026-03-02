@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import ModuleType
 from typing import cast
 
 import pytest
@@ -14,10 +15,23 @@ import pytmbot.handlers.server_handlers.inline.swap as swap_module
 import pytmbot.handlers.server_handlers.inline.system_views as system_views_module
 import pytmbot.handlers.server_handlers.inline.top_process as top_process_module
 from pytmbot import exceptions
+from pytmbot.parsers.compiler import Compiler
+from tests._inline_edit_helpers import assert_reply_markup_has_callbacks
 
 _NOT_MODIFIED_DESCRIPTION = (
     "Bad Request: message is not modified: specified new message content and reply "
     "markup are exactly the same as a current content and reply markup of the message"
+)
+
+type _PayloadValue = (
+    str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
+)
+type _PayloadDict = dict[str, _PayloadValue]
+type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
+type _RawHandlerInput = (
+    Callable[..., _CallbackHandler | None]
+    | Callable[..., None]
+    | Callable[[Callable[..., None]], Callable[..., None]]
 )
 
 
@@ -47,31 +61,33 @@ class _Call:
 
 @dataclass
 class _Bot:
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
-    edited_messages: list[dict[str, object]] = field(default_factory=list)
+    callback_answers: list[_PayloadDict] = field(default_factory=list)
+    edited_messages: list[_PayloadDict] = field(default_factory=list)
 
-    def answer_callback_query(self, callback_query_id: str, **kwargs: object) -> bool:
-        payload: dict[str, object] = {
+    def answer_callback_query(
+        self, callback_query_id: str, **kwargs: _PayloadValue
+    ) -> bool:
+        payload: _PayloadDict = {
             "callback_query_id": callback_query_id,
             **kwargs,
         }
         self.callback_answers.append(payload)
         return True
 
-    def edit_message_text(self, **kwargs: object) -> str:
+    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
         self.edited_messages.append(kwargs)
         return "edited"
 
 
-def _raw_handler(handler: object) -> Callable[[CallbackQuery, TeleBot], None]:
+def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     wrapped = handler
     for _ in range(2):
         wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(Callable[[CallbackQuery, TeleBot], None], wrapped)
+    return cast(_CallbackHandler, wrapped)
 
 
 def _invoke(
-    handler: Callable[[CallbackQuery, TeleBot], None],
+    handler: _CallbackHandler,
     bot: _Bot,
     *,
     data: str,
@@ -81,13 +97,13 @@ def _invoke(
 
 def _patch_auth_with_answer(
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
+    module: ModuleType,
     *,
     text: str,
     result: tuple[bool, int | None],
 ) -> None:
     def _fake_auth(
-        call: CallbackQuery, bot: TeleBot, **_kwargs: object
+        call: CallbackQuery, bot: TeleBot, **_kwargs: _PayloadValue
     ) -> tuple[bool, int | None]:
         callback_query_id = int(call.id) if str(call.id).isdigit() else 0
         bot.answer_callback_query(
@@ -101,7 +117,7 @@ def _patch_auth_with_answer(
 
 
 def _patch_auth_success(
-    monkeypatch: pytest.MonkeyPatch, module: object, target_user_id: int = 17
+    monkeypatch: pytest.MonkeyPatch, module: ModuleType, target_user_id: int = 17
 ) -> None:
     monkeypatch.setattr(
         module,
@@ -112,8 +128,8 @@ def _patch_auth_success(
 
 def _assert_common_auth_paths(
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    handler: Callable[[CallbackQuery, TeleBot], None],
+    module: ModuleType,
+    handler: _CallbackHandler,
     bot: _Bot,
     *,
     invalid_data: str,
@@ -153,14 +169,14 @@ def _assert_common_auth_paths(
 def _prepare_handler_with_auth_paths(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    module: object,
-    handler_obj: object,
+    module: ModuleType,
+    handler_obj: _RawHandlerInput,
     invalid_data: str,
     valid_data: str,
     invalid_text: str,
     denied_text: str,
     missing_text_fragment: str,
-) -> tuple[_Bot, Callable[[CallbackQuery, TeleBot], None]]:
+) -> tuple[_Bot, _CallbackHandler]:
     bot = _Bot()
     handler = _raw_handler(handler_obj)
     _assert_common_auth_paths(
@@ -179,22 +195,22 @@ def _prepare_handler_with_auth_paths(
 
 def _patch_adapter_method(
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
+    module: ModuleType,
     *,
     method_name: str,
-    implementation: Callable[..., object],
+    implementation: Callable[
+        ..., None | dict[str, float | str | int] | list[dict[str, float | str | int]]
+    ],
 ) -> None:
     monkeypatch.setattr(
         module,
         "psutil_adapter",
-        cast(
-            object, type("_Adapter", (), {method_name: staticmethod(implementation)})()
-        ),
+        type("_Adapter", (), {method_name: staticmethod(implementation)})(),
     )
 
 
 def _install_api_exception_stub(
-    monkeypatch: pytest.MonkeyPatch, module: object
+    monkeypatch: pytest.MonkeyPatch, module: ModuleType
 ) -> type[Exception]:
     class _ApiTelegramExceptionStub(Exception):
         def __init__(self, description: str, error_code: int = 400) -> None:
@@ -226,6 +242,10 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _invoke(handler, bot, data="__swap_info__:17")
     assert "can't get swap memory values" in str(bot.edited_messages[-1]["text"])
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__swap_info__:17"],
+    )
 
     _patch_adapter_method(
         monkeypatch,
@@ -233,11 +253,13 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         method_name="get_swap_memory",
         implementation=lambda: {"used": "1 GiB"},
     )
-    monkeypatch.setattr(
-        swap_module.Compiler, "quick_render", lambda **kwargs: "swap-ok"
-    )
+    monkeypatch.setattr(Compiler, "quick_render", lambda **kwargs: "swap-ok")
     _invoke(handler, bot, data="__swap_info__:17")
     assert bot.edited_messages[-1]["text"] == "swap-ok"
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__swap_info__:17"],
+    )
 
     _patch_adapter_method(
         monkeypatch,
@@ -248,6 +270,8 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(exceptions.HandlingException) as exc_info:
         _invoke(handler, bot, data="__swap_info__:17")
     assert exc_info.value.context.error_code == "HAND_009"
+    error_markup = bot.edited_messages[-1].get("reply_markup")
+    assert error_markup is not None
 
 
 def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -293,7 +317,7 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
     )
     monkeypatch.setattr(
-        top_process_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, context, **emojis: context["process_table"],
     )
@@ -303,6 +327,10 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "PID" in rendered_table
     assert "Process Name" in rendered_table
     assert bot.edited_messages[-1]["parse_mode"] == "HTML"
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__cpu_info__:17", "__process_info__:17"],
+    )
 
     _patch_adapter_method(
         monkeypatch,
@@ -379,7 +407,7 @@ def test_handle_system_health_refresh_ignores_not_modified(
 
     api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
-    def _raise_not_modified(**_kwargs: object) -> str:
+    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
         raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
@@ -395,7 +423,7 @@ def test_system_views_edit_message_ignores_not_modified(
 
     api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
-    def _raise_not_modified(**_kwargs: object) -> str:
+    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
         raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
@@ -409,6 +437,32 @@ def test_system_views_edit_message_ignores_not_modified(
     assert bot.callback_answers[-1]["text"] == "View is already up to date."
 
 
+def test_system_views_edit_message_handles_rate_limited_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _Bot()
+    call = cast(CallbackQuery, _Call())
+
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_rate_limited(**_kwargs: _PayloadValue) -> str:
+        raise api_exception_stub("Too Many Requests: retry after 9", 429)
+
+    bot.edit_message_text = _raise_rate_limited  # type: ignore[method-assign]
+    was_edited = inline_common_module.edit_callback_message_text(
+        call,
+        cast(TeleBot, bot),
+        text="same",
+        parse_mode="HTML",
+        reply_markup=None,
+    )
+    assert was_edited is False
+    assert (
+        bot.callback_answers[-1]["text"]
+        == "Telegram API is rate limited. Try again in 9s."
+    )
+
+
 def test_system_views_edit_message_reraises_other_telegram_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -417,7 +471,7 @@ def test_system_views_edit_message_reraises_other_telegram_errors(
 
     api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
-    def _raise_chat_not_found(**_kwargs: object) -> str:
+    def _raise_chat_not_found(**_kwargs: _PayloadValue) -> str:
         raise api_exception_stub("chat not found", 400)
 
     bot.edit_message_text = _raise_chat_not_found  # type: ignore[method-assign]
@@ -446,7 +500,7 @@ def test_handle_swap_info_ignores_not_modified(
 
     api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
-    def _raise_not_modified(**_kwargs: object) -> str:
+    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
         raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
@@ -469,7 +523,7 @@ def test_handle_process_info_ignores_not_modified(
 
     api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
 
-    def _raise_not_modified(**_kwargs: object) -> str:
+    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
         raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]

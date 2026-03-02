@@ -8,20 +8,19 @@ also providing basic information about the status of local servers.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any
 
 from pytmbot.logs import Logger
 
 logger = Logger()
 
-type CallbackType = Callable[..., Any]
+type CallbackType[R] = Callable[..., R]
 
 
-def log_execution(func: CallbackType) -> CallbackType:
+def log_execution[R](func: CallbackType[R]) -> CallbackType[R]:
     """Decorator to log function execution with its arguments."""
 
     @wraps(func)
-    def wrapper(self: "HandlerManager", **kwargs: Any) -> Any:
+    def wrapper(self: "HandlerManager[R]", **kwargs: object) -> R:
         logger.debug("bot.models.handlers_model.exec.callback.debug")
         return func(self, **kwargs)
 
@@ -29,17 +28,17 @@ def log_execution(func: CallbackType) -> CallbackType:
 
 
 @dataclass(frozen=True, slots=True)
-class HandlerManager:
+class HandlerManager[R]:
     """
     Class for storing and managing callback functions and keyword arguments.
 
     Attributes:
-        callback (CallbackType): The callback function to be stored
-        kwargs (dict[str, Any]): Keyword arguments to be stored with the callback
+        callback (CallbackType[R]): The callback function to be stored
+        kwargs (dict[str, object]): Keyword arguments to be stored with the callback
     """
 
-    callback: CallbackType
-    kwargs: dict[str, Any] = field(default_factory=dict)
+    callback: CallbackType[R]
+    kwargs: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate the callback after instance creation."""
@@ -48,7 +47,7 @@ class HandlerManager:
             raise ValueError("The 'callback' parameter must be callable")
 
     @log_execution
-    def execute(self, **extra_kwargs: Any) -> Any:
+    def execute(self, **extra_kwargs: object) -> R:
         """
         Execute the stored callback function with stored and additional keyword arguments.
 

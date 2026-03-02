@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import weakref
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 import pytmbot.utils.message_deletion as message_deletion_module
+
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+type _ThreadKwarg = str | int | float | bool | None
 
 
 class _FakeBot(TeleBot):
@@ -25,7 +31,10 @@ class _FakeBot(TeleBot):
     ) -> bool:
         del timeout
         if self.fail:
-            raise ApiTelegramException(
+            api_exc_ctor = cast(
+                Callable[..., ApiTelegramException], ApiTelegramException
+            )
+            raise api_exc_ctor(
                 "deleteMessage",
                 SimpleNamespace(status_code=400, text="bad"),
                 {"error_code": 400, "description": "bad request"},
@@ -35,7 +44,13 @@ class _FakeBot(TeleBot):
 
 
 class _ImmediateThread:
-    def __init__(self, *, target: Any, args: tuple[Any, ...], **_kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        target: Callable[..., None],
+        args: tuple[message_deletion_module._DeletionTask, ...],
+        **_kwargs: _ThreadKwarg,
+    ) -> None:
         self._target = target
         self._args = args
 
@@ -44,7 +59,7 @@ class _ImmediateThread:
 
 
 class _NoopThread:
-    def __init__(self, **_kwargs: Any) -> None:
+    def __init__(self, **_kwargs: _ThreadKwarg) -> None:
         return
 
     def start(self) -> None:
@@ -52,7 +67,7 @@ class _NoopThread:
 
 
 @pytest.fixture
-def manager() -> Any:
+def manager() -> message_deletion_module._MessageDeletionManager:
     manager_instance = message_deletion_module.deletion_manager
     with manager_instance._deletion_lock:
         manager_instance._active_tasks.clear()
@@ -72,14 +87,16 @@ def manager() -> Any:
 
 
 def test_schedule_deletion_success_and_callback(
-    manager: Any,
+    manager: message_deletion_module._MessageDeletionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    callback_results: list[Any] = []
+    callback_results: list[message_deletion_module.DeletionResult] = []
     bot = _FakeBot()
 
-    monkeypatch.setattr(message_deletion_module.threading, "Thread", _ImmediateThread)
-    monkeypatch.setattr(message_deletion_module.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(
+        "pytmbot.utils.message_deletion.threading.Thread", _ImmediateThread
+    )
+    monkeypatch.setattr("pytmbot.utils.message_deletion.time.sleep", lambda _s: None)
 
     result = manager.schedule_deletion(
         bot=bot,
@@ -101,11 +118,11 @@ def test_schedule_deletion_success_and_callback(
 
 
 def test_schedule_deletion_duplicate_and_limit(
-    manager: Any,
+    manager: message_deletion_module._MessageDeletionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _FakeBot()
-    monkeypatch.setattr(message_deletion_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr("pytmbot.utils.message_deletion.threading.Thread", _NoopThread)
 
     first = manager.schedule_deletion(
         bot=bot,
@@ -136,21 +153,23 @@ def test_schedule_deletion_duplicate_and_limit(
     assert manager.get_statistics()["limit_exceeded"] >= 1
 
 
-def test_schedule_deletion_validates_inputs(manager: Any) -> None:
+def test_schedule_deletion_validates_inputs(
+    manager: message_deletion_module._MessageDeletionManager,
+) -> None:
     bot = _FakeBot()
     with pytest.raises(ValueError):
         manager.schedule_deletion(bot, 1, 1, 1, delay_seconds=0)
     with pytest.raises(TypeError):
-        manager.schedule_deletion(bot, 1, "x", 1, delay_seconds=1)  # type: ignore[arg-type]
+        manager.schedule_deletion(bot, 1, cast(int, "x"), 1, delay_seconds=1)
     with pytest.raises(ValueError):
         manager.configure(0)
 
 
 def test_execute_deletion_handles_api_error_and_callback(
-    manager: Any,
+    manager: message_deletion_module._MessageDeletionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    callback_results: list[Any] = []
+    callback_results: list[message_deletion_module.DeletionResult] = []
     failing_bot = _FakeBot(fail=True)
     task = message_deletion_module._DeletionTask(
         bot_ref=weakref.ref(failing_bot),
@@ -165,7 +184,7 @@ def test_execute_deletion_handles_api_error_and_callback(
         manager._active_tasks[(3, 20)] = task
         manager._user_pending_deletions[3].add(20)
 
-    monkeypatch.setattr(message_deletion_module.time, "sleep", lambda _s: None)
+    monkeypatch.setattr("pytmbot.utils.message_deletion.time.sleep", lambda _s: None)
     manager._execute_deletion(task)
 
     assert callback_results
@@ -176,10 +195,10 @@ def test_execute_deletion_handles_api_error_and_callback(
 
 
 def test_execute_deletion_handles_missing_bot_reference(
-    manager: Any,
+    manager: message_deletion_module._MessageDeletionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    callback_results: list[Any] = []
+    callback_results: list[message_deletion_module.DeletionResult] = []
     dead_ref = cast(weakref.ReferenceType[TeleBot], lambda: None)
 
     task = message_deletion_module._DeletionTask(
@@ -195,7 +214,7 @@ def test_execute_deletion_handles_missing_bot_reference(
         manager._active_tasks[(4, 21)] = task
         manager._user_pending_deletions[4].add(21)
 
-    monkeypatch.setattr(message_deletion_module.time, "sleep", lambda _s: None)
+    monkeypatch.setattr("pytmbot.utils.message_deletion.time.sleep", lambda _s: None)
     manager._execute_deletion(task)
 
     assert callback_results
@@ -206,10 +225,11 @@ def test_execute_deletion_handles_missing_bot_reference(
 
 
 def test_cancel_get_status_and_repr(
-    manager: Any, monkeypatch: pytest.MonkeyPatch
+    manager: message_deletion_module._MessageDeletionManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _FakeBot()
-    monkeypatch.setattr(message_deletion_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr("pytmbot.utils.message_deletion.threading.Thread", _NoopThread)
     manager.schedule_deletion(
         bot=bot, chat_id=1, message_id=30, user_id=5, delay_seconds=1
     )
@@ -228,7 +248,9 @@ def test_cancel_get_status_and_repr(
     assert "_MessageDeletionManager" in repr(manager)
 
 
-def test_cleanup_stale_references(manager: Any) -> None:
+def test_cleanup_stale_references(
+    manager: message_deletion_module._MessageDeletionManager,
+) -> None:
     dead_ref = cast(weakref.ReferenceType[TeleBot], lambda: None)
 
     task = message_deletion_module._DeletionTask(
@@ -252,13 +274,13 @@ def test_create_post_delete_navigation_callback_sends_back_keyboard(
 ) -> None:
     class _NavBot:
         def __init__(self) -> None:
-            self.messages: list[dict[str, object]] = []
+            self.messages: list[_PayloadDict] = []
 
         def send_message(
             self,
             chat_id: int | str,
             text: str,
-            **kwargs: object,
+            **kwargs: _PayloadValue,
         ) -> bool:
             self.messages.append({"chat_id": int(chat_id), "text": text, **kwargs})
             return True

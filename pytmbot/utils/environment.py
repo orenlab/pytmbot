@@ -8,7 +8,6 @@ also providing basic information about the status of local servers.
 import os
 import sys
 from functools import cache
-from typing import Any
 
 
 @cache
@@ -28,7 +27,7 @@ def is_running_in_docker() -> bool:
 
 
 @cache
-def get_environment_state() -> dict[str, Any]:
+def get_environment_state() -> dict[str, object]:
     return {
         "Python path": sys.executable,
         "Python version": sys.version,

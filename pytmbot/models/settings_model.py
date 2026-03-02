@@ -12,7 +12,7 @@ from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from ipaddress import ip_network
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from packaging import version
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -47,8 +47,8 @@ class BotTokenModel(BaseModel):
     Model to store bot token information for production and development environments.
 
     Attributes:
-        prod_token (List[SecretStr]): List of production bot tokens.
-        dev_bot_token (Optional[List[SecretStr]]): Optional list of development bot tokens.
+        prod_token (list[SecretStr]): List of production bot tokens.
+        dev_bot_token (list[SecretStr] | None): Optional list of development bot tokens.
     """
 
     prod_token: list[SecretStr] = Field(min_length=1)
@@ -125,7 +125,7 @@ class ChatIdModel(BaseModel):
     Model to handle optional chat ID configurations for global notifications.
 
     Attributes:
-        global_chat_id (Optional[List[int]]): Optional list of chat IDs for global notifications.
+        global_chat_id (list[int] | None): Optional list of chat IDs for global notifications.
     """
 
     global_chat_id: list[int] = Field(min_length=1)
@@ -339,7 +339,7 @@ class ConfigMigrator(logs.BaseComponent):
                 stacklevel=3,
             )
 
-    def migrate_config(self, config_data: dict[str, Any]) -> dict[str, Any]:
+    def migrate_config(self, config_data: dict[str, object]) -> dict[str, object]:
         """
         Migrate configuration to current app version.
 
@@ -376,14 +376,14 @@ class SettingsModel(BaseSettings):
     Main settings model for configuring the bot with version management.
 
     Attributes:
-        config_version (Optional[str]): Version of the configuration schema.
+        config_version (str | None): Version of the configuration schema.
         bot_token (BotTokenModel): Bot token settings for both production and development.
         access_control (AccessControlModel): Access control settings for users and admins.
         docker (DockerHostModel): Docker host settings.
         chat_id (ChatIdModel): Chat ID settings for global notifications.
-        influxdb (Optional[InfluxDBModel]): Optional InfluxDB configuration.
-        plugins_config (Optional[PluginsConfig]): Optional plugin configurations.
-        webhook_config (Optional[WebhookConfig]): Optional webhook configuration.
+        influxdb (InfluxDBModel | None): Optional InfluxDB configuration.
+        plugins_config (PluginsConfig | None): Optional plugin configurations.
+        webhook_config (WebhookConfig | None): Optional webhook configuration.
     """
 
     # Configuration version - should match app version
@@ -434,7 +434,7 @@ class SettingsModel(BaseSettings):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_config_if_needed(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def migrate_config_if_needed(cls, values: dict[str, object]) -> dict[str, object]:
         """
         Automatically add or update config_version field.
         Handle configs without version field (0.2.2 compatibility).
@@ -481,7 +481,7 @@ class SettingsModel(BaseSettings):
 
         return values
 
-    def get_version_info(self) -> dict[str, Any]:
+    def get_version_info(self) -> dict[str, object]:
         """
         Get detailed version information.
 
@@ -529,7 +529,7 @@ def load_config_with_migration(config_path: str) -> SettingsModel:
     Returns:
         Loaded and validated settings
     """
-    import yaml  # type: ignore[import-untyped]
+    import yaml
 
     # Create logger for config loading
     class ConfigLoader(logs.BaseComponent):

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -17,8 +17,9 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from time import sleep
-from typing import TYPE_CHECKING, Any, Final
+from typing import Final, ParamSpec, TypeVar
 
+from docker import DockerClient
 from docker.errors import NotFound
 from docker.models.containers import Container
 
@@ -34,15 +35,14 @@ from pytmbot.logs import Logger
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.utils import sanitize_exception, set_naturalsize
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 logger = Logger()
 
 # Type aliases for better code clarity
 type ContainerName = str
 type ContainerID = str
-type LogContext = dict[str, Any]
+type LogContext = dict[str, object]
+P = ParamSpec("P")
+R = TypeVar("R")
 type MemoryStats = dict[str, str]
 
 # Module constants
@@ -179,7 +179,7 @@ class ContainerStateCache:
         with self._lock:
             self._cache.clear()
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> dict[str, object]:
         """Get cache statistics."""
         with self._lock:
             current_time = time.time()
@@ -310,9 +310,14 @@ class MemoryStatsProvider:
         """Fallback to container.stats() - slowest method."""
         try:
             stats = get_container_stats_snapshot(container)
-            memory_stats = stats.get("memory_stats", {})
-            usage = memory_stats.get("usage", 0)
-            limit = memory_stats.get("limit", 0)
+            memory_stats_obj = stats.get("memory_stats", {})
+            memory_stats = (
+                memory_stats_obj if isinstance(memory_stats_obj, dict) else {}
+            )
+            usage_raw = memory_stats.get("usage", 0)
+            limit_raw = memory_stats.get("limit", 0)
+            usage = int(usage_raw) if isinstance(usage_raw, (int, float)) else 0
+            limit = int(limit_raw) if isinstance(limit_raw, (int, float)) else 0
 
             if usage == 0 and limit == 0:
                 return {"mem_usage": "N/A", "mem_limit": "N/A", "mem_percent": "N/A"}
@@ -337,7 +342,7 @@ class MemoryStatsProvider:
         }
 
 
-def get_container_stats_snapshot(container: Container) -> dict[str, Any]:
+def get_container_stats_snapshot(container: Container) -> dict[str, object]:
     """
     Get a single runtime stats snapshot with minimal latency.
 
@@ -372,7 +377,7 @@ def check_container_state(
     container_name: ContainerName,
     target_state: str = ContainerState.RUNNING,
     config: StateCheckConfig | None = None,
-    docker_client: Any | None = None,
+    docker_client: DockerClient | None = None,
 ) -> ContainerState | None:
     """
     Checks if container reaches target state within configured attempts.
@@ -435,7 +440,7 @@ def _execute_state_check_loop(
     container_name: str,
     target: ContainerState,
     config: StateCheckConfig,
-    docker_client: Any | None = None,
+    docker_client: DockerClient | None = None,
 ) -> ContainerState | None:
     """Execute the state checking loop with proper logging and timing."""
     operation_start = time.time()
@@ -556,7 +561,7 @@ def _log_final_state_check_result(
 
 def with_operation_logging(
     operation_name: str, slow_threshold: float = 1.0
-) -> Callable:
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Enhanced decorator for logging Docker operations with timing and performance monitoring."""
     if not operation_name or not isinstance(operation_name, str):
         raise ValueError("operation_name must be a non-empty string")
@@ -564,9 +569,9 @@ def with_operation_logging(
     if slow_threshold <= 0:
         raise ValueError("slow_threshold must be positive")
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             start_time = time.time()
             operation_id = f"{operation_name}_{int(start_time * 1000) % 10000}"
             context = _build_operation_context(
@@ -598,8 +603,8 @@ def _build_operation_context(
     operation_name: str,
     operation_id: str,
     start_time: float,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
 ) -> LogContext:
     """Build context for operation logging."""
     context: LogContext = {
@@ -626,7 +631,7 @@ def _log_operation_success(
     operation_name: str,
     context: LogContext,
     execution_time: float,
-    result: Any,
+    result: object,
     slow_threshold: float,
 ) -> None:
     """Log successful operation with appropriate level based on execution time."""
@@ -668,7 +673,7 @@ def _log_operation_failure(
 
 @with_operation_logging("get_container_state", slow_threshold=0.5)
 def get_container_state(
-    container_id: str, docker_client: Any | None = None
+    container_id: str, docker_client: DockerClient | None = None
 ) -> str | None:
     """
     Retrieves the status of a Docker container with caching and enhanced error handling.
@@ -721,7 +726,7 @@ def get_container_state(
 
 
 def get_container_safely(
-    container_id: str, docker_client: Any | None = None
+    container_id: str, docker_client: DockerClient | None = None
 ) -> Container:
     """
     Safely retrieves a container by ID with uniform error handling and validation.
@@ -858,7 +863,7 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
     }
 
 
-def get_container_basic_info(container: Container) -> dict[str, Any]:
+def get_container_basic_info(container: Container) -> dict[str, object]:
     """
     Extracts basic container information with enhanced data including memory stats.
 
@@ -901,7 +906,7 @@ def get_container_basic_info(container: Container) -> dict[str, Any]:
         return _get_minimal_container_info(container)
 
 
-def _extract_basic_container_data(container: Container) -> dict[str, Any]:
+def _extract_basic_container_data(container: Container) -> dict[str, object]:
     """Extract basic container data without state information."""
     image_tags: list[str] = []
     if hasattr(container, "image") and container.image:
@@ -926,18 +931,20 @@ def _extract_basic_container_data(container: Container) -> dict[str, Any]:
     }
 
 
-def _extract_container_state_info(attrs: Mapping[str, Any]) -> dict[str, Any]:
+def _extract_container_state_info(attrs: Mapping[str, object]) -> dict[str, object]:
     """Extract container state information from attrs."""
-    state = attrs.get("State", {})
+    state_obj = attrs.get("State", {})
+    if not isinstance(state_obj, Mapping):
+        state_obj = {}
     return {
-        "exit_code": state.get("ExitCode"),
-        "pid": state.get("Pid"),
-        "started_at": state.get("StartedAt"),
-        "finished_at": state.get("FinishedAt"),
+        "exit_code": state_obj.get("ExitCode"),
+        "pid": state_obj.get("Pid"),
+        "started_at": state_obj.get("StartedAt"),
+        "finished_at": state_obj.get("FinishedAt"),
     }
 
 
-def _get_minimal_container_info(container: Container) -> dict[str, Any]:
+def _get_minimal_container_info(container: Container) -> dict[str, object]:
     """Return minimal container info on error."""
 
     def _safe_getattr(name: str, default: str = "unknown") -> str:
@@ -956,7 +963,7 @@ def _get_minimal_container_info(container: Container) -> dict[str, Any]:
     }
 
 
-def sanitize_kwargs_for_logging(kwargs: dict[str, Any]) -> dict[str, Any]:
+def sanitize_kwargs_for_logging(kwargs: dict[str, object]) -> dict[str, object]:
     """
     Enhanced sanitization of kwargs for safe logging by removing sensitive information.
 
@@ -997,7 +1004,7 @@ def sanitize_kwargs_for_logging(kwargs: dict[str, Any]) -> dict[str, Any]:
         "cookie",
     }
 
-    safe_kwargs: dict[str, Any] = {}
+    safe_kwargs: dict[str, object] = {}
     for key, value in kwargs.items():
         key_lower = key.lower()
 
@@ -1031,7 +1038,7 @@ def sanitize_kwargs_for_logging(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_container_context(
-    container_id: str, action: str, **extra_context: Any
+    container_id: str, action: str, **extra_context: object
 ) -> LogContext:
     """
     Creates a standard context for logging container operations with validation.
@@ -1053,7 +1060,7 @@ def build_container_context(
     if not action or not isinstance(action, str):
         raise ValueError("action must be a non-empty string")
 
-    context = {
+    context: LogContext = {
         "action": action.strip(),
         "container_id": container_id.strip(),
         "timestamp": datetime.now().isoformat(),
@@ -1072,14 +1079,14 @@ def clear_state_cache() -> None:
     logger.debug("docker.utils.container.state.debug")
 
 
-def get_cache_stats() -> dict[str, Any]:
+def get_cache_stats() -> dict[str, object]:
     """Get comprehensive cache statistics for monitoring."""
     return _state_cache.get_stats()
 
 
 def validate_container_operation_params(
-    container_id: str, operation: str, **kwargs: Any
-) -> dict[str, Any]:
+    container_id: str, operation: str, **kwargs: object
+) -> dict[str, object]:
     """
     Validate parameters for container operations.
 
@@ -1111,13 +1118,16 @@ def validate_container_operation_params(
         raise ValueError("container_id too long (maximum 64 characters)")
 
     # Operation-specific validation
-    validated_params: dict[str, str | int | float] = {
+    validated_params: dict[str, object] = {
         "container_id": container_id,
         "operation": operation,
     }
 
     if operation == "rename":
-        new_name = kwargs.get("new_container_name", "").strip()
+        raw_new_name = kwargs.get("new_container_name", "")
+        if not isinstance(raw_new_name, str):
+            raise ValueError("new_container_name must be a string")
+        new_name = raw_new_name.strip()
         if not new_name:
             raise ValueError("new_container_name required for rename operation")
         if len(new_name) > 64:
@@ -1172,7 +1182,7 @@ class ContainerOperationTracker:
 
     def get_recent_operations(
         self, container_id: str, since_seconds: float = 3600
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, object]]:
         """Get recent operations for a container."""
         with self._lock:
             current_time = time.time()
@@ -1194,7 +1204,13 @@ class ContainerOperationTracker:
                             }
                         )
 
-            return sorted(recent_ops, key=lambda x: x["last_time"], reverse=True)
+            def _sort_key(item: dict[str, object]) -> float:
+                last_time = item.get("last_time", 0.0)
+                if isinstance(last_time, (int, float)):
+                    return float(last_time)
+                return 0.0
+
+            return sorted(recent_ops, key=_sort_key, reverse=True)
 
     def _cleanup_old_operations(self) -> None:
         """Remove old operation records."""
@@ -1227,6 +1243,6 @@ def record_container_operation(container_id: str, operation: str) -> None:
 
 def get_container_operation_history(
     container_id: str, since_seconds: float = 3600
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     """Get recent operation history for a container."""
     return _operation_tracker.get_recent_operations(container_id, since_seconds)

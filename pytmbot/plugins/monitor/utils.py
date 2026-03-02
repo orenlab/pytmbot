@@ -16,6 +16,7 @@ import psutil
 
 from pytmbot.logs import Logger
 from pytmbot.plugins.monitor.models import MonitoringState, ResourceMetrics
+from pytmbot.utils import to_float
 
 logger = Logger()
 
@@ -57,8 +58,7 @@ class SystemMetrics:
     @staticmethod
     def _check_cpu_usage() -> float:
         try:
-            cpu_usage = psutil.cpu_percent(interval=1)
-            return float(cpu_usage) if isinstance(cpu_usage, (int, float)) else 0.0
+            return to_float(psutil.cpu_percent(interval=1), 0.0)
         except Exception:
             logger.error("bot.plugins.monitor.utils.cpu.usage.fail", exc_info=True)
             return 0.0
@@ -66,12 +66,7 @@ class SystemMetrics:
     @staticmethod
     def _check_memory_usage() -> float:
         try:
-            memory_percent = psutil.virtual_memory().percent
-            return (
-                float(memory_percent)
-                if isinstance(memory_percent, (int, float))
-                else 0.0
-            )
+            return to_float(psutil.virtual_memory().percent, 0.0)
         except Exception:
             logger.error("bot.plugins.monitor.utils.memory.usage.fail", exc_info=True)
             return 0.0
@@ -162,7 +157,9 @@ class EventTracker:
     __slots__ = ()
 
     @staticmethod
-    def create_event(state: MonitoringState, event_type: str, details: dict) -> str:
+    def create_event(
+        state: MonitoringState, event_type: str, details: dict[str, object]
+    ) -> str:
         """Create a new event and return its ID."""
         event_id = str(uuid4())
         state.active_events[event_id] = {
@@ -210,7 +207,7 @@ class SystemInfo:
     __slots__ = ()
 
     @staticmethod
-    def get_platform_metadata(is_docker: bool) -> dict:
+    def get_platform_metadata(is_docker: bool) -> dict[str, object]:
         try:
             uname = platform.uname()
             return {

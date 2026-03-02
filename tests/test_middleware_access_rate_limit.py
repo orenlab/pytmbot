@@ -65,19 +65,35 @@ def _build_message(
     )
 
 
-def test_access_control_authorized_user_passes(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+def _build_access_control_middleware(
+    monkeypatch: pytest.MonkeyPatch,
+    bot: _BotStub,
+    *,
+    allowed_user_ids: list[int] | None = None,
+    admin_chat_id: int = 999,
+) -> access_control_module.AccessControl:
+    monkeypatch.setattr(
+        "pytmbot.middleware.access_control.threading.Thread",
+        _NoopThread,
+    )
     monkeypatch.setattr(
         access_control_module,
         "settings",
         SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[42]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
+            access_control=SimpleNamespace(allowed_user_ids=allowed_user_ids or []),
+            chat_id=SimpleNamespace(global_chat_id=[admin_chat_id]),
         ),
     )
+    return access_control_module.AccessControl(cast(TeleBot, bot))
 
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+
+def test_access_control_authorized_user_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot = _BotStub()
+    middleware = _build_access_control_middleware(
+        monkeypatch,
+        bot,
+        allowed_user_ids=[42],
+    )
     message = _build_message(user_id=42, text="hello")
 
     result = middleware.pre_process(message, {})
@@ -91,17 +107,7 @@ def test_access_control_unauthorized_attempts_and_blocking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     message = _build_message(user_id=10, text="not-allowed")
 
     first = middleware.pre_process(message, {})
@@ -121,17 +127,7 @@ def test_access_control_setup_command_is_allowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     message = _build_message(user_id=77, text="/getmyid")
 
     result = middleware.pre_process(message, {})
@@ -186,7 +182,9 @@ def test_access_control_setup_command_with_bot_suffix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
+    )
     monkeypatch.setattr(
         access_control_module,
         "settings",
@@ -204,7 +202,9 @@ def test_access_control_notify_admin_suppression_and_send_fail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
+    )
     monkeypatch.setattr(
         access_control_module,
         "settings",
@@ -242,7 +242,9 @@ def test_access_control_notify_admin_sends_outside_state_lock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
+    )
     monkeypatch.setattr(
         access_control_module,
         "settings",
@@ -277,17 +279,7 @@ def test_access_control_admin_notification_uses_name_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     message = _build_message(
         user_id=777,
         text="not-allowed",
@@ -309,16 +301,7 @@ def test_access_control_periodic_cleanup_removes_expired_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
 
     expired_user = 5
     active_user = 6
@@ -350,16 +333,7 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     expired_user = 7263484885
     middleware._blocked_until[expired_user] = datetime.now() - timedelta(seconds=1)
 
@@ -422,7 +396,9 @@ def test_access_control_post_process_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(access_control_module.threading, "Thread", _NoopThread)
+    monkeypatch.setattr(
+        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
+    )
     monkeypatch.setattr(
         access_control_module,
         "settings",

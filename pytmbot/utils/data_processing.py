@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import datetime
-from typing import Any
 
 from humanize import (
     naturalsize as humanize_naturalsize,
@@ -20,11 +19,11 @@ def round_up_tuple(numbers: tuple[float, ...]) -> dict[int, float]:
     return {i: round(num, 2) for i, num in enumerate(numbers)}
 
 
-def find_in_args(args: tuple[Any, ...], target_type: type) -> Any | None:
+def find_in_args[T](args: tuple[object, ...], target_type: type[T]) -> T | None:
     return next((arg for arg in args if isinstance(arg, target_type)), None)
 
 
-def find_in_kwargs(kwargs: dict[str, Any], target_type: type) -> Any | None:
+def find_in_kwargs[T](kwargs: dict[str, object], target_type: type[T]) -> T | None:
     return next(
         (value for value in kwargs.values() if isinstance(value, target_type)), None
     )

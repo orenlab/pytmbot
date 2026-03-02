@@ -4,9 +4,10 @@ import concurrent.futures
 import socket
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from types import SimpleNamespace
-from typing import Any, Literal, cast
+from types import SimpleNamespace, TracebackType
+from typing import Literal, cast
 
 import psutil
 import pytest
@@ -89,8 +90,8 @@ class _FakeProcess:
     def memory_full_info(self) -> _FakeFullMemoryInfo:
         return _FakeFullMemoryInfo()
 
-    def memory_maps(self) -> list[object]:
-        return [object(), object()]
+    def memory_maps(self) -> list[SimpleNamespace]:
+        return [SimpleNamespace(path="/tmp/a"), SimpleNamespace(path="/tmp/b")]
 
     def io_counters(self) -> _FakeIoCounters:
         return _FakeIoCounters()
@@ -279,7 +280,7 @@ def _clear_cached_method(method: object) -> None:
 
 def test_thread_safe_cache_respects_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [100.0]
-    monkeypatch.setattr(psutil_adapter_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(time, "time", lambda: clock[0])
     calls = {"count": 0}
 
     @psutil_adapter_module.thread_safe_cache(maxsize=2, ttl_seconds=1.0)
@@ -298,7 +299,7 @@ def test_thread_safe_cache_respects_ttl(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_thread_safe_cache_eviction_when_full(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [100.0]
-    monkeypatch.setattr(psutil_adapter_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(time, "time", lambda: clock[0])
     calls = {"count": 0}
 
     @psutil_adapter_module.thread_safe_cache(maxsize=2, ttl_seconds=100.0)
@@ -316,7 +317,7 @@ def test_thread_safe_cache_eviction_when_full(monkeypatch: pytest.MonkeyPatch) -
 
 def test_safe_execute_error_branches() -> None:
     adapter = psutil_adapter_module.PsutilAdapter()
-    fallback: dict[str, object] = {"ok": False}
+    fallback: dict[str, bool] = {"ok": False}
 
     denied, _ = adapter._safe_execute(
         "denied",
@@ -336,9 +337,9 @@ def test_safe_execute_error_branches() -> None:
 
 def test_safe_execute_timeout_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     adapter = _new_adapter_without_warmup(monkeypatch)
-    fallback: dict[str, object] = {"timeout": True}
+    fallback: dict[str, bool] = {"timeout": True}
 
-    def _slow_result() -> dict[str, object]:
+    def _slow_result() -> dict[str, bool]:
         time.sleep(0.05)
         return {"ok": True}
 
@@ -371,7 +372,7 @@ def test_psutil_adapter_core_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         psutil_adapter_module, "set_naturalsize", lambda value: f"{value}B"
     )
-    monkeypatch.setattr(psutil_adapter_module.psutil, "boot_time", lambda: 0.0)
+    monkeypatch.setattr(psutil, "boot_time", lambda: 0.0)
 
     process_stats = adapter.get_process_stats(pid=123)
     health = adapter.get_current_process_health_summary()
@@ -532,7 +533,7 @@ def test_get_process_stats_invalid_pid_and_inaccessible_process(
         adapter.get_process_stats(pid=0)
 
     class _NoAccessPsutil:
-        def Process(self, _pid: int) -> Any:  # noqa: N802
+        def Process(self, _pid: int) -> psutil.Process:  # noqa: N802
             raise psutil.AccessDenied()
 
     monkeypatch.setattr(adapter, "_psutil", _NoAccessPsutil())
@@ -546,17 +547,17 @@ def test_collect_stats_concurrently_handles_timeout_and_exception(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _FakeFuture:
-        def __init__(self, result: dict[str, object] | Exception) -> None:
+        def __init__(self, result: dict[str, int] | Exception) -> None:
             self._result = result
 
-        def result(self, timeout: float | None = None) -> dict[str, object]:
+        def result(self, timeout: float | None = None) -> dict[str, int]:
             del timeout
             if isinstance(self._result, Exception):
                 raise self._result
             return self._result
 
     class _FakeExecutor:
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
+        def __init__(self) -> None:
             self.futures: list[_FakeFuture] = []
 
         def __enter__(self) -> _FakeExecutor:
@@ -566,12 +567,12 @@ def test_collect_stats_concurrently_handles_timeout_and_exception(
             self,
             exc_type: type[BaseException] | None,
             exc: BaseException | None,
-            tb: Any | None,
+            tb: TracebackType | None,
         ) -> Literal[False]:
             del exc_type, exc, tb
             return False
 
-        def submit(self, collector: Any) -> _FakeFuture:
+        def submit(self, collector: Callable[[], dict[str, int]]) -> _FakeFuture:
             del collector
             if not self.futures:
                 future = _FakeFuture(concurrent.futures.TimeoutError())
@@ -582,12 +583,12 @@ def test_collect_stats_concurrently_handles_timeout_and_exception(
 
     fake_executor = _FakeExecutor()
     monkeypatch.setattr(
-        psutil_adapter_module.concurrent.futures,
+        concurrent.futures,
         "ThreadPoolExecutor",
         lambda *args, **kwargs: fake_executor,
     )
     monkeypatch.setattr(
-        psutil_adapter_module.concurrent.futures,
+        concurrent.futures,
         "as_completed",
         lambda future_to_name, timeout: list(future_to_name.keys()),
     )
@@ -611,7 +612,7 @@ def test_process_specific_collector_edge_cases(monkeypatch: pytest.MonkeyPatch) 
         def num_handles(self) -> int:
             raise psutil.AccessDenied()
 
-        def net_connections(self) -> list[Any]:
+        def net_connections(self) -> list[SimpleNamespace]:
             raise psutil.AccessDenied()
 
         def cwd(self) -> str:
@@ -664,7 +665,7 @@ def test_health_summary_handles_missing_process(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _NoProcessPsutil:
-        def Process(self) -> Any:  # noqa: N802
+        def Process(self) -> psutil.Process:  # noqa: N802
             raise psutil.AccessDenied()
 
     monkeypatch.setattr(adapter, "_psutil", _NoProcessPsutil())
@@ -680,7 +681,7 @@ def test_load_and_disk_io_fallback_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         def getloadavg(self) -> tuple[float, float, float]:
             raise OSError("unsupported")
 
-        def disk_io_counters(self, *, perdisk: bool) -> Any:
+        def disk_io_counters(self, *, perdisk: bool) -> dict[str, SimpleNamespace]:
             del perdisk
             return {}
 
@@ -698,7 +699,7 @@ def test_disk_io_counters_exception_returns_empty(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _BrokenDiskIoPsutil:
-        def disk_io_counters(self, *, perdisk: bool) -> Any:
+        def disk_io_counters(self, *, perdisk: bool) -> dict[str, SimpleNamespace]:
             del perdisk
             raise RuntimeError("disk io unavailable")
 
@@ -712,10 +713,10 @@ def test_temperature_and_fans_fallback_paths(monkeypatch: pytest.MonkeyPatch) ->
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _FallbackSensorPsutil:
-        def sensors_temperatures(self) -> Any:
+        def sensors_temperatures(self) -> dict[str, list[SimpleNamespace]]:
             return {}
 
-        def sensors_fans(self) -> Any:
+        def sensors_fans(self) -> dict[str, list[SimpleNamespace]]:
             return {
                 "chassis": [
                     SimpleNamespace(current=None, label="missing"),
@@ -736,10 +737,10 @@ def test_temperature_and_fans_exception_paths(monkeypatch: pytest.MonkeyPatch) -
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _BrokenSensorPsutil:
-        def sensors_temperatures(self) -> Any:
+        def sensors_temperatures(self) -> dict[str, list[SimpleNamespace]]:
             raise OSError("temps unavailable")
 
-        def sensors_fans(self) -> Any:
+        def sensors_fans(self) -> dict[str, list[SimpleNamespace]]:
             raise RuntimeError("fans unavailable")
 
     monkeypatch.setattr(adapter, "_psutil", _BrokenSensorPsutil())
@@ -755,7 +756,7 @@ def test_fan_speeds_empty_and_oserror_paths(monkeypatch: pytest.MonkeyPatch) -> 
 
     class _EmptyFansPsutil:
         @staticmethod
-        def sensors_fans() -> dict[str, list[Any]]:
+        def sensors_fans() -> dict[str, list[SimpleNamespace]]:
             return {}
 
     monkeypatch.setattr(adapter, "_psutil", _EmptyFansPsutil())
@@ -764,7 +765,7 @@ def test_fan_speeds_empty_and_oserror_paths(monkeypatch: pytest.MonkeyPatch) -> 
 
     class _OSErrorFansPsutil:
         @staticmethod
-        def sensors_fans() -> dict[str, list[Any]]:
+        def sensors_fans() -> dict[str, list[SimpleNamespace]]:
             raise OSError("fans unsupported")
 
     monkeypatch.setattr(adapter, "_psutil", _OSErrorFansPsutil())
@@ -779,11 +780,11 @@ def test_process_counts_and_network_summary_fallbacks(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _CountPsutil:
-        def process_iter(self, attrs: list[str]) -> list[Any]:
+        def process_iter(self, attrs: list[str]) -> list[SimpleNamespace]:
             del attrs
             return [SimpleNamespace(info={"status": "blocked"})]
 
-        def net_connections(self, kind: str | None = None) -> list[Any]:
+        def net_connections(self, kind: str | None = None) -> list[SimpleNamespace]:
             if kind is not None:
                 raise TypeError("kind unsupported")
             return [SimpleNamespace(status="ESTABLISHED", type=socket.SOCK_STREAM)]
@@ -797,11 +798,11 @@ def test_process_counts_and_network_summary_fallbacks(
     assert summary["tcp"] == 1
 
     class _BrokenCountPsutil:
-        def process_iter(self, attrs: list[str]) -> list[Any]:
+        def process_iter(self, attrs: list[str]) -> list[SimpleNamespace]:
             del attrs
             raise RuntimeError("iter fail")
 
-        def net_connections(self, kind: str = "inet") -> list[Any]:
+        def net_connections(self, kind: str = "inet") -> list[SimpleNamespace]:
             del kind
             raise RuntimeError("connections fail")
 
@@ -829,19 +830,19 @@ def test_net_io_users_interfaces_and_cpu_fallbacks(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _FallbackPsutil:
-        def net_io_counters(self) -> Any:
+        def net_io_counters(self) -> SimpleNamespace | None:
             return None
 
-        def users(self) -> list[Any]:
+        def users(self) -> list[SimpleNamespace]:
             raise RuntimeError("users fail")
 
-        def net_if_stats(self) -> dict[str, Any]:
+        def net_if_stats(self) -> dict[str, SimpleNamespace]:
             raise RuntimeError("iface fail")
 
-        def net_if_addrs(self) -> dict[str, Any]:
+        def net_if_addrs(self) -> dict[str, list[SimpleNamespace]]:
             return {}
 
-        def cpu_freq(self) -> Any:
+        def cpu_freq(self) -> SimpleNamespace | None:
             return None
 
         def cpu_percent(
@@ -852,7 +853,7 @@ def test_net_io_users_interfaces_and_cpu_fallbacks(
                 return []
             return 7.0
 
-        def cpu_times_percent(self, *, interval: float) -> Any:
+        def cpu_times_percent(self, *, interval: float) -> SimpleNamespace:
             del interval
             raise OSError("cpu times unsupported")
 
@@ -890,7 +891,7 @@ def test_cpu_frequency_attribute_error_fallback(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _AttrErrPsutil:
-        def cpu_freq(self) -> Any:
+        def cpu_freq(self) -> SimpleNamespace:
             raise AttributeError("no cpu freq")
 
     monkeypatch.setattr(adapter, "_psutil", _AttrErrPsutil())
@@ -905,7 +906,7 @@ def test_top_processes_and_clear_cache_and_summary_error_paths(
     adapter = _new_adapter_without_warmup(monkeypatch)
 
     class _TopBrokenPsutil:
-        def process_iter(self, attrs: list[str]) -> list[Any]:
+        def process_iter(self, attrs: list[str]) -> list[SimpleNamespace]:
             del attrs
             raise RuntimeError("process iterator failed")
 

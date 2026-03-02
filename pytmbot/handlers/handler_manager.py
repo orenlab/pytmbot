@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
-from typing import Any, Final
+from typing import Final
 
 from telebot.types import CallbackQuery, Message
 
@@ -89,11 +89,11 @@ from .server_handlers.uptime import handle_uptime
 # Modern type aliases
 type MessageType = Message
 type CallbackQueryType = CallbackQuery
-type HandlerType = dict[str, list[HandlerManager]]
+type HandlerType = dict[str, list[HandlerManager[object]]]
 type MessageFilterFunc = Callable[[MessageType], bool]
 type CallbackFilterFunc = Callable[[CallbackQueryType], bool]
 type FilterFunc = MessageFilterFunc | CallbackFilterFunc
-type HandlerCallback = Callable[..., Any]
+type HandlerCallback = Callable[..., object]
 
 # Constants
 TOTP_CODE_PATTERN: Final[str] = r"^/?[0-9]{6}$"
@@ -115,9 +115,9 @@ class HandlerConfig:
         if self.filter_func is not None and not callable(self.filter_func):
             raise TypeError("filter_func must be callable")
 
-    def create_handler(self) -> HandlerManager:
+    def create_handler(self) -> HandlerManager[object]:
         """Create a HandlerManager instance from the config."""
-        kwargs: dict[str, Any] = {}
+        kwargs: dict[str, object] = {}
         if self.commands:
             kwargs["commands"] = self.commands
         if self.regexp:

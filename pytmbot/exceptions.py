@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from telebot import ExceptionHandler
 
@@ -20,7 +19,7 @@ logger = Logger()
 class ErrorContext:
     message: str
     error_code: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def sanitized(self) -> "ErrorContext":
         return ErrorContext(
@@ -32,7 +31,7 @@ class ErrorContext:
             },
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary representation."""
         return {
             "message": self.message,
@@ -133,7 +132,7 @@ class TelebotExceptionHandler(ExceptionHandler):
     def handle(self, exception: Exception) -> bool:
         """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
-        log_context: dict[str, Any] = {
+        log_context: dict[str, object] = {
             "exception_type": type(exception).__name__,
         }
 

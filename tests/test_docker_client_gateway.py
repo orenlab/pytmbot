@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from types import TracebackType
 
 import pytest
 
@@ -28,7 +28,7 @@ class _DummyAdapter:
         self,
         _exc_type: type[BaseException] | None,
         _exc_val: BaseException | None,
-        _exc_tb: Any | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         return
 

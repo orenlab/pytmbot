@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import ModuleType
 from typing import cast
 
 import pytest
@@ -16,8 +17,25 @@ import pytmbot.handlers.docker_handlers.inline.image_updates as image_updates_mo
 import pytmbot.handlers.docker_handlers.inline.images_page as images_page_module
 import pytmbot.handlers.docker_handlers.inline.manage_action as manage_action_module
 from pytmbot.adapters.docker.updates import UpdaterStatus
+from pytmbot.parsers.compiler import Compiler
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
-from tests._inline_edit_helpers import patch_not_modified_edit_error
+from tests._inline_edit_helpers import (
+    assert_reply_markup_has_callbacks,
+    patch_not_modified_edit_error,
+    patch_rate_limited_edit_error,
+)
+
+type _JsonLike = (
+    str | int | float | bool | None | dict[str, _JsonLike] | list[_JsonLike]
+)
+type _JsonDict = dict[str, _JsonLike]
+type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
+type _DecoratedHandler = (
+    Callable[..., None] | Callable[[Callable[..., None]], Callable[..., None]]
+)
+type _RawHandlerInput = Callable[..., _CallbackHandler | None] | _DecoratedHandler
+type _ParsedImageCallback = tuple[int, int, int] | tuple[str, int, int, int]
+type _RenderResult = tuple[str, str]
 
 
 @dataclass
@@ -46,32 +64,34 @@ class _Call:
 
 @dataclass
 class _Bot:
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
-    edited_messages: list[dict[str, object]] = field(default_factory=list)
+    callback_answers: list[_JsonDict] = field(default_factory=list)
+    edited_messages: list[_JsonDict] = field(default_factory=list)
 
-    def answer_callback_query(self, callback_query_id: str, **kwargs: object) -> bool:
-        payload: dict[str, object] = {
+    def answer_callback_query(
+        self, callback_query_id: str, **kwargs: _JsonLike
+    ) -> bool:
+        payload: _JsonDict = {
             "callback_query_id": callback_query_id,
             **kwargs,
         }
         self.callback_answers.append(payload)
         return True
 
-    def edit_message_text(self, **kwargs: object) -> str:
-        self.edited_messages.append(kwargs)
+    def edit_message_text(self, **kwargs: _JsonLike) -> str:
+        self.edited_messages.append(cast(_JsonDict, dict(kwargs)))
         return "edited"
 
 
-def _raw_handler(handler: object) -> Callable[..., object]:
+def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     wrapped = handler
     for _ in range(3):
         wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(Callable[..., object], wrapped)
+    return cast(_CallbackHandler, wrapped)
 
 
 def _assert_common_callback_context_errors(
     *,
-    handler: Callable[..., object],
+    handler: _CallbackHandler,
     bot: _Bot,
     shown: list[str],
     missing_message_error: str,
@@ -86,7 +106,7 @@ def _assert_common_callback_context_errors(
 def _collect_shown_messages(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    module: object,
+    module: ModuleType,
 ) -> list[str]:
     shown: list[str] = []
     target = module if hasattr(module, "show_handler_info") else image_callback_module
@@ -101,15 +121,15 @@ def _collect_shown_messages(
 def _patch_authorization(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    module: object,
-    auth_kwargs: list[dict[str, object]],
+    module: ModuleType,
+    auth_kwargs: list[_JsonDict],
     is_allowed: bool,
     reason: str,
 ) -> None:
     def _authorize(
-        call: object,
-        called_user_id: object,
-        **kwargs: object,
+        call: CallbackQuery,
+        called_user_id: int,
+        **kwargs: _JsonLike,
     ) -> tuple[bool, str]:
         del call, called_user_id
         auth_kwargs.append(kwargs)
@@ -126,19 +146,19 @@ def _patch_authorization(
 def _assert_image_details_callback_paths(
     *,
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    handler: Callable[..., object],
+    module: ModuleType,
+    handler: _CallbackHandler,
     bot: _Bot,
     parse_attr: str,
-    parse_valid: Callable[[str], object],
+    parse_valid: Callable[[str], _ParsedImageCallback],
     valid_callback_data: str,
     render_attr: str,
-    render_none: Callable[..., object],
-    render_success: Callable[..., tuple[str, str]],
+    render_none: Callable[..., _RenderResult | None],
+    render_success: Callable[..., _RenderResult],
     success_text: str,
 ) -> None:
     shown = _collect_shown_messages(monkeypatch, module=module)
-    auth_kwargs: list[dict[str, object]] = []
+    auth_kwargs: list[_JsonDict] = []
 
     _assert_common_callback_context_errors(
         handler=handler,
@@ -243,7 +263,7 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = _raw_handler(images_page_module.handle_images_page)
     bot = _Bot()
     shown = _collect_shown_messages(monkeypatch, module=images_page_module)
-    auth_kwargs: list[dict[str, object]] = []
+    auth_kwargs: list[_JsonDict] = []
 
     _assert_common_callback_context_errors(
         handler=handler,
@@ -347,9 +367,11 @@ def test_prepare_context_for_render() -> None:
         "repo-b": {"updates": []},
     }
 
-    context = image_updates_module.prepare_context_for_render(payload)
-    updates = cast(dict[str, dict[str, object]], context["updates"])
-    no_updates = cast(list[str], context["no_updates"])
+    context = image_updates_module.prepare_context_for_render(
+        cast(dict[str, image_updates_module.RawRepositoryUpdateInfo], payload)
+    )
+    updates = context["updates"]
+    no_updates = context["no_updates"]
 
     assert "repo-a" in updates
     assert no_updates == ["repo-b"]
@@ -362,7 +384,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert_standard_callback_auth_paths(
         monkeypatch=monkeypatch,
         module=image_updates_module,
-        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        handler=handler,
         bot=bot,
         call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
         invalid_data="bad",
@@ -377,7 +399,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         def initialize(self) -> None:
             return None
 
-        def to_dict(self) -> dict[str, object]:
+        def to_dict(self) -> _JsonDict:
             return {
                 "status": UpdaterStatus.RATE_LIMITED.name,
                 "message": "rate",
@@ -392,7 +414,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         def initialize(self) -> None:
             return None
 
-        def to_dict(self) -> dict[str, object]:
+        def to_dict(self) -> _JsonDict:
             return {
                 "status": UpdaterStatus.ERROR.name,
                 "message": "oops",
@@ -407,7 +429,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         def initialize(self) -> None:
             return None
 
-        def to_dict(self) -> dict[str, object]:
+        def to_dict(self) -> _JsonDict:
             return {
                 "status": UpdaterStatus.SUCCESS.name,
                 "message": "ok",
@@ -422,7 +444,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         def initialize(self) -> None:
             return None
 
-        def to_dict(self) -> dict[str, object]:
+        def to_dict(self) -> _JsonDict:
             return {
                 "status": UpdaterStatus.SUCCESS.name,
                 "message": "ok",
@@ -442,12 +464,16 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
     monkeypatch.setattr(
-        image_updates_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "updates-rendered",
     )
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "updates-rendered"
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__check_updates__:11", "__images_page__:1:11"],
+    )
 
 
 def test_manage_action_fabric_and_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -612,14 +638,11 @@ def test_manage_action_private_functions(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         manage_action_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
     manage_action_module.__restart_container(
         cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
@@ -721,8 +744,8 @@ def test_handle_images_page_ignores_not_modified(
 )
 def test_handle_image_details_ignores_not_modified(
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    handler_obj: object,
+    module: ModuleType,
+    handler_obj: _CallbackHandler,
     callback_data: str,
     parse_callback_name: str,
     render_name: str,
@@ -752,6 +775,39 @@ def test_handle_image_details_ignores_not_modified(
     assert bot.callback_answers[-1]["text"] == "Image details are already up to date."
 
 
+def test_handle_image_info_handles_telegram_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _raw_handler(image_info_module.handle_image_info)
+    bot = _Bot()
+
+    monkeypatch.setattr(
+        image_info_module,
+        "parse_image_info_callback_data",
+        lambda data: (0, 11, 1),
+    )
+    monkeypatch.setattr(
+        image_callback_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        image_info_module,
+        "render_image_details",
+        lambda **kwargs: ("image", "kbd"),
+    )
+
+    patch_rate_limited_edit_error(monkeypatch, bot, retry_after=11)
+
+    handler(
+        cast(CallbackQuery, _Call(data="__get_image_info__:0:11:1")), cast(TeleBot, bot)
+    )
+    assert (
+        bot.callback_answers[-1]["text"]
+        == "Telegram API is rate limited. Try again in 11s."
+    )
+
+
 def test_handle_image_updates_ignores_not_modified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -773,7 +829,7 @@ def test_handle_image_updates_ignores_not_modified(
         def initialize(self) -> None:
             return None
 
-        def to_dict(self) -> dict[str, object]:
+        def to_dict(self) -> _JsonDict:
             return {
                 "status": UpdaterStatus.SUCCESS.name,
                 "message": "ok",
@@ -793,7 +849,7 @@ def test_handle_image_updates_ignores_not_modified(
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
     monkeypatch.setattr(
-        image_updates_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "updates-rendered",
     )
@@ -821,14 +877,11 @@ def test_restart_container_ignores_not_modified(
     monkeypatch.setattr(
         manage_action_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
 
     patch_not_modified_edit_error(monkeypatch, bot)

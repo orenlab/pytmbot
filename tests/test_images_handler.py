@@ -6,10 +6,21 @@ from typing import cast
 
 import pytest
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import InlineKeyboardMarkup, Message
 
 import pytmbot.handlers.docker_handlers.images as images_module
 from pytmbot import exceptions
+from pytmbot.parsers.compiler import Compiler
+
+type _PayloadValue = (
+    str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
+)
+type _PayloadDict = dict[str, _PayloadValue]
+type _MessageHandler = Callable[[Message, TeleBot], bool]
+type _RawHandlerInput = (
+    Callable[..., bool] | Callable[[Callable[..., bool]], Callable[..., bool]]
+)
+type _InlineButtons = list[dict[str, str]]
 
 
 @dataclass
@@ -31,40 +42,44 @@ class _Message:
 @dataclass
 class _Bot:
     actions: list[tuple[int, str]] = field(default_factory=list)
-    sent_messages: list[dict[str, object]] = field(default_factory=list)
+    sent_messages: list[_PayloadDict] = field(default_factory=list)
 
     def send_chat_action(self, chat_id: int, action: str) -> bool:
         self.actions.append((chat_id, action))
         return True
 
-    def send_message(self, chat_id: int, text: str, **kwargs: object) -> str:
-        payload: dict[str, object] = {"chat_id": chat_id, "text": text, **kwargs}
+    def send_message(self, chat_id: int, text: str, **kwargs: _PayloadValue) -> str:
+        payload: _PayloadDict = {"chat_id": chat_id, "text": text, **kwargs}
         self.sent_messages.append(payload)
         return "sent"
 
 
-def _raw_handler(handler: object) -> Callable[[Message, TeleBot], bool]:
+def _raw_handler(handler: _RawHandlerInput) -> _MessageHandler:
     wrapped = handler
     for _ in range(2):
         wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(Callable[[Message, TeleBot], bool], wrapped)
+    return cast(_MessageHandler, wrapped)
 
 
-def _keyboard_callbacks(keyboard: object) -> list[str]:
-    return [
-        cast(str, item["callback_data"])
-        for item in cast(list[dict[str, object]], keyboard)
-    ]
+def _keyboard_callbacks(keyboard: _InlineButtons) -> list[str]:
+    return [item["callback_data"] for item in keyboard]
 
 
 def _assert_rendered_text_and_get_callbacks(
-    rendered: tuple[str, object] | None,
+    rendered: tuple[str, InlineKeyboardMarkup | _InlineButtons] | None,
     *,
     expected_text: str,
 ) -> list[str]:
     assert rendered is not None
     text, keyboard = rendered
     assert text == expected_text
+    if isinstance(keyboard, InlineKeyboardMarkup):
+        return [
+            str(button.callback_data)
+            for row in keyboard.keyboard
+            for button in row
+            if button.callback_data is not None
+        ]
     return _keyboard_callbacks(keyboard)
 
 
@@ -111,11 +126,14 @@ def test_load_images_data_cache_and_errors(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(images_module, "_images_cache", None)
 
     timestamps = iter([100.0, 101.0, 200.0])
-    monkeypatch.setattr(images_module.time, "time", lambda: next(timestamps))
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.images.time.time",
+        lambda: next(timestamps),
+    )
 
     calls = {"count": 0}
 
-    def _fetch() -> list[object]:
+    def _fetch() -> list[_PayloadDict | str]:
         calls["count"] += 1
         return [{"name": "img"}, "bad"]
 
@@ -131,7 +149,10 @@ def test_load_images_data_cache_and_errors(monkeypatch: pytest.MonkeyPatch) -> N
     assert third == [{"name": "img"}]
 
     monkeypatch.setattr(images_module, "_images_cache", None)
-    monkeypatch.setattr(images_module.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.images.time.time",
+        lambda: 1000.0,
+    )
     monkeypatch.setattr(images_module, "fetch_image_details", lambda: None)
 
     with pytest.raises(exceptions.DockerOperationException) as exc_info:
@@ -149,18 +170,15 @@ def test_render_paginated_images_fallback(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         images_module,
         "em",
-        cast(
-            object,
-            type(
-                "_Em",
-                (),
-                {
-                    "get_emoji": staticmethod(
-                        lambda key: {"warning": "⚠️", "thought_balloon": "💭"}[key]
-                    )
-                },
-            )(),
-        ),
+        type(
+            "_Em",
+            (),
+            {
+                "get_emoji": staticmethod(
+                    lambda key: {"warning": "⚠️", "thought_balloon": "💭"}[key]
+                )
+            },
+        )(),
     )
 
     text, page, total_pages, page_items, start_index = (
@@ -185,34 +203,28 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         images_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
     monkeypatch.setattr(
         images_module,
         "em",
-        cast(
-            object,
-            type(
-                "_Em",
-                (),
-                {
-                    "get_emoji": staticmethod(
-                        lambda key: {
-                            "BACK_arrow": "⬅️",
-                            "next_track_button": "⏭️",
-                            "package": "📦",
-                        }[key]
-                    )
-                },
-            )(),
-        ),
+        type(
+            "_Em",
+            (),
+            {
+                "get_emoji": staticmethod(
+                    lambda key: {
+                        "BACK_arrow": "⬅️",
+                        "next_track_button": "⏭️",
+                        "package": "📦",
+                    }[key]
+                )
+            },
+        )(),
     )
 
     keyboard = images_module._build_images_keyboard(
@@ -222,10 +234,7 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         page_items=[{"name": "repo/app:1.0"}],
         start_index=4,
     )
-    callbacks = [
-        cast(str, item["callback_data"])
-        for item in cast(list[dict[str, object]], keyboard)
-    ]
+    callbacks = [item["callback_data"] for item in cast(_InlineButtons, keyboard)]
     assert "__image_info__:4:7:2" in callbacks
     assert "__images_page__:1:7" in callbacks
     assert "__images_page__:3:7" in callbacks
@@ -239,8 +248,7 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         start_index=0,
     )
     callbacks_single = [
-        cast(str, item["callback_data"])
-        for item in cast(list[dict[str, object]], keyboard_single)
+        item["callback_data"] for item in cast(_InlineButtons, keyboard_single)
     ]
     assert callbacks_single == ["__check_updates__:7"]
 
@@ -263,18 +271,18 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         page=1, user_id=7
     )
     assert rendered_text == "images-page"
-    assert rendered_keyboard == "kbd"
+    assert cast(str, rendered_keyboard) == "kbd"
 
-    sent_payloads: list[dict[str, object]] = []
+    sent_payloads: list[_PayloadDict] = []
     monkeypatch.setattr(
         images_module, "render_images_page", lambda page, user_id: ("images-ui", "kbd")
     )
 
     def _send(
-        bot: object,
+        bot: TeleBot,
         chat_id: int,
         text: str,
-        reply_markup: object,
+        reply_markup: _PayloadValue,
         parse_mode: str,
     ) -> bool:
         del bot
@@ -379,7 +387,7 @@ def test_image_info_callback_helpers_and_details_render(
         ],
     )
     monkeypatch.setattr(
-        images_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, context: template_name,
     )
@@ -391,22 +399,16 @@ def test_image_info_callback_helpers_and_details_render(
     monkeypatch.setattr(
         images_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
     monkeypatch.setattr(
         images_module,
         "em",
-        cast(
-            object,
-            type("_Em", (), {"get_emoji": staticmethod(lambda key: "⬅️")})(),
-        ),
+        type("_Em", (), {"get_emoji": staticmethod(lambda key: "⬅️")})(),
     )
 
     rendered = images_module.render_image_details(image_index=0, page=2, user_id=11)
@@ -478,46 +480,47 @@ def test_image_info_callback_helpers_and_details_render(
 
 
 def test_image_details_template_line_breaks_and_env_pre() -> None:
-    rendered = images_module.Compiler.quick_render(
+    image_context: dict[str, object] = {
+        "name": "repo/app:1.0",
+        "id": "sha256:abc",
+        "tags_count": 1,
+        "tags": ["repo/app:1.0"],
+        "repo_digests_count": 1,
+        "repo_digests": ["repo/app@sha256:abc"],
+        "parent_id": "N/A",
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": "N/A",
+        "size": "1 MiB",
+        "virtual_size": "1 MiB",
+        "shared_size": "N/A",
+        "layers_count": 1,
+        "rootfs_type": "layers",
+        "created": "now",
+        "created_at": "2026-02-19 15:00:00 UTC",
+        "user": "root",
+        "working_dir": "/app",
+        "stop_signal": "SIGTERM",
+        "entrypoint": ["python"],
+        "cmd": ["main.py"],
+        "shell": [],
+        "healthcheck": "none",
+        "exposed_ports_count": 1,
+        "exposed_ports": ["8080/tcp"],
+        "volumes_count": 0,
+        "volumes": [],
+        "env_variables_count": 2,
+        "env_variables": ["A=1", "B=2"],
+        "author": "N/A",
+        "docker_version": "N/A",
+        "comment": "N/A",
+        "label_count": 1,
+        "labels": {"k": "v"},
+    }
+    rendered = Compiler.quick_render(
         "d_image_full_info.jinja2",
         context={
-            "image": {
-                "name": "repo/app:1.0",
-                "id": "sha256:abc",
-                "tags_count": 1,
-                "tags": ["repo/app:1.0"],
-                "repo_digests_count": 1,
-                "repo_digests": ["repo/app@sha256:abc"],
-                "parent_id": "N/A",
-                "os": "linux",
-                "architecture": "amd64",
-                "variant": "N/A",
-                "size": "1 MiB",
-                "virtual_size": "1 MiB",
-                "shared_size": "N/A",
-                "layers_count": 1,
-                "rootfs_type": "layers",
-                "created": "now",
-                "created_at": "2026-02-19 15:00:00 UTC",
-                "user": "root",
-                "working_dir": "/app",
-                "stop_signal": "SIGTERM",
-                "entrypoint": ["python"],
-                "cmd": ["main.py"],
-                "shell": [],
-                "healthcheck": "none",
-                "exposed_ports_count": 1,
-                "exposed_ports": ["8080/tcp"],
-                "volumes_count": 0,
-                "volumes": [],
-                "env_variables_count": 2,
-                "env_variables": ["A=1", "B=2"],
-                "author": "N/A",
-                "docker_version": "N/A",
-                "comment": "N/A",
-                "label_count": 1,
-                "labels": {"k": "v"},
-            },
+            "image": image_context,
             "emojis": {
                 "thought_balloon": "💭",
                 "package": "📦",

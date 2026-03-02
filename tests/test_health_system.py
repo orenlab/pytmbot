@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import cast
 from weakref import ReferenceType, ref
 
 import pytest
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
+from telebot.types import User
 
 from pytmbot.health_system.health_system import (
     BaseHealthChecker,
@@ -54,24 +55,30 @@ class _StaticChecker(BaseHealthChecker):
         return self._result
 
 
-@dataclass
-class _FakeBotInfo:
-    id: int
-    username: str
+def _build_user(user_id: int, username: str | None = None) -> User:
+    user_ctor = cast(Callable[..., User], User)
+    return user_ctor(
+        id=user_id,
+        is_bot=True,
+        first_name="pyTMBot",
+        username=username,
+    )
 
 
 class _FakeBot(TeleBot):
     def __init__(
-        self, get_me_result: Any | None = None, raises: Exception | None = None
+        self, get_me_result: User | None = None, raises: Exception | None = None
     ) -> None:
         super().__init__(token="12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
         self._get_me_result = get_me_result
         self._raises = raises
-        self._TeleBot__polling_thread: object | None = None
+        self._TeleBot__polling_thread: threading.Thread | _DeadThread | None = None
 
-    def get_me(self) -> Any:
+    def get_me(self) -> User:
         if self._raises is not None:
             raise self._raises
+        if self._get_me_result is None:
+            return _build_user(0, "unknown")
         return self._get_me_result
 
 
@@ -85,18 +92,18 @@ def _as_telebot_ref(bot: TeleBot) -> ReferenceType[TeleBot]:
 
 
 class _FakePsutilAdapter:
-    def __init__(self, stats: dict[str, Any]):
+    def __init__(self, stats: dict[str, object]):
         self._stats = stats
 
-    def get_current_process_health_summary(self) -> dict[str, Any]:
+    def get_current_process_health_summary(self) -> dict[str, object]:
         return self._stats
 
 
 class _FakeSessionManager:
-    def __init__(self, stats: dict[str, Any]):
+    def __init__(self, stats: dict[str, int]):
         self._stats = stats
 
-    def get_session_stats(self) -> dict[str, Any]:
+    def get_session_stats(self) -> dict[str, int]:
         return self._stats
 
 
@@ -136,7 +143,7 @@ def test_base_health_checker_uses_cache_and_handles_exceptions() -> None:
 def test_telegram_api_checker_offline_when_bot_reference_is_gone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = _FakeBot(get_me_result=_FakeBotInfo(id=1, username="bot"))
+    bot = _FakeBot(get_me_result=_build_user(user_id=1, username="bot"))
     bot_ref = _as_telebot_ref(bot)
     checker = TelegramApiChecker(bot_ref)
     monkeypatch.setattr(checker, "_bot_ref", lambda: None)
@@ -145,13 +152,14 @@ def test_telegram_api_checker_offline_when_bot_reference_is_gone(
 
 
 def test_telegram_api_checker_success_and_api_error_paths() -> None:
-    ok_bot = _FakeBot(get_me_result=_FakeBotInfo(1, "bot"))
+    ok_bot = _FakeBot(get_me_result=_build_user(user_id=1, username="bot"))
     ok_checker = TelegramApiChecker(_as_telebot_ref(ok_bot))
     ok_result = ok_checker._perform_check()
     assert ok_result.level in {HealthLevel.HEALTHY, HealthLevel.DEGRADED}
     assert ok_result.details["bot_id"] == 1
 
-    api_error = ApiTelegramException(
+    api_error_ctor = cast(Callable[..., ApiTelegramException], ApiTelegramException)
+    api_error = api_error_ctor(
         "getMe",
         SimpleNamespace(status_code=403, text="forbidden"),
         {"error_code": 403, "description": "forbidden"},
@@ -269,7 +277,7 @@ def test_health_manager_and_legacy_health_status() -> None:
 
 
 def test_health_factory_functions_add_core_checkers() -> None:
-    bot = _FakeBot(get_me_result=_FakeBotInfo(1, "bot"))
+    bot = _FakeBot(get_me_result=_build_user(user_id=1, username="bot"))
     session_manager = _FakeSessionManager({"total_sessions": 1, "blocked_sessions": 0})
     psutil_adapter = _FakePsutilAdapter({"memory_percent": "5%", "cpu": "2%"})
 

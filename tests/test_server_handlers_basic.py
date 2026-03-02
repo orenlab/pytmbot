@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from types import ModuleType
+from typing import Protocol, cast
 
 import pytest
 from telebot import TeleBot
@@ -17,14 +18,27 @@ import pytmbot.handlers.server_handlers.process as process_module
 import pytmbot.handlers.server_handlers.sensors as sensors_module
 import pytmbot.handlers.server_handlers.uptime as uptime_module
 from pytmbot.exceptions import HandlingException
+from pytmbot.parsers.compiler import Compiler
+
+type _MessageHandler = Callable[[Message, TeleBot], None]
+type _RawHandlerInput = (
+    Callable[..., None] | Callable[[Callable[..., None]], Callable[..., None]]
+)
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+
+
+class _CompilerLike(Protocol):
+    def quick_render(self, template_name: str, **kwargs: _PayloadValue) -> str: ...
 
 
 def _build_bot(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TeleBot, list[tuple[int, str]], list[dict[str, object]]]:
+) -> tuple[TeleBot, list[tuple[int, str]], list[_PayloadDict]]:
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
     actions: list[tuple[int, str]] = []
-    messages: list[dict[str, object]] = []
+    messages: list[_PayloadDict] = []
 
     def _send_chat_action(
         chat_id: int | str,
@@ -41,11 +55,11 @@ def _build_bot(
         chat_id: int | str,
         text: str,
         parse_mode: str | None = None,
-        reply_markup: object | None = None,
-        **kwargs: object,
-    ) -> dict[str, object]:
+        reply_markup: _PayloadValue | None = None,
+        **kwargs: _PayloadValue,
+    ) -> _PayloadDict:
         del kwargs
-        payload = {
+        payload: _PayloadDict = {
             "chat_id": int(chat_id),
             "text": text,
             "parse_mode": parse_mode,
@@ -60,39 +74,50 @@ def _build_bot(
 
 
 def _build_message(chat_id: int = 1, user_id: int = 101) -> Message:
-    payload = {
+    payload: _PayloadDict = {
         "message_id": 1,
         "date": 1,
         "chat": {"id": chat_id, "type": "private"},
         "from": {"id": user_id, "is_bot": False, "first_name": "Test"},
         "text": "command",
     }
-    message_obj = Message.de_json(payload)
+    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
+    message_obj = message_from_json(payload)
     if not isinstance(message_obj, Message):
         raise AssertionError("Expected Message instance")
     return message_obj
 
 
 def _invoke_handler(
-    handler: object,
+    handler: _RawHandlerInput,
     message: Message,
     bot: TeleBot,
 ) -> None:
-    typed_handler = cast(Callable[[Message, TeleBot], None], handler)
+    typed_handler = cast(_MessageHandler, handler)
     typed_handler(message, bot)
+
+
+def _extract_inline_payload(message_payload: _PayloadDict) -> _PayloadValue:
+    reply_markup = message_payload["reply_markup"]
+    assert isinstance(reply_markup, dict)
+    return reply_markup.get("inline")
 
 
 def _assert_handler_renders_html(
     *,
     monkeypatch: pytest.MonkeyPatch,
-    compiler: object,
-    handler: object,
+    compiler: _CompilerLike,
+    handler: _RawHandlerInput,
     message: Message,
     bot: TeleBot,
-    messages: list[dict[str, object]],
+    messages: list[_PayloadDict],
     expected_text: str,
 ) -> None:
-    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: expected_text)
+    monkeypatch.setattr(
+        compiler,
+        "quick_render",
+        lambda template_name, **_kwargs: expected_text,
+    )
     _invoke_handler(handler, message, bot)
     assert messages[-1]["text"] == expected_text
     assert messages[-1]["parse_mode"] == "HTML"
@@ -101,16 +126,16 @@ def _assert_handler_renders_html(
 def _assert_memory_or_process_handler_paths(
     *,
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    compiler: object,
-    handler: object,
+    module: ModuleType,
+    compiler: _CompilerLike,
+    handler: _RawHandlerInput,
     adapter_method: str,
-    success_payload: object,
+    success_payload: _PayloadValue,
     success_text: str,
     expected_error_code: str,
     message: Message,
     bot: TeleBot,
-    messages: list[dict[str, object]],
+    messages: list[_PayloadDict],
 ) -> None:
     monkeypatch.setattr(
         module,
@@ -127,13 +152,19 @@ def _assert_memory_or_process_handler_paths(
         "keyboards",
         type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
     )
-    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: success_text)
+    monkeypatch.setattr(
+        compiler,
+        "quick_render",
+        lambda template_name, **_kwargs: success_text,
+    )
     _invoke_handler(handler, message, bot)
     assert messages[-1]["text"] == success_text
     assert messages[-1]["parse_mode"] == "HTML"
-    reply_markup = messages[-1]["reply_markup"]
-    assert isinstance(reply_markup, dict)
-    assert str(reply_markup["inline"]["callback_data"]).endswith(":777")
+    inline_payload = _extract_inline_payload(messages[-1])
+    assert isinstance(inline_payload, dict)
+    callback_data = inline_payload.get("callback_data")
+    assert isinstance(callback_data, str)
+    assert callback_data.endswith(":777")
 
     monkeypatch.setattr(
         module,
@@ -164,25 +195,29 @@ def _assert_memory_or_process_handler_paths(
 def _assert_simple_handler_paths(
     *,
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    compiler: object,
-    handler: object,
+    module: ModuleType,
+    compiler: _CompilerLike,
+    handler: _RawHandlerInput,
     adapter_method: str,
-    success_payload: object,
+    success_payload: _PayloadValue,
     success_text: str,
     parse_mode: str,
     none_text_contains: str,
     expected_error_code: str,
     message: Message,
     bot: TeleBot,
-    messages: list[dict[str, object]],
+    messages: list[_PayloadDict],
 ) -> None:
     monkeypatch.setattr(
         module,
         "psutil_adapter",
         type("A", (), {adapter_method: lambda self: success_payload})(),
     )
-    monkeypatch.setattr(compiler, "quick_render", lambda **_kwargs: success_text)
+    monkeypatch.setattr(
+        compiler,
+        "quick_render",
+        lambda template_name, **_kwargs: success_text,
+    )
     _invoke_handler(handler, message, bot)
     assert messages[-1]["text"] == success_text
     assert messages[-1]["parse_mode"] == parse_mode
@@ -223,7 +258,9 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         type("A", (), {"get_uptime": lambda self: "1h"})(),
     )
     monkeypatch.setattr(
-        uptime_module.Compiler, "quick_render", lambda **_kwargs: "uptime ok"
+        Compiler,
+        "quick_render",
+        lambda **_kwargs: "uptime ok",
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
     assert actions[-1] == (10, "typing")
@@ -261,7 +298,7 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         type("A", (), {"get_load_average": lambda self: (0.1, 0.2, 0.3)})(),
     )
     monkeypatch.setattr(
-        load_average_module.Compiler,
+        Compiler,
         "quick_render",
         lambda *_args, **_kwargs: "load ok",
     )
@@ -294,7 +331,7 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     _assert_simple_handler_paths(
         monkeypatch=monkeypatch,
         module=network_module,
-        compiler=network_module.Compiler,
+        compiler=Compiler,
         handler=network_module.handle_network,
         adapter_method="get_net_io_counters",
         success_payload={"rx": "1 MiB"},
@@ -315,7 +352,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     _assert_memory_or_process_handler_paths(
         monkeypatch=monkeypatch,
         module=memory_module,
-        compiler=memory_module.Compiler,
+        compiler=Compiler,
         handler=memory_module.handle_memory,
         adapter_method="get_memory",
         success_payload={"percent": 25.0},
@@ -328,7 +365,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     _assert_memory_or_process_handler_paths(
         monkeypatch=monkeypatch,
         module=process_module,
-        compiler=process_module.Compiler,
+        compiler=Compiler,
         handler=process_module.handle_process,
         adapter_method="get_process_counts",
         success_payload={"running": 3},
@@ -347,7 +384,7 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
     _assert_simple_handler_paths(
         monkeypatch=monkeypatch,
         module=sensors_module,
-        compiler=sensors_module.Compiler,
+        compiler=Compiler,
         handler=sensors_module.handle_sensors,
         adapter_method="get_sensors_temperatures",
         success_payload=[{"name": "cpu", "temp": 55}],
@@ -395,18 +432,20 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _assert_handler_renders_html(
         monkeypatch=monkeypatch,
-        compiler=cpu_module.Compiler,
+        compiler=Compiler,
         handler=cpu_module.handle_cpu,
         message=message,
         bot=bot,
         messages=messages,
         expected_text="cpu ok",
     )
-    reply_markup = messages[-1]["reply_markup"]
-    assert isinstance(reply_markup, dict)
-    inline_buttons = reply_markup["inline"]
+    inline_buttons = _extract_inline_payload(messages[-1])
     assert isinstance(inline_buttons, list)
-    assert str(inline_buttons[0]["callback_data"]).endswith(":777")
+    first_button = inline_buttons[0]
+    assert isinstance(first_button, dict)
+    callback_data = first_button.get("callback_data")
+    assert isinstance(callback_data, str)
+    assert callback_data.endswith(":777")
 
     monkeypatch.setattr(
         cpu_module,
@@ -458,7 +497,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _assert_handler_renders_html(
         monkeypatch=monkeypatch,
-        compiler=health_module.Compiler,
+        compiler=Compiler,
         handler=health_module.handle_system_health,
         message=message,
         bot=bot,
@@ -485,7 +524,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     _assert_simple_handler_paths(
         monkeypatch=monkeypatch,
         module=filesystem_module,
-        compiler=filesystem_module.Compiler,
+        compiler=Compiler,
         handler=filesystem_module.handle_file_system,
         adapter_method="get_disk_usage",
         success_payload={"disk": []},

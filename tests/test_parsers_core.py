@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
 
@@ -34,9 +33,7 @@ def test_resolve_template_subdirectory_for_standard_and_plugin_templates() -> No
 
 def test_hash_context_handles_non_sortable_keys() -> None:
     assert isinstance(parser_module._hash_context({"a": 1}), str)
-    assert (
-        parser_module._hash_context(cast(dict[str, object], {1: "x", "a": "b"})) is None
-    )
+    assert parser_module._hash_context({1: "x", "a": "b"}) is None  # type: ignore[dict-item]
 
 
 def test_load_template_and_render_template_paths() -> None:

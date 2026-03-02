@@ -60,7 +60,7 @@ def handle_qr_code_message(
         auto_delete_delay (int): Delay in seconds before auto-deletion (default: 60)
 
     Returns:
-        Optional[Message]: The message object sent to the user, or None if the QR code generation fails.
+        Message | None: The message object sent to the user, or None if the QR code generation fails.
 
     Security Considerations:
         - QR code messages are auto-deleted to protect sensitive TOTP information

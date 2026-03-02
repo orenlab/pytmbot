@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
-from collections.abc import Coroutine, Iterator
+from collections.abc import Callable, Coroutine, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from types import SimpleNamespace
-from typing import Any, cast
+from types import SimpleNamespace, TracebackType
+from typing import Never, cast
 
 import pytest
 from aiohttp import ClientError, ClientResponseError, ClientSession
@@ -21,13 +22,19 @@ from pytmbot.adapters.docker.updates import (
     DockerImageUpdater,
     EnhancedTagInfo,
     TagAnalyzer,
-    TagInfo,
     TagType,
     UpdaterResponse,
     UpdaterStatus,
     dict_to_tag_info,
     normalize_created_at,
 )
+from pytmbot.models.docker_models import TagInfo
+
+type _DockerHubResult = dict[str, str | None]
+type _DockerHubResults = list[_DockerHubResult]
+type _DockerHubPayload = dict[str, _DockerHubResults]
+type _DockerHubMixedPayload = dict[str, list[str | _DockerHubResult]]
+type _DockerHubAnyPayload = dict[str, _DockerHubResults | list[str | _DockerHubResult]]
 
 
 def test_status_tagtype_and_response_helpers() -> None:
@@ -54,7 +61,7 @@ def test_enhanced_tag_info_comparison_edges() -> None:
         version_info=version.parse("1.1.0"),
     )
     assert base < newer
-    assert (base.__lt__(cast(EnhancedTagInfo, object()))) is NotImplemented
+    assert (base.__lt__(cast(EnhancedTagInfo, 0))) is NotImplemented
 
     left_date = EnhancedTagInfo(
         tag_info=TagInfo(
@@ -143,7 +150,7 @@ def test_normalize_and_dict_conversion_edges(monkeypatch: pytest.MonkeyPatch) ->
     assert normalize_created_at("   ") is None
 
     with pytest.raises(ValueError, match="dictionary"):
-        dict_to_tag_info(cast(dict, "not-dict"))
+        dict_to_tag_info(cast(dict[str, str], "not-dict"))
     with pytest.raises(ValueError, match="Missing required field"):
         dict_to_tag_info({"tag": "latest", "created_at": "2026"})
 
@@ -153,7 +160,7 @@ def test_rate_limiter_and_cache_helpers(monkeypatch: pytest.MonkeyPatch) -> None
 
     limiter = updates_module.RateLimitHandler()
     clock = [1000.0]
-    monkeypatch.setattr(updates_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr("pytmbot.adapters.docker.updates.time.time", lambda: clock[0])
     limiter.handle_rate_limit()
     assert limiter.should_skip_request() is True
     limiter.handle_success()
@@ -206,7 +213,7 @@ def test_updater_initialize_local_images_and_digest_paths(
     image_bad = SimpleNamespace(tags=["bad"], attrs={"Created": "bad"})
 
     @contextmanager
-    def _client_context() -> Iterator[object]:
+    def _client_context() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace(
             images=SimpleNamespace(
                 list=lambda all=False: [image_valid, image_no_tags, image_bad]
@@ -230,7 +237,7 @@ def test_updater_initialize_local_images_and_digest_paths(
         updater._extract_digest(SimpleNamespace(attrs={"RepoDigests": ["bad-format"]}))
         is None
     )
-    bad_digest_image = SimpleNamespace(attrs=cast(dict[str, object], None))
+    bad_digest_image = SimpleNamespace(attrs=cast(dict[str, str], None))
     assert updater._extract_digest(bad_digest_image) is None
 
 
@@ -251,10 +258,12 @@ def test_process_tags_parse_and_bridge_helpers(monkeypatch: pytest.MonkeyPatch) 
     assert updater._parse_tag("docker.io/library/nginx:1.2") == ("library/nginx", "1.2")
 
     # _ensure_sync_bridge early-return path.
-    updater_any: Any = updater
-    updater_any._sync_bridge_thread = SimpleNamespace(is_alive=lambda: True)
-    updater_any._sync_bridge_loop = SimpleNamespace(is_running=lambda: True)
-    updater._ensure_sync_bridge()
+    async def _run_ensure_sync_bridge_early_return() -> None:
+        updater._sync_bridge_thread = threading.current_thread()
+        updater._sync_bridge_loop = asyncio.get_running_loop()
+        updater._ensure_sync_bridge()
+
+    asyncio.run(_run_ensure_sync_bridge_early_return())
 
     # _ensure_sync_bridge start failure path.
     updater._sync_bridge_thread = None
@@ -270,29 +279,28 @@ def test_process_tags_parse_and_bridge_helpers(monkeypatch: pytest.MonkeyPatch) 
 def test_sync_bridge_stop_and_sync_runner_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pytmbot.adapters.docker.updates as updates_module
-
     updater = DockerImageUpdater()
 
     stop_called = {"value": False}
 
-    def _call_soon_threadsafe(callback: Any) -> None:
+    def _call_soon_threadsafe(callback: Callable[[], None]) -> None:
         stop_called["value"] = True
         callback()
 
-    loop = SimpleNamespace(
-        is_running=lambda: True,
-        call_soon_threadsafe=_call_soon_threadsafe,
-        stop=lambda: None,
-    )
+    loop = asyncio.new_event_loop()
+    monkeypatch.setattr(loop, "is_running", lambda: True)
+    monkeypatch.setattr(loop, "call_soon_threadsafe", _call_soon_threadsafe)
+    monkeypatch.setattr(loop, "stop", lambda: None)
     join_called = {"value": False}
-    thread = SimpleNamespace(
-        is_alive=lambda: True,
-        join=lambda timeout: join_called.__setitem__("value", True),
+    thread = threading.Thread(name="docker-updater-test-bridge")
+    monkeypatch.setattr(thread, "is_alive", lambda: True)
+    monkeypatch.setattr(
+        thread,
+        "join",
+        lambda timeout: join_called.__setitem__("value", timeout is not None),
     )
-    updater_any: Any = updater
-    updater_any._sync_bridge_loop = loop
-    updater_any._sync_bridge_thread = thread
+    updater._sync_bridge_loop = loop
+    updater._sync_bridge_thread = thread
     updater._stop_sync_bridge()
     assert join_called["value"] is True
 
@@ -301,10 +309,10 @@ def test_sync_bridge_stop_and_sync_runner_paths(
     with pytest.raises(RuntimeError, match="unavailable"):
         updater._run_check_updates_sync()
 
-    updater_any._sync_bridge_loop = SimpleNamespace()
+    updater._sync_bridge_loop = asyncio.new_event_loop()
 
     def _fake_run_coroutine_threadsafe(
-        coro: Coroutine[Any, Any, UpdaterResponse],
+        coro: Coroutine[None, None, UpdaterResponse],
         _loop: asyncio.AbstractEventLoop,
     ) -> SimpleNamespace:
         coro.close()
@@ -313,11 +321,12 @@ def test_sync_bridge_stop_and_sync_runner_paths(
         )
 
     monkeypatch.setattr(
-        updates_module.asyncio,
-        "run_coroutine_threadsafe",
+        "pytmbot.adapters.docker.updates.asyncio.run_coroutine_threadsafe",
         _fake_run_coroutine_threadsafe,
     )
     assert updater._run_check_updates_sync().status == UpdaterStatus.SUCCESS
+    if updater._sync_bridge_loop is not None:
+        updater._sync_bridge_loop.close()
 
 
 def test_normalize_created_at_supports_timestamp_and_iso() -> None:
@@ -334,7 +343,7 @@ def test_dict_to_tag_info_validation() -> None:
     )
     assert info.name == "latest"
     with pytest.raises(ValueError):
-        dict_to_tag_info({"tag": "latest"})  # type: ignore[arg-type]
+        dict_to_tag_info(cast(dict[str, str], {"tag": "latest"}))
 
 
 def test_tag_analyzer_classifies_core_formats() -> None:
@@ -455,7 +464,7 @@ def test_find_compatible_updates_respects_digest_and_semver_major() -> None:
 def test_updater_to_json_and_cache_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     updater = DockerImageUpdater()
 
-    async def _failing_check_updates() -> object:
+    async def _failing_check_updates() -> UpdaterResponse:
         raise RuntimeError("failed")
 
     monkeypatch.setattr(
@@ -465,10 +474,14 @@ def test_updater_to_json_and_cache_stats(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     payload = updater.to_dict()
     assert payload["status"] == "ERROR"
-    assert "failed" in payload["message"]
+    message = payload.get("message")
+    assert isinstance(message, str)
+    assert "failed" in message
     assert "performance" in updater.get_stats()
     updater.clear_cache()
-    assert updater.get_stats()["cache"]["size"] == 0
+    cache_stats = updater.get_stats().get("cache")
+    assert isinstance(cache_stats, dict)
+    assert cache_stats.get("size") == 0
 
 
 def test_validate_configuration_reports_known_issues() -> None:
@@ -500,8 +513,8 @@ def test_fetch_tags_from_url_parses_entries(monkeypatch: pytest.MonkeyPatch) -> 
     updater = DockerImageUpdater()
 
     class _FakeResponse:
-        def __init__(self, payload: dict[str, Any]) -> None:
-            self._payload = payload
+        def __init__(self, payload: Mapping[str, _DockerHubResults]) -> None:
+            self._payload = dict(payload)
 
         async def __aenter__(self) -> _FakeResponse:
             return self
@@ -510,17 +523,17 @@ def test_fetch_tags_from_url_parses_entries(monkeypatch: pytest.MonkeyPatch) -> 
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
         def raise_for_status(self) -> None:
             return None
 
-        async def json(self) -> dict[str, Any]:
+        async def json(self) -> _DockerHubPayload:
             return self._payload
 
-    results: list[dict[str, Any]] = [
+    results: _DockerHubResults = [
         {
             "name": "v1.2.0",
             "tag_last_pushed": "2026-02-01T00:00:00Z",
@@ -533,10 +546,10 @@ def test_fetch_tags_from_url_parses_entries(monkeypatch: pytest.MonkeyPatch) -> 
         },
         {"name": "", "tag_last_pushed": "bad", "digest": None},
     ]
-    payload = {"results": results}
+    payload: _DockerHubPayload = {"results": results}
     calls = {"count": 0}
 
-    def _fake_get(self: object, _url: str, timeout: object) -> _FakeResponse:
+    def _fake_get(self: ClientSession, _url: str, timeout: float) -> _FakeResponse:
         del self
         assert timeout is not None
         calls["count"] += 1
@@ -569,7 +582,7 @@ def test_fetch_tags_from_url_limits_large_payload(
     updater = DockerImageUpdater()
 
     class _FakeResponse:
-        def __init__(self, payload: dict[str, Any]) -> None:
+        def __init__(self, payload: _DockerHubPayload) -> None:
             self._payload = payload
 
         async def __aenter__(self) -> _FakeResponse:
@@ -579,17 +592,17 @@ def test_fetch_tags_from_url_limits_large_payload(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
         def raise_for_status(self) -> None:
             return None
 
-        async def json(self) -> dict[str, Any]:
+        async def json(self) -> _DockerHubPayload:
             return self._payload
 
-    results = [
+    results: _DockerHubResults = [
         {
             "name": f"v1.0.{idx}",
             "tag_last_pushed": "2026-02-01T00:00:00Z",
@@ -598,7 +611,9 @@ def test_fetch_tags_from_url_limits_large_payload(
         for idx in range(MAX_TAGS_PER_REPO + 5)
     ]
 
-    def _fake_get_success(self: object, _url: str, timeout: object) -> _FakeResponse:
+    def _fake_get_success(
+        self: ClientSession, _url: str, timeout: float
+    ) -> _FakeResponse:
         del self
         assert timeout is not None
         return _FakeResponse({"results": results})
@@ -633,17 +648,19 @@ def test_fetch_tags_from_url_limits_large_payload(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
         def raise_for_status(self) -> None:
             raise _make_client_response_error(500, "server error")
 
-        async def json(self) -> dict[str, Any]:
+        async def json(self) -> dict[str, str]:
             return {}
 
-    def _fake_get_failing(self: object, _url: str, timeout: object) -> _FailingResponse:
+    def _fake_get_failing(
+        self: ClientSession, _url: str, timeout: float
+    ) -> _FailingResponse:
         del self
         assert timeout is not None
         return _FailingResponse()
@@ -683,7 +700,7 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
     updater.tag_cache.clear()
 
     async def _always_404(
-        _session: object, _url: str, _repo: str
+        _session: ClientSession, _url: str, _repo: str
     ) -> list[EnhancedTagInfo] | None:
         raise _make_client_response_error(404, "not found")
 
@@ -703,7 +720,7 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
     import pytmbot.adapters.docker.updates as updates_module
 
     class _NoopClientSession:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **_kwargs: str | float | bool | int) -> None:
             return
 
         async def __aenter__(self) -> _NoopClientSession:
@@ -713,12 +730,13 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
     monkeypatch.setattr(
-        updates_module.aiohttp, "TCPConnector", lambda **_kwargs: object()
+        "pytmbot.adapters.docker.updates.aiohttp.TCPConnector",
+        lambda **_kwargs: SimpleNamespace(),
     )
     monkeypatch.setattr(updates_module, "ClientSession", _NoopClientSession)
 
@@ -734,7 +752,9 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
         TagInfo(name="v1.1.0", created_at="2026-02-01T00:00:00Z", digest="sha256:new")
     )
 
-    async def _fetch_success(_session: object, _repo: str) -> list[EnhancedTagInfo]:
+    async def _fetch_success(
+        _session: ClientSession, _repo: str
+    ) -> list[EnhancedTagInfo]:
         return [remote_tag]
 
     monkeypatch.setattr(updater, "_fetch_remote_tags", _fetch_success)
@@ -748,7 +768,7 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
     updater.local_images = {"repo/rate": [local_tag]}
 
     async def _fetch_rate_limited(
-        _session: object, _repo: str
+        _session: ClientSession, _repo: str
     ) -> list[EnhancedTagInfo]:
         raise _make_client_response_error(429, "rate limited")
 
@@ -759,7 +779,7 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
 
     updater.local_images = {"repo/ok": [local_tag], "repo/fail": [local_tag]}
 
-    async def _fetch_mixed(_session: object, repo: str) -> list[EnhancedTagInfo]:
+    async def _fetch_mixed(_session: ClientSession, repo: str) -> list[EnhancedTagInfo]:
         if repo == "repo/ok":
             return [remote_tag]
         raise RuntimeError("boom")
@@ -832,14 +852,14 @@ def test_updater_init_get_local_images_and_process_tags_error_paths(
 
     # _get_local_images outer failure path.
     class _FailingContext:
-        def __enter__(self) -> object:
+        def __enter__(self) -> Never:
             raise RuntimeError("docker client down")
 
         def __exit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -886,7 +906,7 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
     )
 
     async def _fetch_success(
-        _session: object, _url: str, _repo: str
+        _session: ClientSession, _url: str, _repo: str
     ) -> list[EnhancedTagInfo] | None:
         return [analyzed]
 
@@ -898,7 +918,7 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
 
     # 429 path and generic warning branch.
     async def _fetch_rate_limit(
-        _session: object, _url: str, _repo: str
+        _session: ClientSession, _url: str, _repo: str
     ) -> list[EnhancedTagInfo] | None:
         raise _make_client_response_error(429, "rate limited")
 
@@ -915,7 +935,7 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
     )
 
     async def _fetch_errors(
-        _session: object, _url: str, _repo: str
+        _session: ClientSession, _url: str, _repo: str
     ) -> list[EnhancedTagInfo] | None:
         error = next(errors)
         raise error
@@ -928,8 +948,11 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
     updater = DockerImageUpdater()
 
     class _Response:
-        def __init__(self, payload: dict[str, Any]) -> None:
-            self._payload = payload
+        def __init__(
+            self,
+            payload: Mapping[str, _DockerHubResults | list[str | _DockerHubResult]],
+        ) -> None:
+            self._payload = dict(payload)
 
         async def __aenter__(self) -> _Response:
             return self
@@ -938,17 +961,17 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
         def raise_for_status(self) -> None:
             return None
 
-        async def json(self) -> dict[str, Any]:
+        async def json(self) -> _DockerHubAnyPayload:
             return self._payload
 
-    def _get_empty(self: object, _url: str, timeout: object) -> _Response:
+    def _get_empty(self: ClientSession, _url: str, timeout: float) -> _Response:
         del self, timeout
         return _Response({"results": []})
 
@@ -964,7 +987,7 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
 
     assert asyncio.run(_run_empty()) == []
 
-    payload = {
+    payload: _DockerHubMixedPayload = {
         "results": [
             "not-a-dict",
             {
@@ -975,7 +998,7 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
         ]
     }
 
-    def _get_payload(self: object, _url: str, timeout: object) -> _Response:
+    def _get_payload(self: ClientSession, _url: str, timeout: float) -> _Response:
         del self, timeout
         return _Response(payload)
 
@@ -998,14 +1021,14 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
         def raise_for_status(self) -> None:
             raise _make_client_response_error(403, "forbidden")
 
-        async def json(self) -> dict[str, Any]:
+        async def json(self) -> dict[str, str]:
             return {}
 
     monkeypatch.setattr(
@@ -1098,7 +1121,7 @@ def test_compare_find_and_check_updates_edge_paths(
     }
 
     class _NoopClientSession:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **_kwargs: str | float | bool | int) -> None:
             return
 
         async def __aenter__(self) -> _NoopClientSession:
@@ -1108,12 +1131,13 @@ def test_compare_find_and_check_updates_edge_paths(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
     monkeypatch.setattr(
-        updates_module.aiohttp, "TCPConnector", lambda **_kwargs: object()
+        "pytmbot.adapters.docker.updates.aiohttp.TCPConnector",
+        lambda **_kwargs: SimpleNamespace(),
     )
     monkeypatch.setattr(updates_module, "ClientSession", _NoopClientSession)
     monkeypatch.setattr(
@@ -1131,29 +1155,31 @@ def test_compare_find_and_check_updates_edge_paths(
         "repo/fail": [{"tag": "latest", "created_at": "", "digest": None}]
     }
 
-    async def _gather_fail(*_args: object, **_kwargs: object) -> list[object]:
+    async def _gather_fail(
+        *_args: Coroutine[None, None, UpdaterResponse], **_kwargs: bool
+    ) -> list[UpdaterResponse]:
         for arg in _args:
             if asyncio.iscoroutine(arg):
                 arg.close()
         raise RuntimeError("gather failed")
 
-    monkeypatch.setattr(updates_module.asyncio, "gather", _gather_fail)
+    monkeypatch.setattr("pytmbot.adapters.docker.updates.asyncio.gather", _gather_fail)
     gather_failed = asyncio.run(updater._check_updates())
     assert gather_failed.status == UpdaterStatus.ERROR
 
     # outer exception branch.
     class _FailingSession:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **_kwargs: str | float | bool | int) -> None:
             return
 
-        async def __aenter__(self) -> object:
+        async def __aenter__(self) -> Never:
             raise RuntimeError("session failure")
 
         async def __aexit__(
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object,
+            _tb: TracebackType | None,
         ) -> None:
             return None
 
@@ -1182,4 +1208,8 @@ def test_to_dict_json_and_validation_extra_paths(
     updater._stats["api_calls"] = 10
     updater._stats["rate_limits"] = 2
     validation = updater.validate_configuration()
-    assert any("Timeout too low" in issue for issue in validation["issues"])
+    issues = validation.get("issues")
+    assert isinstance(issues, list)
+    assert any(
+        isinstance(issue, str) and "Timeout too low" in issue for issue in issues
+    )

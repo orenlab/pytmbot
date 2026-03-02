@@ -6,12 +6,14 @@ also providing basic information about the status of local servers.
 """
 
 import json
-from typing import Any, Literal
+from datetime import date, datetime
+from typing import Literal
 
 from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.parsers._types import TemplateContext, TemplateValue
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
 from pytmbot.plugins.outline.methods import PluginMethods
@@ -50,7 +52,7 @@ class OutlinePlugin(PluginInterface):
         return "User"
 
     @staticmethod
-    def _pick_value(data: dict[str, Any], *keys: str) -> Any:
+    def _pick_value(data: dict[str, object], *keys: str) -> object | None:
         """Pick first non-None value by key variants."""
         for key in keys:
             value = data.get(key)
@@ -58,7 +60,9 @@ class OutlinePlugin(PluginInterface):
                 return value
         return None
 
-    def _normalize_server_context(self, server_info: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_server_context(
+        self, server_info: dict[str, object]
+    ) -> dict[str, object]:
         """Normalize server payload from different pyoutlineapi response schemas."""
         return {
             "name": self._pick_value(server_info, "name"),
@@ -77,7 +81,9 @@ class OutlinePlugin(PluginInterface):
             ),
         }
 
-    def _extract_transferred_bytes(self, traffic: dict[str, Any]) -> dict[str, Any]:
+    def _extract_transferred_bytes(
+        self, traffic: dict[str, object]
+    ) -> dict[str, object]:
         """Normalize transfer metrics key naming across client versions."""
         raw_transferred = self._pick_value(
             traffic,
@@ -97,14 +103,10 @@ class OutlinePlugin(PluginInterface):
 
         :param message: The incoming Message object from Telegram.
         """
-        emojis: dict = {
-            "thought_balloon": em.get_emoji("thought_balloon"),
-        }
-
         response = self._compile_template(
             template_name="plugin_outline_index.jinja2",
             first_name=self._get_first_name(message),
-            **emojis,
+            thought_balloon=em.get_emoji("thought_balloon"),
         )
         keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
         self.bot.send_message(
@@ -120,14 +122,6 @@ class OutlinePlugin(PluginInterface):
         """
         self.bot.send_chat_action(message.chat.id, "typing")
 
-        emojis: dict = {
-            "thought_balloon": em.get_emoji("thought_balloon"),
-            "label": em.get_emoji("label"),
-            "bar_chart": em.get_emoji("bar_chart"),
-            "alarm_clock": em.get_emoji("alarm_clock"),
-            "key": em.get_emoji("key"),
-        }
-
         server_info = self._get_action_data(action="server_information")
         if server_info is None:
             return self.bot.send_message(
@@ -141,7 +135,11 @@ class OutlinePlugin(PluginInterface):
             template_name="plugin_outline_server_info.jinja2",
             first_name=self._get_first_name(message),
             context=server_context,
-            **emojis,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            label=em.get_emoji("label"),
+            bar_chart=em.get_emoji("bar_chart"),
+            alarm_clock=em.get_emoji("alarm_clock"),
+            key=em.get_emoji("key"),
         )
         return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
@@ -153,11 +151,6 @@ class OutlinePlugin(PluginInterface):
         :param message: The incoming Message object from Telegram.
         """
         self.bot.send_chat_action(message.chat.id, "typing")
-
-        emojis: dict = {
-            "thought_balloon": em.get_emoji("thought_balloon"),
-            "minus": em.get_emoji("minus"),
-        }
 
         keys = self._get_action_data(action="key_information")
         if keys is None:
@@ -171,7 +164,8 @@ class OutlinePlugin(PluginInterface):
             template_name="plugin_outline_keys.jinja2",
             first_name=self._get_first_name(message),
             context=keys,
-            **emojis,
+            thought_balloon=em.get_emoji("thought_balloon"),
+            minus=em.get_emoji("minus"),
         )
         return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
 
@@ -183,11 +177,6 @@ class OutlinePlugin(PluginInterface):
         :param message: The incoming Message object from Telegram.
         """
         self.bot.send_chat_action(message.chat.id, "typing")
-
-        emojis: dict = {
-            "thought_balloon": em.get_emoji("thought_balloon"),
-            "minus": em.get_emoji("minus"),
-        }
 
         traffic = self._get_action_data(action="traffic_information")
         if traffic is None:
@@ -215,7 +204,8 @@ class OutlinePlugin(PluginInterface):
                     "bytesTransferredByUserId": bytes_transferred,
                     "userNames": user_names,
                 },
-                **emojis,
+                thought_balloon=em.get_emoji("thought_balloon"),
+                minus=em.get_emoji("minus"),
             )
             return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
         except Exception:
@@ -231,7 +221,7 @@ class OutlinePlugin(PluginInterface):
     def _get_action_data(
         self,
         action: Literal["key_information", "server_information", "traffic_information"],
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         """
         Retrieves action data from the plugin methods and processes it.
 
@@ -247,7 +237,7 @@ class OutlinePlugin(PluginInterface):
                 if isinstance(parsed_data, dict):
                     return {str(key): value for key, value in parsed_data.items()}
                 if isinstance(parsed_data, list):
-                    parsed_items: list[dict[str, Any]] = []
+                    parsed_items: list[dict[str, object]] = []
                     for item in parsed_data:
                         if isinstance(item, dict):
                             parsed_items.append(
@@ -266,7 +256,7 @@ class OutlinePlugin(PluginInterface):
             if isinstance(dumped_data, dict):
                 return {str(key): value for key, value in dumped_data.items()}
             if isinstance(dumped_data, list):
-                dumped_items: list[dict[str, Any]] = []
+                dumped_items: list[dict[str, object]] = []
                 for item in dumped_data:
                     if isinstance(item, dict):
                         dumped_items.append(
@@ -274,7 +264,7 @@ class OutlinePlugin(PluginInterface):
                         )
                 return {"accessKeys": dumped_items}
         elif isinstance(data, list):
-            list_items: list[dict[str, Any]] = []
+            list_items: list[dict[str, object]] = []
             for item in data:
                 if isinstance(item, dict):
                     list_items.append({str(key): value for key, value in item.items()})
@@ -301,7 +291,11 @@ class OutlinePlugin(PluginInterface):
         user_info = self._get_action_data(action="key_information")
         if user_info:
             users: dict[str, str] = {}
-            for key in user_info.get("accessKeys", []):
+            access_keys_raw = user_info.get("accessKeys")
+            if not isinstance(access_keys_raw, list):
+                return users
+
+            for key in access_keys_raw:
                 if not isinstance(key, dict):
                     continue
                 key_id = self._pick_value(key, "id", "key_id")
@@ -316,24 +310,41 @@ class OutlinePlugin(PluginInterface):
         self,
         template_name: str,
         first_name: str,
-        context: dict[str, Any] | None = None,
-        **kwargs: Any,
+        context: dict[str, object] | None = None,
+        **kwargs: object,
     ) -> str:
         """
         Compiles the template with the provided context and first name.
 
         :param template_name: The name of the Jinja2 template file.
         :param first_name: The first name of the user to personalize the response.
-        :param context: Optional context dictionary to pass to the template.
+        :param context: Context dictionary to pass to the template (dict[str, object] | None).
         :param kwargs: Additional keyword arguments to pass to the template.
         :return: The compiled template response as a string.
         """
+        normalized_context: TemplateContext = {}
+        if context:
+            normalized_context = {
+                str(key): self._normalize_template_value(value)
+                for key, value in context.items()
+            }
+
+        template_context: TemplateContext = {
+            "first_name": first_name,
+            "set_naturalsize": set_naturalsize,
+            "context": normalized_context,
+        }
+        template_context.update(
+            {
+                str(key): self._normalize_template_value(value)
+                for key, value in kwargs.items()
+            }
+        )
+
         with Compiler(
             template_name=template_name,
-            first_name=first_name,
-            set_naturalsize=set_naturalsize,
-            context=context or {},
-            **kwargs,
+            trusted=True,
+            **template_context,
         ) as compiler:
             response = compiler.compile()
 
@@ -341,6 +352,38 @@ class OutlinePlugin(PluginInterface):
             self.plugin_logger.error("bot.plugins.outline.plugin.compiler.did.fail")
             raise ValueError("Compiler did not return a valid response.")
         return response
+
+    @classmethod
+    def _normalize_template_value(cls, value: object) -> TemplateValue:
+        """Normalize dynamic plugin payload values to template-safe typed values."""
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+
+        if isinstance(value, (date, datetime)):
+            return value
+
+        if isinstance(value, dict):
+            return {
+                str(dict_key): cls._normalize_template_value(dict_value)
+                for dict_key, dict_value in value.items()
+            }
+
+        if isinstance(value, list):
+            return [cls._normalize_template_value(item) for item in value]
+
+        if isinstance(value, tuple):
+            return tuple(cls._normalize_template_value(item) for item in value)
+
+        if isinstance(value, set):
+            return {cls._normalize_template_value(item) for item in value}
+
+        if isinstance(value, frozenset):
+            return frozenset(cls._normalize_template_value(item) for item in value)
+
+        return str(value)
 
     def register(self) -> None:
         """

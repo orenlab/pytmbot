@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
 from pytmbot.logs import DataMasker, Logger, SecureLoggerFilter
 
+type _LogScalar = str | int | float | bool | None
+type _LogValue = _LogScalar | dict[str, "_LogValue"] | list["_LogValue"]
+type _LogDict = dict[str, _LogValue]
+
 
 @dataclass
 class _FakeRecord:
     message: str
-    extra: dict[str, Any]
+    extra: _LogDict
     module: str = "main"
     name: str = "pytmbot.main"
 
@@ -67,15 +70,19 @@ def test_secure_logger_filter_normalizes_and_orders_extra() -> None:
 
 def test_secure_logger_filter_call_sanitizes_record() -> None:
     filter_instance = SecureLoggerFilter(DataMasker())
-    record: dict[str, Any] = {
+    record: _LogDict = {
         "message": "token 12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "extra": {"update_type": "message", "execution_time": "1.2s"},
         "module": "main",
         "name": "pytmbot.main",
     }
     assert filter_instance(record) is True
-    assert "12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" not in record["message"]
-    assert record["extra"]["ms"] == 1200.0
+    message = record.get("message")
+    assert isinstance(message, str)
+    assert "12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" not in message
+    extra = record.get("extra")
+    assert isinstance(extra, dict)
+    assert extra["ms"] == 1200.0
 
 
 def test_logger_handler_helpers() -> None:

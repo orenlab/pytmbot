@@ -16,9 +16,9 @@ from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
-from typing import Any, Final
+from typing import Final
 
-from cachetools import TTLCache  # type: ignore[import-untyped]
+from cachetools import TTLCache
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from jinja2.sandbox import SandboxedEnvironment
@@ -26,6 +26,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import var_config
+from pytmbot.parsers._types import ParserStats, TemplateContext, TemplateValue
 
 # Private constants
 _TEMPLATE_SUBDIRECTORIES: Final[dict[str, str]] = {
@@ -185,12 +186,12 @@ def _load_template(template_name: str) -> Template:
         ) from e
 
 
-def _hash_context(context: dict[str, Any]) -> str | None:
+def _hash_context(context: TemplateContext) -> str | None:
     """Create hash of context for result caching."""
     if any(not isinstance(key, str) for key in context):
         return None
 
-    def _contains_dynamic_values(value: Any) -> bool:
+    def _contains_dynamic_values(value: TemplateValue) -> bool:
         if isinstance(value, (datetime, date)):
             return True
         if isinstance(value, float):
@@ -208,7 +209,7 @@ def _hash_context(context: dict[str, Any]) -> str | None:
     if any(_contains_dynamic_values(value) for value in context.values()):
         return None
 
-    def _normalize_for_hash(value: Any) -> Any:
+    def _normalize_for_hash(value: TemplateValue) -> TemplateValue:
         if isinstance(value, dict):
             return {
                 str(dict_key): _normalize_for_hash(dict_value)
@@ -246,13 +247,13 @@ def _hash_context(context: dict[str, Any]) -> str | None:
         return None
 
 
-def _render_template_hot(template_name: str, context: dict[str, Any]) -> str:
+def _render_template_hot(template_name: str, context: TemplateContext) -> str:
     """Fast path for hot templates."""
     template = _load_template(template_name)
     return template.render(**context)
 
 
-def _render_template_cached(template_name: str, context: dict[str, Any]) -> str:
+def _render_template_cached(template_name: str, context: TemplateContext) -> str:
     """Cached rendering for stable contexts."""
     context_hash = _hash_context(context)
 
@@ -276,7 +277,7 @@ def _render_template_cached(template_name: str, context: dict[str, Any]) -> str:
 def _render_template(
     template_name: str,
     trusted: bool = False,
-    **kwargs: Any,
+    **kwargs: TemplateValue,
 ) -> str:
     """Core template rendering with integrated validation."""
 
@@ -338,8 +339,9 @@ def _precompile_templates() -> None:
             pass
 
 
-def _get_cache_stats() -> dict[str, Any]:
+def _get_cache_stats() -> ParserStats:
     """Get comprehensive cache and validation statistics."""
+    cache_info = _resolve_template_subdirectory.cache_info()
     with _cache_lock:
         stats = {
             "template_cache_size": len(_template_cache),
@@ -350,7 +352,12 @@ def _get_cache_stats() -> dict[str, Any]:
             if hasattr(_template_cache, "misses")
             else 0,
             "result_cache_size": len(_result_cache),
-            "subdirectory_cache_info": _resolve_template_subdirectory.cache_info(),
+            "subdirectory_cache_info": {
+                "hits": cache_info.hits,
+                "misses": cache_info.misses,
+                "maxsize": cache_info.maxsize,
+                "currsize": cache_info.currsize,
+            },
             "environment_initialized": _environment is not None,
         }
 

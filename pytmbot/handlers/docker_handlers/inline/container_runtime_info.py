@@ -27,6 +27,7 @@ from pytmbot.handlers.server_handlers.inline.common import edit_callback_message
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils import as_object_dict, to_int
 
 logger = Logger()
 button_data = ButtonDataType
@@ -96,15 +97,19 @@ def _safe_text(value: object, default: str = "N/A") -> str:
 
 
 def _safe_bool(value: object) -> str:
-    if value is True:
+    if value:
         return "yes"
-    if value is False:
+    if not value:
         return "no"
     return "N/A"
 
 
+def _safe_int(value: object, default: int = 0) -> int:
+    return to_int(value, default)
+
+
 def _dict_of_objects(value: object) -> dict[str, object]:
-    return value if isinstance(value, dict) else {}
+    return as_object_dict(value)
 
 
 def _limited_strings(
@@ -357,7 +362,9 @@ def _extract_runtime_context(attrs: dict[str, object]) -> dict[str, object]:
         "finished_at": _safe_text(raw_runtime.get("finished_at")),
         "health_status": _safe_text(raw_runtime.get("health_status")),
         "health_badge": _safe_text(raw_runtime.get("health_badge")),
-        "health_failing_streak": int(raw_runtime.get("health_failing_streak", 0) or 0),
+        "health_failing_streak": _safe_int(
+            raw_runtime.get("health_failing_streak", 0), 0
+        ),
         "health_last_checked_at": _safe_text(raw_runtime.get("health_last_checked_at")),
         "health_last_log": _safe_text(raw_runtime.get("health_last_log")),
         "pid": _safe_text(raw_runtime.get("pid"), default="-"),

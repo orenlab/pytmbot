@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .cli import parse_cli_args
+    from .conversion import as_object_dict, to_float, to_float_strict, to_int
     from .data_processing import (
         find_in_args,
         find_in_kwargs,
@@ -49,6 +50,15 @@ def __getattr__(name: str) -> object:
         from .cli import parse_cli_args
 
         return parse_cli_args
+
+    if name in {
+        "as_object_dict",
+        "to_float",
+        "to_float_strict",
+        "to_int",
+    }:
+        module = importlib.import_module(".conversion", __name__)
+        return getattr(module, name)
 
     if name in {
         "round_up_tuple",
@@ -107,6 +117,10 @@ def __getattr__(name: str) -> object:
 
 __all__ = [
     "parse_cli_args",
+    "as_object_dict",
+    "to_float",
+    "to_float_strict",
+    "to_int",
     "round_up_tuple",
     "find_in_args",
     "find_in_kwargs",

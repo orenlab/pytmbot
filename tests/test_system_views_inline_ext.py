@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import cast
+from typing import Never, cast
 
 import pytest
 from telebot import TeleBot
@@ -11,6 +11,24 @@ from telebot.types import CallbackQuery
 
 import pytmbot.handlers.server_handlers.inline.system_views as system_views_module
 from pytmbot import exceptions
+from pytmbot.handlers.server_handlers.cpu import CPU_INFO_PREFIX, CPU_PER_CORE_PREFIX
+from pytmbot.handlers.server_handlers.filesystem import DISK_IO_PREFIX
+from pytmbot.handlers.server_handlers.network import (
+    NETWORK_CONNECTIONS_PREFIX,
+    NETWORK_OVERVIEW_PREFIX,
+)
+from pytmbot.handlers.server_handlers.sensors import FAN_SPEEDS_PREFIX
+from pytmbot.parsers.compiler import Compiler
+
+type _PayloadValue = (
+    str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
+)
+type _PayloadDict = dict[str, _PayloadValue]
+type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
+type _RawHandlerInput = (
+    Callable[..., None] | Callable[[Callable[..., None]], Callable[..., None]]
+)
+type _HandlerCase = tuple[_RawHandlerInput, str, str]
 
 
 @dataclass
@@ -39,30 +57,32 @@ class _Call:
 
 @dataclass
 class _Bot:
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
-    edited_messages: list[dict[str, object]] = field(default_factory=list)
+    callback_answers: list[_PayloadDict] = field(default_factory=list)
+    edited_messages: list[_PayloadDict] = field(default_factory=list)
 
-    def answer_callback_query(self, callback_query_id: str, **kwargs: object) -> bool:
-        payload: dict[str, object] = {
+    def answer_callback_query(
+        self, callback_query_id: str, **kwargs: _PayloadValue
+    ) -> bool:
+        payload: _PayloadDict = {
             "callback_query_id": callback_query_id,
             **kwargs,
         }
         self.callback_answers.append(payload)
         return True
 
-    def edit_message_text(self, **kwargs: object) -> str:
+    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
         self.edited_messages.append(kwargs)
         return "edited"
 
 
-def _raw_handler(handler: object) -> Callable[[CallbackQuery, TeleBot], None]:
+def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     wrapped = handler
     for _ in range(3):
         wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(Callable[[CallbackQuery, TeleBot], None], wrapped)
+    return cast(_CallbackHandler, wrapped)
 
 
-def _raise_runtime_error(message: str = "boom") -> object:
+def _raise_runtime_error(message: str = "boom") -> Never:
     raise RuntimeError(message)
 
 
@@ -155,13 +175,13 @@ def _patch_common_success(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(system_views_module, "set_naturaltime", lambda dt: "now")
     monkeypatch.setattr(
-        system_views_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: f"{kwargs['template_name']}-ok",
     )
 
 
-_HANDLER_CASES: tuple[tuple[object, str, str], ...] = (
+_HANDLER_CASES: tuple[_HandlerCase, ...] = (
     (system_views_module.handle_cpu_info, "HAND_CPU_002", "HTML"),
     (system_views_module.handle_cpu_per_core, "HAND_CPU_003", "HTML"),
     (system_views_module.handle_cpu_times, "HAND_CPU_004", "HTML"),
@@ -184,12 +204,12 @@ _HANDLER_CASES: tuple[tuple[object, str, str], ...] = (
 @pytest.mark.parametrize(("handler_obj", "_error_code", "parse_mode"), _HANDLER_CASES)
 def test_system_views_handlers_route_via_shared_edit(
     monkeypatch: pytest.MonkeyPatch,
-    handler_obj: object,
+    handler_obj: _RawHandlerInput,
     _error_code: str,
     parse_mode: str,
 ) -> None:
     _patch_common_success(monkeypatch)
-    edit_calls: list[dict[str, object]] = []
+    edit_calls: list[_PayloadDict] = []
     monkeypatch.setattr(
         system_views_module,
         "_edit_message",
@@ -206,7 +226,7 @@ def test_system_views_handlers_route_via_shared_edit(
 @pytest.mark.parametrize(("handler_obj", "_error_code", "_parse_mode"), _HANDLER_CASES)
 def test_system_views_handlers_return_without_edit_when_not_allowed(
     monkeypatch: pytest.MonkeyPatch,
-    handler_obj: object,
+    handler_obj: _RawHandlerInput,
     _error_code: str,
     _parse_mode: str,
 ) -> None:
@@ -216,7 +236,7 @@ def test_system_views_handlers_return_without_edit_when_not_allowed(
         "_resolve_target_user_id",
         lambda call, bot, **kwargs: (False, None),
     )
-    edit_calls: list[dict[str, object]] = []
+    edit_calls: list[_PayloadDict] = []
     monkeypatch.setattr(
         system_views_module,
         "_edit_message",
@@ -231,12 +251,12 @@ def test_system_views_handlers_return_without_edit_when_not_allowed(
 @pytest.mark.parametrize(("handler_obj", "_error_code", "_parse_mode"), _HANDLER_CASES)
 def test_system_views_handlers_return_without_edit_when_message_missing(
     monkeypatch: pytest.MonkeyPatch,
-    handler_obj: object,
+    handler_obj: _RawHandlerInput,
     _error_code: str,
     _parse_mode: str,
 ) -> None:
     _patch_common_success(monkeypatch)
-    edit_calls: list[dict[str, object]] = []
+    edit_calls: list[_PayloadDict] = []
     monkeypatch.setattr(
         system_views_module,
         "_edit_message",
@@ -251,13 +271,13 @@ def test_system_views_handlers_return_without_edit_when_message_missing(
 @pytest.mark.parametrize(("handler_obj", "error_code", "_parse_mode"), _HANDLER_CASES)
 def test_system_views_handlers_wrap_exceptions(
     monkeypatch: pytest.MonkeyPatch,
-    handler_obj: object,
+    handler_obj: _RawHandlerInput,
     error_code: str,
     _parse_mode: str,
 ) -> None:
     _patch_common_success(monkeypatch)
     monkeypatch.setattr(
-        system_views_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: _raise_runtime_error("render-failed"),
     )
@@ -326,33 +346,21 @@ def test_keyboard_builders_include_expected_callbacks(
         list[dict[str, str]], system_views_module._build_cpu_detail_keyboard(17)
     )
     cpu_callbacks = [button["callback_data"] for button in cpu_buttons]
-    assert any(
-        value.startswith(system_views_module.CPU_INFO_PREFIX) for value in cpu_callbacks
-    )
-    assert any(
-        value.startswith(system_views_module.CPU_PER_CORE_PREFIX)
-        for value in cpu_callbacks
-    )
+    assert any(value.startswith(CPU_INFO_PREFIX) for value in cpu_callbacks)
+    assert any(value.startswith(CPU_PER_CORE_PREFIX) for value in cpu_callbacks)
 
     net_buttons = cast(
         list[dict[str, str]], system_views_module._build_network_detail_keyboard(17)
     )
     net_callbacks = [button["callback_data"] for button in net_buttons]
-    assert any(
-        value.startswith(system_views_module.NETWORK_OVERVIEW_PREFIX)
-        for value in net_callbacks
-    )
-    assert any(
-        value.startswith(system_views_module.NETWORK_CONNECTIONS_PREFIX)
-        for value in net_callbacks
-    )
+    assert any(value.startswith(NETWORK_OVERVIEW_PREFIX) for value in net_callbacks)
+    assert any(value.startswith(NETWORK_CONNECTIONS_PREFIX) for value in net_callbacks)
 
     fs_buttons = cast(
         list[dict[str, str]], system_views_module._build_filesystem_detail_keyboard(17)
     )
     assert any(
-        button["callback_data"].startswith(system_views_module.DISK_IO_PREFIX)
-        for button in fs_buttons
+        button["callback_data"].startswith(DISK_IO_PREFIX) for button in fs_buttons
     )
 
     sensors_buttons = cast(
@@ -360,7 +368,7 @@ def test_keyboard_builders_include_expected_callbacks(
         system_views_module._build_sensors_detail_keyboard(17, show_fans_button=True),
     )
     assert any(
-        button["callback_data"].startswith(system_views_module.FAN_SPEEDS_PREFIX)
+        button["callback_data"].startswith(FAN_SPEEDS_PREFIX)
         for button in sensors_buttons
     )
 
@@ -377,7 +385,7 @@ def test_handle_sensors_overview_uses_fallback_without_temperatures(
             get_fan_speeds=lambda: [],
         ),
     )
-    edit_calls: list[dict[str, object]] = []
+    edit_calls: list[_PayloadDict] = []
     monkeypatch.setattr(
         system_views_module,
         "_edit_message",
@@ -399,7 +407,7 @@ def test_handle_quickview_sensors_uses_fallback_without_temperatures(
         "psutil_adapter",
         SimpleNamespace(get_sensors_temperatures=lambda: {}),
     )
-    edit_calls: list[dict[str, object]] = []
+    edit_calls: list[_PayloadDict] = []
     monkeypatch.setattr(
         system_views_module,
         "_edit_message",

@@ -50,7 +50,12 @@ class TemplateParserChecker:
             latency = (time.perf_counter() - start_time) * 1000
 
             # Simple health assessment
-            template_cache_size = cache_stats.get("template_cache_size", 0)
+            raw_template_cache_size = cache_stats.get("template_cache_size", 0)
+            template_cache_size = (
+                int(raw_template_cache_size)
+                if isinstance(raw_template_cache_size, (int, float))
+                else 0
+            )
             validation_errors = validation_stats.get("validation_errors", 0)
             total_validations = validation_stats.get(
                 "fast_validations", 0

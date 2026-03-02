@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import TracebackType
 from typing import Literal, cast
 
 import pytest
+import requests
 from telebot import TeleBot
 from telebot.types import CallbackQuery, Message
 
@@ -14,8 +16,10 @@ import pytmbot.handlers.bot_handlers.plugins as plugins_module
 import pytmbot.handlers.bot_handlers.updates as updates_module
 import pytmbot.handlers.server_handlers.inline.common as inline_common_module
 from pytmbot import exceptions
+from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
+from tests._inline_edit_helpers import assert_reply_markup_has_callbacks
 
 _NOT_MODIFIED_DESCRIPTION = (
     "Bad Request: message is not modified: specified new message content and reply "
@@ -58,11 +62,25 @@ class _SentMessage:
     message_id: int
 
 
+type _LogValue = str | int | float | bool | None
+type _ScheduleValue = int | float | Callable[[DeletionResult], None]
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
+type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
+type _HandlerResult = Message | _SentMessage | None
+type _ResolvedHandler = Callable[..., _HandlerResult]
+type _HandlerInput = (
+    Callable[..., _HandlerResult]
+    | Callable[[Callable[..., _HandlerResult]], Callable[..., _HandlerResult]]
+)
+
+
 @dataclass
 class _Bot:
-    sent_messages: list[dict[str, object]] = field(default_factory=list)
-    callback_answers: list[dict[str, object]] = field(default_factory=list)
-    edited_messages: list[dict[str, object]] = field(default_factory=list)
+    sent_messages: list[_PayloadDict] = field(default_factory=list)
+    callback_answers: list[_PayloadDict] = field(default_factory=list)
+    edited_messages: list[_PayloadDict] = field(default_factory=list)
     chat_actions: list[tuple[int, str]] = field(default_factory=list)
     admin_ids: list[int] = field(default_factory=list)
 
@@ -70,28 +88,32 @@ class _Bot:
         self.chat_actions.append((chat_id, action))
         return True
 
-    def send_message(self, chat_id: int, text: str, **kwargs: object) -> _SentMessage:
-        payload: dict[str, object] = {"chat_id": chat_id, "text": text, **kwargs}
+    def send_message(
+        self, chat_id: int, text: str, **kwargs: _PayloadValue
+    ) -> _SentMessage:
+        payload: _PayloadDict = {"chat_id": chat_id, "text": text, **kwargs}
         self.sent_messages.append(payload)
         return _SentMessage(message_id=1000 + len(self.sent_messages))
 
-    def answer_callback_query(self, callback_query_id: str, **kwargs: object) -> str:
-        payload: dict[str, object] = {
+    def answer_callback_query(
+        self, callback_query_id: str, **kwargs: _PayloadValue
+    ) -> str:
+        payload: _PayloadDict = {
             "callback_query_id": callback_query_id,
             **kwargs,
         }
         self.callback_answers.append(payload)
         return "ok"
 
-    def edit_message_text(self, **kwargs: object) -> str:
-        self.edited_messages.append(kwargs)
+    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
+        self.edited_messages.append(dict(kwargs))
         return "edited"
 
 
-def _raw_handler(handler: object) -> Callable[..., object]:
+def _raw_handler(handler: _HandlerInput) -> _ResolvedHandler:
     first_layer = getattr(handler, "__wrapped__", handler)
     second_layer = getattr(first_layer, "__wrapped__", first_layer)
-    return cast(Callable[..., object], second_layer)
+    return cast(_ResolvedHandler, second_layer)
 
 
 def test_getmyid_deletion_callback_logs_statuses(
@@ -101,11 +123,11 @@ def test_getmyid_deletion_callback_logs_statuses(
 
     @dataclass
     class _LoggerStub:
-        def debug(self, message: str, **kwargs: object) -> None:
+        def debug(self, message: str, **kwargs: _LogValue) -> None:
             del kwargs
             events.append(message)
 
-        def warning(self, message: str, **kwargs: object) -> None:
+        def warning(self, message: str, **kwargs: _LogValue) -> None:
             del kwargs
             events.append(message)
 
@@ -135,22 +157,22 @@ def test_getmyid_deletion_callback_logs_statuses(
 
 def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
-    handler = _raw_handler(getmyid_module.handle_getmyid)
+    handler = _raw_handler(cast(_HandlerInput, getmyid_module.handle_getmyid))
 
     missing_user_message = _Message(from_user=None)
     result = handler(cast(Message, missing_user_message), cast(TeleBot, bot))
     assert result is None
     assert "Unable to resolve user identity" in str(bot.sent_messages[-1]["text"])
 
-    schedule_calls: list[dict[str, object]] = []
+    schedule_calls: list[dict[str, _ScheduleValue]] = []
 
     monkeypatch.setattr(
-        getmyid_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: "compiled-getmyid",
     )
 
-    def _scheduled(**kwargs: object) -> DeletionResult:
+    def _scheduled(**kwargs: _ScheduleValue) -> DeletionResult:
         schedule_calls.append(kwargs)
         message_id = cast(int, kwargs["message_id"])
         user_id = cast(int, kwargs["user_id"])
@@ -162,7 +184,8 @@ def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(
-        getmyid_module.deletion_manager, "schedule_deletion", _scheduled
+        "pytmbot.handlers.bot_handlers.getmyid.deletion_manager.schedule_deletion",
+        _scheduled,
     )
 
     normal_message = _Message()
@@ -173,7 +196,7 @@ def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert schedule_calls and schedule_calls[-1]["delay_seconds"] == 15
     assert bot.chat_actions[-1] == (normal_message.chat.id, "typing")
 
-    def _limited(**kwargs: object) -> DeletionResult:
+    def _limited(**kwargs: _ScheduleValue) -> DeletionResult:
         message_id = cast(int, kwargs["message_id"])
         user_id = cast(int, kwargs["user_id"])
         return DeletionResult(
@@ -184,7 +207,10 @@ def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             error_message="limit",
         )
 
-    monkeypatch.setattr(getmyid_module.deletion_manager, "schedule_deletion", _limited)
+    monkeypatch.setattr(
+        "pytmbot.handlers.bot_handlers.getmyid.deletion_manager.schedule_deletion",
+        _limited,
+    )
     sent_limit = handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert isinstance(sent_limit, _SentMessage)
     assert "Privacy Notice" in str(bot.sent_messages[-1]["text"])
@@ -194,10 +220,10 @@ def test_handle_getmyid_raises_handling_exception_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _Bot()
-    handler = _raw_handler(getmyid_module.handle_getmyid)
+    handler = _raw_handler(cast(_HandlerInput, getmyid_module.handle_getmyid))
 
     monkeypatch.setattr(
-        getmyid_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("render fail")),
     )
@@ -210,9 +236,9 @@ def test_handle_getmyid_raises_handling_exception_on_failure(
 
 
 def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent_payloads: list[dict[str, object]] = []
+    sent_payloads: list[_PayloadDict] = []
     bot = _Bot()
-    handler = _raw_handler(plugins_module.handle_plugins)
+    handler = _raw_handler(cast(_HandlerInput, plugins_module.handle_plugins))
 
     @dataclass
     class _PluginManagerStub:
@@ -247,26 +273,25 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         plugins_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {
-                    "build_reply_keyboard": staticmethod(
-                        lambda plugin_keyboard_data=None: "plugins-kbd"
-                    )
-                },
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {
+                "build_reply_keyboard": staticmethod(
+                    lambda plugin_keyboard_data=None: "plugins-kbd"
+                )
+            },
+        )(),
     )
     monkeypatch.setattr(
-        plugins_module.Compiler, "quick_render", lambda **kwargs: "plugins-rendered"
+        Compiler,
+        "quick_render",
+        lambda **kwargs: "plugins-rendered",
     )
     monkeypatch.setattr(
         plugins_module,
         "em",
-        cast(object, type("_Em", (), {"get_emoji": staticmethod(lambda _key: "💭")})()),
+        type("_Em", (), {"get_emoji": staticmethod(lambda _key: "💭")})(),
     )
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
@@ -338,7 +363,13 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
         def __enter__(self) -> _Response:
             return self
 
-        def __exit__(self, exc_type: object, exc: object, tb: object) -> Literal[False]:
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            tb: TracebackType | None,
+        ) -> Literal[False]:
+            del exc_type, exc, tb
             return False
 
         def raise_for_status(self) -> None:
@@ -352,28 +383,24 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
         "published_at": "2026-02-17T12:34:56",
         "body": "Release notes",
     }
-    monkeypatch.setattr(
-        updates_module.requests, "get", lambda url, timeout: _Response(payload)
-    )
+    monkeypatch.setattr(requests, "get", lambda url, timeout: _Response(payload))
 
     result = updates_module.__check_bot_update()
     assert result["tag_name"] == "v1.2.3"
     assert result["published_at"] == "2026-02-17, 12:34:56"
 
     monkeypatch.setattr(
-        updates_module.requests,
+        requests,
         "get",
-        lambda url, timeout: (_ for _ in ()).throw(
-            updates_module.requests.RequestException("boom")
-        ),
+        lambda url, timeout: (_ for _ in ()).throw(requests.RequestException("boom")),
     )
     assert updates_module.__check_bot_update() == {}
 
 
 def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent_payloads: list[dict[str, object]] = []
+    sent_payloads: list[_PayloadDict] = []
     bot = _Bot()
-    handler = _raw_handler(updates_module.handle_bot_updates)
+    handler = _raw_handler(cast(_HandlerInput, updates_module.handle_bot_updates))
 
     monkeypatch.setattr(
         updates_module, "_process_message", lambda: ("update-message", True)
@@ -386,14 +413,11 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         updates_module,
         "keyboards",
-        cast(
-            object,
-            type(
-                "_Kbd",
-                (),
-                {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-            )(),
-        ),
+        type(
+            "_Kbd",
+            (),
+            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
+        )(),
     )
     monkeypatch.setattr(
         updates_module,
@@ -421,12 +445,12 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _Bot()
-    handler = _raw_handler(inline_update_module.handle_update_info)
+    handler = _raw_handler(cast(_HandlerInput, inline_update_module.handle_update_info))
 
     assert_standard_callback_auth_paths(
         monkeypatch=monkeypatch,
         module=inline_update_module,
-        handler=cast(Callable[[CallbackQuery, TeleBot], object], handler),
+        handler=cast(_CallbackHandler, handler),
         bot=bot,
         call_builder=lambda **kwargs: cast(CallbackQuery, _Call(**kwargs)),
         invalid_data="bad",
@@ -438,13 +462,19 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     monkeypatch.setattr(
-        inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update"
+        Compiler,
+        "quick_render",
+        lambda **kwargs: "how-to-update",
     )
     handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
     assert bot.edited_messages[-1]["text"] == "how-to-update"
+    assert_reply_markup_has_callbacks(
+        bot.edited_messages[-1].get("reply_markup"),
+        expected_callbacks=["__how_update__:101"],
+    )
 
     monkeypatch.setattr(
-        inline_update_module.Compiler,
+        Compiler,
         "quick_render",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("render fail")),
     )
@@ -454,13 +484,15 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         )
     assert exc_info.value.context.error_code == "HAND_019"
     assert "Some error occurred" in str(bot.edited_messages[-1]["text"])
+    error_markup = bot.edited_messages[-1].get("reply_markup")
+    assert error_markup is not None
 
 
 def test_handle_update_info_ignores_not_modified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _Bot()
-    handler = _raw_handler(inline_update_module.handle_update_info)
+    handler = _raw_handler(cast(_HandlerInput, inline_update_module.handle_update_info))
 
     monkeypatch.setattr(
         inline_update_module,
@@ -473,7 +505,9 @@ def test_handle_update_info_ignores_not_modified(
         lambda call, target_user_id, require_owner_match: (True, ""),
     )
     monkeypatch.setattr(
-        inline_update_module.Compiler, "quick_render", lambda **kwargs: "how-to-update"
+        Compiler,
+        "quick_render",
+        lambda **kwargs: "how-to-update",
     )
 
     class _ApiTelegramExceptionStub(Exception):

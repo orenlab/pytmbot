@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import Any, TypeGuard
+from typing import TypeGuard
 
 from pytmbot.exceptions import ErrorContext, TemplateError
+from pytmbot.parsers._types import TemplateContext, TemplateValue
 
 # Validation patterns - compiled once
 _TEMPLATE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_.-]*\.jinja2?$")
@@ -38,7 +39,7 @@ _UNSAFE_TYPES = {
 }
 
 
-def is_safe_template_name(name: Any) -> TypeGuard[str]:
+def is_safe_template_name(name: object) -> TypeGuard[str]:
     """
     Fast type guard for safe template names.
 
@@ -107,7 +108,7 @@ def validate_template_name_fast(name: str) -> str:
     return name
 
 
-def is_safe_context_key(key: Any) -> TypeGuard[str]:
+def is_safe_context_key(key: object) -> TypeGuard[str]:
     """
     Type guard for safe context keys.
 
@@ -126,7 +127,7 @@ def is_safe_context_key(key: Any) -> TypeGuard[str]:
     )
 
 
-def is_safe_context_value(value: Any) -> bool:
+def is_safe_context_value(value: TemplateValue) -> bool:
     """
     Check if context value is safe to use in templates.
 
@@ -152,7 +153,7 @@ def is_safe_context_value(value: Any) -> bool:
     return True
 
 
-def validate_context_basic(context: dict[str, Any]) -> dict[str, Any]:
+def validate_context_basic(context: TemplateContext) -> TemplateContext:
     """
     Basic context validation - fast and minimal.
 
@@ -186,7 +187,7 @@ def validate_context_basic(context: dict[str, Any]) -> dict[str, Any]:
     return context
 
 
-def validate_context_strict(context: dict[str, Any]) -> dict[str, Any]:
+def validate_context_strict(context: TemplateContext) -> TemplateContext:
     """
     Strict context validation - thorough security checks.
 
@@ -203,7 +204,7 @@ def validate_context_strict(context: dict[str, Any]) -> dict[str, Any]:
     validated_context = validate_context_basic(context)
 
     # Detailed validation
-    sanitized_context = {}
+    sanitized_context: TemplateContext = {}
 
     for key, value in validated_context.items():
         # Validate key
@@ -246,8 +247,8 @@ class TemplateValidator:
         }
 
     def validate_render_params(
-        self, template_name: str, context: dict[str, Any], strict: bool = False
-    ) -> tuple[str, dict[str, Any]]:
+        self, template_name: str, context: TemplateContext, strict: bool = False
+    ) -> tuple[str, TemplateContext]:
         """
         Validate template render parameters.
 
@@ -289,8 +290,8 @@ _validator = TemplateValidator()
 
 # Public API functions
 def validate_template_render(
-    template_name: str, context: dict[str, Any], trusted: bool = False
-) -> tuple[str, dict[str, Any]]:
+    template_name: str, context: TemplateContext, trusted: bool = False
+) -> tuple[str, TemplateContext]:
     """
     Validate template render parameters with appropriate validation level.
 

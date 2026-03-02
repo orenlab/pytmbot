@@ -15,7 +15,32 @@ import pytmbot.handlers.auth_processing.qrcode_processing as qrcode_module
 import pytmbot.handlers.auth_processing.twofa_processing as twofa_module
 import pytmbot.utils.message_deletion as message_deletion_module
 from pytmbot import exceptions
+from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
+
+type _PayloadValue = (
+    str
+    | int
+    | float
+    | bool
+    | bytes
+    | None
+    | dict[str, _PayloadValue]
+    | list[_PayloadValue]
+)
+type _PayloadDict = dict[str, _PayloadValue]
+type _MessageHandler = Callable[[Message, TeleBot], None]
+type _QrHandler = Callable[[Message, TeleBot, int], Message | None]
+type _SessionRawInput = (
+    Callable[..., Message | None]
+    | Callable[..., None]
+    | Callable[[Callable[..., Message | None]], Callable[..., Message | None]]
+    | Callable[[Callable[..., None]], Callable[..., None]]
+)
+type _QrRawInput = (
+    Callable[..., Message | None]
+    | Callable[[Callable[..., Message | None]], Callable[..., Message | None]]
+)
 
 
 @dataclass
@@ -53,17 +78,17 @@ class _Sent:
 
 @dataclass
 class _Bot:
-    sent_messages: list[dict[str, object]] = field(default_factory=list)
-    replies: list[dict[str, object]] = field(default_factory=list)
+    sent_messages: list[_PayloadDict] = field(default_factory=list)
+    replies: list[_PayloadDict] = field(default_factory=list)
     actions: list[tuple[int, str]] = field(default_factory=list)
     deleted: list[tuple[int, int]] = field(default_factory=list)
-    sent_photos: list[dict[str, object]] = field(default_factory=list)
+    sent_photos: list[_PayloadDict] = field(default_factory=list)
 
-    def send_message(self, chat_id: int, text: str, **kwargs: object) -> _Sent:
+    def send_message(self, chat_id: int, text: str, **kwargs: _PayloadValue) -> _Sent:
         self.sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return _Sent()
 
-    def reply_to(self, message: _Msg, text: str, **kwargs: object) -> _Sent:
+    def reply_to(self, message: _Msg, text: str, **kwargs: _PayloadValue) -> _Sent:
         self.replies.append({"message_id": message.message_id, "text": text, **kwargs})
         return _Sent()
 
@@ -75,7 +100,9 @@ class _Bot:
         self.deleted.append((chat_id, message_id))
         return True
 
-    def send_photo(self, chat_id: int, photo: object, **kwargs: object) -> _Sent:
+    def send_photo(
+        self, chat_id: int, photo: _PayloadValue, **kwargs: _PayloadValue
+    ) -> _Sent:
         self.sent_photos.append({"chat_id": chat_id, "photo": photo, **kwargs})
         return _Sent(message_id=123)
 
@@ -138,16 +165,14 @@ class _SessionManagerStub:
         self.referer_reset.append(user_id)
 
 
-def _raw_session_handler(handler: object) -> Callable[[Message, TeleBot], None]:
+def _raw_session_handler(handler: _SessionRawInput) -> _MessageHandler:
     raw = getattr(handler, "__wrapped__", handler)
-    return cast(Callable[[Message, TeleBot], None], raw)
+    return cast(_MessageHandler, raw)
 
 
-def _raw_qr_handler(
-    handler: object,
-) -> Callable[[Message, TeleBot, int], Message | None]:
+def _raw_qr_handler(handler: _QrRawInput) -> _QrHandler:
     raw = getattr(handler, "__wrapped__", handler)
-    return cast(Callable[[Message, TeleBot, int], Message | None], raw)
+    return cast(_QrHandler, raw)
 
 
 def test_auth_helpers_get_user_name_and_send_response(
@@ -190,7 +215,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
         ),
     )
     monkeypatch.setattr(
-        auth_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, name, **kwargs: f"{template_name}:{name}",
     )
@@ -210,7 +235,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
 
     with pytest.raises(NotImplementedError):
         auth_module._handle_auth_message(
-            query=cast(Message, object()),
+            query=cast(Message, 123),
             bot=cast(TeleBot, _Bot()),
             template_name="tpl",
             keyboard_type="auth",
@@ -220,7 +245,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
         )
 
     monkeypatch.setattr(
-        auth_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, name, **kwargs: (_ for _ in ()).throw(
             RuntimeError("boom")
@@ -242,7 +267,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
 def test_auth_public_handlers_delegate(monkeypatch: pytest.MonkeyPatch) -> None:
     called: list[tuple[str, str]] = []
 
-    def _capture(**kwargs: object) -> None:
+    def _capture(**kwargs: _PayloadValue) -> None:
         called.append((str(kwargs["template_name"]), str(kwargs["keyboard_type"])))
 
     monkeypatch.setattr(auth_module, "_handle_auth_message", _capture)
@@ -273,7 +298,7 @@ def test_twofa_extract_totp_code_formats() -> None:
 def test_twofa_send_totp_code_message_private_and_group(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: list[dict[str, object]] = []
+    captured: list[_PayloadDict] = []
     monkeypatch.setattr(
         twofa_module,
         "send_telegram_message",
@@ -287,7 +312,7 @@ def test_twofa_send_totp_code_message_private_and_group(
         ),
     )
     monkeypatch.setattr(
-        twofa_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, name, **kwargs: f"totp:{name}",
     )
@@ -351,10 +376,10 @@ def test_twofa_create_referer_keyboard_and_reset(
     )
 
     session_stub.handler_type = "message"
-    assert twofa_module.__create_referer_keyboard(1) == "main:/docker"
+    assert cast(str, twofa_module.__create_referer_keyboard(1)) == "main:/docker"
 
     session_stub.handler_type = "callback_query"
-    assert twofa_module.__create_referer_keyboard(1) == "inline:/docker"
+    assert cast(str, twofa_module.__create_referer_keyboard(1)) == "inline:/docker"
 
     session_stub.handler_type = "unsupported"
     with pytest.raises(exceptions.HandlingException):
@@ -378,7 +403,7 @@ def test_handle_twofa_message_and_totp_verification_branches(
         twofa_module, "em", SimpleNamespace(get_emoji=lambda _name: "e")
     )
     monkeypatch.setattr(
-        twofa_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, emojis: "ok",
     )
@@ -458,7 +483,7 @@ def test_qrcode_handler_success_limit_and_failure_paths(
         SimpleNamespace(get_emoji=lambda _name: "e"),
     )
     monkeypatch.setattr(
-        qrcode_module.Compiler,
+        Compiler,
         "quick_render",
         lambda template_name, context, **kwargs: f"error:{context}",
     )
@@ -479,7 +504,8 @@ def test_qrcode_handler_success_limit_and_failure_paths(
         pending_count=1,
     )
     monkeypatch.setattr(
-        qrcode_module.deletion_manager, "schedule_deletion", lambda **kwargs: scheduled
+        "pytmbot.handlers.auth_processing.qrcode_processing.deletion_manager.schedule_deletion",
+        lambda **kwargs: scheduled,
     )
 
     raw_qr = _raw_qr_handler(qrcode_module.handle_qr_code_message)
@@ -496,8 +522,7 @@ def test_qrcode_handler_success_limit_and_failure_paths(
         pending_count=3,
     )
     monkeypatch.setattr(
-        qrcode_module.deletion_manager,
-        "schedule_deletion",
+        "pytmbot.handlers.auth_processing.qrcode_processing.deletion_manager.schedule_deletion",
         lambda **kwargs: limit_result,
     )
     raw_qr(cast(Message, message), cast(TeleBot, bot), 60)
@@ -530,8 +555,7 @@ def test_qrcode_handler_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> Non
         SimpleNamespace(build_reply_keyboard=lambda keyboard_type: "kbd"),
     )
     monkeypatch.setattr(
-        qrcode_module.deletion_manager,
-        "schedule_deletion",
+        "pytmbot.handlers.auth_processing.qrcode_processing.deletion_manager.schedule_deletion",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("queue failed")),
     )
 
@@ -553,7 +577,7 @@ def test_qrcode_deletion_callback_sends_back_navigation(
         lambda: "back-kbd",
     )
     bot = _Bot()
-    callback = qrcode_module.create_post_delete_navigation_callback(
+    callback = message_deletion_module.create_post_delete_navigation_callback(
         qrcode_module._qr_deletion_callback,
         bot=cast(TeleBot, bot),
         chat_id=555,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 import pytest
 
@@ -26,6 +25,10 @@ from pytmbot.parsers.validation import (
     validate_template_name_fast,
     validate_template_render,
 )
+
+type _ContextScalar = str | int | float | bool | None
+type _ContextValue = _ContextScalar | dict[str, "_ContextValue"] | list["_ContextValue"]
+type _ContextDict = dict[str, _ContextValue]
 
 
 def test_validation_helpers_reject_unsafe_input() -> None:
@@ -98,9 +101,11 @@ def test_compiler_template_type_detection() -> None:
 def test_compiler_compile_success_and_quick_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: dict[str, Any] = {}
+    calls: _ContextDict = {}
 
-    def _fake_render(template_name: str, *, trusted: bool, **context: Any) -> str:
+    def _fake_render(
+        template_name: str, *, trusted: bool, **context: _ContextValue
+    ) -> str:
         calls["template_name"] = template_name
         calls["trusted"] = trusted
         calls["context"] = context
@@ -119,7 +124,7 @@ def test_compiler_compile_success_and_quick_render(
 
 
 def test_compiler_compile_error_wrapping(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _raise_generic(*_args: Any, **_kwargs: Any) -> str:
+    def _raise_generic(*_args: _ContextValue, **_kwargs: _ContextValue) -> str:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(compiler_module, "_render_template", _raise_generic)
@@ -142,7 +147,7 @@ def test_compiler_compile_reraises_template_error(
         )
     )
 
-    def _raise_template_error(*_args: Any, **_kwargs: Any) -> str:
+    def _raise_template_error(*_args: _ContextValue, **_kwargs: _ContextValue) -> str:
         raise original
 
     monkeypatch.setattr(compiler_module, "_render_template", _raise_template_error)
@@ -171,9 +176,9 @@ def test_compiler_validate_template_params_delegates(
 ) -> None:
     def _fake_validate(
         template_name: str,
-        context: dict[str, Any],
+        context: _ContextDict,
         trusted: bool = False,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, _ContextDict]:
         assert template_name == "b_template.jinja2"
         assert context == {"x": 1}
         assert trusted is True

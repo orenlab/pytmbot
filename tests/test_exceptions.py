@@ -2,30 +2,31 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
 import pytmbot.exceptions as exceptions_module
 from pytmbot.exceptions import BaseBotException, ErrorContext, TelebotExceptionHandler
 
+type _LogValue = str | int | float | bool | None
+
 
 @dataclass
 class _StubLogger:
     events: list[str]
 
-    def opt(self, **_kwargs: Any) -> _StubLogger:
+    def opt(self, **_kwargs: _LogValue) -> _StubLogger:
         self.events.append("opt")
         return self
 
-    def bind(self, **_kwargs: Any) -> _StubLogger:
+    def bind(self, **_kwargs: _LogValue) -> _StubLogger:
         self.events.append("bind")
         return self
 
-    def debug(self, _message: str, **_kwargs: Any) -> None:
+    def debug(self, _message: str, **_kwargs: _LogValue) -> None:
         self.events.append("debug")
 
-    def error(self, _message: str, **_kwargs: Any) -> None:
+    def error(self, _message: str, **_kwargs: _LogValue) -> None:
         self.events.append("error")
 
 
@@ -42,7 +43,9 @@ def test_error_context_to_dict_and_sanitized(monkeypatch: pytest.MonkeyPatch) ->
     assert context.to_dict()["error_code"] == "ERR"
     sanitized = context.sanitized()
     assert sanitized.message.startswith("sanitized:")
-    assert sanitized.metadata["token"].startswith("sanitized:")
+    token_value = sanitized.metadata.get("token")
+    assert isinstance(token_value, str)
+    assert token_value.startswith("sanitized:")
 
 
 def test_base_exception_exposes_sanitized_helpers(

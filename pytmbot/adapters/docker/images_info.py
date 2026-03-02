@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import UTC, datetime
-from typing import Any
 
 from docker.errors import APIError, ImageNotFound
 from docker.models.images import Image
@@ -15,13 +14,13 @@ from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import with_operation_logging
 from pytmbot.exceptions import DockerConnectionError, ImageOperationError
 from pytmbot.logs import Logger
-from pytmbot.utils import set_naturalsize, set_naturaltime
+from pytmbot.utils import as_object_dict, set_naturalsize, set_naturaltime
 
 logger = Logger()
 
 
 def _safe_dict(value: object) -> dict[str, object]:
-    return value if isinstance(value, dict) else {}
+    return as_object_dict(value)
 
 
 def _safe_list_strings(value: object) -> list[str]:
@@ -133,7 +132,7 @@ def _format_healthcheck(config: dict[str, object]) -> str:
     return "; ".join(parts)
 
 
-def process_image_attrs(image: Image) -> dict[str, Any]:
+def process_image_attrs(image: Image) -> dict[str, object]:
     """
     Process Docker image attributes into a standardized format.
 
@@ -249,7 +248,7 @@ def process_image_attrs(image: Image) -> dict[str, Any]:
 
 
 @with_operation_logging("fetch_image_details")
-def fetch_image_details() -> list[dict[str, Any]]:
+def fetch_image_details() -> list[dict[str, object]]:
     """
     Fetches detailed information about Docker images.
 
@@ -274,7 +273,7 @@ def fetch_image_details() -> list[dict[str, Any]]:
 
 
 @with_operation_logging("get_image_history")
-def get_image_history(image_id: str) -> list[dict[str, Any]]:
+def get_image_history(image_id: str) -> list[dict[str, object]]:
     """
     Fetches the history of a Docker image.
 
@@ -314,7 +313,7 @@ def get_image_history(image_id: str) -> list[dict[str, Any]]:
 
 
 @with_operation_logging("get_image_stats")
-def get_image_stats() -> dict[str, Any]:
+def get_image_stats() -> dict[str, object]:
     """
     Get statistics about Docker images.
 
@@ -345,7 +344,7 @@ def get_image_stats() -> dict[str, Any]:
 
 
 @with_operation_logging("get_image_usage")
-def get_image_usage(image_id: str) -> dict[str, Any]:
+def get_image_usage(image_id: str) -> dict[str, object]:
     """
     Return containers currently using the target image.
 

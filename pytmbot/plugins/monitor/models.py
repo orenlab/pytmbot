@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from pytmbot.logs import Logger
 
@@ -18,7 +18,7 @@ class EventData(TypedDict):
     start_time: float
     last_notification: float
     type: str
-    details: dict[str, Any]
+    details: dict[str, object]
     resolved: bool
 
 

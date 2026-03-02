@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from telebot import TeleBot
@@ -10,6 +10,10 @@ from telebot.types import Message
 
 import pytmbot.plugins.outline.plugin as outline_plugin_module
 from pytmbot.plugins.outline.plugin import OutlinePlugin
+
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+type _PayloadDict = dict[str, _PayloadValue]
 
 
 @dataclass
@@ -30,21 +34,19 @@ class _Message:
 
 def _build_plugin_harness(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[OutlinePlugin, list[dict[str, Any]], dict[str, Any]]:
-    sent_messages: list[dict[str, Any]] = []
-    rendered_context: dict[str, Any] = {}
+) -> tuple[OutlinePlugin, list[_PayloadDict], _PayloadDict]:
+    sent_messages: list[_PayloadDict] = []
+    rendered_context: _PayloadDict = {}
 
     monkeypatch.setattr(
         outline_plugin_module,
         "em",
-        cast(
-            object, type("_Em", (), {"get_emoji": staticmethod(lambda _name: "🧪")})()
-        ),
+        type("_Em", (), {"get_emoji": staticmethod(lambda _name: "🧪")})(),
     )
     monkeypatch.setattr(TeleBot, "send_chat_action", lambda *_args, **_kwargs: None)
 
     def _fake_send_message(
-        self: TeleBot, chat_id: int, text: str, **kwargs: object
+        self: TeleBot, chat_id: int, text: str, **kwargs: _PayloadValue
     ) -> Message:
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return cast(Message, SimpleNamespace(ok=True))
@@ -56,8 +58,8 @@ def _build_plugin_harness(
     def _fake_compile(
         template_name: str,
         first_name: str,
-        context: dict[str, Any] | None = None,
-        **_kwargs: Any,
+        context: _PayloadDict | None = None,
+        **_kwargs: _PayloadValue,
     ) -> str:
         rendered_context["template_name"] = template_name
         rendered_context["first_name"] = first_name
@@ -107,7 +109,7 @@ def test_handle_traffic_supports_snake_case_and_key_id(
 ) -> None:
     plugin, sent_messages, rendered_context = _build_plugin_harness(monkeypatch)
 
-    def _fake_get_action_data(action: str) -> dict[str, Any] | None:
+    def _fake_get_action_data(action: str) -> _PayloadDict | None:
         if action == "traffic_information":
             return {"bytes_transferred_by_user_id": {"42": 4096}}
         if action == "key_information":

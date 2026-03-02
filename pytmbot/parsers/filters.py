@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import lru_cache
-from typing import Any
 
 from humanize import naturalsize as humanize_naturalsize
 
+from pytmbot.parsers._types import TemplateValue
+from pytmbot.utils import to_float_strict
 
-def format_timestamp(value: str | int | Any) -> str:
+
+def format_timestamp(value: TemplateValue) -> str:
     """
     Format a timestamp into human-readable string with error recovery.
 
@@ -58,7 +60,7 @@ def format_timestamp(value: str | int | Any) -> str:
 
 
 @lru_cache(maxsize=128)
-def format_bytes(value: Any) -> str:
+def format_bytes(value: TemplateValue) -> str:
     """
     Format bytes into human-readable format with caching and error recovery.
 
@@ -75,7 +77,7 @@ def format_bytes(value: Any) -> str:
                 cleaned_value = cleaned_value.removesuffix(suffix).strip()
             size_value = int(float(cleaned_value))
         else:
-            size_value = int(float(value))
+            size_value = int(to_float_strict(value))
 
         formatted = humanize_naturalsize(max(0, size_value), binary=False)
         return (
@@ -88,7 +90,7 @@ def format_bytes(value: Any) -> str:
         return f"Invalid size: {value}"
 
 
-def format_duration(value: Any) -> str:
+def format_duration(value: TemplateValue) -> str:
     """
     Format duration in seconds to human-readable format with error recovery.
 
@@ -99,7 +101,7 @@ def format_duration(value: Any) -> str:
         str: Formatted duration (e.g., "2h 30m 45s") or error message
     """
     try:
-        seconds = float(value)
+        seconds = to_float_strict(value)
 
         if seconds < 0:
             return "0s"
@@ -126,7 +128,7 @@ def format_duration(value: Any) -> str:
         return f"Invalid duration: {value}"
 
 
-def format_percentage(value: Any, decimals: int = 1) -> str:
+def format_percentage(value: TemplateValue, decimals: int = 1) -> str:
     """
     Format number as percentage with error recovery.
 
@@ -138,7 +140,7 @@ def format_percentage(value: Any, decimals: int = 1) -> str:
         str: Formatted percentage (e.g., "75.5%") or error message
     """
     try:
-        num_value = float(value)
+        num_value = to_float_strict(value)
 
         # Clamp decimals to reasonable range
         decimals = max(0, min(3, int(decimals)))
@@ -155,7 +157,9 @@ def format_percentage(value: Any, decimals: int = 1) -> str:
         return f"Invalid percentage: {value}"
 
 
-def truncate_string(value: Any, max_length: int = 50, suffix: str = "...") -> str:
+def truncate_string(
+    value: TemplateValue, max_length: int = 50, suffix: str = "..."
+) -> str:
     """
     Truncate string to maximum length with suffix.
 
@@ -180,7 +184,7 @@ def truncate_string(value: Any, max_length: int = 50, suffix: str = "...") -> st
         return str(value)[:max_length] if value is not None else ""
 
 
-def format_uptime(value: Any) -> str:
+def format_uptime(value: TemplateValue) -> str:
     """
     Format uptime from seconds into human-readable format.
 
@@ -191,7 +195,7 @@ def format_uptime(value: Any) -> str:
         str: Human-readable uptime (e.g., "5 days, 3 hours")
     """
     try:
-        seconds = int(float(value))
+        seconds = int(to_float_strict(value))
 
         if seconds < 0:
             return "0 seconds"
@@ -218,7 +222,7 @@ def format_uptime(value: Any) -> str:
         return f"Invalid uptime: {value}"
 
 
-def safe_format(value: Any, format_type: str = "str") -> str:
+def safe_format(value: TemplateValue, format_type: str = "str") -> str:
     """
     Safe formatting with fallback for any value.
 
@@ -235,9 +239,9 @@ def safe_format(value: Any, format_type: str = "str") -> str:
     try:
         match format_type.lower():
             case "int":
-                return str(int(float(value)))
+                return str(int(to_float_strict(value)))
             case "float":
-                return f"{float(value):.2f}"
+                return f"{to_float_strict(value):.2f}"
             case "bool":
                 return "Yes" if bool(value) else "No"
             case _:  # Default to string
@@ -247,7 +251,7 @@ def safe_format(value: Any, format_type: str = "str") -> str:
         return str(value) if value is not None else ""
 
 
-def capitalize_words(value: Any) -> str:
+def capitalize_words(value: TemplateValue) -> str:
     """
     Capitalize each word in a string safely.
 

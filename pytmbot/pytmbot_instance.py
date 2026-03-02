@@ -15,11 +15,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from functools import wraps
 from time import sleep
-from typing import Any, Concatenate, Final, TypedDict
+from typing import Concatenate, Final, TypedDict
 
-import requests  # type: ignore[import-untyped]
+import requests
 import telebot
 import urllib3.exceptions
 from telebot import TeleBot
@@ -86,9 +85,9 @@ class BotSession:
         )
 
 
-type MiddlewareType = tuple[type, dict[str, Any]]
-type HandlerDict = dict[str, list[HandlerManager]]
-type RegisterMethod = Callable[..., Any]
+type MiddlewareType = tuple[type, dict[str, object]]
+type HandlerDict = dict[str, list[HandlerManager[object]]]
+type RegisterMethod = Callable[..., object]
 
 # Exception types for better categorization
 PollingExceptionTypes: tuple[type[BaseException], ...] = (
@@ -139,12 +138,13 @@ def bot_required[**P, R](
 ) -> Callable[Concatenate[PyTMBot, P], R]:
     """Decorator to ensure bot instance is initialized before method execution."""
 
-    @wraps(func)
-    def wrapper(self: PyTMBot, *args: P.args, **kwargs: P.kwargs) -> R:
+    def wrapper(self: PyTMBot, /, *args: P.args, **kwargs: P.kwargs) -> R:
         if not isinstance(self.bot, TeleBot):
             raise RuntimeError("Bot instance not initialized")
         return func(self, *args, **kwargs)
 
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
     return wrapper
 
 
@@ -169,7 +169,7 @@ class PyTMBot(BaseComponent):
         self.args = parse_cli_args()
         self.log = Logger()
 
-        self._middlewares: dict[str, Any] = {}
+        self._middlewares: dict[str, object] = {}
         self._state = BotState.UNINITIALIZED
         self._session: BotSession | None = None
         self._shutdown_timeout_occurred = False
@@ -209,12 +209,12 @@ class PyTMBot(BaseComponent):
         return self._session
 
     @staticmethod
-    def _normalize_mode_value(mode: Any) -> str:
+    def _normalize_mode_value(mode: object) -> str:
         """Normalize enum-like mode values for compact log output."""
         return str(getattr(mode, "value", mode))
 
     @staticmethod
-    def _normalize_bool_flag(value: Any) -> bool:
+    def _normalize_bool_flag(value: object) -> bool:
         """Normalize CLI boolean-like values to strict bool."""
         if isinstance(value, bool):
             return value
@@ -426,7 +426,8 @@ class PyTMBot(BaseComponent):
                     bot = self.bot
                     if bot is None:
                         return True
-                    bot.stop_polling()
+                    stop_polling: Callable[[], object] = bot.stop_polling
+                    stop_polling()
                     return True
                 except Exception as e:
                     with self.log_context(error=sanitize_exception(e)) as log:
@@ -598,8 +599,9 @@ class PyTMBot(BaseComponent):
             bot = self.bot
             if bot is None:
                 raise RuntimeError("Bot instance not initialized")
+            bot_command_factory: Callable[[str, str], BotCommand] = BotCommand
             commands = [
-                BotCommand(command, desc)
+                bot_command_factory(command, desc)
                 for command, desc in bot_commands_settings.bot_commands.items()
             ]
             bot.set_my_commands(commands)
@@ -632,8 +634,13 @@ class PyTMBot(BaseComponent):
         middleware_names = []
         middleware_details = []
 
+        def _priority(entry: MiddlewareType) -> int:
+            raw_priority = entry[1].get("priority")
+            return raw_priority if isinstance(raw_priority, int) else 999
+
         for middleware_class, kwargs in sorted(
-            middlewares, key=lambda x: x[1].get("priority", 999)
+            middlewares,
+            key=_priority,
         ):
             try:
                 middleware_instance = middleware_class(bot=bot, **kwargs)
@@ -675,7 +682,7 @@ class PyTMBot(BaseComponent):
         ) as log:
             log.info("bot.core.middleware.chain.info")
 
-    def get_middleware_stats(self, middleware_name: str) -> dict[str, Any] | None:
+    def get_middleware_stats(self, middleware_name: str) -> dict[str, object] | None:
         """Get statistics from specific middleware."""
         middleware_key = middleware_name.lower()
 
@@ -701,7 +708,7 @@ class PyTMBot(BaseComponent):
                 log.error("bot.core.get.middleware.fail")
             return None
 
-    def get_rate_limit_stats(self) -> dict[str, Any] | None:
+    def get_rate_limit_stats(self) -> dict[str, object] | None:
         """Get rate limiting statistics."""
         return self.get_middleware_stats("RateLimit")
 
@@ -1120,14 +1127,14 @@ class PyTMBot(BaseComponent):
 
         return shutdown_success
 
-    def get_bot_session_statistics(self) -> dict[str, Any]:
+    def get_bot_session_statistics(self) -> dict[str, object]:
         """Get comprehensive session statistics."""
         if not self._session:
             return {}
 
         uptime = datetime.now() - self._session.start_time
 
-        stats: dict[str, Any] = {
+        stats: dict[str, object] = {
             "session_id": self._session.session_id,
             "start_time": self._session.start_time.isoformat(),
             "uptime_seconds": int(uptime.total_seconds()),

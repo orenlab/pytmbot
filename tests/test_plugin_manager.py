@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
+import weakref
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from telebot import TeleBot
@@ -100,7 +102,7 @@ def test_extract_plugin_permissions_and_info(monkeypatch: pytest.MonkeyPatch) ->
     assert manager._extract_plugin_info(config) is None
 
     invalid_config = ModuleType("invalid_config")
-    invalid_config.__dict__["PLUGIN_PERMISSIONS"] = object()
+    invalid_config.__dict__["PLUGIN_PERMISSIONS"] = SimpleNamespace()
     with pytest.raises(ValueError):
         manager._extract_plugin_permissions(invalid_config)
 
@@ -198,9 +200,7 @@ def test_cleanup_plugin_and_cleanup_all_plugins() -> None:
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
     plugin_instance = _TestPlugin(bot)
 
-    manager._plugin_instances["test_plugin"] = plugin_manager_module.weakref.ref(
-        plugin_instance
-    )
+    manager._plugin_instances["test_plugin"] = weakref.ref(plugin_instance)
     manager._loaded_plugins.add("test_plugin")
 
     manager._cleanup_plugin("test_plugin")
@@ -216,9 +216,11 @@ def test_cleanup_plugin_and_cleanup_all_plugins() -> None:
 def test_module_exists_uses_import_spec(monkeypatch: pytest.MonkeyPatch) -> None:
     manager = PluginManager()
     monkeypatch.setattr(
-        plugin_manager_module.importlib.util,
+        importlib.util,
         "find_spec",
-        lambda module_path: object() if module_path.endswith(".ok.config") else None,
+        lambda module_path: (
+            SimpleNamespace() if module_path.endswith(".ok.config") else None
+        ),
     )
     assert manager._module_exists("ok") is True
     assert manager._module_exists("missing") is False

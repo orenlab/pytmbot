@@ -11,7 +11,7 @@ import os
 import tempfile
 import threading
 from collections import deque
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from time import time
@@ -36,6 +36,9 @@ from pytmbot.utils import generate_secret_token, mask_ip_address, mask_token_in_
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 BAN_TTL_SECONDS = 3600
+
+type JsonPrimitive = str | int | float | bool | None
+type JsonValue = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 def _get_webhook_config() -> SettingsWebhookConfig:
@@ -750,7 +753,7 @@ class WebhookServer(BaseComponent):
 
         return peer_ip, client_ip
 
-    def _get_update_error_context(self, update: UpdateModel) -> dict[str, object]:
+    def _get_update_error_context(self, update: UpdateModel) -> dict[str, int | str]:
         """Return minimal and safe update context for error logs."""
         return {
             "update_id": update.update_id,
@@ -868,7 +871,11 @@ class WebhookServer(BaseComponent):
                             update_id=update_dict.get("update_id"),
                         ) as update_log:
                             update_log.info("bot.webhook.processing.update.info")
-                            update_obj = telebot.types.Update.de_json(update_dict)
+                            update_from_json: Callable[
+                                [dict[str, JsonValue]],
+                                telebot.types.Update,
+                            ] = telebot.types.Update.de_json
+                            update_obj = update_from_json(update_dict)
                             self.bot.process_new_updates([update_obj])
                             update_log.debug("bot.webhook.update.processed.ok")
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from types import ModuleType, SimpleNamespace
-from typing import Any
+from collections.abc import Callable
+from types import ModuleType, SimpleNamespace, TracebackType
+from typing import cast
 
 import pytest
 
 import pytmbot.plugins.outline.methods as outline_methods_module
-from pytmbot.plugins.outline.methods import PluginMethods
+from pytmbot.logs import Logger
+from pytmbot.models.settings_model import SettingsModel
+from pytmbot.plugins.outline.methods import OutlinePayload, PluginMethods
 
 
 class _SecretStub:
@@ -17,18 +20,24 @@ class _SecretStub:
         return self._value
 
 
-def _patch_plugin_core_init() -> Any:
-    def _fake_init(self: Any) -> None:
-        self.settings = SimpleNamespace(
-            plugins_config=SimpleNamespace(
-                outline=SimpleNamespace(
-                    api_url=[_SecretStub("https://outline.example/api")],
-                    cert=[_SecretStub("CERT_SHA256")],
-                    verify_tls=True,
+def _patch_plugin_core_init() -> Callable[[PluginMethods], None]:
+    def _fake_init(self: PluginMethods) -> None:
+        self.settings = cast(
+            SettingsModel,
+            SimpleNamespace(
+                plugins_config=SimpleNamespace(
+                    outline=SimpleNamespace(
+                        api_url=[_SecretStub("https://outline.example/api")],
+                        cert=[_SecretStub("CERT_SHA256")],
+                        verify_tls=True,
+                    )
                 )
-            )
+            ),
         )
-        self.logger = SimpleNamespace(exception=lambda *_args, **_kwargs: None)
+        self.logger = cast(
+            Logger,
+            SimpleNamespace(exception=lambda *_args, **_kwargs: None),
+        )
 
     return _fake_init
 
@@ -37,7 +46,8 @@ def test_outline_methods_uses_async_client_when_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        outline_methods_module.PluginCore, "__init__", _patch_plugin_core_init()
+        "pytmbot.plugins.plugins_core.PluginCore.__init__",
+        _patch_plugin_core_init(),
     )
 
     class _AsyncClient:
@@ -53,22 +63,22 @@ def test_outline_methods_uses_async_client_when_available(
 
         async def __aexit__(
             self,
-            _exc_type: object,
-            _exc_val: object,
-            _exc_tb: object,
+            _exc_type: type[BaseException] | None,
+            _exc_val: BaseException | None,
+            _exc_tb: TracebackType | None,
         ) -> None:
             return None
 
         @staticmethod
-        async def get_server_info() -> dict[str, Any]:
+        async def get_server_info() -> OutlinePayload:
             return {"name": "server", "metricsEnabled": True}
 
         @staticmethod
-        async def get_transfer_metrics() -> dict[str, Any]:
+        async def get_transfer_metrics() -> OutlinePayload:
             return {"bytesTransferredByUserId": {"1": 1024}}
 
         @staticmethod
-        async def get_access_keys() -> list[dict[str, Any]]:
+        async def get_access_keys() -> OutlinePayload:
             return [{"id": "1", "name": "Alice"}]
 
     def _fake_import_module(module_name: str) -> ModuleType:
@@ -97,7 +107,8 @@ def test_outline_methods_traffic_fallback_to_get_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        outline_methods_module.PluginCore, "__init__", _patch_plugin_core_init()
+        "pytmbot.plugins.plugins_core.PluginCore.__init__",
+        _patch_plugin_core_init(),
     )
 
     class _AsyncClient:
@@ -111,22 +122,22 @@ def test_outline_methods_traffic_fallback_to_get_metrics(
 
         async def __aexit__(
             self,
-            _exc_type: object,
-            _exc_val: object,
-            _exc_tb: object,
+            _exc_type: type[BaseException] | None,
+            _exc_val: BaseException | None,
+            _exc_tb: TracebackType | None,
         ) -> None:
             return None
 
         @staticmethod
-        async def get_metrics() -> dict[str, Any]:
+        async def get_metrics() -> OutlinePayload:
             return {"bytes_transferred_by_user_id": {"42": 2048}}
 
         @staticmethod
-        async def get_server_info() -> dict[str, Any]:
+        async def get_server_info() -> OutlinePayload:
             return {"name": "server"}
 
         @staticmethod
-        async def get_access_keys() -> list[dict[str, Any]]:
+        async def get_access_keys() -> OutlinePayload:
             return []
 
     def _fake_import_module(module_name: str) -> ModuleType:
@@ -148,7 +159,8 @@ def test_outline_methods_falls_back_to_legacy_wrapper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        outline_methods_module.PluginCore, "__init__", _patch_plugin_core_init()
+        "pytmbot.plugins.plugins_core.PluginCore.__init__",
+        _patch_plugin_core_init(),
     )
 
     class _LegacyWrapper:
@@ -158,15 +170,15 @@ def test_outline_methods_falls_back_to_legacy_wrapper(
             assert verify_tls is True
 
         @staticmethod
-        def get_server_info() -> dict[str, Any]:
+        def get_server_info() -> OutlinePayload:
             return {"name": "legacy"}
 
         @staticmethod
-        def get_metrics() -> dict[str, Any]:
+        def get_metrics() -> OutlinePayload:
             return {"bytesTransferredByUserId": {"2": 512}}
 
         @staticmethod
-        def get_access_keys() -> dict[str, Any]:
+        def get_access_keys() -> OutlinePayload:
             return {"accessKeys": [{"id": "2", "name": "Bob"}]}
 
     def _fake_import_module(module_name: str) -> ModuleType:
@@ -196,7 +208,8 @@ def test_outline_methods_rejects_unknown_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        outline_methods_module.PluginCore, "__init__", _patch_plugin_core_init()
+        "pytmbot.plugins.plugins_core.PluginCore.__init__",
+        _patch_plugin_core_init(),
     )
 
     class _AsyncClient:
@@ -210,14 +223,14 @@ def test_outline_methods_rejects_unknown_action(
 
         async def __aexit__(
             self,
-            _exc_type: object,
-            _exc_val: object,
-            _exc_tb: object,
+            _exc_type: type[BaseException] | None,
+            _exc_val: BaseException | None,
+            _exc_tb: TracebackType | None,
         ) -> None:
             return None
 
         @staticmethod
-        async def get_server_info() -> dict[str, Any]:
+        async def get_server_info() -> OutlinePayload:
             return {"name": "server"}
 
     def _fake_import_module(module_name: str) -> ModuleType:
@@ -230,5 +243,7 @@ def test_outline_methods_rejects_unknown_action(
     monkeypatch.setattr(outline_methods_module, "import_module", _fake_import_module)
 
     plugin_methods = PluginMethods()
+    action_name = "outline_action_manager"
+    action_manager = getattr(plugin_methods, action_name)
     with pytest.raises(ValueError):
-        plugin_methods.outline_action_manager("bad_action")  # type: ignore[arg-type]
+        action_manager("bad_action")

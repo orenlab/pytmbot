@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from datetime import datetime
 
-import requests  # type: ignore[import-untyped]
+import requests
 from packaging.version import InvalidVersion, Version
 from telebot import TeleBot
 from telebot.types import Message
@@ -231,7 +231,7 @@ def _render_no_update_message() -> str:
     """
     context: str = f"Current version: {__version__}. No update available."
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
@@ -259,7 +259,7 @@ def _render_future_message(update_context: dict[str, str]) -> str:
         "You are living in the future, and I am glad to say that I will continue to grow and evolve!"
     )
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 

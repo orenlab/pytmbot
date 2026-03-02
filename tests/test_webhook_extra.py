@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +15,12 @@ import pytmbot.webhook as webhook_module
 from pytmbot.exceptions import InitializationError
 from pytmbot.models.updates_model import Chat, Message, UpdateModel, User
 from pytmbot.webhook import RATELIMIT_EXCEEDED_MESSAGE, RateLimit, WebhookServer
+
+type _PayloadScalar = str | int | float | bool | None
+type _PayloadValue = (
+    _PayloadScalar | list[str] | list["_PayloadValue"] | dict[str, "_PayloadValue"]
+)
+type _PayloadDict = dict[str, _PayloadValue]
 
 
 class _FakeBot(TeleBot):
@@ -46,7 +52,7 @@ def test_rate_limit_ban_and_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
     assert limiter.is_rate_limited(ip) is True
     assert limiter.is_banned(ip) is True
 
-    limiter.banned_ips[ip] = webhook_module.datetime.now() - timedelta(hours=2)
+    limiter.banned_ips[ip] = datetime.now() - timedelta(hours=2)
     assert limiter.is_banned(ip) is False
     assert ip not in limiter.banned_ips
     assert RATELIMIT_EXCEEDED_MESSAGE == "Rate limit exceeded"
@@ -115,7 +121,7 @@ def test_get_webhook_config_raises_when_missing(
 def test_webhook_manager_setup_and_remove(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
     remove_calls = {"count": 0}
-    set_calls: list[dict[str, object]] = []
+    set_calls: list[_PayloadDict] = []
 
     monkeypatch.setattr(bot, "get_webhook_info", lambda timeout=None: "webhook-info")
 
@@ -125,7 +131,7 @@ def test_webhook_manager_setup_and_remove(monkeypatch: pytest.MonkeyPatch) -> No
 
     def _set_webhook(
         url: str | None = None,
-        certificate: str | object | None = None,
+        certificate: str | None = None,
         max_connections: int | None = None,
         allowed_updates: list[str] | None = None,
         ip_address: str | None = None,
@@ -211,12 +217,12 @@ def test_webhook_server_start_port_and_uvicorn_paths(
     with pytest.raises(InitializationError):
         privileged.start()
 
-    uvicorn_calls: list[dict[str, object]] = []
+    uvicorn_calls: list[_PayloadDict] = []
 
-    def _fake_uvicorn_run(_app: object, **kwargs: object) -> None:
+    def _fake_uvicorn_run(_app: SimpleNamespace, **kwargs: _PayloadValue) -> None:
         uvicorn_calls.append(kwargs)
 
-    monkeypatch.setattr(webhook_module.uvicorn, "run", _fake_uvicorn_run)
+    monkeypatch.setattr("pytmbot.webhook.uvicorn.run", _fake_uvicorn_run)
     monkeypatch.setattr(
         webhook_module,
         "_get_webhook_config",

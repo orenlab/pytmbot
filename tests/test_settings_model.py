@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from typing import cast
 
 import pytest
-import yaml  # type: ignore[import-untyped]
+import yaml
 from packaging.version import InvalidVersion
 from pydantic import SecretStr, ValidationError
 
@@ -18,8 +19,12 @@ from pytmbot.models.settings_model import (
     load_config_with_migration,
 )
 
+type _ConfigScalar = str | int | float | bool | None
+type _ConfigValue = _ConfigScalar | dict[str, "_ConfigValue"] | list["_ConfigValue"]
+type _ConfigDict = dict[str, _ConfigValue]
 
-def _base_config() -> dict[str, object]:
+
+def _base_config() -> _ConfigDict:
     return {
         "bot_token": {"prod_token": ["token-value"]},
         "access_control": {
@@ -32,13 +37,17 @@ def _base_config() -> dict[str, object]:
     }
 
 
+def _as_object_dict(payload: _ConfigDict) -> dict[str, object]:
+    return cast(dict[str, object], payload)
+
+
 def test_get_app_version_fallback_when_package_not_installed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     get_app_version.cache_clear()
 
     def _raise_not_found(_name: str) -> str:
-        raise settings_model_module.PackageNotFoundError
+        raise PackageNotFoundError
 
     monkeypatch.setattr(settings_model_module, "package_version", _raise_not_found)
     assert get_app_version() == "0.3.0-dev"
@@ -101,16 +110,19 @@ def test_config_migrator_migrate_config_paths(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(settings_model_module, "get_app_version", lambda: "0.3.0-dev")
     migrator = ConfigMigrator()
 
-    legacy = {"bot_token": {"prod_token": ["token"]}}
-    migrated_legacy = migrator.migrate_config(legacy)
+    legacy: _ConfigDict = {"bot_token": {"prod_token": ["token"]}}
+    migrated_legacy = migrator.migrate_config(_as_object_dict(legacy))
     assert migrated_legacy["config_version"] == "0.3.0-dev"
 
-    outdated = {"config_version": "0.2.2"}
-    migrated_outdated = migrator.migrate_config(outdated)
+    outdated: _ConfigDict = {"config_version": "0.2.2"}
+    migrated_outdated = migrator.migrate_config(_as_object_dict(outdated))
     assert migrated_outdated["config_version"] == "0.3.0-dev"
 
-    current = {"config_version": "0.3.0-dev"}
-    assert migrator.migrate_config(current)["config_version"] == "0.3.0-dev"
+    current: _ConfigDict = {"config_version": "0.3.0-dev"}
+    assert (
+        migrator.migrate_config(_as_object_dict(current))["config_version"]
+        == "0.3.0-dev"
+    )
 
 
 def test_settings_model_migration_and_version_info(
@@ -172,7 +184,7 @@ def test_load_config_with_migration_propagates_yaml_none(
     config_file = tmp_path / "none.yaml"
     config_file.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setattr(yaml, "safe_load", lambda _stream: cast(object, None))
+    monkeypatch.setattr(yaml, "safe_load", lambda _stream: None)
 
     with pytest.raises(TypeError):
         load_config_with_migration(str(config_file))

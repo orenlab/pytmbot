@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import cast
 
 import pytest
 from telebot.types import CallbackQuery, User
@@ -121,13 +123,15 @@ class _FakeSessionManager:
 
 
 def _make_callback_query(user_id: int) -> CallbackQuery:
-    user = User(
+    user_ctor = cast(Callable[..., User], User)
+    user = user_ctor(
         id=user_id,
         is_bot=False,
         first_name="Test",
         username="test_user",
     )
-    return CallbackQuery(
+    callback_query_ctor = cast(Callable[..., CallbackQuery], CallbackQuery)
+    return callback_query_ctor(
         id="cbq-1",
         from_user=user,
         data="payload",

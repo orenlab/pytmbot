@@ -3,23 +3,34 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
 from typing import cast
 
 import pytest
+import requests
+import telebot
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import BotCommand
 
 import pytmbot.pytmbot_instance as instance_module
+from pytmbot.exceptions import InitializationError
+from pytmbot.plugins.plugin_manager import PluginManager
+
+type _PayloadValue = (
+    str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
+)
+type _MessageCallback = Callable[..., None]
+type _PredicateCallback = Callable[..., bool]
 
 
 def _build_api_exception(error_code: int) -> ApiTelegramException:
-    return ApiTelegramException(
+    api_exc_ctor = cast(Callable[..., ApiTelegramException], ApiTelegramException)
+    return api_exc_ctor(
         "getUpdates",
         SimpleNamespace(status_code=error_code, text="error"),
         {"error_code": error_code, "description": "error"},
@@ -28,11 +39,9 @@ def _build_api_exception(error_code: int) -> ApiTelegramException:
 
 class _RateLimitApiException(ApiTelegramException):
     def __init__(self, retry_after: int) -> None:
-        super().__init__(
-            "getUpdates",
-            SimpleNamespace(status_code=429, text="error"),
-            {"error_code": 429, "description": "error"},
-        )
+        base_exc = _build_api_exception(429)
+        Exception.__init__(self, *getattr(base_exc, "args", ("rate limit",)))
+        self.__dict__.update(getattr(base_exc, "__dict__", {}))
         self.retry_after = retry_after
 
 
@@ -50,13 +59,13 @@ class _DummyTeleBot:
     polling: bool = False
     stop_calls: int = 0
     remove_calls: int = 0
-    middleware_instances: list[object] = field(default_factory=list)
-    message_handlers: list[tuple[object, dict[str, object]]] = field(
+    middleware_instances: list[SimpleNamespace] = field(default_factory=list)
+    message_handlers: list[tuple[_MessageCallback, dict[str, _PayloadValue]]] = field(
         default_factory=list
     )
-    callback_handlers: list[tuple[object, dict[str, object]]] = field(
-        default_factory=list
-    )
+    callback_handlers: list[
+        tuple[_MessageCallback, dict[str, _PayloadValue | _PredicateCallback]]
+    ] = field(default_factory=list)
     commands_set: list[BotCommand] = field(default_factory=list)
     description_set: str = ""
     get_me_error: Exception | None = None
@@ -69,7 +78,7 @@ class _DummyTeleBot:
         self.remove_calls += 1
         return True
 
-    def get_me(self) -> object:
+    def get_me(self) -> dict[str, str]:
         if self.get_me_error is not None:
             raise self.get_me_error
         return {"ok": "true"}
@@ -77,7 +86,7 @@ class _DummyTeleBot:
     def set_my_commands(
         self,
         commands: list[BotCommand],
-        scope: object | None = None,
+        scope: SimpleNamespace | None = None,
         language_code: str | None = None,
     ) -> bool:
         del scope, language_code
@@ -92,22 +101,22 @@ class _DummyTeleBot:
         del language_code
         self.description_set = description or ""
 
-    def setup_middleware(self, middleware: object) -> None:
+    def setup_middleware(self, middleware: SimpleNamespace) -> None:
         self.middleware_instances.append(middleware)
 
     def register_message_handler(
         self,
-        callback: object,
-        **kwargs: object,
+        callback: _MessageCallback,
+        **kwargs: _PayloadValue,
     ) -> None:
         self.message_handlers.append((callback, kwargs))
 
     def register_callback_query_handler(
         self,
-        callback: object,
-        func: object,
+        callback: _MessageCallback,
+        func: _PredicateCallback,
         pass_bot: bool | None = False,
-        **kwargs: object,
+        **kwargs: _PayloadValue,
     ) -> None:
         self.callback_handlers.append(
             (
@@ -116,7 +125,7 @@ class _DummyTeleBot:
             )
         )
 
-    def infinity_polling(self, **_kwargs: object) -> None:
+    def infinity_polling(self, **_kwargs: _PayloadValue) -> None:
         return
 
 
@@ -173,8 +182,7 @@ def test_handle_critical_api_error_rate_limit_recovers_and_caps_sleep(
     error = _RateLimitApiException(900)
 
     monkeypatch.setattr(
-        instance_module.time,
-        "sleep",
+        "pytmbot.pytmbot_instance.time.sleep",
         lambda seconds: sleeps.append(seconds),
     )
 
@@ -188,8 +196,7 @@ def test_handle_critical_api_error_opens_rate_limit_circuit(
     bot = instance_module.PyTMBot()
     sleeps: list[int] = []
     monkeypatch.setattr(
-        instance_module.time,
-        "sleep",
+        "pytmbot.pytmbot_instance.time.sleep",
         lambda seconds: sleeps.append(seconds),
     )
 
@@ -212,8 +219,7 @@ def test_handle_critical_api_error_respects_open_rate_limit_circuit(
     bot._rate_limit_open_until = datetime.now() + timedelta(seconds=42)
     sleeps: list[int] = []
     monkeypatch.setattr(
-        instance_module.time,
-        "sleep",
+        "pytmbot.pytmbot_instance.time.sleep",
         lambda seconds: sleeps.append(seconds),
     )
 
@@ -244,11 +250,11 @@ def test_safe_stop_polling_handles_timeout(monkeypatch: pytest.MonkeyPatch) -> N
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object | None,
+            _tb: TracebackType | None,
         ) -> None:
             return
 
-        def submit(self, _func: object) -> _TimeoutFuture:
+        def submit(self, _func: Callable[[], None]) -> _TimeoutFuture:
             return _TimeoutFuture()
 
     bot = instance_module.PyTMBot()
@@ -266,13 +272,12 @@ def test_handle_polling_error_connection_backoff(
     bot = instance_module.PyTMBot()
     sleeps: list[int] = []
     monkeypatch.setattr(
-        instance_module.time,
-        "sleep",
+        "pytmbot.pytmbot_instance.time.sleep",
         lambda seconds: sleeps.append(seconds),
     )
 
     errors, sleep_time = bot._handle_polling_error(
-        instance_module.requests.exceptions.ConnectionError("temporary"),
+        requests.exceptions.ConnectionError("temporary"),
         consecutive_errors=0,
         current_sleep_time=10,
     )
@@ -327,7 +332,7 @@ def test_retrieve_bot_token_supports_dev_and_prod(
 
 def test_setup_middleware_chain_and_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     class RateLimitLike:
-        def __init__(self, bot: object, *, limit: int) -> None:
+        def __init__(self, bot: TeleBot, *, limit: int) -> None:
             self.bot = bot
             self.limit = limit
             self.cleaned = False
@@ -406,7 +411,7 @@ def test_initialize_bot_core_sets_running_state(
 
     initialized = bot.initialize_bot_core()
 
-    assert initialized is dummy
+    assert initialized is cast(TeleBot, dummy)
     assert bot.state is instance_module.BotState.RUNNING
 
 
@@ -600,12 +605,12 @@ def test_retrieve_bot_token_error_paths(monkeypatch: pytest.MonkeyPatch) -> None
         )
     )
     monkeypatch.setattr(instance_module, "settings", missing_dev_settings)
-    with pytest.raises(instance_module.InitializationError) as dev_exc:
+    with pytest.raises(InitializationError) as dev_exc:
         bot.retrieve_bot_token()
     assert dev_exc.value.context.error_code == "CORE_001_DEV"
 
     monkeypatch.setattr(instance_module, "settings", SimpleNamespace())
-    with pytest.raises(instance_module.InitializationError) as attr_exc:
+    with pytest.raises(InitializationError) as attr_exc:
         bot.retrieve_bot_token()
     assert attr_exc.value.context.error_code == "CORE_001"
 
@@ -645,7 +650,7 @@ def test_start_webhook_server_requires_configuration(
         instance_module, "settings", SimpleNamespace(webhook_config=None)
     )
 
-    with pytest.raises(instance_module.InitializationError) as exc_info:
+    with pytest.raises(InitializationError) as exc_info:
         bot._start_webhook_server()
     assert exc_info.value.context.error_code == "CORE_WEBHOOK_001"
 
@@ -750,7 +755,7 @@ def test_safe_stop_polling_failure_paths(monkeypatch: pytest.MonkeyPatch) -> Non
             self,
             _exc_type: type[BaseException] | None,
             _exc: BaseException | None,
-            _tb: object | None,
+            _tb: TracebackType | None,
         ) -> None:
             return
 
@@ -784,7 +789,7 @@ def test_recovery_and_token_file_error_paths(monkeypatch: pytest.MonkeyPatch) ->
         )
     )
     monkeypatch.setattr(instance_module, "settings", settings_stub)
-    with pytest.raises(instance_module.InitializationError) as exc_info:
+    with pytest.raises(InitializationError) as exc_info:
         bot2.retrieve_bot_token()
     assert exc_info.value.context.error_code == "CORE_002"
 
@@ -794,7 +799,7 @@ def test_create_base_bot_and_commands_exception_paths(
 ) -> None:
     bot = instance_module.PyTMBot()
     monkeypatch.setattr(
-        instance_module.telebot,
+        telebot,
         "TeleBot",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("create failed")),
     )
@@ -805,7 +810,7 @@ def test_create_base_bot_and_commands_exception_paths(
         def set_my_commands(
             self,
             commands: list[BotCommand],
-            scope: object | None = None,
+            scope: SimpleNamespace | None = None,
             language_code: str | None = None,
         ) -> bool:
             del commands, scope, language_code
@@ -826,7 +831,7 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
             raise RuntimeError("stats failed")
 
     class _BrokenMiddleware:
-        def __init__(self, bot: object, **kwargs: object) -> None:
+        def __init__(self, bot: TeleBot, **kwargs: _PayloadValue) -> None:
             del bot, kwargs
             raise RuntimeError("middleware failed")
 
@@ -846,7 +851,7 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
 
     _set_bot_args(bot, plugins=["one"], webhook="False")
     bot.plugin_manager = cast(
-        instance_module.PluginManager,
+        PluginManager,
         SimpleNamespace(
             register_plugins=lambda plugins, telebot: (_ for _ in ()).throw(
                 RuntimeError("plugin failed")
@@ -902,7 +907,7 @@ def test_start_webhook_server_success_and_failures(
     starts: list[tuple[str, str, str]] = []
 
     class _WebhookServer:
-        def __init__(self, bot_obj: TeleBot, **config: object) -> None:
+        def __init__(self, bot_obj: TeleBot, **config: _PayloadValue) -> None:
             del bot_obj
             starts.append(
                 (
@@ -921,7 +926,7 @@ def test_start_webhook_server_success_and_failures(
     assert starts and starts[0][1] == "8443"
 
     class _FailingWebhookServer:
-        def __init__(self, bot_obj: TeleBot, **config: object) -> None:
+        def __init__(self, bot_obj: TeleBot, **config: _PayloadValue) -> None:
             del bot_obj, config
 
         def start(self) -> None:
@@ -953,11 +958,12 @@ def test_polling_error_and_loop_and_shutdown_branches(
         )
 
     class _PollingBot(_DummyTeleBot):
-        def infinity_polling(self, **kwargs: object) -> None:
+        def infinity_polling(self, **kwargs: _PayloadValue) -> None:
+            del kwargs
             raise RuntimeError("polling fail")
 
     polling_bot = _PollingBot()
-    monkeypatch.setattr(instance_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr("pytmbot.pytmbot_instance.time.sleep", lambda _seconds: None)
     monkeypatch.setattr(
         instance_module.PyTMBot, "_safe_stop_polling", lambda self: True
     )
