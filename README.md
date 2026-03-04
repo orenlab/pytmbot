@@ -71,8 +71,13 @@ The bot supports two operational modes:
 
 - **Polling Mode:** Simplified setup with no need for HTTPS or a static IP address. Recommended for small-scale or
   development deployments.
-- **Webhook Mode:** Optimized for real-time updates with reduced latency. Suitable for production environments,
-  typically requiring an HTTPS server and a valid domain.
+- **Webhook Mode:** Optimized for real-time updates with reduced latency. Requires a public reachable hostname for
+  Telegram `setWebhook`; local `cert`/`cert_key` are optional when TLS is terminated by a reverse proxy.
+
+Logging defaults:
+
+- At `INFO` and above, error logs are concise (no full Python traceback dump).
+- Full stack traces are preserved in `DEBUG`.
 
 ## 🔌 Installation and Setup
 

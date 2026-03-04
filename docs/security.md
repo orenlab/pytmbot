@@ -42,6 +42,9 @@ See also: [auth_control.md](auth_control.md).
 
 - Log messages are structured and include trace identifiers.
 - Sensitive values (tokens, IDs/usernames where applicable) are masked before output.
+- Webhook path/token values are masked in lifecycle and error logs.
+- At `INFO` and above, exception logs are emitted without full Python traceback dumps.
+- Full stack traces are preserved for troubleshooting in `DEBUG`.
 - Security-relevant events (auth failures, bans, invalid webhook requests) are explicitly logged.
 
 ## Configuration Hardening
@@ -56,4 +59,3 @@ See also: [auth_control.md](auth_control.md).
 - Keep image up to date (`orenlab/pytmbot:latest` or pinned release tags).
 - Run periodic vulnerability scans for container image and host.
 - Review auth/rate-limit/webhook logs regularly.
-

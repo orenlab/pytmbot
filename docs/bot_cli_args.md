@@ -10,19 +10,21 @@ argument you can use when starting the bot.
 
 ## 🛠️ Arguments
 
-| Argument          | Type   | Default     | Choices                                                  | Description                                                                                    |
-|-------------------|--------|-------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| `--mode`          | `str`  | `prod`      | `dev`, `prod`                                            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production. |
-| `--log-level`     | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development.        |
-| `--log-format`    | `str`  | mode-based  | `human`, `json`                                          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.          |
-| `--colorize_logs` | `bool` | `True`      | `true`, `false`                                          | Enable or disable colorized logs in human format.                                              |
+| Argument          | Type   | Default     | Choices                                                  | Description                                                                                            |
+|-------------------|--------|-------------|----------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| `--mode`          | `str`  | `prod`      | `dev`, `prod`                                            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production.         |
+| `--log-level`     | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development.                |
+| `--log-format`    | `str`  | mode-based  | `human`, `json`                                          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.                  |
+| `--colorize_logs` | `bool` | `True`      | `true`, `false`                                          | Enable or disable colorized logs in human format.                                                      |
 | `--webhook`       | `bool` | `False`     | `True`, `False`                                          | Core CLI: explicit boolean value. Docker entrypoint: supports both `--webhook` and `--webhook <bool>`. |
-| `--socket_host`   | `str`  | `127.0.0.1` | N/A                                                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.     |
-| `--plugins`       | `list` | `[]`        | N/A                                                      | Core CLI and Docker entrypoint both support multiple plugins.                                   |
-| `--debug`         | `flag` | `False`     | N/A                                                      | Shortcut for `--mode dev --log-level DEBUG`.                                                   |
-| `--salt`          | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: generate TOTP salt and exit.                                        |
-| `--health_check`  | `flag` | `False`     | N/A                                                      | Perform comprehensive health check and exit.                                                   |
-| `--check-docker`  | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: check Docker socket access and group configuration, then exit.      |
+| `--socket_host`   | `str`  | `127.0.0.1` | N/A                                                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.             |
+| `--plugins`       | `list` | `[]`        | N/A                                                      | Core CLI and Docker entrypoint both support multiple plugins.                                          |
+| `--debug`         | `flag` | `False`     | N/A                                                      | Shortcut for `--mode dev --log-level DEBUG`.                                                           |
+| `--salt`          | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: generate TOTP salt and exit.                                                |
+| `--health_check`  | `flag` | `False`     | N/A                                                      | Perform comprehensive health check and exit.                                                           |
+| `--check-docker`  | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: check Docker socket access and group configuration, then exit.              |
+
+Tracebacks are printed only in `DEBUG`; `INFO+` logs keep concise error summaries.
 
 ## 🏥 Health Check & Diagnostic Arguments
 
@@ -80,10 +82,12 @@ configuration file. Below are the sections you need to complete:
 
 ### Webhook Configuration (if using `--webhook True`)
 
-- **webhook_config**: Fill all parameters in the `webhook_config` section
+- **Required fields**: `webhook_config.url`, `webhook_port`, `local_port`
+- **Optional fields**: `trusted_proxy_ips`, `cert`, `cert_key`
+- **Failover behavior**: if Telegram rejects `setWebhook` (for example unresolved host), bot falls back to polling
 - **trusted_proxy_ips**: Configure only trusted reverse-proxy IPs/CIDRs when using forwarded headers
-- **Security Note**: Bot cannot run on port 80 for security reasons. Use reverse proxy (e.g., Nginx, Nginx Proxy
-  Manager, or Traefik)
+- **Security Note**: Bot cannot run on privileged ports (`<1024`, including `80` and `443`). Use reverse proxy
+  (e.g., Nginx, Nginx Proxy Manager, or Traefik)
 - **Host Configuration**: Set `--socket_host 0.0.0.0` when using with reverse proxy
 
 ### Plugins Configuration (if using `--plugins`)
@@ -277,7 +281,8 @@ The entrypoint script handles:
 4. **Webhook connection issues**:
     - Ensure reverse proxy is properly configured
     - Check `--socket_host` setting
-    - Verify webhook configuration in config file
+    - Verify `webhook_config.url` resolves publicly (no placeholders)
+    - If webhook setup fails, bot falls back to polling
 
 ## 📜 Notes
 

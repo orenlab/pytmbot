@@ -28,12 +28,12 @@
 
 ## Status Snapshot
 
-| Area | Status |
-|---|---|
-| Docker runtime hardening | In progress |
-| Test coverage expansion | In progress |
+| Area                         | Status      |
+|------------------------------|-------------|
+| Docker runtime hardening     | In progress |
+| Test coverage expansion      | In progress |
 | Logging refactor and cleanup | In progress |
-| Release readiness (`0.3.0`) | In progress |
+| Release readiness (`0.3.0`)  | In progress |
 
 ## Notes
 

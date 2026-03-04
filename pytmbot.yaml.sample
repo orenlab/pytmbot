@@ -1,12 +1,13 @@
 ################################################################
 # pyTMBot Configuration File
 # Version: 0.3.0-dev
-# Compatible with app version: 0.3.0-dev (exact match required)
+# Compatible with app version: 0.3.0-dev
 ################################################################
 
 # Configuration Schema Version (RECOMMENDED for 0.3.0+)
-# This field should match your pytmbot version exactly
-# Supported versions: 0.2.2, 0.3.0-dev, 0.3.0
+# Recommended: keep this equal to current app version
+# Runtime auto-migrates mismatched versions to current app version
+# Supported versions: 0.2.2, 0.3.0-dev (alias: 0.3.0.dev0), 0.3.0
 # For legacy 0.2.2 configs: this field can be omitted
 # If omitted, pytmbot auto-fills config_version with current app version during migration
 config_version: '0.3.0-dev'
@@ -30,14 +31,15 @@ bot_token:
 access_control:
   # User IDs allowed to access the bot (REQUIRED)
   # To get your user ID:
-  #   Method 1: Send a message to @userinfobot on Telegram
-  #   Method 2: Start your bot and send any message - check logs for user ID
+  #   Method 1 (recommended): Send /getmyid to your bot
+  #   Method 2: Send a message to @userinfobot on Telegram
   allowed_user_ids:
     - 123456789    # Replace with actual Telegram user ID (number only)
     - 987654321    # You can add multiple user IDs
 
   # Admin IDs with elevated permissions (REQUIRED)
   # Admins can access sensitive commands
+  # IMPORTANT: allowed_admins_ids must be a subset of allowed_user_ids
   allowed_admins_ids:
     - 123456789    # Replace with actual admin Telegram user ID
 
@@ -54,8 +56,8 @@ chat_id:
   # For private chat: use your user ID (positive number)
   # For group chat: use group ID (negative number, starts with -)
   # To get chat ID:
-  #   Method 1: For groups - add @userinfobot to group and send any message
-  #   Method 2: Start your bot and send message - check logs for chat ID
+  #   Method 1 (recommended): Send /getmyid to your bot
+  #   Method 2: For groups - add @userinfobot to group and send any message
   global_chat_id:
     - -1001234567890  # Example: group chat ID (negative number)
     # - 123456789     # Alternative: private chat ID (positive number)
@@ -87,15 +89,17 @@ docker:
 # for enhanced security against unauthorized access
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
-  # Must be accessible from the internet and have valid SSL
+  # Must be publicly reachable and resolvable by Telegram
   # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/
+  # If host is invalid/unresolvable, webhook setup fails and bot falls back to polling
   url:
     - 'your-domain.com'  # Replace with your domain (without https:// and path)
 
   # External webhook port (REQUIRED if using webhooks)
+  # Public HTTPS port used by Telegram when calling your reverse proxy
   webhook_port:
-    - 8443  # Standard HTTPS port (recommended)
-    # - 8443  # Alternative port (allowed by Telegram)
+    - 443   # Recommended
+    # - 8443  # Alternative port (also accepted by Telegram)
 
   # Local application port (REQUIRED if using webhooks)
   # Must be >= 1024 (non-privileged port)
@@ -109,13 +113,20 @@ webhook_config:
     # - '127.0.0.1/32'
     # - '10.0.0.0/8'
 
+  # Additional trusted Telegram IP ranges/CIDRs (OPTIONAL)
+  # Use only if your deployment requires custom Telegram source ranges
+  additional_telegram_ip_ranges: null
+    # - '149.154.160.0/20'
+
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
   # Set to null or omit if not using SSL certificates
+  # Keep null when TLS is terminated by reverse proxy
   cert: null
     # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
   # Set to null or omit if not using SSL certificates
+  # Keep null when TLS is terminated by reverse proxy
   cert_key: null
     # - '/path/to/your/private.key'      # Replace with actual private key path
 
@@ -159,9 +170,10 @@ plugins_config:
     check_interval:
       - 5  # Check system status every 5 seconds
 
-    # Reset notification count after X minutes
+    # Reset notification budget window (seconds)
+    # Example: 300 = 5 minutes
     reset_notification_count:
-      - 5  # Reset notification counter after 5 minutes
+      - 300
 
     # Retry attempts for failed monitoring
     retry_attempts:
@@ -194,6 +206,7 @@ plugins_config:
 # Remove this section entirely if not using InfluxDB
 influxdb:
   # InfluxDB server URL (REQUIRED if using InfluxDB)
+  # Use domain or IP-address
   url:
     - 'http://localhost:8086'  # Replace with your InfluxDB server URL
 
@@ -217,7 +230,7 @@ influxdb:
 # MIGRATION AND VERSIONING GUIDE:
 ################################################################
 # Version Schema:
-# - Config version MUST match app version exactly
+# - Config version should match app version
 # - config_version: '0.2.2' works with pytmbot 0.2.2
 # - config_version: '0.3.0-dev' works with pytmbot 0.3.0-dev
 # - config_version: '0.3.0' works with pytmbot 0.3.0
@@ -244,7 +257,7 @@ influxdb:
 #    - Set config_version to match your pytmbot version (e.g., '0.3.0-dev')
 #    - For pytmbot 0.2.2: you can omit config_version or set to '0.2.2'
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
-#    - Get your user ID: send message to bot and check logs, or use @userinfobot
+#    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID
 #    - Replace -1001234567890 with your chat ID for notifications
 #    - Generate auth_salt: docker run --rm orenlab/pytmbot:latest --salt

@@ -2,17 +2,21 @@
 
 ## Overview
 
-This document provides a secure configuration guide for accessing InfluxDB through Nginx and Nginx Proxy Manager. It includes settings for both general access and isolated servers, ensuring a secure and efficient setup with comprehensive security best practices.
+This document provides a secure configuration guide for accessing InfluxDB through Nginx and Nginx Proxy Manager. It
+includes settings for both general access and isolated servers, ensuring a secure and efficient setup with comprehensive
+security best practices.
 
 ## 🔒 Security Requirements
 
 ### Prerequisites
+
 - **SSL/TLS Certificate**: Required for production deployments
 - **Firewall Configuration**: Proper firewall rules must be in place
 - **Network Segmentation**: InfluxDB should be isolated from public networks
 - **Authentication**: Always use strong authentication mechanisms
 
 ### Security Headers
+
 All configurations must include essential security headers to protect against common attacks.
 
 ## Nginx Configuration
@@ -162,30 +166,30 @@ sudo systemctl reload nginx
 ### Setting Up Secure Proxy Host
 
 1. **Access Management Interface**:
-   - Access the Nginx Proxy Manager interface at `https://<your_server_ip>:81` (use HTTPS if available)
-   - **IMPORTANT**: Change default credentials immediately after first login
+    - Access the Nginx Proxy Manager interface at `https://<your_server_ip>:81` (use HTTPS if available)
+    - **IMPORTANT**: Change default credentials immediately after first login
 
 2. **Initial Security Setup**:
-   - Default credentials (CHANGE IMMEDIATELY):
-     - Email: admin@example.com
-     - Password: changeme
-   - Create a strong admin password
-   - Enable two-factor authentication if available
+    - Default credentials (CHANGE IMMEDIATELY):
+        - Email: admin@example.com
+        - Password: changeme
+    - Create a strong admin password
+    - Enable two-factor authentication if available
 
 3. **Create Secure Proxy Host**:
-   - **Domain Names**: influxdb.example.com
-   - **Scheme**: http
-   - **Forward Hostname / IP**: 127.0.0.1 (use 127.0.0.1 instead of localhost)
-   - **Forward Port**: 8086
-   - **Block Common Exploits**: ✅ Enable
-   - **Websockets Support**: Only if needed
+    - **Domain Names**: influxdb.example.com
+    - **Scheme**: http
+    - **Forward Hostname / IP**: 127.0.0.1 (use 127.0.0.1 instead of localhost)
+    - **Forward Port**: 8086
+    - **Block Common Exploits**: ✅ Enable
+    - **Websockets Support**: Only if needed
 
 4. **SSL Configuration**:
-   - **SSL Certificate**: Use Let's Encrypt or upload your own certificate
-   - **Force SSL**: ✅ Enable
-   - **HTTP/2 Support**: ✅ Enable
-   - **HSTS Enabled**: ✅ Enable
-   - **HSTS Subdomains**: ✅ Enable if applicable
+    - **SSL Certificate**: Use Let's Encrypt or upload your own certificate
+    - **Force SSL**: ✅ Enable
+    - **HTTP/2 Support**: ✅ Enable
+    - **HSTS Enabled**: ✅ Enable
+    - **HSTS Subdomains**: ✅ Enable if applicable
 
 5. **Advanced Security Settings**:
    ```nginx
@@ -285,35 +289,41 @@ networks:
 ## 🔒 Security Best Practices
 
 ### 1. Network Security
+
 - **Firewall Rules**: Only allow necessary ports (443 for HTTPS, 22 for SSH)
 - **Network Segmentation**: Place InfluxDB in a separate network segment
 - **VPN Access**: Use VPN for remote access instead of exposing to internet
 
 ### 2. Authentication & Authorization
+
 - **Strong Passwords**: Use complex passwords with minimum 12 characters
 - **Token-based Authentication**: Implement InfluxDB tokens for API access
 - **Role-based Access**: Use InfluxDB's built-in RBAC features
 - **Regular Rotation**: Rotate passwords and tokens regularly
 
 ### 3. SSL/TLS Configuration
+
 - **Certificate Management**: Use Let's Encrypt or trusted CA certificates
 - **Perfect Forward Secrecy**: Enable PFS with appropriate cipher suites
 - **HSTS**: Implement HTTP Strict Transport Security
 - **TLS 1.3**: Use latest TLS version when possible
 
 ### 4. Monitoring & Logging
+
 - **Access Logs**: Monitor all access attempts
 - **Error Logs**: Review error logs regularly
 - **Rate Limiting**: Implement rate limiting to prevent abuse
 - **Alerting**: Set up alerts for suspicious activities
 
 ### 5. Container Security
+
 - **Non-root User**: Run containers as non-root user
 - **Read-only Filesystem**: Use read-only root filesystem
 - **Resource Limits**: Set appropriate resource limits
 - **Security Scanning**: Regularly scan container images for vulnerabilities
 
 ### 6. Backup & Recovery
+
 - **Regular Backups**: Implement automated backup strategy
 - **Encrypted Backups**: Encrypt backup data
 - **Recovery Testing**: Test recovery procedures regularly
@@ -343,9 +353,11 @@ networks:
 
 ## Conclusion
 
-This secure configuration provides robust protection for InfluxDB access through Nginx and Nginx Proxy Manager. Always follow security best practices and regularly review and update your configurations to maintain security posture.
+This secure configuration provides robust protection for InfluxDB access through Nginx and Nginx Proxy Manager. Always
+follow security best practices and regularly review and update your configurations to maintain security posture.
 
 For production environments, consider additional security measures such as:
+
 - Web Application Firewall (WAF)
 - DDoS protection
 - Security auditing

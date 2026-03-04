@@ -135,7 +135,9 @@ networks:
 
 ### Webhook Configuration (if using `--webhook`)
 
-- **webhook_config**: Complete all parameters in the webhook configuration section
+- **Required fields**: `webhook_config.url`, `webhook_port`, `local_port`
+- **Optional fields**: `trusted_proxy_ips`, `cert`, `cert_key`
+- **Failover behavior**: if Telegram rejects `setWebhook` (for example unresolved host), bot falls back to polling
 - **trusted_proxy_ips**: Configure trusted reverse-proxy IPs/CIDRs when forwarded headers are used
 - **Security Note**: Webhook server cannot run on privileged ports (`<1024`, including `80` and `443`). Use a reverse
   proxy (Nginx, Nginx Proxy Manager, Traefik, etc.).
@@ -160,6 +162,8 @@ Docker image entrypoint supports:
 | `--health_check`  | `flag` | `False`     | Run entrypoint health check and exit.                                |
 | `--check-docker`  | `flag` | `False`     | Entrypoint utility: check Docker socket access and exit.             |
 | `--salt`          | `flag` | `False`     | Entrypoint utility: generate auth salt and exit.                     |
+
+Tracebacks are printed only in `DEBUG`; `INFO+` logs keep concise error summaries.
 
 ## Plugin System
 
@@ -330,15 +334,19 @@ docker build --build-arg COMPILE_BYTECODE=0 -t orenlab/pytmbot:local-dev .
    docker exec pytmbot python3 -c "import socket; socket.create_connection(('api.telegram.org', 443), 5); print('ok')"
    ```
 
-4. **Memory issues**:
+4. **Webhook setup fails (`bad webhook` / host resolve error)**:
+    - Verify `webhook_config.url` (real public DNS name, no placeholders)
+    - Bot now falls back to polling; fix config and restart container for webhook mode
+
+5. **Memory issues**:
     - Monitor memory usage: `docker stats pytmbot`
     - Adjust memory limits if needed
 
-5. **High CPU usage**:
+6. **High CPU usage**:
     - Check log level (reduce from DEBUG to INFO)
     - Verify monitoring intervals in config
 
-6. **Plugin loading issues**:
+7. **Plugin loading issues**:
     - Verify plugin dependencies (InfluxDB for monitor plugin)
     - Check plugin-specific configuration sections
 

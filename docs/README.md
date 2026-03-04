@@ -18,5 +18,6 @@ Start here:
 
 ## Additional docs
 
+- [Changelog](../CHANGELOG.md)
 - [InfluxDB Host Setup](influxdb_host_setup.md)
 - [Installation Script (deprecated)](script_install.md)

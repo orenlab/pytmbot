@@ -39,6 +39,7 @@ sudo docker run -d \
 
 - `--log-level DEBUG`: Sets the logging level to DEBUG, providing detailed information for troubleshooting
 - `--mode prod`: Specifies the production mode for the bot
+- In `DEBUG`, full Python stack traces are included for exceptions
 
 ### Available Options:
 
@@ -104,7 +105,8 @@ sudo docker run --rm \
 ## 🛡️ Security Note
 
 **Important**: DEBUG mode may contain sensitive information in logs. Use it only for troubleshooting and never in
-production environments where logs might be exposed.
+production environments where logs might be exposed. At `INFO+`, pyTMBot keeps exception logs concise (without full
+traceback dumps).
 
 ## 🔧 Troubleshooting
 

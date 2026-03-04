@@ -115,8 +115,9 @@ docker:
 # for enhanced security against unauthorized access
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
-  # Must be accessible from the internet and have valid SSL
+  # Must be publicly reachable and resolvable by Telegram
   # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/
+  # If host is invalid/unresolvable, webhook setup fails and bot falls back to polling
   url:
     - 'your-domain.com'  # Replace with your domain (without https:// and path)
 
@@ -135,15 +136,22 @@ webhook_config:
   # If null/unset, forwarded headers are ignored.
   trusted_proxy_ips: null
     # - '127.0.0.1/32'
-    # - '10.0.0.0/8'
+  # - '10.0.0.0/8'
 
-  # SSL certificate path (OPTIONAL for HTTPS webhooks)
+  # SSL certificate path (OPTIONAL)
+  # Keep null when TLS is terminated by reverse proxy (Nginx/Traefik/NPM)
   cert: null
-    # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
+  # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
-  # SSL private key path (OPTIONAL for HTTPS webhooks)
+  # SSL private key path (OPTIONAL)
+  # Keep null when TLS is terminated by reverse proxy (Nginx/Traefik/NPM)
   cert_key: null
-    # - '/path/to/your/private.key'      # Replace with actual private key path
+  # - '/path/to/your/private.key'      # Replace with actual private key path
+
+Webhook runtime behavior:
+
+  - If webhook registration fails (for example DNS/host issue), bot logs `WEBHOOK_SETUP_FAILED` and switches to polling.
+  - `cert` and `cert_key` are optional; missing files disable in-process SSL and keep HTTP listener startup.
 
 ################################################################
 # Plugins Configuration (OPTIONAL)
@@ -467,6 +475,7 @@ Docker entrypoint supports these operational flags:
 | `--salt`         | `flag` | `False`     | Generate auth salt and exit.                                         |
 
 Note: in Docker entrypoint mode, `--plugins` currently accepts one plugin value.
+Tracebacks are printed only in `DEBUG`; `INFO+` logs keep concise error summaries.
 
 ## 📊 Plugin System
 

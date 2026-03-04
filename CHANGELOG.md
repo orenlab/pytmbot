@@ -79,6 +79,15 @@ All notable changes are documented in this file.
   edit throttling without breaking UI interaction.
 - Access-control admin notification logs now mask `admin_chat_id` to avoid exposing raw chat identifiers in structured
   records.
+- Webhook runtime no longer requires in-process TLS files: missing/placeholder `cert` and `cert_key` now disable local
+  SSL and keep server startup for reverse-proxy TLS termination.
+- Webhook registration failures (for example unresolved/placeholder host in `webhook_config.url`) now trigger controlled
+  failover to polling instead of unstable restart loops.
+- Webhook path/token masking was extended for lifecycle/error logs in webhook flows.
+- `INFO+` exception logs no longer print full Python traceback dumps; full stack traces remain available in `DEBUG`.
+- InfluxDB Monitor dashboard template (`tools/influx_dashboard/monitor_template.json`) was refactored: fixed
+  `load_average_*` field mismatch (now `load_averages_*`) and expanded panels for Docker states, disk usage,
+  temperatures, fan speeds, and sample-rate visibility.
 
 ### Removed
 
@@ -102,5 +111,7 @@ All notable changes are documented in this file.
 - Added a docs index page (`docs/README.md`) as a single entry point.
 - `docs/script_install.md` converted to a deprecation notice for backward links.
 - Added `webhook_config.trusted_proxy_ips` to sample config with secure defaults and usage notes.
+- Updated `README`, Docker/CLI/settings/security/debug docs, and `pytmbot.yaml.sample` for current webhook behavior:
+  optional local TLS cert/key, webhook-to-polling failover, and traceback policy by log level.
 
 [0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...b264229
