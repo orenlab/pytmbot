@@ -3,43 +3,21 @@
     "apiVersion": "influxdata.com/v2alpha1",
     "kind": "Dashboard",
     "metadata": {
-      "name": "rightful-volhard-830001"
+      "name": "pytmbot-monitor-professional"
     },
     "spec": {
+      "name": "pyTMbot Monitor",
       "charts": [
         {
           "axes": [
-            {
-              "base": "10",
-              "name": "x",
-              "scale": "linear"
-            },
-            {
-              "base": "10",
-              "name": "y",
-              "scale": "linear"
-            }
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
           ],
           "colorizeRows": true,
           "colors": [
-            {
-              "id": "qFJGMutps_jlYTEGSJwzJ",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#31C0F6"
-            },
-            {
-              "id": "RYWbLmfF0QNslbWp7x-6q",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#A500A5"
-            },
-            {
-              "id": "4P_BhrwsQtgGQUv-HehgO",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#FF7E27"
-            }
+            {"id": "cpu-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "cpu-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "cpu-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
           ],
           "geom": "line",
           "height": 4,
@@ -64,161 +42,20 @@
             "widthRatio": 1
           },
           "width": 6,
-          "widthRatio": 1
-        },
-        {
-          "axes": [
-            {
-              "base": "10",
-              "name": "x",
-              "scale": "linear"
-            },
-            {
-              "base": "10",
-              "name": "y",
-              "scale": "linear"
-            }
-          ],
-          "colorizeRows": true,
-          "colors": [
-            {
-              "id": "qFJGMutps_jlYTEGSJwzJ",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#31C0F6"
-            },
-            {
-              "id": "RYWbLmfF0QNslbWp7x-6q",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#A500A5"
-            },
-            {
-              "id": "4P_BhrwsQtgGQUv-HehgO",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#FF7E27"
-            }
-          ],
-          "geom": "line",
-          "height": 4,
-          "hoverDimension": "auto",
-          "kind": "Xy",
-          "legendColorizeRows": true,
-          "legendOpacity": 1,
-          "legendOrientationThreshold": 100000000,
-          "name": "Docker Images & Containers Count",
-          "opacity": 1,
-          "orientationThreshold": 100000000,
-          "position": "overlaid",
-          "queries": [
-            {
-              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"docker_containers_count\" or r[\"_field\"] == \"docker_images_count\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
-            }
-          ],
-          "staticLegend": {
-            "colorizeRows": true,
-            "opacity": 1,
-            "orientationThreshold": 100000000,
-            "widthRatio": 1
-          },
-          "width": 6,
           "widthRatio": 1,
-          "yPos": 4
+          "xPos": 0,
+          "yPos": 0
         },
         {
           "axes": [
-            {
-              "base": "10",
-              "name": "x",
-              "scale": "linear"
-            },
-            {
-              "base": "10",
-              "name": "y",
-              "scale": "linear"
-            }
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
           ],
           "colorizeRows": true,
           "colors": [
-            {
-              "id": "qFJGMutps_jlYTEGSJwzJ",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#31C0F6"
-            },
-            {
-              "id": "RYWbLmfF0QNslbWp7x-6q",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#A500A5"
-            },
-            {
-              "id": "4P_BhrwsQtgGQUv-HehgO",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#FF7E27"
-            }
-          ],
-          "geom": "line",
-          "height": 4,
-          "hoverDimension": "auto",
-          "kind": "Xy",
-          "legendColorizeRows": true,
-          "legendOpacity": 1,
-          "legendOrientationThreshold": 100000000,
-          "name": "Load Average",
-          "opacity": 1,
-          "orientationThreshold": 100000000,
-          "position": "overlaid",
-          "queries": [
-            {
-              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"load_average_15m\" or r[\"_field\"] == \"load_average_1m\" or r[\"_field\"] == \"load_average_5m\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
-            }
-          ],
-          "staticLegend": {
-            "colorizeRows": true,
-            "opacity": 1,
-            "orientationThreshold": 100000000,
-            "widthRatio": 1
-          },
-          "width": 6,
-          "widthRatio": 1,
-          "xPos": 6
-        },
-        {
-          "axes": [
-            {
-              "base": "10",
-              "name": "x",
-              "scale": "linear"
-            },
-            {
-              "base": "10",
-              "name": "y",
-              "scale": "linear"
-            }
-          ],
-          "colorizeRows": true,
-          "colors": [
-            {
-              "id": "qFJGMutps_jlYTEGSJwzJ",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#31C0F6"
-            },
-            {
-              "id": "RYWbLmfF0QNslbWp7x-6q",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#A500A5"
-            },
-            {
-              "id": "4P_BhrwsQtgGQUv-HehgO",
-              "name": "Nineteen Eighty Four",
-              "type": "scale",
-              "hex": "#FF7E27"
-            }
+            {"id": "mem-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "mem-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "mem-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
           ],
           "geom": "line",
           "height": 4,
@@ -245,10 +82,313 @@
           "width": 6,
           "widthRatio": 1,
           "xPos": 6,
+          "yPos": 0
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "load-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "load-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "load-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Load Average (1m/5m/15m)",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"load_averages_1m\" or r[\"_field\"] == \"load_averages_2m\" or r[\"_field\"] == \"load_averages_3m\")\n  |> map(fn: (r) => ({ r with _field: if r._field == \"load_averages_1m\" then \"load_1m\" else if r._field == \"load_averages_2m\" then \"load_5m\" else \"load_15m\" }))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 0,
           "yPos": 4
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "smpl-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "smpl-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "smpl-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Monitor Samples / Minute",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"cpu_usage\")\n  |> aggregateWindow(every: 1m, fn: count, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: \"samples_per_minute\" }))\n  |> yield(name: \"count\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 6,
+          "yPos": 4
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "dkr-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "dkr-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "dkr-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Docker Objects Count",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"docker_containers_count\" or r[\"_field\"] == \"docker_images_count\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 0,
+          "yPos": 8
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "dks-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "dks-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "dks-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Docker Running vs Stopped",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] == \"docker_running_containers\" or r[\"_field\"] == \"docker_stopped_containers\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 6,
+          "yPos": 8
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "dsk-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "dsk-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "dsk-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Disk Usage by Device, %",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] =~ /^disk_usage_/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 12,
+          "widthRatio": 1,
+          "xPos": 0,
+          "yPos": 12
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "tmp-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "tmp-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "tmp-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Temperature Current, C",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] =~ /^temperatures_.*_current$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 0,
+          "yPos": 16
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "fan-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "fan-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "fan-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Fan Speeds, RPM",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] =~ /^fan_speeds_.*_current$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xPos": 6,
+          "yPos": 16
+        },
+        {
+          "axes": [
+            {"base": "10", "name": "x", "scale": "linear"},
+            {"base": "10", "name": "y", "scale": "linear"}
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {"id": "tpl-01", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#31C0F6"},
+            {"id": "tpl-02", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#A500A5"},
+            {"id": "tpl-03", "name": "Nineteen Eighty Four", "type": "scale", "hex": "#FF7E27"}
+          ],
+          "geom": "line",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Temperature Limits (High/Critical), C",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"pytmbot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_metrics\")\n  |> filter(fn: (r) => r[\"_field\"] =~ /^temperatures_.*_(high|critical)$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+            }
+          ],
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 12,
+          "widthRatio": 1,
+          "xPos": 0,
+          "yPos": 20
         }
-      ],
-      "name": "pyTMbot Monitor"
+      ]
     }
   }
 ]
