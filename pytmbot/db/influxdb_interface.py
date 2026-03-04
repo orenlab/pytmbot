@@ -82,6 +82,7 @@ class InfluxDBInterface(BaseComponent):
         self._query_api: QueryApi | None = None
         self._warning_shown = False
         self._initialized = False
+        self._client_lock = RLock()
         self._cache_lock = RLock()
         self._async_write_lock = RLock()
         self._measurements_cache: list[str] | None = None
@@ -144,32 +145,43 @@ class InfluxDBInterface(BaseComponent):
 
     def __enter__(self) -> "InfluxDBInterface":
         """Enter the runtime context and initialize the client connection."""
-        try:
-            client_factory: Callable[..., InfluxDBClient] = InfluxDBClient
-            self._client = client_factory(
-                url=self._config.url, token=self._config.token, org=self._config.org
-            )
-            self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
-            self._query_api = self._client.query_api()
+        self.connect()
+        return self
 
-            # Log connection only once or in debug mode
-            if not self._initialized or self._config.debug_mode:
-                with self.log_context(action="connect") as log:
-                    log.debug("bot.db.influxdb_interface.influx.connection.debug")
-                self._initialized = True
+    def _ensure_client_initialized(self) -> None:
+        with self._client_lock:
+            if self._client is not None and self._write_api and self._query_api:
+                return
 
-            return self
+            try:
+                client_factory: Callable[..., InfluxDBClient] = InfluxDBClient
+                self._client = client_factory(
+                    url=self._config.url, token=self._config.token, org=self._config.org
+                )
+                self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
+                self._query_api = self._client.query_api()
 
-        except Exception as e:
-            error_context = ErrorContext(
-                message=f"Failed to establish InfluxDB connection: {str(e)}",
-                error_code="CONNECTION_FAILED",
-                metadata={"url": self._config.url, "org": self._config.org},
-            )
-            raise InfluxDBConnectionError(error_context) from e
+                # Log connection only once or in debug mode.
+                if not self._initialized or self._config.debug_mode:
+                    with self.log_context(action="connect") as log:
+                        log.debug("bot.db.influxdb_interface.influx.connection.debug")
+                    self._initialized = True
+            except Exception as e:
+                error_context = ErrorContext(
+                    message=f"Failed to establish InfluxDB connection: {str(e)}",
+                    error_code="CONNECTION_FAILED",
+                    metadata={"url": self._config.url, "org": self._config.org},
+                )
+                raise InfluxDBConnectionError(error_context) from e
+
+    def connect(self) -> None:
+        """Initialize InfluxDB client and APIs if they are not ready."""
+        self._ensure_client_initialized()
 
     def _require_write_api(self) -> WriteApi:
         """Return initialized write API or raise connection error."""
+        if self._write_api is None:
+            self._ensure_client_initialized()
         if self._write_api is None:
             raise InfluxDBConnectionError(
                 ErrorContext(
@@ -181,6 +193,8 @@ class InfluxDBInterface(BaseComponent):
 
     def _require_query_api(self) -> QueryApi:
         """Return initialized query API or raise connection error."""
+        if self._query_api is None:
+            self._ensure_client_initialized()
         if self._query_api is None:
             raise InfluxDBConnectionError(
                 ErrorContext(
@@ -264,34 +278,42 @@ class InfluxDBInterface(BaseComponent):
         exc_tb: TracebackType | None,
     ) -> None:
         """Exit the runtime context and ensure proper cleanup."""
+        del exc_type, exc_val, exc_tb
         should_shutdown_async = not current_thread().name.startswith(
             "influxdb_async_writer"
         )
         if should_shutdown_async:
             self.shutdown_async_writes(wait=True)
 
-        if self._client:
+        self.close()
+
+    def close(self) -> None:
+        """Close InfluxDB client and clear local query caches."""
+        with self._client_lock:
+            if self._client is None:
+                return
             try:
                 close_client: Callable[[], None] = self._client.close
                 close_client()
-                self._client = None
-                self._write_api = None
-                self._query_api = None
-                with self._cache_lock:
-                    self._measurements_cache = None
-                    self._fields_cache.clear()
-
-                # Log disconnect only in debug mode
-                if self._config.debug_mode:
-                    with self.log_context(action="disconnect") as log:
-                        log.debug("bot.db.influxdb_interface.influx.connection.ok")
-
             except Exception as e:
                 error_context = ErrorContext(
                     message=f"Error closing InfluxDB connection: {str(e)}",
                     error_code="DISCONNECT_FAILED",
                 )
                 raise InfluxDBConnectionError(error_context) from e
+            finally:
+                self._client = None
+                self._write_api = None
+                self._query_api = None
+
+            with self._cache_lock:
+                self._measurements_cache = None
+                self._fields_cache.clear()
+
+            # Log disconnect only in debug mode.
+            if self._config.debug_mode:
+                with self.log_context(action="disconnect") as log:
+                    log.debug("bot.db.influxdb_interface.influx.connection.ok")
 
     def _is_local_url(self) -> bool:
         """
@@ -473,8 +495,7 @@ class InfluxDBInterface(BaseComponent):
 
         def _write_task() -> None:
             try:
-                with self:
-                    self.write_data(measurement, fields_snapshot, tags_snapshot)
+                self.write_data(measurement, fields_snapshot, tags_snapshot)
             except Exception as e:
                 with self.log_context(
                     action="write_async",

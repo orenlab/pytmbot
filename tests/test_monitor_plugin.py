@@ -78,20 +78,22 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
         self: TeleBot, chat_id: int, text: str, **kwargs: _PayloadValue
     ) -> Message:
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
-        return cast(Message, SimpleNamespace(ok=True))
+        return cast(Message, cast(object, SimpleNamespace(ok=True)))
 
     monkeypatch.setattr(TeleBot, "send_message", _fake_send_message)
 
     plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
-    result = plugin.handle_cpu_usage(cast(Message, _Message()))
+    result = plugin.handle_cpu_usage(cast(Message, cast(object, _Message())))
 
     assert result is not None
-    assert adapter_closed["value"] is True
+    assert adapter_closed["value"] is False
     assert len(sent_messages) == 1
     assert sent_messages[0]["chat_id"] == 101
     assert "CPU usage snapshot" in str(sent_messages[0]["text"])
     assert "Overall: 12.3%" in str(sent_messages[0]["text"])
     assert sent_messages[0]["reply_markup"] == "monitor-kbd"
+    plugin.cleanup()
+    assert adapter_closed["value"] is True
 
 
 def test_handle_cpu_usage_failure_fallback(
@@ -115,13 +117,15 @@ def test_handle_cpu_usage_failure_fallback(
         self: TeleBot, chat_id: int, text: str, **kwargs: _PayloadValue
     ) -> Message:
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
-        return cast(Message, SimpleNamespace(ok=True))
+        return cast(Message, cast(object, SimpleNamespace(ok=True)))
 
     monkeypatch.setattr(TeleBot, "send_message", _fake_send_message)
 
     plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
-    plugin.handle_cpu_usage(cast(Message, _Message()))
+    plugin.handle_cpu_usage(cast(Message, cast(object, _Message())))
 
-    assert adapter_closed["value"] is True
+    assert adapter_closed["value"] is False
     assert len(sent_messages) == 1
     assert "Failed to collect CPU usage metrics" in str(sent_messages[0]["text"])
+    plugin.cleanup()
+    assert adapter_closed["value"] is True

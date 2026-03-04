@@ -32,13 +32,20 @@ class MonitoringPlugin(PluginInterface):
         bot (TeleBot): An instance of TeleBot to interact with Telegram API.
     """
 
-    __slots__ = ("plugin_logger", "config", "_monitor_plugin", "__weakref__")
+    __slots__ = (
+        "plugin_logger",
+        "config",
+        "_monitor_plugin",
+        "_psutil_adapter",
+        "__weakref__",
+    )
 
     def __init__(self, bot: TeleBot) -> None:
         """Initialize MonitoringPlugin with bot instance."""
         super().__init__(bot)
         self.plugin_logger = plugin.logger
         self._monitor_plugin: SystemMonitorPlugin | None = None
+        self._psutil_adapter = PsutilAdapter()
 
     @staticmethod
     def _get_keyboard(
@@ -87,12 +94,10 @@ class MonitoringPlugin(PluginInterface):
 
     def handle_cpu_usage(self, message: Message) -> Message:
         """Handle CPU usage request."""
-        adapter = PsutilAdapter()
-
         try:
-            cpu_stats = adapter.get_cpu_usage()
-            load_avg = adapter.get_load_average()
-            top_processes = adapter.get_top_processes(count=5)
+            cpu_stats = self._psutil_adapter.get_cpu_usage()
+            load_avg = self._psutil_adapter.get_load_average()
+            top_processes = self._psutil_adapter.get_top_processes(count=5)
 
             cpu_percent = float(cpu_stats.get("cpu_percent", 0.0))
             cpu_per_core = cpu_stats.get("cpu_percent_per_core", [])
@@ -149,8 +154,6 @@ class MonitoringPlugin(PluginInterface):
                 message.chat.id,
                 "⚠️ Failed to collect CPU usage metrics. Please try again.",
             )
-        finally:
-            adapter.close()
 
     def register(self) -> None:
         """Register SystemMonitorPlugin and start monitoring."""
@@ -171,13 +174,13 @@ class MonitoringPlugin(PluginInterface):
 
     def cleanup(self) -> None:
         """Stop monitor plugin workers during plugin manager cleanup."""
-        monitor_plugin = self._monitor_plugin
-        if monitor_plugin is None:
-            return
         try:
-            monitor_plugin.stop_monitoring()
+            monitor_plugin = self._monitor_plugin
+            if monitor_plugin is not None:
+                monitor_plugin.stop_monitoring()
         finally:
             self._monitor_plugin = None
+            self._psutil_adapter.close()
 
 
 __all__ = ["MonitoringPlugin"]

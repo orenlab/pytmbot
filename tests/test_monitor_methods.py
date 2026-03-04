@@ -44,11 +44,12 @@ class _BotStub:
 
 
 class _InfluxStub(InfluxDBInterface):
-    __slots__ = ("write_result", "shutdown_wait_values")
+    __slots__ = ("write_result", "shutdown_wait_values", "close_calls")
 
     def __init__(self, write_result: bool = True) -> None:
         self.write_result = write_result
         self.shutdown_wait_values: list[bool] = []
+        self.close_calls = 0
 
     def write_data_async(
         self,
@@ -61,6 +62,12 @@ class _InfluxStub(InfluxDBInterface):
 
     def shutdown_async_writes(self, *, wait: bool = True) -> None:
         self.shutdown_wait_values.append(wait)
+
+    def connect(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 class _PsutilStub(PsutilAdapter):
@@ -98,8 +105,11 @@ class _SystemMetricsStub(SystemMetrics):
         super().__init__()
         self._metrics = metrics
 
-    def collect_metrics(self) -> ResourceMetrics:
-        return self._metrics
+    def collect_metrics(self, *, cpu_usage: float | None = None) -> ResourceMetrics:
+        metrics = dict(self._metrics)
+        if isinstance(cpu_usage, (int, float)):
+            metrics["cpu_usage"] = float(cpu_usage)
+        return cast(ResourceMetrics, metrics)
 
 
 def _build_monitor(
@@ -148,8 +158,11 @@ def _build_monitor(
     monitor._known_image_ids = set()
     monitor.influxdb_client = _InfluxStub()
     monitor.is_docker = True
+    monitor._platform_metadata = {"system": "docker", "hostname": "test-host"}
     monitor.check_interval = 5
     monitor.docker_counters_update_interval = 300
+    monitor._notification_reset_window_seconds = reset_window_seconds
+    monitor._active_event_ids = {}
     monitor.system_metrics = _SystemMetricsStub(
         metrics={
             "cpu_usage": 10.0,
@@ -162,6 +175,7 @@ def _build_monitor(
     )
     monitor._monitor_thread = None
     monitor._supervisor_thread = None
+    monitor._supervisor_stop_event = threading.Event()
     monitor._monitor_thread_lock = threading.RLock()
     monitor._monitor_restart_count = 0
     monitor._psutil_adapter = _PsutilStub()
@@ -214,6 +228,7 @@ def test_supervisor_restarts_dead_monitor_thread(
 ) -> None:
     monitor, _bot = _build_monitor(max_notifications=2, reset_window_seconds=300)
     monitor.state.is_active = True
+    monitor._supervisor_stop_event.set()
 
     class _DeadThread(threading.Thread):
         def __init__(self) -> None:
@@ -239,9 +254,6 @@ def test_supervisor_restarts_dead_monitor_thread(
         SystemMonitorPlugin,
         "_spawn_monitor_thread",
         lambda self: _spawn(),
-    )
-    monkeypatch.setattr(
-        "pytmbot.plugins.monitor.methods.time.sleep", lambda _seconds: None
     )
 
     monitor._supervise_monitoring()
@@ -340,6 +352,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "last_notification": 1.0,
         },
     }
+    monitor._active_event_ids = {}
     monkeypatch.setattr(
         "pytmbot.plugins.monitor.methods.EventTracker.resolve_event",
         lambda state, event_id: 12.5 if event_id == "cpu-e1" else None,
@@ -350,8 +363,11 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
         "_send_resolution_notification",
         lambda self, event_type, duration: resolved.append((event_type, duration)),
     )
+    monitor._active_event_ids["cpu_usage"] = "cpu-e1"
     monitor._resolve_event_and_notify("cpu_usage", "CPU usage")
     assert resolved == [("CPU usage", 12.5)]
+    assert "cpu-e1" not in monitor.state.active_events
+    assert "cpu_usage" not in monitor._active_event_ids
 
 
 def test_alert_checks_route_to_create_or_resolve(
@@ -367,8 +383,8 @@ def test_alert_checks_route_to_create_or_resolve(
     monkeypatch.setattr(
         SystemMonitorPlugin,
         "_create_or_notify_event",
-        lambda self, event_type, details, message_builder: created.append(
-            (event_type, details)
+        lambda self, event_type, details, message_formatter, *message_args: (
+            created.append((event_type, details))
         ),
     )
     monkeypatch.setattr(
@@ -406,13 +422,8 @@ def test_process_docker_metrics_and_detect_changes(
     monkeypatch.setattr("pytmbot.plugins.monitor.methods.time.time", lambda: 100.0)
     monkeypatch.setattr(
         monitor_methods_module,
-        "fetch_docker_counters",
-        lambda: {"containers_count": 2, "images_count": 3},
-    )
-    monkeypatch.setattr(
-        monitor_methods_module,
         "retrieve_containers_stats",
-        lambda: [{"id": "c1", "name": "api"}],
+        lambda: [{"id": "c1", "name": "api", "status": "running"}],
     )
     monkeypatch.setattr(
         monitor_methods_module,
@@ -433,8 +444,15 @@ def test_process_docker_metrics_and_detect_changes(
     metrics: dict[str, object] = {}
     monitor._process_docker_metrics(metrics)
     assert monitor.state.docker_counters_last_updated == 100.0
-    assert metrics["docker_containers_count"] == 2
-    assert metrics["docker_images_count"] == 3
+    expected_docker_metrics = {
+        "docker_containers_count": 1,
+        "docker_images_count": 1,
+        "docker_running_containers": 1,
+        "docker_stopped_containers": 0,
+    }
+    assert {
+        key: metrics[key] for key in expected_docker_metrics
+    } == expected_docker_metrics
     assert detected
     monkeypatch.setattr(
         SystemMonitorPlugin,
@@ -661,14 +679,18 @@ def test_monitor_cycle_and_stop_monitoring(monkeypatch: pytest.MonkeyPatch) -> N
     monitor._supervisor_thread = supervisor_thread
 
     class _ShutdownInflux(_InfluxStub):
-        __slots__ = ("calls",)
+        __slots__ = ("calls", "close_called")
 
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[bool] = []
+            self.close_called = False
 
         def shutdown_async_writes(self, *, wait: bool = True) -> None:
             self.calls.append(wait)
+
+        def close(self) -> None:
+            self.close_called = True
 
     shutdown_capture = _ShutdownInflux()
     monitor.influxdb_client = shutdown_capture
@@ -683,6 +705,7 @@ def test_monitor_cycle_and_stop_monitoring(monkeypatch: pytest.MonkeyPatch) -> N
     assert monitor_thread.join_calls == [monitor.MONITOR_THREAD_JOIN_TIMEOUT_SECONDS]
     assert supervisor_thread.join_calls == [monitor.MONITOR_THREAD_JOIN_TIMEOUT_SECONDS]
     assert shutdown_capture.calls == [True]
+    assert shutdown_capture.close_called is True
 
 
 def test_start_monitoring_happy_path_and_failure(

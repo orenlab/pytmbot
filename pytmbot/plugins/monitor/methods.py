@@ -15,7 +15,6 @@ from typing import Literal
 from telebot import TeleBot
 
 from pytmbot.adapters.docker.containers_info import (
-    fetch_docker_counters,
     retrieve_containers_stats,
 )
 from pytmbot.adapters.docker.images_info import fetch_image_details
@@ -59,8 +58,12 @@ class SystemMonitorPlugin(PluginCore):
         "check_interval",
         "docker_counters_update_interval",
         "system_metrics",
+        "_platform_metadata",
+        "_active_event_ids",
+        "_notification_reset_window_seconds",
         "_monitor_thread",
         "_supervisor_thread",
+        "_supervisor_stop_event",
         "_monitor_thread_lock",
         "_monitor_restart_count",
         "_psutil_adapter",
@@ -105,19 +108,31 @@ class SystemMonitorPlugin(PluginCore):
         # Initialize InfluxDB and system detection
         self._init_influxdb()
         self.is_docker = is_running_in_docker()
+        self._platform_metadata = self._build_platform_metadata()
 
         # Set monitoring intervals
         self.check_interval = max(1, int(self.monitor_settings.check_interval[0]))
         self.docker_counters_update_interval = (
             self.DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS
         )
+        self._notification_reset_window_seconds = (
+            self._resolve_notification_reset_window_seconds()
+        )
+        self._active_event_ids: dict[str, str] = {}
 
-        self.system_metrics = SystemMetrics()
         self._psutil_adapter = PsutilAdapter()
+        self.system_metrics = SystemMetrics(psutil_adapter=self._psutil_adapter)
         self._monitor_thread: threading.Thread | None = None
         self._supervisor_thread: threading.Thread | None = None
+        self._supervisor_stop_event = threading.Event()
         self._monitor_thread_lock = threading.RLock()
         self._monitor_restart_count = 0
+
+    def _build_platform_metadata(self) -> dict[str, str]:
+        return {
+            key: str(value)
+            for key, value in SystemInfo.get_platform_metadata(self.is_docker).items()
+        }
 
     def _init_influxdb(self) -> None:
         try:
@@ -147,6 +162,7 @@ class SystemMonitorPlugin(PluginCore):
         if self.state.is_active:
             return
 
+        self._supervisor_stop_event.clear()
         self.state.is_active = True
         self._monitor_restart_count = 0
 
@@ -155,6 +171,7 @@ class SystemMonitorPlugin(PluginCore):
 
         for attempt in range(retry_attempts):
             try:
+                self.influxdb_client.connect()
                 with self._monitor_thread_lock:
                     self._monitor_thread = self._spawn_monitor_thread()
                     self._supervisor_thread = threading.Thread(
@@ -180,6 +197,12 @@ class SystemMonitorPlugin(PluginCore):
                 return
             except Exception as e:
                 logger.error("bot.plugins.monitor.methods.monitoring.start.fail", e)
+                try:
+                    self.influxdb_client.close()
+                except Exception as close_error:
+                    logger.error(
+                        "bot.plugins.monitor.methods.monitoring.start.fail", close_error
+                    )
                 if attempt < retry_attempts - 1:
                     time.sleep(retry_interval)
                 else:
@@ -219,15 +242,18 @@ class SystemMonitorPlugin(PluginCore):
                 logger.error(
                     "bot.plugins.monitor.methods.monitoring.supervisor.fail", e
                 )
-            time.sleep(retry_interval)
+            if self._supervisor_stop_event.wait(timeout=retry_interval):
+                break
 
     def _monitor_system(self) -> None:
         while self.state.is_active:
             try:
-                self._adjust_check_interval()
+                cycle_cpu_usage = self._adjust_check_interval()
 
                 # Collect and process metrics
-                metrics: dict[str, object] = dict(self.system_metrics.collect_metrics())
+                metrics: dict[str, object] = dict(
+                    self.system_metrics.collect_metrics(cpu_usage=cycle_cpu_usage)
+                )
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
@@ -259,20 +285,25 @@ class SystemMonitorPlugin(PluginCore):
 
     def _find_active_event_id(self, event_type: str) -> str | None:
         """Return unresolved event id by type."""
-        return next(
-            (
-                event_id
-                for event_id, event in self.state.active_events.items()
-                if event["type"] == event_type and not event["resolved"]
-            ),
-            None,
-        )
+        indexed_event_id = self._active_event_ids.get(event_type)
+        if indexed_event_id is not None:
+            indexed_event = self.state.active_events.get(indexed_event_id)
+            if indexed_event and not indexed_event["resolved"]:
+                return indexed_event_id
+            self._active_event_ids.pop(event_type, None)
+
+        for event_id, event in self.state.active_events.items():
+            if event["type"] == event_type and not event["resolved"]:
+                self._active_event_ids[event_type] = event_id
+                return event_id
+        return None
 
     def _create_or_notify_event(
         self,
         event_type: str,
         details: dict[str, object],
-        message_builder: Callable[[str], str],
+        message_formatter: Callable[..., str],
+        *message_args: object,
     ) -> None:
         """Create event if absent and send alert notification."""
         event_id = self._find_active_event_id(event_type)
@@ -280,23 +311,32 @@ class SystemMonitorPlugin(PluginCore):
             return
 
         event_id = EventTracker.create_event(self.state, event_type, details)
-        self._send_notification(message_builder(event_id))
+        self._active_event_ids[event_type] = event_id
+        self._send_notification(message_formatter(event_id, *message_args))
 
     def _resolve_event_and_notify(self, event_type: str, label: str) -> None:
         """Resolve all active events for type and send resolution notifications."""
-        for event_id, event in list(self.state.active_events.items()):
+        event_ids_to_remove: list[str] = []
+        for event_id, event in self.state.active_events.items():
             if event["type"] != event_type or event["resolved"]:
                 continue
             duration = EventTracker.resolve_event(self.state, event_id)
             if duration:
                 self._send_resolution_notification(label, duration)
+            event_ids_to_remove.append(event_id)
+
+        for event_id in event_ids_to_remove:
+            self.state.active_events.pop(event_id, None)
+            if self._active_event_ids.get(event_type) == event_id:
+                self._active_event_ids.pop(event_type, None)
 
     def _check_cpu_alert(self, usage: float) -> None:
         if usage > self.thresholds.cpu_usage:
             self._create_or_notify_event(
                 "cpu_usage",
                 {"usage": usage},
-                lambda event_id: self._format_cpu_alert(event_id, usage),
+                self._format_cpu_alert,
+                usage,
             )
         else:
             self._resolve_event_and_notify("cpu_usage", "CPU usage")
@@ -306,7 +346,8 @@ class SystemMonitorPlugin(PluginCore):
             self._create_or_notify_event(
                 "memory_usage",
                 {"usage": usage},
-                lambda event_id: self._format_memory_alert(event_id, usage),
+                self._format_memory_alert,
+                usage,
             )
         else:
             self._resolve_event_and_notify("memory_usage", "Memory usage")
@@ -321,20 +362,12 @@ class SystemMonitorPlugin(PluginCore):
             threshold = self._resolve_temperature_threshold(sensor)
             if current_temp > threshold:
                 event_type = f"temp_{sensor}"
-
-                def _build_temperature_alert(
-                    event_id: str,
-                    sensor_name: str = sensor,
-                    sensor_data: dict[str, float | None] = data,
-                ) -> str:
-                    return self._format_temperature_alert(
-                        event_id, sensor_name, sensor_data
-                    )
-
                 self._create_or_notify_event(
                     event_type,
                     {"temperature": current_temp, "sensor": sensor},
-                    _build_temperature_alert,
+                    self._format_temperature_alert,
+                    sensor,
+                    data,
                 )
             else:
                 self._resolve_event_and_notify(
@@ -356,23 +389,33 @@ class SystemMonitorPlugin(PluginCore):
         for disk, usage in disk_usage.items():
             if usage > self.thresholds.disk_usage:
                 event_type = f"disk_{disk}"
-
-                def _build_disk_alert(
-                    event_id: str,
-                    disk_name: str = disk,
-                    disk_usage_value: float = usage,
-                ) -> str:
-                    return self._format_disk_alert(
-                        event_id, disk_name, disk_usage_value
-                    )
-
                 self._create_or_notify_event(
                     event_type,
                     {"usage": usage, "disk": disk},
-                    _build_disk_alert,
+                    self._format_disk_alert,
+                    disk,
+                    usage,
                 )
             else:
                 self._resolve_event_and_notify(f"disk_{disk}", f"Disk usage ({disk})")
+
+    @staticmethod
+    def _build_docker_counters(
+        containers: Sequence[Mapping[str, object]],
+        images: Sequence[Mapping[str, object]],
+    ) -> dict[str, int]:
+        containers_count = len(containers)
+        running_containers = sum(
+            1
+            for container in containers
+            if str(container.get("status", "")).strip().lower() == "running"
+        )
+        return {
+            "images_count": len(images),
+            "containers_count": containers_count,
+            "running_containers": running_containers,
+            "stopped_containers": max(containers_count - running_containers, 0),
+        }
 
     def _process_docker_metrics(self, metrics: dict[str, object]) -> None:
         current_time = time.time()
@@ -381,9 +424,9 @@ class SystemMonitorPlugin(PluginCore):
             >= self.docker_counters_update_interval
         ):
             try:
-                new_counts = fetch_docker_counters()
                 new_containers = retrieve_containers_stats()
                 new_images = fetch_image_details()
+                new_counts = self._build_docker_counters(new_containers, new_images)
 
                 self._detect_docker_changes(new_counts, new_containers, new_images)
                 self.state.docker_counters_last_updated = current_time
@@ -452,10 +495,11 @@ class SystemMonitorPlugin(PluginCore):
             logger.error("bot.plugins.monitor.methods.detect.changes.fail", e)
 
     def _record_metrics(self, fields: dict[str, object]) -> None:
-        metadata = {
-            key: str(value)
-            for key, value in SystemInfo.get_platform_metadata(self.is_docker).items()
-        }
+        metadata = getattr(self, "_platform_metadata", None)
+        if not metadata:
+            metadata = self._build_platform_metadata()
+            self._platform_metadata = metadata
+
         sanitized_fields = self._sanitize_fields(fields)
         numeric_fields = self._extract_numeric_fields(sanitized_fields)
         if not numeric_fields:
@@ -481,37 +525,23 @@ class SystemMonitorPlugin(PluginCore):
                 continue
 
             if isinstance(value, dict):
-                sanitized_fields.update(
-                    {
-                        f"{key}_{sub_key}": sub_value
-                        for sub_key, sub_value in value.items()
-                        if isinstance(sub_value, (int, float, bool))
-                    }
-                )
-                unsupported = {
-                    sub_key: sub_value
-                    for sub_key, sub_value in value.items()
-                    if not isinstance(sub_value, (int, float, bool))
-                }
-                for _sub_key, _sub_value in unsupported.items():
-                    logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, (int, float, bool)):
+                        sanitized_fields[f"{key}_{sub_key}"] = sub_value
+                    else:
+                        logger.warning(
+                            "bot.plugins.monitor.methods.unsupported.type.warn"
+                        )
                 continue
 
             if isinstance(value, tuple):
-                sanitized_fields.update(
-                    {
-                        f"{key}_{i + 1}m": item
-                        for i, item in enumerate(value)
-                        if isinstance(item, (int, float, bool))
-                    }
-                )
-                unsupported_tuple_items = [
-                    (i, item)
-                    for i, item in enumerate(value)
-                    if not isinstance(item, (int, float, bool))
-                ]
-                for _i, _item in unsupported_tuple_items:
-                    logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
+                for i, item in enumerate(value):
+                    if isinstance(item, (int, float, bool)):
+                        sanitized_fields[f"{key}_{i + 1}m"] = item
+                    else:
+                        logger.warning(
+                            "bot.plugins.monitor.methods.unsupported.type.warn"
+                        )
                 continue
 
             logger.warning("bot.plugins.monitor.methods.unsupported.type.warn")
@@ -565,12 +595,21 @@ class SystemMonitorPlugin(PluginCore):
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
 
-    def _get_notification_reset_window_seconds(self) -> int:
+    def _resolve_notification_reset_window_seconds(self) -> int:
         """Resolve notification reset window from settings with safe fallback."""
         reset_window = self.monitor_settings.reset_notification_count[0]
         if isinstance(reset_window, int) and reset_window > 0:
             return reset_window
         return self.DEFAULT_NOTIFICATION_RESET_WINDOW_SECONDS
+
+    def _get_notification_reset_window_seconds(self) -> int:
+        cached_window = getattr(self, "_notification_reset_window_seconds", 0)
+        if isinstance(cached_window, int) and cached_window > 0:
+            return cached_window
+
+        resolved_window = self._resolve_notification_reset_window_seconds()
+        self._notification_reset_window_seconds = resolved_window
+        return resolved_window
 
     def _maybe_reset_notification_budget(
         self, current_time: float | None = None
@@ -753,7 +792,7 @@ class SystemMonitorPlugin(PluginCore):
         self.state.max_notifications_reached = False
         logger.debug("bot.plugins.monitor.methods.notification.counter.debug")
 
-    def _adjust_check_interval(self) -> None:
+    def _adjust_check_interval(self) -> float | None:
         try:
             cpu_data = self._psutil_adapter.get_cpu_usage()
             raw_cpu_load = cpu_data.get("cpu_percent", 0.0)
@@ -774,11 +813,14 @@ class SystemMonitorPlugin(PluginCore):
                 self.check_interval = max(
                     1, int(self.monitor_settings.check_interval[0])
                 )
+            return cpu_load
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.adjust.check.fail", e)
+            return None
 
     def stop_monitoring(self) -> None:
         was_active = self.state.is_active
+        self._supervisor_stop_event.set()
         if self.state.is_active:
             self.state.is_active = False
             with self._monitor_thread_lock:
@@ -801,3 +843,4 @@ class SystemMonitorPlugin(PluginCore):
 
         if was_active:
             self.influxdb_client.shutdown_async_writes(wait=True)
+            self.influxdb_client.close()

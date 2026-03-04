@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 import pytmbot.plugins.monitor.utils as monitor_utils_module
+from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.plugins.monitor.models import MonitoringState
 from pytmbot.plugins.monitor.utils import EventTracker, SystemInfo, SystemMetrics
 
@@ -69,6 +71,7 @@ def test_collect_metrics_aggregates_sources(monkeypatch: pytest.MonkeyPatch) -> 
 def test_cpu_and_memory_usage_fallback_on_invalid_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    metrics = SystemMetrics()
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
@@ -77,13 +80,14 @@ def test_cpu_and_memory_usage_fallback_on_invalid_values(
             virtual_memory=lambda: _Memory(percent="bad"),  # type: ignore[arg-type]
         ),
     )
-    assert SystemMetrics._check_cpu_usage() == 0.0
-    assert SystemMetrics._check_memory_usage() == 0.0
+    assert metrics._check_cpu_usage() == 0.0
+    assert metrics._check_memory_usage() == 0.0
 
 
 def test_cpu_and_memory_usage_fallback_on_exceptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    metrics = SystemMetrics()
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
@@ -94,13 +98,14 @@ def test_cpu_and_memory_usage_fallback_on_exceptions(
             virtual_memory=lambda: (_ for _ in ()).throw(RuntimeError("mem-fail")),
         ),
     )
-    assert SystemMetrics._check_cpu_usage() == 0.0
-    assert SystemMetrics._check_memory_usage() == 0.0
+    assert metrics._check_cpu_usage() == 0.0
+    assert metrics._check_memory_usage() == 0.0
 
 
 def test_disk_usage_filters_excluded_and_handles_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    metrics = SystemMetrics()
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
@@ -114,9 +119,10 @@ def test_disk_usage_filters_excluded_and_handles_failures(
             ),
         ),
     )
-    disk_usage = SystemMetrics._get_disk_usage()
+    disk_usage = metrics._get_disk_usage()
     assert disk_usage == {"/dev/sda1": 70.0}
 
+    metrics = SystemMetrics()
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
@@ -126,7 +132,7 @@ def test_disk_usage_filters_excluded_and_handles_failures(
             ),
         ),
     )
-    assert SystemMetrics._get_disk_usage() == {}
+    assert metrics._get_disk_usage() == {}
 
 
 def test_temperature_and_fan_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,10 +148,11 @@ def test_temperature_and_fan_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
     temperatures = metrics._check_temperatures()
-    fans = SystemMetrics._get_fan_speeds()
+    fans = metrics._get_fan_speeds()
     assert temperatures["cpu_pkg"]["current"] == 55.0
     assert fans["fan_cpu"]["current"] == 950
 
+    metrics = SystemMetrics()
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
@@ -157,7 +164,7 @@ def test_temperature_and_fan_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     assert metrics._check_temperatures() == {}
     assert metrics.sensors_available is False
     assert metrics._check_temperatures() == {}
-    assert SystemMetrics._get_fan_speeds() == {}
+    assert metrics._get_fan_speeds() == {}
 
 
 def test_load_average_branches(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,21 +173,21 @@ def test_load_average_branches(monkeypatch: pytest.MonkeyPatch) -> None:
         "psutil",
         SimpleNamespace(getloadavg=lambda: (1.0, 2.0, 3.0)),
     )
-    assert SystemMetrics._check_load_average() == (1.0, 2.0, 3.0)
+    assert SystemMetrics()._check_load_average() == (1.0, 2.0, 3.0)
 
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
         SimpleNamespace(getloadavg=lambda: ("bad", 2.0, 3.0)),
     )
-    assert SystemMetrics._check_load_average() == (0.0, 0.0, 0.0)
+    assert SystemMetrics()._check_load_average() == (0.0, 0.0, 0.0)
 
     monkeypatch.setattr(
         monitor_utils_module,
         "psutil",
         SimpleNamespace(),
     )
-    assert SystemMetrics._check_load_average() == (0.0, 0.0, 0.0)
+    assert SystemMetrics()._check_load_average() == (0.0, 0.0, 0.0)
 
     monkeypatch.setattr(
         monitor_utils_module,
@@ -189,7 +196,25 @@ def test_load_average_branches(monkeypatch: pytest.MonkeyPatch) -> None:
             getloadavg=lambda: (_ for _ in ()).throw(RuntimeError("load-fail"))
         ),
     )
-    assert SystemMetrics._check_load_average() == (0.0, 0.0, 0.0)
+    assert SystemMetrics()._check_load_average() == (0.0, 0.0, 0.0)
+
+
+def test_collect_metrics_uses_shared_psutil_adapter() -> None:
+    class _Adapter:
+        @staticmethod
+        def get_cpu_usage() -> dict[str, float | list[float]]:
+            return {"cpu_percent": 19.5, "cpu_percent_per_core": [10.0, 29.0]}
+
+        @staticmethod
+        def get_load_average() -> tuple[float, float, float]:
+            return (0.7, 0.6, 0.5)
+
+    metrics = SystemMetrics(
+        psutil_adapter=cast(PsutilAdapter, cast(object, _Adapter()))
+    )
+    collected = metrics.collect_metrics()
+    assert collected["cpu_usage"] == 19.5
+    assert collected["load_averages"] == (0.7, 0.6, 0.5)
 
 
 def test_event_tracker_create_and_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
