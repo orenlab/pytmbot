@@ -29,3 +29,13 @@ def test_telegram_ip_validator_handles_invalid_ip_and_eviction() -> None:
     # First validated IP should be evicted when bound is exceeded.
     assert "91.108.56.1" not in validator.validated_ips
     assert len(validator.validated_ips) == 2
+
+
+def test_telegram_ip_validator_accepts_additional_ranges() -> None:
+    validator = TelegramIPValidator(
+        additional_ranges=["10.10.0.0/16", "2001:db8::/32", "invalid-range"]
+    )
+
+    assert validator.is_telegram_ip("10.10.1.1") is True
+    assert validator.is_telegram_ip("2001:db8::1") is True
+    assert validator.is_telegram_ip("10.11.1.1") is False

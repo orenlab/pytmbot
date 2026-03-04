@@ -209,3 +209,14 @@ def test_update_dedup_now_returns_monotonic_value() -> None:
         max_entries=8,
     )
     assert middleware._now() >= 0.0
+
+
+def test_update_dedup_post_process_handles_exceptions() -> None:
+    middleware = update_dedup_module.UpdateDedup(
+        cast(TeleBot, SimpleNamespace()),
+        ttl_seconds=60,
+        max_entries=8,
+    )
+    middleware.post_process(object(), {}, None)
+    middleware.post_process(object(), {}, cast(Exception, CancelUpdate()))
+    middleware.post_process(object(), {"k": "v"}, RuntimeError("boom"))

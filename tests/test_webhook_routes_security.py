@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from types import FunctionType
 
 import pytest
@@ -234,6 +235,10 @@ def test_webhook_endpoint_rotates_credentials_at_threshold(
         client_ip="149.154.167.220",
         x_telegram_bot_api_secret_token=previous_secret_token,
     )
+
+    deadline = time.monotonic() + 1.0
+    while not setup_calls and time.monotonic() < deadline:
+        time.sleep(0.01)
 
     assert response.status_code == 200
     assert setup_calls

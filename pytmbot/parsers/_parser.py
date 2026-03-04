@@ -276,13 +276,19 @@ def _render_template_cached(template_name: str, context: TemplateContext) -> str
 
 def _render_template(
     template_name: str,
-    trusted: bool = False,
+    *,
+    context: TemplateContext | None = None,
+    strict: bool = True,
+    trusted: bool | None = None,
     **kwargs: TemplateValue,
 ) -> str:
     """Core template rendering with integrated validation."""
+    render_context: TemplateContext = dict(context) if context is not None else {}
+    render_context.update(kwargs)
 
-    # Use proper validation based on trust level
-    if trusted:
+    strict_mode = strict if trusted is None else not trusted
+
+    if not strict_mode:
         # Fast validation for internal/trusted templates
         from pytmbot.parsers.validation import (
             validate_context_basic,
@@ -290,13 +296,15 @@ def _render_template(
         )
 
         validated_name = validate_template_name_fast(template_name)
-        validated_context = validate_context_basic(kwargs)
+        validated_context = validate_context_basic(render_context)
     else:
         # Strict validation for untrusted input
         from pytmbot.parsers.validation import validate_template_render
 
         validated_name, validated_context = validate_template_render(
-            template_name, kwargs, trusted=False
+            template_name,
+            render_context,
+            strict=True,
         )
 
     try:
@@ -316,7 +324,7 @@ def _render_template(
                 error_code="TEMPLATE_RENDER_ERROR",
                 metadata={
                     "template_name": validated_name,
-                    "trusted": trusted,
+                    "strict": strict_mode,
                     "error_type": type(e).__name__,
                 },
             )

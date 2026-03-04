@@ -187,8 +187,9 @@ class WebhookConfig(BaseModel):
     cert: list[SecretStr] | None = Field(default=None, min_length=1)
     cert_key: list[SecretStr] | None = Field(default=None, min_length=1)
     trusted_proxy_ips: list[str] | None = Field(default=None, min_length=1)
+    additional_telegram_ip_ranges: list[str] | None = Field(default=None, min_length=1)
 
-    @field_validator("trusted_proxy_ips")
+    @field_validator("trusted_proxy_ips", "additional_telegram_ip_ranges")
     @classmethod
     def validate_trusted_proxy_ips(cls, value: list[str] | None) -> list[str] | None:
         """Validate trusted proxy IPs/CIDRs format."""

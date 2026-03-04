@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from collections.abc import Callable
 from threading import RLock
 from typing import Final, TypedDict
 
@@ -51,8 +50,6 @@ class UpdateDedup(BaseMiddleware, BaseComponent):
         if max_entries <= 0:
             raise ValueError("max_entries must be positive")
 
-        base_middleware_init: Callable[[BaseMiddleware], None] = BaseMiddleware.__init__
-        base_middleware_init(self)
         BaseComponent.__init__(self)
 
         self.bot = bot
@@ -172,6 +169,24 @@ class UpdateDedup(BaseMiddleware, BaseComponent):
         ) as logger:
             logger.debug("bot.middleware.update.dedup.drop")
         return CancelUpdate()
+
+    def post_process(
+        self,
+        update: object,
+        data: dict[str, object],
+        exception: Exception | None,
+    ) -> None:
+        del update
+        if not exception or isinstance(exception, CancelUpdate):
+            return
+
+        with self.log_context(
+            operation="post_process",
+            exception_type=type(exception).__name__,
+            has_data=bool(data),
+            data_keys=list(data.keys()) if data else [],
+        ) as logger:
+            logger.error("bot.middleware.update.dedup.post.process.fail")
 
     def get_stats(self) -> UpdateDedupStats:
         with self._state_lock:

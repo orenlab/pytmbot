@@ -15,7 +15,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from time import time
-from typing import Annotated
+from typing import Annotated, Final
 
 import telebot
 import uvicorn
@@ -32,10 +32,18 @@ from pytmbot.logs import BaseComponent
 from pytmbot.models.settings_model import WebhookConfig as SettingsWebhookConfig
 from pytmbot.models.telegram_models import TelegramIPValidator
 from pytmbot.models.updates_model import UpdateModel
-from pytmbot.utils import generate_secret_token, mask_ip_address, mask_token_in_message
+from pytmbot.utils import (
+    generate_secret_token,
+    mask_ip_address,
+    mask_token_in_message,
+    mask_webhook_path,
+)
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 BAN_TTL_SECONDS = 3600
+SSL_PLACEHOLDER_VALUES: Final[frozenset[str]] = frozenset(
+    {"YOUR_CERTIFICATE", "YOUR_CERTIFICATE_KEY"}
+)
 
 type JsonPrimitive = str | int | float | bool | None
 type JsonValue = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
@@ -59,7 +67,18 @@ def _first_secret(values: list[SecretStr] | None) -> str | None:
     """Safely extract first secret value from optional secret list."""
     if not values:
         return None
-    return values[0].get_secret_value()
+    secret_value = values[0].get_secret_value().strip()
+    return secret_value or None
+
+
+def _normalize_ssl_path(path: str | None) -> str | None:
+    """Treat empty and placeholder SSL values as missing."""
+    if path is None:
+        return None
+    normalized = path.strip()
+    if not normalized or normalized in SSL_PLACEHOLDER_VALUES:
+        return None
+    return normalized
 
 
 class RateLimit(BaseComponent):
@@ -361,13 +380,13 @@ class WebhookManager(BaseComponent):
     ) -> None:
         webhook_url = f"https://{self.url}:{self.port}{webhook_path}"
         webhook_settings = _get_webhook_config()
-        cert_path = _first_secret(webhook_settings.cert)
+        cert_path = _normalize_ssl_path(_first_secret(webhook_settings.cert))
         if secret_token is not None:
             self.secret_token = secret_token
 
         with self.log_context(
             action="setup_webhook",
-            webhook_path=mask_token_in_message(webhook_path, self.bot.token),
+            webhook_path=mask_webhook_path(webhook_path),
             drop_pending_updates=drop_pending_updates,
             reset_existing=reset_existing,
         ) as log:
@@ -375,8 +394,8 @@ class WebhookManager(BaseComponent):
                 current_webhook = self.bot.get_webhook_info()
                 log.debug(
                     "bot.webhook.config.debug",
-                    webhook_info=mask_token_in_message(
-                        str(current_webhook), self.bot.token
+                    webhook_info=mask_webhook_path(
+                        mask_token_in_message(str(current_webhook), self.bot.token)
                     ),
                     cert_present=bool(cert_path),
                 )
@@ -401,7 +420,9 @@ class WebhookManager(BaseComponent):
                 new_webhook = self.bot.get_webhook_info()
                 log.info(
                     "bot.webhook.config.ok",
-                    new_webhook=mask_token_in_message(str(new_webhook), self.bot.token),
+                    new_webhook=mask_webhook_path(
+                        mask_token_in_message(str(new_webhook), self.bot.token)
+                    ),
                 )
 
             except ApiTelegramException as e:
@@ -443,6 +464,7 @@ class WebhookServer(BaseComponent):
         "_accepted_webhook_credentials",
         "_rotation_lock",
         "_rotation_in_progress",
+        "_rotation_thread",
         "trusted_proxy_sources",
         "trusted_proxy_networks",
         "webhook_manager",
@@ -462,7 +484,6 @@ class WebhookServer(BaseComponent):
         self.port = port
         self.request_counter = 0
         self.last_restart = datetime.now()
-        self.telegram_ip_validator = TelegramIPValidator()
 
         # Generate secure webhook path and secret token
         self.secret_token = generate_secret_token()
@@ -473,11 +494,12 @@ class WebhookServer(BaseComponent):
         }
         self._rotation_lock = threading.RLock()
         self._rotation_in_progress = False
+        self._rotation_thread: threading.Thread | None = None
 
         with self.log_context(
             host=host,
             port=port,
-            webhook_path=mask_token_in_message(self.webhook_path, self.token),
+            webhook_path=mask_webhook_path(self.webhook_path),
         ) as log:
             log.debug("bot.webhook.server.components.init")
 
@@ -486,6 +508,9 @@ class WebhookServer(BaseComponent):
             webhook_url = webhook_settings.url[0].get_secret_value()
             webhook_port = webhook_settings.webhook_port[0]
             self.trusted_proxy_sources = webhook_settings.trusted_proxy_ips or []
+            self.telegram_ip_validator = TelegramIPValidator(
+                additional_ranges=webhook_settings.additional_telegram_ip_ranges or []
+            )
             self.trusted_proxy_networks = self._parse_proxy_networks(
                 self.trusted_proxy_sources
             )
@@ -529,7 +554,7 @@ class WebhookServer(BaseComponent):
         async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None, None]:
             with self.log_context(
                 action="server_lifecycle",
-                webhook_path=mask_token_in_message(self.webhook_path, self.token),
+                webhook_path=mask_webhook_path(self.webhook_path),
             ) as log:
                 try:
                     log.info("bot.webhook.server.lifecycle.start")
@@ -610,22 +635,36 @@ class WebhookServer(BaseComponent):
             return credentials[0]
 
     def _maybe_rotate_webhook(self) -> None:
-        """Rotate webhook path and secret after request threshold."""
-        previous_path_token: str | None = None
-        previous_secret_token: str | None = None
-
+        """Schedule webhook rotation after request threshold without blocking request."""
         with self._rotation_lock:
             if self.request_counter < self.WEBHOOK_ROTATION_REQUEST_THRESHOLD:
                 return
             if self._rotation_in_progress:
                 return
             self._rotation_in_progress = True
+
+            rotation_thread = threading.Thread(
+                target=self._rotate_webhook_credentials,
+                name="webhook-rotation",
+                daemon=True,
+            )
+            self._rotation_thread = rotation_thread
+
+        rotation_thread.start()
+
+    def _rotate_webhook_credentials(self) -> None:
+        """Rotate webhook path and secret in background worker."""
+        previous_path_token: str | None
+        previous_secret_token: str | None
+
+        with self._rotation_lock:
             previous_path_token = self.webhook_path_token
             previous_secret_token = self.secret_token
 
         if previous_path_token is None or previous_secret_token is None:
             with self._rotation_lock:
                 self._rotation_in_progress = False
+                self._rotation_thread = None
             return
 
         new_path_token = self._generate_webhook_path_token()
@@ -662,10 +701,10 @@ class WebhookServer(BaseComponent):
 
             with self.log_context(
                 action="webhook_rotation",
-                previous_webhook_path=mask_token_in_message(
-                    self._build_webhook_path(previous_path_token), self.token
+                previous_webhook_path=mask_webhook_path(
+                    self._build_webhook_path(previous_path_token)
                 ),
-                new_webhook_path=mask_token_in_message(new_webhook_path, self.token),
+                new_webhook_path=mask_webhook_path(new_webhook_path),
                 grace_period_seconds=self.WEBHOOK_ROTATION_GRACE_PERIOD_SECONDS,
             ) as log:
                 log.info("bot.webhook.rotation.completed.ok")
@@ -680,6 +719,7 @@ class WebhookServer(BaseComponent):
         finally:
             with self._rotation_lock:
                 self._rotation_in_progress = False
+                self._rotation_thread = None
 
     @staticmethod
     def _parse_proxy_networks(
@@ -914,7 +954,7 @@ class WebhookServer(BaseComponent):
             action="server_startup",
             host=self.host,
             port=self.port,
-            webhook_path=mask_token_in_message(self.webhook_path, self.token),
+            webhook_path=mask_webhook_path(self.webhook_path),
         ) as log:
             # Port validation
             if self.port < 1024:
@@ -931,12 +971,30 @@ class WebhookServer(BaseComponent):
             try:
                 # SSL configuration
                 webhook_settings = _get_webhook_config()
-                cert_file = _first_secret(webhook_settings.cert)
-                key_file = _first_secret(webhook_settings.cert_key)
+                cert_file = _normalize_ssl_path(_first_secret(webhook_settings.cert))
+                key_file = _normalize_ssl_path(_first_secret(webhook_settings.cert_key))
+                ssl_enabled = bool(cert_file and key_file)
+
+                if ssl_enabled and cert_file is not None and key_file is not None:
+                    cert_exists = os.path.isfile(cert_file)
+                    key_exists = os.path.isfile(key_file)
+                    if not cert_exists or not key_exists:
+                        with self.log_context(
+                            cert_file=cert_file,
+                            key_file=key_file,
+                            cert_exists=cert_exists,
+                            key_exists=key_exists,
+                        ) as ssl_log:
+                            ssl_log.warning(
+                                "bot.webhook.ssl.files.missing.fallback.warn"
+                            )
+                        cert_file = None
+                        key_file = None
+                        ssl_enabled = False
 
                 # Server configuration logging
                 with self.log_context(
-                    ssl_enabled=bool(cert_file and key_file),
+                    ssl_enabled=ssl_enabled,
                     ssl_cert_present=bool(cert_file),
                     ssl_key_present=bool(key_file),
                     proxy_enabled=bool(self.trusted_proxy_sources),
@@ -944,7 +1002,7 @@ class WebhookServer(BaseComponent):
                     trusted_proxy_count=len(self.trusted_proxy_sources),
                     workers_count=1,
                 ) as config_log:
-                    if cert_file and key_file:
+                    if ssl_enabled and cert_file and key_file:
                         config_log.debug("bot.webhook.ssl.config.debug")
                         uvicorn.run(
                             self.app,

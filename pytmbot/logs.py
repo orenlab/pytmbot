@@ -746,12 +746,19 @@ class Logger:
     and session tracking capabilities.
     """
 
-    __slots__ = ("_logger", "_masker", "_filter", "_initialized")
+    __slots__ = (
+        "_logger",
+        "_masker",
+        "_filter",
+        "_initialized",
+        "_traceback_enabled",
+    )
 
     _logger: LoguruLogger
     _masker: DataMasker
     _filter: SecureLoggerFilter
     _initialized: bool
+    _traceback_enabled: bool
     _instance: Logger | None = None
     _lock: Final[RLock] = RLock()
     _context_data: ClassVar[ContextVar[dict[str, object] | None]] = ContextVar(
@@ -778,6 +785,7 @@ class Logger:
         self._masker = DataMasker()
         self._filter = SecureLoggerFilter(self._masker)
         self._logger = logger
+        self._traceback_enabled = False
 
         # Lazy initialization of configuration
         log_level = "INFO"
@@ -828,6 +836,7 @@ class Logger:
     def _configure_logger(self, log_level: str, log_format: str) -> None:
         """Configure the logger with optimized settings."""
         self._logger.remove()
+        self._traceback_enabled = str(log_level).upper() == LogLevel.DEBUG.value
 
         def default_filter(record: object) -> bool:
             if not isinstance(record, dict):
@@ -847,8 +856,8 @@ class Logger:
             self._logger.add(
                 self._json_sink,
                 level=log_level,
-                backtrace=True,
-                diagnose=True,
+                backtrace=self._traceback_enabled,
+                diagnose=False,
                 catch=True,
                 filter=default_filter,
             )
@@ -867,8 +876,8 @@ class Logger:
             format=LogConfig.HUMAN_FORMAT,
             level=log_level,
             colorize=True,
-            backtrace=True,
-            diagnose=True,
+            backtrace=self._traceback_enabled,
+            diagnose=False,
             catch=True,
             filter=default_filter,
         )
@@ -1203,6 +1212,30 @@ class Logger:
             depth=depth,
             ansi=ansi,
         )
+
+    def exception(self, message: str, *args: object, **kwargs: object) -> object:
+        """
+        Log exceptions with stack traces only in DEBUG mode.
+
+        At INFO+ levels, this degrades to a structured error log and appends
+        basic exception metadata from the active exception context.
+        """
+        bound_logger = self._get_bound_logger()
+        if self._traceback_enabled:
+            return bound_logger.exception(message, *args, **kwargs)
+
+        payload = dict(kwargs)
+        exc_type, exc_value, _ = sys.exc_info()
+        if exc_value is not None:
+            payload.setdefault(
+                "error_type",
+                exc_type.__name__
+                if exc_type is not None
+                else exc_value.__class__.__name__,
+            )
+            payload.setdefault("error", str(exc_value))
+
+        return bound_logger.error(message, *args, **payload)
 
     def __getattr__(self, name: str) -> Callable[..., object]:
         """Proxy attributes to the internal logger."""

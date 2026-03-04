@@ -22,11 +22,24 @@ type _PayloadDict = dict[str, _PayloadValue]
 class _BotStub:
     should_fail_send: bool = False
     sent_messages: list[_PayloadDict] = field(default_factory=list)
+    answered_callbacks: list[_PayloadDict] = field(default_factory=list)
 
     def send_message(self, **kwargs: _PayloadValue) -> None:
         if self.should_fail_send:
             raise RuntimeError("send failed")
         self.sent_messages.append(dict(kwargs))
+
+    def answer_callback_query(
+        self, *args: _PayloadValue, **kwargs: _PayloadValue
+    ) -> None:
+        if self.should_fail_send:
+            raise RuntimeError("send failed")
+        self.answered_callbacks.append(
+            {
+                "args": list(args),
+                "kwargs": dict(kwargs),
+            }
+        )
 
 
 @dataclass
@@ -96,6 +109,33 @@ def _build_message(
             content_type="text",
         ),
     )
+
+
+def _build_callback(
+    *,
+    user_id: int,
+    data: str,
+    chat_id: int = 100,
+    callback_id: str = "cb-1",
+) -> Message:
+    callback = SimpleNamespace(
+        id=callback_id,
+        data=data,
+        from_user=SimpleNamespace(
+            id=user_id,
+            username="user",
+            first_name=None,
+            last_name=None,
+            is_bot=False,
+        ),
+        message=SimpleNamespace(
+            chat=SimpleNamespace(id=chat_id, type="private"),
+            message_id=1,
+            date=0,
+            content_type="text",
+        ),
+    )
+    return cast(Message, callback)
 
 
 def _build_access_control_middleware(
@@ -184,6 +224,23 @@ def test_access_control_setup_command_is_allowed(
     assert bot.sent_messages[0]["chat_id"] == 999
 
 
+def test_access_control_callback_query_is_checked_and_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _BotStub()
+    middleware = _build_access_control_middleware(monkeypatch, bot)
+    callback = _build_callback(user_id=88, data="d:containers")
+
+    result = middleware.pre_process(callback, {})
+
+    assert isinstance(result, CancelUpdate)
+    assert len(bot.answered_callbacks) == 1
+    callback_kwargs = cast(
+        dict[str, _PayloadValue], bot.answered_callbacks[0]["kwargs"]
+    )
+    assert callback_kwargs["show_alert"] is True
+
+
 def test_rate_limit_enforces_limit_and_tracks_stats() -> None:
     bot = _BotStub()
     middleware = rate_limit_module.RateLimit(
@@ -202,6 +259,24 @@ def test_rate_limit_enforces_limit_and_tracks_stats() -> None:
     assert len(bot.sent_messages) == 1
     assert stats["total_violations"] >= 1
     assert stats["active_users"] >= 1
+
+
+def test_rate_limit_handles_callback_query_updates() -> None:
+    bot = _BotStub()
+    middleware = rate_limit_module.RateLimit(
+        cast(TeleBot, bot),
+        limit=1,
+        period=timedelta(seconds=10),
+    )
+    callback = _build_callback(user_id=5, data="cb:ping")
+
+    first = middleware.pre_process(callback, {})
+    second = middleware.pre_process(callback, {})
+
+    assert first is None
+    assert isinstance(second, CancelUpdate)
+    assert not bot.sent_messages
+    assert len(bot.answered_callbacks) == 1
 
 
 def test_rate_limit_cleanup_removes_stale_state() -> None:

@@ -10,11 +10,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import json
+import os
 import re
 import secrets
+import tempfile
 import threading
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import ClassVar, Final
 
 import pyotp
@@ -41,8 +45,11 @@ class TwoFactorAuthenticator(BaseComponent):
     TOTP_CODE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{6}$")
     _REPLAY_WINDOW_STEPS: ClassVar[int] = 4
     _MAX_TRACKED_CODES_PER_USER: ClassVar[int] = 64
+    _REPLAY_STATE_FILE: ClassVar[Path] = Path("/tmp/pytmbot_totp_replay_state.json")
     _used_totp_codes: ClassVar[dict[int, set[tuple[str, int]]]] = {}
+    _backup_code_hashes: ClassVar[dict[int, set[str]]] = {}
     _used_totp_codes_lock: ClassVar[threading.RLock] = threading.RLock()
+    _replay_state_loaded: ClassVar[bool] = False
 
     __slots__ = (
         "user_id",
@@ -299,6 +306,7 @@ class TwoFactorAuthenticator(BaseComponent):
         code_marker = (code, matched_step)
 
         with self._used_totp_codes_lock:
+            self._load_replay_state_locked(min_step=min_step)
             user_entries = {
                 marker
                 for marker in self._used_totp_codes.get(self.user_id, set())
@@ -306,6 +314,7 @@ class TwoFactorAuthenticator(BaseComponent):
             }
             if code_marker in user_entries:
                 self._used_totp_codes[self.user_id] = user_entries
+                self._persist_replay_state_locked(min_step=min_step)
                 return False
 
             user_entries.add(code_marker)
@@ -313,7 +322,113 @@ class TwoFactorAuthenticator(BaseComponent):
                 sorted_entries = sorted(user_entries, key=lambda marker: marker[1])
                 user_entries = set(sorted_entries[-self._MAX_TRACKED_CODES_PER_USER :])
             self._used_totp_codes[self.user_id] = user_entries
+            self._persist_replay_state_locked(min_step=min_step)
             return True
+
+    @classmethod
+    def _load_replay_state_locked(cls, *, min_step: int) -> None:
+        if cls._replay_state_loaded:
+            return
+        cls._replay_state_loaded = True
+
+        state_file = cls._REPLAY_STATE_FILE
+        try:
+            payload_raw = state_file.read_text(encoding="utf-8")
+            payload = json.loads(payload_raw)
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return
+
+        if not isinstance(payload, dict):
+            return
+        replay_state = payload.get("replay")
+        if not isinstance(replay_state, dict):
+            return
+
+        loaded_entries: dict[int, set[tuple[str, int]]] = {}
+        for raw_user_id, markers in replay_state.items():
+            if not isinstance(raw_user_id, str) or not raw_user_id.isdigit():
+                continue
+            if not isinstance(markers, list):
+                continue
+
+            user_id = int(raw_user_id)
+            user_markers: set[tuple[str, int]] = set()
+            for marker in markers:
+                if (
+                    isinstance(marker, list)
+                    and len(marker) == 2
+                    and isinstance(marker[0], str)
+                    and isinstance(marker[1], int)
+                    and marker[1] >= min_step
+                ):
+                    user_markers.add((marker[0], marker[1]))
+
+            if user_markers:
+                loaded_entries[user_id] = user_markers
+
+        if loaded_entries:
+            cls._used_totp_codes.update(loaded_entries)
+
+    @classmethod
+    def _persist_replay_state_locked(cls, *, min_step: int) -> None:
+        state_file = cls._REPLAY_STATE_FILE
+        parent_dir = state_file.parent
+        try:
+            parent_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+
+        pruned_entries: dict[int, set[tuple[str, int]]] = {}
+        for user_id, markers in cls._used_totp_codes.items():
+            active_markers = {
+                marker
+                for marker in markers
+                if isinstance(marker[0], str)
+                and isinstance(marker[1], int)
+                and marker[1] >= min_step
+            }
+            if active_markers:
+                pruned_entries[user_id] = active_markers
+
+        cls._used_totp_codes = pruned_entries
+
+        payload = {
+            "replay": {
+                str(user_id): [[code, step] for code, step in sorted(markers)]
+                for user_id, markers in pruned_entries.items()
+            }
+        }
+
+        temp_path: str | None = None
+        try:
+            file_descriptor, temp_path = tempfile.mkstemp(
+                prefix=".totp_replay_",
+                suffix=".json",
+                dir=str(parent_dir),
+                text=True,
+            )
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as temp_file:
+                json.dump(payload, temp_file, separators=(",", ":"), sort_keys=True)
+            os.chmod(temp_path, 0o600)
+            os.replace(temp_path, state_file)
+        except OSError:
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+
+    def _hash_backup_code(self, normalized_code: str) -> str:
+        key_material = hashlib.blake2b(
+            self._secret_key_material.encode(),
+            digest_size=32,
+        ).digest()
+        hash_obj = hashlib.blake2b(
+            f"{self.user_id}:{normalized_code}".encode(),
+            key=key_material,
+            digest_size=16,
+        )
+        return hash_obj.hexdigest()
 
     def get_backup_codes(self, count: int = 10) -> list[str]:
         """Generate backup codes for the user.
@@ -347,6 +462,14 @@ class TwoFactorAuthenticator(BaseComponent):
                     code = base64.b32encode(secrets.token_bytes(5)).decode("ascii")[:8]
                     backup_codes.append(f"{code[:4]}-{code[4:]}")
 
+                normalized_codes = [
+                    backup_code.replace("-", "").upper() for backup_code in backup_codes
+                ]
+                with self._used_totp_codes_lock:
+                    self._backup_code_hashes[self.user_id] = {
+                        self._hash_backup_code(code) for code in normalized_codes
+                    }
+
                 log.info("bot.utils.totp.generated.backup.info")
                 return backup_codes
 
@@ -355,3 +478,25 @@ class TwoFactorAuthenticator(BaseComponent):
                 raise TOTPError(
                     f"Failed to generate backup codes for user {self.username}: {e}"
                 ) from e
+
+    def verify_backup_code(self, code: str) -> bool:
+        """Verify and consume a backup code."""
+        if not isinstance(code, str):
+            return False
+
+        normalized_code = code.strip().replace("-", "").upper()
+        if not re.fullmatch(r"[A-Z2-7=]{8}", normalized_code):
+            return False
+
+        backup_hash = self._hash_backup_code(normalized_code)
+        with self._used_totp_codes_lock:
+            user_hashes = self._backup_code_hashes.get(self.user_id)
+            if not user_hashes or backup_hash not in user_hashes:
+                return False
+
+            user_hashes.remove(backup_hash)
+            if user_hashes:
+                self._backup_code_hashes[self.user_id] = user_hashes
+            else:
+                self._backup_code_hashes.pop(self.user_id, None)
+            return True

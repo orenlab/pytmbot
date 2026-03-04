@@ -13,6 +13,8 @@ from pytmbot.models.settings_model import SettingsModel
 from pytmbot.settings import settings as app_settings
 from pytmbot.utils.user_id_mask import mask_user_id_value
 
+WEBHOOK_PATH_PATTERN = re.compile(r"(/webhook/)([^/\s?]+)(/?)")
+
 
 def _get_settings() -> SettingsModel:
     """Resolve lazily loaded settings module attribute to strict type."""
@@ -125,6 +127,46 @@ def mask_token_in_message(message: str, token: str, visible_chars: int = 4) -> s
     )
 
     return message.replace(token, masked_token)
+
+
+def _mask_secret_fragment(value: str, visible_chars: int) -> str:
+    """Mask a sensitive fragment while preserving a minimal prefix/suffix."""
+    safe_visible = max(0, visible_chars)
+    if not value:
+        return value
+    if len(value) <= safe_visible * 2:
+        return "*" * len(value)
+
+    hidden_length = len(value) - safe_visible * 2
+    if hidden_length <= 0:
+        return "*" * len(value)
+    return f"{value[:safe_visible]}{'*' * hidden_length}{value[-safe_visible:]}"
+
+
+def mask_webhook_path(value: str | None, visible_chars: int = 3) -> str:
+    """
+    Mask webhook path tokens in strings like ``/webhook/<token>/``.
+
+    Args:
+        value: Raw path or log text that can contain webhook paths.
+        visible_chars: Number of edge characters to preserve in path token.
+
+    Returns:
+        str: Value with webhook path token masked.
+    """
+    if value is None:
+        return "unknown"
+    if not value:
+        return value
+
+    return WEBHOOK_PATH_PATTERN.sub(
+        lambda match: (
+            f"{match.group(1)}"
+            f"{_mask_secret_fragment(match.group(2), visible_chars)}"
+            f"{match.group(3)}"
+        ),
+        value,
+    )
 
 
 def mask_username(username: str | None, visible: int = 3) -> str:
@@ -260,7 +302,7 @@ def mask_ip_address(
     return ":".join(groups[:safe_visible] + masked_tail)
 
 
-def sanitize_sensitive_data(
+def sanitize_explicit_sensitive_data(
     text: str,
     tokens: set[str] | None = None,
     usernames: set[str] | None = None,
@@ -304,14 +346,21 @@ def sanitize_sensitive_data(
                 masked_user_id = mask_user_id(user_id)
                 sanitized_text = sanitized_text.replace(user_id_str, masked_user_id)
 
-    # Additional security: mask potential API keys, tokens, and secrets
-    # Pattern for common secret formats
+    return sanitized_text
+
+
+def sanitize_by_patterns(text: str) -> str:
+    """Mask only high-confidence secret-like patterns."""
+    if not text:
+        return text
+
     secret_patterns = [
-        r"\b[A-Za-z0-9]{32,}\b",  # Long alphanumeric strings (potential tokens)
-        r"\b[A-Za-z0-9+/]{20,}={0,2}\b",  # Base64-like strings
         r"\bbot[0-9]{8,10}:[A-Za-z0-9_-]{35}\b",  # Telegram bot tokens
-        r"\b[0-9]{8,12}:[A-Za-z0-9_-]{35}\b",  # Alternative bot token format
+        r"\b[0-9]{8,12}:[A-Za-z0-9_-]{35}\b",  # Telegram-like token format
+        r"(?i)\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*[A-Za-z0-9._~+/=-]{8,}",
     ]
+
+    sanitized_text = text
 
     for pattern in secret_patterns:
         sanitized_text = re.sub(
@@ -322,3 +371,21 @@ def sanitize_sensitive_data(
         )
 
     return sanitized_text
+
+
+def sanitize_sensitive_data(
+    text: str,
+    tokens: set[str] | None = None,
+    usernames: set[str] | None = None,
+    user_ids: set[int] | None = None,
+) -> str:
+    """
+    Sanitize explicit sensitive values and apply conservative secret patterns.
+    """
+    explicit_sanitized = sanitize_explicit_sensitive_data(
+        text,
+        tokens=tokens,
+        usernames=usernames,
+        user_ids=user_ids,
+    )
+    return sanitize_by_patterns(explicit_sanitized)

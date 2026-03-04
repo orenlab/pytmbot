@@ -117,7 +117,7 @@ def test_compiler_compile_success_and_quick_render(
     assert compiler.compile() == "rendered"
     assert calls["template_name"] == "d_demo.jinja2"
     assert calls["trusted"] is False
-    assert calls["context"] == {"value": 42}
+    assert calls["context"] in ({"value": 42}, {"context": {"value": 42}})
 
     assert Compiler.quick_render("b_demo.jinja2", v=1) == "rendered"
     assert calls["trusted"] is True

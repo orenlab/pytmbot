@@ -224,6 +224,10 @@ def test_webhook_server_start_port_and_uvicorn_paths(
 
     monkeypatch.setattr("pytmbot.webhook.uvicorn.run", _fake_uvicorn_run)
     monkeypatch.setattr(
+        "pytmbot.webhook.os.path.isfile",
+        lambda path: path in {"/tmp/test.crt", "/tmp/test.key"},
+    )
+    monkeypatch.setattr(
         webhook_module,
         "_get_webhook_config",
         lambda: SimpleNamespace(cert=None, cert_key=None),
@@ -243,3 +247,27 @@ def test_webhook_server_start_port_and_uvicorn_paths(
     server.start()
     assert uvicorn_calls[-1]["ssl_certfile"] == "/tmp/test.crt"
     assert uvicorn_calls[-1]["ssl_keyfile"] == "/tmp/test.key"
+
+    monkeypatch.setattr(
+        webhook_module,
+        "_get_webhook_config",
+        lambda: SimpleNamespace(
+            cert=[SecretStr("YOUR_CERTIFICATE")],
+            cert_key=[SecretStr("YOUR_CERTIFICATE_KEY")],
+        ),
+    )
+    server.start()
+    assert "ssl_certfile" not in uvicorn_calls[-1]
+    assert "ssl_keyfile" not in uvicorn_calls[-1]
+
+    monkeypatch.setattr(
+        webhook_module,
+        "_get_webhook_config",
+        lambda: SimpleNamespace(
+            cert=[SecretStr("/tmp/missing.crt")],
+            cert_key=[SecretStr("/tmp/missing.key")],
+        ),
+    )
+    server.start()
+    assert "ssl_certfile" not in uvicorn_calls[-1]
+    assert "ssl_keyfile" not in uvicorn_calls[-1]

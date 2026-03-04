@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         mask_token_in_message,
         mask_user_id,
         mask_username,
+        mask_webhook_path,
         sanitize_exception,
     )
     from .telegram_utils import (
@@ -86,6 +87,7 @@ def __getattr__(name: str) -> object:
         "generate_secret_token",
         "mask_ip_address",
         "mask_token_in_message",
+        "mask_webhook_path",
         "mask_chat_id",
         "mask_username",
         "mask_user_id",
@@ -136,6 +138,7 @@ __all__ = [
     "generate_secret_token",
     "mask_ip_address",
     "mask_token_in_message",
+    "mask_webhook_path",
     "mask_chat_id",
     "mask_username",
     "mask_user_id",

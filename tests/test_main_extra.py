@@ -161,6 +161,19 @@ def test_should_log_health_status_on_state_change_and_interval(
     assert launcher._should_log_health_status() is True
 
 
+def test_should_not_log_health_status_when_summary_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    launcher._health_manager = SimpleNamespace(
+        get_summary=lambda: {"status": "no_data", "overall": "offline"}
+    )
+
+    monkeypatch.setattr(main_module.time, "time", lambda: 100.0)
+    assert launcher._should_log_health_status() is False
+
+
 def test_log_health_status_startup_then_regular(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,6 +217,20 @@ def test_log_health_status_startup_then_regular(
     launcher._bot_fully_started = True
     launcher.log_health_status()
     assert called["main"] == 1
+
+
+def test_log_health_status_skips_not_ready_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    launcher._health_manager = SimpleNamespace(
+        get_summary=lambda: {"status": "no_data", "overall": "offline"}
+    )
+
+    launcher.log_health_status()
+    assert launcher._initial_health_logged is False
+    assert launcher._previous_health_level is None
 
 
 def test_log_health_details_for_problematic_components(
@@ -278,7 +305,7 @@ def test_start_bot_polling_paths_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     )
     launcher._start_bot_polling(bot_instance)
     assert calls["webhook"] == 1
-    assert calls["polling"] == 1
+    assert calls["polling"] == 2
 
     launcher.bot = SimpleNamespace(
         _start_webhook_server=lambda: (_ for _ in ()).throw(RuntimeError("fail")),
@@ -288,12 +315,35 @@ def test_start_bot_polling_paths_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     )
     launcher.shutdown_requested.clear()
     launcher._start_bot_polling(bot_instance)
-    assert calls["polling"] == 2
+    assert calls["polling"] == 3
     assert launcher.shutdown_requested.is_set() is False
 
     launcher.bot = None
     launcher._start_bot_polling(bot_instance)
     assert launcher.shutdown_requested.is_set() is True
+
+
+def test_start_bot_polling_skips_fallback_when_shutdown_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    calls = {"polling": 0}
+
+    launcher.bot = SimpleNamespace(
+        _start_webhook_server=lambda: None,
+        _start_polling_loop=lambda _bot: calls.__setitem__(
+            "polling", calls["polling"] + 1
+        ),
+    )
+    bot_instance = SimpleNamespace(remove_webhook=lambda: None)
+    launcher.shutdown_requested.set()
+    monkeypatch.setattr(
+        main_module, "args", SimpleNamespace(webhook="True", mode="dev")
+    )
+
+    launcher._start_bot_polling(bot_instance)
+    assert calls["polling"] == 0
 
 
 def test_run_success_and_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:

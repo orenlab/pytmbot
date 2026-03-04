@@ -232,6 +232,8 @@ class BotLauncher(logs.BaseComponent):
 
         current_time = time.time()
         current_summary = self._health_manager.get_summary()
+        if not self._is_health_summary_ready(current_summary):
+            return False
         current_overall = str(current_summary.get("overall", "offline"))
 
         if (
@@ -246,12 +248,20 @@ class BotLauncher(logs.BaseComponent):
             return True
         return False
 
+    @staticmethod
+    def _is_health_summary_ready(health_summary: dict[str, object]) -> bool:
+        """Return True once health monitor has produced at least one snapshot."""
+        status = health_summary.get("status")
+        return not (isinstance(status, str) and status == "no_data")
+
     def log_health_status(self) -> None:
         """Log current health status using professional system with optimized output."""
         if not self._health_manager:
             return
 
         health_summary = self._health_manager.get_summary()
+        if not self._is_health_summary_ready(health_summary):
+            return
         overall_value = health_summary.get("overall")
         overall_status = overall_value if isinstance(overall_value, str) else "offline"
         has_state_changed = (
@@ -671,7 +681,14 @@ class BotLauncher(logs.BaseComponent):
             if webhook_enabled:
                 try:
                     bot_component._start_webhook_server()
-                except Exception as webhook_error:
+                    if not self.shutdown_requested.is_set():
+                        with self.log_context(
+                            error="Webhook server exited unexpectedly",
+                            fallback_mode="polling",
+                        ) as log:
+                            log.warning("bot.launcher.webhook.failover.polling.warn")
+                        bot_component._start_polling_loop(bot_instance)
+                except (Exception, SystemExit) as webhook_error:
                     with self.log_context(
                         error=str(webhook_error),
                         fallback_mode="polling",

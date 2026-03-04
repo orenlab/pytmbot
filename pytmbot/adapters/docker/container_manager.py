@@ -349,7 +349,7 @@ class ContainerManager:
             raise
 
     @validate_access
-    def __start_container(
+    def _start_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Starts a Docker container with enhanced validation and monitoring."""
@@ -374,7 +374,7 @@ class ContainerManager:
         )
 
     @validate_access
-    def __stop_container(
+    def _stop_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Stops a Docker container with graceful shutdown and timeout handling."""
@@ -398,7 +398,7 @@ class ContainerManager:
         )
 
     @validate_access
-    def __restart_container(
+    def _restart_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
         """Restarts a Docker container with enhanced monitoring."""
@@ -422,7 +422,7 @@ class ContainerManager:
         )
 
     @validate_access
-    def __rename_container(
+    def _rename_container(
         self, user_id: int, container_id: ContainerId, new_container_name: str
     ) -> DockerResponse:
         """Renames a Docker container with comprehensive validation."""
@@ -554,11 +554,11 @@ class ContainerManager:
 
             # Execute the action with timeout monitoring
             if container_action == ContainerAction.START:
-                result = self.__start_container(user_id, container_ref)
+                result = self._start_container(user_id, container_ref)
             elif container_action == ContainerAction.STOP:
-                result = self.__stop_container(user_id, container_ref)
+                result = self._stop_container(user_id, container_ref)
             elif container_action == ContainerAction.RESTART:
-                result = self.__restart_container(user_id, container_ref)
+                result = self._restart_container(user_id, container_ref)
             elif container_action == ContainerAction.RENAME:
                 new_container_name_raw = kwargs.get("new_container_name")
                 new_container_name = (
@@ -566,7 +566,7 @@ class ContainerManager:
                     if isinstance(new_container_name_raw, str)
                     else ""
                 )
-                result = self.__rename_container(
+                result = self._rename_container(
                     user_id,
                     container_ref,
                     new_container_name,

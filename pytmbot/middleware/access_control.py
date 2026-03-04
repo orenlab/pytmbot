@@ -7,14 +7,13 @@ also providing basic information about the status of local servers.
 
 import threading
 from collections import defaultdict
-from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Final
+from typing import Final, cast
 
 from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
-from telebot.types import Message
+from telebot.types import CallbackQuery, Message, User
 
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
@@ -43,11 +42,9 @@ class AccessControl(BaseMiddleware, BaseComponent):
     }
 
     def __init__(self, bot: TeleBot) -> None:
-        base_middleware_init: Callable[[BaseMiddleware], None] = BaseMiddleware.__init__
-        base_middleware_init(self)
         BaseComponent.__init__(self)
         self.bot = bot
-        self.update_types = ["message"]
+        self.update_types = ["message", "callback_query"]
 
         self.allowed_user_ids = frozenset(settings.access_control.allowed_user_ids)
 
@@ -77,13 +74,31 @@ class AccessControl(BaseMiddleware, BaseComponent):
         with self.log_context(**context) as logger:
             logger.info("bot.access.control.middleware.init")
 
-    def _is_setup_command(self, message: Message) -> bool:
+    @staticmethod
+    def _is_callback_update(update: object) -> bool:
+        return isinstance(update, CallbackQuery) or (
+            hasattr(update, "data")
+            and hasattr(update, "id")
+            and hasattr(update, "message")
+            and not hasattr(update, "chat")
+        )
+
+    def _is_setup_command(self, message_text: str | Message | None) -> bool:
         """Check if the message contains a setup command."""
-        if not message.text:
+        raw_text: str | None
+        if isinstance(message_text, str):
+            raw_text = message_text
+        elif message_text is not None and hasattr(message_text, "text"):
+            candidate = getattr(message_text, "text", None)
+            raw_text = candidate if isinstance(candidate, str) else None
+        else:
+            raw_text = None
+
+        if not raw_text:
             return False
 
         # Get the first word/command from the message
-        command = message.text.strip().split()[0].lower()
+        command = raw_text.strip().split()[0].lower()
 
         # Remove bot username if present (e.g., /getmyid@botname -> /getmyid)
         if "@" in command:
@@ -92,9 +107,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return command in self.SETUP_COMMANDS
 
     @staticmethod
-    def _resolve_user_label(message: Message) -> str:
+    def _resolve_user_label(user: User | None) -> str:
         """Resolve best-effort user label for logs/alerts."""
-        user = message.from_user
         if user is None:
             return "unknown"
 
@@ -117,15 +131,70 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         return "unknown"
 
-    def pre_process(self, message: Message, data: object) -> CancelUpdate | None:
-        user = message.from_user
+    @staticmethod
+    def _extract_update_context(
+        update: Message | CallbackQuery,
+    ) -> tuple[User | None, int | None, str, int | None, str | None]:
+        if AccessControl._is_callback_update(update):
+            callback_message = getattr(update, "message", None)
+            callback_chat = getattr(callback_message, "chat", None)
+            chat_id = getattr(callback_chat, "id", None)
+            message_id = getattr(callback_message, "message_id", None)
+            data = getattr(update, "data", None)
+            callback_user = getattr(update, "from_user", None)
+            return callback_user, chat_id, "callback_query", message_id, data
+
+        chat = getattr(update, "chat", None)
+        chat_id = getattr(chat, "id", None)
+        message_id = getattr(update, "message_id", None)
+        message_text = getattr(update, "text", None)
+        message_user = getattr(update, "from_user", None)
+        return message_user, chat_id, "message", message_id, message_text
+
+    def _notify_user_denied(
+        self,
+        update: Message | CallbackQuery,
+        *,
+        attempt_count: int,
+    ) -> None:
+        message_text = self._get_message_text(attempt_count, self.MAX_ATTEMPTS)
+        if self._is_callback_update(update):
+            callback_update = cast(CallbackQuery, update)
+            self.bot.answer_callback_query(
+                callback_update.id,
+                text=message_text,
+                show_alert=True,
+            )
+            return
+
+        message_chat = getattr(update, "chat", None)
+        chat_id = getattr(message_chat, "id", None)
+        if isinstance(chat_id, int):
+            self.bot.send_message(chat_id=chat_id, text=message_text)
+
+    def pre_process(
+        self, update: Message | CallbackQuery, data: object
+    ) -> CancelUpdate | None:
+        del data
+        user, chat_id, update_type, message_id, raw_text = self._extract_update_context(
+            update
+        )
         if not user:
             context = {
                 "operation": "pre_process",
                 "error_type": "missing_user_info",
-                "message_id": message.message_id,
-                "chat_id": message.chat.id,
-                "chat_type": message.chat.type,
+                "message_id": message_id,
+                "chat_id": chat_id,
+                "chat_type": (
+                    getattr(
+                        getattr(getattr(update, "message", None), "chat", None),
+                        "type",
+                        None,
+                    )
+                    if self._is_callback_update(update)
+                    else getattr(getattr(update, "chat", None), "type", "unknown")
+                ),
+                "update_type": update_type,
             }
 
             with self.log_context(**context) as logger:
@@ -133,15 +202,15 @@ class AccessControl(BaseMiddleware, BaseComponent):
             return CancelUpdate()
 
         user_id = user.id
-        username = self._resolve_user_label(message)
-        chat_id = message.chat.id
+        username = self._resolve_user_label(user)
 
-        if message.text:
+        if raw_text:
             debug_context = {
                 "user_id": mask_user_id(user_id),
                 "chat_id": chat_id,
-                "text_length": len(message.text),
-                "cmd": message.text.lstrip().startswith("/"),
+                "text_length": len(raw_text),
+                "cmd": raw_text.lstrip().startswith("/"),
+                "update_type": update_type,
             }
 
             with self.log_context(**debug_context) as logger:
@@ -149,12 +218,21 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         base_context = {
             "operation": "pre_process",
-            "message_id": message.message_id,
+            "message_id": message_id,
             "chat_id": chat_id,
-            "chat_type": message.chat.type,
+            "chat_type": (
+                getattr(
+                    getattr(getattr(update, "message", None), "chat", None),
+                    "type",
+                    None,
+                )
+                if self._is_callback_update(update)
+                else getattr(getattr(update, "chat", None), "type", "unknown")
+            ),
             "user_id": mask_user_id(user_id),
             "username": mask_username(username),
             "user_is_bot": user.is_bot,
+            "update_type": update_type,
         }
 
         # Check if user is currently blocked
@@ -172,6 +250,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
             with self.log_context(**context) as logger:
                 logger.warning("bot.access.blocked.silent.deny")
+            if self._is_callback_update(update):
+                callback_update = cast(CallbackQuery, update)
+                self.bot.answer_callback_query(
+                    callback_update.id,
+                    text="Access denied.",
+                    show_alert=False,
+                )
             return CancelUpdate()
 
         # Authorized users get full access without attempt counting
@@ -188,7 +273,11 @@ class AccessControl(BaseMiddleware, BaseComponent):
 
         # Unauthorized users: check attempts and handle accordingly
         return self._handle_unauthorized_access(
-            user_id, username, chat_id, message, base_context
+            user_id=user_id,
+            username=username,
+            chat_id=chat_id,
+            update=update,
+            base_context=base_context,
         )
 
     def _should_block_request(self, user_id: int) -> bool:
@@ -212,8 +301,8 @@ class AccessControl(BaseMiddleware, BaseComponent):
         self,
         user_id: int,
         username: str,
-        chat_id: int,
-        message: Message,
+        chat_id: int | None,
+        update: Message | CallbackQuery,
         base_context: dict[str, object],
     ) -> CancelUpdate | None:
         """Handle access for unauthorized users with attempt limits."""
@@ -224,7 +313,14 @@ class AccessControl(BaseMiddleware, BaseComponent):
             if current_attempt >= self.MAX_ATTEMPTS:
                 block_until = datetime.now() + timedelta(seconds=self.BLOCK_DURATION)
                 self._blocked_until[user_id] = block_until
-        is_setup_command = self._is_setup_command(message)
+        update_text = (
+            getattr(update, "text", None)
+            if not self._is_callback_update(update)
+            else getattr(update, "data", None)
+        )
+        is_setup_command = (
+            not self._is_callback_update(update)
+        ) and self._is_setup_command(update_text)
 
         context = {
             **base_context,
@@ -234,7 +330,11 @@ class AccessControl(BaseMiddleware, BaseComponent):
             "attempts_remaining": max(0, self.MAX_ATTEMPTS - current_attempt),
             "access_status": "denied",
             "is_setup_command": is_setup_command,
-            "command": message.text.strip().split()[0] if message.text else "unknown",
+            "command": (
+                update_text.strip().split()[0]
+                if isinstance(update_text, str) and update_text.strip()
+                else "unknown"
+            ),
         }
 
         # Block user if max attempts reached
@@ -282,15 +382,14 @@ class AccessControl(BaseMiddleware, BaseComponent):
             return None
 
         # Block non-setup commands
-        message_text = self._get_message_text(current_attempt, self.MAX_ATTEMPTS)
-        self.bot.send_message(chat_id=chat_id, text=message_text)
+        self._notify_user_denied(update, attempt_count=current_attempt)
         return CancelUpdate()
 
     def _notify_admin(
         self,
         user_id: int,
         username: str,
-        chat_id: int,
+        chat_id: int | None,
         attempt: int,
         is_setup_command: bool = False,
     ) -> None:
@@ -330,7 +429,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             "username": masked_username,
             "masked_username": masked_username,
             "masked_user_id": masked_user_id,
-            "chat_id": chat_id,
+            "chat_id": mask_chat_id(chat_id),
             "attempt_number": attempt,
             "notification_status": "sending",
             "admin_chat_id": mask_chat_id(settings.chat_id.global_chat_id[0]),
@@ -343,13 +442,13 @@ class AccessControl(BaseMiddleware, BaseComponent):
                 msg = (
                     f"ℹ️ Setup command used by unauthorized user (attempt #{attempt})\n"
                     f"👤 User: `{masked_username}` (ID: `{masked_user_id}`)\n"
-                    f"💬 Chat ID: `{chat_id}`\n"
+                    f"💬 Chat ID: `{mask_chat_id(chat_id)}`\n"
                 )
             else:
                 msg = (
                     f"⚠️ Unauthorized access attempt #{attempt}\n"
                     f"👤 User: `{masked_username}` (ID: `{masked_user_id}`)\n"
-                    f"💬 Chat ID: `{chat_id}`\n"
+                    f"💬 Chat ID: `{mask_chat_id(chat_id)}`\n"
                 )
 
             remaining = max(0, self.MAX_ATTEMPTS - attempt)
@@ -530,29 +629,42 @@ class AccessControl(BaseMiddleware, BaseComponent):
         return messages[min(count - 1, len(messages) - 1)]
 
     def post_process(
-        self, message: Message, data: dict[str, object], exception: Exception | None
+        self,
+        update: Message | CallbackQuery,
+        data: dict[str, object],
+        exception: Exception | None,
     ) -> None:
-        """Post-process message handling."""
+        """Post-process update handling."""
         if not exception or isinstance(exception, CancelUpdate):
             return
 
+        user, chat_id, update_type, message_id, _ = self._extract_update_context(update)
+        chat_type = (
+            getattr(
+                getattr(getattr(update, "message", None), "chat", None), "type", None
+            )
+            if self._is_callback_update(update)
+            else getattr(getattr(update, "chat", None), "type", "unknown")
+        )
+
         context = {
             "operation": "post_process",
-            "message_id": message.message_id,
-            "chat_id": message.chat.id,
-            "chat_type": message.chat.type,
+            "message_id": message_id,
+            "chat_id": chat_id,
+            "chat_type": chat_type,
+            "update_type": update_type,
             "error": str(exception),
             "error_type": type(exception).__name__,
             "has_data": bool(data),
             "data_keys": list(data.keys()) if data else [],
         }
 
-        if message.from_user:
+        if user:
             context.update(
                 {
-                    "user_id": mask_user_id(message.from_user.id),
-                    "username": mask_username(self._resolve_user_label(message)),
-                    "user_is_bot": message.from_user.is_bot,
+                    "user_id": mask_user_id(user.id),
+                    "username": mask_username(self._resolve_user_label(user)),
+                    "user_is_bot": user.is_bot,
                 }
             )
 

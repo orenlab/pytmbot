@@ -22,6 +22,7 @@ from pytmbot.handlers.auth_processing.auth_processing import (
     handle_unauthorized_message,
 )
 from pytmbot.logs import BaseComponent, Logger
+from pytmbot.utils import mask_user_id, mask_username
 
 logger = Logger()
 session_manager = get_session_manager()
@@ -227,10 +228,8 @@ def _is_user_authorized(user_id: int) -> bool:
         bool: True if user is authorized
     """
     access_control = settings.access_control
-    return (
-        user_id in access_control.allowed_user_ids
-        and user_id in access_control.allowed_admins_ids
-    )
+    # Privileged handlers are admin-only by design.
+    return user_id in access_control.allowed_admins_ids
 
 
 def _handle_unauthenticated_user(
@@ -304,10 +303,14 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
 
         # Check if user is in allowed admins list
         if not _is_user_authorized(auth_context.user_id):
+            is_known_non_admin = (
+                auth_context.user_id in settings.access_control.allowed_user_ids
+            )
             with auth_component.log_context(
                 action="auth_check",
-                user_id=auth_context.user_id,
-                username=auth_context.username,
+                user_id=mask_user_id(auth_context.user_id),
+                username=mask_username(auth_context.username),
+                is_known_non_admin=is_known_non_admin,
             ) as log:
                 log.warning("bot.session.user.not.warn")
             access_denied_handler(query, bot)
@@ -322,8 +325,8 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
             log.debug(
                 "bot.session.authentication.status.debug",
                 context={
-                    "user_id": auth_context.user_id,
-                    "username": auth_context.username,
+                    "user_id": mask_user_id(auth_context.user_id),
+                    "username": mask_username(auth_context.username),
                     "handler_type": auth_context.handler_type.value,
                 },
             )
@@ -331,11 +334,6 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
             if not is_authenticated:
                 log.warning("bot.session.authentication.required.warn")
                 _handle_unauthenticated_user(auth_context, query, bot)
-                return None
-
-            if session_manager.is_session_expired(auth_context.user_id):
-                log.warning("bot.session.expired.warn")
-                _handle_expired_session(auth_context, query, bot)
                 return None
 
             log.success("bot.session.access.granted.ok")

@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 import ipaddress
 from collections import deque
+from threading import RLock
 
 from pytmbot.logs import Logger
 
@@ -19,7 +20,7 @@ class TelegramIPValidator:
     _MAX_VALIDATED_IPS = 4096
     _MAX_REJECTED_IPS = 4096
 
-    def __init__(self) -> None:
+    def __init__(self, additional_ranges: list[str] | None = None) -> None:
         self.ipv4_ranges = [
             ipaddress.ip_network("91.108.56.0/22"),
             ipaddress.ip_network("91.108.4.0/22"),
@@ -44,36 +45,62 @@ class TelegramIPValidator:
         self._validated_ip_order: deque[str] = deque()
         self.rejected_ips: set[str] = set()
         self._rejected_ip_order: deque[str] = deque()
+        self._cache_lock = RLock()
+
+        if additional_ranges:
+            self._extend_ranges(additional_ranges)
+
+    def _extend_ranges(self, additional_ranges: list[str]) -> None:
+        for raw_range in additional_ranges:
+            candidate = raw_range.strip()
+            if not candidate:
+                continue
+            try:
+                network = ipaddress.ip_network(candidate, strict=False)
+            except ValueError:
+                logger.warning(
+                    "bot.models.telegram_models.additional.range.invalid.warn",
+                    ip_range=candidate,
+                )
+                continue
+
+            if isinstance(network, ipaddress.IPv4Network):
+                self.ipv4_ranges.append(network)
+            else:
+                self.ipv6_ranges.append(network)
 
     def _remember_validated_ip(self, ip_str: str) -> None:
         """Store validated IP in a bounded in-memory cache."""
-        if ip_str in self.validated_ips:
-            return
+        with self._cache_lock:
+            if ip_str in self.validated_ips:
+                return
 
-        if len(self.validated_ips) >= self._MAX_VALIDATED_IPS:
-            oldest_ip = self._validated_ip_order.popleft()
-            self.validated_ips.discard(oldest_ip)
+            if len(self.validated_ips) >= self._MAX_VALIDATED_IPS:
+                oldest_ip = self._validated_ip_order.popleft()
+                self.validated_ips.discard(oldest_ip)
 
-        self.validated_ips.add(ip_str)
-        self._validated_ip_order.append(ip_str)
+            self.validated_ips.add(ip_str)
+            self._validated_ip_order.append(ip_str)
 
     def _remember_rejected_ip(self, ip_str: str) -> None:
         """Store non-Telegram IP in a bounded negative cache."""
-        if ip_str in self.rejected_ips:
-            return
+        with self._cache_lock:
+            if ip_str in self.rejected_ips:
+                return
 
-        if len(self.rejected_ips) >= self._MAX_REJECTED_IPS:
-            oldest_ip = self._rejected_ip_order.popleft()
-            self.rejected_ips.discard(oldest_ip)
+            if len(self.rejected_ips) >= self._MAX_REJECTED_IPS:
+                oldest_ip = self._rejected_ip_order.popleft()
+                self.rejected_ips.discard(oldest_ip)
 
-        self.rejected_ips.add(ip_str)
-        self._rejected_ip_order.append(ip_str)
+            self.rejected_ips.add(ip_str)
+            self._rejected_ip_order.append(ip_str)
 
     def is_telegram_ip(self, ip_str: str) -> bool:
-        if ip_str in self.validated_ips:
-            return True
-        if ip_str in self.rejected_ips:
-            return False
+        with self._cache_lock:
+            if ip_str in self.validated_ips:
+                return True
+            if ip_str in self.rejected_ips:
+                return False
 
         try:
             ip = ipaddress.ip_address(ip_str)

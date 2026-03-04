@@ -10,6 +10,7 @@ from pytmbot.utils.security import (
     mask_token_in_message,
     mask_user_id,
     mask_username,
+    mask_webhook_path,
     sanitize_exception,
     sanitize_sensitive_data,
 )
@@ -59,6 +60,23 @@ def test_mask_token_in_message_handles_short_and_long_tokens() -> None:
     masked = mask_token_in_message("token=abcdefghijk", "abcdefghijk", visible_chars=2)
     assert masked.startswith("token=ab")
     assert masked.endswith("jk")
+    assert "*" in masked
+
+
+def test_mask_webhook_path_masks_token_fragment() -> None:
+    raw_path = "/webhook/j-MelQvyyAxD7ryabbVX2Q/"
+    masked = mask_webhook_path(raw_path)
+    assert masked.startswith("/webhook/j-M")
+    assert masked.endswith("X2Q/")
+    assert "j-MelQvyyAxD7ryabbVX2Q" not in masked
+    assert "*" in masked
+
+
+def test_mask_webhook_path_masks_embedded_url() -> None:
+    raw_url = "https://example.com/webhook/AbCdEf1234567890/?x=1"
+    masked = mask_webhook_path(raw_url)
+    assert "/webhook/AbC" in masked
+    assert "AbCdEf1234567890" not in masked
     assert "*" in masked
 
 

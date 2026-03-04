@@ -105,7 +105,10 @@ def _extract_totp_code(raw_text: str | None) -> str:
     if text.startswith("/"):
         command_part = text[1:].split(maxsplit=1)[0]
         command_name = command_part.split("@", 1)[0]
-        return command_name.strip()
+        normalized_command = command_name.strip()
+        if TwoFactorAuthenticator.TOTP_CODE_PATTERN.match(normalized_command):
+            return normalized_command
+        return ""
 
     return text
 

@@ -47,7 +47,7 @@ class Compiler(BaseComponent):
             output = c.compile()
     """
 
-    __slots__ = ("template_name", "context", "trusted")
+    __slots__ = ("template_name", "context", "strict")
 
     TEMPLATE_TYPE_PREFIXES: Final[dict[str, TemplateType]] = {
         "a_": TemplateType.AUTH,
@@ -57,20 +57,23 @@ class Compiler(BaseComponent):
     }
 
     def __init__(
-        self, template_name: str, trusted: bool = False, **context: TemplateValue
+        self,
+        template_name: str,
+        trusted: bool = False,
+        **context: TemplateValue,
     ) -> None:
         """
         Initialize compiler with template and context.
 
         Args:
             template_name: Name of the template file
-            trusted: If True, skip expensive validation (use for internal templates)
+            trusted: If True, use fast validation for internal templates.
             **context: Template context variables
         """
         super().__init__("template_compiler")
         self.template_name = template_name
         self.context = context
-        self.trusted = trusted
+        self.strict = not trusted
 
     def __enter__(self) -> Compiler:
         """Context manager entry."""
@@ -123,7 +126,7 @@ class Compiler(BaseComponent):
         """
         try:
             # Light logging only for untrusted templates or errors
-            if not self.trusted:
+            if self.strict:
                 with self.log_context(
                     action="compile_template",
                     template_name=self.template_name,
@@ -132,7 +135,9 @@ class Compiler(BaseComponent):
 
             # Validation is now handled inside _render_template
             result = _render_template(
-                self.template_name, trusted=self.trusted, **self.context
+                self.template_name,
+                trusted=not self.strict,
+                context=self.context,
             )
 
             return result
@@ -142,7 +147,7 @@ class Compiler(BaseComponent):
             with self.log_context(
                 action="compile_template_error",
                 template_name=self.template_name,
-                trusted=self.trusted,
+                strict=self.strict,
             ) as log:
                 log.error("bot.parsers.compiler.template.compilation.fail")
 
@@ -155,7 +160,7 @@ class Compiler(BaseComponent):
                     error_code="TEMPLATE_COMPILATION_ERROR",
                     metadata={
                         "template_name": self.template_name,
-                        "trusted": self.trusted,
+                        "strict": self.strict,
                         "error": str(e),
                     },
                 )
@@ -163,7 +168,11 @@ class Compiler(BaseComponent):
 
     @staticmethod
     def validate_template_params(
-        template_name: str, context: TemplateContext, trusted: bool = False
+        template_name: str,
+        context: TemplateContext,
+        *,
+        strict: bool = True,
+        trusted: bool | None = None,
     ) -> tuple[str, TemplateContext]:
         """
         Explicitly validate template parameters without rendering.
@@ -171,7 +180,8 @@ class Compiler(BaseComponent):
         Args:
             template_name: Template name to validate
             context: Template context to validate
-            trusted: Whether to use fast or strict validation
+            strict: Whether to use strict validation
+            trusted: Backward compatibility alias (trusted=True -> strict=False)
 
         Returns:
             tuple: (validated_name, validated_context)
@@ -181,7 +191,18 @@ class Compiler(BaseComponent):
         """
         from pytmbot.parsers.validation import validate_template_render
 
-        return validate_template_render(template_name, context, trusted=trusted)
+        if trusted is not None:
+            return validate_template_render(
+                template_name,
+                context,
+                trusted=trusted,
+            )
+
+        return validate_template_render(
+            template_name,
+            context,
+            strict=strict,
+        )
 
     def get_compiler_stats(self) -> ParserStats:
         """Get compiler cache statistics."""
@@ -204,7 +225,7 @@ class Compiler(BaseComponent):
         Returns:
             str: Rendered template
         """
-        return _render_template(template_name, trusted=True, **context)
+        return _render_template(template_name, trusted=True, context=context)
 
 
 # Convenience functions for common use cases
@@ -219,7 +240,7 @@ def render_docker_template(template_name: str, **context: TemplateValue) -> str:
             )
         )
 
-    with Compiler(template_name, trusted=True, **context) as compiler:
+    with Compiler(template_name, True, **context) as compiler:
         return compiler.compile()
 
 
@@ -234,7 +255,7 @@ def render_auth_template(template_name: str, **context: TemplateValue) -> str:
             )
         )
 
-    with Compiler(template_name, trusted=True, **context) as compiler:
+    with Compiler(template_name, True, **context) as compiler:
         return compiler.compile()
 
 
@@ -249,7 +270,7 @@ def render_base_template(template_name: str, **context: TemplateValue) -> str:
             )
         )
 
-    with Compiler(template_name, trusted=True, **context) as compiler:
+    with Compiler(template_name, True, **context) as compiler:
         return compiler.compile()
 
 

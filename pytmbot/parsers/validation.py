@@ -290,7 +290,11 @@ _validator = TemplateValidator()
 
 # Public API functions
 def validate_template_render(
-    template_name: str, context: TemplateContext, trusted: bool = False
+    template_name: str,
+    context: TemplateContext,
+    *,
+    strict: bool = True,
+    trusted: bool | None = None,
 ) -> tuple[str, TemplateContext]:
     """
     Validate template render parameters with appropriate validation level.
@@ -298,12 +302,19 @@ def validate_template_render(
     Args:
         template_name: Template name
         context: Template context
-        trusted: If True, use fast validation; if False, use strict validation
+        strict: If True, use strict validation; if False, use fast validation.
+        trusted: Backward compatibility alias. When provided, overrides strict mode
+            using inverse mapping (trusted=True -> strict=False).
 
     Returns:
         tuple: (validated_name, validated_context)
     """
-    return _validator.validate_render_params(template_name, context, strict=not trusted)
+    strict_mode = strict if trusted is None else not trusted
+    return _validator.validate_render_params(
+        template_name,
+        context,
+        strict=strict_mode,
+    )
 
 
 def get_validation_stats() -> dict[str, int]:

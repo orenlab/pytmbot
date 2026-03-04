@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Generator
+from pathlib import Path
 from typing import cast
 
 import pyotp
@@ -15,9 +16,19 @@ from pytmbot.utils.totp import TwoFactorAuthenticator
 def _reset_totp_replay_registry() -> Generator[None, None, None]:
     with TwoFactorAuthenticator._used_totp_codes_lock:
         TwoFactorAuthenticator._used_totp_codes.clear()
+        TwoFactorAuthenticator._backup_code_hashes.clear()
+        TwoFactorAuthenticator._replay_state_loaded = False
+        replay_state_file = Path(TwoFactorAuthenticator._REPLAY_STATE_FILE)
+        if replay_state_file.exists():
+            replay_state_file.unlink()
     yield
     with TwoFactorAuthenticator._used_totp_codes_lock:
         TwoFactorAuthenticator._used_totp_codes.clear()
+        TwoFactorAuthenticator._backup_code_hashes.clear()
+        TwoFactorAuthenticator._replay_state_loaded = False
+        replay_state_file = Path(TwoFactorAuthenticator._REPLAY_STATE_FILE)
+        if replay_state_file.exists():
+            replay_state_file.unlink()
 
 
 def test_totp_authenticator_rejects_invalid_inputs() -> None:
@@ -62,6 +73,40 @@ def test_backup_codes_have_expected_format() -> None:
     assert len(codes) == 5
     for code in codes:
         assert re.fullmatch(r"[A-Z2-7=]{4}-[A-Z2-7=]{4}", code) is not None
+
+
+def test_backup_codes_are_single_use() -> None:
+    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+    codes = auth.get_backup_codes(count=2)
+
+    assert auth.verify_backup_code(codes[0]) is True
+    assert auth.verify_backup_code(codes[0]) is False
+    assert auth.verify_backup_code("bad-code") is False
+
+
+def test_totp_replay_state_persists_between_instances(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_file = tmp_path / "totp_replay_state.json"
+    monkeypatch.setattr(TwoFactorAuthenticator, "_REPLAY_STATE_FILE", state_file)
+
+    auth_one = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+    totp = pyotp.TOTP(
+        auth_one._generate_secret(),
+        digits=auth_one.TOTP_DIGITS,
+        interval=auth_one.TOTP_INTERVAL,
+    )
+    valid_code = totp.now()
+    assert auth_one.verify_totp_code(valid_code) is True
+
+    # Simulate process restart: in-memory state cleared, file remains.
+    with TwoFactorAuthenticator._used_totp_codes_lock:
+        TwoFactorAuthenticator._used_totp_codes.clear()
+        TwoFactorAuthenticator._replay_state_loaded = False
+
+    auth_two = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+    assert auth_two.verify_totp_code(valid_code) is False
 
 
 def test_backup_codes_reject_invalid_count() -> None:

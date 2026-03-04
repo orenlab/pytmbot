@@ -293,6 +293,7 @@ def test_twofa_extract_totp_code_formats() -> None:
     assert twofa_module._extract_totp_code("123456") == "123456"
     assert twofa_module._extract_totp_code("/123456") == "123456"
     assert twofa_module._extract_totp_code("/123456@botname") == "123456"
+    assert twofa_module._extract_totp_code("/help@botname") == ""
 
 
 def test_twofa_send_totp_code_message_private_and_group(

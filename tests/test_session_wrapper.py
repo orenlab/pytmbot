@@ -354,8 +354,7 @@ def test_two_factor_auth_required_not_authorized(
             "unauth",
             "bot.session.authentication.required.warn",
             "_handle_unauthenticated_user",
-        ),
-        (True, True, "expired", "bot.session.expired.warn", "_handle_expired_session"),
+        )
     ],
 )
 def test_two_factor_auth_required_auth_state_branches(

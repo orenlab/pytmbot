@@ -341,11 +341,7 @@ class OutlinePlugin(PluginInterface):
             }
         )
 
-        with Compiler(
-            template_name=template_name,
-            trusted=True,
-            **template_context,
-        ) as compiler:
+        with Compiler(template_name, True, **template_context) as compiler:
             response = compiler.compile()
 
         if not isinstance(response, str):

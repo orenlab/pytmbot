@@ -203,23 +203,29 @@ class SessionManager(BaseComponent):
         )
         self._cleanup_thread.start()
 
+    def _get_or_create_session_locked(self, user_id: int) -> _UserSession:
+        """
+        Retrieve or create user session with ``self._lock`` already held.
+        """
+        if user_id not in self._user_sessions:
+            evicted_count = self._evict_sessions_if_needed()
+            self._user_sessions[user_id] = _UserSession()
+
+            with self.log_context(user_id=user_id, action="create_session") as log:
+                log.debug(
+                    "bot.session.create.user.debug",
+                    context={
+                        "evicted_sessions": evicted_count,
+                        "total_sessions": len(self._user_sessions),
+                    },
+                )
+
+        return self._user_sessions[user_id]
+
     def _get_or_create_session(self, user_id: int) -> _UserSession:
         """Thread-safe session retrieval or creation."""
         with self._lock:
-            if user_id not in self._user_sessions:
-                evicted_count = self._evict_sessions_if_needed()
-                self._user_sessions[user_id] = _UserSession()
-
-                with self.log_context(user_id=user_id, action="create_session") as log:
-                    log.debug(
-                        "bot.session.create.user.debug",
-                        context={
-                            "evicted_sessions": evicted_count,
-                            "total_sessions": len(self._user_sessions),
-                        },
-                    )
-
-            return self._user_sessions[user_id]
+            return self._get_or_create_session_locked(user_id)
 
     def _evict_sessions_if_needed(self) -> int:
         """
@@ -269,7 +275,7 @@ class SessionManager(BaseComponent):
     def session_context(self, user_id: int) -> Generator[_UserSession, None, None]:
         """Context manager for safe session access."""
         with self._lock:
-            session = self._get_or_create_session(user_id)
+            session = self._get_or_create_session_locked(user_id)
             yield session
 
     # Authentication state management
@@ -357,7 +363,7 @@ class SessionManager(BaseComponent):
                     },
                 )
 
-    def _auto_unblock_if_due(self, user_id: int, session: _UserSession) -> bool:
+    def _auto_unblock_if_due(self, _user_id: int, session: _UserSession) -> bool:
         """Unblock user when block timeout has elapsed."""
         blocked_time = session.blocked_time
         if blocked_time is None or datetime.now() <= blocked_time:
@@ -366,9 +372,6 @@ class SessionManager(BaseComponent):
         session.blocked_time = None
         if session.auth_state == self.state_fabric.BLOCKED:
             session.auth_state = self.state_fabric.UNAUTHENTICATED
-
-        with self.log_context(user_id=user_id, action="auto_unblock") as log:
-            log.info("bot.session.user.automatically.unblocked.ok")
         return True
 
     def get_blocked_time(self, user_id: int) -> datetime | None:
@@ -378,12 +381,17 @@ class SessionManager(BaseComponent):
 
     def is_blocked(self, user_id: int) -> bool:
         """Check if user is currently blocked."""
+        unblocked = False
         with self.session_context(user_id) as session:
             if session.is_blocked_now():
                 return True
 
-            self._auto_unblock_if_due(user_id, session)
-            return False
+            unblocked = self._auto_unblock_if_due(user_id, session)
+
+        if unblocked:
+            with self.log_context(user_id=user_id, action="auto_unblock") as log:
+                log.info("bot.session.user.automatically.unblocked.ok")
+        return False
 
     # Session management
     def set_login_time(self, user_id: int) -> None:

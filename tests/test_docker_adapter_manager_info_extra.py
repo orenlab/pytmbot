@@ -1331,7 +1331,7 @@ def test_container_manager_rename_and_dispatch_error_paths(
         "get_container_safely",
         lambda _cid, docker_client=None: base_container,
     )
-    method_name = "_ContainerManager__rename_container"
+    method_name = "_rename_container"
     rename_container = cast(
         Callable[[int, str, str], None],
         getattr(manager, method_name),
@@ -1400,7 +1400,7 @@ def test_container_manager_rename_and_dispatch_error_paths(
 
     monkeypatch.setattr(
         manager,
-        "_ContainerManager__start_container",
+        "_start_container",
         lambda _user_id, _container_id: (_ for _ in ()).throw(
             RuntimeError("start fail")
         ),
