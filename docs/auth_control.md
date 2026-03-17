@@ -126,85 +126,85 @@ When unauthorized users access unrestricted commands, admins receive information
 ```mermaid
 graph TD
     UserRequest[👤 User Request] --> AccessMiddleware[🛡️ Access Control Middleware]
-    
+
     AccessMiddleware --> CheckUnrestricted{🔓 Unrestricted Command?}
     CheckUnrestricted -->|Yes| AllowUnrestricted[✅ Allow Unrestricted]
     CheckUnrestricted -->|No| CheckBlocked{🚫 User Blocked?}
-    
+
     AllowUnrestricted --> CheckAuthorized{👤 User Authorized?}
     CheckAuthorized -->|No| NotifyUnrestricted[📢 Notify Admin - Unrestricted]
     CheckAuthorized -->|Yes| LogUnrestricted[📝 Log Unrestricted Access]
     NotifyUnrestricted --> ProcessUnrestricted[⚙️ Process Unrestricted Command]
     LogUnrestricted --> ProcessUnrestricted
-    
+
     CheckBlocked -->|Yes| BlockResponse[⛔ Block Response]
     CheckBlocked -->|No| CheckAllowed{✅ User Allowed?}
-    
+
     CheckAllowed -->|No| HandleUnauth[🚨 Handle Unauthorized]
     CheckAllowed -->|Yes| SessionCheck[🔐 Session Check]
-    
+
     HandleUnauth --> IncrementAttempts[📊 Increment Attempts]
     IncrementAttempts --> CheckMaxAttempts{Max Attempts?}
     CheckMaxAttempts -->|Yes| BlockUser[🚫 Block User]
     CheckMaxAttempts -->|No| NotifyAdmin[📢 Notify Admin]
     BlockUser --> NotifyAdmin
     NotifyAdmin --> DenyAccess[❌ Deny Access]
-    
+
     SessionCheck --> SessionManager[🔐 Session Manager]
     SessionManager --> CheckAuthState{Auth State?}
-    
+
     CheckAuthState -->|BLOCKED| BlockResponse
     CheckAuthState -->|UNAUTHENTICATED| StartAuth[🔑 Start Authentication]
     CheckAuthState -->|PROCESSING| ContinueAuth[⏳ Continue Authentication]
     CheckAuthState -->|AUTHENTICATED| ValidateSession{Session Valid?}
-    
+
     ValidateSession -->|Expired| ExpireSession[⏰ Expire Session]
     ValidateSession -->|Valid| HandleRequest[✅ Handle Request]
     ExpireSession --> StartAuth
-    
+
     StartAuth --> CheckTOTP{TOTP Required?}
     CheckTOTP -->|Yes| Generate2FA[🔐 Generate 2FA]
     CheckTOTP -->|No| SetAuthenticated[✅ Set Authenticated]
-    
+
     Generate2FA --> ShowQR[📱 Show QR Code]
     ShowQR --> SetProcessing[⏳ Set Processing State]
     SetProcessing --> WaitTOTP[⏱️ Wait for TOTP]
-    
+
     ContinueAuth --> VerifyTOTP{Verify TOTP?}
     VerifyTOTP -->|Valid| ResetAttempts[🔄 Reset TOTP Attempts]
     VerifyTOTP -->|Invalid| IncrementTOTP[📈 Increment TOTP Attempts]
-    
+
     ResetAttempts --> SetAuthenticated
     IncrementTOTP --> CheckTOTPMax{Max TOTP Attempts?}
     CheckTOTPMax -->|Yes| BlockUserTOTP[🚫 Block User - TOTP]
     CheckTOTPMax -->|No| RetryTOTP[🔄 Retry TOTP]
-    
+
     BlockUserTOTP --> SecurityAlert[🚨 Security Alert]
     SecurityAlert --> DenyAccess
     RetryTOTP --> WaitTOTP
-    
+
     SetAuthenticated --> SetLoginTime[⏰ Set Login Time]
     SetLoginTime --> HandleRequest
-    
+
     HandleRequest --> LogAccess[📝 Log Access]
     LogAccess --> ProcessRequest[⚙️ Process Request]
     ProcessRequest --> Done[✅ Done]
     ProcessUnrestricted --> Done
-    
+
     DenyAccess --> Done
     BlockResponse --> Done
-    
+
     %% Background Processes
     CleanupThread[🧹 Cleanup Thread] --> CleanupExpired[🗑️ Clean Expired Sessions]
     CleanupThread --> CleanupBlocked[🗑️ Clean Expired Blocks]
     CleanupExpired --> CleanupBlocked
-    
+
     %% Admin Monitoring
     AdminDashboard[📊 Admin Dashboard] --> SessionStats[📈 Session Statistics]
     AdminDashboard --> SecurityAlerts[🚨 Security Alerts]
     AdminDashboard --> AuditTrail[📋 Audit Trail]
     AdminDashboard --> UnrestrictedUsage[🔓 Unrestricted Usage Monitor]
-    
+
     style UserRequest fill:#e1f5fe
     style AccessMiddleware fill:#f3e5f5
     style SessionManager fill:#e8f5e8

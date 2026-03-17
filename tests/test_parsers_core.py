@@ -24,7 +24,13 @@ def test_resolve_template_subdirectory_for_standard_and_plugin_templates() -> No
     )
     assert (
         parser_module._resolve_template_subdirectory("plugin_monitor_index.jinja2")
-        == "plugins_template/monitor_index"
+        == "plugins_template/monitor"
+    )
+    assert (
+        parser_module._resolve_template_subdirectory(
+            "plugin_outline_server_info.jinja2"
+        )
+        == "plugins_template/outline"
     )
 
     with pytest.raises(TemplateError):

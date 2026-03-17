@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 from enum import StrEnum
-from typing import TypedDict
 
 from pydantic import BaseModel
 
@@ -69,7 +68,3 @@ class ContainerAction(StrEnum):
             return cls(value.upper())
         except ValueError:
             raise ValueError(f"Invalid action: {value}")
-
-
-class ContainerConfig(TypedDict):
-    new_container_name: str | None

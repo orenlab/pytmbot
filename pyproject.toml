@@ -46,6 +46,7 @@ dependencies = [
     "packaging>=26.0",
     "python-dateutil>=2.9.0.post0",
     "cachetools>=7.0.1,<8",
+    "codeclone",
 ]
 
 [project.optional-dependencies]
@@ -75,6 +76,9 @@ dev = [
 [tool.uv.build-backend]
 module-name = ["pytmbot"]
 module-root = ""
+
+[tool.uv.sources]
+codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "feat/2.0.0" }
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]

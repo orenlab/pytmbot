@@ -620,10 +620,10 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
 ```bash
 # View container logs
 docker logs pytmbot
-    
+
 # Follow logs in real-time
 docker logs -f pytmbot
-    
+
 # Last 100 lines
 docker logs --tail 100 pytmbot
 ```

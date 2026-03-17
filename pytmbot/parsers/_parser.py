@@ -119,11 +119,12 @@ def _resolve_template_subdirectory(template_name: str) -> str:
     """Resolve template subdirectory with caching."""
     if template_name.startswith(_PLUGIN_PREFIX):
         try:
-            plugin_name = template_name.split("_", 1)[1].split(".", 1)[
-                0
-            ]  # Remove extension
+            plugin_suffix = template_name.split("_", 1)[1].split(".", 1)[0]
+            plugin_name = plugin_suffix.split("_", 1)[0]
+            if not plugin_name:
+                raise ValueError("empty plugin name")
             return f"{_PLUGIN_TEMPLATE_BASE}/{plugin_name}"
-        except IndexError as e:
+        except (IndexError, ValueError) as e:
             raise exceptions.TemplateError(
                 ErrorContext(
                     message=f"Invalid plugin template name: {template_name}",

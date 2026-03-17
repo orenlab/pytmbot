@@ -38,7 +38,7 @@ limit_req_zone $binary_remote_addr zone=influxdb_limit:10m rate=10r/s;
 server {
     listen 80;
     server_name influxdb.example.com;  # Replace with your domain name
-    
+
     # Redirect HTTP to HTTPS
     return 301 https://$server_name$request_uri;
 }
@@ -194,18 +194,18 @@ sudo systemctl reload nginx
 5. **Advanced Security Settings**:
    ```nginx
    # Add these to the Advanced tab
-   
+
    # Security Headers
    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
    add_header X-Frame-Options "DENY" always;
    add_header X-Content-Type-Options "nosniff" always;
    add_header X-XSS-Protection "1; mode=block" always;
    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-   
+
    # Rate limiting
    limit_req_zone $binary_remote_addr zone=influxdb_npm:10m rate=10r/s;
    limit_req zone=influxdb_npm burst=20 nodelay;
-   
+
    # IP whitelist (uncomment and configure for additional security)
    # allow 192.168.1.0/24;
    # allow 10.0.0.0/8;
@@ -222,11 +222,11 @@ services:
     image: influxdb:2-alpine  # Use specific version and alpine for security
     container_name: influxdb
     restart: unless-stopped
-    
+
     # Security: Only expose to localhost by default
     ports:
       - "127.0.0.1:8086:8086"  # Bind to localhost only
-    
+
     environment:
       # Security: Set strong passwords
       - DOCKER_INFLUXDB_INIT_MODE=setup
@@ -235,19 +235,19 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=your_org
       - DOCKER_INFLUXDB_INIT_BUCKET=your_bucket
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=your_secure_admin_token
-    
+
     volumes:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
-    
+
     # Security: Run as non-root user
     user: "1000:1000"
-    
+
     # Security: Read-only root filesystem
     read_only: true
     tmpfs:
       - /tmp
-    
+
     # Security: Limit resources
     deploy:
       resources:
@@ -257,7 +257,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    
+
     # Security: Disable unnecessary capabilities
     cap_drop:
       - ALL
@@ -266,7 +266,7 @@ services:
       - DAC_OVERRIDE
       - SETGID
       - SETUID
-    
+
     # Security: No new privileges
     security_opt:
       - no-new-privileges:true
