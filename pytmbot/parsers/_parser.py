@@ -381,27 +381,5 @@ def _get_cache_stats() -> ParserStats:
     return stats
 
 
-def _clear_template_cache() -> None:
-    """Clear all caches including validation cache."""
-    global _environment, _template_cache, _result_cache
-
-    with _cache_lock:
-        _template_cache.clear()
-        _result_cache.clear()
-
-    with _env_lock:
-        _environment = None
-
-    _resolve_template_subdirectory.cache_clear()
-
-    # Clear validation cache too
-    try:
-        from pytmbot.parsers.validation import clear_validation_cache
-
-        clear_validation_cache()
-    except ImportError:
-        pass
-
-
 # Initialize on import
 _precompile_templates()

@@ -3,8 +3,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import sys
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from types import SimpleNamespace, TracebackType
@@ -295,22 +294,6 @@ def test_handle_polling_error_raises_original_unrecoverable_api_error() -> None:
         bot._handle_polling_error(error, consecutive_errors=0, current_sleep_time=10)
 
 
-def test_recovery_successful_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot(polling=True)
-    bot.bot = cast(TeleBot, dummy)
-    bot._state = instance_module.BotState.RUNNING
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
-
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    monkeypatch.setattr(instance_module, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(instance_module.PyTMBot, "launch_bot", lambda self: None)
-    monkeypatch.setattr(instance_module.PyTMBot, "is_healthy", lambda self: True)
-
-    assert bot.recovery() is True
-    assert bot.state is instance_module.BotState.RUNNING
-
-
 def test_retrieve_bot_token_supports_dev_and_prod(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -420,33 +403,6 @@ def test_initialize_bot_core_sets_running_state(
 
     assert initialized is cast(TeleBot, dummy)
     assert bot.state is instance_module.BotState.RUNNING
-
-
-def test_graceful_shutdown_cleans_middlewares(monkeypatch: pytest.MonkeyPatch) -> None:
-    class _Middleware:
-        def __init__(self) -> None:
-            self.cleaned = False
-
-        def cleanup(self) -> None:
-            self.cleaned = True
-
-    middleware = _Middleware()
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
-    bot._session = instance_module.BotSession.create(mode="dev", webhook_enabled=True)
-    bot._middlewares = {"ratelimit": middleware}
-
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_safe_stop_polling",
-        lambda self, _timeout: True,
-    )
-
-    assert bot.graceful_shutdown() is True
-    assert middleware.cleaned is True
-    assert bot.bot is None
-    assert bot.state is instance_module.BotState.SHUTDOWN
 
 
 def test_get_bot_session_statistics_includes_runtime_state(
@@ -622,23 +578,6 @@ def test_retrieve_bot_token_error_paths(monkeypatch: pytest.MonkeyPatch) -> None
     assert attr_exc.value.context.error_code == "CORE_001"
 
 
-def test_recovery_unrecoverable_api_error_returns_false(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot(get_me_error=_build_api_exception(401))
-    bot.bot = cast(TeleBot, dummy)
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
-
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_handle_critical_api_error",
-        lambda self, error, error_type: False,
-    )
-
-    assert bot.recovery() is False
-
-
 def test_start_webhook_server_requires_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -660,40 +599,6 @@ def test_start_webhook_server_requires_configuration(
     with pytest.raises(InitializationError) as exc_info:
         bot._start_webhook_server()
     assert exc_info.value.context.error_code == "CORE_WEBHOOK_001"
-
-
-def test_launch_bot_selects_webhook_or_polling(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
-    webhook_calls: list[str] = []
-    polling_calls: list[str] = []
-
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "initialize_bot_core",
-        lambda self: cast(TeleBot, dummy),
-    )
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_start_webhook_server",
-        lambda self: webhook_calls.append("webhook"),
-    )
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_start_polling_loop",
-        lambda self, bot_instance: polling_calls.append("polling"),
-    )
-
-    bot.args = argparse.Namespace(mode="dev", webhook="True", plugins=[])
-    bot.launch_bot()
-    assert webhook_calls == ["webhook"]
-
-    webhook_calls.clear()
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
-    bot.launch_bot()
-    assert polling_calls == ["polling"]
-    assert dummy.remove_calls == 2
 
 
 def test_bot_required_and_critical_api_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -770,37 +675,6 @@ def test_safe_stop_polling_failure_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     assert bot._safe_stop_polling(timeout=1) is False
 
 
-def test_recovery_and_token_file_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = instance_module.PyTMBot()
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    bot.bot = cast(TeleBot, _DummyTeleBot())
-    bot.args = argparse.Namespace(mode="dev", webhook="False", plugins=[])
-
-    monkeypatch.setattr(instance_module.PyTMBot, "launch_bot", lambda self: None)
-    monkeypatch.setattr(instance_module.PyTMBot, "is_healthy", lambda self: False)
-    monkeypatch.setattr(instance_module, "sleep", lambda _seconds: None)
-    assert bot.recovery() is False
-    assert bot.state is instance_module.BotState.ERROR
-
-    bot2 = instance_module.PyTMBot()
-    bot2.args = argparse.Namespace(mode="prod", webhook="False", plugins=[])
-
-    class _BrokenSecret:
-        def get_secret_value(self) -> str:
-            raise ValueError("invalid secret")
-
-    settings_stub = SimpleNamespace(
-        bot_token=SimpleNamespace(
-            dev_bot_token=[_SecretValue("dev-token")],
-            prod_token=[_BrokenSecret()],
-        )
-    )
-    monkeypatch.setattr(instance_module, "settings", settings_stub)
-    with pytest.raises(InitializationError) as exc_info:
-        bot2.retrieve_bot_token()
-    assert exc_info.value.context.error_code == "CORE_002"
-
-
 def test_create_base_bot_and_commands_exception_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -869,37 +743,6 @@ def test_middleware_register_and_plugin_paths(monkeypatch: pytest.MonkeyPatch) -
         bot._load_plugins()
 
 
-def test_register_handlers_and_initialize_failure_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _build_bot_with_dummy_telebot(monkeypatch)
-
-    with pytest.raises(RuntimeError):
-        bot._register_handler_group(
-            handler_factory_func=lambda: (_ for _ in ()).throw(
-                RuntimeError("factory failed")
-            ),
-            register_method=lambda callback, **kwargs: None,
-        )
-
-    monkeypatch.setattr(
-        instance_module,
-        "handler_factory",
-        lambda: (_ for _ in ()).throw(RuntimeError("message factory failed")),
-    )
-    with pytest.raises(RuntimeError):
-        bot._register_handler_chain()
-
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "retrieve_bot_token",
-        lambda self: (_ for _ in ()).throw(RuntimeError("token failed")),
-    )
-    with pytest.raises(RuntimeError):
-        bot.initialize_bot_core()
-    assert bot.state is instance_module.BotState.ERROR
-
-
 def test_start_webhook_server_success_and_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -946,80 +789,6 @@ def test_start_webhook_server_success_and_failures(
     )
     with pytest.raises(RuntimeError):
         bot._start_webhook_server()
-
-
-def test_polling_error_and_loop_and_shutdown_branches(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _build_bot_with_dummy_telebot(monkeypatch)
-    _set_bot_args(bot, plugins=[], webhook="False")
-
-    with pytest.raises(RuntimeError):
-        bot._handle_polling_error(
-            MemoryError("oom"), consecutive_errors=0, current_sleep_time=1
-        )
-
-    with pytest.raises(RuntimeError):
-        bot._handle_polling_error(
-            RuntimeError("unexpected"), consecutive_errors=0, current_sleep_time=1
-        )
-
-    class _PollingBot(_DummyTeleBot):
-        def infinity_polling(self, **kwargs: _PayloadValue) -> None:
-            del kwargs
-            raise RuntimeError("polling fail")
-
-    polling_bot = _PollingBot()
-    monkeypatch.setattr("pytmbot.pytmbot_instance.time.sleep", lambda _seconds: None)
-    monkeypatch.setattr(
-        instance_module.PyTMBot, "_safe_stop_polling", lambda self: True
-    )
-
-    @contextmanager
-    def _polling_ctx() -> Generator[None, None, None]:
-        yield
-
-    monkeypatch.setattr(
-        instance_module.PyTMBot, "_polling_safety_context", lambda self: _polling_ctx()
-    )
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_handle_polling_error",
-        lambda self, error, consecutive_errors, current_sleep_time: (
-            _ for _ in ()
-        ).throw(SystemExit(0)),
-    )
-
-    with pytest.raises(SystemExit):
-        bot._start_polling_loop(cast(TeleBot, polling_bot))
-
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "initialize_bot_core",
-        lambda self: cast(TeleBot, _PollingBot()),
-    )
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_start_polling_loop",
-        lambda self, bot_instance: (_ for _ in ()).throw(RuntimeError("launch failed")),
-    )
-    with pytest.raises(RuntimeError):
-        bot.launch_bot()
-    assert bot.state is instance_module.BotState.ERROR
-
-    class _BadCleanup:
-        def cleanup(self) -> None:
-            raise RuntimeError("cleanup failed")
-
-    bot.bot = cast(TeleBot, _DummyTeleBot())
-    bot._session = instance_module.BotSession.create(mode="dev", webhook_enabled=True)
-    bot._middlewares = {"bad": _BadCleanup()}
-    monkeypatch.setattr(
-        instance_module.PyTMBot,
-        "_safe_stop_polling",
-        lambda self, timeout=instance_module.POLLING_STOP_TIMEOUT: False,
-    )
-    assert bot.graceful_shutdown() is False
 
 
 def test_get_session_stats_without_session() -> None:

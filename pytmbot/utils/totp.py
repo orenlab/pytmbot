@@ -13,7 +13,6 @@ import io
 import json
 import os
 import re
-import secrets
 import tempfile
 import threading
 import time
@@ -417,86 +416,3 @@ class TwoFactorAuthenticator(BaseComponent):
                     os.unlink(temp_path)
                 except OSError:
                     pass
-
-    def _hash_backup_code(self, normalized_code: str) -> str:
-        key_material = hashlib.blake2b(
-            self._secret_key_material.encode(),
-            digest_size=32,
-        ).digest()
-        hash_obj = hashlib.blake2b(
-            f"{self.user_id}:{normalized_code}".encode(),
-            key=key_material,
-            digest_size=16,
-        )
-        return hash_obj.hexdigest()
-
-    def get_backup_codes(self, count: int = 10) -> list[str]:
-        """Generate backup codes for the user.
-
-        Args:
-            count: Number of backup codes to generate
-
-        Returns:
-            list[str]: List of backup codes
-
-        Raises:
-            TOTPError: If backup code generation fails
-        """
-        if not isinstance(count, int) or count <= 0 or count > 20:
-            raise TOTPError(
-                f"Invalid backup code count: {count}. Must be between 1 and 20."
-            )
-
-        with self.log_context(
-            user_id=self.user_id,
-            username=self.username,
-            operation="backup_codes_generation",
-            count=count,
-        ) as log:
-            try:
-                # Ensure secret is initialized and validated before generating backup codes.
-                _ = self._generate_secret()
-                backup_codes = []
-
-                for _ in range(count):
-                    code = base64.b32encode(secrets.token_bytes(5)).decode("ascii")[:8]
-                    backup_codes.append(f"{code[:4]}-{code[4:]}")
-
-                normalized_codes = [
-                    backup_code.replace("-", "").upper() for backup_code in backup_codes
-                ]
-                with self._used_totp_codes_lock:
-                    self._backup_code_hashes[self.user_id] = {
-                        self._hash_backup_code(code) for code in normalized_codes
-                    }
-
-                log.info("bot.utils.totp.generated.backup.info")
-                return backup_codes
-
-            except Exception as e:
-                log.error("bot.utils.totp.backup.codes.fail")
-                raise TOTPError(
-                    f"Failed to generate backup codes for user {self.username}: {e}"
-                ) from e
-
-    def verify_backup_code(self, code: str) -> bool:
-        """Verify and consume a backup code."""
-        if not isinstance(code, str):
-            return False
-
-        normalized_code = code.strip().replace("-", "").upper()
-        if not re.fullmatch(r"[A-Z2-7=]{8}", normalized_code):
-            return False
-
-        backup_hash = self._hash_backup_code(normalized_code)
-        with self._used_totp_codes_lock:
-            user_hashes = self._backup_code_hashes.get(self.user_id)
-            if not user_hashes or backup_hash not in user_hashes:
-                return False
-
-            user_hashes.remove(backup_hash)
-            if user_hashes:
-                self._backup_code_hashes[self.user_id] = user_hashes
-            else:
-                self._backup_code_hashes.pop(self.user_id, None)
-            return True

@@ -30,13 +30,6 @@ class _UserLike(Protocol):
     is_bot: bool
 
 
-class RateLimitConfig(TypedDict):
-    """Type definition for rate limit configuration."""
-
-    limit: int
-    period: timedelta
-
-
 class RequestDistribution(TypedDict):
     min: int
     max: int
@@ -117,27 +110,6 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         with self.log_context(**context) as logger:
             logger.info("bot.rate_limit.rate.limit.init")
-
-    def _clean_old_requests(self, user_id: UserID, current_time: datetime) -> None:
-        """Remove expired request timestamps for a user."""
-        with self._state_lock:
-            cleaned_count, remaining_count = self._clean_old_requests_locked(
-                user_id, current_time
-            )
-            cutoff_time = current_time - self.period
-
-            context = {
-                "operation": "cleanup_old_requests",
-                "user_id": user_id,
-                "cleaned_requests": cleaned_count,
-                "remaining_requests": remaining_count,
-                "cutoff_time": cutoff_time.isoformat(),
-                "current_time": current_time.isoformat(),
-            }
-
-            if cleaned_count > 0:
-                with self.log_context(**context) as logger:
-                    logger.trace("bot.rate_limit.cleaned.requests.debug")
 
     def _check_and_track_request(
         self, user_id: UserID, current_time: datetime
@@ -382,6 +354,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         return chat_id, chat_type, message_id, message_date, message_content_type
 
+    # noqa: codeclone[dead-code]
     def pre_process(self, update: TelegramUpdate, data: object) -> CancelUpdate | None:
         """
         Process incoming update and enforce rate limiting.
@@ -463,6 +436,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         return None
 
+    # noqa: codeclone[dead-code]
     def post_process(
         self, update: TelegramUpdate, data: object, exception: Exception | None
     ) -> None:

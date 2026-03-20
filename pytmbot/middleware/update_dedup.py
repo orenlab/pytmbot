@@ -151,6 +151,7 @@ class UpdateDedup(BaseMiddleware, BaseComponent):
     def _now() -> MonotonicSeconds:
         return time.monotonic()
 
+    # noqa: codeclone[dead-code]
     def pre_process(self, update: object, data: object) -> CancelUpdate | None:
         del data
         dedup_key = self._build_dedup_key(update)
@@ -170,6 +171,7 @@ class UpdateDedup(BaseMiddleware, BaseComponent):
             logger.debug("bot.middleware.update.dedup.drop")
         return CancelUpdate()
 
+    # noqa: codeclone[dead-code]
     def post_process(
         self,
         update: object,

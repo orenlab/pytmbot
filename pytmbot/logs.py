@@ -25,9 +25,7 @@ from typing import (
     TYPE_CHECKING,
     ClassVar,
     Final,
-    Protocol,
     TypeVar,
-    runtime_checkable,
 )
 from uuid import uuid4
 
@@ -84,17 +82,6 @@ class MaskingConfig:
     pattern_cache_size: int = 256
     min_secret_length: int = 8
     min_mask_length: int = 4
-
-
-@runtime_checkable
-class Maskable(Protocol):
-    """Protocol for objects that can provide maskable data."""
-
-    @property
-    def id(self) -> int | None: ...
-
-    @property
-    def username(self) -> str | None: ...
 
 
 class PatternRegistry:
@@ -184,15 +171,6 @@ class DataMasker:
 
         # Thread safety
         self._lock = RLock()
-
-    def add_secret(self, secret: str) -> None:
-        """Add a known secret to the masking list."""
-        if not secret or len(secret.strip()) < self._config.min_secret_length:
-            return
-
-        with self._lock:
-            self._known_secrets.add(secret.strip())
-            self._invalidate_cache()
 
     def add_username(self, username: str) -> None:
         """Add a known username to the masking list."""
@@ -892,55 +870,6 @@ class Logger:
             filter=sensitive_filter,
         )
 
-    def add_secret_to_mask(self, secret: str) -> None:
-        """Add a secret that should be masked in all logs."""
-        self._masker.add_secret(secret)
-
-    def add_username_to_mask(self, username: str) -> None:
-        """Add a username that should be masked in all logs."""
-        self._masker.add_username(username)
-
-    def add_user_id_to_mask(self, user_id: int) -> None:
-        """Add a user ID that should be masked in all logs."""
-        self._masker.add_user_id(user_id)
-
-    def add_chat_id_to_mask(self, chat_id: int) -> None:
-        """Add a chat ID that should be masked in all logs."""
-        self._masker.add_chat_id(chat_id)
-
-    def configure_masking_from_settings(self, settings: object) -> None:
-        """Configure masking based on application settings."""
-        try:
-            bot_token = getattr(settings, "bot_token", None)
-            plugins_config = getattr(settings, "plugins_config", None)
-            outline = getattr(plugins_config, "outline", None)
-
-            secrets_to_mask: list[object] = []
-            prod_token = getattr(bot_token, "prod_token", [])
-            dev_bot_token = getattr(bot_token, "dev_bot_token", [])
-            outline_api_url = getattr(outline, "api_url", [])
-            outline_cert = getattr(outline, "cert", [])
-
-            if isinstance(prod_token, list) and prod_token:
-                secrets_to_mask.append(prod_token[0])
-            if isinstance(dev_bot_token, list) and dev_bot_token:
-                secrets_to_mask.append(dev_bot_token[0])
-            if isinstance(outline_api_url, list) and outline_api_url:
-                secrets_to_mask.append(outline_api_url[0])
-            if isinstance(outline_cert, list) and outline_cert:
-                secrets_to_mask.append(outline_cert[0])
-
-            for secret in secrets_to_mask:
-                if secret and hasattr(secret, "get_secret_value"):
-                    if secret_value := secret.get_secret_value():
-                        self.add_secret_to_mask(secret_value)
-        except (AttributeError, IndexError, TypeError) as error:
-            logger.warning(
-                "bot.logs.masking.configuration.partial.warn",
-                error=str(error),
-                error_type=type(error).__name__,
-            )
-
     @lru_cache(maxsize=512)
     def _extract_update_data(
         self,
@@ -1130,17 +1059,6 @@ class Logger:
                     **error_context,
                 )
                 raise
-
-    def sanitize_and_log(self, level: str, message: str, **kwargs: object) -> None:
-        """Manual sanitization and logging of a message."""
-        sanitized_message = self._masker.sanitize_text(message)
-        sanitized_kwargs = {
-            k: self._masker.sanitize_text(str(v)) if isinstance(v, str) else v
-            for k, v in kwargs.items()
-        }
-        getattr(self._get_bound_logger(), level.lower())(
-            sanitized_message, **sanitized_kwargs
-        )
 
     def _get_bound_logger(self) -> LoguruLogger:
         """Get logger with current context bound in a thread-safe way."""

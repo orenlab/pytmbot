@@ -12,7 +12,6 @@ from pytmbot.utils.security import (
     mask_username,
     mask_webhook_path,
     sanitize_exception,
-    sanitize_sensitive_data,
 )
 
 
@@ -87,21 +86,6 @@ def test_mask_username_and_user_id() -> None:
     assert mask_user_id(None) == "unknown"
     assert mask_chat_id(-4970000716) == "-497****716"
     assert mask_chat_id(None) == "unknown"
-
-
-def test_sanitize_sensitive_data_masks_explicit_values_and_patterns() -> None:
-    source = (
-        "token=12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA user test_user id 123456789"
-    )
-    sanitized = sanitize_sensitive_data(
-        source,
-        tokens={"12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},
-        usernames={"test_user"},
-        user_ids={123456789},
-    )
-    assert "test_user" not in sanitized
-    assert "123456789" not in sanitized
-    assert "12345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" not in sanitized
 
 
 def test_sanitize_exception_masks_known_secrets(

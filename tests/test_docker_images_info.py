@@ -222,57 +222,6 @@ def test_get_image_history_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> 
         images_info_module.get_image_history("missing")
 
 
-def test_get_image_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    import pytmbot.adapters.docker.images_info as images_info_module
-
-    images = [
-        _FakeImage(
-            short_id="sha256:1",
-            tags=["repo/a:1"],
-            attrs={"Size": 1024, "Os": "linux", "Architecture": "amd64"},
-        ),
-        _FakeImage(
-            short_id="sha256:2",
-            tags=[],
-            attrs={"Size": 2048, "Os": "linux", "Architecture": "arm64"},
-        ),
-    ]
-    adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
-
-    @contextmanager
-    def _client_context() -> Iterator[SimpleNamespace]:
-        yield adapter
-
-    monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
-
-    stats = images_info_module.get_image_stats()
-    assert stats["total_images"] == 2
-    assert stats["tagged_images"] == 1
-    assert stats["untagged_images"] == 1
-    architectures = stats["architectures"]
-    assert isinstance(architectures, list)
-    assert set(architectures) == {"amd64", "arm64"}
-
-    class _FailingContext:
-        def __enter__(self) -> Never:
-            raise RuntimeError("boom")
-
-        def __exit__(
-            self,
-            _exc_type: type[BaseException] | None,
-            _exc: BaseException | None,
-            _tb: TracebackType | None,
-        ) -> None:
-            return None
-
-    monkeypatch.setattr(
-        images_info_module, "docker_client_context", lambda: _FailingContext()
-    )
-
-    with pytest.raises(ImageOperationError, match="Failed to get image statistics"):
-        images_info_module.get_image_stats()
-
-
 def test_get_image_usage_success_and_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

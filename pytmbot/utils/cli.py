@@ -8,7 +8,6 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import argparse
-import logging
 from enum import StrEnum
 from functools import lru_cache
 from typing import Final
@@ -249,21 +248,3 @@ Examples:
 
     except (ValueError, TypeError) as e:
         raise CLIError(f"Invalid command line arguments: {e}") from e
-
-
-def get_log_level() -> int:
-    """Get the numeric log level for the logging module.
-
-    Returns:
-        int: Numeric log level
-    """
-    args = parse_cli_args()
-    level_map = {
-        LogLevel.TRACE: 5,
-        LogLevel.DEBUG: logging.DEBUG,
-        LogLevel.INFO: logging.INFO,
-        LogLevel.WARNING: logging.WARNING,
-        LogLevel.ERROR: logging.ERROR,
-        LogLevel.CRITICAL: logging.CRITICAL,
-    }
-    return level_map[args.log_level]

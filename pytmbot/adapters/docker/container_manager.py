@@ -20,7 +20,6 @@ from docker.models.containers import Container
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
-    get_container_basic_info,
     get_container_safely,
     sanitize_kwargs_for_logging,
 )
@@ -613,89 +612,3 @@ class ContainerManager:
                 **context,
             )
             raise
-
-    @staticmethod
-    def get_container_status(container_id: ContainerId) -> dict[str, object]:
-        """Get comprehensive container status information for monitoring."""
-        container_ref = ContainerManager._normalize_container_id(container_id)
-        context = build_container_context(
-            container_id=container_ref,
-            action="container_status",
-        )
-
-        try:
-            with docker_client_context() as adapter:
-                container = get_container_safely(container_ref, docker_client=adapter)
-
-                # Get basic container info using utility
-                status = get_container_basic_info(container)
-
-                # Add comprehensive status information
-                attrs = container.attrs
-                status.update(
-                    {
-                        "created": attrs.get("Created", "unknown"),
-                        "started_at": attrs.get("State", {}).get(
-                            "StartedAt", "unknown"
-                        ),
-                        "finished_at": attrs.get("State", {}).get(
-                            "FinishedAt", "unknown"
-                        ),
-                        "exit_code": attrs.get("State", {}).get("ExitCode"),
-                        "error": attrs.get("State", {}).get("Error", ""),
-                        "pid": attrs.get("State", {}).get("Pid"),
-                        "restart_count": attrs.get("RestartCount", 0),
-                        "platform": attrs.get("Platform", "unknown"),
-                        "driver": attrs.get("Driver", "unknown"),
-                        "network_mode": attrs.get("HostConfig", {}).get(
-                            "NetworkMode", "unknown"
-                        ),
-                        "ports": attrs.get("NetworkSettings", {}).get("Ports", {}),
-                        "mounts": [
-                            {
-                                "source": mount.get("Source", ""),
-                                "destination": mount.get("Destination", ""),
-                                "mode": mount.get("Mode", ""),
-                                "type": mount.get("Type", ""),
-                            }
-                            for mount in attrs.get("Mounts", [])
-                        ],
-                    }
-                )
-
-            logger.debug(
-                "docker.containers.container.status.debug",
-                status=status["status"],
-                exit_code=status.get("exit_code"),
-                **context,
-            )
-            return status
-
-        except (
-            DockerException,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            AttributeError,
-        ) as e:
-            logger.error(
-                "docker.containers.container.status.fail",
-                error=sanitize_exception(e),
-                **context,
-            )
-            raise
-
-    def get_operation_history(self) -> dict[str, str]:
-        """Get recent operation history for monitoring."""
-        with self._lock:
-            return {
-                key: timestamp.isoformat()
-                for key, timestamp in self._operation_history.items()
-            }
-
-    def clear_operation_history(self) -> None:
-        """Clear operation history."""
-        with self._lock:
-            self._operation_history.clear()
-            logger.debug("docker.containers.history.cleared.debug")

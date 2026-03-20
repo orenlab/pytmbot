@@ -16,7 +16,6 @@ from pytmbot.settings import (
     get_default_back_keyboard,
     get_default_bot_commands,
     get_default_docker_keyboard,
-    get_default_log_levels,
     get_default_main_keyboard,
     get_default_server_keyboard,
     load_settings_from_yaml,
@@ -32,7 +31,6 @@ def test_default_settings_factories_return_expected_keys() -> None:
     assert "first_quarter_moon" in get_default_auth_keyboard()
     assert "BACK_arrow" in get_default_back_keyboard()
     assert "/start" in get_default_bot_commands()
-    assert "DEBUG" in get_default_log_levels()
 
 
 def test_get_config_file_path_points_to_project_yaml() -> None:

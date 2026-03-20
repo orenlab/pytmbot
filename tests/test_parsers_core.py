@@ -9,9 +9,23 @@ import pytmbot.parsers._parser as parser_module
 from pytmbot.exceptions import TemplateError
 
 
+def _reset_parser_caches() -> None:
+    parser_module._template_cache.clear()
+    parser_module._result_cache.clear()
+    for name in (
+        "_render_template_cached",
+        "_hash_context",
+        "_resolve_template_subdirectory",
+    ):
+        cache_clear = getattr(getattr(parser_module, name, None), "cache_clear", None)
+        if callable(cache_clear):
+            cache_clear()
+    parser_module._environment = None
+
+
 @pytest.fixture(autouse=True)
 def _clear_parser_caches() -> None:
-    parser_module._clear_template_cache()
+    _reset_parser_caches()
     parser_module._precompile_templates()
 
 
@@ -62,7 +76,7 @@ def test_render_template_strict_validation_rejects_untrusted_name() -> None:
 def test_environment_missing_template_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    parser_module._clear_template_cache()
+    _reset_parser_caches()
     missing_dir = Path.cwd() / "definitely_missing_templates_dir_for_tests"
     monkeypatch.setattr(
         parser_module,
@@ -82,6 +96,6 @@ def test_cache_stats_and_clear_flow() -> None:
     assert "result_cache_size" in stats
     assert "validation" in stats
 
-    parser_module._clear_template_cache()
+    _reset_parser_caches()
     stats_after_clear = parser_module._get_cache_stats()
     assert stats_after_clear["template_cache_size"] == 0

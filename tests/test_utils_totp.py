@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Generator
 from pathlib import Path
 from typing import cast
@@ -67,23 +66,6 @@ def test_generate_qr_code_returns_png_bytes() -> None:
     assert len(qr_data) > 100
 
 
-def test_backup_codes_have_expected_format() -> None:
-    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
-    codes = auth.get_backup_codes(count=5)
-    assert len(codes) == 5
-    for code in codes:
-        assert re.fullmatch(r"[A-Z2-7=]{4}-[A-Z2-7=]{4}", code) is not None
-
-
-def test_backup_codes_are_single_use() -> None:
-    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
-    codes = auth.get_backup_codes(count=2)
-
-    assert auth.verify_backup_code(codes[0]) is True
-    assert auth.verify_backup_code(codes[0]) is False
-    assert auth.verify_backup_code("bad-code") is False
-
-
 def test_totp_replay_state_persists_between_instances(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -107,12 +89,6 @@ def test_totp_replay_state_persists_between_instances(
 
     auth_two = TwoFactorAuthenticator(user_id=123456789, username="test_user")
     assert auth_two.verify_totp_code(valid_code) is False
-
-
-def test_backup_codes_reject_invalid_count() -> None:
-    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
-    with pytest.raises(TOTPError):
-        auth.get_backup_codes(0)
 
 
 def test_totp_secret_generation_and_uri_failures(
@@ -176,11 +152,3 @@ def test_totp_verify_and_backup_codes_error_paths(
     )
     with pytest.raises(TOTPError):
         auth.verify_totp_code("123456")
-
-    monkeypatch.setattr(
-        TwoFactorAuthenticator,
-        "_generate_secret",
-        lambda self: (_ for _ in ()).throw(RuntimeError("secret failed")),
-    )
-    with pytest.raises(TOTPError):
-        auth.get_backup_codes(3)

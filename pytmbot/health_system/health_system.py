@@ -57,10 +57,6 @@ class HealthResult:
     def is_operational(self) -> bool:
         return self.level >= HealthLevel.DEGRADED
 
-    @property
-    def needs_attention(self) -> bool:
-        return self.level <= HealthLevel.UNHEALTHY
-
 
 @dataclass(frozen=True, slots=True)
 class SystemHealth:
@@ -880,17 +876,6 @@ def _configure_health_checks(
         pass  # Parser не доступен
 
 
-def create_health_monitor(
-    bot: telebot.TeleBot,
-    session_manager: SessionStatsProvider | None = None,
-    psutil_adapter: ProcessHealthAdapter | None = None,
-) -> HealthMonitor:
-    """Create configured health monitor."""
-    monitor = HealthMonitor()
-    _configure_health_checks(monitor, bot, session_manager, psutil_adapter)
-    return monitor
-
-
 def create_health_manager(
     bot: telebot.TeleBot,
     session_manager: SessionStatsProvider | None = None,
@@ -941,10 +926,6 @@ class HealthStatus:
     @last_health_check_result.setter
     def last_health_check_result(self, value: bool | None) -> None:
         """Legacy setter - no-op."""
-        pass
-
-    def update_health(self, is_healthy: bool) -> None:
-        """Legacy method - no-op."""
         pass
 
     def get_summary(self) -> dict[str, object]:

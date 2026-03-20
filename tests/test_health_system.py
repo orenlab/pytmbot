@@ -24,7 +24,6 @@ from pytmbot.health_system.health_system import (
     SystemResourceChecker,
     TelegramApiChecker,
     create_health_manager,
-    create_health_monitor,
 )
 
 
@@ -114,7 +113,6 @@ def test_health_result_and_system_health_properties() -> None:
         latency_ms=10.0,
     )
     assert result.is_operational is True
-    assert result.needs_attention is False
 
     system = SystemHealth(overall=HealthLevel.DEGRADED, components={"comp": result})
     assert system.operational_count == 1
@@ -273,17 +271,12 @@ def test_health_manager_and_legacy_health_status() -> None:
     assert legacy.last_health_check_result in {True, False}
     assert isinstance(legacy.get_summary(), dict)
     legacy.last_health_check_result = True
-    legacy.update_health(True)
 
 
 def test_health_factory_functions_add_core_checkers() -> None:
     bot = _FakeBot(get_me_result=_build_user(user_id=1, username="bot"))
     session_manager = _FakeSessionManager({"total_sessions": 1, "blocked_sessions": 0})
     psutil_adapter = _FakePsutilAdapter({"memory_percent": "5%", "cpu": "2%"})
-
-    monitor = create_health_monitor(bot, session_manager, psutil_adapter)
-    summary = monitor.get_summary()
-    assert summary == {"status": "no_data"}
 
     manager = create_health_manager(bot, session_manager, psutil_adapter)
     assert isinstance(manager.get_summary(), dict)

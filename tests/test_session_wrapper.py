@@ -230,40 +230,6 @@ def test_handle_unauthorized_and_access_denied_helpers(
     assert "bot.session.access.denied.deny" in auth_stub.events
 
 
-def test_unauthenticated_and_expired_helper_actions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session_stub = _SessionManagerStub()
-    monkeypatch.setattr(session_wrapper_module, "session_manager", session_stub)
-
-    forwarded: list[str] = []
-    monkeypatch.setattr(
-        session_wrapper_module,
-        "handle_unauthorized_query",
-        lambda query, bot: forwarded.append("forwarded"),
-    )
-
-    auth_context = session_wrapper_module.AuthContext(
-        user_id=77,
-        handler_type=session_wrapper_module.HandlerType.MESSAGE,
-        referer_handler="/containers",
-        username="u77",
-    )
-    query = _build_message(user_id=77, username="u77", text="/containers")
-    bot = cast(TeleBot, SimpleNamespace())
-
-    session_wrapper_module._handle_unauthenticated_user(auth_context, query, bot)
-    assert session_stub.referer_calls == [
-        (77, session_wrapper_module.HandlerType.MESSAGE.value, "/containers")
-    ]
-
-    session_wrapper_module._handle_expired_session(auth_context, query, bot)
-    assert session_stub.state_calls == [
-        (77, session_wrapper_module.AuthState.UNAUTHENTICATED)
-    ]
-    assert forwarded == ["forwarded", "forwarded"]
-
-
 def test_two_factor_auth_required_type_error() -> None:
     def _handler(query: Message, bot: TeleBot) -> str:
         del query, bot

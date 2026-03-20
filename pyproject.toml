@@ -46,7 +46,6 @@ dependencies = [
     "packaging>=26.0",
     "python-dateutil>=2.9.0.post0",
     "cachetools>=7.0.1,<8",
-    "codeclone",
 ]
 
 [project.optional-dependencies]

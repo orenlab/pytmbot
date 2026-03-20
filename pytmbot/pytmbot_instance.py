@@ -473,63 +473,6 @@ class PyTMBot(BaseComponent):
 
         return True
 
-    def recovery(self) -> bool:
-        """
-        Simplified recovery method for the health monitoring system.
-
-        Implements basic recovery strategy without complex retry logic.
-        """
-        if not isinstance(self.bot, TeleBot):
-            return False
-
-        self._change_state(BotState.RECOVERING, "Starting recovery attempt")
-
-        with self.log_context(
-            session_id=self._session.session_id if self._session else "unknown"
-        ) as log:
-            log.warning("bot.core.attempting.recovery.warn")
-
-        try:
-            # Test basic API connection
-            try:
-                self.bot.get_me()
-            except ApiTelegramException as api_err:
-                is_critical_api, api_error_type = self._is_critical_api_error(api_err)
-                if is_critical_api:
-                    if not self._handle_critical_api_error(api_err, api_error_type):
-                        return False
-
-            # Stop current operations safely
-            if not self._normalize_bool_flag(self.args.webhook):
-                self._safe_stop_polling()
-
-            # Brief pause before restart
-            sleep(DEFAULT_BASE_SLEEP_TIME)
-
-            # Restart bot operations
-            self.launch_bot()
-
-            # Verify recovery
-            if self.is_healthy():
-                self._change_state(BotState.RUNNING, "Recovery completed successfully")
-                with self.log_context(
-                    session_id=self._session.session_id if self._session else "unknown"
-                ) as log:
-                    log.info("bot.core.recovery.ok")
-                return True
-            else:
-                self._change_state(BotState.ERROR, "Recovery verification failed")
-                return False
-
-        except Exception as err:
-            self._change_state(BotState.ERROR, f"Recovery failed: {err}")
-            with self.log_context(
-                error=sanitize_exception(err),
-                session_id=self._session.session_id if self._session else "unknown",
-            ) as log:
-                log.error("bot.core.recovery.fail")
-            return False
-
     def retrieve_bot_token(self) -> str:
         """Retrieve bot token based on mode."""
         try:
@@ -713,45 +656,6 @@ class PyTMBot(BaseComponent):
     def get_rate_limit_stats(self) -> dict[str, object] | None:
         """Get rate limiting statistics."""
         return self.get_middleware_stats("RateLimit")
-
-    @bot_required
-    def _register_handler_group(
-        self,
-        handler_factory_func: Callable[[], HandlerDict],
-        register_method: RegisterMethod,
-    ) -> None:
-        """Register a group of handlers."""
-        try:
-            handlers_dict = handler_factory_func()
-            handler_count = 0
-
-            for handlers in handlers_dict.values():
-                for handler in handlers:
-                    register_method(handler.callback, **handler.kwargs, pass_bot=True)
-                    handler_count += 1
-
-            # More descriptive handler type names
-            handler_type = (
-                "command"
-                if "handler_factory" in handler_factory_func.__name__
-                else "callback"
-            )
-
-            with self.log_context(
-                handler_type=handler_type,
-                count=handler_count,
-                session_id=self._session.session_id if self._session else "unknown",
-            ) as log:
-                log.debug("bot.core.register.debug")
-
-        except Exception as err:
-            with self.log_context(
-                factory=handler_factory_func.__name__,
-                error=sanitize_exception(err),
-                session_id=self._session.session_id if self._session else "unknown",
-            ) as log:
-                log.error("bot.core.group.registration.fail")
-            raise
 
     @bot_required
     def _register_handler_chain(self) -> None:
@@ -1040,94 +944,6 @@ class PyTMBot(BaseComponent):
                     consecutive_errors, current_sleep_time = self._handle_polling_error(
                         error, consecutive_errors, current_sleep_time
                     )
-
-    def launch_bot(self) -> None:
-        """Launch the bot with appropriate method (webhook or polling)."""
-        self.bot = self.initialize_bot_core()
-
-        webhook_enabled = self._normalize_bool_flag(self.args.webhook)
-
-        with self.log_context(
-            webhook_enabled=webhook_enabled,
-            mode=self._normalize_mode_value(self.args.mode),
-            session_id=self._session.session_id if self._session else "unknown",
-        ) as log:
-            log.info("bot.core.start")
-
-        try:
-            self.bot.remove_webhook()
-            if webhook_enabled:
-                self._start_webhook_server()
-            else:
-                self._start_polling_loop(self.bot)
-        except Exception as error:
-            self._change_state(BotState.ERROR, f"Launch failed: {error}")
-            with self.log_context(
-                error=sanitize_exception(error),
-                session_id=self._session.session_id if self._session else "unknown",
-            ) as log:
-                log.error("bot.core.start.fail")
-            raise
-
-    def graceful_shutdown(self, timeout: int = POLLING_STOP_TIMEOUT) -> bool:
-        """Perform graceful shutdown with timeout."""
-        self._change_state(BotState.SHUTTING_DOWN, "Graceful shutdown initiated")
-
-        with self.log_context(
-            timeout=timeout,
-            session_id=self._session.session_id if self._session else "unknown",
-        ) as log:
-            log.info("bot.core.graceful.stop.start")
-
-        shutdown_success = True
-
-        try:
-            if self.bot:
-                # Remove webhook first if applicable
-                if self._session and self._session.webhook_enabled:
-                    try:
-                        self.bot.remove_webhook()
-                    except Exception as e:
-                        with self.log_context(
-                            error=sanitize_exception(e),
-                            session_id=self._session.session_id
-                            if self._session
-                            else "unknown",
-                        ) as log:
-                            log.warning("bot.core.remove.webhook.fail")
-
-                # Stop polling if active
-                if not self._safe_stop_polling(timeout):
-                    shutdown_success = False
-
-                # Clean up middleware
-                for middleware_name, middleware_instance in self._middlewares.items():
-                    try:
-                        if hasattr(middleware_instance, "cleanup"):
-                            middleware_instance.cleanup()
-                    except Exception as e:
-                        with self.log_context(
-                            middleware=middleware_name,
-                            error=sanitize_exception(e),
-                            session_id=self._session.session_id
-                            if self._session
-                            else "unknown",
-                        ) as log:
-                            log.warning("bot.core.middleware.cleanup.fail")
-
-        except Exception as e:
-            shutdown_success = False
-            with self.log_context(
-                error=sanitize_exception(e),
-                session_id=self._session.session_id if self._session else "unknown",
-            ) as log:
-                log.error("bot.core.graceful.stop.fail")
-
-        finally:
-            self._change_state(BotState.SHUTDOWN, "Shutdown completed")
-            self.bot = None
-
-        return shutdown_success
 
     def get_bot_session_statistics(self) -> dict[str, object]:
         """Get comprehensive session statistics."""

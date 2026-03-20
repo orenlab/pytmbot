@@ -66,21 +66,6 @@ class UpdaterStatus(Enum):
     VALIDATION_ERROR = auto()
     ERROR = auto()
 
-    @property
-    def is_success(self) -> bool:
-        """Check if status indicates successful operation."""
-        return self in {self.SUCCESS, self.PARTIAL_SUCCESS}
-
-    @property
-    def is_error(self) -> bool:
-        """Check if status indicates error condition."""
-        return self in {
-            self.NETWORK_ERROR,
-            self.DOCKER_ERROR,
-            self.VALIDATION_ERROR,
-            self.ERROR,
-        }
-
 
 @dataclass(frozen=True, slots=True)
 class UpdaterResponse:
@@ -116,11 +101,6 @@ class TagType(Enum):
     SHA = auto()
     CUSTOM = auto()
     INVALID = auto()
-
-    @property
-    def is_versionable(self) -> bool:
-        """Check if tag type supports version comparison."""
-        return self in {self.SEMVER, self.DATE}
 
     @property
     def priority(self) -> int:
@@ -1154,11 +1134,6 @@ class DockerImageUpdater(BaseComponent):
                 )
                 return error_response.to_dict()
 
-    def to_json(self) -> str:
-        """Return JSON representation of update check response."""
-        with self._log.context(action="to_json"):
-            return json.dumps(self.to_dict(), indent=4, ensure_ascii=False)
-
     def get_stats(self) -> dict[str, object]:
         """Get comprehensive statistics about the updater."""
         with self._cache_lock:
@@ -1198,34 +1173,6 @@ class DockerImageUpdater(BaseComponent):
         }
 
         self._log.info("docker.updates.cleared.cache.info")
-
-    def validate_configuration(self) -> dict[str, object]:
-        """Validate current configuration and return issues."""
-        issues = []
-
-        if self._timeout < 5:
-            issues.append("Timeout too low, may cause frequent failures")
-        elif self._timeout > 30:
-            issues.append("Timeout very high, may cause slow responses")
-
-        if not self.local_images:
-            issues.append(
-                "No local images found, initialize() may not have been called"
-            )
-
-        # Check for potential rate limiting issues
-        if self._stats["rate_limits"] > self._stats["api_calls"] * 0.1:
-            issues.append("High rate limit ratio detected")
-
-        return {
-            "valid": len(issues) == 0,
-            "issues": issues,
-            "recommendations": [
-                "Call initialize() before checking updates",
-                "Monitor rate limiting and adjust concurrency if needed",
-                "Clear cache periodically to avoid memory growth",
-            ],
-        }
 
     def __del__(self) -> None:
         """Cleanup on garbage collection."""

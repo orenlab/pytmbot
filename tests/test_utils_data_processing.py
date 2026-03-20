@@ -5,8 +5,6 @@ from datetime import UTC, datetime
 import pytest
 
 from pytmbot.utils.data_processing import (
-    find_in_args,
-    find_in_kwargs,
     round_up_tuple,
     set_naturalsize,
     set_naturaltime,
@@ -17,11 +15,6 @@ from pytmbot.utils.data_processing import (
 def test_round_up_tuple_returns_indexed_mapping() -> None:
     result = round_up_tuple((1.234, 5.678, 9.0))
     assert result == {0: 1.23, 1: 5.68, 2: 9.0}
-
-
-def test_find_in_args_and_kwargs_returns_first_match() -> None:
-    assert find_in_args((1, "x", 2), int) == 1
-    assert find_in_kwargs({"a": "x", "b": 2.5, "c": 1.0}, float) == 2.5
 
 
 def test_set_naturalsize_and_naturaltime_return_strings() -> None:

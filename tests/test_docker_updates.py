@@ -37,18 +37,6 @@ type _DockerHubMixedPayload = dict[str, list[str | _DockerHubResult]]
 type _DockerHubAnyPayload = dict[str, _DockerHubResults | list[str | _DockerHubResult]]
 
 
-def test_status_tagtype_and_response_helpers() -> None:
-    success = UpdaterResponse(status=UpdaterStatus.SUCCESS, message="ok")
-    assert success.to_dict()["status"] == "SUCCESS"
-    assert UpdaterStatus.SUCCESS.is_success is True
-    assert UpdaterStatus.ERROR.is_success is False
-    assert UpdaterStatus.ERROR.is_error is True
-
-    assert TagType.SEMVER.is_versionable is True
-    assert TagType.CUSTOM.is_versionable is False
-    assert TagType.SEMVER.priority > TagType.CUSTOM.priority
-
-
 def test_enhanced_tag_info_comparison_edges() -> None:
     base = EnhancedTagInfo(
         tag_info=TagInfo(name="v1.0.0", created_at="2026-01-01T00:00:00Z", digest=None),
@@ -482,15 +470,6 @@ def test_updater_to_json_and_cache_stats(monkeypatch: pytest.MonkeyPatch) -> Non
     cache_stats = updater.get_stats().get("cache")
     assert isinstance(cache_stats, dict)
     assert cache_stats.get("size") == 0
-
-
-def test_validate_configuration_reports_known_issues() -> None:
-    updater = DockerImageUpdater(timeout=61)
-    updater._stats["api_calls"] = 10
-    updater._stats["rate_limits"] = 2
-    validation = updater.validate_configuration()
-    assert validation["valid"] is False
-    assert validation["issues"]
 
 
 def _make_client_response_error(status: int, message: str) -> ClientResponseError:
@@ -1186,30 +1165,3 @@ def test_compare_find_and_check_updates_edge_paths(
     monkeypatch.setattr(updates_module, "ClientSession", _FailingSession)
     outer_failed = asyncio.run(updater._check_updates())
     assert outer_failed.status == UpdaterStatus.ERROR
-
-
-def test_to_dict_json_and_validation_extra_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    updater = DockerImageUpdater(timeout=4)
-
-    monkeypatch.setattr(
-        updater,
-        "_run_check_updates_sync",
-        lambda: UpdaterResponse(status=UpdaterStatus.SUCCESS, message="ok", data={}),
-    )
-    payload = updater.to_dict()
-    assert payload["status"] == "SUCCESS"
-    assert '"status": "SUCCESS"' in updater.to_json()
-
-    updater.local_images = {
-        "repo/app": [{"tag": "latest", "created_at": "", "digest": None}]
-    }
-    updater._stats["api_calls"] = 10
-    updater._stats["rate_limits"] = 2
-    validation = updater.validate_configuration()
-    issues = validation.get("issues")
-    assert isinstance(issues, list)
-    assert any(
-        isinstance(issue, str) and "Timeout too low" in issue for issue in issues
-    )

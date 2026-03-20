@@ -172,6 +172,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         if isinstance(chat_id, int):
             self.bot.send_message(chat_id=chat_id, text=message_text)
 
+    # noqa: codeclone[dead-code]
     def pre_process(
         self, update: Message | CallbackQuery, data: object
     ) -> CancelUpdate | None:
@@ -628,6 +629,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         ]
         return messages[min(count - 1, len(messages) - 1)]
 
+    # noqa: codeclone[dead-code]
     def post_process(
         self,
         update: Message | CallbackQuery,

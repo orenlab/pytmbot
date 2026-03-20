@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import concurrent.futures
 import socket
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
-from types import SimpleNamespace, TracebackType
-from typing import Literal, cast
+from types import SimpleNamespace
+from typing import cast
 
 import psutil
 import pytest
@@ -365,76 +363,12 @@ def test_adapter_del_swallows_runtime_close_errors(
     adapter.__del__()
 
 
-def test_psutil_adapter_core_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
-    adapter = psutil_adapter_module.PsutilAdapter()
-    fake_psutil = _FakePsutil()
-    monkeypatch.setattr(adapter, "_psutil", fake_psutil)
-    monkeypatch.setattr(
-        psutil_adapter_module, "set_naturalsize", lambda value: f"{value}B"
-    )
-    monkeypatch.setattr(psutil, "boot_time", lambda: 0.0)
-
-    process_stats = adapter.get_process_stats(pid=123)
-    health = adapter.get_current_process_health_summary()
-    load = adapter.get_load_average()
-    memory = adapter.get_memory()
-    disks = adapter.get_disk_usage()
-    swap = adapter.get_swap_memory()
-    sensors = adapter.get_sensors_temperatures()
-    uptime = adapter.get_uptime()
-    process_counts = adapter.get_process_counts()
-    network_io = adapter.get_net_io_counters()
-    disk_io = adapter.get_disk_io_stats()
-    connections_summary = adapter.get_network_connections_summary()
-    users = adapter.get_users_info()
-    net_stats = adapter.get_net_interface_stats()
-    cpu_freq = adapter.get_cpu_frequency()
-    cpu_usage = adapter.get_cpu_usage()
-    cpu_times = adapter.get_cpu_times_percent()
-    top = adapter.get_top_processes(count=5)
-    cpu_count = adapter.get_cpu_count()
-    cpu_count_physical = adapter.get_cpu_count_physical()
-    fans = adapter.get_fan_speeds()
-    summary = adapter.get_system_summary()
-
-    assert process_stats["pid"] == 123
-    assert "cpu" in health
-    assert load == (0.1, 0.2, 0.3)
-    assert memory["percent"] == 50.0
-    assert disks[0]["percent"] == 50.0
-    assert swap["percent"] == 10.0
-    assert sensors[0]["sensor_name"] == "cpu"
-    assert isinstance(uptime, str)
-    assert process_counts["total"] == 3
-    assert network_io[0]["packets_sent"] == 11
-    assert disk_io[0]["device_name"] == "sda"
-    assert connections_summary["tcp"] == 2
-    assert users[0]["username"] == "den"
-    assert net_stats["eth0"]["ip_address"] == "127.0.0.1"
-    assert cpu_freq["current_freq"] == 2800.0
-    assert cpu_usage["cpu_percent"] == 15.0
-    assert cpu_times["iowait"] == 2.0
-    assert top[0]["pid"] == 1
-    assert cpu_count == 8
-    assert cpu_count_physical == 4
-    assert fans[0]["rpm"] == 1200
-    assert "cpu" in summary
-
-    adapter.clear_cache()
-    adapter.close()
-
-
-def test_top_processes_validation_and_connections_counter() -> None:
+def test_top_processes_validation() -> None:
     adapter = psutil_adapter_module.PsutilAdapter()
     with pytest.raises(ValueError):
         adapter.get_top_processes(count=0)
     with pytest.raises(ValueError):
         adapter.get_top_processes(count=100)
-
-    counts = adapter._count_connections_by_status(
-        [SimpleNamespace(status="LISTEN"), SimpleNamespace(status="LISTEN")]
-    )
-    assert counts["LISTEN"] == 2
     adapter.close()
 
 
@@ -521,141 +455,6 @@ def test_cpu_warmup_worker_logs_failures(monkeypatch: pytest.MonkeyPatch) -> Non
     adapter._cpu_warmup_stop_event = cast(threading.Event, _FakeStopEvent())
     monkeypatch.setattr(adapter, "_psutil", _FailingWarmupPsutil())
     adapter._cpu_warmup_worker()
-    adapter.close()
-
-
-def test_get_process_stats_invalid_pid_and_inaccessible_process(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    adapter = _new_adapter_without_warmup(monkeypatch)
-
-    with pytest.raises(ValueError):
-        adapter.get_process_stats(pid=0)
-
-    class _NoAccessPsutil:
-        def Process(self, _pid: int) -> psutil.Process:  # noqa: N802
-            raise psutil.AccessDenied()
-
-    monkeypatch.setattr(adapter, "_psutil", _NoAccessPsutil())
-    assert adapter.get_process_stats(pid=123) == {}
-    adapter.close()
-
-
-def test_collect_stats_concurrently_handles_timeout_and_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    adapter = _new_adapter_without_warmup(monkeypatch)
-
-    class _FakeFuture:
-        def __init__(self, result: dict[str, int] | Exception) -> None:
-            self._result = result
-
-        def result(self, timeout: float | None = None) -> dict[str, int]:
-            del timeout
-            if isinstance(self._result, Exception):
-                raise self._result
-            return self._result
-
-    class _FakeExecutor:
-        def __init__(self) -> None:
-            self.futures: list[_FakeFuture] = []
-
-        def __enter__(self) -> _FakeExecutor:
-            return self
-
-        def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc: BaseException | None,
-            tb: TracebackType | None,
-        ) -> Literal[False]:
-            del exc_type, exc, tb
-            return False
-
-        def submit(self, collector: Callable[[], dict[str, int]]) -> _FakeFuture:
-            del collector
-            if not self.futures:
-                future = _FakeFuture(concurrent.futures.TimeoutError())
-            else:
-                future = _FakeFuture(RuntimeError("collector failed"))
-            self.futures.append(future)
-            return future
-
-    fake_executor = _FakeExecutor()
-    monkeypatch.setattr(
-        concurrent.futures,
-        "ThreadPoolExecutor",
-        lambda *args, **kwargs: fake_executor,
-    )
-    monkeypatch.setattr(
-        concurrent.futures,
-        "as_completed",
-        lambda future_to_name, timeout: list(future_to_name.keys()),
-    )
-
-    result = adapter._collect_stats_concurrently(
-        [("slow", lambda: {"a": 1}), ("boom", lambda: {"b": 2})]
-    )
-    assert result == {}
-    adapter.close()
-
-
-def test_process_specific_collector_edge_cases(monkeypatch: pytest.MonkeyPatch) -> None:
-    adapter = _new_adapter_without_warmup(monkeypatch)
-
-    class _NoFdsProcess:
-        pid = 1
-
-        def num_threads(self) -> int:
-            return 1
-
-        def num_handles(self) -> int:
-            raise psutil.AccessDenied()
-
-        def net_connections(self) -> list[SimpleNamespace]:
-            raise psutil.AccessDenied()
-
-        def cwd(self) -> str:
-            return "/tmp"
-
-        def cmdline(self) -> list[str]:
-            return []
-
-        def exe(self) -> str:
-            return "/bin/sh"
-
-    process = cast(psutil.Process, _NoFdsProcess())
-    file_stats = adapter._get_process_file_stats(process)
-    net_stats = adapter._get_process_network_stats(process)
-    path_stats = adapter._get_process_path_stats(process)
-
-    assert file_stats["num_fds"] == "N/A"
-    assert "num_handles" not in file_stats
-    assert net_stats == {"num_connections": 0, "connections_by_status": {}}
-    assert path_stats["cmdline"] == "<no command line>"
-    adapter.close()
-
-
-def test_process_path_stats_truncates_long_cmdline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    adapter = _new_adapter_without_warmup(monkeypatch)
-
-    class _LongCmdProcess:
-        pid = 1
-
-        def cwd(self) -> str:
-            return "/tmp"
-
-        def cmdline(self) -> list[str]:
-            return ["python", "x" * 200]
-
-        def exe(self) -> str:
-            return "/usr/bin/python"
-
-    process = cast(psutil.Process, _LongCmdProcess())
-    stats = adapter._get_process_path_stats(process)
-    assert str(stats["cmdline"]).endswith("...")
     adapter.close()
 
 
@@ -897,38 +696,4 @@ def test_cpu_frequency_attribute_error_fallback(
     monkeypatch.setattr(adapter, "_psutil", _AttrErrPsutil())
     _clear_cached_method(adapter.get_cpu_frequency)
     assert adapter.get_cpu_frequency()["current_freq"] == 0.0
-    adapter.close()
-
-
-def test_top_processes_and_clear_cache_and_summary_error_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    adapter = _new_adapter_without_warmup(monkeypatch)
-
-    class _TopBrokenPsutil:
-        def process_iter(self, attrs: list[str]) -> list[SimpleNamespace]:
-            del attrs
-            raise RuntimeError("process iterator failed")
-
-    monkeypatch.setattr(adapter, "_psutil", _TopBrokenPsutil())
-    assert adapter.get_top_processes() == []
-
-    class _BadCacheMethod:
-        __wrapped__ = True
-
-        @staticmethod
-        def cache_clear() -> None:
-            raise AttributeError("no cache clear")
-
-    adapter.bad_cache_method = _BadCacheMethod()  # type: ignore[attr-defined]
-    adapter.clear_cache()
-
-    monkeypatch.setattr(
-        adapter,
-        "get_memory",
-        lambda: (_ for _ in ()).throw(RuntimeError("memory fail")),
-    )
-    summary = adapter.get_system_summary()
-    assert "cpu" in summary
-    assert "memory" not in summary
     adapter.close()

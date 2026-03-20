@@ -43,16 +43,6 @@ class HandlerType(StrEnum):
     MESSAGE = auto()
 
 
-class AuthState:
-    """Constants for authentication states."""
-
-    __slots__ = ()
-
-    AUTHENTICATED: Final[str] = "authenticated"
-    UNAUTHENTICATED: Final[str] = "unauthenticated"
-    EXPIRED: Final[str] = "expired"
-
-
 @dataclass(frozen=True, slots=True)
 class AuthContext:
     """Data class to store authentication context."""
@@ -251,24 +241,6 @@ def _handle_unauthenticated_user(
         auth_context.handler_type.value,
         auth_context.referer_handler,
     )
-    handle_unauthorized_query(query, bot)
-
-
-def _handle_expired_session(
-    auth_context: AuthContext, query: TelegramQuery, bot: telebot.TeleBot
-) -> None:
-    """
-    Handle expired session by updating state and redirecting.
-
-    Args:
-        auth_context: Authentication context
-        query: Telegram query object
-        bot: Bot instance
-
-    Returns:
-        Result of handle_unauthorized_query
-    """
-    session_manager.set_auth_state(auth_context.user_id, AuthState.UNAUTHENTICATED)
     handle_unauthorized_query(query, bot)
 
 

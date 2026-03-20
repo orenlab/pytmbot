@@ -112,57 +112,6 @@ def test_schedule_deletion_success_and_callback(
     assert len(callback_results) == 1
     assert callback_results[0].status.name == "SUCCESS"
     assert manager.get_pending_count(1) == 0
-    stats = manager.get_statistics()
-    assert stats["scheduled"] == 1
-    assert stats["completed"] == 1
-
-
-def test_schedule_deletion_duplicate_and_limit(
-    manager: message_deletion_module._MessageDeletionManager,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _FakeBot()
-    monkeypatch.setattr("pytmbot.utils.message_deletion.threading.Thread", _NoopThread)
-
-    first = manager.schedule_deletion(
-        bot=bot,
-        chat_id=100,
-        message_id=201,
-        user_id=2,
-        delay_seconds=1,
-    )
-    second_same = manager.schedule_deletion(
-        bot=bot,
-        chat_id=100,
-        message_id=201,
-        user_id=2,
-        delay_seconds=1,
-    )
-    assert first.status.name == "SCHEDULED"
-    assert second_same.status.name == "ALREADY_SCHEDULED"
-
-    manager.configure(1)
-    limited = manager.schedule_deletion(
-        bot=bot,
-        chat_id=100,
-        message_id=202,
-        user_id=2,
-        delay_seconds=1,
-    )
-    assert limited.status.name == "LIMIT_EXCEEDED"
-    assert manager.get_statistics()["limit_exceeded"] >= 1
-
-
-def test_schedule_deletion_validates_inputs(
-    manager: message_deletion_module._MessageDeletionManager,
-) -> None:
-    bot = _FakeBot()
-    with pytest.raises(ValueError):
-        manager.schedule_deletion(bot, 1, 1, 1, delay_seconds=0)
-    with pytest.raises(TypeError):
-        manager.schedule_deletion(bot, 1, cast(int, "x"), 1, delay_seconds=1)
-    with pytest.raises(ValueError):
-        manager.configure(0)
 
 
 def test_execute_deletion_handles_api_error_and_callback(
@@ -222,30 +171,6 @@ def test_execute_deletion_handles_missing_bot_reference(
     assert "Bot instance no longer available" in (
         callback_results[0].error_message or ""
     )
-
-
-def test_cancel_get_status_and_repr(
-    manager: message_deletion_module._MessageDeletionManager,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _FakeBot()
-    monkeypatch.setattr("pytmbot.utils.message_deletion.threading.Thread", _NoopThread)
-    manager.schedule_deletion(
-        bot=bot, chat_id=1, message_id=30, user_id=5, delay_seconds=1
-    )
-    manager.schedule_deletion(
-        bot=bot, chat_id=1, message_id=31, user_id=5, delay_seconds=1
-    )
-
-    assert manager.get_pending_count(5) == 2
-    cancelled = manager.cancel_user_deletions(5)
-    assert cancelled == 2
-    assert manager.get_pending_count(5) == 0
-
-    status = manager.get_system_status()
-    assert "total_pending_deletions" in status
-    assert "statistics" in status
-    assert "_MessageDeletionManager" in repr(manager)
 
 
 def test_cleanup_stale_references(

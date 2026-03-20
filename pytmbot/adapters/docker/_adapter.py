@@ -484,38 +484,6 @@ class DockerAdapter:
 
         return False
 
-    def _get_docker_info(self) -> dict[str, object]:
-        """Get Docker daemon information with lock-protected TTL cache."""
-        now = datetime.now().timestamp()
-        with self._lock:
-            if (
-                self._docker_info_cache is not None
-                and now - self._docker_info_cached_at < self._DOCKER_INFO_TTL_SECONDS
-            ):
-                return dict(self._docker_info_cache)
-
-        try:
-            with self as client:
-                info = client.info()
-                normalized = {
-                    "version": info.get("ServerVersion", "unknown"),
-                    "api_version": info.get("ApiVersion", "unknown"),
-                    "kernel_version": info.get("KernelVersion", "unknown"),
-                    "operating_system": info.get("OperatingSystem", "unknown"),
-                    "architecture": info.get("Architecture", "unknown"),
-                }
-                with self._lock:
-                    self._docker_info_cache = dict(normalized)
-                    self._docker_info_cached_at = datetime.now().timestamp()
-                return normalized
-        except Exception as e:
-            self._log.warning(
-                "docker.adapter.get.info.fail",
-                error=sanitize_exception(e),
-                **self._base_context,
-            )
-            return {}
-
     def __enter__(self) -> DockerClientLike:
         """Enter Docker context manager - create and return client with thread safety."""
         self._span_id = uuid4().hex[:8]
@@ -664,35 +632,6 @@ class DockerAdapter:
             )
             return False
 
-    def get_status(self) -> dict[str, object]:
-        """Get comprehensive Docker adapter status information."""
-        uptime_seconds = (datetime.now() - self._start_time).total_seconds()
-
-        status = {
-            "docker_url": self._docker_url,
-            "uptime": f"{uptime_seconds:.2f}s",
-            "client_active": self._client is not None,
-            "secure_connection": self._docker_url.startswith(
-                ("https://", "tcp+tls://")
-            ),
-            "connection_failures": self._connection_failures,
-            "strict_docker_access": self._strict_docker_access,
-            "degraded_mode": isinstance(self._client, _UnavailableDockerClient)
-            or self._disabled_reason is not None,
-            "disabled_reason": self._disabled_reason,
-            "last_health_check": (
-                self._last_health_check.isoformat() if self._last_health_check else None
-            ),
-            "timeout_config": self._timeout_config,
-        }
-
-        # Add Docker daemon info if available
-        docker_info = self._get_docker_info()
-        if docker_info:
-            status["docker_info"] = docker_info
-
-        return status
-
     def close(self) -> None:
         """Explicitly close the Docker client connection."""
         with self._create_lock:
@@ -726,10 +665,3 @@ class DockerAdapter:
                     error=sanitize_exception(error),
                     **self._base_context,
                 )
-
-    def force_reconnect(self) -> None:
-        """Force recreation of Docker client connection."""
-        self.close()
-        with self._lock:
-            self._last_health_check = None
-            self._log.info("docker.adapter.forced.client.info", **self._base_context)

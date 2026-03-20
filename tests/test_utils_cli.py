@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import sys
 
 import pytest
@@ -13,7 +12,6 @@ from pytmbot.utils.cli import (
     _str_to_bool,
     _validate_plugins,
     _validate_socket_host,
-    get_log_level,
     parse_cli_args,
 )
 
@@ -85,9 +83,3 @@ def test_parse_cli_args_rejects_invalid_plugin_name(
     monkeypatch.setattr(sys, "argv", ["prog", "--plugins", "bad!name"])
     with pytest.raises(CLIError):
         parse_cli_args()
-
-
-def test_get_log_level_returns_numeric_level(monkeypatch: pytest.MonkeyPatch) -> None:
-    parse_cli_args.cache_clear()
-    monkeypatch.setattr(sys, "argv", ["prog", "--log-level", "ERROR"])
-    assert get_log_level() == logging.ERROR

@@ -20,16 +20,14 @@ class _FakeRecord:
     name: str = "pytmbot.main"
 
 
-def test_data_masker_masks_known_and_pattern_values() -> None:
+def test_data_masker_masks_registered_identifiers() -> None:
     masker = DataMasker()
-    masker.add_secret("super-secret-token")
     masker.add_username("test_user")
     masker.add_user_id(123456789)
     masker.add_chat_id(-4970000716)
 
-    source = "token super-secret-token user test_user id 123456789 chat -4970000716"
+    source = "user test_user id 123456789 chat -4970000716"
     sanitized = masker.sanitize_text(source)
-    assert "super-secret-token" not in sanitized
     assert "test_user" not in sanitized
     assert "123456789" not in sanitized
     assert "-4970000716" not in sanitized

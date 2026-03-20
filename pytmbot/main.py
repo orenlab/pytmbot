@@ -491,15 +491,6 @@ class BotLauncher(logs.BaseComponent):
             ) as log:
                 log.debug("bot.launcher.resource.details.debug")
 
-    @staticmethod
-    def _is_monitor_plugin_loaded() -> bool:
-        try:
-            from pytmbot.plugins.plugin_manager import PluginManager
-
-            return PluginManager.is_plugin_loaded("monitor")
-        except ImportError:
-            return False
-
     def _cleanup_bot(self) -> None:
         """Clean up bot resources."""
         if not self.bot:
@@ -773,6 +764,8 @@ def check_health() -> NoReturn:
             sys.exit(1)
         case None:
             sys.exit(2)
+
+    raise AssertionError("unreachable")
 
 
 def main() -> None:

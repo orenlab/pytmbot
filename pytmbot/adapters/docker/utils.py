@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import subprocess
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from functools import wraps
 from pathlib import Path
 from threading import RLock
-from time import sleep
 from typing import Final, ParamSpec, TypeVar
 
 from docker import DockerClient
@@ -32,7 +31,6 @@ from pytmbot.exceptions import (
 )
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
-from pytmbot.models.docker_models import ContainersState
 from pytmbot.utils import sanitize_exception, set_naturalsize
 
 logger = Logger()
@@ -46,11 +44,6 @@ R = TypeVar("R")
 type MemoryStats = dict[str, str]
 
 # Module constants
-MAX_STATE_CHECK_ATTEMPTS: Final[int] = 5
-DEFAULT_STATE_CHECK_INTERVAL: Final[float] = 1.5
-MIN_STATE_CHECK_INTERVAL: Final[float] = 0.5
-MAX_STATE_CHECK_INTERVAL: Final[float] = 5.0
-OPERATION_TIMEOUT: Final[float] = 30.0
 STATE_CACHE_TTL: Final[float] = 2.0
 STATE_CACHE_MAX_SIZE: Final[int] = 100
 
@@ -86,43 +79,6 @@ class ContainerState(StrEnum):
     def is_active(self) -> bool:
         """Check if container state indicates active/running state."""
         return self in {self.RUNNING, self.RESTARTING}
-
-    @property
-    def is_stopped(self) -> bool:
-        """Check if container state indicates stopped state."""
-        return self in {self.EXITED, self.STOPPED, self.CREATED}
-
-    @property
-    def is_transitional(self) -> bool:
-        """Check if container state indicates transitional state."""
-        return self in {self.RESTARTING, self.REMOVING}
-
-
-@dataclass(frozen=True, slots=True)
-class StateCheckConfig:
-    """Configuration for container state checking with validation."""
-
-    max_attempts: int = MAX_STATE_CHECK_ATTEMPTS
-    interval: float = DEFAULT_STATE_CHECK_INTERVAL
-
-    def __post_init__(self) -> None:
-        """Validate configuration parameters."""
-        if not isinstance(self.max_attempts, int) or self.max_attempts <= 0:
-            raise ValueError("max_attempts must be a positive integer")
-
-        if not isinstance(self.interval, (int, float)) or self.interval <= 0:
-            raise ValueError("interval must be a positive number")
-
-        # Clamp interval to reasonable bounds
-        if not (MIN_STATE_CHECK_INTERVAL <= self.interval <= MAX_STATE_CHECK_INTERVAL):
-            object.__setattr__(
-                self,
-                "interval",
-                max(
-                    MIN_STATE_CHECK_INTERVAL,
-                    min(self.interval, MAX_STATE_CHECK_INTERVAL),
-                ),
-            )
 
 
 @dataclass(slots=True)
@@ -371,192 +327,6 @@ def get_container_stats_snapshot(container: Container) -> dict[str, object]:
     except Exception:
         logger.debug("docker.utils.get.container.fail")
         return {}
-
-
-def check_container_state(
-    container_name: ContainerName,
-    target_state: str = ContainerState.RUNNING,
-    config: StateCheckConfig | None = None,
-    docker_client: DockerClient | None = None,
-) -> ContainerState | None:
-    """
-    Checks if container reaches target state within configured attempts.
-
-    Args:
-        container_name: Container identifier
-        target_state: Desired container state
-        config: Check configuration parameters
-
-    Returns:
-        Final container state or None on error
-
-    Raises:
-        ValueError: If target state is invalid or container_name is empty
-        DockerOperationException: If Docker operations fail
-    """
-    if not container_name or not isinstance(container_name, str):
-        raise ValueError("container_name must be a non-empty string")
-
-    if config is None:
-        config = StateCheckConfig()
-
-    try:
-        target = ContainerState.from_str(target_state)
-        containers_state_values = {
-            value
-            for key, value in vars(ContainersState).items()
-            if not key.startswith("_") and isinstance(value, str)
-        }
-
-        # Validate target state exists in containers state model
-        if target.value not in containers_state_values:
-            raise ValueError(f"Invalid target state: {target}")
-
-        return _execute_state_check_loop(
-            container_name,
-            target,
-            config,
-            docker_client=docker_client,
-        )
-
-    except ValueError:
-        logger.error(
-            "docker.utils.invalid.target.fail",
-            container=container_name,
-            state=target_state,
-        )
-        raise
-    except Exception as e:
-        logger.error(
-            "docker.utils.unexpected.fail",
-            container=container_name,
-            target_state=target_state,
-            error=sanitize_exception(e),
-        )
-        raise
-
-
-def _execute_state_check_loop(
-    container_name: str,
-    target: ContainerState,
-    config: StateCheckConfig,
-    docker_client: DockerClient | None = None,
-) -> ContainerState | None:
-    """Execute the state checking loop with proper logging and timing."""
-    operation_start = time.time()
-    current_state = None
-
-    for attempt in range(1, config.max_attempts + 1):
-        attempt_start = time.time()
-        log_context = _build_state_check_context(
-            container_name, target, attempt, config, operation_start
-        )
-
-        logger.debug("docker.utils.check.state.debug", **log_context)
-
-        try:
-            current_state_str = get_container_state(
-                container_name,
-                docker_client=docker_client,
-            )
-            if current_state_str is None:
-                logger.error("docker.utils.get.container.fail", **log_context)
-                return None
-
-            current_state = ContainerState.from_str(current_state_str)
-            attempt_time = time.time() - attempt_start
-            log_context.update(
-                {"state": current_state.value, "attempt_time": f"{attempt_time:.3f}s"}
-            )
-
-            if current_state == target:
-                total_time = time.time() - operation_start
-                logger.info(
-                    "docker.utils.target.state.info",
-                    total_time=f"{total_time:.2f}s",
-                    **log_context,
-                )
-                return current_state
-
-            _log_state_transition_info(current_state, target, log_context)
-
-            if attempt < config.max_attempts:
-                logger.debug(
-                    "docker.utils.state.mismatch.debug",
-                    **log_context,
-                )
-                sleep(config.interval)
-
-        except Exception as e:
-            attempt_time = time.time() - attempt_start
-            logger.error(
-                "docker.utils.state.check.fail",
-                error=sanitize_exception(e),
-                error_type=type(e).__name__,
-                attempt_time=f"{attempt_time:.3f}s",
-                **log_context,
-            )
-            if attempt < config.max_attempts:
-                sleep(config.interval)
-            else:
-                return None
-
-    _log_final_state_check_result(
-        container_name, target, current_state, config, operation_start
-    )
-    return current_state
-
-
-def _build_state_check_context(
-    container_name: str,
-    target: ContainerState,
-    attempt: int,
-    config: StateCheckConfig,
-    operation_start: float,
-) -> LogContext:
-    """Build logging context for state check operations."""
-    return {
-        "container": container_name,
-        "target": target.value,
-        "attempt": attempt,
-        "max_attempts": config.max_attempts,
-        "operation_time": f"{time.time() - operation_start:.2f}s",
-    }
-
-
-def _log_state_transition_info(
-    current_state: ContainerState, target: ContainerState, log_context: LogContext
-) -> None:
-    """Log information about container state transitions."""
-    if current_state.is_transitional and target.is_active:
-        logger.debug(
-            "docker.utils.container.transitional.debug",
-            **log_context,
-        )
-    elif current_state.is_stopped and target.is_active:
-        logger.warning(
-            "docker.utils.container.stop",
-            **log_context,
-        )
-
-
-def _log_final_state_check_result(
-    container_name: str,
-    target: ContainerState,
-    current_state: ContainerState | None,
-    config: StateCheckConfig,
-    operation_start: float,
-) -> None:
-    """Log the final result of state check operation."""
-    total_time = time.time() - operation_start
-    logger.warning(
-        "docker.utils.reach.target.fail",
-        container=container_name,
-        target=target.value,
-        final_state=current_state.value if current_state else "unknown",
-        attempts=config.max_attempts,
-        total_time=f"{total_time:.2f}s",
-    )
 
 
 def with_operation_logging(
@@ -863,106 +633,6 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
     }
 
 
-def get_container_basic_info(container: Container) -> dict[str, object]:
-    """
-    Extracts basic container information with enhanced data including memory stats.
-
-    Args:
-        container: Container object
-
-    Returns:
-        Dict: Enhanced container information
-
-    Raises:
-        ValueError: If container is None
-    """
-    if container is None:
-        raise ValueError("Container object cannot be None")
-
-    try:
-        basic_info = _extract_basic_container_data(container)
-
-        # Add state information if available
-        if hasattr(container, "attrs") and container.attrs:
-            basic_info.update(_extract_container_state_info(container.attrs))
-
-        # Get memory statistics for running containers
-        if container.status.lower() == "running":
-            try:
-                memory_stats = get_container_memory_stats(container)
-                if memory_stats:
-                    basic_info.update(memory_stats)
-            except Exception:
-                logger.debug("docker.utils.get.runtime.fail")
-
-        return basic_info
-
-    except Exception as e:
-        logger.warning(
-            "docker.utils.extract.ok.fail",
-            container_id=getattr(container, "id", "unknown"),
-            error=sanitize_exception(e),
-        )
-        return _get_minimal_container_info(container)
-
-
-def _extract_basic_container_data(container: Container) -> dict[str, object]:
-    """Extract basic container data without state information."""
-    image_tags: list[str] = []
-    if hasattr(container, "image") and container.image:
-        image_tags = getattr(container.image, "tags", [])
-
-    image_name = image_tags[0] if image_tags else "unknown"
-
-    return {
-        "id": container.id,
-        "short_id": container.short_id,
-        "name": container.name.lstrip("/"),
-        "status": container.status,
-        "image": image_name,
-        "image_id": getattr(container.image, "short_id", "unknown")
-        if hasattr(container, "image")
-        else "unknown",
-        "created": getattr(container.attrs, "get", lambda k, d: d)(
-            "Created", "unknown"
-        ),
-        "ports": getattr(container, "ports", {}),
-        "labels": getattr(container, "labels", {}),
-    }
-
-
-def _extract_container_state_info(attrs: Mapping[str, object]) -> dict[str, object]:
-    """Extract container state information from attrs."""
-    state_obj = attrs.get("State", {})
-    if not isinstance(state_obj, Mapping):
-        state_obj = {}
-    return {
-        "exit_code": state_obj.get("ExitCode"),
-        "pid": state_obj.get("Pid"),
-        "started_at": state_obj.get("StartedAt"),
-        "finished_at": state_obj.get("FinishedAt"),
-    }
-
-
-def _get_minimal_container_info(container: Container) -> dict[str, object]:
-    """Return minimal container info on error."""
-
-    def _safe_getattr(name: str, default: str = "unknown") -> str:
-        try:
-            value = getattr(container, name, default)
-        except Exception:
-            return default
-        return value if isinstance(value, str) else str(value)
-
-    return {
-        "id": _safe_getattr("id"),
-        "short_id": _safe_getattr("short_id"),
-        "name": _safe_getattr("name"),
-        "status": _safe_getattr("status"),
-        "image": "unknown",
-    }
-
-
 def sanitize_kwargs_for_logging(kwargs: dict[str, object]) -> dict[str, object]:
     """
     Enhanced sanitization of kwargs for safe logging by removing sensitive information.
@@ -1073,78 +743,6 @@ def build_container_context(
     return context
 
 
-def clear_state_cache() -> None:
-    """Clear the container state cache."""
-    _state_cache.clear()
-    logger.debug("docker.utils.container.state.debug")
-
-
-def get_cache_stats() -> dict[str, object]:
-    """Get comprehensive cache statistics for monitoring."""
-    return _state_cache.get_stats()
-
-
-def validate_container_operation_params(
-    container_id: str, operation: str, **kwargs: object
-) -> dict[str, object]:
-    """
-    Validate parameters for container operations.
-
-    Args:
-        container_id: Container ID to validate
-        operation: Operation name
-        **kwargs: Additional operation-specific parameters
-
-    Returns:
-        Dict with validated parameters
-
-    Raises:
-        ValueError: If parameters are invalid
-    """
-    if not container_id or not isinstance(container_id, str):
-        raise ValueError("container_id must be a non-empty string")
-
-    if not operation or not isinstance(operation, str):
-        raise ValueError("operation must be a non-empty string")
-
-    container_id = container_id.strip()
-    operation = operation.strip().lower()
-
-    # Basic ID format validation
-    if len(container_id) < 4:
-        raise ValueError("container_id too short (minimum 4 characters)")
-
-    if len(container_id) > 64:
-        raise ValueError("container_id too long (maximum 64 characters)")
-
-    # Operation-specific validation
-    validated_params: dict[str, object] = {
-        "container_id": container_id,
-        "operation": operation,
-    }
-
-    if operation == "rename":
-        raw_new_name = kwargs.get("new_container_name", "")
-        if not isinstance(raw_new_name, str):
-            raise ValueError("new_container_name must be a string")
-        new_name = raw_new_name.strip()
-        if not new_name:
-            raise ValueError("new_container_name required for rename operation")
-        if len(new_name) > 64:
-            raise ValueError("new_container_name too long (maximum 64 characters)")
-        validated_params["new_container_name"] = new_name
-
-    elif operation in {"stop", "restart"}:
-        timeout = kwargs.get("timeout", 10)
-        if not isinstance(timeout, (int, float)) or timeout < 0:
-            raise ValueError("timeout must be a non-negative number")
-        if timeout > 300:  # 5 minutes max
-            raise ValueError("timeout too large (maximum 300 seconds)")
-        validated_params["timeout"] = timeout
-
-    return validated_params
-
-
 @dataclass(slots=True)
 class ContainerOperationTracker:
     """Track container operations for monitoring and rate limiting."""
@@ -1160,72 +758,6 @@ class ContainerOperationTracker:
         if self._last_cleanup == 0.0:
             self._last_cleanup = time.time()
 
-    def record_operation(self, container_id: str, operation: str) -> None:
-        """Record a container operation."""
-        with self._lock:
-            key = f"{container_id}:{operation}"
-            current_time = time.time()
-
-            if key not in self._operations:
-                self._operations[key] = []
-
-            self._operations[key].append(current_time)
-
-            # Limit history size
-            if len(self._operations[key]) > self._max_history:
-                self._operations[key] = self._operations[key][-self._max_history :]
-
-            # Periodic cleanup
-            if current_time - self._last_cleanup > self._cleanup_interval:
-                self._cleanup_old_operations()
-                self._last_cleanup = current_time
-
-    def get_recent_operations(
-        self, container_id: str, since_seconds: float = 3600
-    ) -> list[dict[str, object]]:
-        """Get recent operations for a container."""
-        with self._lock:
-            current_time = time.time()
-            cutoff_time = current_time - since_seconds
-
-            recent_ops = []
-            for key, timestamps in self._operations.items():
-                if key.startswith(f"{container_id}:"):
-                    operation = key.split(":", 1)[1]
-                    recent_timestamps = [ts for ts in timestamps if ts > cutoff_time]
-
-                    if recent_timestamps:
-                        recent_ops.append(
-                            {
-                                "operation": operation,
-                                "count": len(recent_timestamps),
-                                "last_time": max(recent_timestamps),
-                                "first_time": min(recent_timestamps),
-                            }
-                        )
-
-            def _sort_key(item: dict[str, object]) -> float:
-                last_time = item.get("last_time", 0.0)
-                if isinstance(last_time, (int, float)):
-                    return float(last_time)
-                return 0.0
-
-            return sorted(recent_ops, key=_sort_key, reverse=True)
-
-    def _cleanup_old_operations(self) -> None:
-        """Remove old operation records."""
-        current_time = time.time()
-        cutoff_time = current_time - 86400  # 24 hours
-
-        for key in list(self._operations.keys()):
-            self._operations[key] = [
-                ts for ts in self._operations[key] if ts > cutoff_time
-            ]
-
-            # Remove empty entries
-            if not self._operations[key]:
-                del self._operations[key]
-
     def clear(self) -> None:
         """Clear all operation history."""
         with self._lock:
@@ -1234,15 +766,3 @@ class ContainerOperationTracker:
 
 # Global operation tracker instance
 _operation_tracker = ContainerOperationTracker()
-
-
-def record_container_operation(container_id: str, operation: str) -> None:
-    """Record a container operation for monitoring."""
-    _operation_tracker.record_operation(container_id, operation)
-
-
-def get_container_operation_history(
-    container_id: str, since_seconds: float = 3600
-) -> list[dict[str, object]]:
-    """Get recent operation history for a container."""
-    return _operation_tracker.get_recent_operations(container_id, since_seconds)

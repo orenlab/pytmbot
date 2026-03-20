@@ -626,67 +626,6 @@ class InfluxDBInterface(BaseComponent):
             )
             raise InfluxDBQueryError(error_context) from e
 
-    def get_available_measurements(self) -> list[str]:
-        """
-        Retrieve available measurements from InfluxDB with caching.
-
-        Returns:
-            List of measurement names
-
-        Raises:
-            InfluxDBQueryError: If retrieval fails
-        """
-        with self._cache_lock:
-            cached_measurements = self._measurements_cache
-        if cached_measurements is not None:
-            return list(cached_measurements)
-
-        try:
-            safe_bucket = self._sanitize_flux_identifier(self._config.bucket, "bucket")
-            query = (
-                'import "influxdata/influxdb/schema"\n'
-                f"schema.measurements(bucket: {self._to_flux_string_literal(safe_bucket)})"
-            )
-
-            # Log only in debug mode
-            if self._config.debug_mode:
-                with self.log_context(action="list_measurements") as log:
-                    log.debug(
-                        "bot.db.influxdb_interface.fetch.measurements.debug",
-                        extra={"query": query},
-                    )
-
-            query_api = self._require_query_api()
-            tables = query_api.query(query, org=self._config.org)
-
-            measurements: list[str] = []
-            for table in tables:
-                records = getattr(table, "records", ())
-                for record in records:
-                    value = self._extract_record_value(record)
-                    if isinstance(value, str):
-                        measurements.append(value)
-
-            # Log success only in debug mode
-            if self._config.debug_mode:
-                with self.log_context(action="list_measurements") as log:
-                    log.debug(
-                        "bot.db.influxdb_interface.measurements.fetch.ok",
-                        extra={"count": len(measurements)},
-                    )
-
-            with self._cache_lock:
-                self._measurements_cache = list(measurements)
-            return measurements
-
-        except Exception as e:
-            # Always log errors
-            error_context = ErrorContext(
-                message=f"Failed to retrieve measurements: {str(e)}",
-                error_code="LIST_MEASUREMENTS_FAILED",
-            )
-            raise InfluxDBQueryError(error_context) from e
-
     def get_available_fields(self, measurement: str) -> list[str]:
         """
         Retrieve available fields for a measurement with caching.

@@ -13,12 +13,8 @@ from typing import Final
 
 from pytmbot.exceptions import ErrorContext, TemplateError
 from pytmbot.logs import BaseComponent
-from pytmbot.parsers._parser import (
-    _clear_template_cache,
-    _get_cache_stats,
-    _render_template,
-)
-from pytmbot.parsers._types import ParserStats, TemplateContext, TemplateValue
+from pytmbot.parsers._parser import _render_template
+from pytmbot.parsers._types import TemplateValue
 
 
 class TemplateType(StrEnum):
@@ -167,53 +163,6 @@ class Compiler(BaseComponent):
             ) from e
 
     @staticmethod
-    def validate_template_params(
-        template_name: str,
-        context: TemplateContext,
-        *,
-        strict: bool = True,
-        trusted: bool | None = None,
-    ) -> tuple[str, TemplateContext]:
-        """
-        Explicitly validate template parameters without rendering.
-
-        Args:
-            template_name: Template name to validate
-            context: Template context to validate
-            strict: Whether to use strict validation
-            trusted: Backward compatibility alias (trusted=True -> strict=False)
-
-        Returns:
-            tuple: (validated_name, validated_context)
-
-        Raises:
-            TemplateError: If validation fails
-        """
-        from pytmbot.parsers.validation import validate_template_render
-
-        if trusted is not None:
-            return validate_template_render(
-                template_name,
-                context,
-                trusted=trusted,
-            )
-
-        return validate_template_render(
-            template_name,
-            context,
-            strict=strict,
-        )
-
-    def get_compiler_stats(self) -> ParserStats:
-        """Get compiler cache statistics."""
-        return _get_cache_stats()
-
-    @staticmethod
-    def clear_all_caches() -> None:
-        """Clear all template caches - useful for development/testing."""
-        _clear_template_cache()
-
-    @staticmethod
     def quick_render(template_name: str, **context: TemplateValue) -> str:
         """
         Quick rendering for trusted templates without context manager.
@@ -228,56 +177,7 @@ class Compiler(BaseComponent):
         return _render_template(template_name, trusted=True, context=context)
 
 
-# Convenience functions for common use cases
-def render_docker_template(template_name: str, **context: TemplateValue) -> str:
-    """Render docker template with validation."""
-    if not template_name.startswith("d_"):
-        raise TemplateError(
-            ErrorContext(
-                message="Not a docker template",
-                error_code="INVALID_DOCKER_TEMPLATE",
-                metadata={"template_name": template_name},
-            )
-        )
-
-    with Compiler(template_name, True, **context) as compiler:
-        return compiler.compile()
-
-
-def render_auth_template(template_name: str, **context: TemplateValue) -> str:
-    """Render auth template with validation."""
-    if not template_name.startswith("a_"):
-        raise TemplateError(
-            ErrorContext(
-                message="Not an auth template",
-                error_code="INVALID_AUTH_TEMPLATE",
-                metadata={"template_name": template_name},
-            )
-        )
-
-    with Compiler(template_name, True, **context) as compiler:
-        return compiler.compile()
-
-
-def render_base_template(template_name: str, **context: TemplateValue) -> str:
-    """Render base template with validation."""
-    if not template_name.startswith("b_"):
-        raise TemplateError(
-            ErrorContext(
-                message="Not a base template",
-                error_code="INVALID_BASE_TEMPLATE",
-                metadata={"template_name": template_name},
-            )
-        )
-
-    with Compiler(template_name, True, **context) as compiler:
-        return compiler.compile()
-
-
 __all__ = [
     "Compiler",
     "TemplateType",
-    "render_docker_template",
-    "render_auth_template",
-    "render_base_template",
 ]

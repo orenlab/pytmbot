@@ -240,28 +240,6 @@ class _MessageDeletionManager(BaseComponent):
                 self._stats["failed"] = self._stats.get("failed", 0) + 1
             raise
 
-    def configure(self, max_pending_per_user: int) -> None:
-        """
-        Configure the deletion manager parameters.
-
-        Args:
-            max_pending_per_user: Maximum number of pending deletions per user
-
-        Raises:
-            ValueError: If max_pending_per_user is not positive
-        """
-        if max_pending_per_user <= 0:
-            raise ValueError("max_pending_per_user must be positive")
-
-        with self._deletion_lock:
-            old_limit = self._max_pending_per_user
-            self._max_pending_per_user = max_pending_per_user
-
-        with self.log_context(
-            action="configure", old_limit=old_limit, new_limit=max_pending_per_user
-        ) as log:
-            log.info("bot.utils.message_deletion.deletion.manager.info")
-
     def schedule_deletion(
         self,
         bot: TeleBot,
@@ -478,80 +456,6 @@ class _MessageDeletionManager(BaseComponent):
             log.debug("bot.utils.message_deletion.fetch.pending.debug")
 
         return count
-
-    def cancel_user_deletions(self, user_id: _UserID) -> int:
-        """
-        Cancel all pending deletions for a specific user.
-
-        Args:
-            user_id: ID of the user whose deletions to cancel
-
-        Returns:
-            Number of deletions that were cancelled
-        """
-        with self.log_context(action="cancel_user_deletions", user_id=user_id) as log:
-            with self._deletion_lock:
-                message_ids = self._user_pending_deletions[user_id].copy()
-                cancelled_count = 0
-
-                for message_id in message_ids:
-                    task_key = (user_id, message_id)
-                    if task_key in self._active_tasks:
-                        self._active_tasks.pop(task_key)
-                        cancelled_count += 1
-
-                self._user_pending_deletions[user_id].clear()
-
-            if cancelled_count > 0:
-                log.info("bot.utils.message_deletion.cancelled.pending.info")
-            else:
-                log.debug("bot.utils.message_deletion.no.pending.debug")
-
-            return cancelled_count
-
-    def get_statistics(self) -> dict[str, int]:
-        """
-        Get current operation statistics.
-
-        Returns:
-            Dictionary containing operation statistics
-        """
-        with self._stats_lock:
-            stats = self._stats.copy()
-
-        with self.log_context(action="get_statistics", stats=stats) as log:
-            log.debug("bot.utils.message_deletion.statistics.fetch.debug")
-
-        return stats
-
-    def get_system_status(self) -> dict[str, object]:
-        """
-        Get comprehensive system status information.
-
-        Returns:
-            Dictionary containing system status details
-        """
-        with self._deletion_lock:
-            total_pending = sum(
-                len(messages) for messages in self._user_pending_deletions.values()
-            )
-            users_with_pending = len(
-                [uid for uid, msgs in self._user_pending_deletions.items() if msgs]
-            )
-            active_tasks_count = len(self._active_tasks)
-
-        status = {
-            "total_pending_deletions": total_pending,
-            "users_with_pending_deletions": users_with_pending,
-            "max_pending_per_user": self._max_pending_per_user,
-            "active_tasks": active_tasks_count,
-            "statistics": self.get_statistics(),
-        }
-
-        with self.log_context(action="get_system_status", **status) as log:
-            log.debug("bot.utils.message_deletion.status.fetch.debug")
-
-        return status
 
     def __repr__(self) -> str:
         """Return a string representation of the manager."""

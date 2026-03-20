@@ -279,26 +279,6 @@ def test_rate_limit_handles_callback_query_updates() -> None:
     assert len(bot.answered_callbacks) == 1
 
 
-def test_rate_limit_cleanup_removes_stale_state() -> None:
-    bot = _BotStub()
-    middleware = rate_limit_module.RateLimit(
-        cast(TeleBot, bot),
-        limit=2,
-        period=timedelta(seconds=5),
-    )
-    user_id = 123
-    now = datetime.now()
-    middleware._user_requests[user_id].append(now - timedelta(minutes=1))
-    middleware._violation_count[user_id] = 2
-    middleware._last_violation_log[user_id] = now - timedelta(minutes=1)
-
-    middleware._clean_old_requests(user_id, now)
-
-    assert user_id not in middleware._user_requests
-    assert user_id not in middleware._violation_count
-    assert user_id not in middleware._last_violation_log
-
-
 def test_access_control_setup_command_with_bot_suffix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -7,24 +7,12 @@ also providing basic information about the status of local servers.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import wraps
 
 from pytmbot.logs import Logger
 
 logger = Logger()
 
 type CallbackType[R] = Callable[..., R]
-
-
-def log_execution[R](func: CallbackType[R]) -> CallbackType[R]:
-    """Decorator to log function execution with its arguments."""
-
-    @wraps(func)
-    def wrapper(self: "HandlerManager[R]", **kwargs: object) -> R:
-        logger.debug("bot.models.handlers_model.exec.callback.debug")
-        return func(self, **kwargs)
-
-    return wrapper
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,19 +33,6 @@ class HandlerManager[R]:
         if not callable(self.callback):
             logger.error("bot.models.handlers_model.invalid.callback.fail")
             raise ValueError("The 'callback' parameter must be callable")
-
-    @log_execution
-    def execute(self, **extra_kwargs: object) -> R:
-        """
-        Execute the stored callback function with stored and additional keyword arguments.
-
-        Args:
-            **extra_kwargs: Additional keyword arguments to pass to the callback
-
-        Returns:
-            The result of the callback function execution
-        """
-        return self.callback(**{**self.kwargs, **extra_kwargs})
 
     def __repr__(self) -> str:
         """Return a string representation of the HandlerManager instance."""

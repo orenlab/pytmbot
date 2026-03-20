@@ -168,33 +168,6 @@ def _prepare_register_plugin_monkeypatch(
     )
 
 
-@pytest.mark.parametrize(
-    ("base_permission", "expected_registered", "expected_loaded"),
-    [
-        (True, 1, True),
-        (False, 0, False),
-    ],
-)
-def test_register_plugin_paths(
-    monkeypatch: pytest.MonkeyPatch,
-    base_permission: bool,
-    expected_registered: int,
-    expected_loaded: bool,
-) -> None:
-    manager = PluginManager()
-    bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-    _prepare_register_plugin_monkeypatch(
-        monkeypatch,
-        base_permission=base_permission,
-    )
-
-    manager._register_plugin("test_plugin", bot)
-    assert _TestPlugin.registered_calls == expected_registered
-    assert manager.is_plugin_loaded("test_plugin") is expected_loaded
-    if expected_loaded:
-        assert "test_plugin" in manager._plugin_instances
-
-
 def test_cleanup_plugin_and_cleanup_all_plugins() -> None:
     manager = PluginManager()
     bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")

@@ -14,24 +14,6 @@ type _ArgValue = str | int | float | bool | None
 type _ArgDict = dict[str, _ArgValue]
 
 
-def test_handler_manager_model_execute_and_repr() -> None:
-    calls: _ArgDict = {}
-
-    def _callback(**kwargs: _ArgValue) -> str:
-        calls.update(dict(kwargs))
-        return "ok"
-
-    manager = HandlerManager(callback=_callback, kwargs={"a": 1})
-    result = manager.execute(a=2, b=3)
-    assert result == "ok"
-    assert calls == {"a": 2, "b": 3}
-    assert "HandlerManager" in repr(manager)
-    assert "_callback" in repr(manager)
-
-    with pytest.raises(ValueError):
-        HandlerManager(callback="not-callable")  # type: ignore[arg-type]
-
-
 def test_handler_config_create_handler_populates_filters() -> None:
     def _callback(**_kwargs: _ArgValue) -> None:
         return None

@@ -156,14 +156,6 @@ def _store_docker_counters(counters: dict[str, int]) -> None:
         _docker_counters_cached_at = time.monotonic()
 
 
-def _clear_docker_counters_cache() -> None:
-    """Clear docker counters cache."""
-    global _docker_counters_cache, _docker_counters_cached_at
-    with _docker_counters_lock:
-        _docker_counters_cache = None
-        _docker_counters_cached_at = 0.0
-
-
 @with_operation_logging("aggregate_container_details")
 def __aggregate_container_details(
     container_ref: str | Container,
@@ -638,22 +630,3 @@ def fetch_full_container_details(container_id: str) -> Container | None:
         )
         # Return None for backward compatibility, but log the error
         return None
-
-
-def clear_container_cache() -> None:
-    """Clear the container information cache."""
-    _container_cache.clear()
-    _clear_docker_counters_cache()
-    logger.info("docker.containers.container.cache.info")
-
-
-def get_cache_stats() -> dict[str, object]:
-    """Get cache statistics for monitoring."""
-    cached_counters = _get_cached_docker_counters()
-    return {
-        "cache_size": _container_cache.size(),
-        "cache_ttl": _container_cache._ttl,
-        "docker_counters_cached": cached_counters is not None,
-        "docker_counters_ttl_seconds": DOCKER_COUNTERS_CACHE_TTL,
-        "docker_counters_cache_size": len(cached_counters or {}),
-    }

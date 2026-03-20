@@ -74,16 +74,8 @@ class ConnectionException(BaseBotException):
     """Base class for connection related exceptions."""
 
 
-class ServerConnectionError(ConnectionException):
-    """Raised on server connection failures."""
-
-
 class HandlingException(BaseBotException):
     """Base class for message and template handling exceptions."""
-
-
-class MessageHandlerError(HandlingException):
-    """Raised on message handling failures."""
 
 
 class TemplateError(HandlingException):
@@ -129,6 +121,7 @@ class QRCodeError(BaseBotException):
 class TelebotExceptionHandler(ExceptionHandler):
     """Custom exception handler for Telebot with structured logging and token sanitization."""
 
+    # noqa: codeclone[dead-code]
     def handle(self, exception: Exception) -> bool:
         """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
@@ -179,10 +172,6 @@ class InfluxDBWriteError(InfluxDBException):
 
 class InfluxDBQueryError(InfluxDBException):
     """Raised on InfluxDB query operation failures."""
-
-
-class CallbackValidationError(BaseBotException):
-    """Raised on Callback data validation error"""
 
 
 class KeyboardError(BaseBotException):

@@ -70,7 +70,7 @@ class AccessControlModel(BaseModel):
     auth_salt: list[SecretStr] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_admins_subset(self) -> "AccessControlModel":
+    def validate_admins_subset(self) -> "AccessControlModel":  # noqa: codeclone[dead-code]
         """Ensure admins are always part of allowed users."""
         allowed_users = set(self.allowed_user_ids)
         invalid_admins = [
@@ -191,7 +191,9 @@ class WebhookConfig(BaseModel):
 
     @field_validator("trusted_proxy_ips", "additional_telegram_ip_ranges")
     @classmethod
-    def validate_trusted_proxy_ips(cls, value: list[str] | None) -> list[str] | None:
+    def validate_trusted_proxy_ips(  # noqa: codeclone[dead-code]
+        cls, value: list[str] | None
+    ) -> list[str] | None:
         """Validate trusted proxy IPs/CIDRs format."""
         if value is None:
             return None
@@ -221,11 +223,6 @@ class ConfigMigrator(logs.BaseComponent):
     def __init__(self) -> None:
         super().__init__("config_migrator")
         self.app_version = get_app_version()
-
-    @staticmethod
-    def get_supported_versions() -> list[str]:
-        """Get list of supported configuration versions."""
-        return ["0.2.2", "0.3.0.dev0", "0.3.0"]
 
     @staticmethod
     def _normalize_version_alias(version_value: str) -> str:
@@ -405,7 +402,7 @@ class SettingsModel(BaseSettings):
 
     @field_validator("config_version")
     @classmethod
-    def validate_config_version(cls, v: str | None) -> str | None:
+    def validate_config_version(cls, v: str | None) -> str | None:  # noqa: codeclone[dead-code]
         """
         Validate configuration version against application compatibility.
 
@@ -435,7 +432,9 @@ class SettingsModel(BaseSettings):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_config_if_needed(cls, values: dict[str, object]) -> dict[str, object]:
+    def migrate_config_if_needed(  # noqa: codeclone[dead-code]
+        cls, values: dict[str, object]
+    ) -> dict[str, object]:
         """
         Automatically add or update config_version field.
         Handle configs without version field (0.2.2 compatibility).
@@ -482,79 +481,5 @@ class SettingsModel(BaseSettings):
 
         return values
 
-    def get_version_info(self) -> dict[str, object]:
-        """
-        Get detailed version information.
-
-        Returns:
-            Dictionary with version details
-        """
-        matrix = ConfigMigrator.get_compatibility_matrix()
-        config_info = matrix.get(self.config_version or "legacy", {})
-
-        return {
-            "config_version": self.config_version or "legacy (None)",
-            "app_version": self.app_version,
-            "description": config_info.get("description", "Legacy 0.2.2 compatibility"),
-            "is_deprecated": self.config_version
-            in [None, "0.2.2"],  # Legacy compatibility
-            "is_legacy": self.config_version is None,
-            "versions_match": self.config_version == self.app_version,
-        }
-
-    def validate_full_compatibility(self) -> bool:
-        """
-        Perform full compatibility validation.
-
-        Returns:
-            True if configuration is fully compatible
-
-        Raises:
-            ConfigVersionError: If configuration is incompatible
-        """
-        try:
-            ConfigMigrator.validate_compatibility(self.config_version, self.app_version)
-            return True
-        except ConfigVersionError:
-            raise
-
 
 # Utility functions for configuration management
-def load_config_with_migration(config_path: str) -> SettingsModel:
-    """
-    Load configuration with automatic migration support.
-
-    Args:
-        config_path: Path to configuration file
-
-    Returns:
-        Loaded and validated settings
-    """
-    import yaml
-
-    # Create logger for config loading
-    class ConfigLoader(logs.BaseComponent):
-        def __init__(self) -> None:
-            super().__init__("config_loader")
-
-    loader = ConfigLoader()
-
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
-
-        # Create settings (migration happens automatically in model_validator)
-        settings = SettingsModel(**config_data)
-
-        version_info = settings.get_version_info()
-        with loader.log_context(config_path=config_path, **version_info) as log:
-            log.info("bot.models.settings_model.config.load.ok")
-
-        return settings
-
-    except Exception as e:
-        with loader.log_context(
-            config_path=config_path, error=str(e), error_type=type(e).__name__
-        ) as log:
-            log.error("bot.models.settings_model.load.config.fail")
-        raise

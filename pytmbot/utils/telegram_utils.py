@@ -6,84 +6,16 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import NamedTuple
 
-from telebot.types import CallbackQuery, Message
-
-from pytmbot.utils.data_processing import find_in_args, find_in_kwargs
+from telebot.types import CallbackQuery
 
 type OptionalStr = str | None
 type OptionalInt = int | None
 type OptionalBool = bool | None
 type SanitizedLogInput = str | bytes | int | float | bool | None
 
-
-class MessageInfo(NamedTuple):
-    """Message information."""
-
-    username: OptionalStr
-    user_id: OptionalInt
-    language_code: OptionalStr
-    is_bot: OptionalBool
-    text: OptionalStr
-
-
-class InlineMessageInfo(NamedTuple):
-    """Inline message information."""
-
-    username: OptionalStr
-    user_id: OptionalInt
-    is_bot: OptionalBool
-
-
 # Compile regex pattern once for better performance
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-
-
-def get_message_full_info(*args: object, **kwargs: object) -> MessageInfo:
-    """
-    Extracts full message information from arguments.
-
-    Args:
-        *args: Positional arguments to search for Message object
-        **kwargs: Keyword arguments to search for Message object
-
-    Returns:
-        MessageInfo: Named tuple with message information
-    """
-    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
-    if message and message.from_user:
-        user = message.from_user
-        return MessageInfo(
-            username=user.username,
-            user_id=user.id,
-            language_code=user.language_code,
-            is_bot=user.is_bot,
-            text=message.text,
-        )
-    return MessageInfo(None, None, None, None, None)
-
-
-def get_inline_message_full_info(*args: object, **kwargs: object) -> InlineMessageInfo:
-    """
-    Extracts full inline message information from arguments.
-
-    Args:
-        *args: Positional arguments to search for CallbackQuery object
-        **kwargs: Keyword arguments to search for CallbackQuery object
-
-    Returns:
-        InlineMessageInfo: Named tuple with inline message information
-    """
-    callback_query = find_in_args(args, CallbackQuery) or find_in_kwargs(
-        kwargs, CallbackQuery
-    )
-    if callback_query and callback_query.from_user:
-        user = callback_query.from_user
-        return InlineMessageInfo(
-            username=user.username, user_id=user.id, is_bot=user.is_bot
-        )
-    return InlineMessageInfo(None, None, None)
 
 
 def sanitize_logs(

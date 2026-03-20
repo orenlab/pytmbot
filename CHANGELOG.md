@@ -5,6 +5,7 @@ All notable changes are documented in this file.
 ## [0.3.0] — Unreleased
 
 ### Added
+
 - GitHub Actions CI with Python 3.12–3.14 matrix and `codeclone` checks.
 - Health monitoring subsystem with component-level checks and startup reporting.
 - Extended server views: CPU, network, disk, users, fans, and quick-view pages with live refresh.
@@ -18,6 +19,7 @@ All notable changes are documented in this file.
 - Configuration versioning with automatic migration.
 
 ### Changed
+
 - Refined UI navigation and simplified health screen layout.
 - Updated templates and quick-views for new server/Docker capabilities.
 - Unified size formatting (`humanize`) and ID masking scheme.
@@ -30,6 +32,7 @@ All notable changes are documented in this file.
 - Reduced memory usage with `__slots__`; strict typing via `mypy --strict`.
 
 ### Fixed
+
 - Graceful fallback for unsupported Docker log drivers.
 - Tests now use `pytmbot.yaml.sample` instead of a real config.
 - Closed multiple race, performance, and security issues (webhook, middleware, Docker, monitoring).
@@ -43,10 +46,12 @@ All notable changes are documented in this file.
 - Expanded and fixed InfluxDB dashboard template.
 
 ### Removed
+
 - Experimental `Services` handler and callbacks.
 - Legacy `tools/install.sh` installer (Docker-only install flow now used).
 
 ### Security
+
 - Strengthened callback/container authorization and input validation.
 - Improved log/file delivery safeguards and data masking.
 - Webhook IP verification with trusted-proxy allowlist.
@@ -54,10 +59,9 @@ All notable changes are documented in this file.
 - Minimized webhook error logs (only `update_id` and `update_type` retained).
 
 ### Documentation
+
 - Updated installation, Docker, CLI, plugin, and debug documentation.
 - Added unified docs index (`docs/README.md`).
 - Deprecated legacy script installer docs.
 - Added `trusted_proxy_ips` config and webhook failover details.
 - Docs now reflect current runtime, TLS, and security behavior.
-
-[0.3.0]: https://github.com/orenlab/pytmbot/compare/0.2.2...b264229

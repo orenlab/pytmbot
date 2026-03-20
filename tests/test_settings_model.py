@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError
-from pathlib import Path
 from typing import cast
 
 import pytest
-import yaml
 from packaging.version import InvalidVersion
 from pydantic import SecretStr, ValidationError
 
@@ -16,7 +14,6 @@ from pytmbot.models.settings_model import (
     SettingsModel,
     WebhookConfig,
     get_app_version,
-    load_config_with_migration,
 )
 
 type _ConfigScalar = str | int | float | bool | None
@@ -125,7 +122,7 @@ def test_config_migrator_migrate_config_paths(monkeypatch: pytest.MonkeyPatch) -
     )
 
 
-def test_settings_model_migration_and_version_info(
+def test_settings_model_migration_and_compatibility(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(SettingsModel, "app_version", "0.3.0-dev")
@@ -134,17 +131,10 @@ def test_settings_model_migration_and_version_info(
     settings = SettingsModel.model_validate(payload)
     assert settings.config_version == "0.3.0-dev"
 
-    info = settings.get_version_info()
-    assert info["is_legacy"] is False
-    assert info["is_deprecated"] is False
-    assert settings.validate_full_compatibility() is True
-
     payload_with_mismatch = dict(payload)
     payload_with_mismatch["config_version"] = "0.2.2"
     upgraded = SettingsModel.model_validate(payload_with_mismatch)
     assert upgraded.config_version == "0.3.0-dev"
-    upgraded_info = upgraded.get_version_info()
-    assert upgraded_info["is_deprecated"] is False
 
 
 def test_access_control_requires_admins_subset_of_allowed_users() -> None:
@@ -157,34 +147,3 @@ def test_access_control_requires_admins_subset_of_allowed_users() -> None:
 
     with pytest.raises(ValidationError, match="allowed_admins_ids must be a subset"):
         SettingsModel.model_validate(payload)
-
-
-def test_load_config_with_migration_reads_file_and_raises_on_error(
-    tmp_path: Path,
-) -> None:
-    config_file = tmp_path / "settings.yaml"
-    payload = _base_config()
-    payload["config_version"] = "0.3.0-dev"
-    config_file.write_text(yaml.safe_dump(payload), encoding="utf-8")
-
-    loaded = load_config_with_migration(str(config_file))
-    assert isinstance(loaded, SettingsModel)
-    assert loaded.config_version == "0.3.0-dev"
-
-    broken_file = tmp_path / "broken.yaml"
-    broken_file.write_text("bot_token: [", encoding="utf-8")
-    with pytest.raises(yaml.YAMLError):
-        load_config_with_migration(str(broken_file))
-
-
-def test_load_config_with_migration_propagates_yaml_none(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    config_file = tmp_path / "none.yaml"
-    config_file.write_text("{}", encoding="utf-8")
-
-    monkeypatch.setattr(yaml, "safe_load", lambda _stream: None)
-
-    with pytest.raises(TypeError):
-        load_config_with_migration(str(config_file))

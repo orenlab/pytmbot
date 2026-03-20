@@ -423,11 +423,6 @@ class PluginManager:
         for plugin_name in plugins_to_register:
             self._register_plugin(plugin_name, bot)
 
-    @classmethod
-    def is_plugin_loaded(cls, plugin_name: str) -> bool:
-        with cls._registry_lock:
-            return plugin_name in cls._loaded_plugins
-
     def cleanup_all_plugins(self) -> None:
         """Cleanly shuts down all registered plugins."""
 

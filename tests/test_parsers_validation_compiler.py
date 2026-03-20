@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import pytest
 
 import pytmbot.parsers.compiler as compiler_module
-import pytmbot.parsers.validation as validation_module
 from pytmbot.exceptions import ErrorContext, TemplateError
 from pytmbot.parsers.compiler import (
     Compiler,
     TemplateType,
-    render_auth_template,
-    render_base_template,
-    render_docker_template,
 )
 from pytmbot.parsers.validation import (
     TemplateValidator,
@@ -155,67 +149,3 @@ def test_compiler_compile_reraises_template_error(
     with pytest.raises(TemplateError) as exc_info:
         Compiler("d_demo.jinja2").compile()
     assert exc_info.value is original
-
-
-def test_compiler_stats_and_cache_clear(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(compiler_module, "_get_cache_stats", lambda: {"templates": 2})
-    clear_called = {"value": False}
-
-    def _clear_cache() -> None:
-        clear_called["value"] = True
-
-    monkeypatch.setattr(compiler_module, "_clear_template_cache", _clear_cache)
-
-    assert Compiler("d_demo.jinja2").get_compiler_stats() == {"templates": 2}
-    Compiler.clear_all_caches()
-    assert clear_called["value"] is True
-
-
-def test_compiler_validate_template_params_delegates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _fake_validate(
-        template_name: str,
-        context: _ContextDict,
-        trusted: bool = False,
-    ) -> tuple[str, _ContextDict]:
-        assert template_name == "b_template.jinja2"
-        assert context == {"x": 1}
-        assert trusted is True
-        return template_name, context
-
-    monkeypatch.setattr(validation_module, "validate_template_render", _fake_validate)
-    assert Compiler.validate_template_params(
-        "b_template.jinja2", {"x": 1}, trusted=True
-    ) == (
-        "b_template.jinja2",
-        {"x": 1},
-    )
-
-
-@pytest.mark.parametrize(
-    ("func", "template_name", "expected_error"),
-    [
-        (render_docker_template, "b_wrong.jinja2", "INVALID_DOCKER_TEMPLATE"),
-        (render_auth_template, "d_wrong.jinja2", "INVALID_AUTH_TEMPLATE"),
-        (render_base_template, "a_wrong.jinja2", "INVALID_BASE_TEMPLATE"),
-    ],
-)
-def test_render_helpers_validate_template_prefix(
-    func: Callable[..., str],
-    template_name: str,
-    expected_error: str,
-) -> None:
-    with pytest.raises(TemplateError) as exc_info:
-        func(template_name, key="value")
-    assert exc_info.value.context.error_code == expected_error
-
-
-def test_render_helpers_call_compiler(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        Compiler, "compile", lambda self: f"rendered:{self.template_name}"
-    )
-
-    assert render_docker_template("d_ok.jinja2") == "rendered:d_ok.jinja2"
-    assert render_auth_template("a_ok.jinja2") == "rendered:a_ok.jinja2"
-    assert render_base_template("b_ok.jinja2") == "rendered:b_ok.jinja2"

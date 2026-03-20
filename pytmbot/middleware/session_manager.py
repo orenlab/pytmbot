@@ -222,11 +222,6 @@ class SessionManager(BaseComponent):
 
         return self._user_sessions[user_id]
 
-    def _get_or_create_session(self, user_id: int) -> _UserSession:
-        """Thread-safe session retrieval or creation."""
-        with self._lock:
-            return self._get_or_create_session_locked(user_id)
-
     def _evict_sessions_if_needed(self) -> int:
         """
         Enforce hard cap for in-memory sessions.
@@ -402,32 +397,6 @@ class SessionManager(BaseComponent):
             with self.log_context(user_id=user_id, action="login") as log:
                 log.success("bot.session.user.login.ok")
 
-    def get_login_time(self, user_id: int) -> datetime | None:
-        """Get user's login time."""
-        with self.session_context(user_id) as session:
-            return session.login_time
-
-    def is_session_expired(self, user_id: int) -> bool:
-        """Check if user's session is expired."""
-        with self.session_context(user_id) as session:
-            expired = session.is_expired(self.session_timeout)
-
-            if expired:
-                with self.log_context(user_id=user_id, action="session_expired") as log:
-                    log.warning(
-                        "bot.session.expired.warn",
-                        context={
-                            "login_time": (
-                                session.login_time.isoformat()
-                                if session.login_time
-                                else None
-                            ),
-                            "timeout_minutes": self.session_timeout,
-                        },
-                    )
-
-            return expired
-
     def is_authenticated(self, user_id: int) -> bool:
         """Check if user is fully authenticated and session is valid."""
         with self.session_context(user_id) as session:
@@ -491,14 +460,6 @@ class SessionManager(BaseComponent):
                 log.debug("bot.session.referer.data.debug")
 
     # Session cleanup
-    def reset_session(self, user_id: int) -> None:
-        """Reset entire session for user."""
-        with self._lock:
-            if user_id in self._user_sessions:
-                del self._user_sessions[user_id]
-
-                with self.log_context(user_id=user_id, action="reset_session") as log:
-                    log.info("bot.session.reset.info")
 
     def clear_expired_sessions(self) -> None:
         """Clear all expired sessions."""
@@ -525,10 +486,6 @@ class SessionManager(BaseComponent):
                     )
 
     # Statistics and monitoring
-    def get_active_sessions_count(self) -> int:
-        """Get count of active sessions."""
-        with self._lock:
-            return len(self._user_sessions)
 
     def get_session_stats(self) -> dict[str, int]:
         """Get comprehensive session statistics.

@@ -322,18 +322,12 @@ def get_validation_stats() -> dict[str, int]:
     return _validator.get_stats()
 
 
-def clear_validation_cache() -> None:
-    """Clear validation cache."""
-    validate_template_name_cached.cache_clear()
-
-
 __all__ = [
     "is_safe_template_name",
     "is_safe_context_key",
     "is_safe_context_value",
     "validate_template_render",
     "get_validation_stats",
-    "clear_validation_cache",
     "validate_template_name_fast",
     "validate_context_basic",
 ]

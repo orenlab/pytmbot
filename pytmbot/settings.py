@@ -132,11 +132,6 @@ def get_default_bot_commands() -> dict[str, str]:
     }
 
 
-def get_default_log_levels() -> frozenset[str]:
-    """Returns the default log levels."""
-    return frozenset(["ERROR", "INFO", "DEBUG"])
-
-
 class KeyboardSettings(BaseModel):
     """
     Configuration settings for bot keyboards.

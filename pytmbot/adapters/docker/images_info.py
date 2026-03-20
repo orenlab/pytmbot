@@ -312,37 +312,6 @@ def get_image_history(image_id: str) -> list[dict[str, object]]:
         raise ImageOperationError(f"Failed to get image history: {e}")
 
 
-@with_operation_logging("get_image_stats")
-def get_image_stats() -> dict[str, object]:
-    """
-    Get statistics about Docker images.
-
-    Returns:
-        Dictionary containing image statistics
-    """
-    try:
-        with docker_client_context() as adapter:
-            images = adapter.images.list(all=True)
-
-            total_size = sum(image.attrs.get("Size", 0) for image in images)
-            os_types = {image.attrs.get("Os", "unknown") for image in images}
-            architectures = {
-                image.attrs.get("Architecture", "unknown") for image in images
-            }
-
-            return {
-                "total_images": len(images),
-                "total_size": set_naturalsize(total_size),
-                "operating_systems": list(os_types),
-                "architectures": list(architectures),
-                "tagged_images": sum(1 for image in images if image.tags),
-                "untagged_images": sum(1 for image in images if not image.tags),
-            }
-
-    except Exception as e:
-        raise ImageOperationError(f"Failed to get image statistics: {e}")
-
-
 @with_operation_logging("get_image_usage")
 def get_image_usage(image_id: str) -> dict[str, object]:
     """
