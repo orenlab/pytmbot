@@ -1,297 +1,108 @@
-# 🎛️ PyTMBot Command-Line Arguments
+# Command-Line Interface
 
-The PyTMBot supports several command-line arguments to customize its behavior. Below is a detailed description of each
-argument you can use when starting the bot.
+This document describes the current startup interface.
 
-## Scope
+Source of truth:
 
-- **Core CLI** (`python pytmbot/main.py ...`): full argparse interface from `pytmbot/utils/cli.py`
-- **Docker entrypoint CLI** (`docker run ... orenlab/pytmbot:... ...`): wrapper flags from `entrypoint.sh`
+- `pytmbot/utils/cli.py`
+- `entrypoint.sh`
 
-## 🛠️ Arguments
+## Two Entry Points
 
-| Argument          | Type   | Default     | Choices                                                  | Description                                                                                            |
-|-------------------|--------|-------------|----------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| `--mode`          | `str`  | `prod`      | `dev`, `prod`                                            | Select the mode of operation for PyTMBot. Use `dev` for development and `prod` for production.         |
-| `--log-level`     | `str`  | `INFO`      | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | Set the logging level for the bot. More verbose logs can be helpful during development.                |
-| `--log-format`    | `str`  | mode-based  | `human`, `json`                                          | Select log output format. Default is `human` in `dev` mode and `json` in `prod` mode.                  |
-| `--colorize_logs` | `bool` | `True`      | `true`, `false`                                          | Enable or disable colorized logs in human format.                                                      |
-| `--webhook`       | `bool` | `False`     | `True`, `False`                                          | Core CLI: explicit boolean value. Docker entrypoint: supports both `--webhook` and `--webhook <bool>`. |
-| `--socket_host`   | `str`  | `127.0.0.1` | N/A                                                      | Define the host address for the socket to listen on in webhook mode. Default is localhost.             |
-| `--plugins`       | `list` | `[]`        | N/A                                                      | Core CLI and Docker entrypoint both support multiple plugins.                                          |
-| `--debug`         | `flag` | `False`     | N/A                                                      | Shortcut for `--mode dev --log-level DEBUG`.                                                           |
-| `--salt`          | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: generate TOTP salt and exit.                                                |
-| `--health_check`  | `flag` | `False`     | N/A                                                      | Perform comprehensive health check and exit.                                                           |
-| `--check-docker`  | `flag` | `False`     | N/A                                                      | Docker entrypoint utility: check Docker socket access and group configuration, then exit.              |
+- Core CLI: `python pytmbot/main.py ...`
+- Container entrypoint: `docker run ... orenlab/pytmbot:... ...`
 
-Tracebacks are printed only in `DEBUG`; `INFO+` logs keep concise error summaries.
+The Docker image wraps the core CLI and adds a few container-specific utility flags.
 
-## 🏥 Health Check & Diagnostic Arguments
+## Core CLI Arguments
 
-### `--health_check`
+| Argument          | Type              | Default           | Notes                                                    |
+|-------------------|-------------------|-------------------|----------------------------------------------------------|
+| `--mode`          | `dev` or `prod`   | `prod`            | Runtime mode                                             |
+| `--log-level`     | enum              | `INFO`            | `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `--log-format`    | `human` or `json` | derived from mode | `human` in `dev`, `json` in `prod` if omitted            |
+| `--colorize_logs` | boolean           | `true`            | Applies to human log output                              |
+| `--webhook`       | boolean           | `false`           | Core CLI requires an explicit value                      |
+| `--socket_host`   | string            | `127.0.0.1`       | Listener host for webhook mode                           |
+| `--plugins`       | list              | empty             | Example: `--plugins monitor outline`                     |
+| `--health_check`  | flag              | `false`           | Runs the app health check and exits                      |
+| `--debug`         | flag              | `false`           | Forces `--mode dev --log-level DEBUG`                    |
 
-Performs a comprehensive health check that validates:
+Accepted boolean forms in the core CLI:
 
-- Main script accessibility
-- Python interpreter functionality
-- Docker socket access (if available)
-- Configuration file presence
+- `true`, `false`
+- `1`, `0`
+- `yes`, `no`
+- `on`, `off`
 
-**Usage:**
+Matching is case-insensitive.
 
-```bash
-python pytmbot/main.py --health_check
-# or in Docker
-docker run orenlab/pytmbot:latest --health_check
-```
+## Docker Entrypoint Additions
 
-### `--check-docker`
+The Docker image accepts all arguments above and also adds:
 
-Specifically checks Docker-related configuration:
+| Argument         | Type | Behavior                                |
+|------------------|------|-----------------------------------------|
+| `--salt`         | flag | Generates a TOTP salt and exits         |
+| `--check-docker` | flag | Verifies Docker socket access and exits |
 
-- Docker socket availability and permissions
-- Group membership for Docker access
-- Automatic GID adjustment if running as root
+Entrypoint difference for `--webhook`:
 
-**Usage:**
+- `python pytmbot/main.py --webhook true`
+- `docker run ... --webhook`
+- `docker run ... --webhook true`
 
-```bash
-docker run orenlab/pytmbot:latest --check-docker
-```
+The container entrypoint accepts both the bare flag and an explicit boolean value.
 
-### `--salt`
+## Behavioral Notes
 
-Generates secure salt for TOTP configuration and exits.
+- `--debug` overrides `--mode` and `--log-level`.
+- Plugin names are validated before startup continues.
+- If webhook startup fails, the runtime falls back to polling.
+- At `INFO` and above, errors are logged without full Python tracebacks.
+- Full tracebacks are kept in `DEBUG`.
 
-**Usage:**
+## Examples
 
-```bash
-docker run --rm orenlab/pytmbot:latest --salt
-```
-
-## 📄 Required Configurations
-
-Depending on the command-line arguments you choose, certain configuration settings must be filled out in your
-configuration file. Below are the sections you need to complete:
-
-### General Bot Settings (Required)
-
-- **Bot Token Configuration**: Ensure you provide the correct `prod_token` or `dev_bot_token` based on `--mode`
-- **Chat ID Configuration**: Set your `global_chat_id` for notifications
-- **Access Control Settings**: Specify `allowed_user_ids`, `allowed_admins_ids`, and `auth_salt`
-
-### Webhook Configuration (if using `--webhook True`)
-
-- **Required fields**: `webhook_config.url`, `webhook_port`, `local_port`
-- **Optional fields**: `trusted_proxy_ips`, `cert`, `cert_key`
-- **Failover behavior**: if Telegram rejects `setWebhook` (for example unresolved host), bot falls back to polling
-- **trusted_proxy_ips**: Configure only trusted reverse-proxy IPs/CIDRs when using forwarded headers
-- **Security Note**: Bot cannot run on privileged ports (`<1024`, including `80` and `443`). Use reverse proxy
-  (e.g., Nginx, Nginx Proxy Manager, or Traefik)
-- **Host Configuration**: Set `--socket_host 0.0.0.0` when using with reverse proxy
-
-### Plugins Configuration (if using `--plugins`)
-
-#### Monitor Plugin
-
-- **InfluxDB**: Required for Monitor Plugin functionality
-- **InfluxDB Settings**: Set the `url`, `token`, `org`, and `bucket` values in configuration
-- **Thresholds**: Adjust the threshold values in the `monitor` section of your configuration
-
-#### Outline Plugin
-
-- **API Configuration**: Set the `api_url` and `cert` paths for the Outline API
-- **Certificate**: Ensure proper certificate configuration for secure API access
-
-## 🚀 Usage Examples
-
-### Basic Usage
-
-**Development mode with debug logging:**
+Local development:
 
 ```bash
 python pytmbot/main.py --mode dev --log-level DEBUG
 ```
 
-**Production mode with explicit JSON logs:**
+Local webhook run:
 
 ```bash
-python pytmbot/main.py --mode prod --log-level INFO --log-format json
+python pytmbot/main.py --mode prod --webhook true --socket_host 0.0.0.0
 ```
 
-**Production mode with specific plugins:**
+Production container with plugins:
 
 ```bash
-python pytmbot/main.py --mode prod --log-level INFO --plugins monitor outline
+docker run -d \
+  --name pytmbot \
+  -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:latest --mode prod --plugins monitor outline
 ```
 
-### Webhook Mode
-
-**Development webhook (with reverse proxy):**
-
-```bash
-python pytmbot/main.py --mode dev --webhook True --socket_host 0.0.0.0
-```
-
-**Production webhook:**
-
-```bash
-python pytmbot/main.py --mode prod --webhook True --socket_host 0.0.0.0 --log-level INFO
-```
-
-### Plugin-Specific Usage
-
-**Monitor plugin only:**
-
-```bash
-python pytmbot/main.py --plugins monitor
-```
-
-**All plugins with debug logging:**
-
-```bash
-python pytmbot/main.py --plugins monitor outline --log-level DEBUG
-```
-
-### Utility Commands
-
-**Generate authentication salt:**
+Generate a TOTP salt:
 
 ```bash
 docker run --rm orenlab/pytmbot:latest --salt
 ```
 
-**Health check:**
+Check Docker access inside the image:
 
 ```bash
-python pytmbot/main.py --health_check
-```
-
-**Docker configuration check:**
-
-```bash
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
   orenlab/pytmbot:latest --check-docker
 ```
 
-## 🐳 Docker Usage Examples
+## Related Docs
 
-### Standard Docker Run
-
-**Production deployment:**
-
-```bash
-docker run -d \
-  --name pytmbot \
-  --restart on-failure \
-  -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod --log-level INFO --log-format json
-```
-
-**Development with debug:**
-
-```bash
-docker run -d \
-  --name pytmbot-dev \
-  -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode dev --log-level DEBUG --plugins monitor
-```
-
-### Docker Compose
-
-```yaml
-services:
-  pytmbot:
-    image: orenlab/pytmbot:latest
-    container_name: pytmbot
-    restart: on-failure
-    volumes:
-      - /path/to/config.yaml:/opt/app/pytmbot.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: --mode prod --log-level INFO --log-format json --plugins monitor
-```
-
-Example with multiple plugins:
-
-```bash
-docker run -d \
-  --name pytmbot \
-  -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod --plugins monitor outline
-```
-
-### Webhook with Docker
-
-```bash
-docker run -d \
-  --name pytmbot \
-  --restart on-failure \
-  -p 8080:8080 \
-  -v /path/to/config.yaml:/opt/app/pytmbot.yaml:ro \
-  orenlab/pytmbot:latest --mode prod --webhook --socket_host 0.0.0.0
-```
-
-## 🛡️ Security Considerations
-
-### Production Deployment
-
-- Always use `--mode prod` for production environments
-- Set log level to `INFO` or `ERROR` to avoid sensitive information in logs
-- Prefer `--log-format json` for production log aggregation systems
-- Use `--webhook` only behind a reverse proxy with proper SSL termination
-- Never expose webhook directly to the internet
-
-### Development
-
-- Use `--mode dev` only in development environments
-- `--log-level DEBUG` may contain sensitive information
-- Development tokens should be separate from production tokens
-
-## 🔧 Process Management
-
-The entrypoint script handles:
-
-- **Graceful shutdown**: Proper SIGTERM handling with 30-second timeout
-- **Docker group management**: Automatic GID adjustment for Docker socket access
-- **Health monitoring**: Built-in health checks and diagnostics
-- **Error handling**: Comprehensive error reporting and validation
-
-## 📋 Troubleshooting
-
-### Common Issues
-
-1. **Docker permission errors**:
-   ```bash
-   docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
-     orenlab/pytmbot:latest --check-docker
-   ```
-
-2. **Health check failures**:
-   ```bash
-   python pytmbot/main.py --health_check
-   ```
-
-3. **Plugin loading issues**:
-    - Verify InfluxDB connection for monitor plugin
-    - Check Outline API configuration for outline plugin
-
-4. **Webhook connection issues**:
-    - Ensure reverse proxy is properly configured
-    - Check `--socket_host` setting
-    - Verify `webhook_config.url` resolves publicly (no placeholders)
-    - If webhook setup fails, bot falls back to polling
-
-## 📜 Notes
-
-- Ensure that the arguments are provided in the correct format and within the allowed choices
-- Plugin dependencies must be properly configured before using `--plugins`
-- Health check and Docker check commands will exit after completion
-- For webhook mode, proper reverse proxy configuration is essential for security
-
-For any questions or further assistance, feel free to check out the PyTMBot documentation or open an issue in the
-repository.
-
-Happy Botting! 🤖
+- [installation.md](installation.md)
+- [docker.md](docker.md)
+- [settings.md](settings.md)
+- [health.md](health.md)

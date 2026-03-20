@@ -1,41 +1,69 @@
-# pyTMBot Roadmap
+# Roadmap
 
-## Current Focus (0.3.x line)
+This document tracks planned work. It is not the source of truth for implemented behavior.
 
-- Runtime hardening for Docker deployment
-- Documentation and install-flow consistency
-- Regression coverage for auth/session/docker/webhook flows
-- Stable release of `0.3.0`
+Implemented behavior is defined by:
 
-## Near-Term Priorities
+- `pytmbot/`
+- `tests/`
+- `pytmbot.yaml.sample`
 
-### P0
+## Current Line
 
-- Complete `0.3.0` release cut (image tags + docs + config compatibility)
-- Keep mypy/ruff/pre-commit/codeclone gates green in CI
-- Maintain webhook security baseline (`trusted_proxy_ips`, secret token, rate-limit controls)
+Active release line:
 
-### P1
+- `0.3.x`
 
-- Improve local installer path to match uv-based dependency management
-- Expand integration tests for Docker-heavy flows (large image/container sets)
-- Continue log signal-to-noise tuning without losing incident visibility
+Primary objective:
 
-### P2
+- stabilize and complete the `0.3.0` release line
 
-- Additional plugin capabilities and operational telemetry
-- Optional architecture improvements (including async opportunities where justified)
+## Active Priorities
 
-## Status Snapshot
+### Release Readiness
 
-| Area                         | Status      |
-|------------------------------|-------------|
-| Docker runtime hardening     | In progress |
-| Test coverage expansion      | In progress |
-| Logging refactor and cleanup | In progress |
-| Release readiness (`0.3.0`)  | In progress |
+- keep Docker image, docs, and config schema aligned
+- keep release tags and published images consistent
+- preserve backward-compatible config migration for supported configs
+
+### Runtime Hardening
+
+- maintain webhook security controls
+- keep Docker degraded-mode vs strict-mode behavior predictable
+- continue reducing noisy failures without hiding operational errors
+
+### Test And Quality Coverage
+
+- keep `ruff`, `mypy`, `pytest`, `pre-commit`, and `codeclone` green
+- expand regression coverage for Docker-heavy flows
+- expand coverage for auth, session, and webhook edge cases
+
+### Documentation Maintenance
+
+- keep user-facing docs aligned with actual handlers, middleware, and config
+- keep command and deployment docs aligned with current runtime
+
+## Backlog
+
+### Near Term
+
+- more integration coverage for large container/image sets
+- more release validation around config migrations and startup diagnostics
+- further cleanup of logging signal-to-noise
+
+### Medium Term
+
+- incremental plugin capabilities where they fit the current architecture
+- operational telemetry improvements
+- architecture changes only when they solve a measured problem
+
+## Non-Goals For This Line
+
+- reintroducing a non-Docker installation path
+- broad architectural rewrites without production justification
+- undocumented feature growth that bypasses tests and docs
 
 ## Notes
 
-- Roadmap items are directional and may be reprioritized based on production findings.
-- For implemented behavior, code and tests are the source of truth.
+- Roadmap items may be reprioritized.
+- The roadmap does not guarantee delivery dates.

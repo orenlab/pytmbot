@@ -1,4 +1,4 @@
-# pyTMBot Installation Script (`tools/install.sh`) — Deprecated
+# Installation Script (`tools/install.sh`) Deprecated
 
 `tools/install.sh` was removed from the repository and is no longer supported.
 

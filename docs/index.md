@@ -1,12 +1,12 @@
-# pyTMbot Documentation Index
+# pyTMbot Documentation
 
-This documentation set describes the current codebase.
+This site documents the current codebase.
 
 When prose and implementation disagree, the source of truth is:
 
 - `pytmbot/`
 - `pytmbot.yaml.sample`
-- tests in `tests/`
+- `tests/`
 
 ## Start Here
 
@@ -34,8 +34,3 @@ When prose and implementation disagree, the source of truth is:
 
 - [Development and quality gates](development.md)
 - [Roadmap](roadmap.md)
-- [Changelog](../CHANGELOG.md)
-
-## Legacy / Deprecated
-
-- [Installation script note](script_install.md)

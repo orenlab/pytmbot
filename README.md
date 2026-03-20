@@ -49,7 +49,6 @@ pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBo
 - Extend the bot with custom modules and simple configuration
 - Included examples:
   - **Monitor Plugin** — notifications for CPU, memory, disk, temperature, container, and image changes
-  - **2FA Plugin** — QR-based TOTP setup for stronger protection
   - **Outline VPN Plugin** — monitor your [Outline VPN](https://getoutline.org/) server from Telegram
 
 See [docs/plugins.md](docs/plugins.md) for details.
@@ -91,11 +90,18 @@ Use the Docker-focused setup guides:
 ## Documentation
 
 - [Docs index](docs/README.md)
+- [Installation](docs/installation.md)
+- [Architecture](docs/architecture.md)
 - [Settings](docs/settings.md)
+- [Command reference](docs/commands.md)
+- [Webhook mode](docs/webhook.md)
+- [Health system](docs/health.md)
 - [Security](docs/security.md)
+- [Access control and 2FA](docs/auth_control.md)
 - [Plugins](docs/plugins.md)
 - [CLI arguments](docs/bot_cli_args.md)
 - [Debugging](docs/debug.md)
+- [Development](docs/development.md)
 - [Roadmap](docs/roadmap.md)
 
 ## Docker Hub

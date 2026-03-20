@@ -1,120 +1,79 @@
-# Running pyTMBot in DEBUG Mode
+# Debugging And Diagnostics
 
-To run pyTMBot in DEBUG mode, follow these steps:
+This document covers supported diagnostic paths for the current runtime.
 
-## 1. **Stop the Running Container**
+## Increase Log Detail
 
-If the pyTMBot container is currently running, you need to stop it first:
-
-```bash
-sudo docker stop pytmbot
-```
-
-## 2. **Remove the Stopped Container**
-
-Once the container is stopped, remove it:
+For the Docker image:
 
 ```bash
-sudo docker rm pytmbot
-```
-
-## 3. **Run pyTMBot in DEBUG Mode**
-
-Launch the pyTMBot container in DEBUG mode by executing the following command:
-
-```bash
-sudo docker run -d \
+docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  --env TZ="Asia/Yekaterinburg" \
-  --restart=always \
-  --name=pytmbot \
-  --pid=host \
-  --security-opt=no-new-privileges \
+  -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   orenlab/pytmbot:latest \
-  --log-level DEBUG --mode prod
+  --mode prod --log-level DEBUG
 ```
 
-### Command Line Arguments Explanation:
-
-- `--log-level DEBUG`: Sets the logging level to DEBUG, providing detailed information for troubleshooting
-- `--mode prod`: Specifies the production mode for the bot
-- In `DEBUG`, full Python stack traces are included for exceptions
-
-### Available Options:
-
-- **Log Levels**: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
-- **Modes**: `dev`, `prod`
-- **Additional Options**:
-    - `--plugins monitor`: Load monitor plugin
-    - `--webhook`: Enable webhook mode
-    - `--socket_host 0.0.0.0`: Set host for webhook mode
-
-## 4. **Access the Bot's Logs**
-
-To view the logs for the pyTMBot container, use the following command:
+For local execution:
 
 ```bash
-sudo docker logs pytmbot
+uv run python pytmbot/main.py --mode dev --log-level DEBUG
 ```
 
-For real-time log monitoring:
+Notes:
+
+- `DEBUG` keeps full stack traces.
+- `INFO` and above keep logs concise.
+- `--log-format human` is easier for interactive debugging.
+
+## Container Logs
 
 ```bash
-sudo docker logs -f pytmbot
+docker logs pytmbot
+docker logs -f pytmbot
 ```
 
-This will display the log output for the bot, including detailed DEBUG information.
+## Health Diagnostics
 
-## 5. **Development Mode Alternative**
-
-For development purposes, you can also run the bot in development mode with debug logging:
+Application-level health status:
 
 ```bash
-sudo docker run -d \
+uv run python pytmbot/main.py --health_check
+```
+
+Docker image diagnostic entrypoint:
+
+```bash
+docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  --env TZ="Asia/Yekaterinburg" \
-  --restart=always \
-  --name=pytmbot \
-  --pid=host \
-  --security-opt=no-new-privileges \
-  orenlab/pytmbot:latest \
-  --log-level DEBUG --mode dev
-```
-
-## 6. **Health Check and Diagnostics**
-
-Before running in DEBUG mode, you can perform health checks:
-
-```bash
-# Health check
-sudo docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
+  -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   orenlab/pytmbot:latest \
   --health_check
+```
 
-# Docker configuration check
-sudo docker run --rm \
+Docker access validation:
+
+```bash
+docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   orenlab/pytmbot:latest \
   --check-docker
 ```
 
-## 🛡️ Security Note
+## Common Failure Areas
 
-**Important**: DEBUG mode may contain sensitive information in logs. Use it only for troubleshooting and never in
-production environments where logs might be exposed. At `INFO+`, pyTMBot keeps exception logs concise (without full
-traceback dumps).
+Check these first:
 
-## 🔧 Troubleshooting
+- wrong bot token in `pytmbot.yaml`
+- missing allowlist entries in `access_control`
+- Docker socket not mounted or inaccessible
+- webhook host or port mismatch
+- missing `influxdb` config when `monitor` plugin is enabled
+- missing `plugins_config.outline` fields when `outline` is enabled
 
-If you encounter issues:
+## Useful References
 
-1. Check Docker permissions: `sudo docker run --rm orenlab/pytmbot:latest --check-docker`
-2. Verify configuration:
-   `sudo docker run --rm -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro orenlab/pytmbot:latest --health_check`
-3. Review logs: `sudo docker logs pytmbot`
-
-For additional help, refer to the full CLI arguments documentation.
+- [settings.md](settings.md)
+- [webhook.md](webhook.md)
+- [health.md](health.md)
+- [development.md](development.md)

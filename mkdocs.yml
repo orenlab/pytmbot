@@ -1,0 +1,62 @@
+site_name: pyTMbot
+site_description: Code-aligned documentation for pyTMbot
+site_url: https://orenlab.github.io/pytmbot/
+repo_name: orenlab/pytmbot
+repo_url: https://github.com/orenlab/pytmbot
+docs_dir: docs
+strict: true
+
+exclude_docs: |
+  README.md
+
+nav:
+  - Home: index.md
+  - Start Here:
+      - Installation: installation.md
+      - Docker Runtime: docker.md
+      - Configuration Reference: settings.md
+      - CLI Arguments: bot_cli_args.md
+      - Bot Command Reference: commands.md
+  - Architecture And Runtime:
+      - Architecture: architecture.md
+      - Webhook Mode: webhook.md
+      - Health System: health.md
+      - Access Control And 2FA: auth_control.md
+      - Plugins: plugins.md
+      - Security: security.md
+  - Operations:
+      - Debugging And Diagnostics: debug.md
+      - InfluxDB Reverse Proxy Setup: influxdb_host_setup.md
+  - Development:
+      - Development And Quality Gates: development.md
+      - Roadmap: roadmap.md
+  - Legacy:
+      - Installation Script Note: script_install.md
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
