@@ -54,6 +54,12 @@ jobs:
       - name: Build docs
         run: uv run mkdocs build --strict
 
+      - name: Copy custom domain file
+        run: |
+          if [ -f CNAME ]; then
+            cp CNAME site/CNAME
+          fi
+
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4

@@ -91,6 +91,21 @@ Current GitHub Actions workflows cover:
 - Hadolint for the Dockerfile
 - GitHub Pages deployment from the GitHub Actions artifact flow
 
+## Documentation Site Deployment
+
+Current publication model:
+
+- docs are built on pushes and pull requests that touch docs-related files
+- the public Pages deploy runs only on `push` to the repository default branch
+- in this repository the current default branch is `master`
+
+Operational notes:
+
+- the repository Pages source must be set to `GitHub Actions`
+- a green `Docs` workflow on a feature branch validates the build, but does not publish the site
+- if you want a custom domain later, add a repository-root `CNAME` file with the final domain; the workflow will copy it into the built site
+- HTTPS for a custom domain is enabled in GitHub Pages settings after DNS is configured correctly
+
 ## Documentation Maintenance Rules
 
 - `pytmbot.yaml.sample` is the canonical sample config.
