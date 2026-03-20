@@ -45,11 +45,11 @@ jobs:
         run: uv run pytest --cov=pytmbot --cov-report=term-missing --cov-fail-under=80
 
       - name: Verify baseline exists
-        if: ${{ matrix.python-version == '3.13' }}
+        if: ${{ matrix.python-version == '3.14' }}
         run: test -f codeclone.baseline.json
 
       - name: Check for new clones vs baseline
-        if: ${{ matrix.python-version == '3.13' }}
+        if: ${{ matrix.python-version == '3.14' }}
         run: uv run codeclone . --ci
 
   lint:
@@ -61,7 +61,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
