@@ -35,18 +35,41 @@ jobs:
         continue-on-error: true
         run: |
           docker run --rm \
-            -v "$PWD:/workspace:ro" \
-            -w /workspace \
+            -i \
             ghcr.io/hadolint/hadolint:v2.14.0 \
+            hadolint \
             --format sarif \
-            Dockerfile > hadolint-results.sarif
+            - < Dockerfile > hadolint-results.sarif
+
+      - name: Validate hadolint SARIF
+        id: hadolint_sarif
+        if: always()
+        run: |
+          if [ ! -s hadolint-results.sarif ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          json.loads(Path("hadolint-results.sarif").read_text(encoding="utf-8"))
+          PY
+          echo "valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload analysis results to GitHub
-        if: always() && hashFiles('hadolint-results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@b8d3b6e8af63cde30bdc382c0bc28114f4346c88
+        if: always() && steps.hadolint_sarif.outputs.valid == 'true'
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc
         with:
           sarif_file: hadolint-results.sarif
+          category: hadolint
           wait-for-processing: true
+
+      - name: Fail if hadolint execution failed before producing valid SARIF
+        if: always() && steps.hadolint.outcome == 'failure' && steps.hadolint_sarif.outputs.valid != 'true'
+        run: |
+          echo "hadolint failed before producing a valid SARIF report"
+          exit 1
 
       - name: Fail if hadolint reported issues
         if: steps.hadolint.outcome == 'failure'
