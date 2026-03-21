@@ -26,6 +26,7 @@ nav:
       - Security: security.md
   - Operations:
       - Debugging And Diagnostics: debug.md
+      - Release And Image Tag Policy: release_policy.md
       - InfluxDB Reverse Proxy Setup: influxdb_host_setup.md
   - Development:
       - Development And Quality Gates: development.md

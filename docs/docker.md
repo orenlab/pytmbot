@@ -7,6 +7,7 @@ Source of truth:
 - `Dockerfile`
 - `entrypoint.sh`
 - `.github/workflows/release-to-docker-ci.yml`
+- `.github/workflows/rebuild_supported_tags.yml`
 - `.github/workflows/development_image_ci.yml`
 
 ## Supported Model
@@ -17,11 +18,19 @@ Published image:
 
 - `orenlab/pytmbot`
 
-Current tag model from CI:
+Stable public tags:
 
-- `latest`
-- release tags like `0.3.0`
-- `ubuntu-dev` for development image builds from `feat/*` and `fix/*` branches
+- `0.3.0` for an exact release image
+- `0.3` for the current supported stable line
+- `stable` as the stable-channel alias
+- `latest` as an alias of `stable`
+
+Additional tags:
+
+- `0.3-rYYYYMMDD` for dated weekly stable-line rebuilds
+- `edge-<branch>` and `edge-sha-<gitsha>` for development images from `feat/*` and `fix/*` branches
+
+See [release_policy.md](release_policy.md) for the full contract.
 
 Supported image architectures:
 
@@ -69,7 +78,7 @@ docker run -d \
   --restart on-failure \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod
+  orenlab/pytmbot:stable --mode prod
 ```
 
 ## Minimal Compose
@@ -77,7 +86,7 @@ docker run -d \
 ```yaml
 services:
   pytmbot:
-    image: orenlab/pytmbot:latest
+    image: orenlab/pytmbot:stable
     container_name: pytmbot
     restart: on-failure
     environment:
@@ -100,7 +109,7 @@ services:
 Generate a TOTP salt:
 
 ```bash
-docker run --rm orenlab/pytmbot:latest --salt
+docker run --rm orenlab/pytmbot:stable --salt
 ```
 
 Check Docker socket access:
@@ -108,7 +117,7 @@ Check Docker socket access:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --check-docker
+  orenlab/pytmbot:stable --check-docker
 ```
 
 Read container logs:
@@ -134,6 +143,7 @@ Important:
 ## Related Docs
 
 - [installation.md](installation.md)
+- [release_policy.md](release_policy.md)
 - [settings.md](settings.md)
 - [bot_cli_args.md](bot_cli_args.md)
 - [webhook.md](webhook.md)

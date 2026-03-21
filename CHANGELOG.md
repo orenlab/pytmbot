@@ -30,6 +30,8 @@ All notable changes are documented in this file.
 - Simplified `quick_view` metrics flow.
 - Migrated Outline plugin to `pyoutlineapi 0.4.0`.
 - Reduced memory usage with `__slots__`; strict typing via `mypy --strict`.
+- Published image tags now follow a strict public contract: immutable `0.3.0`, floating `0.3`, `stable`, and `latest`.
+- Weekly Docker rebuilds now refresh only the supported stable line and never republish exact release tags.
 
 ### Fixed
 
@@ -44,6 +46,8 @@ All notable changes are documented in this file.
 - Switched update comparison to semantic versioning.
 - Cleaned Docker Hub tag resolution and webhook failover (polling fallback, better masking/logging).
 - Expanded and fixed InfluxDB dashboard template.
+- CI now enforces frozen `uv.lock` installs for test and docs pipelines.
+- Dockerfile linting now runs as a blocking gate on pushes and pull requests.
 
 ### Removed
 
@@ -57,6 +61,8 @@ All notable changes are documented in this file.
 - Webhook IP verification with trusted-proxy allowlist.
 - Removed wildcard proxy header trust, bounded IP caches.
 - Minimized webhook error logs (only `update_id` and `update_type` retained).
+- Pinned critical GitHub Actions workflows to immutable commit SHAs.
+- Removed raw InfluxDB URL, org, and bucket values from runtime logs and exception metadata.
 
 ### Documentation
 
@@ -65,3 +71,4 @@ All notable changes are documented in this file.
 - Deprecated legacy script installer docs.
 - Added `trusted_proxy_ips` config and webhook failover details.
 - Docs now reflect current runtime, TLS, and security behavior.
+- Added a release and image tag policy document for the `0.3.0` public support line.

@@ -4,12 +4,10 @@
 # Compatible with app version: 0.3.0-dev
 ################################################################
 
-# Configuration Schema Version (RECOMMENDED for 0.3.0+)
-# Recommended: keep this equal to current app version
-# Runtime auto-migrates mismatched versions to current app version
-# Supported versions: 0.2.2, 0.3.0-dev (alias: 0.3.0.dev0), 0.3.0
-# For legacy 0.2.2 configs: this field can be omitted
-# If omitted, pytmbot auto-fills config_version with current app version during migration
+# Configuration Schema Version
+# Keep this equal to the running pytmbot version.
+# This repository sample targets the current repository runtime version.
+# If omitted or mismatched, pytmbot auto-fills config_version with the current app version during migration.
 config_version: '0.3.0-dev'
 
 ################################################################
@@ -44,7 +42,7 @@ access_control:
     - 123456789    # Replace with actual admin Telegram user ID
 
   # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
-  # Generate with: docker run --rm orenlab/pytmbot:latest --salt
+  # Generate with: docker run --rm orenlab/pytmbot:stable --salt
   # Or use: openssl rand -hex 32
   # Or use any random 32+ character string
   auth_salt:
@@ -135,6 +133,7 @@ webhook_config:
 ################################################################
 plugins_config:
   # System Monitoring Plugin Configuration (OPTIONAL)
+  # NOTE: monitor also requires the top-level influxdb section.
   monitor:
     # Resource usage thresholds (all values in percentage or Celsius)
     tracehold:
@@ -227,52 +226,35 @@ influxdb:
   debug_mode: false  # true = enable debug logs, false = normal logging
 
 ################################################################
-# MIGRATION AND VERSIONING GUIDE:
+# VERSIONING NOTES:
 ################################################################
-# Version Schema:
-# - Config version should match app version
-# - config_version: '0.2.2' works with pytmbot 0.2.2
-# - config_version: '0.3.0-dev' works with pytmbot 0.3.0-dev
-# - config_version: '0.3.0' works with pytmbot 0.3.0
-#
-# Legacy Support:
-# - Configs without config_version field are treated as 0.2.2 legacy
-# - pytmbot 0.2.2 and above can read legacy configs
-# - App versions below 0.2.2 are End-of-Life (not supported)
-#
-# Migration Notes:
-# - Legacy configs will automatically get config_version field added
-# - Version mismatches will be auto-corrected to current app version
-# - Deprecation warnings shown for legacy configs and 0.2.2
-#
-# Example for different versions:
-# - For pytmbot 0.2.2: config_version: '0.2.2' (or omit for legacy)
-# - For pytmbot 0.3.0-dev: config_version: '0.3.0-dev'
-# - For pytmbot 0.3.0: config_version: '0.3.0'
+# - config_version should normally match the running pytmbot version.
+# - This repository sample is prepared for pytmbot 0.3.0-dev.
+# - If config_version is missing or mismatched, startup migrates it to the current app version.
+# - Review docs/settings.md after upgrades to pick up new fields or changed behavior.
 #
 ################################################################
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
-#    - Set config_version to match your pytmbot version (e.g., '0.3.0-dev')
-#    - For pytmbot 0.2.2: you can omit config_version or set to '0.2.2'
+#    - Set config_version to match your pytmbot version (this sample uses '0.3.0-dev')
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
 #    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID
 #    - Replace -1001234567890 with your chat ID for notifications
-#    - Generate auth_salt: docker run --rm orenlab/pytmbot:latest --salt
+#    - Generate auth_salt: docker run --rm orenlab/pytmbot:stable --salt
 #
 # 2. OPTIONAL steps for advanced features:
 #    - Configure webhook_config if you don't want to use polling
 #      Note: Bot automatically generates secure random webhook paths
 #    - Configure plugins_config for monitoring and VPN features
 #    - Configure influxdb for data storage and analytics
+#    - If you enable plugins_config.monitor, configure influxdb too
 #
 # 3. Version Management:
-#    - Always match config_version with your pytmbot version
-#    - Check for deprecation warnings in logs
-#    - Upgrade configs when upgrading pytmbot
-#    - Legacy 0.2.2 configs continue to work without config_version
+#    - Keep config_version aligned with your pytmbot version
+#    - Review migration or validation messages in logs after upgrades
+#    - Recheck docs/settings.md when new releases add configuration fields
 #
 # 4. Security features (automatic):
 #    - Webhook URLs include random tokens for security

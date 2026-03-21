@@ -18,7 +18,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Final, ParamSpec, TypeVar
 
-from docker import DockerClient
+from docker.client import DockerClient
 from docker.errors import NotFound
 from docker.models.containers import Container
 

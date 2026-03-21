@@ -53,6 +53,17 @@ def sanitize_exception(exception: Exception) -> str:
             secrets_to_mask.append(outline_config.api_url[0])
             secrets_to_mask.append(outline_config.cert[0])
 
+        influxdb_config = settings.influxdb
+        if influxdb_config is not None:
+            if influxdb_config.url:
+                secrets_to_mask.append(influxdb_config.url[0])
+            if influxdb_config.token:
+                secrets_to_mask.append(influxdb_config.token[0])
+            if influxdb_config.org:
+                secrets_to_mask.append(influxdb_config.org[0])
+            if influxdb_config.bucket:
+                secrets_to_mask.append(influxdb_config.bucket[0])
+
         for secret in secrets_to_mask:
             if secret and hasattr(secret, "get_secret_value"):
                 secret_value = secret.get_secret_value()

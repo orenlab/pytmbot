@@ -11,7 +11,11 @@ from influxdb_client.client.query_api import QueryApi
 from influxdb_client.client.write_api import WriteApi
 
 from pytmbot.db.influxdb_interface import InfluxDBConfig, InfluxDBInterface
-from pytmbot.exceptions import InfluxDBQueryError, InfluxDBWriteError
+from pytmbot.exceptions import (
+    InfluxDBConnectionError,
+    InfluxDBQueryError,
+    InfluxDBWriteError,
+)
 
 type _RecordScalar = str | int | float | bool | None
 type _Record = dict[str, _RecordScalar]
@@ -193,3 +197,44 @@ def test_write_data_async_returns_false_when_queue_is_full() -> None:
     finally:
         for _ in range(interface._ASYNC_WRITE_MAX_PENDING_TASKS):
             interface._async_write_slots.release()
+
+
+def test_connect_failure_uses_safe_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        InfluxDBInterface,
+        "_resolve_hostname",
+        staticmethod(lambda _hostname: "8.8.8.8"),
+    )
+    interface = InfluxDBInterface(
+        InfluxDBConfig(
+            url="https://influx.example:8086",
+            token="secret-token",
+            org="secret-org",
+            bucket="secret-bucket",
+            debug_mode=False,
+        )
+    )
+
+    def _raise_client_factory(**_kwargs: object) -> object:
+        raise RuntimeError(
+            "failed to reach https://influx.example:8086 with secret-token"
+        )
+
+    monkeypatch.setattr(
+        "pytmbot.db.influxdb_interface.InfluxDBClient",
+        _raise_client_factory,
+    )
+
+    with pytest.raises(InfluxDBConnectionError) as exc_info:
+        interface.connect()
+
+    metadata = exc_info.value.context.metadata
+    assert metadata == {
+        "url_present": True,
+        "token_present": True,
+        "org_present": True,
+        "bucket_present": True,
+        "debug_mode": False,
+    }
+    assert "https://influx.example:8086" not in str(metadata)
+    assert "secret-token" not in str(metadata)

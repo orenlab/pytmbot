@@ -35,7 +35,7 @@ Fill at least these sections:
 Generate the TOTP salt with:
 
 ```bash
-docker run --rm orenlab/pytmbot:latest --salt
+docker run --rm orenlab/pytmbot:stable --salt
 ```
 
 ## Step 2: Start The Bot
@@ -48,7 +48,7 @@ docker run -d \
   --restart on-failure \
   -v "$(pwd)/pytmbot.yaml:/opt/app/pytmbot.yaml:ro" \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod
+  orenlab/pytmbot:stable --mode prod
 ```
 
 The default runtime mode is polling. No webhook settings are required for this path.
@@ -74,7 +74,7 @@ Minimal Compose example:
 ```yaml
 services:
   pytmbot:
-    image: orenlab/pytmbot:latest
+    image: orenlab/pytmbot:stable
     container_name: pytmbot
     restart: on-failure
     volumes:
@@ -93,5 +93,6 @@ services:
 
 - [settings.md](settings.md)
 - [docker.md](docker.md)
+- [release_policy.md](release_policy.md)
 - [bot_cli_args.md](bot_cli_args.md)
 - [webhook.md](webhook.md)

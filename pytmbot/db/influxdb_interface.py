@@ -32,6 +32,7 @@ from pytmbot.exceptions import (
     InfluxDBWriteError,
 )
 from pytmbot.logs import BaseComponent
+from pytmbot.utils import sanitize_exception
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +121,7 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(action="initialization") as log:
                     log.warning(
                         "bot.db.influxdb_interface.using.non.warn",
-                        extra={"url": self._config.url},
+                        extra=self._safe_config_metadata(),
                     )
 
             # Log initialization only once and only in debug mode
@@ -128,18 +129,14 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(action="initialization") as log:
                     log.debug(
                         "bot.db.influxdb_interface.influx.client.init",
-                        extra={
-                            "url": self._config.url,
-                            "org": self._config.org,
-                            "bucket": self._config.bucket,
-                        },
+                        extra=self._safe_config_metadata(),
                     )
 
         except Exception as e:
             error_context = ErrorContext(
                 message=f"InfluxDB initialization failed: {str(e)}",
                 error_code="INIT_FAILED",
-                metadata={"url": self._config.url},
+                metadata=self._safe_config_metadata(),
             )
             raise InfluxDBConfigError(error_context) from e
 
@@ -147,6 +144,16 @@ class InfluxDBInterface(BaseComponent):
         """Enter the runtime context and initialize the client connection."""
         self.connect()
         return self
+
+    def _safe_config_metadata(self) -> dict[str, object]:
+        """Return non-secret operational metadata for logs and errors."""
+        return {
+            "url_present": bool(self._config.url.strip()),
+            "token_present": bool(self._config.token.strip()),
+            "org_present": bool(self._config.org.strip()),
+            "bucket_present": bool(self._config.bucket.strip()),
+            "debug_mode": self._config.debug_mode,
+        }
 
     def _ensure_client_initialized(self) -> None:
         with self._client_lock:
@@ -170,7 +177,7 @@ class InfluxDBInterface(BaseComponent):
                 error_context = ErrorContext(
                     message=f"Failed to establish InfluxDB connection: {str(e)}",
                     error_code="CONNECTION_FAILED",
-                    metadata={"url": self._config.url, "org": self._config.org},
+                    metadata=self._safe_config_metadata(),
                 )
                 raise InfluxDBConnectionError(error_context) from e
 
@@ -339,7 +346,7 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(action="check_url") as log:
                     log.debug(
                         "bot.db.influxdb_interface.ip.address.debug",
-                        extra={"hostname": hostname, "is_private": is_private},
+                        extra={"hostname_present": True, "is_private": is_private},
                     )
             return is_private
 
@@ -353,11 +360,7 @@ class InfluxDBInterface(BaseComponent):
                     with self.log_context(action="check_url") as log:
                         log.debug(
                             "bot.db.influxdb_interface.hostname.resolved.debug",
-                            extra={
-                                "hostname": hostname,
-                                "ip": ip_str,
-                                "is_private": is_private,
-                            },
+                            extra={"hostname_present": True, "is_private": is_private},
                         )
                 return is_private
 
@@ -367,7 +370,7 @@ class InfluxDBInterface(BaseComponent):
                     with self.log_context(action="check_url") as log:
                         log.warning(
                             "bot.db.influxdb_interface.resolve.hostname.fail",
-                            extra={"hostname": hostname},
+                            extra={"hostname_present": bool(hostname)},
                         )
                 return False
 
@@ -505,7 +508,10 @@ class InfluxDBInterface(BaseComponent):
                 ) as log:
                     log.warning(
                         "bot.db.influxdb_interface.write.async.fail.warn",
-                        extra={"error": str(e), "error_type": type(e).__name__},
+                        extra={
+                            "error": sanitize_exception(e),
+                            "error_type": type(e).__name__,
+                        },
                     )
             finally:
                 self._async_write_slots.release()
@@ -526,7 +532,10 @@ class InfluxDBInterface(BaseComponent):
             with self.log_context(action="write_async", measurement=measurement) as log:
                 log.warning(
                     "bot.db.influxdb_interface.write.async.submit.fail.warn",
-                    extra={"error": str(e), "error_type": type(e).__name__},
+                    extra={
+                        "error": sanitize_exception(e),
+                        "error_type": type(e).__name__,
+                    },
                 )
             return False
 
@@ -586,10 +595,7 @@ class InfluxDBInterface(BaseComponent):
                     field=safe_field,
                     time_range={"start": safe_start, "stop": safe_stop},
                 ) as log:
-                    log.debug(
-                        "bot.db.influxdb_interface.exec.query.debug",
-                        extra={"query": query},
-                    )
+                    log.debug("bot.db.influxdb_interface.exec.query.debug")
 
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)
@@ -664,10 +670,7 @@ class InfluxDBInterface(BaseComponent):
                 with self.log_context(
                     action="list_fields", measurement=safe_measurement
                 ) as log:
-                    log.debug(
-                        "bot.db.influxdb_interface.fetch.fields.debug",
-                        extra={"query": query},
-                    )
+                    log.debug("bot.db.influxdb_interface.fetch.fields.debug")
 
             query_api = self._require_query_api()
             tables = query_api.query(query, org=self._config.org)

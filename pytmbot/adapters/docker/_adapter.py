@@ -18,9 +18,9 @@ from types import SimpleNamespace, TracebackType
 from typing import Final
 from uuid import uuid4
 
-import docker
-from docker import DockerClient
+from docker.client import DockerClient
 from docker.errors import DockerException
+from docker.tls import TLSConfig
 
 from pytmbot.exceptions import DockerConnectionError
 from pytmbot.globals import settings
@@ -294,7 +294,7 @@ class DockerAdapter:
 
         return context
 
-    def _create_tls_config(self) -> docker.tls.TLSConfig | None:
+    def _create_tls_config(self) -> TLSConfig | None:
         """Create TLS configuration with enhanced security."""
         if not self._docker_url.startswith("https://"):
             return None
@@ -314,14 +314,14 @@ class DockerAdapter:
                 ),
                 "verify": ca_cert,
             }
-            if "assert_hostname" in signature(docker.tls.TLSConfig.__init__).parameters:
+            if "assert_hostname" in signature(TLSConfig.__init__).parameters:
                 tls_kwargs["assert_hostname"] = verify_hostname
             elif not verify_hostname:
                 self._log.warning(
                     "docker.adapter.tls.hostname.verify.unsupported.warn",
                     **self._base_context,
                 )
-            tls_config = docker.tls.TLSConfig(**tls_kwargs)
+            tls_config = TLSConfig(**tls_kwargs)
 
             self._log.trace(
                 "docker.adapter.tls.config.debug",
@@ -411,7 +411,7 @@ class DockerAdapter:
                 **self._timeout_config,
             }
 
-            client = docker.DockerClient(**client_kwargs)
+            client = DockerClient(**client_kwargs)
 
             # Test connection with timeout
             docker_info = self._test_connection(client)

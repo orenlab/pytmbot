@@ -77,6 +77,8 @@ Current local / CI gates include:
 - pytest with coverage
 - codeclone
 - pre-commit hooks
+- `uv sync --frozen` in CI to enforce `uv.lock`
+- blocking Hadolint checks for Dockerfile changes on pushes and pull requests
 
 ## CI Overview
 
@@ -87,9 +89,20 @@ Current GitHub Actions workflows cover:
 - mypy
 - codeclone baseline checks on Python `3.14`
 - MkDocs strict build for the docs site
-- Docker image builds for development and releases
+- Docker image builds for development, releases, and weekly stable-line rebuilds
 - Hadolint for the Dockerfile
 - GitHub Pages deployment from the GitHub Actions artifact flow
+
+## Release Image Policy
+
+Starting with the `0.3.0` release line:
+
+- all versions older than `0.3.0` are end-of-life
+- exact release tags stay immutable
+- floating stable tags are refreshed by the weekly rebuild workflow
+- development tags are separate from the public stable contract
+
+See [release_policy.md](release_policy.md) for the published tag semantics.
 
 ## Documentation Site Deployment
 

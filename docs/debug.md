@@ -10,7 +10,7 @@ For the Docker image:
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  orenlab/pytmbot:latest \
+  orenlab/pytmbot:stable \
   --mode prod --log-level DEBUG
 ```
 
@@ -47,7 +47,7 @@ Docker image diagnostic entrypoint:
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  orenlab/pytmbot:latest \
+  orenlab/pytmbot:stable \
   --health_check
 ```
 
@@ -56,7 +56,7 @@ Docker access validation:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest \
+  orenlab/pytmbot:stable \
   --check-docker
 ```
 
@@ -76,4 +76,5 @@ Check these first:
 - [settings.md](settings.md)
 - [webhook.md](webhook.md)
 - [health.md](health.md)
+- [release_policy.md](release_policy.md)
 - [development.md](development.md)

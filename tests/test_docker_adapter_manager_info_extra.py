@@ -8,7 +8,6 @@ from datetime import datetime
 from types import ModuleType, SimpleNamespace, TracebackType
 from typing import Never, cast
 
-import docker
 import pytest
 from docker.errors import APIError, DockerException
 
@@ -463,7 +462,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
     assert adapter._create_tls_config() is not None
 
     monkeypatch.setattr(
-        docker.tls,
+        docker_adapter_module,
         "TLSConfig",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("tls boom")),
     )
@@ -486,7 +485,7 @@ def test_docker_adapter_health_check_and_exit_error_paths(
 
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     monkeypatch.setattr(
-        docker,
+        docker_adapter_module,
         "DockerClient",
         lambda **_kwargs: _EmptyInfoClient(),
     )
@@ -567,7 +566,7 @@ def test_create_tls_config_hostname_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda fn: SimpleNamespace(parameters={}),
     )
     monkeypatch.setattr(
-        docker.tls,
+        docker_adapter_module,
         "TLSConfig",
         lambda **kwargs: SimpleNamespace(**kwargs),
     )

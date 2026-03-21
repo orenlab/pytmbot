@@ -10,7 +10,7 @@ from datetime import datetime
 from threading import RLock
 from typing import Final
 
-from docker import DockerClient
+from docker.client import DockerClient
 from docker.errors import APIError
 from docker.models.containers import Container
 

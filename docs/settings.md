@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current development value in the repository sample: `0.3.0-dev`.
+- Current repository sample value: `0.3.0-dev`.
 - Legacy configs without this field are auto-migrated.
 
 ### `bot_token`

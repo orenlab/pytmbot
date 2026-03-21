@@ -1,53 +1,101 @@
-name: CI Rebuild Specific Tags
+name: CI Rebuild Current Stable Tags
 
 on:
   schedule:
     - cron: '0 12 * * 1' # Every Monday at 12:00 UTC (17:00 Yekaterinburg)
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  DOCKER_IMAGE: orenlab/pytmbot
+  STABLE_RELEASE_LINE: "0.3"
+
 jobs:
   docker:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        tag:
-          - 0.3.0 # This will also be tagged as latest
 
     steps:
-      - name: Check that tag exists
-        id: check_tag
+      - name: Resolve latest stable release tag
+        id: resolve
+        shell: bash
         run: |
-          if git ls-remote --exit-code --tags https://github.com/orenlab/pytmbot.git "refs/tags/${{ matrix.tag }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${{ matrix.tag }} exists. Continuing build."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ${{ matrix.tag }} does not exist yet. Skipping build."
-          fi
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import re
+          import subprocess
+          import sys
+          from datetime import UTC, datetime
+
+          release_line = os.environ["STABLE_RELEASE_LINE"]
+          pattern = re.compile(rf"^v?{re.escape(release_line)}\.(\d+)$")
+          output = subprocess.check_output(
+              [
+                  "git",
+                  "ls-remote",
+                  "--tags",
+                  "--refs",
+                  "https://github.com/orenlab/pytmbot.git",
+              ],
+              text=True,
+          )
+
+          latest_tag = None
+          latest_sha = None
+          latest_patch = -1
+
+          for line in output.splitlines():
+              sha, ref = line.split()
+              tag = ref.rsplit("/", 1)[-1]
+              match = pattern.fullmatch(tag)
+              if match is None:
+                  continue
+              patch = int(match.group(1))
+              if patch > latest_patch:
+                  latest_patch = patch
+                  latest_tag = tag
+                  latest_sha = sha
+
+          if latest_tag is None or latest_sha is None:
+              print(
+                  f"No stable release tag found for line {release_line}",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+
+          rebuild_date = datetime.now(UTC).strftime("%Y%m%d")
+          print(f"release_tag={latest_tag}")
+          print(f"release_sha={latest_sha}")
+          print(f"source_ref={latest_tag}")
+          print(f"line_tag={release_line}")
+          print(f"rebuild_tag={release_line}-r{rebuild_date}")
+          PY
+
+      - name: Show rebuild source
+        run: |
+          echo "Stable line: ${{ env.STABLE_RELEASE_LINE }}"
+          echo "Release tag: ${{ steps.resolve.outputs.release_tag }}"
+          echo "Release sha: ${{ steps.resolve.outputs.release_sha }}"
 
       - name: Set up Docker Buildx
-        if: steps.check_tag.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
         with:
           install: true
           driver-opts: |
             image=moby/buildkit:v0.24.0
 
       - name: Login to Docker Hub
-        if: steps.check_tag.outputs.exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        if: steps.check_tag.outputs.exists == 'true'
-        uses: docker/build-push-action@v6
+      - name: Build and push refreshed stable image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
-          context: https://github.com/orenlab/pytmbot.git#${{ matrix.tag }}
+          context: https://github.com/orenlab/pytmbot.git#${{ steps.resolve.outputs.source_ref }}
           platforms: linux/amd64,linux/arm64
           sbom: true
           provenance: mode=max
@@ -59,10 +107,12 @@ jobs:
             COMPILE_BYTECODE=1
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/orenlab/pytmbot
+            org.opencontainers.image.version=${{ steps.resolve.outputs.release_tag }}
+            org.opencontainers.image.revision=${{ steps.resolve.outputs.release_sha }}
           tags: |
-            orenlab/pytmbot:${{ matrix.tag }}
-            orenlab/pytmbot:latest
-
-      - name: Skip message
-        if: steps.check_tag.outputs.exists != 'true'
-        run: echo "Tag ${{ matrix.tag }} is not available yet, skipping build."
+            ${{ env.DOCKER_IMAGE }}:${{ steps.resolve.outputs.line_tag }}
+            ${{ env.DOCKER_IMAGE }}:stable
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ steps.resolve.outputs.rebuild_tag }}

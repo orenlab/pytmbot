@@ -7,9 +7,11 @@ Source of truth:
 - `pytmbot/utils/cli.py`
 - `entrypoint.sh`
 
-## Two Entry Points
+## Runtime Entry Points
 
-- Core CLI: `python pytmbot/main.py ...`
+- Module CLI: `python -m pytmbot ...`
+- Installed CLI: `pytmbot ...`
+- Direct script CLI: `python pytmbot/main.py ...`
 - Container entrypoint: `docker run ... orenlab/pytmbot:... ...`
 
 The Docker image wraps the core CLI and adds a few container-specific utility flags.
@@ -67,13 +69,13 @@ The container entrypoint accepts both the bare flag and an explicit boolean valu
 Local development:
 
 ```bash
-python pytmbot/main.py --mode dev --log-level DEBUG
+python -m pytmbot --mode dev --log-level DEBUG
 ```
 
 Local webhook run:
 
 ```bash
-python pytmbot/main.py --mode prod --webhook true --socket_host 0.0.0.0
+python -m pytmbot --mode prod --webhook true --socket_host 0.0.0.0
 ```
 
 Production container with plugins:
@@ -83,13 +85,13 @@ docker run -d \
   --name pytmbot \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --mode prod --plugins monitor outline
+  orenlab/pytmbot:stable --mode prod --plugins monitor outline
 ```
 
 Generate a TOTP salt:
 
 ```bash
-docker run --rm orenlab/pytmbot:latest --salt
+docker run --rm orenlab/pytmbot:stable --salt
 ```
 
 Check Docker access inside the image:
@@ -97,12 +99,13 @@ Check Docker access inside the image:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  orenlab/pytmbot:latest --check-docker
+  orenlab/pytmbot:stable --check-docker
 ```
 
 ## Related Docs
 
 - [installation.md](installation.md)
 - [docker.md](docker.md)
+- [release_policy.md](release_policy.md)
 - [settings.md](settings.md)
 - [health.md](health.md)

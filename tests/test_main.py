@@ -93,3 +93,17 @@ def test_check_health_exit_codes(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as exc_none:
         main_module.check_health()
     assert exc_none.value.code == 2
+
+
+def test_module_entrypoint_invokes_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    main_module = _load_main_module(monkeypatch)
+    calls = {"count": 0}
+
+    monkeypatch.setattr(
+        main_module, "main", lambda: calls.__setitem__("count", calls["count"] + 1)
+    )
+    sys.modules.pop("pytmbot.__main__", None)
+
+    importlib.import_module("pytmbot.__main__")
+
+    assert calls["count"] == 1

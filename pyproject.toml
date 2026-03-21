@@ -6,6 +6,7 @@ authors = [{ name = "Denis Rozhnovskiy", email = "pytelemonbot@mail.ru" }]
 requires-python = ">=3.12,<4"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 keywords = [
     "telegram",
     "bot",
@@ -18,7 +19,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Topic :: System :: Monitoring",
     "Topic :: Communications :: Chat",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -72,6 +72,9 @@ dev = [
     "pre-commit>=4.5.1",
 ]
 
+[project.scripts]
+pytmbot = "pytmbot.main:main"
+
 [tool.uv]
 
 [tool.uv.build-backend]
@@ -82,7 +85,7 @@ module-root = ""
 codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "feat/2.0.0" }
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
+requires = ["uv_build>=0.9.18,<0.11.0"]
 build-backend = "uv_build"
 
 [tool.ruff]

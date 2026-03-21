@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from threading import RLock, local
 
-from docker import DockerClient
+from docker.client import DockerClient
 
 from pytmbot.adapters.docker._adapter import DockerAdapter
 

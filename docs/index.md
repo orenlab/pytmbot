@@ -28,6 +28,7 @@ When prose and implementation disagree, the source of truth is:
 ## Operations
 
 - [Debugging and diagnostics](debug.md)
+- [Release and image tag policy](release_policy.md)
 - [InfluxDB reverse-proxy setup](influxdb_host_setup.md)
 
 ## Development
