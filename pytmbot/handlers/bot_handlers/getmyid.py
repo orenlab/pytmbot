@@ -183,4 +183,4 @@ def handle_getmyid(
         )
 
         logger.error("bot.handler.bot.getmyid.fail")
-        raise exceptions.HandlingException(error_context)
+        raise exceptions.HandlingException(error_context) from error

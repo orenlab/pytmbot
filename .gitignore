@@ -118,6 +118,11 @@ ipython_config.py
 env/
 venv/
 ENV/
+
+#######################################
+# OS Metadata
+# Exclude platform-specific Finder metadata
+.DS_Store
 env.bak/
 venv.bak/
 .pdm.toml

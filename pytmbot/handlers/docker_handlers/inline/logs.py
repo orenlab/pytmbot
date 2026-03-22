@@ -47,7 +47,7 @@ LOGS_ACTION_NAV: Final[str] = "nav"
 LOGS_ACTION_REFRESH: Final[str] = "refresh"
 LOGS_ACTION_FILE: Final[str] = "file"
 LOGS_TRUNCATION_NOTICE: Final[str] = "[LOGS TRUNCATED FOR TELEGRAM LENGTH LIMIT]\n"
-LOGS_EMPTY_MESSAGE: Final[str] = "No logs available for this container."
+LOGS_EMPTY_MESSAGE: Final[str] = "No logs are available for this container."
 LOGS_FILE_AUTO_DELETE_DELAY_SECONDS: Final[int] = 30
 LOGS_FILE_DELETION_NOTICE: Final[str] = (
     "This file will be automatically deleted in 30 seconds."
@@ -280,7 +280,7 @@ def _validate_logs_session_access(
         )
         show_handler_info(
             call=call,
-            text="Access denied: logs session belongs to another user.",
+            text="This logs session belongs to another user.",
             bot=bot,
         )
         return False
@@ -439,7 +439,7 @@ def _edit_logs_message(
         logger.warning("bot.handler.docker.logging.cannot.render.warn")
         return show_handler_info(
             call=call,
-            text="Cannot update logs view in this context.",
+            text="This logs message can no longer be updated.",
             bot=bot,
         )
 
@@ -471,7 +471,7 @@ def _edit_logs_message(
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
-        not_modified_text="Logs view is already up to date.",
+        not_modified_text="Logs view is already current.",
     )
 
 
@@ -501,7 +501,7 @@ def _open_logs_session(
         logger.error("bot.handler.docker.logging.getting.logs.fail")
         return show_handler_info(
             call,
-            text=f"{container_name}: Error getting logs",
+            text=f"{container_name}: Couldn't load logs right now.",
             bot=bot,
         )
 
@@ -528,7 +528,7 @@ def _get_session_or_show_error(
         logger.warning("bot.handler.docker.logging.logs.session.warn")
         show_handler_info(
             call,
-            text="Logs session expired. Open logs again from container info.",
+            text="This logs session has expired. Open logs again from container details.",
             bot=bot,
         )
     return session
@@ -547,13 +547,15 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
         logger.warning("bot.handler.docker.logging.cannot.send.warn")
         return show_handler_info(
             call,
-            text="Cannot send logs file in this context.",
+            text="This logs file can no longer be sent from this message.",
             bot=bot,
         )
 
     if not session.raw_logs.strip():
         return show_handler_info(
-            call, text=f"{session.container_name}: No logs available", bot=bot
+            call,
+            text=f"{session.container_name}: No logs are available right now.",
+            bot=bot,
         )
 
     chat_id = call.message.chat.id
@@ -630,7 +632,7 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
         parsed = _parse_logs_callback_data(call.data or "")
     except (ValueError, TypeError):
         logger.warning("bot.handler.docker.logging.invalid.logs.fail")
-        show_handler_info(call, text="Invalid logs request format", bot=bot)
+        show_handler_info(call, text="This logs button is no longer valid.", bot=bot)
         return None
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, parsed.user_id)
@@ -737,5 +739,5 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
         _send_logs_as_file(call=call, bot=bot, session=session)
         return None
 
-    show_handler_info(call, text="Unsupported logs action", bot=bot)
+    show_handler_info(call, text="This logs action is not supported.", bot=bot)
     return None

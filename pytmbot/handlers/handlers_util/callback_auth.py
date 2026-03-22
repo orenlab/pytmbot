@@ -50,26 +50,26 @@ def authorize_callback_request(
 ) -> tuple[bool, str]:
     """Generic callback authorization guard."""
     if call.from_user is None:
-        return False, "Missing user information"
+        return False, "Couldn't verify your Telegram account."
 
     current_user_id = int(call.from_user.id)
 
     if current_user_id not in settings.access_control.allowed_user_ids:
-        return False, "Access denied"
+        return False, "You don't have access to this action."
 
     if (
         require_admin
         and current_user_id not in settings.access_control.allowed_admins_ids
     ):
-        return False, "Access denied"
+        return False, "You don't have access to this action."
 
     if require_owner_match:
         if target_user_id is None:
-            return False, "Invalid target user id"
+            return False, "This button is no longer valid."
         if current_user_id != target_user_id:
-            return False, "Access denied"
+            return False, "This button belongs to another user."
 
     if require_session and not session_manager.is_authenticated(current_user_id):
-        return False, "Not authenticated user"
+        return False, "Please complete 2FA first."
 
     return True, ""

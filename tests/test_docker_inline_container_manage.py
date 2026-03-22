@@ -195,7 +195,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid request format"
+    assert shown[-1] == "This container details button is no longer valid."
 
     monkeypatch.setattr(
         container_info_module,
@@ -203,7 +203,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda data: None,
     )
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid request format"
+    assert shown[-1] == "This container details button is no longer valid."
 
     monkeypatch.setattr(
         container_info_module,
@@ -230,7 +230,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         bot=bot,
         shown=shown,
         callback_data="ok",
-        invalid_text="Invalid container name format",
+        invalid_text="This container reference is invalid.",
     )
     monkeypatch.setattr(
         container_info_module, "get_comprehensive_container_details", lambda name: {}
@@ -304,7 +304,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     assert any(value.startswith("__containers_page__") for value in callback_data)
 
     handler(cast(CallbackQuery, _Call(data="ok", message=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot render container details in this context"
+    assert shown[-1] == "This container details message can no longer be updated."
 
     monkeypatch.setattr(
         container_info_module,
@@ -312,7 +312,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda data: (_ for _ in ()).throw(ValueError("bad")),
     )
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid request data"
+    assert shown[-1] == "This container details request is no longer valid."
 
     monkeypatch.setattr(
         container_info_module,
@@ -333,7 +333,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("render fail")),
     )
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
-    assert shown[-1] == "An error occurred while processing request"
+    assert shown[-1] == "Couldn't load container details right now."
 
 
 def test_parse_container_extra_callback_data() -> None:
@@ -369,7 +369,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid container details request"
+    assert shown[-1] == "This container details button is no longer valid."
 
     monkeypatch.setattr(
         runtime_info_module,
@@ -394,7 +394,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         bot=bot,
         shown=shown,
         callback_data="__container_extra__:volumes:api:11",
-        invalid_text="Invalid container name format",
+        invalid_text="This container reference is invalid.",
     )
     monkeypatch.setattr(
         runtime_info_module, "get_container_full_details", lambda name: None
@@ -478,7 +478,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         ),
         cast(TeleBot, bot),
     )
-    assert shown[-1] == "Cannot render container details in this context"
+    assert shown[-1] == "This container details message can no longer be updated."
 
     handler(
         cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
@@ -589,7 +589,7 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         cast(CallbackQuery, _Call(data="__manage__:api:11", message=None)),
         cast(TeleBot, bot),
     )
-    assert shown[-1] == "Managing api: Missing callback message"
+    assert shown[-1] == "This container management message can no longer be updated."
 
 
 def test_handle_container_full_info_ignores_not_modified(
@@ -663,9 +663,7 @@ def test_handle_container_full_info_ignores_not_modified(
     patch_not_modified_edit_error(monkeypatch, bot)
 
     handler(cast(CallbackQuery, _Call(data="__get_full__:api:11")), cast(TeleBot, bot))
-    assert (
-        bot.callback_answers[-1]["text"] == "Container details are already up to date."
-    )
+    assert bot.callback_answers[-1]["text"] == "Container details are already current."
 
 
 def test_handle_container_extra_info_ignores_not_modified(
@@ -708,9 +706,7 @@ def test_handle_container_extra_info_ignores_not_modified(
         cast(CallbackQuery, _Call(data="__container_extra__:runtime:api:11")),
         cast(TeleBot, bot),
     )
-    assert (
-        bot.callback_answers[-1]["text"] == "Container details are already up to date."
-    )
+    assert bot.callback_answers[-1]["text"] == "Container details are already current."
 
 
 def test_handle_manage_container_ignores_not_modified(
@@ -727,5 +723,5 @@ def test_handle_manage_container_ignores_not_modified(
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
     assert (
         bot.callback_answers[-1]["text"]
-        == "Container management view is already up to date."
+        == "Container management view is already current."
     )

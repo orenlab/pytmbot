@@ -325,7 +325,7 @@ def test_validate_logs_session_access_denies_non_owner(
         requested_action=LOGS_ACTION_NAV,
     )
     assert allowed is False
-    assert shown == ["Access denied: logs session belongs to another user."]
+    assert shown == ["This logs session belongs to another user."]
 
 
 def test_validate_logs_session_access_denies_by_authorization(
@@ -438,7 +438,7 @@ def test_edit_logs_message_handles_missing_message_context(
         emojis={},
     )
     assert result is None
-    assert shown == ["Cannot update logs view in this context."]
+    assert shown == ["This logs message can no longer be updated."]
 
 
 def test_edit_logs_message_edits_with_clamped_index(
@@ -497,7 +497,7 @@ def test_edit_logs_message_ignores_not_modified(
         emojis={},
     )
     assert result is False
-    assert bot.callback_answers[-1]["text"] == "Logs view is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Logs view is already current."
 
 
 def test_get_session_or_show_error_when_expired(
@@ -519,7 +519,9 @@ def test_get_session_or_show_error_when_expired(
         )
         is None
     )
-    assert shown == ["Logs session expired. Open logs again from container info."]
+    assert shown == [
+        "This logs session has expired. Open logs again from container details."
+    ]
 
 
 def test_send_logs_as_file_scheduled_auto_deletion(
@@ -658,8 +660,8 @@ def test_handle_get_logs_invalid_and_unsupported(
         cast(TeleBot, _DummyBot()),
     )
 
-    assert shown[0] == "Invalid logs request format"
-    assert shown[1] == "Unsupported logs action"
+    assert shown[0] == "This logs button is no longer valid."
+    assert shown[1] == "This logs action is not supported."
 
 
 def test_open_logs_session_handles_unsupported_logging_driver(
@@ -867,7 +869,7 @@ def test_send_logs_as_file_no_message_or_empty_logs_paths(
         bot=cast(TeleBot, bot),
         session=session,
     )
-    assert shown[0] == "Cannot send logs file in this context."
+    assert shown[0] == "This logs file can no longer be sent from this message."
 
     with_message_call = _DummyCall()
     empty_logs_session = _make_session(raw_logs="  ")
@@ -876,7 +878,7 @@ def test_send_logs_as_file_no_message_or_empty_logs_paths(
         bot=cast(TeleBot, bot),
         session=empty_logs_session,
     )
-    assert shown[1] == "container: No logs available"
+    assert shown[1] == "container: No logs are available right now."
 
 
 def test_send_logs_as_file_includes_expected_schedule_delay(

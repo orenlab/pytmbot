@@ -591,7 +591,7 @@ class ContainerManager:
                 execution_time=f"{execution_time:.2f}s",
                 **context,
             )
-            raise ValueError(f"Invalid action: {action}")
+            raise ValueError(f"Invalid action: {action}") from e
 
         except PermissionError:
             # Already logged in validator, just re-raise

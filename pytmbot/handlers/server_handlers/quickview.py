@@ -282,4 +282,4 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_QV1",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

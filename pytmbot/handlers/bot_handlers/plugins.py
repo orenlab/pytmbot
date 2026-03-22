@@ -49,7 +49,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
             send_telegram_message(
                 bot=bot,
                 chat_id=message.chat.id,
-                text=f"⚠️ {first_name}, there are no plugins available...",
+                text=f"⚠️ {first_name}, no plugins are available right now.",
                 parse_mode="Markdown",
             )
             return
@@ -88,7 +88,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
     except Exception as error:
         bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+            message.chat.id, "⚠️ An error occurred while opening the plugins menu."
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -96,4 +96,4 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_015",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -39,10 +39,10 @@ repos:
 
       - id: codeclone
         name: CodeClone
-        entry: codeclone
+        entry: .venv/bin/codeclone
         language: system
         pass_filenames: false
-        args: [ ".", "--ci" ]
+        args: [ ".", "--ci", "--cache-path", ".cache/codeclone/pre-commit-cache.json" ]
         types: [ python ]
         stages: [ pre-commit ]
 

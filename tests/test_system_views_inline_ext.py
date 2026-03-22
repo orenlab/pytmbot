@@ -394,7 +394,9 @@ def test_handle_sensors_overview_uses_fallback_without_temperatures(
 
     handler = _raw_handler(system_views_module.handle_sensors_overview)
     handler(cast(CallbackQuery, _Call()), cast(TeleBot, _Bot()))
-    assert "No temperature sensors available." in str(edit_calls[-1]["text"])
+    assert "No temperature sensors are available on this host." in str(
+        edit_calls[-1]["text"]
+    )
     assert edit_calls[-1]["reply_markup"] is None
 
 
@@ -416,4 +418,6 @@ def test_handle_quickview_sensors_uses_fallback_without_temperatures(
 
     handler = _raw_handler(system_views_module.handle_quickview_sensors)
     handler(cast(CallbackQuery, _Call()), cast(TeleBot, _Bot()))
-    assert edit_calls[-1]["text"] == "⚠️ No sensors were found :("
+    assert (
+        edit_calls[-1]["text"] == "⚠️ No temperature sensors are available on this host."
+    )

@@ -42,7 +42,7 @@ class _SeriesStats:
     samples: int
 
 
-# noqa: codeclone[dead-code]
+# codeclone: ignore[dead-code]
 class MonitoringPlugin(PluginInterface):
     """Monitoring plugin UI and Influx-backed metric handlers."""
 

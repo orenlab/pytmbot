@@ -64,7 +64,8 @@ def handle_uptime(message: Message, bot: TeleBot) -> None:
         if uptime_data is None:
             logger.error("bot.handler.server.uptime.get.fail")
             bot.send_message(
-                message.chat.id, text="⚠️ Some error occurred. Please try again later("
+                message.chat.id,
+                text="⚠️ Couldn't retrieve uptime right now. Please try again later.",
             )
             return None
 
@@ -91,4 +92,4 @@ def handle_uptime(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

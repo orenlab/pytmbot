@@ -66,4 +66,4 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_016",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

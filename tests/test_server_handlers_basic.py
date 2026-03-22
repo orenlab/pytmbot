@@ -181,7 +181,7 @@ def _assert_memory_or_process_handler_paths(
         type("A", (), {adapter_method: lambda self: None})(),
     )
     _invoke_handler(handler, message, bot)
-    assert "Some error occurred" in str(messages[-1]["text"])
+    assert "Couldn't retrieve" in str(messages[-1]["text"])
 
     monkeypatch.setattr(
         module,
@@ -281,7 +281,7 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         type("A", (), {"get_uptime": lambda self: None})(),
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
-    assert "Some error occurred" in str(messages[-1]["text"])
+    assert "Couldn't retrieve uptime" in str(messages[-1]["text"])
 
     monkeypatch.setattr(
         uptime_module,
@@ -399,7 +399,7 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
         success_payload=[{"name": "cpu", "temp": 55}],
         success_text="sensors ok",
         parse_mode="HTML",
-        none_text_contains="No sensors were found",
+        none_text_contains="No temperature or fan sensors were found",
         expected_error_code="HAND_003",
         message=message,
         bot=bot,

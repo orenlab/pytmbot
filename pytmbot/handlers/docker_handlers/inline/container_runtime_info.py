@@ -416,7 +416,9 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
     try:
         parsed = parse_container_extra_callback_data(call.data)
     except ValueError:
-        show_handler_info(call, text="Invalid container details request", bot=bot)
+        show_handler_info(
+            call, text="This container details button is no longer valid.", bot=bot
+        )
         return None
 
     is_allowed, deny_reason = authorize_docker_callback_request(call, parsed.user_id)
@@ -425,7 +427,7 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
         return None
 
     if not validate_container_name(parsed.container_name):
-        show_handler_info(call, text="Invalid container name format", bot=bot)
+        show_handler_info(call, text="This container reference is invalid.", bot=bot)
         return None
 
     container_details = get_container_full_details(parsed.container_name)
@@ -441,7 +443,7 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
     if callback_message is None:
         show_handler_info(
             call,
-            text="Cannot render container details in this context",
+            text="This container details message can no longer be updated.",
             bot=bot,
         )
         return None
@@ -497,6 +499,6 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
             emojis=emojis,
         ),
         parse_mode="HTML",
-        not_modified_text="Container details are already up to date.",
+        not_modified_text="Container details are already current.",
     )
     return None

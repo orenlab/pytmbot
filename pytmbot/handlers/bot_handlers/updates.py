@@ -85,7 +85,9 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         if message.from_user is not None:
             callback_data = f"__how_update__:{message.from_user.id}"
 
-        keyboard_button = [button_data(text="How update?", callback_data=callback_data)]
+        keyboard_button = [
+            button_data(text="Update guide", callback_data=callback_data)
+        ]
 
         inline_button = (
             keyboards.build_inline_keyboard(keyboard_button) if need_inline else None
@@ -106,7 +108,7 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_013",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 def _process_message() -> tuple[str, bool]:
@@ -159,8 +161,8 @@ def _render_development_message() -> str:
     }
 
     message = (
-        f"You are using the development version: {__version__}. "
-        "We recommend upgrading to a stable release for a better experience."
+        f"You are running the development build: {__version__}. "
+        "For day-to-day use, a stable release is recommended."
     )
 
     return Compiler.quick_render(
@@ -179,9 +181,7 @@ def _render_update_difficulties_message() -> str:
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    message = (
-        "There were some difficulties checking for updates. We should try again later."
-    )
+    message = "I couldn't check for updates right now. Please try again later."
 
     return Compiler.quick_render(
         template_name="b_none.jinja2", context=message, **emojis
@@ -229,7 +229,7 @@ def _render_no_update_message() -> str:
     Returns:
         str: The rendered message.
     """
-    context: str = f"Current version: {__version__}. No update available."
+    context = f"You are running version {__version__}. No newer release was found."
 
     emojis: dict[str, str] = {
         "thought_balloon": em.get_emoji("thought_balloon"),
@@ -254,9 +254,9 @@ def _render_future_message(update_context: dict[str, str]) -> str:
     """
     current_version: str = update_context["tag_name"]
 
-    context: str = (
-        f"Current version: {current_version}. Your version: {__version__}. "
-        "You are living in the future, and I am glad to say that I will continue to grow and evolve!"
+    context = (
+        f"Latest GitHub release: {current_version}. "
+        f"This bot is running {__version__}, which looks newer."
     )
 
     emojis: dict[str, str] = {
@@ -307,8 +307,10 @@ def __check_bot_update() -> dict[str, str]:
 
             try:
                 published_date = datetime.fromisoformat(published_at)
-            except ValueError:
-                raise ValueError("Invalid 'published_at' format. Expected ISO format.")
+            except ValueError as error:
+                raise ValueError(
+                    "Invalid 'published_at' format. Expected ISO format."
+                ) from error
 
             release_info = {
                 "tag_name": tag_name,

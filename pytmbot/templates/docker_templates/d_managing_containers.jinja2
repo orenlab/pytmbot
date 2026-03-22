@@ -1,14 +1,15 @@
-{# templates/memory.jinja2 #}
 {% macro format_container_name(name) %}
 {{ emojis['briefcase'] }} <b>{{ name }}</b>
 {% endmacro %}
 
-{{ emojis['cross_mark'] }} <b>Attention!</b> {{ emojis['double_exclamation_mark'] }}<b>DANGER zone!</b>
+{{ emojis['cross_mark'] }} <b>Container actions</b>
 
-This section allows you to manage the container {{ format_container_name(container_name) }}
+You are about to manage {{ format_container_name(container_name) }}.
 Current container state: <b>{{ state }}</b>
 
-<b>All your actions are final</b> {{ emojis['anxious_face_with_sweat'] }}
+{{ emojis['anxious_face_with_sweat'] }} <b>Changes here affect the live container immediately.</b>
+<b>Start</b>, <b>Stop</b>, and <b>Restart</b> are reversible.
+<b>Remove</b> deletes the container.
 
 {% set actions = {
     'Start': 'Start the container using the last set of arguments',
@@ -17,11 +18,11 @@ Current container state: <b>{{ state }}</b>
     'Remove': 'Remove the container'
 } %}
 
-The following options are available, depending on the current state of the container:
+Available actions depend on the current container state:
 <blockquote expandable>
     {% for action, description in actions.items() %}
     {{ action }}: {{ description }}
     {% endfor %}
 </blockquote>
 
-Available options for the container {{ format_container_name(container_name) }}
+Choose an action for {{ format_container_name(container_name) }}.

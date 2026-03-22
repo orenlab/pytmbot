@@ -92,4 +92,4 @@ def handle_file_system(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_008",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

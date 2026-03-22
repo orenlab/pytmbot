@@ -28,11 +28,8 @@ class _TestPlugin(PluginInterface):
 @pytest.fixture(autouse=True)
 def _reset_plugin_manager_singleton() -> None:
     PluginManager._instance = None
-    PluginManager._index_keys.clear()
-    PluginManager._plugin_names.clear()
-    PluginManager._plugin_descriptions.clear()
-    PluginManager._plugin_instances.clear()
-    PluginManager._loaded_plugins.clear()
+    PluginManager._validate_plugin_name.cache_clear()
+    PluginManager._module_exists.cache_clear()
     _TestPlugin.registered_calls = 0
     _TestPlugin.cleanup_calls = 0
 
@@ -182,8 +179,15 @@ def test_cleanup_plugin_and_cleanup_all_plugins() -> None:
     assert "test_plugin" not in manager._loaded_plugins
 
     manager._loaded_plugins.update({"a", "b"})
+    manager._index_keys["test"] = "plugin"
+    manager._plugin_names["test_plugin"] = "1.0.0"
+    manager._plugin_descriptions["test_plugin"] = "Test plugin"
     manager.cleanup_all_plugins()
     assert manager._loaded_plugins == set()
+    assert manager._plugin_instances == {}
+    assert manager._index_keys == {}
+    assert manager._plugin_names == {}
+    assert manager._plugin_descriptions == {}
 
 
 def test_module_exists_uses_import_spec(monkeypatch: pytest.MonkeyPatch) -> None:

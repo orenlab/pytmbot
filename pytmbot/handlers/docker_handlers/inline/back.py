@@ -53,7 +53,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
     if call.from_user is None:
         show_handler_info(
             call=call,
-            text="Cannot identify callback user.",
+            text="Couldn't verify who pressed this button.",
             bot=bot,
         )
         return None
@@ -61,7 +61,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
     if call.message is None:
         show_handler_info(
             call=call,
-            text="Cannot refresh containers list in this context.",
+            text="This containers list message can no longer be updated.",
             bot=bot,
         )
         return None
@@ -69,7 +69,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
     if call.data is None:
         show_handler_info(
             call=call,
-            text="Invalid containers pagination request.",
+            text="This pagination button is no longer valid.",
             bot=bot,
         )
         return None
@@ -80,7 +80,7 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
         logger.warning("bot.handler.docker.back.parse.containers.fail", error=str(exc))
         show_handler_info(
             call=call,
-            text="Invalid containers pagination request.",
+            text="This pagination button is no longer valid.",
             bot=bot,
         )
         return None
@@ -122,6 +122,6 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
-        not_modified_text="Containers list is already up to date.",
+        not_modified_text="Containers list is already current.",
     )
     return None

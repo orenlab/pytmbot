@@ -498,7 +498,7 @@ def handle_system_health(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_HEALTH_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -507,8 +507,12 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=HEALTH_REFRESH_PREFIX,
-        invalid_payload_text="Invalid health refresh request format.",
-        missing_message_text="Cannot refresh health in this context.",
+        invalid_payload_text=(
+            "This refresh button is no longer valid. Run /health again."
+        ),
+        missing_message_text=(
+            "This health message can no longer be refreshed. Run /health again."
+        ),
     )
     if not is_allowed:
         return None
@@ -524,7 +528,7 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
             text=health_message,
             parse_mode="HTML",
             reply_markup=keyboard,
-            not_modified_text="Health snapshot is already up to date.",
+            not_modified_text="Health snapshot is already current.",
         )
         if was_edited:
             bot.answer_callback_query(
@@ -540,4 +544,4 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_HEALTH_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

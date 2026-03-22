@@ -156,7 +156,7 @@ def handle_qr_code_message(
 
             response = Compiler.quick_render(
                 template_name="b_none.jinja2",
-                context="Failed to generate QR code... I apologize!",
+                context="Couldn't generate a QR code right now. Please try again.",
                 **emojis,
             )
 
@@ -224,4 +224,4 @@ def handle_qr_code_message(
         )
 
         logger.error("bot.handler.auth_processing.qrcode_processing.qr.code.fail")
-        raise exceptions.HandlingException(error_context)
+        raise exceptions.HandlingException(error_context) from error

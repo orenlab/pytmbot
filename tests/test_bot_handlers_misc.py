@@ -265,7 +265,9 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
-    assert sent_payloads and "no plugins available" in str(sent_payloads[-1]["text"])
+    assert sent_payloads and "no plugins are available" in str(
+        sent_payloads[-1]["text"]
+    )
 
     manager_stub.keys = ["A"]
     manager_stub.names = ["A"]
@@ -306,7 +308,7 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "plugins command" in str(bot.sent_messages[-1]["text"])
+    assert "plugins menu" in str(bot.sent_messages[-1]["text"])
 
 
 def test_version_helpers_and_process_message_branches(
@@ -456,9 +458,9 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         invalid_data="bad",
         valid_data="__how_update__:101",
         target_user_id=101,
-        invalid_text_contains="Invalid update info request format",
+        invalid_text_contains="This update button is no longer valid",
         denied_text="denied",
-        missing_message_text_contains="Cannot render update info",
+        missing_message_text_contains="This update message can no longer be refreshed",
     )
 
     monkeypatch.setattr(
@@ -483,7 +485,7 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot)
         )
     assert exc_info.value.context.error_code == "HAND_019"
-    assert "Some error occurred" in str(bot.edited_messages[-1]["text"])
+    assert "Couldn't load the update guide" in str(bot.edited_messages[-1]["text"])
     error_markup = bot.edited_messages[-1].get("reply_markup")
     assert error_markup is not None
 
@@ -524,7 +526,4 @@ def test_handle_update_info_ignores_not_modified(
     )
 
     handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
-    assert (
-        bot.callback_answers[-1]["text"]
-        == "Update instructions are already up to date."
-    )
+    assert bot.callback_answers[-1]["text"] == "Update guide is already current."

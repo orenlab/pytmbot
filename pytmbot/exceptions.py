@@ -121,7 +121,7 @@ class QRCodeError(BaseBotException):
 class TelebotExceptionHandler(ExceptionHandler):
     """Custom exception handler for Telebot with structured logging and token sanitization."""
 
-    # noqa: codeclone[dead-code]
+    # codeclone: ignore[dead-code]
     def handle(self, exception: Exception) -> bool:
         """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level

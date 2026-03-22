@@ -52,7 +52,7 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_011",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 def __fetch_counters() -> dict[str, int]:
@@ -106,4 +106,4 @@ def _compile_message() -> str:
                 error_code="TEMPL_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

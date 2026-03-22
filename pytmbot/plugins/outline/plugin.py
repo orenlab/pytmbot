@@ -26,7 +26,7 @@ em = get_emoji_converter()
 keyboards = get_keyboards()
 
 
-# noqa: codeclone[dead-code]
+# codeclone: ignore[dead-code]
 class OutlinePlugin(PluginInterface):
     def __init__(self, bot: TeleBot):
         """

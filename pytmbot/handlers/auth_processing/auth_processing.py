@@ -123,7 +123,7 @@ def _handle_auth_message(
                 error_code=error_code,
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 def handle_unauthorized_message(query: Message | CallbackQuery, bot: TeleBot) -> None:

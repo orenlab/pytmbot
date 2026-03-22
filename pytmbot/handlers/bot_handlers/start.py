@@ -45,7 +45,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
 
     except Exception as error:
         bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+            message.chat.id, "⚠️ An error occurred while opening the main menu."
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -53,4 +53,4 @@ def handle_start(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_014",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -97,7 +97,7 @@ def _assert_common_callback_context_errors(
     missing_message_error: str,
 ) -> None:
     handler(cast(CallbackQuery, _Call(from_user=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Cannot identify callback user."
+    assert shown[-1] == "Couldn't verify who pressed this button."
 
     handler(cast(CallbackQuery, _Call(message=None)), cast(TeleBot, bot))
     assert shown[-1] == missing_message_error
@@ -164,15 +164,15 @@ def _assert_image_details_callback_paths(
         handler=handler,
         bot=bot,
         shown=shown,
-        missing_message_error="Cannot render image details in this context.",
+        missing_message_error="This image details message can no longer be updated.",
     )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid image details request."
+    assert shown[-1] == "This image details button is no longer valid."
 
     monkeypatch.setattr(module, parse_attr, lambda data: None)
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid image details request."
+    assert shown[-1] == "This image details button is no longer valid."
 
     monkeypatch.setattr(module, parse_attr, parse_valid)
 
@@ -196,7 +196,9 @@ def _assert_image_details_callback_paths(
     )
     monkeypatch.setattr(module, render_attr, render_none)
     handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
-    assert shown[-1] == "Image details are unavailable. Refresh the images list first."
+    assert shown[-1] == (
+        "Image details are no longer available. Refresh the images list first."
+    )
 
     monkeypatch.setattr(module, render_attr, render_success)
     handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
@@ -224,14 +226,14 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         handler=handler,
         bot=bot,
         shown=shown,
-        missing_message_error="Cannot refresh containers list in this context.",
+        missing_message_error="This containers list message can no longer be updated.",
     )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid containers pagination request."
+    assert shown[-1] == "This pagination button is no longer valid."
 
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid containers pagination request."
+    assert shown[-1] == "This pagination button is no longer valid."
 
     monkeypatch.setattr(
         back_module,
@@ -269,17 +271,17 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=handler,
         bot=bot,
         shown=shown,
-        missing_message_error="Cannot update images list in this context.",
+        missing_message_error="This images list message can no longer be updated.",
     )
 
     handler(cast(CallbackQuery, _Call(data=None)), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid images pagination request."
+    assert shown[-1] == "This pagination button is no longer valid."
 
     monkeypatch.setattr(
         images_page_module, "parse_page_callback_data", lambda data, prefix: None
     )
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "Invalid images pagination request."
+    assert shown[-1] == "This pagination button is no longer valid."
 
     monkeypatch.setattr(
         images_page_module, "parse_page_callback_data", lambda data, prefix: (2, 11)
@@ -390,9 +392,9 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         invalid_data="bad",
         valid_data="__check_updates__:11",
         target_user_id=11,
-        invalid_text_contains="Invalid image updates request format",
+        invalid_text_contains="This image updates button is no longer valid",
         denied_text="deny",
-        missing_message_text_contains="Cannot render image updates",
+        missing_message_text_contains="This image updates message can no longer be refreshed",
     )
 
     class _UpdaterRateLimited:
@@ -408,7 +410,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterRateLimited)
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "Rate limit exceeded" in str(bot.callback_answers[-1]["text"])
+    assert "Registry rate limit exceeded" in str(bot.callback_answers[-1]["text"])
 
     class _UpdaterError:
         def initialize(self) -> None:
@@ -423,7 +425,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterError)
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "Error checking updates" in str(bot.callback_answers[-1]["text"])
+    assert "Couldn't check image updates" in str(bot.callback_answers[-1]["text"])
 
     class _UpdaterNoUpdates:
         def initialize(self) -> None:
@@ -438,7 +440,7 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterNoUpdates)
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "No updates found" in str(bot.callback_answers[-1]["text"])
+    assert "No image updates were found" in str(bot.callback_answers[-1]["text"])
 
     class _UpdaterSuccess:
         def initialize(self) -> None:
@@ -693,7 +695,7 @@ def test_handle_back_to_containers_ignores_not_modified(
     handler(
         cast(CallbackQuery, _Call(data="__containers_page__:1:11")), cast(TeleBot, bot)
     )
-    assert bot.callback_answers[-1]["text"] == "Containers list is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Containers list is already current."
 
 
 def test_handle_images_page_ignores_not_modified(
@@ -720,7 +722,7 @@ def test_handle_images_page_ignores_not_modified(
     patch_not_modified_edit_error(monkeypatch, bot)
 
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "Images list is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Images list is already current."
 
 
 @pytest.mark.parametrize(
@@ -772,7 +774,7 @@ def test_handle_image_details_ignores_not_modified(
     patch_not_modified_edit_error(monkeypatch, bot)
 
     handler(cast(CallbackQuery, _Call(data=callback_data)), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "Image details are already up to date."
+    assert bot.callback_answers[-1]["text"] == "Image details are already current."
 
 
 def test_handle_image_info_handles_telegram_rate_limit(
@@ -857,7 +859,7 @@ def test_handle_image_updates_ignores_not_modified(
     patch_not_modified_edit_error(monkeypatch, bot)
 
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "Image updates are already up to date."
+    assert bot.callback_answers[-1]["text"] == "Image updates are already current."
 
 
 def test_restart_container_ignores_not_modified(

@@ -229,9 +229,9 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler_obj=swap_module.handle_swap_info,
         invalid_data="bad",
         valid_data="__swap_info__:17",
-        invalid_text="Invalid swap request format.",
+        invalid_text="This button is no longer valid. Please open Memory again.",
         denied_text="denied",
-        missing_text_fragment="Cannot render swap info in this context.",
+        missing_text_fragment="This message can no longer be updated. Please open Memory again.",
     )
     _patch_auth_success(monkeypatch, swap_module)
     _patch_adapter_method(
@@ -241,7 +241,10 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         implementation=lambda: None,
     )
     _invoke(handler, bot, data="__swap_info__:17")
-    assert "can't get swap memory values" in str(bot.edited_messages[-1]["text"])
+    assert (
+        "couldn't retrieve swap information"
+        in str(bot.edited_messages[-1]["text"]).lower()
+    )
     assert_reply_markup_has_callbacks(
         bot.edited_messages[-1].get("reply_markup"),
         expected_callbacks=["__swap_info__:17"],
@@ -281,9 +284,9 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler_obj=top_process_module.handle_process_info,
         invalid_data="bad",
         valid_data="__process_info__:17",
-        invalid_text="Invalid process info request format.",
+        invalid_text="This button is no longer valid. Please open Process again.",
         denied_text="denied",
-        missing_text_fragment="Cannot render process info in this context.",
+        missing_text_fragment="This message can no longer be updated. Please open Process again.",
     )
     _patch_auth_success(monkeypatch, top_process_module)
     _patch_adapter_method(
@@ -294,7 +297,8 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _invoke(handler, bot, data="__process_info__:17")
     assert (
-        "can't get process information" in str(bot.edited_messages[-1]["text"]).lower()
+        "couldn't retrieve process information"
+        in str(bot.edited_messages[-1]["text"]).lower()
     )
 
     _patch_adapter_method(
@@ -364,9 +368,9 @@ def test_handle_system_health_refresh_paths(monkeypatch: pytest.MonkeyPatch) -> 
         handler_obj=health_module.handle_system_health_refresh,
         invalid_data="bad",
         valid_data="__health_refresh__:17",
-        invalid_text="Invalid health refresh request format.",
+        invalid_text="This refresh button is no longer valid. Run /health again.",
         denied_text="denied",
-        missing_text_fragment="Cannot refresh health in this context.",
+        missing_text_fragment="This health message can no longer be refreshed. Run /health again.",
     )
     _patch_auth_success(monkeypatch, health_module)
     monkeypatch.setattr(
@@ -403,9 +407,9 @@ def test_handle_system_health_refresh_ignores_not_modified(
         handler_obj=health_module.handle_system_health_refresh,
         invalid_data="bad",
         valid_data="__health_refresh__:17",
-        invalid_text="Invalid health refresh request format.",
+        invalid_text="This refresh button is no longer valid. Run /health again.",
         denied_text="denied",
-        missing_text_fragment="Cannot refresh health in this context.",
+        missing_text_fragment="This health message can no longer be refreshed. Run /health again.",
     )
     _patch_auth_success(monkeypatch, health_module)
     monkeypatch.setattr(
@@ -426,7 +430,7 @@ def test_handle_system_health_refresh_ignores_not_modified(
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
     _invoke(handler, bot, data="__health_refresh__:17")
-    assert bot.callback_answers[-1]["text"] == "Health snapshot is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Health snapshot is already current."
 
 
 def test_system_views_edit_message_ignores_not_modified(
@@ -448,7 +452,7 @@ def test_system_views_edit_message_ignores_not_modified(
         parse_mode="HTML",
         reply_markup=None,
     )
-    assert bot.callback_answers[-1]["text"] == "View is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Already up to date."
 
 
 def test_system_views_edit_message_handles_rate_limited_error(
@@ -519,7 +523,7 @@ def test_handle_swap_info_ignores_not_modified(
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
     _invoke(handler, bot, data="__swap_info__:17")
-    assert bot.callback_answers[-1]["text"] == "View is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Already up to date."
 
 
 def test_handle_process_info_ignores_not_modified(
@@ -542,7 +546,7 @@ def test_handle_process_info_ignores_not_modified(
 
     bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
     _invoke(handler, bot, data="__process_info__:17")
-    assert bot.callback_answers[-1]["text"] == "View is already up to date."
+    assert bot.callback_answers[-1]["text"] == "Already up to date."
 
 
 def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -552,16 +556,19 @@ def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler_obj=top_process_module.handle_process_overview,
         invalid_data="bad",
         valid_data="__process_overview__:17",
-        invalid_text="Invalid process overview request format.",
+        invalid_text="This button is no longer valid. Please open Process again.",
         denied_text="denied",
-        missing_text_fragment="Cannot render process overview in this context.",
+        missing_text_fragment="This message can no longer be updated. Please open Process again.",
     )
     _patch_auth_success(monkeypatch, top_process_module)
     monkeypatch.setattr(
         top_process_module, "render_process_overview_text", lambda: None
     )
     _invoke(handler, bot, data="__process_overview__:17")
-    assert "some error occurred" in str(bot.edited_messages[-1]["text"]).lower()
+    assert (
+        "couldn't retrieve process information"
+        in str(bot.edited_messages[-1]["text"]).lower()
+    )
     assert_reply_markup_has_callbacks(
         bot.edited_messages[-1].get("reply_markup"),
         expected_callbacks=["__process_info_process__:17"],

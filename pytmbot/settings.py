@@ -56,8 +56,10 @@ def load_settings_from_yaml() -> SettingsModel:
         with config_path.open("r", encoding="utf-8") as f:
             settings_data = yaml.safe_load(f)
         return SettingsModel(**settings_data)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    except FileNotFoundError as error:
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_path}"
+        ) from error
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Error parsing YAML file: {e}") from e
 

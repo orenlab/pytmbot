@@ -265,11 +265,11 @@ def fetch_image_details() -> list[dict[str, object]]:
             return images_data
 
     except DockerConnectionError as e:
-        raise ImageOperationError(f"Failed to connect to Docker daemon: {e}")
+        raise ImageOperationError(f"Failed to connect to Docker daemon: {e}") from e
     except APIError as e:
-        raise ImageOperationError(f"Docker API error: {e}")
+        raise ImageOperationError(f"Docker API error: {e}") from e
     except Exception as e:
-        raise ImageOperationError(f"Unexpected error: {e}")
+        raise ImageOperationError(f"Unexpected error: {e}") from e
 
 
 @with_operation_logging("get_image_history")
@@ -306,10 +306,10 @@ def get_image_history(image_id: str) -> list[dict[str, object]]:
                 for layer in history
             ]
 
-    except ImageNotFound:
-        raise ImageNotFound(f"Image {image_id} not found")
+    except ImageNotFound as error:
+        raise ImageNotFound(f"Image {image_id} not found") from error
     except Exception as e:
-        raise ImageOperationError(f"Failed to get image history: {e}")
+        raise ImageOperationError(f"Failed to get image history: {e}") from e
 
 
 @with_operation_logging("get_image_usage")
@@ -371,7 +371,7 @@ def get_image_usage(image_id: str) -> dict[str, object]:
                 "stopped_count": stopped_count,
             }
 
-    except ImageNotFound:
-        raise ImageNotFound(f"Image {image_id} not found")
+    except ImageNotFound as error:
+        raise ImageNotFound(f"Image {image_id} not found") from error
     except Exception as e:
-        raise ImageOperationError(f"Failed to get image usage: {e}")
+        raise ImageOperationError(f"Failed to get image usage: {e}") from e

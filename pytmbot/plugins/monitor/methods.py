@@ -209,7 +209,7 @@ class SystemMonitorPlugin(PluginCore):
                     self.state.is_active = False
                     raise RuntimeError(
                         "Failed to start monitoring after maximum attempts"
-                    )
+                    ) from e
 
     def _spawn_monitor_thread(self) -> threading.Thread:
         """Create and start monitor worker thread."""

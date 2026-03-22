@@ -159,14 +159,14 @@ def test_authorize_callback_request_paths(monkeypatch: pytest.MonkeyPatch) -> No
 
     ok, msg = authorize_callback_request(_make_callback_query(99))
     assert ok is False
-    assert msg == "Access denied"
+    assert msg == "You don't have access to this action."
 
     ok, msg = authorize_callback_request(
         _make_callback_query(1),
         require_admin=True,
     )
     assert ok is False
-    assert msg == "Access denied"
+    assert msg == "You don't have access to this action."
 
     ok, msg = authorize_callback_request(
         _make_callback_query(1),
@@ -174,14 +174,14 @@ def test_authorize_callback_request_paths(monkeypatch: pytest.MonkeyPatch) -> No
         require_owner_match=True,
     )
     assert ok is False
-    assert msg == "Access denied"
+    assert msg == "This button belongs to another user."
 
     ok, msg = authorize_callback_request(
         _make_callback_query(1),
         require_session=True,
     )
     assert ok is False
-    assert msg == "Not authenticated user"
+    assert msg == "Please complete 2FA first."
 
     ok, msg = authorize_callback_request(
         _make_callback_query(2),

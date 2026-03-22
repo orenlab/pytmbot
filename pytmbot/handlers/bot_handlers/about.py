@@ -55,7 +55,7 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
 
     except Exception as error:
         bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+            message.chat.id, "⚠️ An error occurred while opening the About screen."
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -63,4 +63,4 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_018",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -31,7 +31,7 @@ def handle_image_details_callback[ParsedT](
     if call.from_user is None:
         show_handler_info(
             call=call,
-            text="Cannot identify callback user.",
+            text="Couldn't verify who pressed this button.",
             bot=bot,
         )
         return None
@@ -39,7 +39,7 @@ def handle_image_details_callback[ParsedT](
     if call.message is None:
         show_handler_info(
             call=call,
-            text="Cannot render image details in this context.",
+            text="This image details message can no longer be updated.",
             bot=bot,
         )
         return None
@@ -47,7 +47,7 @@ def handle_image_details_callback[ParsedT](
     if call.data is None:
         show_handler_info(
             call=call,
-            text="Invalid image details request.",
+            text="This image details button is no longer valid.",
             bot=bot,
         )
         return None
@@ -56,7 +56,7 @@ def handle_image_details_callback[ParsedT](
     if parsed is None:
         show_handler_info(
             call=call,
-            text="Invalid image details request.",
+            text="This image details button is no longer valid.",
             bot=bot,
         )
         return None
@@ -81,7 +81,7 @@ def handle_image_details_callback[ParsedT](
     if rendered is None:
         show_handler_info(
             call=call,
-            text="Image details are unavailable. Refresh the images list first.",
+            text="Image details are no longer available. Refresh the images list first.",
             bot=bot,
         )
         return None
@@ -93,6 +93,6 @@ def handle_image_details_callback[ParsedT](
         text=context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
-        not_modified_text="Image details are already up to date.",
+        not_modified_text="Image details are already current.",
     )
     return None

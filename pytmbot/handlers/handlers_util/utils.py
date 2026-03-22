@@ -80,4 +80,4 @@ def send_telegram_message(
                 error_code="TELEGRAM_001",
                 metadata={"exception": str(e)},
             )
-        )
+        ) from e

@@ -66,5 +66,5 @@ class ContainerAction(StrEnum):
     def from_str(cls, value: str) -> "ContainerAction":
         try:
             return cls(value.upper())
-        except ValueError:
-            raise ValueError(f"Invalid action: {value}")
+        except ValueError as error:
+            raise ValueError(f"Invalid action: {value}") from error

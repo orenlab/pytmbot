@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import argparse
 import atexit
 import os
 import platform
@@ -30,12 +31,20 @@ from pytmbot.health_system import HealthManager, HealthStatus, create_health_man
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 
-args = parse_cli_args()
+args: argparse.Namespace | None = None
 
 if TYPE_CHECKING:
     from telebot import TeleBot
 
     from pytmbot.pytmbot_instance import PyTMBot
+
+
+def _get_args() -> argparse.Namespace:
+    """Parse CLI arguments lazily to avoid import-time side effects."""
+    global args
+    if args is None:
+        args = parse_cli_args()
+    return args
 
 
 class BotLauncher(logs.BaseComponent):
@@ -302,7 +311,10 @@ class BotLauncher(logs.BaseComponent):
         )
 
         # Additional details only in debug mode or when there are issues
-        if args.log_level == "DEBUG" or overall_status not in ("healthy", "degraded"):
+        if _get_args().log_level == "DEBUG" or overall_status not in (
+            "healthy",
+            "degraded",
+        ):
             self._log_health_details(health_summary, bot_session_metrics)
 
         self._previous_health_level = overall_status
@@ -532,7 +544,7 @@ class BotLauncher(logs.BaseComponent):
                         error_code="SHUTDOWN_001",
                         metadata={"exception": str(e), "type": type(e).__name__},
                     )
-                )
+                ) from e
 
     def validate_environment(self) -> None:
         """Validate runtime environment."""
@@ -561,7 +573,7 @@ class BotLauncher(logs.BaseComponent):
                     error_code="INIT_002",
                     metadata={"error": str(e), "type": type(e).__name__},
                 )
-            )
+            ) from e
 
     def _register_signal_handler(self, sig: signal.Signals) -> None:
         """Register handler for a single signal."""
@@ -657,14 +669,15 @@ class BotLauncher(logs.BaseComponent):
     def _start_bot_polling(self, bot_instance: TeleBot) -> None:
         """Start bot polling in a separate method."""
         try:
-            webhook_enabled = self._normalize_bool_flag(args.webhook)
+            cli_args = _get_args()
+            webhook_enabled = self._normalize_bool_flag(cli_args.webhook)
             bot_component = self.bot
             if bot_component is None:
                 raise RuntimeError("Bot component is not initialized")
 
             with self.log_context(
                 webhook_enabled=webhook_enabled,
-                mode=self._normalize_mode_value(args.mode),
+                mode=self._normalize_mode_value(cli_args.mode),
             ) as log:
                 log.info("bot.launcher.start")
 
@@ -770,7 +783,7 @@ def check_health() -> NoReturn:
 
 def main() -> None:
     """Main entry point."""
-    if args.health_check:
+    if _get_args().health_check:
         check_health()
     else:
         BotLauncher().run()

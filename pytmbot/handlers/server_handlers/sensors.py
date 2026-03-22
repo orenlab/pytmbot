@@ -67,7 +67,7 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
         if (sensors_data is None or sensors_data == []) and not fan_speeds:
             bot.send_message(
                 message.chat.id,
-                text="⚠️ No sensors were found :(",
+                text="⚠️ No temperature or fan sensors were found.",
             )
             return None
 
@@ -83,7 +83,7 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
         else:
             sensors_message = (
                 f"{em.get_emoji('thought_balloon')} <b>Sensors:</b>\n\n"
-                "No temperature sensors available.\n"
+                "No temperature sensors are available on this host.\n"
                 "Fan speed data is available via the button below."
             )
 
@@ -109,4 +109,4 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_003",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

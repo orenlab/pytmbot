@@ -106,7 +106,7 @@ def edit_callback_message_text(
     text: str,
     parse_mode: str | None = None,
     reply_markup: InlineKeyboardMarkup | None = None,
-    not_modified_text: str = "View is already up to date.",
+    not_modified_text: str = "Already up to date.",
 ) -> bool:
     """Edit callback-bound message and treat Telegram 'not modified' as a no-op."""
     if call.message is None:

@@ -354,7 +354,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         return chat_id, chat_type, message_id, message_date, message_content_type
 
-    # noqa: codeclone[dead-code]
+    # codeclone: ignore[dead-code]
     def pre_process(self, update: TelegramUpdate, data: object) -> CancelUpdate | None:
         """
         Process incoming update and enforce rate limiting.
@@ -436,7 +436,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
 
         return None
 
-    # noqa: codeclone[dead-code]
+    # codeclone: ignore[dead-code]
     def post_process(
         self, update: TelegramUpdate, data: object, exception: Exception | None
     ) -> None:

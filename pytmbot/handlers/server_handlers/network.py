@@ -97,4 +97,4 @@ def handle_network(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_005",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

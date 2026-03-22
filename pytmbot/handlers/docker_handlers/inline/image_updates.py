@@ -144,7 +144,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     except ValueError:
         bot.answer_callback_query(
             call.id,
-            text="Invalid image updates request format.",
+            text="This image updates button is no longer valid.",
             show_alert=True,
         )
         return None
@@ -161,7 +161,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     if call.message is None:
         bot.answer_callback_query(
             call.id,
-            text="Cannot render image updates in this context.",
+            text="This image updates message can no longer be refreshed.",
             show_alert=True,
         )
         return None
@@ -175,7 +175,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     if not isinstance(status, str):
         bot.answer_callback_query(
             call.id,
-            text="Unexpected updater response format.",
+            text="Couldn't understand the updater response.",
             show_alert=True,
         )
         return None
@@ -192,7 +192,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
                 retry_after = retry_after_obj
         bot.answer_callback_query(
             call.id,
-            text=f"Rate limit exceeded. Please try again in {retry_after} seconds.",
+            text=(f"Registry rate limit exceeded. Try again in {retry_after} seconds."),
             show_alert=True,
         )
         return None
@@ -205,7 +205,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         )
         bot.answer_callback_query(
             call.id,
-            text=f"Error checking updates: {rendered_message}",
+            text=f"Couldn't check image updates: {rendered_message}",
             show_alert=True,
         )
         return None
@@ -218,7 +218,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     ):
         bot.answer_callback_query(
             call.id,
-            text="No updates found for any images.",
+            text="No image updates were found.",
             show_alert=True,
         )
         return None
@@ -236,7 +236,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         text=formatted_context,
         parse_mode="Markdown",
         reply_markup=_build_image_updates_keyboard(target_user_id),
-        not_modified_text="Image updates are already up to date.",
+        not_modified_text="Image updates are already current.",
     )
     return None
 

@@ -152,7 +152,7 @@ def handle_twofa_message(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_020",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 # regexp=r"[0-9]{6}$"
@@ -229,7 +229,7 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     else:
         session_manager.increment_totp_attempts(user_id=user_id)
         logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
-        bot.reply_to(message, "Invalid TOTP code. Please try again.")
+        bot.reply_to(message, "That 2FA code is invalid. Please try again.")
 
 
 def _handle_rate_limited_totp_attempt(message: Message, bot: TeleBot) -> None:
@@ -263,7 +263,7 @@ def _handle_blocked_user(message: Message, bot: TeleBot) -> None:
         None
     """
     logger.error("bot.handler.auth_processing.twofa_processing.user.blocked.deny")
-    bot.reply_to(message, "You are blocked. Please try again later.")
+    bot.reply_to(message, "Too many failed attempts. Please try again later.")
 
 
 def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
@@ -321,13 +321,13 @@ def _handle_invalid_totp_code(message: Message, bot: TeleBot) -> None:
         None
     """
     if message.from_user is None:
-        bot.reply_to(message, "Invalid TOTP code format.")
+        bot.reply_to(message, "Please send a 6-digit 2FA code.")
         return
     user_id = message.from_user.id
     logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
     bot.reply_to(
         message,
-        "Invalid TOTP code. Please enter a 6-digit code. "
+        "Invalid 2FA code. Please enter a 6-digit code. "
         "For example: 123456 or /123456.",
     )
     session_manager.increment_totp_attempts(user_id=user_id)
@@ -411,6 +411,6 @@ def __create_referer_keyboard(
                 error_code="SESMGR_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
     finally:
         session_manager.reset_referer_data(user_id)

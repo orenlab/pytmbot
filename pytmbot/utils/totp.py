@@ -200,7 +200,7 @@ class TwoFactorAuthenticator(BaseComponent):
                 log.info("bot.utils.totp.qr.code.info", qr_size=len(qr_data))
                 return qr_data
 
-            except TOTPError:
+            except TOTPError as error:
                 log.error("bot.utils.totp.qr.code.fail")
                 raise QRCodeError(
                     ErrorContext(
@@ -208,7 +208,7 @@ class TwoFactorAuthenticator(BaseComponent):
                         error_code="QR_CODE_TOTP_ERROR",
                         metadata={"username": self.username, "user_id": self.user_id},
                     )
-                )
+                ) from error
             except Exception as e:
                 log.error("bot.utils.totp.qr.code.fail")
                 raise QRCodeError(

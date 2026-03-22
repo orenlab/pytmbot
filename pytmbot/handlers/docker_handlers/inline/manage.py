@@ -119,7 +119,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     if callback_message is None:
         show_handler_info(
             call=call,
-            text=f"Managing {container_name}: Missing callback message",
+            text="This container management message can no longer be updated.",
             bot=bot,
         )
         return
@@ -130,5 +130,5 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
         text=rendered_context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
-        not_modified_text="Container management view is already up to date.",
+        not_modified_text="Container management view is already current.",
     )

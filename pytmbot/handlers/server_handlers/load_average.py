@@ -36,20 +36,16 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
         if load_average is None:
             logger.error("bot.handler.server.load_average.get.fail")
             bot.send_message(
-                message.chat.id, text="⚠️ Some error occurred. Please try again later("
+                message.chat.id,
+                text=(
+                    "⚠️ Couldn't retrieve load average right now. "
+                    "Please try again later."
+                ),
             )
             return None
-
-        # Исправленный вариант - два способа:
-
-        # Способ 1: Статический метод (для trusted templates)
         bot_answer = Compiler.quick_render(
             "b_load_average.jinja2", context=load_average, **emojis
         )
-
-        # Способ 2: Context manager (если нужна валидация)
-        # with Compiler("b_load_average.jinja2", trusted=True, context=load_average, **emojis) as compiler:
-        #     bot_answer = compiler.compile()
 
         bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
 
@@ -63,4 +59,4 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_007",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -73,4 +73,4 @@ def handle_server(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

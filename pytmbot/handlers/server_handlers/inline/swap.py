@@ -53,8 +53,10 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=SWAP_INFO_CALLBACK_PREFIX,
-        invalid_payload_text="Invalid swap request format.",
-        missing_message_text="Cannot render swap info in this context.",
+        invalid_payload_text="This button is no longer valid. Please open Memory again.",
+        missing_message_text=(
+            "This message can no longer be updated. Please open Memory again."
+        ),
     )
     if not is_allowed:
         return None
@@ -66,7 +68,9 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
         "thought_balloon": em.get_emoji("thought_balloon"),
         "paperclip": em.get_emoji("paperclip"),
     }
-    fallback_text = "Sorry, but i can't get swap memory values. Please try again later."
+    fallback_text = (
+        "Sorry, I couldn't retrieve swap information right now. Please try again later."
+    )
 
     try:
         swap_data = psutil_adapter.get_swap_memory()
@@ -104,4 +108,4 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_009",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -75,6 +75,14 @@ keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
 running_in_docker = is_docker_environment()
 
+INVALID_SECTION_BUTTON_TEXT = (
+    "This button is no longer valid. Please open this section again."
+)
+STALE_SECTION_MESSAGE_TEXT = (
+    "This message can no longer be updated. Please open this section again."
+)
+NO_TEMPERATURE_SENSORS_TEXT = "No temperature sensors are available on this host."
+
 
 def _edit_message(
     call: CallbackQuery,
@@ -90,7 +98,7 @@ def _edit_message(
         text=text,
         parse_mode=parse_mode,
         reply_markup=reply_markup,
-        not_modified_text="View is already up to date.",
+        not_modified_text="Already up to date.",
     )
 
 
@@ -211,8 +219,8 @@ def handle_cpu_info(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=CPU_INFO_PREFIX,
-        invalid_payload_text="Invalid CPU request format.",
-        missing_message_text="Cannot render CPU info in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -240,7 +248,7 @@ def handle_cpu_info(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_CPU_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -249,8 +257,8 @@ def handle_cpu_per_core(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=CPU_PER_CORE_PREFIX,
-        invalid_payload_text="Invalid per-core request format.",
-        missing_message_text="Cannot render per-core CPU in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -283,7 +291,7 @@ def handle_cpu_per_core(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_CPU_003",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -292,8 +300,8 @@ def handle_cpu_times(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=CPU_TIMES_PREFIX,
-        invalid_payload_text="Invalid CPU times request format.",
-        missing_message_text="Cannot render CPU times in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -317,7 +325,7 @@ def handle_cpu_times(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_CPU_004",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -326,8 +334,8 @@ def handle_network_overview(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=NETWORK_OVERVIEW_PREFIX,
-        invalid_payload_text="Invalid network request format.",
-        missing_message_text="Cannot render network info in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -353,7 +361,7 @@ def handle_network_overview(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_NET_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -362,8 +370,8 @@ def handle_network_interfaces(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=NETWORK_INTERFACES_PREFIX,
-        invalid_payload_text="Invalid interfaces request format.",
-        missing_message_text="Cannot render interfaces in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -401,7 +409,7 @@ def handle_network_interfaces(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_NET_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -410,8 +418,8 @@ def handle_network_connections(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=NETWORK_CONNECTIONS_PREFIX,
-        invalid_payload_text="Invalid connections request format.",
-        missing_message_text="Cannot render connections in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -435,7 +443,7 @@ def handle_network_connections(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_NET_003",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -444,8 +452,8 @@ def handle_filesystem_overview(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=FILESYSTEM_OVERVIEW_PREFIX,
-        invalid_payload_text="Invalid file system request format.",
-        missing_message_text="Cannot render file system info in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -473,7 +481,7 @@ def handle_filesystem_overview(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_FS_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -482,8 +490,8 @@ def handle_disk_io(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=DISK_IO_PREFIX,
-        invalid_payload_text="Invalid disk I/O request format.",
-        missing_message_text="Cannot render disk I/O info in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -507,7 +515,7 @@ def handle_disk_io(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_FS_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -516,8 +524,8 @@ def handle_users_info(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=USERS_INFO_PREFIX,
-        invalid_payload_text="Invalid users request format.",
-        missing_message_text="Cannot render users info in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -555,7 +563,7 @@ def handle_users_info(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_UP_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -564,8 +572,8 @@ def handle_sensors_overview(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=SENSORS_OVERVIEW_PREFIX,
-        invalid_payload_text="Invalid sensors request format.",
-        missing_message_text="Cannot render sensors in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -588,7 +596,7 @@ def handle_sensors_overview(call: CallbackQuery, bot: TeleBot) -> None:
         else:
             text = (
                 f"{em.get_emoji('thought_balloon')} <b>Sensors:</b>\n\n"
-                "No temperature sensors available."
+                f"{NO_TEMPERATURE_SENSORS_TEXT}"
             )
 
         keyboard = None
@@ -604,7 +612,7 @@ def handle_sensors_overview(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_SENS_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -613,8 +621,8 @@ def handle_fan_speeds(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=FAN_SPEEDS_PREFIX,
-        invalid_payload_text="Invalid fan speeds request format.",
-        missing_message_text="Cannot render fan speeds in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -640,7 +648,7 @@ def handle_fan_speeds(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_SENS_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -649,8 +657,8 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=QUICKVIEW_OVERVIEW_PREFIX,
-        invalid_payload_text="Invalid quickview request format.",
-        missing_message_text="Cannot render quickview in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -683,7 +691,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_QV2",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 def _build_quickview_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
@@ -696,8 +704,8 @@ def handle_quickview_memory(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=QUICKVIEW_MEMORY_PREFIX,
-        invalid_payload_text="Invalid quickview memory request format.",
-        missing_message_text="Cannot render quickview memory in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -727,7 +735,7 @@ def handle_quickview_memory(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_QV3",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -736,8 +744,8 @@ def handle_quickview_sensors(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=QUICKVIEW_SENSORS_PREFIX,
-        invalid_payload_text="Invalid quickview temperature request format.",
-        missing_message_text="Cannot render quickview sensors in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -756,7 +764,7 @@ def handle_quickview_sensors(call: CallbackQuery, bot: TeleBot) -> None:
                 melting_face=em.get_emoji("melting_face"),
             )
         else:
-            text = "⚠️ No sensors were found :("
+            text = f"⚠️ {NO_TEMPERATURE_SENSORS_TEXT}"
         _edit_message(
             call,
             bot,
@@ -772,7 +780,7 @@ def handle_quickview_sensors(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_QV4",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -781,8 +789,8 @@ def handle_quickview_cpu(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=QUICKVIEW_CPU_PREFIX,
-        invalid_payload_text="Invalid quickview CPU request format.",
-        missing_message_text="Cannot render quickview CPU in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -815,7 +823,7 @@ def handle_quickview_cpu(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_QV5",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -824,8 +832,8 @@ def handle_quickview_disk(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=QUICKVIEW_DISK_PREFIX,
-        invalid_payload_text="Invalid quickview disk request format.",
-        missing_message_text="Cannot render quickview disk in this context.",
+        invalid_payload_text=INVALID_SECTION_BUTTON_TEXT,
+        missing_message_text=STALE_SECTION_MESSAGE_TEXT,
     )
     if not is_allowed:
         return None
@@ -858,4 +866,4 @@ def handle_quickview_disk(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_QV6",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

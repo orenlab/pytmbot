@@ -135,4 +135,4 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_CPU_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

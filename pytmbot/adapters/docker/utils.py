@@ -541,7 +541,7 @@ def get_container_safely(
         )
         return container
 
-    except NotFound:
+    except NotFound as error:
         execution_time = time.time() - start_time
         logger.warning(
             "docker.utils.container.not.warn",
@@ -554,7 +554,7 @@ def get_container_safely(
                 error_code="DOCKER_001",
                 metadata={"container_id": container_id, "search_time": execution_time},
             )
-        )
+        ) from error
     except DockerConnectionError:
         execution_time = time.time() - start_time
         logger.error(
@@ -582,7 +582,7 @@ def get_container_safely(
                     "execution_time": execution_time,
                 },
             )
-        )
+        ) from e
 
 
 def get_container_memory_stats(container: Container) -> MemoryStats:

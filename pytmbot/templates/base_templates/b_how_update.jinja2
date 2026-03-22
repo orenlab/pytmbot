@@ -1,10 +1,13 @@
-{{ thought_balloon }} <b>Update pyTMBot (Docker Compose)</b>
+{{ thought_balloon }} <b>Update pyTMBot with Docker Compose</b>
+
+These steps apply if you run pyTMBot with Docker Compose and the service is named <code>pytmbot</code>.
+If your path or service name is different, adjust the commands below.
 
 <b>Recommended steps:</b>
 
-1) Open directory with your <code>compose.yaml</code>
-2) Pull fresh image
-3) Recreate service
+1) Open the directory with your <code>compose.yaml</code>
+2) Pull the latest image
+3) Recreate the service
 4) Check status and recent logs
 
 <pre>cd /opt/pytmbot
@@ -16,4 +19,4 @@ docker compose logs -n 50 pytmbot</pre>
 <b>Optional cleanup:</b>
 <code>docker image prune -f</code>
 
-ℹ️ <i>Your mounted config/secrets are preserved.</i>
+ℹ️ <i>Your mounted config and secret files stay in place.</i>

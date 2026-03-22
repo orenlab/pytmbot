@@ -62,25 +62,22 @@ class PluginManager:
     Manages the discovery, validation, and registration of plugins in the pyTMBot system.
     """
 
-    __slots__ = ("_plugin_base_path", "_plugin_base_for_import", "_plugin_blacklist")
+    __slots__ = (
+        "_plugin_base_path",
+        "_plugin_base_for_import",
+        "_plugin_blacklist",
+        "_registry_lock",
+        "_index_keys",
+        "_plugin_names",
+        "_plugin_descriptions",
+        "_plugin_instances",
+        "_loaded_plugins",
+        "_plugin_resources",
+    )
 
     _instance: PluginManager | None = None
     _instance_lock = RLock()
-    _registry_lock = RLock()
     _atexit_registered = False
-    _index_keys: dict[str, str] = {}
-    _plugin_names: dict[str, str] = {}
-    _plugin_descriptions: dict[str, str] = {}
-    _plugin_instances: dict[str, weakref.ReferenceType[PluginInterface]] = {}
-    _loaded_plugins: set[str] = set()
-
-    _plugin_resources: dict[str, dict[str, int]] = {
-        "default_limits": {
-            "max_memory_mb": 100,
-            "max_cpu_percent": 50,
-            "execution_timeout_sec": 30,
-        }
-    }
 
     def __new__(cls, *args: object, **kwargs: object) -> PluginManager:
         """Creates or retrieves the singleton instance of the PluginManager."""
@@ -102,6 +99,19 @@ class PluginManager:
         """Initialize the plugin manager instance."""
         self._plugin_base_path = Path("pytmbot/plugins")
         self._plugin_base_for_import = "pytmbot.plugins"
+        self._registry_lock = RLock()
+        self._index_keys: dict[str, str] = {}
+        self._plugin_names: dict[str, str] = {}
+        self._plugin_descriptions: dict[str, str] = {}
+        self._plugin_instances: dict[str, weakref.ReferenceType[PluginInterface]] = {}
+        self._loaded_plugins: set[str] = set()
+        self._plugin_resources: dict[str, dict[str, int]] = {
+            "default_limits": {
+                "max_memory_mb": 100,
+                "max_cpu_percent": 50,
+                "execution_timeout_sec": 30,
+            }
+        }
         self._load_blacklist()
         cls = self.__class__
         with cls._instance_lock:
@@ -256,59 +266,55 @@ class PluginManager:
             logger.error("bot.plugins.plugin_manager.plugin.config.fail")
             return None
 
-    @classmethod
-    def add_plugin_info(cls, plugin_info: _PluginInfo) -> bool:
+    def add_plugin_info(self, plugin_info: _PluginInfo) -> bool:
         """Safely adds plugin information to internal structures."""
         if not plugin_info:
             return False
 
         try:
-            with cls._registry_lock:
+            with self._registry_lock:
                 if plugin_info.index_key:
-                    cls._index_keys.update(plugin_info.index_key)
-                cls._plugin_names[plugin_info.name] = plugin_info.version
-                cls._plugin_descriptions[plugin_info.name] = plugin_info.description
+                    self._index_keys.update(plugin_info.index_key)
+                self._plugin_names[plugin_info.name] = plugin_info.version
+                self._plugin_descriptions[plugin_info.name] = plugin_info.description
             return True
         except Exception:
             logger.error("bot.plugins.plugin_manager.add.plugin.fail")
             return False
 
-    @classmethod
-    def get_merged_index_keys(cls) -> dict[str, str]:
+    def get_merged_index_keys(self) -> dict[str, str]:
         """
         Retrieves the merged index keys for all registered plugins.
 
         Returns:
             dict[str, str]: A dictionary of index keys and their descriptions.
         """
-        with cls._registry_lock:
-            return dict(cls._index_keys)
+        with self._registry_lock:
+            return dict(self._index_keys)
 
-    @classmethod
-    def get_plugin_names(cls) -> dict[str, str]:
+    def get_plugin_names(self) -> dict[str, str]:
         """
         Retrieves the names and versions of all registered plugins.
 
         Returns:
             dict[str, str]: A dictionary of plugin names and their versions.
         """
-        with cls._registry_lock:
-            return dict(cls._plugin_names)
+        with self._registry_lock:
+            return dict(self._plugin_names)
 
-    @classmethod
-    def get_plugin_descriptions(cls) -> dict[str, str]:
+    def get_plugin_descriptions(self) -> dict[str, str]:
         """
         Retrieves the descriptions of all registered plugins.
 
         Returns:
             dict[str, str]: A dictionary of plugin names and their descriptions.
         """
-        with cls._registry_lock:
-            return dict(cls._plugin_descriptions)
+        with self._registry_lock:
+            return dict(self._plugin_descriptions)
 
     def _cleanup_plugin(self, plugin_name: str) -> None:
         """Performs cleanup operations for a plugin."""
-        with self.__class__._registry_lock:
+        with self._registry_lock:
             ref = self._plugin_instances.get(plugin_name)
         if ref:
             instance = ref()
@@ -324,7 +330,7 @@ class PluginManager:
                     )
 
             try:
-                with self.__class__._registry_lock:
+                with self._registry_lock:
                     self._plugin_instances.pop(plugin_name, None)
                     self._loaded_plugins.discard(plugin_name)
             except Exception as error:
@@ -378,12 +384,12 @@ class PluginManager:
                 if not self.add_plugin_info(plugin_info):
                     return
 
-                with self.__class__._registry_lock:
+                with self._registry_lock:
                     self._plugin_instances[plugin_name] = weakref.ref(plugin_instance)
 
                 if permissions.base_permission:
                     plugin_instance.register()
-                    with self.__class__._registry_lock:
+                    with self._registry_lock:
                         self._loaded_plugins.add(plugin_name)
                     logger.info("bot.plugins.plugin_manager.plugin.register.ok")
                 else:
@@ -427,11 +433,22 @@ class PluginManager:
         """Cleanly shuts down all registered plugins."""
 
         try:
-            with self.__class__._registry_lock:
+            with self._registry_lock:
                 loaded_plugins = list(self._loaded_plugins)
             for plugin_name in loaded_plugins:
                 self._cleanup_plugin(plugin_name)
-            with self.__class__._registry_lock:
+            with self._registry_lock:
+                self._plugin_instances.clear()
                 self._loaded_plugins.clear()
+                self._index_keys.clear()
+                self._plugin_names.clear()
+                self._plugin_descriptions.clear()
+                self._plugin_resources = {
+                    "default_limits": {
+                        "max_memory_mb": 100,
+                        "max_cpu_percent": 50,
+                        "execution_timeout_sec": 30,
+                    }
+                }
         except Exception:
             logger.error("bot.plugins.plugin_manager.cleaning.fail")

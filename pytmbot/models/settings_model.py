@@ -70,7 +70,10 @@ class AccessControlModel(BaseModel):
     auth_salt: list[SecretStr] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_admins_subset(self) -> "AccessControlModel":  # noqa: codeclone[dead-code]
+    # codeclone: ignore[dead-code]
+    def validate_admins_subset(
+        self,
+    ) -> "AccessControlModel":
         """Ensure admins are always part of allowed users."""
         allowed_users = set(self.allowed_user_ids)
         invalid_admins = [
@@ -191,7 +194,7 @@ class WebhookConfig(BaseModel):
 
     @field_validator("trusted_proxy_ips", "additional_telegram_ip_ranges")
     @classmethod
-    def validate_trusted_proxy_ips(  # noqa: codeclone[dead-code]
+    def validate_trusted_proxy_ips(  # codeclone: ignore[dead-code]
         cls, value: list[str] | None
     ) -> list[str] | None:
         """Validate trusted proxy IPs/CIDRs format."""
@@ -402,7 +405,8 @@ class SettingsModel(BaseSettings):
 
     @field_validator("config_version")
     @classmethod
-    def validate_config_version(cls, v: str | None) -> str | None:  # noqa: codeclone[dead-code]
+    # codeclone: ignore[dead-code]
+    def validate_config_version(cls, v: str | None) -> str | None:
         """
         Validate configuration version against application compatibility.
 
@@ -426,13 +430,17 @@ class SettingsModel(BaseSettings):
 
         except ConfigVersionError as e:
             # Re-raise ConfigVersionError as ValueError for Pydantic
-            raise ValueError(f"Configuration version validation failed: {str(e)}")
+            raise ValueError(
+                f"Configuration version validation failed: {str(e)}"
+            ) from e
         except Exception as e:
-            raise ValueError(f"Configuration version validation failed: {str(e)}")
+            raise ValueError(
+                f"Configuration version validation failed: {str(e)}"
+            ) from e
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_config_if_needed(  # noqa: codeclone[dead-code]
+    def migrate_config_if_needed(  # codeclone: ignore[dead-code]
         cls, values: dict[str, object]
     ) -> dict[str, object]:
         """

@@ -44,12 +44,16 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
     """
     try:
         if call.data is None:
-            show_handler_info(call, text="Invalid request format", bot=bot)
+            show_handler_info(
+                call, text="This container details button is no longer valid.", bot=bot
+            )
             return None
 
         parsed_data = parse_container_full_info_callback_data(call.data)
         if parsed_data is None:
-            show_handler_info(call, text="Invalid request format", bot=bot)
+            show_handler_info(
+                call, text="This container details button is no longer valid.", bot=bot
+            )
             return None
 
         container_name, called_user_id, source_page = parsed_data
@@ -76,7 +80,9 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         # Validate container name
         if not validate_container_name(container_name):
             logger.warning("bot.handler.docker.container_info.invalid.container.warn")
-            show_handler_info(call, text="Invalid container name format", bot=bot)
+            show_handler_info(
+                call, text="This container reference is invalid.", bot=bot
+            )
             return None
 
         # Get comprehensive container details using enhanced utilities
@@ -181,7 +187,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         if callback_message is None:
             show_handler_info(
                 call=call,
-                text="Cannot render container details in this context",
+                text="This container details message can no longer be updated.",
                 bot=bot,
             )
             return None
@@ -193,18 +199,20 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
             text=context,
             reply_markup=inline_keyboard,
             parse_mode="HTML",
-            not_modified_text="Container details are already up to date.",
+            not_modified_text="Container details are already current.",
         )
         return None
 
     except ValueError:
         logger.warning("bot.handler.docker.container_info.value.fail")
-        show_handler_info(call, text="Invalid request data", bot=bot)
+        show_handler_info(
+            call, text="This container details request is no longer valid.", bot=bot
+        )
         return None
 
     except Exception:
         logger.error("bot.handler.docker.container_info.unexpected.fail")
         show_handler_info(
-            call, text="An error occurred while processing request", bot=bot
+            call, text="Couldn't load container details right now.", bot=bot
         )
         return None

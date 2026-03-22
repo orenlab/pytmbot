@@ -40,8 +40,12 @@ em = get_emoji_converter()
 psutil_adapter = get_psutil_adapter()
 running_in_docker = is_docker_environment()
 
-_PROCESS_INFO_INVALID_PAYLOAD_TEXT = "Invalid process info request format."
-_PROCESS_INFO_MISSING_MESSAGE_TEXT = "Cannot render process info in this context."
+_PROCESS_INFO_INVALID_PAYLOAD_TEXT = (
+    "This button is no longer valid. Please open Process again."
+)
+_PROCESS_INFO_MISSING_MESSAGE_TEXT = (
+    "This message can no longer be updated. Please open Process again."
+)
 
 
 def _is_process_origin_callback(callback_data: str | None) -> bool:
@@ -104,7 +108,8 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
         "warning": em.get_emoji("warning"),
     }
     fallback_text = (
-        "Sorry, but I can't get process information. Please try again later."
+        "Sorry, I couldn't retrieve process information right now. "
+        "Please try again later."
     )
 
     try:
@@ -172,7 +177,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_010",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 @logger.session_decorator
@@ -181,8 +186,10 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
         call,
         bot,
         prefix=PROCESS_OVERVIEW_PREFIX,
-        invalid_payload_text="Invalid process overview request format.",
-        missing_message_text="Cannot render process overview in this context.",
+        invalid_payload_text="This button is no longer valid. Please open Process again.",
+        missing_message_text=(
+            "This message can no longer be updated. Please open Process again."
+        ),
     )
     if not is_allowed:
         return None
@@ -198,7 +205,10 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
             edit_callback_message_text(
                 call,
                 bot,
-                text="⚠️ Some error occurred. Please try again later(",
+                text=(
+                    "⚠️ Couldn't retrieve process information right now. "
+                    "Please try again later."
+                ),
                 reply_markup=keyboard,
             )
             return None
@@ -224,4 +234,4 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
                 error_code="HAND_011",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -42,7 +42,11 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         if memory_info is None:
             logger.error("bot.handler.server.memory.get.fail")
             bot.send_message(
-                message.chat.id, text="⚠️ Some error occurred. Please try again later("
+                message.chat.id,
+                text=(
+                    "⚠️ Couldn't retrieve memory usage right now. "
+                    "Please try again later."
+                ),
             )
             return None
 
@@ -78,4 +82,4 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_006",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

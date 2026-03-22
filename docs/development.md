@@ -129,7 +129,7 @@ Operational notes:
 Current suppression form:
 
 ```python
-# noqa: codeclone[dead-code]
+# codeclone: ignore[dead-code]
 ```
 
 ## Adding Or Changing Features
