@@ -1,0 +1,5 @@
+# Keep Bandit strict for application code, but allow normal pytest-style
+# assertions in dedicated test files.
+assert_used:
+  skips:
+    - "tests/*.py"
