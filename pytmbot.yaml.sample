@@ -1,14 +1,14 @@
 ################################################################
 # pyTMBot Configuration File
-# Version: 0.3.0-dev
-# Compatible with app version: 0.3.0-dev
+# Version: 0.3.0
+# Compatible with app version: 0.3.0
 ################################################################
 
 # Configuration Schema Version
 # Keep this equal to the running pytmbot version.
 # This repository sample targets the current repository runtime version.
 # If omitted or mismatched, pytmbot auto-fills config_version with the current app version during migration.
-config_version: '0.3.0-dev'
+config_version: '0.3.0'
 
 ################################################################
 # General Bot Settings
@@ -229,7 +229,7 @@ influxdb:
 # VERSIONING NOTES:
 ################################################################
 # - config_version should normally match the running pytmbot version.
-# - This repository sample is prepared for pytmbot 0.3.0-dev.
+# - This repository sample is prepared for pytmbot 0.3.0.
 # - If config_version is missing or mismatched, startup migrates it to the current app version.
 # - Review docs/settings.md after upgrades to pick up new fields or changed behavior.
 #
@@ -237,7 +237,7 @@ influxdb:
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
-#    - Set config_version to match your pytmbot version (this sample uses '0.3.0-dev')
+#    - Set config_version to match your pytmbot version (this sample uses '0.3.0')
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
 #    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID

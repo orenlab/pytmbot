@@ -33,7 +33,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.3.0-dev"
+        return "0.3.0"
 
 
 class ConfigVersionError(Exception):

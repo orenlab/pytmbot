@@ -68,7 +68,7 @@ def _require_instance[T](
 
 
 # Application metadata - immutable constants
-__version__: Final[str] = "0.3.0-dev"
+__version__: Final[str] = "0.3.0"
 __author__: Final[str] = "Denis Rozhnovskiy <pytelemonbot@mail.ru>"
 __license__: Final[str] = "MIT"
 __repository__: Final[str] = "https://github.com/orenlab/pytmbot"
