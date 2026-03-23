@@ -38,6 +38,7 @@ from pytmbot.utils import (
     mask_token_in_message,
     mask_webhook_path,
 )
+from pytmbot.utils.state_paths import get_state_root_path
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 BAN_TTL_SECONDS = 3600
@@ -524,8 +525,8 @@ class WebhookServer(BaseComponent):
 
             self.app = self._create_app()
             enable_rate_state_persistence = "PYTEST_CURRENT_TEST" not in os.environ
-            state_dir = os.path.join(
-                "/tmp", "pytmbot_webhook_ratelimit", str(self.port)
+            state_dir = os.fspath(
+                get_state_root_path() / "webhook_ratelimit" / str(self.port)
             )
             self.rate_limiter = RateLimit(
                 limit=10,

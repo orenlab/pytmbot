@@ -83,6 +83,13 @@ def test_secure_logger_filter_call_sanitizes_record() -> None:
     assert extra["ms"] == 1200.0
 
 
+def test_secure_logger_filter_normalizes_plain_and_textual_durations() -> None:
+    filter_instance = SecureLoggerFilter(DataMasker())
+    assert filter_instance._normalize_duration_value("15") == 15.0
+    assert filter_instance._normalize_duration_value("1.5 sec") == 1500.0
+    assert filter_instance._normalize_duration_value("42ms") == 42.0
+
+
 def test_logger_handler_helpers() -> None:
     assert Logger._handler_event_name("handle_get_logs") == "bot.handler.get_logs"
     assert Logger._handler_log_level(10.0) == "debug"

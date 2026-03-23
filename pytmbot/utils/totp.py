@@ -27,6 +27,7 @@ from qrcode.image.pure import PyPNGImage
 from pytmbot.exceptions import ErrorContext, QRCodeError, TOTPError
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
+from pytmbot.utils.state_paths import ensure_private_directory, get_state_root_path
 
 
 class TwoFactorAuthenticator(BaseComponent):
@@ -44,7 +45,9 @@ class TwoFactorAuthenticator(BaseComponent):
     TOTP_CODE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{6}$")
     _REPLAY_WINDOW_STEPS: ClassVar[int] = 4
     _MAX_TRACKED_CODES_PER_USER: ClassVar[int] = 64
-    _REPLAY_STATE_FILE: ClassVar[Path] = Path("/tmp/pytmbot_totp_replay_state.json")
+    _REPLAY_STATE_FILE: ClassVar[Path] = (
+        get_state_root_path() / "totp_replay_state.json"
+    )
     _used_totp_codes: ClassVar[dict[int, set[tuple[str, int]]]] = {}
     _backup_code_hashes: ClassVar[dict[int, set[str]]] = {}
     _used_totp_codes_lock: ClassVar[threading.RLock] = threading.RLock()
@@ -373,7 +376,7 @@ class TwoFactorAuthenticator(BaseComponent):
         state_file = cls._REPLAY_STATE_FILE
         parent_dir = state_file.parent
         try:
-            parent_dir.mkdir(parents=True, exist_ok=True)
+            ensure_private_directory(parent_dir)
         except OSError:
             return
 

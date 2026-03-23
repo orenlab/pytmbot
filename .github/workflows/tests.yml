@@ -5,9 +5,6 @@ on:
     branches: [ "**" ]
   pull_request:
 
-permissions:
-  contents: read
-
 concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
@@ -15,6 +12,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       PYTMBOT_CONFIG_PATH: pytmbot.yaml.sample
     strategy:
@@ -54,6 +53,8 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

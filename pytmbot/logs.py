@@ -435,9 +435,13 @@ class SecureLoggerFilter:
     __slots__ = ("masker",)
     _MAX_STRING_LENGTH: Final[int] = 512
     _MAX_COLLECTION_ITEMS: Final[int] = 12
-    _DURATION_RE: Final[re.Pattern[str]] = re.compile(
-        r"^\s*(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|sec|secs|second|seconds)?\s*$",
-        re.IGNORECASE,
+    _DURATION_SUFFIXES: ClassVar[tuple[tuple[str, bool], ...]] = (
+        ("seconds", True),
+        ("second", True),
+        ("secs", True),
+        ("sec", True),
+        ("ms", False),
+        ("s", True),
     )
     _DROP_EXTRA_KEYS: ClassVar[set[str]] = {
         "action",
@@ -574,13 +578,25 @@ class SecureLoggerFilter:
         if not isinstance(value, str):
             return value
 
-        match = cls._DURATION_RE.match(value)
-        if not match:
+        normalized = value.strip().lower()
+        if not normalized:
             return value
 
-        number = float(match.group("num"))
-        unit = (match.group("unit") or "ms").lower()
-        if unit in {"s", "sec", "secs", "second", "seconds"}:
+        number_part = normalized
+        scale_to_ms = False
+
+        for suffix, suffix_is_seconds in cls._DURATION_SUFFIXES:
+            if normalized.endswith(suffix):
+                scale_to_ms = suffix_is_seconds
+                number_part = normalized[: -len(suffix)].strip()
+                break
+
+        try:
+            number = float(number_part)
+        except ValueError:
+            return value
+
+        if scale_to_ms:
             return round(number * 1000, 2)
         return round(number, 2)
 

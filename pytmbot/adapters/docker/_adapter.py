@@ -610,7 +610,8 @@ class DockerAdapter:
                     "docker.adapter.health.check.info",
                     execution_time=f"{execution_time:.3f}s",
                     docker_version=info.get("ServerVersion", "unknown"),
-                    containers_accessible=len(containers) >= 0,
+                    containers_accessible=True,
+                    containers_checked=len(containers),
                     **context,
                 )
                 return True
