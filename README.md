@@ -25,6 +25,7 @@ pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBo
 ## Key capabilities
 
 ### Docker management
+
 - Start, stop, restart, inspect, and browse containers
 - View container logs with pagination and export support
 - Inspect and manage Docker images with metadata and tag details
@@ -33,12 +34,14 @@ pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBo
 - Use inline interactions for faster Telegram-based operations
 
 ### Server monitoring
+
 - Quick system and Docker summary pages with live refresh
 - Detailed CPU, memory, swap, network, disk, user, fan, and sensor views
 - Load average, uptime, filesystem, and process insights
 - Health monitoring subsystem with startup and component-level checks
 
 ### Security and reliability
+
 - Access restricted by `allowed_user_ids` and `allowed_admins_ids`
 - TOTP-based 2FA for sensitive actions
 - Request rate limiting and duplicate update protection
@@ -47,6 +50,7 @@ pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBo
 - Better handling of Telegram API edge cases such as long messages and rate limits
 
 ### Plugins
+
 - Extend the bot with custom modules and simple configuration
 - Included examples:
   - **Monitor Plugin** — notifications for CPU, memory, disk, temperature, container, and image changes
@@ -74,10 +78,12 @@ Current **0.3.x** builds are supported in **Docker / Docker Compose** deployment
 - Docker socket access for container-management features
 
 ### Operating modes
+
 - **Polling** — easiest to deploy; no HTTPS or public endpoint required
 - **Webhook** — lower latency; requires a public hostname for Telegram `setWebhook`
 
 ### Logging defaults
+
 - `INFO` and above: concise errors without full traceback dumps
 - `DEBUG`: full stack traces preserved
 

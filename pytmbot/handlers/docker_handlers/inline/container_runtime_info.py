@@ -97,11 +97,9 @@ def _safe_text(value: object, default: str = "N/A") -> str:
 
 
 def _safe_bool(value: object) -> str:
-    if value:
-        return "yes"
-    if not value:
-        return "no"
-    return "N/A"
+    if value is None:
+        return "N/A"
+    return "yes" if bool(value) else "no"
 
 
 def _safe_int(value: object, default: int = 0) -> int:

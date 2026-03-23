@@ -711,7 +711,7 @@ class PsutilAdapter:
         def _get_uptime() -> str:
             boot_time = psutil.boot_time()
             uptime = datetime.now() - datetime.fromtimestamp(boot_time)
-            return str(uptime).split(".")[0]  # Remove microseconds
+            return str(uptime).partition(".")[0]  # Remove microseconds safely
 
         result, execution_time_ms = self._safe_execute(
             "uptime",

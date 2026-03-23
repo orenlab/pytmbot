@@ -755,7 +755,7 @@ class ContainerOperationTracker:
 
     def __post_init__(self) -> None:
         """Initialize tracker components."""
-        if self._last_cleanup == 0.0:
+        if self._last_cleanup <= 0.0:
             self._last_cleanup = time.time()
 
     def clear(self) -> None:

@@ -171,7 +171,7 @@ sudo systemctl reload nginx
 
 2. **Initial Security Setup**:
     - Default credentials (CHANGE IMMEDIATELY):
-        - Email: admin@example.com
+        - Email: <admin@example.com>
         - Password: changeme
     - Create a strong admin password
     - Enable two-factor authentication if available

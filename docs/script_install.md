@@ -7,4 +7,4 @@ pyTMBot is designed to run with Docker, and the only supported installation meth
 See:
 
 - [docker.md](docker.md)
-- Docker Hub image: https://hub.docker.com/r/orenlab/pytmbot
+- Docker Hub image: <https://hub.docker.com/r/orenlab/pytmbot>

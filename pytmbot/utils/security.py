@@ -149,8 +149,6 @@ def _mask_secret_fragment(value: str, visible_chars: int) -> str:
         return "*" * len(value)
 
     hidden_length = len(value) - safe_visible * 2
-    if hidden_length <= 0:
-        return "*" * len(value)
     return f"{value[:safe_visible]}{'*' * hidden_length}{value[-safe_visible:]}"
 
 

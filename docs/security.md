@@ -23,18 +23,18 @@ See also: [auth_control.md](auth_control.md).
 - Official container runs as non-root user `pytmbot` (`UID/GID 1001`).
 - Docker socket access is handled via group membership/GID alignment in `entrypoint.sh`.
 - Recommended runtime hardening:
-    - read-only root filesystem
-    - `no-new-privileges`
-    - dropped Linux capabilities
-    - read-only bind mount for `/var/run/docker.sock`
+  - read-only root filesystem
+  - `no-new-privileges`
+  - dropped Linux capabilities
+  - read-only bind mount for `/var/run/docker.sock`
 
 ## Webhook Security
 
 - Webhook server uses:
-    - random webhook path segment
-    - Telegram secret token verification header
-    - Telegram IP allowlist validation
-    - request rate limiting + temporary bans
+  - random webhook path segment
+  - Telegram secret token verification header
+  - Telegram IP allowlist validation
+  - request rate limiting + temporary bans
 - `webhook_config.trusted_proxy_ips` controls whether forwarded IP headers are trusted.
 - Privileged ports are rejected by webhook startup checks.
 
