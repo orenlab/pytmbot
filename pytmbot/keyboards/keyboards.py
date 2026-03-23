@@ -7,19 +7,21 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
-from typing import Dict, List, Optional, Union
+from typing import Final
 
 from telebot.types import (
     InlineKeyboardButton,
-    ReplyKeyboardMarkup,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
 )
 
+from pytmbot.exceptions import KeyboardError
 from pytmbot.logs import Logger
-from pytmbot.settings import keyboard_settings
+from pytmbot.settings import KeyboardSettings, keyboard_settings
 from pytmbot.utils import EmojiConverter, split_string_into_octets
 
 
@@ -38,97 +40,124 @@ class ButtonData:
     text: str
     callback_data: str
 
+    def __post_init__(self) -> None:
+        """Validate button data after initialization."""
+        if not self.text or not isinstance(self.text, str):
+            raise ValueError("Button text must be a non-empty string")
+        if not self.callback_data or not isinstance(self.callback_data, str):
+            raise ValueError("Callback data must be a non-empty string")
+
+
+def _resolve_keyboard_settings() -> KeyboardSettings:
+    """Resolve lazily loaded keyboard settings with strict typing."""
+    current_settings = keyboard_settings
+    if not isinstance(current_settings, KeyboardSettings):
+        raise KeyboardError("Keyboard settings are not initialized")
+    return current_settings
+
+
+def _new_inline_keyboard_markup(
+    *, row_width: int | None = None
+) -> InlineKeyboardMarkup:
+    """Create InlineKeyboardMarkup via typed wrapper around telebot factory."""
+    factory: Callable[..., InlineKeyboardMarkup] = InlineKeyboardMarkup
+    if row_width is None:
+        return factory()
+    return factory(row_width=row_width)
+
 
 class Keyboards:
-    """
-    A class for managing keyboard layouts and generation in the Telegram bot.
-    Thread-safe implementation with immutable state.
-    """
+    """A class for managing keyboard layouts and generation in the Telegram bot."""
 
-    logger = Logger()
+    # Constants for magic numbers
+    MAX_CALLBACK_DATA_LENGTH: Final[int] = 64
+    DEFAULT_ROW_WIDTH: Final[int] = 3
+    INLINE_ROW_WIDTH: Final[int] = 2
+    CACHE_SIZE: Final[int] = 32
+    BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
+    RETURN_BUTTON_EMOJI: Final[str] = "🦈"
+
+    __slots__ = ("_emojis", "_logger")
 
     def __init__(self) -> None:
         """Initialize the Keyboards class with an EmojiConverter instance."""
         self._emojis: EmojiConverter = EmojiConverter()
+        self._logger: Logger = Logger()
 
     def build_referer_main_keyboard(
         self, main_keyboard_data: str
     ) -> ReplyKeyboardMarkup:
-        """
-        Construct a ReplyKeyboardMarkup object for the main keyboard.
+        """Construct a ReplyKeyboardMarkup object for the main keyboard.
 
         Args:
-            main_keyboard_data (str): Data for the main keyboard.
+            main_keyboard_data: The text for the main keyboard button
 
         Returns:
-            ReplyKeyboardMarkup: The constructed reply keyboard markup.
+            ReplyKeyboardMarkup: Configured main keyboard
 
         Raises:
-            ValueError: If main_keyboard_data is empty or invalid.
+            KeyboardError: If main_keyboard_data is invalid
         """
         if not main_keyboard_data or not isinstance(main_keyboard_data, str):
-            raise ValueError("Invalid main keyboard data")
+            raise KeyboardError("Main keyboard data must be a non-empty string")
 
-        with self.logger.context(
+        with self._logger.context(
             operation=KeyboardOperation.BUILD_MAIN, data=main_keyboard_data
         ):
             keyboard = ReplyKeyboardMarkup(
                 resize_keyboard=True, one_time_keyboard=True, selective=True
             )
             keyboard.add(main_keyboard_data)
-            self.logger.debug("Main keyboard constructed successfully")
             return keyboard
 
     def build_referer_inline_keyboard(self, data: str) -> InlineKeyboardMarkup:
-        """
-        Construct an InlineKeyboardMarkup object for the inline keyboard.
+        """Construct an InlineKeyboardMarkup object for the inline keyboard.
 
         Args:
-            data (str): Data for the inline keyboard.
+            data: The callback data for the button
 
         Returns:
-            InlineKeyboardMarkup: The constructed inline keyboard markup.
+            InlineKeyboardMarkup: Configured inline keyboard
 
         Raises:
-            ValueError: If data is empty or invalid.
+            KeyboardError: If data is invalid
         """
         if not data or not isinstance(data, str):
-            raise ValueError("Invalid inline keyboard data")
+            raise KeyboardError("Inline keyboard data must be a non-empty string")
 
-        with self.logger.context(
+        with self._logger.context(
             operation=KeyboardOperation.BUILD_INLINE, data=data
         ) as log:
             button_text = split_string_into_octets(data)
-            log.debug(f"Formatted button text: {button_text}")
+            log.debug("bot.keyboards.split.string.debug", result=button_text)
 
             button = InlineKeyboardButton(
-                text=f"🦈 Return to {button_text}",
-                callback_data=data[:64],  # Telegram limit
+                text=f"{self.RETURN_BUTTON_EMOJI} Return to {button_text}",
+                callback_data=data[: self.MAX_CALLBACK_DATA_LENGTH],
             )
 
-            keyboard = InlineKeyboardMarkup()
+            keyboard = _new_inline_keyboard_markup()
             keyboard.add(button)
             return keyboard
 
     def build_reply_keyboard(
         self,
-        keyboard_type: Optional[str] = None,
-        plugin_keyboard_data: Optional[Dict[str, str]] = None,
+        keyboard_type: str | None = None,
+        plugin_keyboard_data: dict[str, str] | None = None,
     ) -> ReplyKeyboardMarkup:
-        """
-        Construct a ReplyKeyboardMarkup object with the specified keyboard settings.
+        """Construct a ReplyKeyboardMarkup object with the specified keyboard settings.
 
         Args:
-            keyboard_type: The type of keyboard to construct.
-            plugin_keyboard_data: Optional custom keyboard data.
+            keyboard_type: Type of keyboard to build
+            plugin_keyboard_data: Custom keyboard data for plugins
 
         Returns:
-            ReplyKeyboardMarkup: The constructed reply keyboard markup.
+            ReplyKeyboardMarkup: Configured reply keyboard
 
         Raises:
-            ValueError: If keyboard configuration is invalid.
+            KeyboardError: If keyboard configuration is invalid
         """
-        with self.logger.context(
+        with self._logger.context(
             operation=KeyboardOperation.BUILD_REPLY,
             keyboard_type=keyboard_type,
             has_plugin_data=bool(plugin_keyboard_data),
@@ -138,123 +167,149 @@ class Keyboards:
                 if plugin_keyboard_data
                 else self._get_keyboard_data(keyboard_type)
             )
-            log.debug(f"Loaded keyboard data: {keyboard_data}")
 
             keyboard_buttons = self._construct_keyboard(keyboard_data)
             if not keyboard_buttons:
-                raise ValueError("Empty keyboard buttons configuration")
+                raise KeyboardError("Empty keyboard buttons configuration")
 
+            # Add back button for non-back keyboards
             if keyboard_type and keyboard_type != "back_keyboard":
-                keyboard_buttons.append("⬅️ Back to main menu")
+                keyboard_buttons.append(self.BACK_BUTTON_TEXT)
 
-            reply_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+            reply_keyboard = ReplyKeyboardMarkup(
+                resize_keyboard=True,
+                row_width=self.DEFAULT_ROW_WIDTH,
+                one_time_keyboard=False,
+            )
 
-            # Group buttons into pairs for better layout
-            for i in range(0, len(keyboard_buttons), 3):
-                buttons_row = keyboard_buttons[i : i + 3]
-                reply_keyboard.row(*buttons_row)
+            # Build rows with proper chunking
+            for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
+                reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
 
-            log.debug(
-                f"Reply keyboard constructed with {len(keyboard_buttons)} buttons"
+            log.trace(
+                "bot.keyboards.reply.keyboard.debug",
+                total_buttons=len(keyboard_buttons),
             )
             return reply_keyboard
 
     @staticmethod
-    @lru_cache(maxsize=32)
-    def _get_keyboard_data(keyboard_type: Optional[str]) -> Dict[str, str]:
-        """
-        Retrieve keyboard data based on the specified keyboard type.
+    @lru_cache(maxsize=CACHE_SIZE)
+    def _get_keyboard_data(keyboard_type: str | None) -> dict[str, str]:
+        """Retrieve keyboard data based on the specified keyboard type.
 
         Args:
-            keyboard_type: The type of keyboard to retrieve.
+            keyboard_type: Type of keyboard to retrieve data for
 
         Returns:
-            Dict[str, str]: The keyboard configuration data.
+            dict[str, str]: Keyboard configuration data
 
         Raises:
-            AttributeError: If the keyboard type is invalid.
+            KeyboardError: If keyboard type is invalid
         """
         logger = Logger()
         with logger.context(
             operation=KeyboardOperation.GET_DATA, keyboard_type=keyboard_type or "main"
         ) as log:
-            if keyboard_type is None:
-                return keyboard_settings.main_keyboard
-
-            valid_keyboards = {
-                attr
-                for attr in dir(keyboard_settings)
-                if attr.endswith("_keyboard") and not attr.startswith("_")
+            settings_data = _resolve_keyboard_settings()
+            keyboard_map: dict[str, dict[str, str]] = {
+                "main_keyboard": settings_data.main_keyboard,
+                "server_keyboard": settings_data.server_keyboard,
+                "docker_keyboard": settings_data.docker_keyboard,
+                "auth_keyboard": settings_data.auth_keyboard,
+                "auth_processing_keyboard": settings_data.auth_processing_keyboard,
+                "back_keyboard": settings_data.back_keyboard,
             }
 
+            if keyboard_type is None:
+                return keyboard_map["main_keyboard"]
+
+            valid_keyboards = set(keyboard_map)
+
             if keyboard_type not in valid_keyboards:
-                log.error(f"Invalid keyboard type requested: {keyboard_type}")
-                raise AttributeError(f"Invalid keyboard type: {keyboard_type}")
+                log.error(
+                    "bot.keyboards.invalid.keyboard.fail",
+                    code="KEYBOARD_INVALID_TYPE",
+                    requested_type=keyboard_type,
+                    valid_types=list(valid_keyboards),
+                )
+                raise KeyboardError(
+                    f"Invalid keyboard type '{keyboard_type}'. "
+                    f"Valid types: {', '.join(sorted(valid_keyboards))}"
+                )
 
-            return getattr(keyboard_settings, keyboard_type)
+            return keyboard_map[keyboard_type]
 
-    def _construct_keyboard(self, keyboard_data: Dict[str, str]) -> List[str]:
-        """
-        Construct a keyboard with emojis and titles.
+    def _construct_keyboard(self, keyboard_data: dict[str, str]) -> list[str]:
+        """Construct a keyboard with emojis and titles.
 
         Args:
-            keyboard_data: Dictionary containing emojis and titles.
+            keyboard_data: Dictionary mapping emoji keys to button titles
 
         Returns:
-            List[str]: List of constructed keyboard button texts.
+            list[str]: List of formatted button texts
 
         Raises:
-            ValueError: If keyboard_data is invalid.
+            KeyboardError: If keyboard data format is invalid
         """
         if not isinstance(keyboard_data, dict):
-            raise ValueError("Invalid keyboard data format")
+            raise KeyboardError("Keyboard data must be a dictionary")
 
-        with self.logger.context(
+        if not keyboard_data:
+            raise KeyboardError("Keyboard data cannot be empty")
+
+        with self._logger.context(
             operation=KeyboardOperation.CONSTRUCT, button_count=len(keyboard_data)
         ) as log:
             buttons = [
                 f"{self._emojis.get_emoji(emoji)} {title}"
                 for emoji, title in keyboard_data.items()
+                if emoji and title  # Skip empty entries
             ]
-            log.debug(f"Constructed {len(buttons)} keyboard buttons")
+
+            log.trace("bot.keyboards.keyboard.buttons.debug", total=len(buttons))
             return buttons
 
     def build_inline_keyboard(
-        self, buttons_data: Union[List[ButtonData], ButtonData]
+        self, buttons_data: list[ButtonData] | ButtonData
     ) -> InlineKeyboardMarkup:
-        """
-        Construct an InlineKeyboardMarkup with the provided button data.
+        """Construct an InlineKeyboardMarkup with the provided button data.
 
         Args:
-            buttons_data: Single ButtonData or list of ButtonData objects.
+            buttons_data: Button data for inline keyboard
 
         Returns:
-            InlineKeyboardMarkup: The constructed inline keyboard markup.
+            InlineKeyboardMarkup: Configured inline keyboard
 
         Raises:
-            ValueError: If button data is invalid.
+            KeyboardError: If button data is invalid
         """
-        with self.logger.context(
+        # Normalize input to list
+        if isinstance(buttons_data, ButtonData):
+            buttons_data = [buttons_data]
+
+        if not buttons_data:
+            raise KeyboardError("Button data cannot be empty")
+
+        with self._logger.context(
             operation=KeyboardOperation.BUILD_INLINE,
-            buttons_count=(
-                1 if isinstance(buttons_data, ButtonData) else len(buttons_data)
-            ),
+            buttons_count=len(buttons_data),
         ) as log:
-            if isinstance(buttons_data, ButtonData):
-                buttons_data = [buttons_data]
-
+            # Validate all buttons are ButtonData instances
             if not all(isinstance(btn, ButtonData) for btn in buttons_data):
-                log.error("Invalid button data provided")
-                raise ValueError("All buttons must be ButtonData instances")
+                log.error(
+                    "bot.keyboards.invalid.button.fail", code="INVALID_BUTTON_DATA"
+                )
+                raise KeyboardError("All buttons must be ButtonData instances")
 
-            keyboard = InlineKeyboardMarkup(row_width=2)
+            keyboard = _new_inline_keyboard_markup(row_width=self.INLINE_ROW_WIDTH)
             buttons = [
                 InlineKeyboardButton(
-                    text=btn.text, callback_data=btn.callback_data[:64]
+                    text=btn.text,
+                    callback_data=btn.callback_data[: self.MAX_CALLBACK_DATA_LENGTH],
                 )
                 for btn in buttons_data
             ]
             keyboard.add(*buttons)
 
-            log.debug(f"Inline keyboard constructed with {len(buttons)} buttons")
+            log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard

@@ -7,20 +7,19 @@ also providing basic information about the status of local servers.
 
 import os
 import sys
-from functools import lru_cache, cache
-from typing import Any
+from functools import cache
 
 
-@lru_cache(maxsize=None)
+@cache
 def is_running_in_docker() -> bool:
     if os.path.exists("/.dockerenv"):
         return True
     try:
-        with open("/proc/self/cgroup", "r") as f:
+        with open("/proc/self/cgroup") as f:
             for line in f:
                 if "docker" in line:
                     return True
-    except FileNotFoundError:
+    except OSError:
         pass
     if "DOCKER_CONTAINER" in os.environ:
         return True
@@ -28,7 +27,7 @@ def is_running_in_docker() -> bool:
 
 
 @cache
-def get_environment_state() -> dict[str, Any]:
+def get_environment_state() -> dict[str, object]:
     return {
         "Python path": sys.executable,
         "Python version": sys.version,

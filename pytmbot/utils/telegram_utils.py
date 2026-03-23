@@ -6,47 +6,74 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import Union, Tuple, Any, Optional
 
-from telebot.types import CallbackQuery, Message
+from telebot.types import CallbackQuery
 
-from pytmbot.utils.data_processing import find_in_args, find_in_kwargs
+type OptionalStr = str | None
+type OptionalInt = int | None
+type OptionalBool = bool | None
+type SanitizedLogInput = str | bytes | int | float | bool | None
 
-OptionalStr = Optional[str]
-OptionalInt = Optional[int]
-OptionalBool = Optional[bool]
-MessageInfo = Tuple[OptionalStr, OptionalInt, OptionalStr, OptionalBool, OptionalStr]
-InlineMessageInfo = Tuple[OptionalStr, OptionalInt, OptionalBool]
-
-
-def get_message_full_info(*args: Any, **kwargs: Any) -> MessageInfo:
-    message = find_in_args(args, Message) or find_in_kwargs(kwargs, Message)
-    if message:
-        user = message.from_user
-        return user.username, user.id, user.language_code, user.is_bot, message.text
-    return None, None, None, None, None
-
-
-def get_inline_message_full_info(*args: Any, **kwargs: Any) -> InlineMessageInfo:
-    message = find_in_args(args, CallbackQuery) or find_in_kwargs(kwargs, CallbackQuery)
-    if message:
-        user = message.message.from_user
-        return user.username, user.id, user.is_bot
-    return None, None, None
+# Compile regex pattern once for better performance
+_ANSI_ESCAPE_PATTERN = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
 
 def sanitize_logs(
-    container_logs: Union[str, Any], callback_query: CallbackQuery, token: str
+    container_logs: SanitizedLogInput, callback_query: CallbackQuery, token: str
 ) -> str:
-    ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-    container_logs = ansi_escape.sub("", container_logs)
-    user_info = [
+    """
+    Sanitizes container logs by removing ANSI escape sequences
+    and masking sensitive user information.
+
+    Args:
+        container_logs: Container logs (string or any object with __str__)
+        callback_query: Callback query with user information
+        token: Bot token to mask
+
+    Returns:
+        str: Sanitized logs
+
+    Raises:
+        AttributeError: If callback_query doesn't contain required attributes
+    """
+    # Convert to string if not already a string
+    if not isinstance(container_logs, str):
+        container_logs = str(container_logs)
+
+    # Remove ANSI escape sequences
+    container_logs = _ANSI_ESCAPE_PATTERN.sub("", container_logs)
+
+    # Check for required attributes
+    if not (callback_query.from_user and callback_query.message):
+        return container_logs
+
+    # Collect sensitive information for masking
+    sensitive_info = [
         callback_query.from_user.username or "",
         callback_query.from_user.first_name or "",
         callback_query.from_user.last_name or "",
-        str(callback_query.message.from_user.id),
+        str(callback_query.message.from_user.id)
+        if callback_query.message.from_user
+        else "",
         token,
     ]
-    for value in user_info:
-        container_logs = container_logs.replace(value, "*" * len(value))
+
+    # Filter empty values for better efficiency
+    unique_sensitive_info = {
+        info for info in sensitive_info if info and info in container_logs
+    }
+    if not unique_sensitive_info:
+        return container_logs
+
+    # Replace all sensitive fragments in a single pass to avoid N string copies.
+    pattern = re.compile(
+        "|".join(
+            re.escape(value)
+            for value in sorted(unique_sensitive_info, key=len, reverse=True)
+        )
+    )
+    container_logs = pattern.sub(
+        lambda match: "*" * len(match.group(0)), container_logs
+    )
+
     return container_logs

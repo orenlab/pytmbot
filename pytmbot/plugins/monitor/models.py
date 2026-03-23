@@ -5,8 +5,8 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from dataclasses import dataclass
-from typing import TypedDict, Optional, Any
+from dataclasses import dataclass, field
+from typing import TypedDict
 
 from pytmbot.logs import Logger
 
@@ -18,7 +18,7 @@ class EventData(TypedDict):
     start_time: float
     last_notification: float
     type: str
-    details: dict[str, Any]
+    details: dict[str, object]
     resolved: bool
 
 
@@ -26,7 +26,7 @@ class ResourceMetrics(TypedDict):
     cpu_usage: float
     memory_usage: float
     disk_usage: dict[str, float]
-    temperatures: dict[str, dict[str, Optional[float]]]
+    temperatures: dict[str, dict[str, float | None]]
     fan_speeds: dict[str, dict[str, int]]
     load_averages: tuple[float, float, float]
 
@@ -52,12 +52,10 @@ class MonitoringState:
     is_active: bool = False
     notification_count: int = 0
     max_notifications_reached: bool = False
+    next_notification_reset_at: float = 0.0
     last_poll_time: float = 0.0
     docker_counters_last_updated: float = 0.0
     init_mode: bool = True
     sensors_available: bool = True
     return_cached_disk_usage: bool = False
-    active_events: dict[str, EventData] = None
-
-    def __post_init__(self):
-        self.active_events = {}
+    active_events: dict[str, EventData] = field(default_factory=dict)

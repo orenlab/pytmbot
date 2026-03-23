@@ -1,0 +1,13 @@
+{{ thought_balloon }} <b>Active Sessions:</b>
+
+{% if context.users %}
+{% for user in context.users %}
+<b>{{ user.username }}</b>
+<code>Terminal:</code> {{ user.terminal }}
+<code>Host:</code> {{ user.host }}
+<code>Started:</code> {{ user.started_at }} ({{ user.started_ago }})
+
+{% endfor %}
+{% else %}
+No active user sessions found.
+{% endif %}

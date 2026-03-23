@@ -11,12 +11,14 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 # regexp="Docker"
@@ -28,7 +30,7 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
         bot.send_chat_action(message.chat.id, "typing")
 
         # Compile the message to send to the bot
-        bot_answer: str = __compile_message()
+        bot_answer: str = _compile_message()
 
         reply_keyboard = keyboards.build_reply_keyboard(keyboard_type="docker_keyboard")
 
@@ -50,21 +52,29 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_011",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
-def __fetch_counters():
+def __fetch_counters() -> dict[str, int]:
     """
     Fetch Docker counters.
 
     Returns:
-        Optional[Dict[str, int]]: A dictionary containing Docker counters, or None if the counters cannot be
-        fetched.
+        dict[str, int]: A dictionary containing Docker counters.
     """
-    return fetch_docker_counters()
+    raw_counters = fetch_docker_counters()
+    if not isinstance(raw_counters, dict):
+        raise ValueError("Invalid docker counters payload")
+
+    counters: dict[str, int] = {}
+    for key, value in raw_counters.items():
+        if isinstance(key, str) and isinstance(value, int):
+            counters[key] = value
+
+    return counters
 
 
-def __compile_message():
+def _compile_message() -> str:
     """
     Compile message and render a bot answer based on docker counters.
 
@@ -72,12 +82,11 @@ def __compile_message():
         : The DockerHandler object.
 
     Returns:
-        dict[str, str] | str | Any: The compiled bot answer based on docker counters or N/A if no counters
-        are found.
+        str: The compiled bot answer based on docker counters.
     """
     docker_counters = __fetch_counters()
     if docker_counters is None:
-        return {"images_count": "N/A", "containers_count": "N/A"}
+        raise ValueError("Docker counters are unavailable")
 
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
@@ -87,10 +96,9 @@ def __compile_message():
     }
 
     try:
-        with Compiler(
+        return Compiler.quick_render(
             template_name="d_docker.jinja2", context=docker_counters, **emojis
-        ) as compiler:
-            return compiler.compile()
+        )
     except Exception as error:
         raise exceptions.TemplateError(
             ErrorContext(
@@ -98,4 +106,4 @@ def __compile_message():
                 error_code="TEMPL_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -6,20 +6,19 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message, LinkPreviewOptions
+from telebot.types import LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards
+from pytmbot.globals import get_keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+keyboards = get_keyboards()
 
 
-# commands=['help', 'start'])
-# @logger.session_decorator
 @logger.session_decorator
 def handle_start(message: Message, bot: TeleBot) -> None:
     try:
@@ -27,12 +26,13 @@ def handle_start(message: Message, bot: TeleBot) -> None:
 
         keyboard = keyboards.build_reply_keyboard()
 
-        first_name = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
-        with Compiler(
+        answer = Compiler.quick_render(
             template_name="b_index.jinja2", first_name=first_name
-        ) as compiler:
-            answer = compiler.compile()
+        )
 
         send_telegram_message(
             bot=bot,
@@ -45,7 +45,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
 
     except Exception as error:
         bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+            message.chat.id, "⚠️ An error occurred while opening the main menu."
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -53,4 +53,4 @@ def handle_start(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_014",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

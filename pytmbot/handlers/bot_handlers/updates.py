@@ -8,18 +8,57 @@ also providing basic information about the status of local servers.
 from datetime import datetime
 
 import requests
+from packaging.version import InvalidVersion, Version
 from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, __version__, em, __github_api_url__, button_data
+from pytmbot.globals import (
+    ButtonDataType,
+    __github_api_url__,
+    __version__,
+    get_emoji_converter,
+    get_keyboards,
+)
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_bot_development
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
+
+
+def _normalize_version(value: str) -> str:
+    """Normalize version values from release payload and local metadata."""
+    return value.strip().lstrip("vV")
+
+
+def _compare_versions(left: str, right: str) -> int:
+    """
+    Compare two version strings.
+
+    Returns:
+        1 when left > right, 0 when equal, -1 when left < right.
+    """
+    normalized_left = _normalize_version(left)
+    normalized_right = _normalize_version(right)
+
+    try:
+        left_version = Version(normalized_left)
+        right_version = Version(normalized_right)
+        if left_version > right_version:
+            return 1
+        if left_version < right_version:
+            return -1
+        return 0
+    except InvalidVersion:
+        if normalized_left == normalized_right:
+            return 0
+        return 1 if normalized_left > normalized_right else -1
 
 
 # commands=['check_bot_updates']
@@ -42,8 +81,12 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
         # Compile the bot's answer
         bot_answer, need_inline = _process_message()
 
+        callback_data = "__how_update__"
+        if message.from_user is not None:
+            callback_data = f"__how_update__:{message.from_user.id}"
+
         keyboard_button = [
-            button_data(text="How update?", callback_data="__how_update__")
+            button_data(text="Update guide", callback_data=callback_data)
         ]
 
         inline_button = (
@@ -65,7 +108,7 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_013",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error
 
 
 def _process_message() -> tuple[str, bool]:
@@ -94,10 +137,11 @@ def _process_message() -> tuple[str, bool]:
     tag_name = update_context["tag_name"]
 
     # Check the version of the update
-    if tag_name > __version__:
+    version_cmp = _compare_versions(tag_name, __version__)
+    if version_cmp > 0:
         # If the tag name is greater than the bot's version, return a new update message
         return _render_new_update_message(update_context), True
-    elif tag_name == __version__:
+    elif version_cmp == 0:
         # If the tag name is equal to the bot's version, return a no update message
         return _render_no_update_message(), False
     else:
@@ -117,12 +161,13 @@ def _render_development_message() -> str:
     }
 
     message = (
-        f"You are using the development version: {__version__}. "
-        "We recommend upgrading to a stable release for a better experience."
+        f"You are running the development build: {__version__}. "
+        "For day-to-day use, a stable release is recommended."
     )
 
-    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=message, **emojis
+    )
 
 
 def _render_update_difficulties_message() -> str:
@@ -136,12 +181,11 @@ def _render_update_difficulties_message() -> str:
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    message = (
-        "There were some difficulties checking for updates. We should try again later."
-    )
+    message = "I couldn't check for updates right now. Please try again later."
 
-    with Compiler(template_name="b_none.jinja2", context=message, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=message, **emojis
+    )
 
 
 def _render_new_update_message(update_context: dict[str, str]) -> str:
@@ -169,14 +213,13 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
         "cooking": em.get_emoji("cooking"),
     }
 
-    with Compiler(
+    return Compiler.quick_render(
         template_name="b_bot_update.jinja2",
         current_version=current_version,
         release_date=release_date,
         release_notes=release_notes,
         **emojis,
-    ) as compiler:
-        return compiler.compile()
+    )
 
 
 def _render_no_update_message() -> str:
@@ -186,14 +229,15 @@ def _render_no_update_message() -> str:
     Returns:
         str: The rendered message.
     """
-    context: str = f"Current version: {__version__}. No update available."
+    context = f"You are running version {__version__}. No newer release was found."
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=context, **emojis
+    )
 
 
 def _render_future_message(update_context: dict[str, str]) -> str:
@@ -210,17 +254,18 @@ def _render_future_message(update_context: dict[str, str]) -> str:
     """
     current_version: str = update_context["tag_name"]
 
-    context: str = (
-        f"Current version: {current_version}. Your version: {__version__}. "
-        "You are living in the future, and I am glad to say that I will continue to grow and evolve!"
+    context = (
+        f"Latest GitHub release: {current_version}. "
+        f"This bot is running {__version__}, which looks newer."
     )
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "thought_balloon": em.get_emoji("thought_balloon"),
     }
 
-    with Compiler(template_name="b_none.jinja2", context=context, **emojis) as compiler:
-        return compiler.compile()
+    return Compiler.quick_render(
+        template_name="b_none.jinja2", context=context, **emojis
+    )
 
 
 def __check_bot_update() -> dict[str, str]:
@@ -235,11 +280,11 @@ def __check_bot_update() -> dict[str, str]:
                         If an error occurs during the update check, an empty dictionary is returned.
     """
     try:
-        logger.debug("Checking for bot updates...")
+        logger.debug("bot.handler.bot.updates.check.debug")
         with requests.get(__github_api_url__, timeout=5) as response:
             response.raise_for_status()
 
-            logger.debug(f"GitHub API response code: {response.status_code}")
+            logger.debug("bot.handler.bot.updates.git.hub.debug")
 
             data = response.json()
 
@@ -262,8 +307,10 @@ def __check_bot_update() -> dict[str, str]:
 
             try:
                 published_date = datetime.fromisoformat(published_at)
-            except ValueError:
-                raise ValueError("Invalid 'published_at' format. Expected ISO format.")
+            except ValueError as error:
+                raise ValueError(
+                    "Invalid 'published_at' format. Expected ISO format."
+                ) from error
 
             release_info = {
                 "tag_name": tag_name,
@@ -271,10 +318,10 @@ def __check_bot_update() -> dict[str, str]:
                 "body": body,
             }
 
-            logger.debug(f"GitHub API response: {release_info}")
+            logger.debug("bot.handler.bot.updates.git.hub.debug")
 
             return release_info
 
-    except (requests.RequestException, ValueError) as e:
-        logger.error(f"An error occurred during update check: {e}")
+    except (requests.RequestException, ValueError):
+        logger.error("bot.handler.bot.updates.update.fail")
         return {}

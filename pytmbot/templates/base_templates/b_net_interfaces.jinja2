@@ -1,0 +1,13 @@
+{{ thought_balloon }} <b>Network Interfaces:</b>
+
+{% if context.interfaces %}
+<pre language="bash">
+Name       State  Speed       MTU   IPv4
+---------- ------ ----------- ----- ---------------
+{% for item in context.interfaces %}
+{{ "%-10s"|format(item.name) }} {{ "%-6s"|format(item.state) }} {{ "%-11s"|format(item.speed) }} {{ "%5d"|format(item.mtu) }} {{ item.ip_address }}
+{% endfor %}
+</pre>
+{% else %}
+No network interface data available.
+{% endif %}

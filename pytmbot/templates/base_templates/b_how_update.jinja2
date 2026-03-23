@@ -1,32 +1,22 @@
-{{ thought_balloon }} <b>Updating PyTMBot to Latest Version</b>
+{{ thought_balloon }} <b>Update pyTMBot with Docker Compose</b>
 
-Choose your preferred update method:
+These steps apply if you run pyTMBot with Docker Compose and the service is named <code>pytmbot</code>.
+If your path or service name is different, adjust the commands below.
 
-<b>A. Using Docker Compose (Recommended)</b>
+<b>Recommended steps:</b>
 
-1) Update your docker-compose.yml:
+1) Open the directory with your <code>compose.yaml</code>
+2) Pull the latest image
+3) Recreate the service
+4) Check status and recent logs
 
-<code>docker compose pull && docker compose up -d</code>
+<pre>cd /opt/pytmbot
+docker compose pull pytmbot
+docker compose up -d --force-recreate pytmbot
+docker compose ps
+docker compose logs -n 50 pytmbot</pre>
 
-<b>B. Using Docker CLI</b>
+<b>Optional cleanup:</b>
+<code>docker image prune -f</code>
 
-1) <code>docker stop pytmbot && docker rm pytmbot</code>
-
-2) <code>docker pull orenlab/pytmbot:latest</code>
-
-3) Run new container:
-<pre>docker run -d \
-  --name pytmbot \
-  --restart on-failure \
-  --env TZ="Asia/Yekaterinburg" \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /root/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  --security-opt no-new-privileges \
-  --read-only \
-  --cap-drop ALL \
-  --pid=host \
-  --log-opt max-size=10m \
-  --log-opt max-file=3 \
-  orenlab/pytmbot:latest --plugins SOME_PLUGINS</pre>
-
-⚠️ <b>Note</b>: <i>Adjust timezone as needed!</i>
+ℹ️ <i>Your mounted config and secret files stay in place.</i>

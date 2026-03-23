@@ -1,0 +1,60 @@
+{{ thought_balloon }} <b>System Health Snapshot:</b>
+
+{{ stethoscope }} <b>Bot monitor status:</b>
+<code>{{ context.monitor.overall_badge }} {{ context.monitor.overall_status }}</code>
+<code>Operational components:</code> {{ context.monitor.operational }}/{{ context.monitor.total }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)
+<code>Last check duration:</code> {{ "%.1f"|format(context.monitor.duration_ms) }} ms
+<code>Guidance:</code> {{ context.monitor.action }}
+
+{% if context.monitor.available and context.monitor.components %}
+<b>Component checks:</b>
+{% for component in context.monitor.components %}
+<code>{{ component.badge }} {{ component.component_label }}</code> {{ component.status_label }} ({{ "%.1f"|format(component.latency_ms) }} ms)
+{% for insight in component.insights %}
+• {{ insight }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+{{ stethoscope }} <b>Overall status:</b>
+<code>{{ context.overall_badge }} {{ context.overall_status }}</code>
+<code>Health score:</code> {{ context.health_score }}/100
+<code>Dominant pressure:</code> {{ context.dominant_metric }}
+
+<b>Compute & Memory:</b>
+<code>{{ context.cpu_badge }} CPU:</code> {{ "%.1f"|format(context.cpu_percent) }}%
+<code>Status:</code> {{ context.cpu_status }}
+
+<code>{{ context.memory_badge }} RAM:</code> {{ "%.1f"|format(context.memory_percent) }}%
+<code>Status:</code> {{ context.memory_status }}
+<code>Used / Available:</code> {{ context.memory_used }} / {{ context.memory_available }}
+
+<code>{{ context.load_badge }} Load avg (1/5/15m):</code> {{ "%.2f"|format(context.load_1m) }} / {{ "%.2f"|format(context.load_5m) }} / {{ "%.2f"|format(context.load_15m) }}
+<code>Per-core pressure (1m):</code> {{ "%.1f"|format(context.load_ratio_percent) }}% of {{ context.cpu_count }} cores
+<code>Assessment:</code> {{ context.load_status }}
+
+{{ desktop_computer }} <b>Runtime:</b>
+<code>Uptime:</code> {{ context.uptime }}
+<code>Processes:</code> {{ context.process_total }}
+
+<b>Docker Workload:</b>
+{% if context.docker.available %}
+<code>{{ context.docker.badge }} Status:</code> {{ context.docker.status_label }}
+<code>Containers (running/stopped):</code> {{ context.docker.running_containers }} / {{ context.docker.stopped_containers }} (total {{ context.docker.containers_total }})
+<code>Running ratio:</code> {{ "%.1f"|format(context.docker.running_ratio) }}%
+<code>Containers per core:</code> {{ "%.2f"|format(context.docker.containers_per_core) }}
+<code>Images:</code> {{ context.docker.images_count }}
+<code>Comment:</code> {{ context.docker.trend_text }}
+{% else %}
+<code>⚪ Docker:</code> {{ context.docker.trend_text }}
+{% endif %}
+
+<b>Analytics:</b>
+{% for insight in context.insights %}
+• {{ insight }}
+{% endfor %}
+
+<b>Recommended actions:</b>
+{% for recommendation in context.recommendations %}
+• {{ recommendation }}
+{% endfor %}

@@ -1,4 +1,16 @@
 ################################################################
+# pyTMBot Configuration File
+# Version: 0.3.0
+# Compatible with app version: 0.3.0
+################################################################
+
+# Configuration Schema Version
+# Keep this equal to the running pytmbot version.
+# This repository sample targets the current repository runtime version.
+# If omitted or mismatched, pytmbot auto-fills config_version with the current app version during migration.
+config_version: '0.3.0'
+
+################################################################
 # General Bot Settings
 ################################################################
 # Bot Token Configuration
@@ -17,19 +29,20 @@ bot_token:
 access_control:
   # User IDs allowed to access the bot (REQUIRED)
   # To get your user ID:
-  #   Method 1: Send a message to @userinfobot on Telegram
-  #   Method 2: Start your bot and send any message - check logs for user ID
+  #   Method 1 (recommended): Send /getmyid to your bot
+  #   Method 2: Send a message to @userinfobot on Telegram
   allowed_user_ids:
     - 123456789    # Replace with actual Telegram user ID (number only)
     - 987654321    # You can add multiple user IDs
 
   # Admin IDs with elevated permissions (REQUIRED)
   # Admins can access sensitive commands
+  # IMPORTANT: allowed_admins_ids must be a subset of allowed_user_ids
   allowed_admins_ids:
     - 123456789    # Replace with actual admin Telegram user ID
 
   # Salt for TOTP (Time-Based One-Time Password) generation (REQUIRED)
-  # Generate with: docker run --rm orenlab/pytmbot:latest --salt
+  # Generate with: docker run --rm orenlab/pytmbot:stable --salt
   # Or use: openssl rand -hex 32
   # Or use any random 32+ character string
   auth_salt:
@@ -41,8 +54,8 @@ chat_id:
   # For private chat: use your user ID (positive number)
   # For group chat: use group ID (negative number, starts with -)
   # To get chat ID:
-  #   Method 1: For groups - add @userinfobot to group and send any message
-  #   Method 2: Start your bot and send message - check logs for chat ID
+  #   Method 1 (recommended): Send /getmyid to your bot
+  #   Method 2: For groups - add @userinfobot to group and send any message
   global_chat_id:
     - -1001234567890  # Example: group chat ID (negative number)
     # - 123456789     # Alternative: private chat ID (positive number)
@@ -61,6 +74,11 @@ docker:
   # WARNING: Produces many logs when monitor plugin is enabled
   debug_docker_client: false  # true or false
 
+  # Strict Docker access mode (OPTIONAL)
+  # false = graceful degradation when Docker socket/daemon is unavailable
+  # true = fail fast during startup/operations if Docker access is broken
+  strict_access: false
+
 ################################################################
 # Webhook Configuration (OPTIONAL)
 ################################################################
@@ -69,34 +87,53 @@ docker:
 # for enhanced security against unauthorized access
 webhook_config:
   # Webhook URL (REQUIRED if using webhooks)
-  # Must be accessible from the internet and have valid SSL
-  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/BOT_TOKEN/
+  # Must be publicly reachable and resolvable by Telegram
+  # Bot will automatically append secure random path like: /webhook/RANDOM_STRING/
+  # If host is invalid/unresolvable, webhook setup fails and bot falls back to polling
   url:
     - 'your-domain.com'  # Replace with your domain (without https:// and path)
 
   # External webhook port (REQUIRED if using webhooks)
+  # Public HTTPS port used by Telegram when calling your reverse proxy
   webhook_port:
-    - 8443  # Standard HTTPS port (recommended)
-    # - 8443  # Alternative port (allowed by Telegram)
+    - 443   # Recommended
+    # - 8443  # Alternative port (also accepted by Telegram)
 
   # Local application port (REQUIRED if using webhooks)
   # Must be >= 1024 (non-privileged port)
   local_port:
     - 5001  # Internal port for the bot application
 
+  # Trusted reverse proxy IPs/CIDRs (OPTIONAL)
+  # Configure this only when webhook traffic goes through a trusted proxy/load balancer.
+  # If unset/null, forwarded headers are ignored and direct client IP is used.
+  trusted_proxy_ips: null
+    # - '127.0.0.1/32'
+    # - '10.0.0.0/8'
+
+  # Additional trusted Telegram IP ranges/CIDRs (OPTIONAL)
+  # Use only if your deployment requires custom Telegram source ranges
+  additional_telegram_ip_ranges: null
+    # - '149.154.160.0/20'
+
   # SSL certificate path (OPTIONAL for HTTPS webhooks)
-  cert:
-    - '/path/to/your/certificate.pem'  # Replace with actual certificate path
+  # Set to null or omit if not using SSL certificates
+  # Keep null when TLS is terminated by reverse proxy
+  cert: null
+    # - '/path/to/your/certificate.pem'  # Replace with actual certificate path
 
   # SSL private key path (OPTIONAL for HTTPS webhooks)
-  cert_key:
-    - '/path/to/your/private.key'      # Replace with actual private key path
+  # Set to null or omit if not using SSL certificates
+  # Keep null when TLS is terminated by reverse proxy
+  cert_key: null
+    # - '/path/to/your/private.key'      # Replace with actual private key path
 
 ################################################################
 # Plugins Configuration (OPTIONAL)
 ################################################################
 plugins_config:
-  # System Monitoring Plugin Configuration
+  # System Monitoring Plugin Configuration (OPTIONAL)
+  # NOTE: monitor also requires the top-level influxdb section.
   monitor:
     # Resource usage thresholds (all values in percentage or Celsius)
     tracehold:
@@ -132,9 +169,10 @@ plugins_config:
     check_interval:
       - 5  # Check system status every 5 seconds
 
-    # Reset notification count after X minutes
+    # Reset notification budget window (seconds)
+    # Example: 300 = 5 minutes
     reset_notification_count:
-      - 5  # Reset notification counter after 5 minutes
+      - 300
 
     # Retry attempts for failed monitoring
     retry_attempts:
@@ -147,7 +185,8 @@ plugins_config:
     # Monitor Docker containers and images
     monitor_docker: true  # true = monitor Docker, false = don't monitor
 
-  # Outline VPN Plugin Configuration
+  # Outline VPN Plugin Configuration (OPTIONAL)
+  # Remove this section entirely if not using Outline VPN
   outline:
     # Outline VPN API URL (REQUIRED if using Outline plugin)
     # Get this from your Outline VPN server management interface
@@ -163,8 +202,10 @@ plugins_config:
 # InfluxDB Settings (OPTIONAL)
 ################################################################
 # Only needed if you want to store monitoring data in InfluxDB
+# Remove this section entirely if not using InfluxDB
 influxdb:
   # InfluxDB server URL (REQUIRED if using InfluxDB)
+  # Use domain or IP-address
   url:
     - 'http://localhost:8086'  # Replace with your InfluxDB server URL
 
@@ -185,31 +226,47 @@ influxdb:
   debug_mode: false  # true = enable debug logs, false = normal logging
 
 ################################################################
+# VERSIONING NOTES:
+################################################################
+# - config_version should normally match the running pytmbot version.
+# - This repository sample is prepared for pytmbot 0.3.0.
+# - If config_version is missing or mismatched, startup migrates it to the current app version.
+# - Review docs/settings.md after upgrades to pick up new fields or changed behavior.
+#
+################################################################
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
+#    - Set config_version to match your pytmbot version (this sample uses '0.3.0')
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
-#    - Get your user ID: send message to bot and check logs, or use @userinfobot
+#    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID
 #    - Replace -1001234567890 with your chat ID for notifications
-#    - Generate auth_salt: docker run --rm orenlab/pytmbot:latest --salt
+#    - Generate auth_salt: docker run --rm orenlab/pytmbot:stable --salt
 #
 # 2. OPTIONAL steps for advanced features:
 #    - Configure webhook_config if you don't want to use polling
 #      Note: Bot automatically generates secure random webhook paths
 #    - Configure plugins_config for monitoring and VPN features
 #    - Configure influxdb for data storage and analytics
+#    - If you enable plugins_config.monitor, configure influxdb too
 #
-# 3. Security features (automatic):
+# 3. Version Management:
+#    - Keep config_version aligned with your pytmbot version
+#    - Review migration or validation messages in logs after upgrades
+#    - Recheck docs/settings.md when new releases add configuration fields
+#
+# 4. Security features (automatic):
 #    - Webhook URLs include random tokens for security
 #    - Rate limiting (10 requests/10 seconds, 5 for 404s)
 #    - IP validation (only Telegram servers allowed)
 #    - Secret token verification for webhook requests
 #    - Automatic IP banning after 50 excessive requests
 #
-# 4. Test your configuration:
+# 5. Test your configuration:
 #    - Start with minimal config (only required fields)
 #    - Add optional features one by one
 #    - Check logs for any configuration errors
 #    - Use docker logs to monitor webhook requests
+#    - Verify version compatibility on startup
 ################################################################

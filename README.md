@@ -1,9 +1,6 @@
 # pyTMbot
 
-**pyTMbot** is a versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending
-its functionality through a modular plugin system. The bot supports both **polling** and **webhook** modes, offering
-flexibility based on your deployment requirements. Additionally, **pyTMbot** can be deployed either **directly on the
-host machine** or within a **Docker container**, providing flexibility in infrastructure setup.
+**pyTMbot** is a Docker-first Telegram bot for **Docker operations**, **server monitoring**, and **secure remote administration**. It supports both **polling** and **webhook** modes and can be extended through a modular plugin system.
 
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
@@ -13,126 +10,120 @@ host machine** or within a **Docker container**, providing flexibility in infras
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=orenlab_pytmbot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=orenlab_pytmbot)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/abe0314bb5c24cfda8db9c0a293d17c0)](https://app.codacy.com/gh/orenlab/pytmbot/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Docs](https://github.com/orenlab/pytmbot/actions/workflows/docs.yml/badge.svg)](https://github.com/orenlab/pytmbot/actions/workflows/docs.yml)
 
-**pyTMbot** leverages
-the [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), [psutil](https://github.com/giampaolo/psutil),
-and [docker-py](https://github.com/docker/docker-py) libraries to provide robust Docker and server management tools.
+## Why pyTMbot
 
-## 💡 Key Features
+- **Manage Docker from Telegram**: containers, images, logs, volumes, and networks
+- **Monitor host health**: CPU, memory, disk, network, sensors, uptime, users, and quick views
+- **Secure administration**: allowlists, admin-only actions, 2FA/TOTP, rate limiting, safer webhook handling
+- **Production-ready Docker deployment** with structured logging, health checks, and config migration
+- **Extensible architecture** through plugins and Jinja2-based templating
 
-### 🐳 Docker Management
+pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI), [psutil](https://github.com/giampaolo/psutil), and [docker-py](https://github.com/docker/docker-py).
 
-- Efficient management of Docker containers (start, stop, restart, etc.)
-- Monitor and retrieve real-time status of running and stopped containers
-- Access and search detailed container logs
-- Retrieve, inspect, and manage Docker images, including tag information and metadata
-- Seamless inline query handling for direct container management via Telegram
-- **NEW**: Docker image update checking: Manually check for newer image versions by comparing local tags with those
-  available on Docker Hub, helping ensure that your containers can be updated when needed
+## Key capabilities
 
-### 🖥️ Local Server Monitoring
+### Docker management
 
-- Load average details and monitoring
-- Summary of memory and swap usage
-- Real-time sensor data
-- Process summary and control
-- Uptime information
-- Network and file system information
-- **NEW**: Quick view for system and Docker summary
+- Start, stop, restart, inspect, and browse containers
+- View container logs with pagination and export support
+- Inspect and manage Docker images with metadata and tag details
+- Browse **Volumes** and **Networks** with optional 2FA protection
+- Check for newer image versions against Docker Hub
+- Use inline interactions for faster Telegram-based operations
 
-### 🔌 Plugin System
+### Server monitoring
 
-- Extend functionality through custom plugins with simple configuration.
-- Example plugins:
-    - **Monitor Plugin:** Monitor CPU, memory, temperature _(only for Linux)_, disk usage, and detect changes in Docker
-      containers and images. The plugin sends notifications for various monitored parameters, including new containers
-      and images, ensuring timely awareness of system status.
-    - **2FA Plugin:** Two-factor authentication for added security using QR codes and TOTP.
-    - **Outline VPN Plugin:** Monitor your [Outline VPN](https://getoutline.org/) server directly from Telegram.
+- Quick system and Docker summary pages with live refresh
+- Detailed CPU, memory, swap, network, disk, user, fan, and sensor views
+- Load average, uptime, filesystem, and process insights
+- Health monitoring subsystem with startup and component-level checks
 
-Refer to [plugins.md](docs/plugins.md) for more information on adding and managing plugins.
+### Security and reliability
 
-### 🔖 Additional Features
+- Access restricted by `allowed_user_ids` and `allowed_admins_ids`
+- TOTP-based 2FA for sensitive actions
+- Request rate limiting and duplicate update protection
+- Safer webhook deployments with trusted proxy / IP validation
+- Secure message deletion scheduling and improved masking in logs
+- Better handling of Telegram API edge cases such as long messages and rate limits
 
-- Integrated bot update check: `/check_bot_updates`
-- Emoji support for improved user interaction 😎
-- Templated response system powered by Jinja2
-- Extensive logging through Docker log aggregators
+### Plugins
 
-## 🕸 Requirements
+- Extend the bot with custom modules and simple configuration
+- Included examples:
+  - **Monitor Plugin** — notifications for CPU, memory, disk, temperature, container, and image changes
+  - **Outline VPN Plugin** — monitor your [Outline VPN](https://getoutline.org/) server from Telegram
 
-Starting from version 0.9.0, **pyTMbot** can run **either directly on the host machine or in a Docker container**. Both
-deployment methods provide full functionality, but there are slight differences in system access depending on the
-environment:
+See [docs/plugins.md](docs/plugins.md) for details.
 
-- **Host machine deployment:** Direct access to system resources like CPU, memory, and sensors. Recommended for cases
-  where precise and real-time system monitoring is critical.
-- **Docker container deployment:** Ideal for isolated environments or multi-bot setups. Certain low-level system access
-  may be restricted due to container isolation, but Docker management and most server monitoring features remain fully
-  functional.
+## What's new in 0.3.0
 
-The bot supports two operational modes:
+- Expanded server monitoring views and streamlined quick-view navigation
+- Docker UI pagination for containers, images, and logs
+- Log export and configurable log format (`human` / `json`)
+- Health checks with clearer startup reporting
+- Automatic configuration migration/versioning
+- Improved performance, caching, masking, and strict typing
+- Updated build/runtime stack: **Python 3.12+** and modern Docker toolchain
 
-- **Polling Mode:** Simplified setup with no need for HTTPS or a static IP address. Recommended for small-scale or
-  development deployments.
-- **Webhook Mode:** Optimized for real-time updates with reduced latency. Suitable for production environments,
-  typically requiring an HTTPS server and a valid domain.
+## Requirements
 
-To simplify the installation process, we provide an **`install.sh`** script that handles the setup, regardless of
-whether you choose to run **pyTMbot** on a host machine or within a Docker container. For full instructions on
-installation and configuration, refer to the [installation section](docs/installation.md).
+Current **0.3.x** builds are supported in **Docker / Docker Compose** deployments.
 
-## 🔌 Installation and Setup
+- **Python** 3.12+ runtime baseline
+- **Docker Engine** 20.10+
+- **Docker Compose** v2.0+ recommended
+- Docker socket access for container-management features
 
-Refer to [installation.md](docs/installation.md) for full instructions on setting up the bot in your environment.
+### Operating modes
 
-## 🛡 Security
+- **Polling** — easiest to deploy; no HTTPS or public endpoint required
+- **Webhook** — lower latency; requires a public hostname for Telegram `setWebhook`
 
-**pyTMbot** comes with security-first features, such as:
+### Logging defaults
 
-- **Superuser Role:** Manage Docker containers securely.
-- **TOTP 2FA Support:** Secure sensitive actions with time-based OTPs and QR code generation.
-- **Access Control Middleware:** Manage bot access using a customizable list of admin IDs.
-- **Rate Limiting Middleware:** To protect against **DoS (Denial-of-Service) attacks**, pyTMbot integrates middleware
-  that limits the number of requests allowed from a single user or IP address within a specified time frame. This
-  prevents abuse while ensuring smooth performance under heavy load.
+- `INFO` and above: concise errors without full traceback dumps
+- `DEBUG`: full stack traces preserved
 
-Learn more about the security measures in our detailed [security guide](docs/security.md).
+## Install
 
-## 📈 Roadmap
+Use the Docker-focused setup guides:
 
-To learn more about planned features and future updates, check the [roadmap](docs/roadmap.md).
+- [docs/installation.md](docs/installation.md)
+- [docs/docker.md](docs/docker.md)
 
-## 🐋 Docker Hub
+## Documentation
 
-You can find the official Docker image on Docker Hub:
+Live docs site: [orenlab.github.io/pytmbot](https://orenlab.github.io/pytmbot/)
+
+- [Docs index](docs/README.md)
+- [Installation](docs/installation.md)
+- [Architecture](docs/architecture.md)
+- [Settings](docs/settings.md)
+- [Command reference](docs/commands.md)
+- [Webhook mode](docs/webhook.md)
+- [Health system](docs/health.md)
+- [Security](docs/security.md)
+- [Access control and 2FA](docs/auth_control.md)
+- [Plugins](docs/plugins.md)
+- [CLI arguments](docs/bot_cli_args.md)
+- [Debugging](docs/debug.md)
+- [Development](docs/development.md)
+- [Roadmap](docs/roadmap.md)
+
+## Docker Hub
 
 ![GitHub Release](https://img.shields.io/github/v/release/orenlab/pytmbot)
 [![Docker Pulls](https://badgen.net/docker/pulls/orenlab/pytmbot?icon=docker&label=pulls)](https://hub.docker.com/r/orenlab/pytmbot/)
 [![Docker Image Size](https://badgen.net/docker/size/orenlab/pytmbot?icon=docker&label=image%20size)](https://hub.docker.com/r/orenlab/pytmbot/)
 ![Github last-commit](https://img.shields.io/github/last-commit/orenlab/pytmbot)
 
-Head to the [Docker Hub repository](https://hub.docker.com/r/orenlab/pytmbot) for more details.
+Official image: [orenlab/pytmbot](https://hub.docker.com/r/orenlab/pytmbot)
 
-## 📚 Documentation
-
-- 🔒 [Auth Control](docs/auth_control.md)
-- ⚙️ [CLI Args](docs/bot_cli_args.md)
-- 🐞 [Debugging](docs/debug.md)
-- 🐳 [Docker](docs/docker.md)
-- 🛠️ [Installation](docs/installation.md)
-- 📦 [Plugins](docs/plugins.md)
-- 🗺️ [Roadmap](docs/roadmap.md)
-- 📜 [Scripts Installation](docs/script_install.md)
-- 🔐 [Security](docs/security.md)
-- ⚙️ [Settings](docs/settings.md)
-
-## 🧬 Contributors
-
-- [@orenlab](https://github.com/orenlab)
-
-## 📜 License
+## License
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
-This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
+Licensed under the MIT License. See [LICENSE](LICENSE).

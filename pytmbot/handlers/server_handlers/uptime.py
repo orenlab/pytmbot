@@ -6,20 +6,42 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import InlineKeyboardMarkup, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import em, psutil_adapter
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    get_psutil_adapter,
+)
+from pytmbot.handlers.server_handlers.inline.common import (
+    build_user_bound_callback_data,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
+psutil_adapter = get_psutil_adapter()
+
+USERS_INFO_PREFIX = "__users_info__"
+
+
+def _build_uptime_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
+    button = button_data(
+        text="Active sessions",
+        callback_data=build_user_bound_callback_data(USERS_INFO_PREFIX, user_id),
+    )
+    return keyboards.build_inline_keyboard(button)
 
 
 # regexp="Uptime"
 @logger.session_decorator
-def handle_uptime(message: Message, bot: TeleBot):
+def handle_uptime(message: Message, bot: TeleBot) -> None:
     """
     Handle uptime message from a user.
 
@@ -40,20 +62,25 @@ def handle_uptime(message: Message, bot: TeleBot):
         uptime_data = psutil_adapter.get_uptime()
 
         if uptime_data is None:
-            logger.error(f"Failed at @{__name__}: Error occurred while getting uptime")
-            return bot.send_message(
-                message.chat.id, text="⚠️ Some error occurred. Please try again later("
+            logger.error("bot.handler.server.uptime.get.fail")
+            bot.send_message(
+                message.chat.id,
+                text="⚠️ Couldn't retrieve uptime right now. Please try again later.",
             )
+            return None
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_uptime.jinja2", context=uptime_data, **emojis
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
+        user_id = message.from_user.id if message.from_user is not None else None
+        keyboard = _build_uptime_keyboard(user_id)
 
-        return bot.send_message(
+        bot.send_message(
             message.chat.id,
             text=bot_answer,
+            reply_markup=keyboard,
         )
+        return None
 
     except Exception as error:
         bot.send_message(
@@ -65,4 +92,4 @@ def handle_uptime(message: Message, bot: TeleBot):
                 error_code="HAND_001",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

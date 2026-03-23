@@ -10,16 +10,25 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import psutil_adapter, keyboards, em, button_data
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    get_psutil_adapter,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
+psutil_adapter = get_psutil_adapter()
 
 
 # regexp="Memory load"
 @logger.session_decorator
-def handle_memory(message: Message, bot: TeleBot):
+def handle_memory(message: Message, bot: TeleBot) -> None:
     """
     Handle the "Memory load" command.
 
@@ -31,30 +40,37 @@ def handle_memory(message: Message, bot: TeleBot):
         bot.send_chat_action(message.chat.id, "typing")
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
-            logger.error(
-                f"Failed at {__name__}: Error occurred while getting memory info"
+            logger.error("bot.handler.server.memory.get.fail")
+            bot.send_message(
+                message.chat.id,
+                text=(
+                    "⚠️ Couldn't retrieve memory usage right now. "
+                    "Please try again later."
+                ),
             )
-            return bot.send_message(
-                message.chat.id, text="⚠️ Some error occurred. Please try again later("
-            )
+            return None
 
-        data = button_data(text="Swap info", callback_data="__swap_info__")
+        callback_data = "__swap_info__"
+        if message.from_user is not None:
+            callback_data = f"__swap_info__:{message.from_user.id}"
+
+        data = button_data(text="Swap info", callback_data=callback_data)
         keyboard = keyboards.build_inline_keyboard(data)
 
-        with Compiler(
+        bot_answer = Compiler.quick_render(
             template_name="b_memory.jinja2",
             context=memory_info,
             thought_balloon=em.get_emoji("thought_balloon"),
             abacus=em.get_emoji("abacus"),
-        ) as compiler:
-            bot_answer = compiler.compile()
+        )
 
-        return bot.send_message(
+        bot.send_message(
             message.chat.id,
             text=bot_answer,
             reply_markup=keyboard,
             parse_mode="HTML",
         )
+        return None
 
     except Exception as error:
         bot.send_message(
@@ -66,4 +82,4 @@ def handle_memory(message: Message, bot: TeleBot):
                 error_code="HAND_006",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

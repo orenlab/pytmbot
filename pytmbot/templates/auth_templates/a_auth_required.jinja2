@@ -1,26 +1,22 @@
-{# templates/auth_required.jinja2 #}
-{# Template for requesting two-factor authentication #}
-
-{%- set supported_apps = [
+{%- set example_apps = [
     'Yandex Key',
     'Microsoft Authenticator',
     'Google Authenticator'
 ] -%}
 
-{{ thought_balloon }} Hello {{ name }},
+{{ thought_balloon }} Hello, {{ name }}.
 
-{{ double_exclamation_mark }} Two-factor authentication (2FA) is required to access this section.
+{{ double_exclamation_mark }} Two-factor authentication (2FA) is required to open this section.
 {%- if not has_installed_app %}
-Please install one of our supported authentication apps if you haven't already.
+Install any app that supports standard TOTP codes if you do not have one yet.
 {%- endif %}
 
 <blockquote expandable>
-Compatible authentication apps:
- - Yandex Key,
- - Microsoft Authenticator,
- - Google Authenticator
+Examples of compatible apps:
+{% for app in example_apps -%}
+- {{ app }}
+{% endfor %}
 </blockquote>
 
-{# Action buttons #}
-{{ first_quarter_moon }} New to 2FA? Click "Get QR Code" to set up your account
-{{ fountain_pen }} Already set up? Click "Enter 2FA Code" to continue
+{{ first_quarter_moon }} Need to set up 2FA? Tap "Get QR Code".
+{{ fountain_pen }} Already set up? Tap "Enter 2FA Code".

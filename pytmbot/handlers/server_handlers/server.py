@@ -10,11 +10,13 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 @logger.session_decorator
@@ -35,12 +37,15 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             keyboard_type="server_keyboard"
         )
 
-        first_name: str = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),
             "battery": em.get_emoji("battery"),
             "desktop_computer": em.get_emoji("desktop_computer"),
+            "electric_plug": em.get_emoji("electric_plug"),
             "thermometer": em.get_emoji("thermometer"),
             "rocket": em.get_emoji("rocket"),
             "hourglass_not_done": em.get_emoji("hourglass_not_done"),
@@ -48,10 +53,9 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             "satellite": em.get_emoji("satellite"),
         }
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_server.jinja2", first_name=first_name, **emojis
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         bot.send_message(
             message.chat.id,
@@ -69,4 +73,4 @@ def handle_server(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_002",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

@@ -2,17 +2,21 @@
 
 ## Overview
 
-This document provides a secure configuration guide for accessing InfluxDB through Nginx and Nginx Proxy Manager. It includes settings for both general access and isolated servers, ensuring a secure and efficient setup with comprehensive security best practices.
+This document provides a secure configuration guide for accessing InfluxDB through Nginx and Nginx Proxy Manager. It
+includes settings for both general access and isolated servers, ensuring a secure and efficient setup with comprehensive
+security best practices.
 
 ## 🔒 Security Requirements
 
 ### Prerequisites
+
 - **SSL/TLS Certificate**: Required for production deployments
 - **Firewall Configuration**: Proper firewall rules must be in place
 - **Network Segmentation**: InfluxDB should be isolated from public networks
 - **Authentication**: Always use strong authentication mechanisms
 
 ### Security Headers
+
 All configurations must include essential security headers to protect against common attacks.
 
 ## Nginx Configuration
@@ -34,7 +38,7 @@ limit_req_zone $binary_remote_addr zone=influxdb_limit:10m rate=10r/s;
 server {
     listen 80;
     server_name influxdb.example.com;  # Replace with your domain name
-    
+
     # Redirect HTTP to HTTPS
     return 301 https://$server_name$request_uri;
 }
@@ -162,46 +166,46 @@ sudo systemctl reload nginx
 ### Setting Up Secure Proxy Host
 
 1. **Access Management Interface**:
-   - Access the Nginx Proxy Manager interface at `https://<your_server_ip>:81` (use HTTPS if available)
-   - **IMPORTANT**: Change default credentials immediately after first login
+    - Access the Nginx Proxy Manager interface at `https://<your_server_ip>:81` (use HTTPS if available)
+    - **IMPORTANT**: Change default credentials immediately after first login
 
 2. **Initial Security Setup**:
-   - Default credentials (CHANGE IMMEDIATELY):
-     - Email: admin@example.com
-     - Password: changeme
-   - Create a strong admin password
-   - Enable two-factor authentication if available
+    - Default credentials (CHANGE IMMEDIATELY):
+        - Email: <admin@example.com>
+        - Password: changeme
+    - Create a strong admin password
+    - Enable two-factor authentication if available
 
 3. **Create Secure Proxy Host**:
-   - **Domain Names**: influxdb.example.com
-   - **Scheme**: http
-   - **Forward Hostname / IP**: 127.0.0.1 (use 127.0.0.1 instead of localhost)
-   - **Forward Port**: 8086
-   - **Block Common Exploits**: ✅ Enable
-   - **Websockets Support**: Only if needed
+    - **Domain Names**: influxdb.example.com
+    - **Scheme**: http
+    - **Forward Hostname / IP**: 127.0.0.1 (use 127.0.0.1 instead of localhost)
+    - **Forward Port**: 8086
+    - **Block Common Exploits**: ✅ Enable
+    - **Websockets Support**: Only if needed
 
 4. **SSL Configuration**:
-   - **SSL Certificate**: Use Let's Encrypt or upload your own certificate
-   - **Force SSL**: ✅ Enable
-   - **HTTP/2 Support**: ✅ Enable
-   - **HSTS Enabled**: ✅ Enable
-   - **HSTS Subdomains**: ✅ Enable if applicable
+    - **SSL Certificate**: Use Let's Encrypt or upload your own certificate
+    - **Force SSL**: ✅ Enable
+    - **HTTP/2 Support**: ✅ Enable
+    - **HSTS Enabled**: ✅ Enable
+    - **HSTS Subdomains**: ✅ Enable if applicable
 
 5. **Advanced Security Settings**:
    ```nginx
    # Add these to the Advanced tab
-   
+
    # Security Headers
    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
    add_header X-Frame-Options "DENY" always;
    add_header X-Content-Type-Options "nosniff" always;
    add_header X-XSS-Protection "1; mode=block" always;
    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-   
+
    # Rate limiting
    limit_req_zone $binary_remote_addr zone=influxdb_npm:10m rate=10r/s;
    limit_req zone=influxdb_npm burst=20 nodelay;
-   
+
    # IP whitelist (uncomment and configure for additional security)
    # allow 192.168.1.0/24;
    # allow 10.0.0.0/8;
@@ -210,7 +214,7 @@ sudo systemctl reload nginx
 
 ## Secure Configuration for Isolated Servers
 
-For isolated or home servers, use this secure docker-compose configuration:
+For isolated or home servers, use this secure Docker Compose configuration:
 
 ```yaml
 services:
@@ -218,11 +222,11 @@ services:
     image: influxdb:2-alpine  # Use specific version and alpine for security
     container_name: influxdb
     restart: unless-stopped
-    
+
     # Security: Only expose to localhost by default
     ports:
       - "127.0.0.1:8086:8086"  # Bind to localhost only
-    
+
     environment:
       # Security: Set strong passwords
       - DOCKER_INFLUXDB_INIT_MODE=setup
@@ -231,19 +235,19 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=your_org
       - DOCKER_INFLUXDB_INIT_BUCKET=your_bucket
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=your_secure_admin_token
-    
+
     volumes:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
-    
+
     # Security: Run as non-root user
     user: "1000:1000"
-    
+
     # Security: Read-only root filesystem
     read_only: true
     tmpfs:
       - /tmp
-    
+
     # Security: Limit resources
     deploy:
       resources:
@@ -253,7 +257,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    
+
     # Security: Disable unnecessary capabilities
     cap_drop:
       - ALL
@@ -262,7 +266,7 @@ services:
       - DAC_OVERRIDE
       - SETGID
       - SETUID
-    
+
     # Security: No new privileges
     security_opt:
       - no-new-privileges:true
@@ -285,35 +289,41 @@ networks:
 ## 🔒 Security Best Practices
 
 ### 1. Network Security
+
 - **Firewall Rules**: Only allow necessary ports (443 for HTTPS, 22 for SSH)
 - **Network Segmentation**: Place InfluxDB in a separate network segment
 - **VPN Access**: Use VPN for remote access instead of exposing to internet
 
 ### 2. Authentication & Authorization
+
 - **Strong Passwords**: Use complex passwords with minimum 12 characters
 - **Token-based Authentication**: Implement InfluxDB tokens for API access
 - **Role-based Access**: Use InfluxDB's built-in RBAC features
 - **Regular Rotation**: Rotate passwords and tokens regularly
 
 ### 3. SSL/TLS Configuration
+
 - **Certificate Management**: Use Let's Encrypt or trusted CA certificates
 - **Perfect Forward Secrecy**: Enable PFS with appropriate cipher suites
 - **HSTS**: Implement HTTP Strict Transport Security
 - **TLS 1.3**: Use latest TLS version when possible
 
 ### 4. Monitoring & Logging
+
 - **Access Logs**: Monitor all access attempts
 - **Error Logs**: Review error logs regularly
 - **Rate Limiting**: Implement rate limiting to prevent abuse
 - **Alerting**: Set up alerts for suspicious activities
 
 ### 5. Container Security
+
 - **Non-root User**: Run containers as non-root user
 - **Read-only Filesystem**: Use read-only root filesystem
 - **Resource Limits**: Set appropriate resource limits
 - **Security Scanning**: Regularly scan container images for vulnerabilities
 
 ### 6. Backup & Recovery
+
 - **Regular Backups**: Implement automated backup strategy
 - **Encrypted Backups**: Encrypt backup data
 - **Recovery Testing**: Test recovery procedures regularly
@@ -343,13 +353,15 @@ networks:
 
 ## Conclusion
 
-This secure configuration provides robust protection for InfluxDB access through Nginx and Nginx Proxy Manager. Always follow security best practices and regularly review and update your configurations to maintain security posture.
+This secure configuration provides robust protection for InfluxDB access through Nginx and Nginx Proxy Manager. Always
+follow security best practices and regularly review and update your configurations to maintain security posture.
 
 For production environments, consider additional security measures such as:
+
 - Web Application Firewall (WAF)
 - DDoS protection
 - Security auditing
 - Penetration testing
 - Compliance certifications
 
-Remember: Security is an ongoing process, not a one-time setup.Д
+Remember: Security is an ongoing process, not a one-time setup.

@@ -3,12 +3,43 @@
 (c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
 pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
+
+Enhanced with configuration versioning and validation.
 """
 
-from typing import Optional
+import warnings
+from functools import cache
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+from ipaddress import ip_network
+from typing import ClassVar
 
-from pydantic import BaseModel, SecretStr, conlist
+from packaging import version
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+from pytmbot import logs
+
+
+@cache
+def get_app_version() -> str:
+    """
+    Resolve application version without importing `pytmbot.globals`.
+
+    Importing `globals` from this module creates a circular dependency during
+    startup (`settings_model -> globals -> keyboards -> exceptions -> utils.security -> settings_model`).
+    """
+    try:
+        return package_version("pyTMBot")
+    except PackageNotFoundError:
+        # Source/development fallback when package metadata is unavailable.
+        return "0.3.0"
+
+
+class ConfigVersionError(Exception):
+    """Custom exception for configuration version errors."""
+
+    pass
 
 
 class BotTokenModel(BaseModel):
@@ -16,12 +47,12 @@ class BotTokenModel(BaseModel):
     Model to store bot token information for production and development environments.
 
     Attributes:
-        prod_token (List[SecretStr]): List of production bot tokens.
-        dev_bot_token (Optional[List[SecretStr]]): Optional list of development bot tokens.
+        prod_token (list[SecretStr]): List of production bot tokens.
+        dev_bot_token (list[SecretStr] | None): Optional list of development bot tokens.
     """
 
-    prod_token: conlist(SecretStr, min_length=1)
-    dev_bot_token: Optional[conlist(SecretStr, min_length=1)] = None
+    prod_token: list[SecretStr] = Field(min_length=1)
+    dev_bot_token: list[SecretStr] | None = Field(default=None, min_length=1)
 
 
 class AccessControlModel(BaseModel):
@@ -34,9 +65,28 @@ class AccessControlModel(BaseModel):
         auth_salt (List[SecretStr]): List of secret salts for authorization.
     """
 
-    allowed_user_ids: conlist(int, min_length=1)
-    allowed_admins_ids: conlist(int, min_length=1)
-    auth_salt: conlist(SecretStr, min_length=1)
+    allowed_user_ids: list[int] = Field(min_length=1)
+    allowed_admins_ids: list[int] = Field(min_length=1)
+    auth_salt: list[SecretStr] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    # codeclone: ignore[dead-code]
+    def validate_admins_subset(
+        self,
+    ) -> "AccessControlModel":
+        """Ensure admins are always part of allowed users."""
+        allowed_users = set(self.allowed_user_ids)
+        invalid_admins = [
+            admin_id
+            for admin_id in self.allowed_admins_ids
+            if admin_id not in allowed_users
+        ]
+        if invalid_admins:
+            raise ValueError(
+                "allowed_admins_ids must be a subset of allowed_user_ids. "
+                f"Unknown admin IDs: {invalid_admins}"
+            )
+        return self
 
 
 class DockerHostModel(BaseModel):
@@ -45,10 +95,13 @@ class DockerHostModel(BaseModel):
 
     Attributes:
         host (List[str]): List of Docker host URLs or IP addresses.
+        debug_docker_client (bool): Enable debug logging for Docker client.
+        strict_access (bool): Fail fast when Docker is unavailable or misconfigured.
     """
 
-    host: conlist(str, min_length=1)
+    host: list[str] = Field(min_length=1)
     debug_docker_client: bool = False
+    strict_access: bool = False
 
 
 class InfluxDBModel(BaseModel):
@@ -60,12 +113,13 @@ class InfluxDBModel(BaseModel):
         token (List[SecretStr]): List of InfluxDB tokens.
         org (List[str]): List of InfluxDB organizations.
         bucket (List[str]): List of InfluxDB buckets.
+        debug_mode (bool): Enable debug mode for InfluxDB.
     """
 
-    url: Optional[conlist(SecretStr, min_length=1)]
-    token: Optional[conlist(SecretStr, min_length=1)]
-    org: Optional[conlist(SecretStr, min_length=1)]
-    bucket: Optional[conlist(SecretStr, min_length=1)]
+    url: list[SecretStr] | None = Field(default=None, min_length=1)
+    token: list[SecretStr] | None = Field(default=None, min_length=1)
+    org: list[SecretStr] | None = Field(default=None, min_length=1)
+    bucket: list[SecretStr] | None = Field(default=None, min_length=1)
     debug_mode: bool = False
 
 
@@ -74,112 +128,366 @@ class ChatIdModel(BaseModel):
     Model to handle optional chat ID configurations for global notifications.
 
     Attributes:
-        global_chat_id (Optional[List[int]]): Optional list of chat IDs for global notifications.
+        global_chat_id (list[int] | None): Optional list of chat IDs for global notifications.
     """
 
-    global_chat_id: conlist(int, min_length=1)
+    global_chat_id: list[int] = Field(min_length=1)
 
 
 class TraceholdSettings(BaseModel):
     """
     Model to define threshold settings for CPU, memory, and disk usage monitoring.
-
-    Attributes:
-        cpu_usage_threshold (List[int]): Threshold for CPU usage in percentage.
-        memory_usage_threshold (List[int]): Threshold for memory usage in percentage.
-        disk_usage_threshold (List[int]): Threshold for disk usage in percentage.
-        cpu_temperature_threshold (List[int]): Threshold for CPU temperature in Celsius.
-        gpu_temperature_threshold (List[int]): Threshold for GPU temperature in Celsius.
-        disk_temperature_threshold (List[int]): Threshold for disk temperature in Celsius.
     """
 
-    cpu_usage_threshold: conlist(int, min_length=1, max_length=1)
-    memory_usage_threshold: conlist(int, min_length=1, max_length=1)
-    disk_usage_threshold: conlist(int, min_length=1, max_length=1)
-    cpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
-    gpu_temperature_threshold: conlist(int, min_length=1, max_length=1)
-    disk_temperature_threshold: conlist(int, min_length=1, max_length=1)
+    cpu_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    memory_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    disk_usage_threshold: list[int] = Field(min_length=1, max_length=1)
+    cpu_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
+    gpu_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
+    disk_temperature_threshold: list[int] = Field(min_length=1, max_length=1)
 
 
 class MonitorConfig(BaseModel):
     """
     Model to configure monitoring settings for the bot.
-
-    Attributes:
-        tracehold (TraceholdSettings): Threshold settings for resource usage.
-        max_notifications (List[int]): Maximum number of notifications before stopping alerts.
-        check_interval (List[int]): Interval in minutes between status checks.
-        reset_notification_count (List[int]): Time period in minutes to reset the notification count.
-        retry_attempts (List[int]): Number of retry attempts for failed status checks.
-        retry_interval (List[int]): Interval in minutes between retry attempts.
     """
 
     tracehold: TraceholdSettings
-    max_notifications: conlist(int, min_length=1, max_length=1)
-    check_interval: conlist(int, min_length=1, max_length=1)
-    reset_notification_count: conlist(int, min_length=1, max_length=1)
-    retry_attempts: conlist(int, min_length=1, max_length=2)
-    retry_interval: conlist(int, min_length=1, max_length=2)
+    max_notifications: list[int] = Field(min_length=1, max_length=1)
+    check_interval: list[int] = Field(min_length=1, max_length=1)
+    reset_notification_count: list[int] = Field(min_length=1, max_length=1)
+    retry_attempts: list[int] = Field(min_length=1, max_length=2)
+    retry_interval: list[int] = Field(min_length=1, max_length=2)
     monitor_docker: bool = False
 
 
 class OutlineVPN(BaseModel):
     """
     Model to store Outline VPN settings.
-
-    Attributes:
-        api_url (List[SecretStr]): List of API URLs for Outline VPN.
-        cert (List[SecretStr]): List of certificates required for VPN connections.
     """
 
-    api_url: conlist(SecretStr)
-    cert: conlist(SecretStr)
+    api_url: list[SecretStr] = Field(min_length=1)
+    cert: list[SecretStr] = Field(min_length=1)
 
 
 class PluginsConfig(BaseModel):
     """
     Model to configure additional plugins for the bot, such as monitoring and Outline VPN.
-
-    Attributes:
-        monitor (MonitorConfig): Monitoring configuration settings.
-        outline (OutlineVPN): Outline VPN configuration settings.
     """
 
-    monitor: MonitorConfig
-    outline: OutlineVPN
+    monitor: MonitorConfig | None = None
+    outline: OutlineVPN | None = None
 
 
 class WebhookConfig(BaseModel):
     """
     Model to configure webhook settings for the bot.
-
-    Attributes:
-        url (List[SecretStr]): List of webhook URLs.
     """
 
-    url: conlist(SecretStr)
-    webhook_port: conlist(int)
-    local_port: conlist(int)
-    cert: conlist(SecretStr)
-    cert_key: conlist(SecretStr)
+    url: list[SecretStr] = Field(min_length=1)
+    webhook_port: list[int] = Field(min_length=1)
+    local_port: list[int] = Field(min_length=1)
+    cert: list[SecretStr] | None = Field(default=None, min_length=1)
+    cert_key: list[SecretStr] | None = Field(default=None, min_length=1)
+    trusted_proxy_ips: list[str] | None = Field(default=None, min_length=1)
+    additional_telegram_ip_ranges: list[str] | None = Field(default=None, min_length=1)
+
+    @field_validator("trusted_proxy_ips", "additional_telegram_ip_ranges")
+    @classmethod
+    def validate_trusted_proxy_ips(  # codeclone: ignore[dead-code]
+        cls, value: list[str] | None
+    ) -> list[str] | None:
+        """Validate trusted proxy IPs/CIDRs format."""
+        if value is None:
+            return None
+
+        normalized: list[str] = []
+        for raw_ip in value:
+            candidate = raw_ip.strip()
+            if not candidate:
+                raise ValueError("trusted_proxy_ips cannot contain empty values")
+
+            try:
+                _ = ip_network(candidate, strict=False)
+            except ValueError as error:
+                raise ValueError(
+                    f"Invalid trusted proxy IP/CIDR value: '{candidate}'"
+                ) from error
+            normalized.append(candidate)
+
+        return normalized
+
+
+class ConfigMigrator(logs.BaseComponent):
+    """
+    Handles configuration migrations between versions.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("config_migrator")
+        self.app_version = get_app_version()
+
+    @staticmethod
+    def _normalize_version_alias(version_value: str) -> str:
+        """Normalize version aliases to PEP 440 representation."""
+        return str(version.parse(version_value))
+
+    @staticmethod
+    def get_compatibility_matrix() -> dict[str, dict[str, str]]:
+        """
+        Returns compatibility matrix for config versions with app versions.
+        Config version should match app version exactly.
+
+        Returns:
+            Dict mapping config versions to compatibility info.
+        """
+        return {
+            "0.2.2": {
+                "min_app": "0.2.2",
+                "max_app": "0.2.2",
+                "description": "Legacy version (minimum supported)",
+            },
+            "0.3.0.dev0": {
+                "min_app": "0.3.0.dev0",
+                "max_app": "0.3.0.dev0",
+                "description": "Development version with config versioning",
+            },
+            "0.3.0": {
+                "min_app": "0.3.0",
+                "max_app": "0.3.0",
+                "description": "Stable release with config versioning",
+            },
+        }
+
+    @classmethod
+    def validate_compatibility(
+        cls, config_version: str | None, app_version: str
+    ) -> None:
+        """
+        Validate compatibility between config and app versions.
+        Config version should match app version exactly.
+
+        Args:
+            config_version: Version of the configuration (None for legacy configs)
+            app_version: Version of the application
+
+        Raises:
+            ConfigVersionError: If versions are incompatible
+        """
+        # Handle special case: no config version means legacy (0.2.2 compatibility)
+        if config_version is None:
+            app_ver_clean = cls._normalize_version_alias(app_version)
+            if version.parse(app_ver_clean) < version.parse("0.2.2"):
+                raise ConfigVersionError(
+                    f"App version '{app_version}' is End-of-Life (< 0.2.2). "
+                    f"Minimum supported version is 0.2.2"
+                )
+            return  # Legacy configs are allowed for 0.2.2+
+
+        # Check for EOL versions FIRST, before checking compatibility matrix
+        normalized_config_version = cls._normalize_version_alias(config_version)
+        normalized_app_version = cls._normalize_version_alias(app_version)
+        config_ver_clean = normalized_config_version
+        if version.parse(config_ver_clean) < version.parse("0.2.2"):
+            raise ConfigVersionError(
+                f"Configuration version '{config_version}' is End-of-Life (< 0.2.2). "
+                f"Minimum supported version is 0.2.2. "
+                f"Current app version: {app_version}"
+            )
+
+        matrix = cls.get_compatibility_matrix()
+
+        if normalized_config_version not in matrix:
+            supported = list(matrix.keys())
+            raise ConfigVersionError(
+                f"Unsupported config version '{config_version}'. "
+                f"Supported versions: {supported}"
+            )
+
+        # Config version should match app version exactly
+        if normalized_config_version != normalized_app_version:
+            raise ConfigVersionError(
+                f"Config version '{config_version}' does not match "
+                f"app version '{app_version}'. They should be identical."
+            )
+
+    @classmethod
+    def check_deprecation(cls, config_version: str | None, app_version: str) -> None:
+        """
+        Check if config version is deprecated and issue warnings.
+
+        Args:
+            config_version: Version to check (None for legacy configs)
+            app_version: Current app version
+        """
+        # Check for legacy configs without version
+        if config_version is None:
+            warnings.warn(
+                f"Configuration without version field detected. "
+                f"This is legacy 0.2.2 compatibility mode. "
+                f"Consider adding 'config_version: \"{app_version}\"' to your config.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            return
+
+        # Version 0.2.2 is considered legacy
+        if config_version == "0.2.2":
+            warnings.warn(
+                f"Configuration version '{config_version}' is legacy. "
+                f"Consider upgrading to version {app_version} for new features.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+    def migrate_config(self, config_data: dict[str, object]) -> dict[str, object]:
+        """
+        Migrate configuration to current app version.
+
+        Args:
+            config_data: Raw configuration data
+
+        Returns:
+            Migrated configuration data
+        """
+        current_version = config_data.get("config_version")
+
+        # If no version, this is legacy 0.2.2 config - add current app version
+        if current_version is None:
+            with self.log_context(
+                legacy_config=True, app_version=self.app_version
+            ) as log:
+                log.info("bot.models.settings_model.adding.config.info")
+            config_data["config_version"] = self.app_version
+            return config_data
+
+        # If version doesn't match current app version, update it
+        if current_version != self.app_version:
+            with self.log_context(
+                old_version=current_version, new_version=self.app_version
+            ) as log:
+                log.info("bot.models.settings_model.updating.config.info")
+            config_data["config_version"] = self.app_version
+
+        return config_data
 
 
 class SettingsModel(BaseSettings):
     """
-    Main settings model for configuring the bot.
+    Main settings model for configuring the bot with version management.
 
     Attributes:
+        config_version (str | None): Version of the configuration schema.
         bot_token (BotTokenModel): Bot token settings for both production and development.
         access_control (AccessControlModel): Access control settings for users and admins.
         docker (DockerHostModel): Docker host settings.
-        chat_id (ChatIdModel): Optional chat ID settings for global notifications.
-        plugins_config (Optional[PluginsConfig]): Optional plugin configurations (monitoring, VPN).
+        chat_id (ChatIdModel): Chat ID settings for global notifications.
+        influxdb (InfluxDBModel | None): Optional InfluxDB configuration.
+        plugins_config (PluginsConfig | None): Optional plugin configurations.
+        webhook_config (WebhookConfig | None): Optional webhook configuration.
     """
 
+    # Configuration version - should match app version
+    # Default to None for backward compatibility with 0.2.2 configs
+    app_version: ClassVar[str] = get_app_version()
+    config_version: str | None = None
+
+    # Core configuration
     bot_token: BotTokenModel
     access_control: AccessControlModel
     docker: DockerHostModel
     chat_id: ChatIdModel
-    influxdb: Optional[InfluxDBModel]
-    plugins_config: Optional[PluginsConfig]
-    webhook_config: Optional[WebhookConfig]
+
+    # Optional configurations
+    influxdb: InfluxDBModel | None = None
+    plugins_config: PluginsConfig | None = None
+    webhook_config: WebhookConfig | None = None
+
+    @field_validator("config_version")
+    @classmethod
+    # codeclone: ignore[dead-code]
+    def validate_config_version(cls, v: str | None) -> str | None:
+        """
+        Validate configuration version against application compatibility.
+
+        Args:
+            v: Configuration version string (can be None for legacy configs)
+
+        Returns:
+            Validated version string
+
+        Raises:
+            ConfigVersionError: If version is incompatible
+        """
+        try:
+            # Check for EOL versions and validate compatibility
+            ConfigMigrator.validate_compatibility(v, cls.app_version)
+
+            # Check for deprecation warnings
+            ConfigMigrator.check_deprecation(v, cls.app_version)
+
+            return v
+
+        except ConfigVersionError as e:
+            # Re-raise ConfigVersionError as ValueError for Pydantic
+            raise ValueError(
+                f"Configuration version validation failed: {str(e)}"
+            ) from e
+        except Exception as e:
+            raise ValueError(
+                f"Configuration version validation failed: {str(e)}"
+            ) from e
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_config_if_needed(  # codeclone: ignore[dead-code]
+        cls, values: dict[str, object]
+    ) -> dict[str, object]:
+        """
+        Automatically add or update config_version field.
+        Handle configs without version field (0.2.2 compatibility).
+
+        Args:
+            values: Raw configuration values
+
+        Returns:
+            Updated configuration values
+        """
+        config_version = values.get("config_version")
+
+        # Create migrator instance for logging
+        migrator = ConfigMigrator()
+        migrator.app_version = cls.app_version
+
+        if config_version is None:
+            with migrator.log_context(
+                legacy_config=True, app_version=cls.app_version
+            ) as log:
+                log.debug("bot.models.settings_model.no.config.debug")
+            values["config_version"] = cls.app_version
+            return values
+
+        try:
+            normalized_config_version = ConfigMigrator._normalize_version_alias(
+                str(config_version)
+            )
+            normalized_app_version = ConfigMigrator._normalize_version_alias(
+                cls.app_version
+            )
+        except Exception:
+            normalized_config_version = str(config_version)
+            normalized_app_version = cls.app_version
+
+        if normalized_config_version != normalized_app_version:
+            with migrator.log_context(
+                old_version=config_version,
+                new_version=cls.app_version,
+                migration_required=True,
+            ) as log:
+                log.info("bot.models.settings_model.config.version.info")
+            values = migrator.migrate_config(values)
+
+        return values
+
+
+# Utility functions for configuration management

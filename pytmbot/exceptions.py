@@ -6,21 +6,20 @@ also providing basic information about the status of local servers.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from telebot import ExceptionHandler
 
 from pytmbot.logs import Logger
-from pytmbot.utils import sanitize_exception, parse_cli_args
+from pytmbot.utils import parse_cli_args, sanitize_exception
 
 logger = Logger()
 
 
-@dataclass
+@dataclass(slots=True)
 class ErrorContext:
     message: str
     error_code: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def sanitized(self) -> "ErrorContext":
         return ErrorContext(
@@ -32,7 +31,7 @@ class ErrorContext:
             },
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary representation."""
         return {
             "message": self.message,
@@ -75,16 +74,8 @@ class ConnectionException(BaseBotException):
     """Base class for connection related exceptions."""
 
 
-class ServerConnectionError(ConnectionException):
-    """Raised on server connection failures."""
-
-
 class HandlingException(BaseBotException):
     """Base class for message and template handling exceptions."""
-
-
-class MessageHandlerError(HandlingException):
-    """Raised on message handling failures."""
 
 
 class TemplateError(HandlingException):
@@ -111,6 +102,10 @@ class ContainerNotFoundError(ContainerException):
     """Raised when a container cannot be found."""
 
 
+class ContainerLogsUnavailableError(ContainerException):
+    """Raised when container logs cannot be read with current logging driver."""
+
+
 class ImageException(DockerOperationException):
     """Base class for image related exceptions."""
 
@@ -126,31 +121,35 @@ class QRCodeError(BaseBotException):
 class TelebotExceptionHandler(ExceptionHandler):
     """Custom exception handler for Telebot with structured logging and token sanitization."""
 
+    # codeclone: ignore[dead-code]
     def handle(self, exception: Exception) -> bool:
         """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
         log_level = parse_cli_args().log_level
+        log_context: dict[str, object] = {
+            "exception_type": type(exception).__name__,
+        }
 
         if isinstance(exception, BaseBotException):
-            sanitized_msg = exception.sanitized_message()
+            sanitized_message = exception.sanitized_message()
             error_context = exception.sanitized_context()
-
-            log_msg = sanitized_msg
+            log_context["message"] = sanitized_message
+            log_context["error_code"] = error_context.error_code
             if error_context.metadata:
-                log_msg = f"{sanitized_msg} - Context: {error_context.metadata}"
+                log_context["metadata"] = error_context.metadata
         else:
-            log_msg = sanitize_exception(exception)
+            log_context["message"] = sanitize_exception(exception)
 
         if log_level == "DEBUG":
             if isinstance(exception, BaseBotException):
                 logger.opt(exception=exception).debug(
-                    f"Exception in @Telebot: {log_msg}"
+                    "bot.exceptions.telebot.fail", **log_context
                 )
             else:
                 logger.bind(sensitive_exception=True).debug(
-                    f"Exception in @Telebot: {log_msg}"
+                    "bot.exceptions.telebot.fail", **log_context
                 )
         else:
-            logger.error(f"Exception in @Telebot: {log_msg}")
+            logger.error("bot.exceptions.telebot.fail", **log_context)
 
         return True
 
@@ -175,5 +174,9 @@ class InfluxDBQueryError(InfluxDBException):
     """Raised on InfluxDB query operation failures."""
 
 
-class CallbackValidationError(BaseBotException):
-    """Raised on Callback data validation error"""
+class KeyboardError(BaseBotException):
+    """Custom exception for keyboard-related errors."""
+
+
+class TOTPError(BaseBotException):
+    """Custom exception for TOTP-related errors."""

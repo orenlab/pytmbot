@@ -40,10 +40,9 @@ class PluginInterface(ABC):
         - Command handlers
         - Message handlers
         - Callback query handlers
-        - Any other necessary bot interactions
+        - Other necessary bot interactions
 
         Raises:
-            NotImplementedError: If the method is not implemented by the plugin class.
             RuntimeError: If registration fails due to bot API issues.
         """
-        raise NotImplementedError("Plugin must implement register() method")
+        ...

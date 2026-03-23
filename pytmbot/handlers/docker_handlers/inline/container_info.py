@@ -8,85 +8,211 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.globals import keyboards, em, settings, button_data
-from pytmbot.handlers.handlers_util.docker import (
-    get_container_full_details,
-    show_handler_info,
-    get_emojis,
-    parse_container_memory_stats,
-    parse_container_cpu_stats,
-    parse_container_network_stats,
-    parse_container_attrs,
+from pytmbot.globals import ButtonDataType, get_keyboards, settings
+from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
+from pytmbot.handlers.docker_handlers.inline.container_runtime_info import (
+    CONTAINER_EXTRA_ACTION_NETWORKS,
+    CONTAINER_EXTRA_ACTION_RUNTIME,
+    CONTAINER_EXTRA_ACTION_VOLUMES,
+    CONTAINER_EXTRA_CALLBACK_PREFIX,
 )
+from pytmbot.handlers.docker_handlers.pagination import (
+    build_page_callback_data,
+    parse_container_full_info_callback_data,
+)
+from pytmbot.handlers.handlers_util.docker import (
+    authorize_docker_callback_request,
+    get_comprehensive_container_details,
+    get_emojis,
+    show_handler_info,
+    validate_container_name,
+)
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
+button_data = ButtonDataType
+keyboards = get_keyboards()
 
 
-# func=lambda call: call.data.startswith('__get_full__'))
 @logger.catch()
 @logger.session_decorator
-def handle_containers_full_info(call: CallbackQuery, bot: TeleBot):
-    container_name = split_string_into_octets(call.data)
-    called_user_id = split_string_into_octets(call.data, octet_index=2)
-    container_details = get_container_full_details(container_name)
+def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
+    """
+    Handle request for comprehensive container information using enhanced utilities.
+    """
+    try:
+        if call.data is None:
+            show_handler_info(
+                call, text="This container details button is no longer valid.", bot=bot
+            )
+            return None
 
-    if not container_details:
-        return show_handler_info(
-            call, text=f"{container_name}: Container not found", bot=bot
+        parsed_data = parse_container_full_info_callback_data(call.data)
+        if parsed_data is None:
+            show_handler_info(
+                call, text="This container details button is no longer valid.", bot=bot
+            )
+            return None
+
+        container_name, called_user_id, source_page = parsed_data
+
+        is_allowed, deny_reason = authorize_docker_callback_request(
+            call=call,
+            called_user_id=called_user_id,
+            require_admin=False,
+            require_owner_match=True,
+            require_session=False,
+        )
+        if not is_allowed:
+            logger.warning(
+                "bot.handler.docker.container_info.user.denied.deny",
+                reason=deny_reason,
+            )
+            show_handler_info(
+                call,
+                text=f"Container info: {deny_reason}",
+                bot=bot,
+            )
+            return None
+
+        # Validate container name
+        if not validate_container_name(container_name):
+            logger.warning("bot.handler.docker.container_info.invalid.container.warn")
+            show_handler_info(
+                call, text="This container reference is invalid.", bot=bot
+            )
+            return None
+
+        # Get comprehensive container details using enhanced utilities
+        container_details = get_comprehensive_container_details(container_name)
+
+        if not container_details:
+            logger.info("bot.handler.docker.container_info.container.not.info")
+            show_handler_info(
+                call, text=f"{container_name}: Container not found", bot=bot
+            )
+            return None
+
+        container_ref = (
+            str(container_details.get("name", container_name)).strip().lower()
+        )
+        if not container_ref:
+            container_ref = container_name
+
+        # Get emojis for template
+        emojis = get_emojis()
+
+        # Compile template with all container data
+        context = Compiler.quick_render(
+            template_name="d_containers_full_info.jinja2",
+            # Basic template emojis
+            thought_balloon=emojis.get("thought_balloon", "💭"),
+            container_emoji=emojis.get("package", "📦"),
+            cpu_emoji=emojis.get("gear", "⚙️"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            network_emoji=emojis.get("globe_with_meridians", "🌐"),
+            gear_emoji=emojis.get("gear", "⚙️"),
+            env_emoji=emojis.get("herb", "🌿"),
+            banjo=emojis.get("banjo", "🪕"),
+            # Spread all container details
+            **container_details,
         )
 
-    container_stats = container_details.stats(decode=None, stream=False)
-    container_attrs = container_details.attrs
+        # Build keyboard
+        keyboard_buttons = []
 
-    emojis = get_emojis()
+        # Add admin buttons if user has permissions
+        if (
+            call.from_user.id in settings.access_control.allowed_admins_ids
+            and int(call.from_user.id) == called_user_id
+        ):
+            logger.debug("bot.handler.docker.container_info.user.admin.debug")
 
-    with Compiler(
-        template_name="d_containers_full_info.jinja2",
-        **emojis,
-        container_name=container_name,
-        container_memory_stats=parse_container_memory_stats(container_stats),
-        container_cpu_stats=parse_container_cpu_stats(container_stats),
-        container_network_stats=parse_container_network_stats(container_stats),
-        container_attrs=parse_container_attrs(container_attrs),
-    ) as compiler:
-        context = compiler.compile()
+            keyboard_buttons.extend(
+                [
+                    button_data(
+                        text=f"{emojis.get('luggage', '🧳')} Volumes",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_VOLUMES}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
+                    button_data(
+                        text=f"{emojis.get('globe_with_meridians', '🌐')} Networks",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_NETWORKS}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
+                    button_data(
+                        text=f"{emojis.get('stethoscope', '🩺')} Runtime",
+                        callback_data=(
+                            f"{CONTAINER_EXTRA_CALLBACK_PREFIX}:"
+                            f"{CONTAINER_EXTRA_ACTION_RUNTIME}:"
+                            f"{container_ref}:{call.from_user.id}"
+                        ),
+                    ),
+                    button_data(
+                        text=f"{emojis.get('spiral_calendar', '📅')} Get logs",
+                        callback_data=f"__get_logs__:open:{container_ref}:{call.from_user.id}",
+                    ),
+                    button_data(
+                        text=f"{emojis.get('bullseye', '🎯')} Manage",
+                        callback_data=f"__manage__:{container_ref}:{call.from_user.id}",
+                    ),
+                ]
+            )
 
-    keyboard_buttons = []
-
-    if call.from_user.id in settings.access_control.allowed_admins_ids and int(
-        call.from_user.id
-    ) == int(called_user_id):
-        logger.debug(f"User {call.from_user.id} is an admin. Adding admin buttons")
-
-        keyboard_buttons.extend(
-            [
-                button_data(
-                    text=f"{em.get_emoji('spiral_calendar')} Get logs",
-                    callback_data=f"__get_logs__:{container_name}:{call.from_user.id}",
-                ),
-                button_data(
-                    text=f"{em.get_emoji('bullseye')} Manage",
-                    callback_data=f"__manage__:{container_name}:{call.from_user.id}",
-                ),
-            ]
+        back_callback_data = build_page_callback_data(
+            prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
+            page=source_page or 1,
+            user_id=called_user_id,
         )
 
-    keyboard_buttons.append(
-        button_data(
-            text=f"{em.get_emoji('BACK_arrow')} Back to all containers",
-            callback_data="back_to_containers",
+        # Back button
+        keyboard_buttons.append(
+            button_data(
+                text=f"{emojis.get('BACK_arrow', '⬅️')} Back to all containers",
+                callback_data=back_callback_data,
+            )
         )
-    )
 
-    inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
+        inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
-    return bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=context,
-        reply_markup=inline_keyboard,
-        parse_mode="HTML",
-    )
+        callback_message = call.message
+        if callback_message is None:
+            show_handler_info(
+                call=call,
+                text="This container details message can no longer be updated.",
+                bot=bot,
+            )
+            return None
+
+        # Send response
+        edit_callback_message_text(
+            call=call,
+            bot=bot,
+            text=context,
+            reply_markup=inline_keyboard,
+            parse_mode="HTML",
+            not_modified_text="Container details are already current.",
+        )
+        return None
+
+    except ValueError:
+        logger.warning("bot.handler.docker.container_info.value.fail")
+        show_handler_info(
+            call, text="This container details request is no longer valid.", bot=bot
+        )
+        return None
+
+    except Exception:
+        logger.error("bot.handler.docker.container_info.unexpected.fail")
+        show_handler_info(
+            call, text="Couldn't load container details right now.", bot=bot
+        )
+        return None

@@ -1,35 +1,58 @@
 {{ thought_balloon }} <b>Container Details:</b>
 
-{{ basket }} <b>Name:</b> <code>{{ container_name }}</code>
+{{ container_emoji }} <b>Basic Info:</b>
+<code>Name:</code> {{ name }}
+<code>ID:</code> {{ id }}
+<code>Image:</code> {{ image_name }}:{{ image_tag }}
+<code>Status:</code> {{ status_badge }}
+<code>Health:</code> {{ health_badge }}
+<code>Uptime:</code> {{ uptime }}
+<code>Started:</code> {{ started_at }}
+<code>Finished:</code> {{ finished_at }}
+<code>Restarts:</code> {{ restart_count }} | <code>PID:</code> {{ pid }}
 
-{{ flag_in_hole }} <b>CPU Stats:</b>
-<code>Periods:</code> {{ container_cpu_stats['periods'] | default('N/A') }}
-<code>Throttled:</code> {{ container_cpu_stats['throttled_periods'] | default('N/A') }}
-<code>Throttling:</code> {{ container_cpu_stats['throttling_data'] | default('N/A') }}
+{{ cpu_emoji }} <b>Resource Limits:</b>
+<code>Memory:</code> {{ resources.memory_limit }}
+<code>Memory reservation:</code> {{ resources.memory_reservation }}
+<code>CPU Quota:</code> {{ resources.cpu_quota }}
+<code>CPU limit:</code> {{ resources.cpus_limit }}
+<code>CPU Set:</code> {{ resources.cpuset_cpus }}
+<code>PIDs limit:</code> {{ resources.pids_limit }}
+<code>Restart Policy:</code> {{ resources.restart_policy }}
+<code>Max retries:</code> {{ resources.max_restart_count }}
+<code>Memory headroom:</code> {{ resources.memory_headroom }}
 
-{{ railway_car }} <b>Memory Stats:</b>
-<code>Usage:</code> {{ container_memory_stats['mem_usage'] | default('N/A') }} ({{ container_memory_stats['mem_percent'] | default('N/A') }}%)
-<code>Limit:</code> {{ container_memory_stats['mem_limit'] | default('N/A') }}
+{% if stats.memory %}{{ chart_emoji }} <b>Current Usage:</b>
+<code>Memory:</code> {{ stats.memory.mem_usage }} / {{ stats.memory.mem_limit }} ({% if stats.memory.mem_percent == 'N/A' %}N/A{% else %}{{ stats.memory.mem_percent }}%{% endif %})
+{% if stats.cpu.cpu_percent %}<code>CPU:</code> {{ stats.cpu.cpu_percent }}%
+{% endif %}{% if stats.network %}<code>Network I/O:</code> ↓{{ stats.network.rx_bytes }} ↑{{ stats.network.tx_bytes }}
+{% if stats.network.rx_errors or stats.network.tx_errors %}<code>Network errors:</code> RX {{ stats.network.rx_errors }} | TX {{ stats.network.tx_errors }}
+{% endif %}{% if stats.cpu.throttled_periods %}<code>CPU throttled:</code> {{ stats.cpu.throttled_periods }} periods
+{% endif %}{% endif %}
 
-{{ radio }} <b>Network Stats:</b>
-<code>RX/TX bytes:</code> {{ container_network_stats['rx_bytes'] | default('N/A') }}/{{ container_network_stats['tx_bytes'] | default('N/A') }}
-<code>RX/TX dropped:</code> {{ container_network_stats['rx_dropped'] | default('N/A') }}/{{ container_network_stats['tx_dropped'] | default('N/A') }}
-<code>RX/TX errors:</code> {{ container_network_stats['rx_errors'] | default('N/A') }}/{{ container_network_stats['tx_errors'] | default('N/A') }}
+{% endif %}{{ gear_emoji }} <b>Runtime State:</b>
+<code>Health failing streak:</code> {{ health_failing_streak }}
+<code>Last health check:</code> {{ health_last_checked_at }}
+<code>OOM killed:</code> {% if oom_killed %}yes{% else %}no{% endif %} | <code>Dead:</code> {% if dead %}yes{% else %}no{% endif %}{{ '' }}
+<code>State error:</code> {{ state_error }}
 
-{{ puzzle_piece }} <b>Container State:</b>
-<code>Status:</code> {% if container_attrs['running'] %}Running{% elif container_attrs['paused'] %}Paused{% elif container_attrs['restarting'] %}Restarting{% elif container_attrs['dead'] %}Dead{% else %}Unknown
+{{ network_emoji }} <b>Network:</b>
+<code>Mode:</code> {{ network.network_mode }}
+<code>Published ports:</code> {{ network.published_ports }} / {{ network.declared_ports }}
+{% if network.ports %}<code>Ports:</code> {% for port in network.ports %}{{ port }}{% if not loop.last %}, {% endif %}{% endfor %}
+{% endif %}{% if network.networks %}<code>Networks:</code> {% for net in network.networks %}{{ net }}{% if not loop.last %}, {% endif %}{% endfor %}
 {% endif %}
 
-<code>Restart count:</code> {{ container_attrs['restarting_count'] | default('N/A') }}
-<code>Exit code:</code> {{ container_attrs['exit_code'] | default('N/A') }}
+{{ gear_emoji }} <b>Configuration:</b>
+<code>User:</code> {{ environment.user }}
+<code>WorkDir:</code> {{ environment.working_dir }}
+{% if environment.entrypoint != 'N/A' %}<code>Entrypoint:</code> {{ environment.entrypoint }}
+{% endif %}{% if environment.command != 'N/A' %}<code>Command:</code> {{ environment.command }}
+{% endif %}
 
-{{ safety_pin }} <b>Environment:</b>
-<pre>{% if container_attrs['env'] %}{% for value in container_attrs['env'] %}
-{{ value }}{% endfor %}{% else %}No environment variables{% endif %}</pre>
+{{ env_emoji }} <b>Environment* ({{ environment.env_count }} vars):</b>
+<pre>{% if environment.environment_vars %}{% for var in environment.environment_vars %}{{ var }}
+{% endfor %}{% else %}No environment variables{% endif %}</pre>
+*Sensitive data is hidden
 
-{{ sandwich }} <b>Launch Configuration:</b>
-<pre>{% if container_attrs['command'] and container_attrs['command']|length > 0 %}Command: {% for value in container_attrs['command'] %}{{ value }} {% endfor %}{% else %}No command specified{% endif %}
-
-{% if container_attrs['args'] and container_attrs['args']|length > 0 %}Arguments: {% for value in container_attrs['args'] %}{{ value }} {% endfor %}{% else %}No arguments specified{% endif %}</pre>
-
-{{ banjo }} <i>End of container details</i>
+{{ banjo }} <i>Container details retrieved. Other options are available:</i>

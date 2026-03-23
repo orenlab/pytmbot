@@ -13,9 +13,9 @@ services:
       # Optional variables for initial configuration
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
+      - DOCKER_INFLUXDB_INIT_PASSWORD=some_strOng_passWoRD
       - DOCKER_INFLUXDB_INIT_ORG=myorg
-      - DOCKER_INFLUXDB_INIT_BUCKET=mybucket
+      - DOCKER_INFLUXDB_INIT_BUCKET=pytmbot
 
 volumes:
   influxdb_data:

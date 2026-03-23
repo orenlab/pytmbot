@@ -5,11 +5,15 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from typing import Optional
-
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import InlineKeyboardMarkup
+from telebot.types import (
+    ForceReply,
+    InlineKeyboardMarkup,
+    LinkPreviewOptions,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -17,14 +21,19 @@ from pytmbot.logs import Logger
 
 logger = Logger()
 
+type ReplyMarkupType = (
+    InlineKeyboardMarkup | ReplyKeyboardMarkup | ForceReply | ReplyKeyboardRemove
+)
+
 
 def send_telegram_message(
     bot: TeleBot,
     chat_id: int,
     text: str,
-    reply_markup: Optional[InlineKeyboardMarkup] = None,
+    reply_markup: ReplyMarkupType | None = None,
     parse_mode: str = "HTML",
-    **kwargs,
+    link_preview_options: LinkPreviewOptions | None = None,
+    reply_to_message_id: int | None = None,
 ) -> bool:
     """
     Safely sends a message in Telegram with error handling.
@@ -35,7 +44,8 @@ def send_telegram_message(
         text: Message text
         reply_markup: Keyboard markup
         parse_mode: Formatting mode
-        **kwargs: Additional keyword arguments
+        link_preview_options: Telegram link preview settings (LinkPreviewOptions | None)
+        reply_to_message_id: ID of a message to reply to (int | None)
 
     Returns:
         bool: True if the message was sent successfully
@@ -54,13 +64,14 @@ def send_telegram_message(
             ),
             reply_markup=reply_markup,
             parse_mode=parse_mode,
-            **kwargs,
+            link_preview_options=link_preview_options,
+            reply_to_message_id=reply_to_message_id,
         )
         return True
 
     except ApiTelegramException as e:
         logger.error(
-            f"Telegram API error: {e}",
+            "bot.handler.handlers_util.utils.fail",
             extra={"chat_id": chat_id, "text_length": len(text), "error": str(e)},
         )
         raise exceptions.ConnectionException(
@@ -69,4 +80,4 @@ def send_telegram_message(
                 error_code="TELEGRAM_001",
                 metadata={"exception": str(e)},
             )
-        )
+        ) from e

@@ -8,24 +8,31 @@ also providing basic information about the status of local servers.
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
-from pytmbot.adapters.docker.containers_info import get_container_state
-from pytmbot.globals import keyboards, em, session_manager, button_data
-from pytmbot.handlers.handlers_util.docker import show_handler_info
+from pytmbot.adapters.docker.client import docker_client_context
+from pytmbot.adapters.docker.utils import get_container_state
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.docker import (
+    get_authorized_container_callback_context,
+    show_handler_info,
+)
+from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.models.docker_models import ContainersState
 from pytmbot.parsers.compiler import Compiler
-from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
+button_data = ButtonDataType
+em = get_emoji_converter()
+keyboards = get_keyboards()
 container_state = ContainersState
 
 
 # func=lambda call: call.data.startswith('__manage__')
 @logger.catch()
-@two_factor_auth_required
 @logger.session_decorator
-def handle_manage_container(call: CallbackQuery, bot: TeleBot):
+@two_factor_auth_required
+def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     """
     Handles the callback for managing a container.
 
@@ -36,52 +43,37 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     Returns:
         None
     """
-    # Extract container name and called user ID from the callback data
-    container_name = split_string_into_octets(call.data)
-    called_user_id = split_string_into_octets(call.data, octet_index=2)
-
-    # Check if the user is an admin
-    if int(call.from_user.id) != int(called_user_id):
-        logger.warning(
-            f"User {call.from_user.id} NOT is an admin. Denied '__manage__' function"
-        )
-        return show_handler_info(
-            call=call, text=f"Managing {container_name}: Access denied", bot=bot
-        )
-
-    is_authenticated = session_manager.is_authenticated(call.from_user.id)
-    logger.debug(f"User {call.from_user.id} authenticated status: {is_authenticated}")
-
-    if not is_authenticated:
-        logger.warning(
-            f"User {call.from_user.id} NOT authenticated. "
-            f"Denied '__manage__' function for container {container_name}"
-        )
-        return show_handler_info(
-            call=call,
-            text=f"Managing {container_name}: Not authenticated user",
-            bot=bot,
-        )
+    auth_context = get_authorized_container_callback_context(
+        call=call,
+        bot=bot,
+        operation_label="Managing",
+        missing_user_event="bot.handler.docker.manage.missing.user.warn",
+        denied_event="bot.handler.docker.manage.denied.function.deny",
+    )
+    if auth_context is None:
+        return
+    container_name = auth_context.container_name
 
     # Get container state
-    state = get_container_state(container_name)
-    logger.info(f"Container {container_name} state: {state}")
+    with docker_client_context() as adapter:
+        state = get_container_state(container_name, docker_client=adapter)
+    logger.info("bot.handler.docker.manage.container.state.info")
 
     # Build keyboard buttons
     keyboard_buttons = []
 
     # Add action buttons based on container state
     if state == container_state.running:
-        logger.debug(f"Adding stop and restart buttons for {container_name}")
+        logger.debug("bot.handler.docker.manage.adding.stop.debug")
         keyboard_buttons.extend(
             [
                 button_data(
                     text=f"{em.get_emoji('no_entry')} Stop",
-                    callback_data=f"__stop__:{container_name}:{call.from_user.id}",
+                    callback_data=f"__stop__:{container_name}:{auth_context.user_id}",
                 ),
                 button_data(
                     text=f"{em.get_emoji('recycling_symbol')} Restart",
-                    callback_data=f"__restart__:{container_name}:{call.from_user.id}",
+                    callback_data=f"__restart__:{container_name}:{auth_context.user_id}",
                 ),
             ]
         )
@@ -91,11 +83,11 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
         container_state.stopped,
         container_state.dead,
     ]:
-        logger.debug(f"Adding start button for {container_name}")
+        logger.debug("bot.handler.docker.manage.adding.start.debug")
         keyboard_buttons.append(
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
-                callback_data=f"__start__:{container_name}:{call.from_user.id}",
+                callback_data=f"__start__:{container_name}:{auth_context.user_id}",
             )
         )
 
@@ -103,31 +95,40 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot):
     keyboard_buttons.append(
         button_data(
             text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
-            callback_data=f"__get_full__:{container_name}:{call.from_user.id}",
+            callback_data=f"__get_full__:{container_name}:{auth_context.user_id}",
         )
     )
 
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
-    emojis: dict = {
+    emojis: dict[str, str] = {
         "cross_mark": em.get_emoji("cross_mark"),
         "briefcase": em.get_emoji("briefcase"),
         "anxious_face_with_sweat": em.get_emoji("anxious_face_with_sweat"),
         "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
     }
 
-    with Compiler(
+    rendered_context = Compiler.quick_render(
         "d_managing_containers.jinja2",
         emojis=emojis,
         state=state,
         container_name=container_name,
-    ) as compiler:
-        context = compiler.compile()
+    )
 
-    return bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=context,
+    callback_message = call.message
+    if callback_message is None:
+        show_handler_info(
+            call=call,
+            text="This container management message can no longer be updated.",
+            bot=bot,
+        )
+        return
+
+    edit_callback_message_text(
+        call=call,
+        bot=bot,
+        text=rendered_context,
         reply_markup=inline_keyboard,
         parse_mode="HTML",
+        not_modified_text="Container management view is already current.",
     )

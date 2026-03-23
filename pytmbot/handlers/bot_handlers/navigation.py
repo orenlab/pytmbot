@@ -10,12 +10,14 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import keyboards, em
+from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
 logger = Logger()
+em = get_emoji_converter()
+keyboards = get_keyboards()
 
 
 @logger.session_decorator
@@ -34,16 +36,17 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         bot.send_chat_action(message.chat.id, "typing")
         main_keyboard = keyboards.build_reply_keyboard()
 
-        first_name: str = message.from_user.first_name
+        first_name = (
+            message.from_user.first_name if message.from_user else None
+        ) or "User"
 
         emojis = {
             "thought_balloon": em.get_emoji("thought_balloon"),
         }
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_back.jinja2", first_name=first_name, **emojis
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         send_telegram_message(
             bot=bot,
@@ -63,4 +66,4 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_016",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

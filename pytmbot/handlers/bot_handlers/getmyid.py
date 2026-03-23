@@ -1,0 +1,186 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+"""
+
+from __future__ import annotations
+
+from telebot import TeleBot
+from telebot.types import LinkPreviewOptions, Message
+
+from pytmbot import exceptions
+from pytmbot.exceptions import ErrorContext
+from pytmbot.logs import Logger
+from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.message_deletion import (
+    DeletionResult,
+    DeletionStatus,
+    create_post_delete_navigation_callback,
+    deletion_manager,
+)
+
+logger = Logger()
+GETMYID_DELETED_NAVIGATION_TEXT = (
+    "🧹 ID message was deleted for privacy.\n"
+    "Use the button below to return to the main menu."
+)
+
+
+def _deletion_callback(result: DeletionResult) -> None:
+    """
+    Callback function executed after deletion attempt.
+
+    Args:
+        result: Result of the deletion operation
+    """
+    if result.status == DeletionStatus.SUCCESS:
+        logger.debug("bot.handler.bot.getmyid.deleted.user.ok")
+    elif result.status == DeletionStatus.FAILED:
+        logger.warning("bot.handler.bot.getmyid.delete.user.fail")
+
+
+@logger.session_decorator
+def handle_getmyid(
+    message: Message, bot: TeleBot, auto_delete_delay: int = 30
+) -> Message | None:
+    """
+    Handler for /getmyid command - returns user and chat ID information
+    for initial bot configuration and debugging purposes.
+
+    The response message is automatically deleted after the specified delay
+    to maintain privacy and confidentiality of sensitive information.
+
+    Args:
+        message: The incoming Telegram message
+        bot: TeleBot instance for sending responses
+        auto_delete_delay: Delay in seconds before auto-deletion (default: 30)
+
+    Returns:
+        The sent message object, or None if sending failed
+
+    Security Considerations:
+        - Messages containing sensitive ID information are auto-deleted
+        - Per-user limits prevent resource exhaustion attacks
+        - Graceful handling when deletion limits are exceeded
+        - All operations are logged for security monitoring
+    """
+    try:
+        if message.from_user is None:
+            bot.send_message(
+                message.chat.id,
+                "⚠️ Unable to resolve user identity for this message.",
+            )
+            return None
+
+        user = message.from_user
+
+        # Send typing indicator for better UX
+        bot.send_chat_action(message.chat.id, "typing")
+
+        # Extract user and chat information
+        user_id = user.id
+        chat_id = message.chat.id
+        first_name = user.first_name or "Unknown"
+        last_name = user.last_name or ""
+        username = user.username
+        chat_type = message.chat.type
+        chat_title = getattr(message.chat, "title", None)
+
+        # Map chat type to human-readable format
+        chat_type_display = {
+            "private": "Private Chat",
+            "group": "Group",
+            "supergroup": "Supergroup",
+            "channel": "Channel",
+        }.get(chat_type, chat_type.title())
+
+        # Check if user is bot administrator
+        is_bot_admin = user.id in getattr(bot, "admin_ids", [])
+
+        # Generate response using template compiler
+        answer = Compiler.quick_render(
+            template_name="b_getmyid.jinja2",
+            user_id=user_id,
+            chat_id=chat_id,
+            first_name=first_name,
+            last_name=last_name,
+            username=username,
+            chat_type=chat_type_display,
+            chat_title=chat_title,
+            command="getmyid",
+            is_bot_admin=is_bot_admin,
+        )
+
+        # Send the response message
+        sent_message = bot.send_message(
+            chat_id=chat_id,
+            text=answer,
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
+
+        # Schedule automatic deletion for privacy protection
+        deletion_result = deletion_manager.schedule_deletion(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=sent_message.message_id,
+            user_id=user_id,
+            delay_seconds=auto_delete_delay,
+            callback=create_post_delete_navigation_callback(
+                _deletion_callback,
+                bot=bot,
+                chat_id=chat_id,
+                navigation_text=GETMYID_DELETED_NAVIGATION_TEXT,
+            ),
+        )
+
+        # Handle different deletion scheduling outcomes
+        if deletion_result.status == DeletionStatus.LIMIT_EXCEEDED:
+            # Inform user about exceeded deletion limit
+            warning_msg = (
+                "⚠️ <b>Privacy Notice:</b> Too many pending auto-deletions. "
+                "This message will not be automatically deleted.\n\n"
+                "<i>Please manually delete this message for privacy.</i>"
+            )
+
+            bot.send_message(
+                chat_id=chat_id,
+                text=warning_msg,
+                parse_mode="HTML",
+                reply_to_message_id=sent_message.message_id,
+            )
+
+            logger.warning("bot.handler.bot.getmyid.auto.deletion.warn")
+
+        elif deletion_result.status == DeletionStatus.SCHEDULED:
+            logger.info("bot.handler.bot.getmyid.auto.deletion.info")
+
+        else:
+            # Fallback for any other unexpected status
+            logger.error("bot.handler.bot.getmyid.unexpected.deletion.fail")
+
+        return sent_message
+
+    except Exception as error:
+        # Send user-friendly error message
+        error_msg = "⚠️ An error occurred while retrieving ID information."
+        bot.send_message(message.chat.id, error_msg)
+
+        # Log detailed error information and raise custom exception
+        error_context = ErrorContext(
+            message="Failed handling the getmyid command",
+            error_code="HAND_015",
+            metadata={
+                "exception": str(error),
+                "exception_type": type(error).__name__,
+                "user_id": message.from_user.id if message.from_user else None,
+                "chat_id": message.chat.id if message.chat else None,
+                "command": "getmyid",
+                "auto_delete_delay": auto_delete_delay,
+            },
+        )
+
+        logger.error("bot.handler.bot.getmyid.fail")
+        raise exceptions.HandlingException(error_context) from error

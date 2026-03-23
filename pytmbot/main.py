@@ -5,6 +5,9 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from __future__ import annotations
+
+import argparse
 import atexit
 import os
 import platform
@@ -12,86 +15,71 @@ import signal
 import sys
 import threading
 import time
-import traceback
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import NoReturn, Final, Any, Self
+from types import FrameType
+from typing import TYPE_CHECKING, Final, NoReturn
 
 from humanize import naturaltime
 
 from pytmbot import logs
+from pytmbot.adapters.docker.client import reset_docker_client_context
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
-from pytmbot.exceptions import InitializationError, ShutdownError, ErrorContext
+from pytmbot.exceptions import ErrorContext, InitializationError, ShutdownError
+from pytmbot.health_system import HealthManager, HealthStatus, create_health_manager
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 
-args = parse_cli_args()
+args: argparse.Namespace | None = None
 
-if not args.health_check:
-    from pytmbot import pytmbot_instance
+if TYPE_CHECKING:
+    from telebot import TeleBot
+
+    from pytmbot.pytmbot_instance import PyTMBot
 
 
-class HealthStatus:
-    """Singleton class to track and manage the health status of the bot."""
-
-    _instance: "HealthStatus | None" = None
-    _lock = threading.RLock()
-
-    def __init__(self) -> None:
-        self._last_health_check_result: bool | None = None
-        self._last_check_time: float | None = None
-        self._instance_lock = threading.RLock()
-
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:  # Double-checked locking
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-
-    @property
-    def last_health_check_result(self) -> bool | None:
-        with self._instance_lock:
-            if (
-                self._last_check_time is None
-                or time.time() - self._last_check_time
-                > 2 * BotLauncher.HEALTH_CHECK_INTERVAL
-            ):
-                return None
-            return self._last_health_check_result
-
-    @last_health_check_result.setter
-    def last_health_check_result(self, value: bool | None) -> None:
-        with self._instance_lock:
-            self._last_health_check_result = value is not None and value
-            self._last_check_time = time.time()
-
-    def update_health(self, is_healthy: bool) -> None:
-        """Update health status with current timestamp."""
-        self.last_health_check_result = is_healthy
+def _get_args() -> argparse.Namespace:
+    """Parse CLI arguments lazily to avoid import-time side effects."""
+    global args
+    if args is None:
+        args = parse_cli_args()
+    return args
 
 
 class BotLauncher(logs.BaseComponent):
-    """Main bot launcher with lifecycle management."""
+    """Main bot launcher with professional health system integration."""
 
     SHUTDOWN_TIMEOUT: Final[int] = 10
-    HEALTH_CHECK_INTERVAL: Final[int] = 60
-    MIN_PYTHON_VERSION: Final[tuple[int, int]] = (3, 10)
+    MIN_PYTHON_VERSION: Final[tuple[int, int]] = (3, 12)
     MAIN_LOOP_TIMEOUT: Final[float] = 0.5
+    STARTUP_GRACE_PERIOD: Final[int] = 30
+    HEALTH_LOG_INTERVAL: Final[int] = 60  # Log health every 60 seconds
+    POLLING_RESTART_MAX_ATTEMPTS: Final[int] = 3
+    POLLING_RESTART_BACKOFF_SECONDS: Final[int] = 2
+    INITIAL_HEALTH_WAIT_TIMEOUT_SECONDS: Final[float] = 0.5
 
     def __init__(self) -> None:
         super().__init__("bot_launcher")
-        self.bot = None
+        self.bot: PyTMBot | None = None
         self.shutdown_requested = threading.Event()
-        self.health_check_thread: threading.Thread | None = None
         self.start_time = datetime.now()
+        self._start_monotonic = time.monotonic()
         self._shutdown_lock = threading.RLock()
+        self._shutdown_completed = False
+        self._bot_operations_stopped = False
         self._cleanup_registered = False
         self._sigint_count = 0
         self._sigint_lock = threading.Lock()
         self._psutil_adapter = PsutilAdapter()
         self._session_manager = SessionManager()
+        self._bot_fully_started = False
+
+        # Professional health system
+        self._health_manager: HealthManager | None = None
+        self._last_health_log = 0.0
+        self._previous_health_level: str | None = None
+        self._initial_health_logged = False
 
     def _register_cleanup(self) -> None:
         """Register cleanup handler to ensure proper shutdown on exit."""
@@ -101,20 +89,26 @@ class BotLauncher(logs.BaseComponent):
 
     def _shutdown_bot_silently(self, *, silent: bool) -> None:
         """Stop polling and remove webhook with optional error handling."""
-        if not self.bot or not hasattr(self.bot, "bot") or not self.bot.bot:
-            return
+        with self._shutdown_lock:
+            if self._bot_operations_stopped:
+                return
+            self._bot_operations_stopped = True
 
         try:
-            self.bot.bot.stop_polling()
-            self.bot.bot.remove_webhook()
+            if self.bot and hasattr(self.bot, "bot") and self.bot.bot:
+                stop_polling: Callable[[], object] = self.bot.bot.stop_polling
+                stop_polling()
+                self.bot.bot.remove_webhook()
             self._session_manager.shutdown()
+            reset_docker_client_context()
         except Exception as e:
             if not silent:
                 with self.log_context(error=str(e)) as log:
-                    log.warning("Error stopping bot operations")
+                    log.warning("bot.launcher.encountered.issues.stop")
 
     def _emergency_cleanup(self) -> None:
         """Emergency cleanup for atexit - minimal operations only."""
+        self._stop_health_system()
         self._shutdown_bot_silently(silent=True)
 
     def _stop_bot_operations(self) -> None:
@@ -127,223 +121,430 @@ class BotLauncher(logs.BaseComponent):
             self._sigint_count += 1
 
             if self._sigint_count == 1:
-                with self.log_context(signal=sig_name, pid=os.getpid()) as log:
-                    log.warning(
-                        "Received SIGINT - initiating graceful shutdown (Ctrl+C again to force)"
-                    )
+                with self.log_context(signal=sig_name) as log:
+                    log.info("bot.launcher.graceful.stop")
                 self.shutdown_requested.set()
             elif self._sigint_count >= 2:
-                with self.log_context(
-                    signal=sig_name, pid=os.getpid(), force=True
-                ) as log:
-                    log.warning("Received multiple SIGINT - forcing immediate shutdown")
+                with self.log_context(signal=sig_name) as log:
+                    log.warning("bot.launcher.forced.stop")
                 self._emergency_cleanup()
-                # Restore default handler and re-raise signal
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
                 os.kill(os.getpid(), signal.SIGINT)
 
-    def _signal_handler(self, signum: int, frame) -> None:
+    def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
         """Signal handler for graceful shutdown."""
+        _ = frame
         try:
             sig_name = signal.Signals(signum).name
         except ValueError:
-            sig_name = f"Unknown signal {signum}"
+            sig_name = f"signal_{signum}"
 
         if signum == signal.SIGINT:
             self._handle_sigint(sig_name)
         else:
-            with self.log_context(signal=sig_name, pid=os.getpid()) as log:
-                log.warning("Received signal - initiating shutdown")
+            with self.log_context(signal=sig_name) as log:
+                log.info("bot.launcher.initiated.signal.stop")
             self.shutdown_requested.set()
-            self._stop_bot_operations()
-
-    def _perform_health_check(self) -> bool:
-        """Perform a single health check with error handling."""
-        if not self.bot:
-            return False
-
-        try:
-            is_healthy = self.bot.is_healthy()
-            if not is_healthy:
-                with self.log_context(recovery_attempt=True) as log:
-                    log.warning("Bot unhealthy - attempting recovery")
-                    if not self.bot.recovery():
-                        log.error("Recovery failed")
-            return is_healthy
-        except Exception as e:
-            with self.log_context(error=str(e)) as log:
-                log.error("Health check error")
-            return False
-
-    def _health_check_loop(self) -> None:
-        """Health check loop with proper error handling."""
-        health_status = HealthStatus()
-
-        while not self.shutdown_requested.is_set():
-            is_healthy = self._perform_health_check()
-            health_status.update_health(is_healthy)
-            self._log_health_status()
-
-            # Wait with early exit on shutdown
-            for _ in range(self.HEALTH_CHECK_INTERVAL):
-                if self.shutdown_requested.wait(timeout=1):
-                    return
-
-    @staticmethod
-    def _is_monitor_plugin_loaded() -> bool:
-        from pytmbot.plugins.plugin_manager import PluginManager
-
-        return PluginManager.is_plugin_loaded("monitor")
-
-    def _log_health_status(self) -> None:
-        """Log current health status with comprehensive process statistics."""
-        uptime_display = naturaltime(self.start_time)
-
-        log_context = {
-            "uptime": uptime_display,
-            "active": bool(self.bot),
-            "pid": os.getpid(),
-            "session_overview": self._session_manager.get_session_stats(),
-        }
-
-        if self._is_monitor_plugin_loaded():
-            log_context["monitor_plugin_active"] = True
-        else:
-            self._add_process_stats_to_context(log_context)
-
-        self._log_with_warnings(log_context)
-
-    def _add_process_stats_to_context(self, log_context: dict) -> None:
-        """Add process statistics to log context and check for warnings."""
-        process_stats = self._psutil_adapter.get_current_process_health_summary()
-
-        if process_stats:
-            log_context.update(process_stats)
-            self._check_resource_warnings(log_context, process_stats)
-        else:
-            log_context.update(
-                {
-                    "cpu": "N/A",
-                    "memory_rss": "N/A",
-                    "memory_percent": "N/A",
-                    "status": "unknown",
-                }
-            )
-
-    def _check_resource_warnings(self, log_context: dict, process_stats: dict) -> None:
-        """Check for resource usage warnings and update log context."""
-        if self._is_memory_warning(process_stats):
-            log_context["memory_warning"] = True
-
-        if self._is_cpu_warning(process_stats):
-            log_context["cpu_warning"] = True
-
-    @staticmethod
-    def _is_memory_warning(process_stats: dict) -> bool:
-        """Check if memory usage exceeds warning threshold."""
-        if "memory_rss" not in process_stats or "memory_percent" not in process_stats:
-            return False
-
-        memory_percent_value = float(process_stats["memory_percent"].rstrip("%"))
-        return memory_percent_value > 80
-
-    @staticmethod
-    def _is_cpu_warning(process_stats: dict) -> bool:
-        """Check if CPU usage exceeds warning threshold."""
-        if "cpu" not in process_stats:
-            return False
-
-        cpu_percent_value = float(process_stats["cpu"].rstrip("%"))
-        return cpu_percent_value > 90
-
-    def _log_with_warnings(self, log_context: dict) -> None:
-        """Log health status with appropriate level based on warnings."""
-        has_warnings = log_context.get("memory_warning") or log_context.get(
-            "cpu_warning"
-        )
-
-        with self.log_context(**log_context) as log:
-            if has_warnings:
-                log.warning("Health check completed with resource warnings")
-            else:
-                log.debug("Health check completed")
 
     @contextmanager
-    def _managed_bot(self) -> Generator[Any, None, None]:
+    def _managed_bot(self) -> Generator[PyTMBot, None, None]:
         """Context manager for bot lifecycle."""
         try:
-            self.bot = pytmbot_instance.PyTMBot()
-            with self.log_context() as log:
-                log.info("Bot instance created")
+            from pytmbot.pytmbot_instance import PyTMBot
+
+            self.bot = PyTMBot()
             yield self.bot
         except Exception as e:
             with self.log_context(error=str(e)) as log:
-                log.error("Bot creation failed")
+                log.error("bot.launcher.creation.fail")
             raise
         finally:
             self._cleanup_bot()
+
+    def setup_health_system(self) -> None:
+        """Setup professional health monitoring system."""
+        bot_component = self.bot
+        if bot_component is None or bot_component.bot is None:
+            with self.log_context() as log:
+                log.warning("bot.launcher.cannot.init.ok")
+            return
+
+        try:
+            self._health_manager = create_health_manager(
+                bot=bot_component.bot,
+                session_manager=self._session_manager,
+                psutil_adapter=self._psutil_adapter,
+            )
+
+            # Update legacy singleton for compatibility
+            health_status = HealthStatus()
+            health_status.set_manager(self._health_manager)
+
+            with self.log_context(
+                components=self._health_manager.monitor.checker_count
+            ) as log:
+                log.info("bot.launcher.health.monitoring.init")
+
+        except Exception as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("bot.launcher.init.health.fail")
+            # Don't re-raise - health system failure shouldn't prevent bot startup
+
+    def start_health_monitoring(self) -> None:
+        """Start health monitoring."""
+        if not self._health_manager:
+            with self.log_context() as log:
+                log.warning("bot.launcher.cannot.start.init")
+            return
+
+        try:
+            self._health_manager.start(base_interval=120.0)
+
+        except Exception as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("bot.launcher.start.health.fail")
+
+    def _wait_for_initial_health(self, timeout_seconds: float) -> None:
+        """Wait briefly for first health snapshot without blocking startup for long."""
+        if not self._health_manager or timeout_seconds <= 0:
+            return
+
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            health_summary = self._health_manager.get_summary()
+            if health_summary.get("status") != "no_data":
+                return
+            time.sleep(0.05)
+
+    def _stop_health_system(self) -> None:
+        """Stop health monitoring system."""
+        if self._health_manager:
+            try:
+                self._health_manager.stop(timeout=5.0)
+                with self.log_context() as log:
+                    log.info("bot.launcher.health.monitoring.stop")
+            except Exception as e:
+                with self.log_context(error=str(e)) as log:
+                    log.warning("bot.launcher.stop.health.fail")
+            finally:
+                self._health_manager = None
+
+    def _is_within_startup_grace_period(self) -> bool:
+        """Check if we're still within the startup grace period."""
+        uptime_seconds = time.monotonic() - self._start_monotonic
+        return uptime_seconds < self.STARTUP_GRACE_PERIOD
+
+    def _should_log_health_status(self) -> bool:
+        """Check if we should log health status based on interval and health state."""
+        if not self._health_manager:
+            return False
+
+        current_time = time.time()
+        current_summary = self._health_manager.get_summary()
+        if not self._is_health_summary_ready(current_summary):
+            return False
+        current_overall = str(current_summary.get("overall", "offline"))
+
+        if (
+            self._previous_health_level is None
+            or current_overall != self._previous_health_level
+        ):
+            self._last_health_log = current_time
+            return True
+
+        if (current_time - self._last_health_log) >= self.HEALTH_LOG_INTERVAL:
+            self._last_health_log = current_time
+            return True
+        return False
+
+    @staticmethod
+    def _is_health_summary_ready(health_summary: dict[str, object]) -> bool:
+        """Return True once health monitor has produced at least one snapshot."""
+        status = health_summary.get("status")
+        return not (isinstance(status, str) and status == "no_data")
+
+    def log_health_status(self) -> None:
+        """Log current health status using professional system with optimized output."""
+        if not self._health_manager:
+            return
+
+        health_summary = self._health_manager.get_summary()
+        if not self._is_health_summary_ready(health_summary):
+            return
+        overall_value = health_summary.get("overall")
+        overall_status = overall_value if isinstance(overall_value, str) else "offline"
+        has_state_changed = (
+            self._previous_health_level is not None
+            and self._previous_health_level != overall_status
+        )
+        is_first_health_check = not self._initial_health_logged
+
+        # Get supporting data only when needed
+        uptime_display = naturaltime(self.start_time)
+        bot_session_metrics = None
+        if self.bot and hasattr(self.bot, "get_bot_session_statistics"):
+            bot_session_metrics = self.bot.get_bot_session_statistics()
+
+        within_grace_period = self._is_within_startup_grace_period()
+
+        # Handle startup completion
+        if not self._bot_fully_started and self.bot:
+            self._bot_fully_started = True
+            self._log_bot_startup_completion(
+                health_summary, uptime_display, bot_session_metrics
+            )
+            self._previous_health_level = overall_status
+            self._initial_health_logged = True
+            return
+
+        # Determine log level
+        log_level = self._determine_health_log_level(
+            overall_status,
+            within_grace_period,
+            has_state_changed,
+            is_first_health_check,
+        )
+
+        # Main health status log - concise and focused
+        self._log_main_health_status(
+            overall_status, health_summary, uptime_display, log_level
+        )
+
+        # Additional details only in debug mode or when there are issues
+        if _get_args().log_level == "DEBUG" or overall_status not in (
+            "healthy",
+            "degraded",
+        ):
+            self._log_health_details(health_summary, bot_session_metrics)
+
+        self._previous_health_level = overall_status
+        self._initial_health_logged = True
+
+    def _log_bot_startup_completion(
+        self,
+        health_summary: dict[str, object],
+        uptime_display: str,
+        bot_session_metrics: dict[str, object] | None,
+    ) -> None:
+        """Log bot startup completion with essential metrics."""
+        log_context = {
+            "overall": health_summary.get("overall", "unknown"),
+            "components": f"{health_summary.get('operational', 0)}/{health_summary.get('total', 0)}",
+            "uptime": uptime_display,
+            "session_id": bot_session_metrics.get("session_id")
+            if bot_session_metrics
+            else "unknown",
+            "mode": self._normalize_mode_value(bot_session_metrics.get("mode"))
+            if bot_session_metrics
+            else "unknown",
+        }
+
+        with self.log_context(**log_context) as log:
+            log.info("bot.launcher.start.ok")
+
+    def _determine_health_log_level(
+        self,
+        overall_status: str,
+        within_grace_period: bool,
+        has_state_changed: bool,
+        is_first_health_check: bool,
+    ) -> str:
+        """Determine appropriate log level for health status."""
+        if is_first_health_check:
+            return "info"
+
+        if has_state_changed:
+            if overall_status == "healthy":
+                return "info"
+            if overall_status in ("degraded", "unhealthy"):
+                return "warning"
+            return "error"
+
+        if overall_status in ("critical", "offline"):
+            return "error"
+        if overall_status in ("unhealthy", "degraded"):
+            return "warning"
+        if not self.bot:
+            return "debug" if within_grace_period else "error"
+        if overall_status == "healthy":
+            return "trace"
+        return "info"
+
+    def _log_main_health_status(
+        self,
+        overall_status: str,
+        health_summary: dict[str, object],
+        uptime_display: str,
+        log_level: str,
+    ) -> None:
+        """Log main health status with key metrics."""
+        raw_components = health_summary.get("components")
+        components = raw_components if isinstance(raw_components, dict) else {}
+
+        # Create component status summary
+        component_status = {}
+        critical_issues = []
+
+        for name, component in components.items():
+            if not isinstance(component, dict):
+                continue
+            level = component.get("level", "unknown")
+            latency = component.get("latency_ms", 0)
+
+            if level == "critical":
+                critical_issues.append(name)
+
+            # Simplified component status
+            if name == "telegram_api":
+                component_status["api"] = (
+                    f"{latency:.0f}ms" if level == "healthy" else level
+                )
+            elif name == "polling":
+                component_status["polling"] = "OK" if level == "healthy" else level
+            elif name == "sessions":
+                session_details = component.get("details", {})
+                total = session_details.get("total_sessions", 0)
+                component_status["sessions"] = (
+                    f"{total}" if level == "healthy" else f"{total}({level})"
+                )
+            elif name == "system_resources":
+                sys_details = component.get("details", {})
+                mem = sys_details.get("memory_percent", "0%")
+                cpu = sys_details.get("cpu_percent", 0)
+                component_status["resources"] = (
+                    f"{mem}/CPU:{cpu:.1f}%" if level == "healthy" else level
+                )
+
+        # Main status log
+        log_context = {
+            "overall": overall_status.upper(),
+            "components": f"{health_summary.get('operational', 0)}/{health_summary.get('total', 0)}",
+            "health_ratio": f"{health_summary.get('health_ratio', 0):.0%}",
+            "check_duration": f"{health_summary.get('duration_ms', 0):.0f}ms",
+            "uptime": uptime_display,
+            **component_status,
+        }
+
+        # Add critical issues if any
+        if critical_issues:
+            log_context["critical_components"] = critical_issues
+
+        with self.log_context(**log_context) as log:
+            getattr(log, log_level)("bot.launcher.health.status")
+
+    @staticmethod
+    def _normalize_mode_value(mode: object) -> str:
+        """Normalize enum-like mode values for compact log output."""
+        return str(getattr(mode, "value", mode))
+
+    @staticmethod
+    def _normalize_bool_flag(value: object) -> bool:
+        """Normalize CLI boolean-like values to strict bool."""
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"true", "1", "yes", "on"}
+
+    def _log_health_details(
+        self,
+        health_summary: dict[str, object],
+        bot_session_metrics: dict[str, object] | None,
+    ) -> None:
+        """Log detailed health information when needed."""
+        raw_components = health_summary.get("components")
+        components = raw_components if isinstance(raw_components, dict) else {}
+
+        # Log component details for non-healthy components
+        unhealthy_components: dict[str, dict[str, object]] = {
+            name: component
+            for name, component in components.items()
+            if isinstance(component, dict)
+            and component.get("level") not in ("healthy",)
+        }
+
+        if unhealthy_components:
+            for name, component in unhealthy_components.items():
+                details = component.get("details", {})
+                with self.log_context(
+                    health_component=name,
+                    level=component.get("level"),
+                    latency_ms=f"{component.get('latency_ms', 0):.1f}",
+                    details=details,
+                ) as log:
+                    log.debug("bot.launcher.component.issue.debug")
+
+        # Log session and rate limit stats only if there's activity
+        if bot_session_metrics:
+            rate_stats_raw = bot_session_metrics.get("rate_limit_stats", {})
+            rate_stats = rate_stats_raw if isinstance(rate_stats_raw, dict) else {}
+            active_users_raw = rate_stats.get("active_users", 0)
+            total_violations_raw = rate_stats.get("total_violations", 0)
+            active_users = active_users_raw if isinstance(active_users_raw, int) else 0
+            total_violations = (
+                total_violations_raw if isinstance(total_violations_raw, int) else 0
+            )
+
+            if active_users > 0 or total_violations > 0:
+                with self.log_context(
+                    active_users=active_users,
+                    rate_violations=total_violations,
+                ) as log:
+                    log.debug("bot.launcher.user.activity.debug")
+
+        # System resource details only if concerning
+        system_component = components.get("system_resources", {})
+        if system_component.get("level") != "healthy":
+            sys_details = system_component.get("details", {})
+            with self.log_context(
+                cpu_percent=sys_details.get("cpu_percent", 0),
+                memory_percent=sys_details.get("memory_percent", "0%"),
+                memory_rss=sys_details.get("memory_rss", "0"),
+                threads=sys_details.get("threads", 0),
+                status=sys_details.get("status", "unknown"),
+            ) as log:
+                log.debug("bot.launcher.resource.details.debug")
 
     def _cleanup_bot(self) -> None:
         """Clean up bot resources."""
         if not self.bot:
             return
-
-        try:
-            with self.log_context() as log:
-                log.info("Cleaning up bot instance")
-            self._stop_bot_operations()
-        except Exception as e:
-            with self.log_context(error=str(e)) as log:
-                log.warning("Bot cleanup error")
-        finally:
-            self.bot = None
-
-    def _wait_for_health_thread(self) -> None:
-        """Wait for health check thread to complete."""
-        if not (self.health_check_thread and self.health_check_thread.is_alive()):
-            return
-
-        with self.log_context() as log:
-            log.info("Waiting for health thread")
-
-        self.health_check_thread.join(timeout=self.SHUTDOWN_TIMEOUT)
-
-        if self.health_check_thread.is_alive():
-            with self.log_context() as log:
-                log.warning("Health thread timeout")
+        self.bot = None
 
     def shutdown(self) -> None:
         """Graceful shutdown with timeout."""
         with self._shutdown_lock:
-            if not self.bot:
+            if self._shutdown_completed:
+                return
+            if (
+                not self.bot
+                and not self._health_manager
+                and self._bot_operations_stopped
+            ):
+                self._shutdown_completed = True
                 return
 
             try:
                 with self.log_context() as log:
-                    log.info("Starting shutdown sequence")
+                    log.info("bot.launcher.sequence.initiated.stop")
 
                 self.shutdown_requested.set()
+                self._stop_health_system()
                 self._stop_bot_operations()
-                self._wait_for_health_thread()
 
                 with self.log_context() as log:
-                    log.info("Shutdown completed")
+                    log.info("bot.launcher.stop.ok")
+                self._shutdown_completed = True
 
             except Exception as e:
                 with self.log_context(error=str(e)) as log:
-                    log.error("Shutdown error")
+                    log.error("bot.launcher.stop.fail")
 
-                error_metadata: dict[str, Any] = {
-                    "exception": str(e),
-                    "type": type(e).__name__,
-                }
                 raise ShutdownError(
                     ErrorContext(
                         message=f"Shutdown failed: {e}",
                         error_code="SHUTDOWN_001",
-                        metadata=error_metadata,
+                        metadata={"exception": str(e), "type": type(e).__name__},
                     )
-                )
+                ) from e
 
     def validate_environment(self) -> None:
         """Validate runtime environment."""
@@ -362,9 +563,8 @@ class BotLauncher(logs.BaseComponent):
             with self.log_context(
                 python_version=platform.python_version(),
                 system=platform.system(),
-                platform=platform.platform(),
             ) as log:
-                log.info("Environment validated")
+                log.debug("bot.launcher.environment.validation.ok")
 
         except Exception as e:
             raise InitializationError(
@@ -373,24 +573,20 @@ class BotLauncher(logs.BaseComponent):
                     error_code="INIT_002",
                     metadata={"error": str(e), "type": type(e).__name__},
                 )
-            )
+            ) from e
 
     def _register_signal_handler(self, sig: signal.Signals) -> None:
         """Register handler for a single signal."""
         try:
             signal.signal(sig, self._signal_handler)
-            with self.log_context(signal=sig.name) as log:
-                log.debug(f"Registered handler for {sig.name}")
         except (OSError, ValueError) as e:
             with self.log_context(signal=sig.name, error=str(e)) as log:
-                log.warning(f"Cannot register {sig.name}: {e}")
+                log.debug("bot.launcher.cannot.register.debug")
 
     def _setup_signal_handlers(self) -> None:
         """Setup cross-platform signal handlers."""
-        # Handle SIGINT with special logic for graceful vs forced shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
 
-        # Handle other termination signals
         signals_to_handle = [signal.SIGTERM]
         if hasattr(signal, "SIGHUP"):
             signals_to_handle.append(signal.SIGHUP)
@@ -398,100 +594,170 @@ class BotLauncher(logs.BaseComponent):
         for sig in signals_to_handle:
             self._register_signal_handler(sig)
 
-        with self.log_context() as log:
-            log.debug(
-                "Signal handlers registered (SIGINT: graceful->forced, others: immediate)"
-            )
-
-    def _start_health_monitoring(self) -> None:
-        """Start health check monitoring thread."""
-        self.health_check_thread = threading.Thread(
-            target=self._health_check_loop, name="HealthMonitor", daemon=True
-        )
-        self.health_check_thread.start()
-
-    def _run_main_loop(self) -> None:
-        """Main execution loop with interruption handling."""
+    def run_main_loop(self) -> None:
+        """Main execution loop with health system integration."""
         with self._managed_bot() as bot:
-            bot.launch_bot()
+            # Initialize bot core but don't start polling yet
+            with self.log_context() as log:
+                log.debug("bot.launcher.init")
+            bot_instance = bot.initialize_bot_core()
 
-            # Main loop - wait for shutdown signal with regular checks
+            # Setup health system while bot is initialized but not polling
+            self.setup_health_system()
+
+            # Start health monitoring
+            self.start_health_monitoring()
+
+            self._wait_for_initial_health(self.INITIAL_HEALTH_WAIT_TIMEOUT_SECONDS)
+
+            # Log initial health status
+            if self._health_manager:
+                self.log_health_status()
+
+            # Now start the actual bot polling (this will block)
+            # Start polling in a separate thread so we can monitor it
+            polling_thread = threading.Thread(
+                target=self._start_bot_polling,
+                args=(bot_instance,),
+                name="BotPolling",
+                daemon=True,
+            )
+            polling_thread.start()
+            polling_restart_attempts = 0
+
+            # Main monitoring loop - wait for shutdown signal
             while not self.shutdown_requested.is_set():
                 try:
+                    if not polling_thread.is_alive():
+                        if (
+                            polling_restart_attempts
+                            >= self.POLLING_RESTART_MAX_ATTEMPTS
+                        ):
+                            with self.log_context(
+                                restart_attempts=polling_restart_attempts
+                            ) as log:
+                                log.error("bot.launcher.polling.restart.exceeded.fail")
+                            self.shutdown_requested.set()
+                            break
+
+                        polling_restart_attempts += 1
+                        with self.log_context(
+                            restart_attempt=polling_restart_attempts,
+                            max_attempts=self.POLLING_RESTART_MAX_ATTEMPTS,
+                        ) as log:
+                            log.warning("bot.launcher.polling.restarted.warn")
+
+                        time.sleep(self.POLLING_RESTART_BACKOFF_SECONDS)
+                        polling_thread = threading.Thread(
+                            target=self._start_bot_polling,
+                            args=(bot_instance,),
+                            name="BotPolling",
+                            daemon=True,
+                        )
+                        polling_thread.start()
+                        continue
+
+                    # Periodic health status logging
+                    if self._should_log_health_status():
+                        self.log_health_status()
+
                     if self.shutdown_requested.wait(timeout=self.MAIN_LOOP_TIMEOUT):
                         break
                 except KeyboardInterrupt:
-                    # This should not normally happen since we handle SIGINT,
-                    # but just in case
-                    with self.log_context() as log:
-                        log.info("KeyboardInterrupt in main loop")
                     break
 
-            with self.log_context() as log:
-                log.info("Main loop exiting")
+    def _start_bot_polling(self, bot_instance: TeleBot) -> None:
+        """Start bot polling in a separate method."""
+        try:
+            cli_args = _get_args()
+            webhook_enabled = self._normalize_bool_flag(cli_args.webhook)
+            bot_component = self.bot
+            if bot_component is None:
+                raise RuntimeError("Bot component is not initialized")
 
-    def _get_error_context(self, error: Exception) -> dict[str, Any]:
-        """Get comprehensive error context for logging."""
-        health_status = HealthStatus()
+            with self.log_context(
+                webhook_enabled=webhook_enabled,
+                mode=self._normalize_mode_value(cli_args.mode),
+            ) as log:
+                log.info("bot.launcher.start")
 
-        return {
-            "exception_type": type(error).__name__,
-            "exception_value": str(error),
-            "traceback": traceback.format_exc(),
-            "shutdown_requested": self.shutdown_requested.is_set(),
-            "last_health_check": health_status.last_health_check_result,
-            "uptime": naturaltime(self.start_time),
-            "active": bool(self.bot),
-            "pid": os.getpid(),
-            "python_version": platform.python_version(),
-            "system": platform.system(),
-            "platform": platform.platform(),
-        }
+            bot_instance.remove_webhook()
+            if webhook_enabled:
+                try:
+                    bot_component._start_webhook_server()
+                    if not self.shutdown_requested.is_set():
+                        with self.log_context(
+                            error="Webhook server exited unexpectedly",
+                            fallback_mode="polling",
+                        ) as log:
+                            log.warning("bot.launcher.webhook.failover.polling.warn")
+                        bot_component._start_polling_loop(bot_instance)
+                except (Exception, SystemExit) as webhook_error:
+                    with self.log_context(
+                        error=str(webhook_error),
+                        fallback_mode="polling",
+                    ) as log:
+                        log.warning("bot.launcher.webhook.failover.polling.warn")
+                    bot_component._start_polling_loop(bot_instance)
+            else:
+                bot_component._start_polling_loop(bot_instance)
+        except Exception as error:
+            with self.log_context(error=str(error)) as log:
+                log.error("bot.launcher.polling.fail")
+            self.shutdown_requested.set()
 
-    def _handle_keyboard_interrupt(self) -> NoReturn:
+    def _handle_keyboard_interrupt(self) -> None:
         """Handle keyboard interrupt gracefully."""
         with self.log_context() as log:
-            log.info("KeyboardInterrupt - shutting down")
+            log.info("bot.launcher.keyboard.interrupt.info")
         try:
             self.shutdown()
-        except Exception:
-            pass
-        sys.exit(0)
+        except ShutdownError as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("bot.launcher.stop.fail")
+        except Exception as e:
+            with self.log_context(error=str(e), error_type=type(e).__name__) as log:
+                log.warning("bot.launcher.unexpected.fail")
 
     def _handle_fatal_error(self, error: Exception) -> NoReturn:
         """Handle fatal errors with comprehensive logging."""
-        error_context = self._get_error_context(error)
+        error_context = {
+            "exception_type": type(error).__name__,
+            "exception_message": str(error),
+            "uptime": naturaltime(self.start_time),
+            "shutdown_requested": self.shutdown_requested.is_set(),
+            "python_version": platform.python_version(),
+            "system": platform.system(),
+        }
 
         with self.log_context(**error_context) as log:
-            log.critical("Fatal error - emergency shutdown")
+            log.critical("bot.launcher.initiate.fail")
 
         try:
             self.shutdown()
-        except Exception:
-            pass
+        except ShutdownError as e:
+            with self.log_context(error=str(e)) as log:
+                log.error("bot.launcher.stop.fail")
+        except Exception as e:
+            with self.log_context(error=str(e), error_type=type(e).__name__) as log:
+                log.warning("bot.launcher.unexpected.fail")
 
         sys.exit(1)
 
-    def run(self) -> NoReturn:
+    def run(self) -> None:
         """Main entry point with comprehensive error handling."""
         try:
-            # Setup
+            # Setup phase
             self._register_cleanup()
             self._setup_signal_handlers()
-            self._start_health_monitoring()
             self.validate_environment()
 
-            with self.log_context(pid=os.getpid()) as log:
-                log.info("Starting PyTMBot")
+            with self.log_context() as log:
+                log.info("bot.launcher.init.start.ok")
 
             # Main execution
-            self._run_main_loop()
+            self.run_main_loop()
             self.shutdown()
-
-            with self.log_context() as log:
-                log.info("PyTMBot shutdown successfully")
-
-            sys.exit(0)
 
         except KeyboardInterrupt:
             self._handle_keyboard_interrupt()
@@ -501,23 +767,23 @@ class BotLauncher(logs.BaseComponent):
 
 def check_health() -> NoReturn:
     """Check bot health status and exit with appropriate code."""
-    health_result = HealthStatus().last_health_check_result
+    health_status = HealthStatus()
+    result = health_status.last_health_check_result
 
-    match health_result:
+    match result:
         case True:
-            print("Bot is healthy")
             sys.exit(0)
         case False:
-            print("Bot is unhealthy")
             sys.exit(1)
         case None:
-            print("Health status unknown")
             sys.exit(2)
 
+    raise AssertionError("unreachable")
 
-def main() -> NoReturn:
+
+def main() -> None:
     """Main entry point."""
-    if args.health_check:
+    if _get_args().health_check:
         check_health()
     else:
         BotLauncher().run()

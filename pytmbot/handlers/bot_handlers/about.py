@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message, LinkPreviewOptions
+from telebot.types import LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -31,19 +31,19 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         None
     """
     try:
+        user = message.from_user
         user_name = (
-            message.from_user.first_name
-            if message.from_user.first_name
-            else message.from_user.username
+            (user.first_name if user else None)
+            or (user.username if user else None)
+            or "User"
         )
         bot.send_chat_action(message.chat.id, "typing")
 
         template_data = {"username": user_name, "app_version": __version__}
 
-        with Compiler(
+        response = Compiler.quick_render(
             template_name="b_about_bot.jinja2", context=template_data
-        ) as compiler:
-            response = compiler.compile()
+        )
 
         send_telegram_message(
             bot=bot,
@@ -55,7 +55,7 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
 
     except Exception as error:
         bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+            message.chat.id, "⚠️ An error occurred while opening the About screen."
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -63,4 +63,4 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
                 error_code="HAND_018",
                 metadata={"exception": str(error)},
             )
-        )
+        ) from error

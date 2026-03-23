@@ -1,0 +1,13 @@
+{{ thought_balloon }} <b>Per-Core CPU Load:</b>
+
+{% if context.core_rows %}
+<pre language="bash">
+Core | Usage
+-----+----------------------------
+{% for row in context.core_rows %}
+{{ "%4d"|format(row.core) }} | {{ row.bar }} {{ "%5.1f"|format(row.usage_percent) }}%
+{% endfor %}
+</pre>
+{% else %}
+No per-core CPU data available.
+{% endif %}

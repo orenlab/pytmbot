@@ -1,0 +1,79 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PYTMBOT_CONFIG_PATH: pytmbot.yaml.sample
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.12", "3.13", "3.14" ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras --dev
+
+      - name: Run tests
+        # Smoke CLI tests intentionally disable subprocess coverage collection
+        # to avoid runner-specific flakiness while keeping parent-process coverage strict.
+        run: uv run pytest --cov=pytmbot --cov-report=term-missing --cov-fail-under=80
+
+      - name: Verify baseline exists
+        if: ${{ matrix.python-version == '3.14' }}
+        run: test -f codeclone.baseline.json
+
+      - name: Check for new clones vs baseline
+        if: ${{ matrix.python-version == '3.14' }}
+        run: uv run codeclone . --ci
+
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras --dev
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Mypy
+        run: uv run mypy .

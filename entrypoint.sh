@@ -16,18 +16,24 @@ set -e
 ########################################################################################################################
 
 # Constants
-PYTHON_PATH="/usr/local/bin/python3"
+# IMPORTANT: use venv interpreter directly; `/usr/local/bin/python3` symlink
+# does not reliably activate venv on Ubuntu images.
+PYTHON_PATH="/opt/venv/bin/python3"
 MAIN_SCRIPT="pytmbot/main.py"
 SALT_SCRIPT="pytmbot/utils/salt.py"
 
 # Default values
 LOG_LEVEL="INFO"
 MODE="prod"
+LOG_FORMAT=""
 SALT="False"
 PLUGINS=""
 WEBHOOK="False"
 SOCKET_HOST="127.0.0.1"
 HEALTH_CHECK="False"
+DEBUG="False"
+COLORIZE_LOGS="True"
+STRICT_DOCKER_ACCESS="${STRICT_DOCKER_ACCESS:-False}"
 
 # Variables for process management
 child_pid=""
@@ -38,10 +44,12 @@ log() {
     _log_time=$(date "+%H:%M:%S")
 
     case "$1" in
+        "TRACE")   _log_formatted_level="TRACE   " ;;
         "DEBUG")   _log_formatted_level="DEBUG   " ;;
         "INFO")    _log_formatted_level="INFO    " ;;
         "WARNING") _log_formatted_level="WARNING " ;;
         "ERROR")   _log_formatted_level="ERROR   " ;;
+        "CRITICAL") _log_formatted_level="CRITICAL" ;;
         *)         _log_formatted_level="INFO    " ;;
     esac
 
@@ -52,6 +60,17 @@ log() {
     fi
 
     echo "$_log_timestamp [$_log_time][$_log_formatted_level][$_log_formatted_component] › $3 › $_log_extra_data"
+}
+
+# Validate that an option requiring a value received one
+require_option_value() {
+    _option_name="$1"
+    _option_value="$2"
+
+    if [ -z "$_option_value" ] || [ "${_option_value#--}" != "$_option_value" ]; then
+        log "ERROR" "entrypoint" "Missing value for option" "{\"option\": \"$_option_name\"}"
+        exit 1
+    fi
 }
 
 # Trap signals for proper shutdown
@@ -93,6 +112,13 @@ fix_docker_group_runtime() {
         CURRENT_DOCKER_GID=$(getent group docker | cut -d: -f3 2>/dev/null || echo "")
 
         log "INFO" "entrypoint" "Docker socket analysis" "{\"socket_gid\": $DOCKER_SOCKET_GID, \"container_gid\": \"$CURRENT_DOCKER_GID\"}"
+
+        # If user already belongs to the socket group (for example, root:gid=0), no remapping is needed.
+        SOCKET_GROUP_NAME=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1 2>/dev/null || echo "")
+        if [ -n "$SOCKET_GROUP_NAME" ] && id -nG | tr ' ' '\n' | grep -Fxq "$SOCKET_GROUP_NAME"; then
+            log "INFO" "entrypoint" "User already has Docker socket group access" "{\"group\": \"$SOCKET_GROUP_NAME\", \"gid\": $DOCKER_SOCKET_GID}"
+            return 0
+        fi
 
         # If GIDs don't match, we need to adjust
         if [ "$DOCKER_SOCKET_GID" != "$CURRENT_DOCKER_GID" ]; then
@@ -142,8 +168,16 @@ check_docker_access() {
 # Function to validate log level
 validate_log_level() {
     case "$1" in
-        DEBUG|INFO|ERROR) return 0 ;;
+        TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL) return 0 ;;
         *) log "ERROR" "entrypoint" "Invalid log level" "{\"level\": \"$1\"}"; return 1 ;;
+    esac
+}
+
+# Function to validate log format
+validate_log_format() {
+    case "$1" in
+        human|json) return 0 ;;
+        *) log "ERROR" "entrypoint" "Invalid log format" "{\"format\": \"$1\"}"; return 1 ;;
     esac
 }
 
@@ -152,6 +186,19 @@ validate_mode() {
     case "$1" in
         dev|prod) return 0 ;;
         *) log "ERROR" "entrypoint" "Invalid mode" "{\"mode\": \"$1\"}"; return 1 ;;
+    esac
+}
+
+# Function to validate boolean values
+validate_bool() {
+    case "$1" in
+        true|false|True|False|TRUE|FALSE|1|0|yes|no|on|off|YES|NO|ON|OFF)
+            return 0
+            ;;
+        *)
+            log "ERROR" "entrypoint" "Invalid boolean value" "{\"value\": \"$1\"}"
+            return 1
+            ;;
     esac
 }
 
@@ -186,16 +233,57 @@ health_check() {
 
     check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
-    $PYTHON_PATH "$MAIN_SCRIPT" --health_check || log "WARNING" "entrypoint" "Bot unhealthy!" "{}"
+    _python_health_rc=0
+    if ! $PYTHON_PATH "$MAIN_SCRIPT" --health_check; then
+        _python_health_rc=$?
+    fi
 
-    log "INFO" "entrypoint" "Health check passed" "{}"
-    return 0
+    case "$_python_health_rc" in
+        0)
+            log "INFO" "entrypoint" "Health check passed" "{\"source\": \"main.py\", \"code\": 0}"
+            return 0
+            ;;
+        1)
+            log "ERROR" "entrypoint" "Health check failed: app reported unhealthy" "{\"source\": \"main.py\", \"code\": 1}"
+            return 1
+            ;;
+        2)
+            # main.py returns 2 when health manager is unavailable in this short-lived process.
+            # Fall back to runtime process liveness for container health checks.
+            _bot_pid=""
+            for _proc in /proc/[0-9]*; do
+                [ -r "$_proc/cmdline" ] || continue
+                _pid="${_proc##*/}"
+                [ "$_pid" = "$$" ] && continue
+                _cmdline=$(tr '\0' ' ' < "$_proc/cmdline" 2>/dev/null || true)
+                case "$_cmdline" in
+                    *"$MAIN_SCRIPT"*)
+                        _bot_pid="$_pid"
+                        break
+                        ;;
+                esac
+            done
+
+            if [ -n "$_bot_pid" ]; then
+                log "WARNING" "entrypoint" "Health manager unavailable, fallback to process check passed" "{\"source\": \"main.py\", \"code\": 2, \"pid\": $_bot_pid}"
+                return 0
+            fi
+
+            log "ERROR" "entrypoint" "Health check unknown and bot process not found" "{\"source\": \"main.py\", \"code\": 2}"
+            return 1
+            ;;
+        *)
+            log "ERROR" "entrypoint" "Unexpected health check exit code" "{\"source\": \"main.py\", \"code\": $_python_health_rc}"
+            return 1
+            ;;
+    esac
 }
 
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
         --log-level)
+            require_option_value "--log-level" "$2"
             if validate_log_level "$2"; then
                 LOG_LEVEL="$2"
             else
@@ -204,8 +292,18 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --mode)
+            require_option_value "--mode" "$2"
             if validate_mode "$2"; then
                 MODE="$2"
+            else
+                exit 1
+            fi
+            shift 2
+            ;;
+        --log-format)
+            require_option_value "--log-format" "$2"
+            if validate_log_format "$2"; then
+                LOG_FORMAT="$2"
             else
                 exit 1
             fi
@@ -216,16 +314,48 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --plugins)
-            PLUGINS="$2"
-            shift 2
+            shift
+            PLUGINS=""
+            while [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; do
+                if [ -z "$PLUGINS" ]; then
+                    PLUGINS="$1"
+                else
+                    PLUGINS="$PLUGINS $1"
+                fi
+                shift
+            done
             ;;
         --webhook)
-            WEBHOOK="True"
-            shift
+            if [ $# -gt 1 ] && [ "${2#--}" = "$2" ]; then
+                require_option_value "--webhook" "$2"
+                if validate_bool "$2"; then
+                    WEBHOOK="$2"
+                else
+                    exit 1
+                fi
+                shift 2
+            else
+                WEBHOOK="True"
+                shift
+            fi
             ;;
         --socket_host)
+            require_option_value "--socket_host" "$2"
             SOCKET_HOST="$2"
             shift 2
+            ;;
+        --colorize_logs)
+            require_option_value "--colorize_logs" "$2"
+            if validate_bool "$2"; then
+                COLORIZE_LOGS="$2"
+            else
+                exit 1
+            fi
+            shift 2
+            ;;
+        --debug)
+            DEBUG="True"
+            shift
             ;;
         --health_check)
             HEALTH_CHECK="True"
@@ -237,22 +367,44 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         *)
-            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker, --debug-groups\"}"
+            log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --log-format, --colorize_logs, --debug, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
             exit 1
             ;;
     esac
 done
 
+if [ -n "$LOG_FORMAT" ]; then
+    EFFECTIVE_LOG_FORMAT="$LOG_FORMAT"
+elif [ "$MODE" = "dev" ]; then
+    EFFECTIVE_LOG_FORMAT="human(auto)"
+else
+    EFFECTIVE_LOG_FORMAT="json(auto)"
+fi
+
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
 log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
-log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\"}"
+log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\", \"colorize_logs\": \"$COLORIZE_LOGS\", \"debug\": \"$DEBUG\", \"plugins\": \"$PLUGINS\", \"webhook\": \"$WEBHOOK\", \"socket_host\": \"$SOCKET_HOST\", \"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
 
 # Check dependencies
 check_dependencies
 
 # Fix Docker group if needed and check access
 fix_docker_group_runtime
-check_docker_access
+if ! check_docker_access; then
+    case "$STRICT_DOCKER_ACCESS" in
+        true|True|TRUE|1|yes|YES|on|ON)
+            log "ERROR" "entrypoint" "Docker access is required in strict mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            exit 1
+            ;;
+        false|False|FALSE|0|no|NO|off|OFF)
+            log "WARNING" "entrypoint" "Docker access unavailable, continuing in degraded mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            ;;
+        *)
+            log "WARNING" "entrypoint" "Invalid STRICT_DOCKER_ACCESS value, treating as false" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            log "WARNING" "entrypoint" "Docker access unavailable, continuing in degraded mode" "{\"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
+            ;;
+    esac
+fi
 
 # Handle health check
 if [ "$HEALTH_CHECK" = "True" ]; then
@@ -271,12 +423,30 @@ if [ "$SALT" = "True" ]; then
     child_pid=$!
 else
     log "INFO" "entrypoint" "Starting main application" "{\"script\": \"$MAIN_SCRIPT\"}"
-    $PYTHON_PATH "$MAIN_SCRIPT" \
+    set -- \
+        "$PYTHON_PATH" "$MAIN_SCRIPT" \
         --log-level "$LOG_LEVEL" \
         --mode "$MODE" \
-        --plugins "$PLUGINS" \
+        --colorize_logs "$COLORIZE_LOGS" \
         --webhook "$WEBHOOK" \
-        --socket_host "$SOCKET_HOST" &
+        --socket_host "$SOCKET_HOST"
+
+    if [ -n "$LOG_FORMAT" ]; then
+        set -- "$@" --log-format "$LOG_FORMAT"
+    fi
+
+    if [ -n "$PLUGINS" ]; then
+        set -- "$@" --plugins
+        for _plugin in $PLUGINS; do
+            set -- "$@" "$_plugin"
+        done
+    fi
+
+    if [ "$DEBUG" = "True" ]; then
+        set -- "$@" --debug
+    fi
+
+    "$@" &
     child_pid=$!
 fi
 

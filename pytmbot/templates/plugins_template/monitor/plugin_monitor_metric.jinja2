@@ -1,0 +1,20 @@
+{{ thought_balloon }} <b>{{ title }}</b>
+<b>Period:</b> {{ period_label }}
+
+{% if summary_lines -%}
+<b>Summary:</b>
+{% for line in summary_lines -%}
+{{ line }}
+{% endfor %}
+{% else -%}
+{{ warning }} No metrics found for this period.
+{%- endif %}
+
+{% if detail_lines -%}
+<b>Details:</b>
+{% for line in detail_lines -%}
+{{ line }}
+{% endfor %}
+{%- endif %}
+
+{{ information }} Use <b>Select period</b> to switch time range or choose another section.

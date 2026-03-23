@@ -1,23 +1,24 @@
-{# templates/monitoring/welcome.jinja2 #}
-
 {{ thought_balloon }} <b>Hello, {{ first_name }}!</b>
 
-{{ bar_chart }} Welcome to the <b>Server Monitoring Dashboard</b>!
+{{ bar_chart }} <b>Monitoring dashboard</b>
+<b>Period:</b> {{ period_label }}
 
-Here you can track essential server metrics:
-{{ chart_increasing }} CPU Usage
-{{ chart_decreasing }} Memory Consumption
-{{ hard_drive }} Disk Space
-{{ thermometer }} Temperature
+{% if notice -%}
+{{ information }} {{ notice }}
+{% endif -%}
 
-{% if available_periods -%}
-{{ calendar }} <b>Available Statistics Periods:</b>
-{% for period in available_periods -%}
-{{ minus }} {{ period }}
-{% endfor %}
+<b>Current summary:</b>
+{{ electric_plug }} CPU: {{ cpu_line }}
+{{ brain }} Memory: {{ memory_line }}
+{{ computer_disk }} Disk: {{ disk_line }}
+{{ thermometer }} Temperatures: {{ temperature_line }}
 
-{{ information }} Select any period above to view detailed metrics and graphs.
-{% else -%}
-{{ warning }} Currently there are no statistics available.
-{{ hourglass_flowing_sand }} Please wait while we gather the initial data.
-{%- endif -%}
+<b>Navigation:</b>
+{{ minus }} Overview
+{{ minus }} CPU usage
+{{ minus }} Memory usage
+{{ minus }} Disk usage
+{{ minus }} Temperatures
+{{ minus }} Select period
+
+{{ information }} Pick a section from keyboard to view detailed statistics from InfluxDB.

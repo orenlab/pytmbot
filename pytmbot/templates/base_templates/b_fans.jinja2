@@ -1,0 +1,9 @@
+{{ thought_balloon }} <b>Fan Speeds:</b>
+
+{% if context.fans %}
+{% for fan in context.fans %}
+<b>{{ fan.sensor_name }} / {{ fan.label }}</b>: <code>{{ fan.rpm }} RPM</code>
+{% endfor %}
+{% else %}
+No fan speed data available.
+{% endif %}

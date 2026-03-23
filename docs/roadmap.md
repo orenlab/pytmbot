@@ -1,41 +1,69 @@
-# pyTMBot Roadmap
+# Roadmap
 
-## 📈 Roadmap Overview
+This document tracks planned work. It is not the source of truth for implemented behavior.
 
-The roadmap below outlines the planned features and improvements for pyTMBot. Each entry includes the current status and
-estimated launch timeframe.
+Implemented behavior is defined by:
 
-| #  | Feature                                                            | Current Status | Planned Launch |
-|----|--------------------------------------------------------------------|----------------|----------------|
-| 1  | **Comprehensive Testing**                                          | Planned        | Q4 2025        |
-| 2  | **Background and Regular Statistics Collection**                   | Completed      | Completed      |
-| 3  | **Docker Image Update Monitoring**                                 | Completed      | Completed      |
-| 4  | **Enhanced Image Management**                                      | Planned        | Q4 2025        |
-| 5  | **Container Management**                                           | Completed      | Q3 2024        |
-| 6  | **Integration with Fluentd**                                       | Planned        | Q4 2025        |
-| 7  | **Integration with Grafana**                                       | Planned        | Q4 2025        |
-| 8  | **Podman Support**                                                 | Pending        | TBD            |
-| 9  | **Revised Authorization Mechanism to Prevent Unauthorized Access** | Completed      | Completed      |
-| 10 | **Dockerfile Audit (Transition from pip to Poetry)**               | Pending        | TBD            |
-| 11 | **Initial Documentation**                                          | Completed      | Completed      |
-| 12 | **Implementation of Bot Tree Structure**                           | Completed      | Completed      |
-| 13 | **Migration from Glances to psutil**                               | Completed      | Completed      |
-| 14 | **Multi-Server Agent Support**                                     | Planned        | Q4 2025        |
+- `pytmbot/`
+- `tests/`
+- `pytmbot.yaml.sample`
 
-## 🆕 New Features
+## Current Line
 
-### Multi-Server Agent Support (#14)
+Active release line:
 
-Implementation of an agent-based architecture that allows monitoring of multiple servers from a single bot instance,
-similar to solutions like Portainer or Dozzle. This feature will enable:
+- `0.3.x`
 
-- Remote server monitoring capabilities
-- Centralized management of distributed infrastructure
-- Agent deployment and configuration management
-- Cross-server statistics and alerting
+Primary objective:
 
-## Feedback and Feature Requests
+- stabilize and complete the `0.3.0` release line
 
-We welcome suggestions and feature requests from our users. If you have any ideas or feedback, please submit
-an [issue](https://github.com/orenlab/pytmbot/issues/new/choose) in the "Feature Request" section of our GitHub
-repository.
+## Active Priorities
+
+### Release Readiness
+
+- keep Docker image, docs, and config schema aligned
+- keep release tags and published images consistent
+- preserve backward-compatible config migration for supported configs
+
+### Runtime Hardening
+
+- maintain webhook security controls
+- keep Docker degraded-mode vs strict-mode behavior predictable
+- continue reducing noisy failures without hiding operational errors
+
+### Test And Quality Coverage
+
+- keep `ruff`, `mypy`, `pytest`, `pre-commit`, and `codeclone` green
+- expand regression coverage for Docker-heavy flows
+- expand coverage for auth, session, and webhook edge cases
+
+### Documentation Maintenance
+
+- keep user-facing docs aligned with actual handlers, middleware, and config
+- keep command and deployment docs aligned with current runtime
+
+## Backlog
+
+### Near Term
+
+- more integration coverage for large container/image sets
+- more release validation around config migrations and startup diagnostics
+- further cleanup of logging signal-to-noise
+
+### Medium Term
+
+- incremental plugin capabilities where they fit the current architecture
+- operational telemetry improvements
+- architecture changes only when they solve a measured problem
+
+## Non-Goals For This Line
+
+- reintroducing a non-Docker installation path
+- broad architectural rewrites without production justification
+- undocumented feature growth that bypasses tests and docs
+
+## Notes
+
+- Roadmap items may be reprioritized.
+- The roadmap does not guarantee delivery dates.

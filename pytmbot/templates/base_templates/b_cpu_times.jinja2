@@ -1,0 +1,10 @@
+{{ thought_balloon }} <b>CPU Times Breakdown:</b>
+
+<pre language="bash">
+user     : {{ "%5.1f"|format(context.user) }}%
+system   : {{ "%5.1f"|format(context.system) }}%
+idle     : {{ "%5.1f"|format(context.idle) }}%
+iowait   : {{ "%5.1f"|format(context.iowait) }}%
+irq      : {{ "%5.1f"|format(context.irq) }}%
+softirq  : {{ "%5.1f"|format(context.softirq) }}%
+</pre>

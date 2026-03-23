@@ -1,22 +1,98 @@
-# 🚀 pyTMBot Installation and Setup Guide
+# Installation
 
-## 🔌 Installation Options
+This project supports Docker and Docker Compose only.
 
-You have several options for installing pyTMBot. Choose the method that best suits your needs:
+Source of truth:
 
-### 1. 🐳 **Use a Pre-built Docker Image from Docker Hub (Recommended)**
+- `Dockerfile`
+- `entrypoint.sh`
+- `pytmbot.yaml.sample`
 
-You can run pyTMBot using a pre-built Docker image for a fast and simple setup. Follow
-the [instructions on Docker Hub](https://hub.docker.com/r/orenlab/pytmbot) to pull and run the image.
+## Prerequisites
 
-### 2. 📜 **Use the `install.sh` script (debugging and refinement are still necessary)**
+- Docker Engine `20.10+`
+- Docker Compose `v2+` recommended
+- Telegram bot token from `@BotFather`
+- Telegram user ID and target chat ID
 
-The easiest way to get started is by using the **install.sh** script. Follow
-the [detailed instructions here](script_install.md) to quickly install and set up pyTMBot with minimal effort.
+## Step 1: Prepare Configuration
 
----
+Start from the repository sample:
 
-Each method has its advantages depending on your environment and preferences. Follow the detailed instructions provided
-in the respective sections to complete your installation.
+```bash
+cp pytmbot.yaml.sample pytmbot.yaml
+```
 
-Happy monitoring! 🚀
+Fill at least these sections:
+
+- `bot_token.prod_token`
+- `access_control.allowed_user_ids`
+- `access_control.allowed_admins_ids`
+- `access_control.auth_salt`
+- `chat_id.global_chat_id`
+- `docker.host`
+
+Generate the TOTP salt with:
+
+```bash
+docker run --rm orenlab/pytmbot:stable --salt
+```
+
+## Step 2: Start The Bot
+
+Minimal polling deployment:
+
+```bash
+docker run -d \
+  --name pytmbot \
+  --restart on-failure \
+  -v "$(pwd)/pytmbot.yaml:/opt/app/pytmbot.yaml:ro" \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  orenlab/pytmbot:stable --mode prod
+```
+
+The default runtime mode is polling. No webhook settings are required for this path.
+
+## Step 3: Verify Startup
+
+Check container logs:
+
+```bash
+docker logs -f pytmbot
+```
+
+Expected result:
+
+- configuration loads successfully
+- bot starts polling or webhook mode
+- no validation or access errors are reported
+
+## Docker Compose
+
+Minimal Compose example:
+
+```yaml
+services:
+  pytmbot:
+    image: orenlab/pytmbot:stable
+    container_name: pytmbot
+    restart: on-failure
+    volumes:
+      - ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: --mode prod
+```
+
+## Optional Features
+
+- Webhook mode: configure `webhook_config` and start with `--webhook true`
+- Plugins: enable with `--plugins ...`
+- Monitor plugin: also requires `influxdb`
+
+## Related Docs
+
+- [settings.md](settings.md)
+- [docker.md](docker.md)
+- [release_policy.md](release_policy.md)
+- [bot_cli_args.md](bot_cli_args.md)
+- [webhook.md](webhook.md)

@@ -1,15 +1,18 @@
-name: Push Alpine Dev Image
+name: Push Ubuntu Dev Image
 
 on:
   push:
     branches:
       - '**'  # слушаем все ветки
 
+concurrency:
+  group: dev-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
   id-token: write
-  security-events: write
 
 jobs:
   push_dev_image:
@@ -20,45 +23,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
         with:
           platforms: linux/amd64,linux/arm64
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
         with:
           install: true
           driver-opts: |
-            image=moby/buildkit:v0.12.5
+            image=moby/buildkit:v0.24.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
         id: meta
         with:
           images: orenlab/pytmbot
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=alpine-dev
+            type=ref,event=branch,prefix=edge-
+            type=sha,prefix=edge-sha-
           labels: |
             org.opencontainers.image.title=pyTMbot
             org.opencontainers.image.description=Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system
             org.opencontainers.image.source=https://github.com/orenlab/pytmbot
 
-      - uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         id: build-and-push
         with:
           context: .
           target: production
           file: Dockerfile
           push: true
+          pull: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            COMPILE_BYTECODE=0
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: mode=max
           sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

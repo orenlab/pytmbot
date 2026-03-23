@@ -1,0 +1,37 @@
+🆔 <b>ID Information</b>
+
+Hello, <b>{{ first_name }}{% if last_name %} {{ last_name }}{% endif %}</b>!
+
+{% if is_bot_admin %}✅ You are authorized to use this bot.
+{% else %}⚠️ You are not currently authorized to use this bot.
+{% endif %}
+
+This information is provided for bot configuration and debugging purposes.
+
+———————————————————
+
+👤 <b>User Information:</b>
+• User ID: <code>{{ user_id }}</code>
+• First Name: <b>{{ first_name }}</b>
+{% if last_name %}• Last Name: <b>{{ last_name }}</b>
+{% endif %}{% if username %}• Username: @{{ username }}
+{% endif %}{% if is_bot_admin %}• Status: Bot Administrator ⭐
+{% endif %}
+
+💬 <b>Chat Information:</b>
+• Chat ID: <code>{{ chat_id }}</code>
+• Chat Type: <b>{{ chat_type }}</b>
+{% if chat_title %}• Chat Title: <b>{{ chat_title }}</b>
+{% endif %}
+
+🔧 <b>Command Information:</b>
+• Command: /{{ command }}
+
+———————————————————
+
+📋 <b>Configuration Notes:</b>
+• Use User ID to set up admin privileges
+• Use Chat ID to configure allowed chats
+• Copy these values to your bot configuration file
+
+💡 <b>Pro Tip:</b> Save this message for future reference during bot setup!

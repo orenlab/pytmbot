@@ -1,69 +1,62 @@
 # Security Practices
 
-At **pyTMbot**, security is a top priority. This document outlines the security measures implemented to protect the bot
-and its users, in accordance with industry best practices.
+This document reflects the current security controls implemented in pyTMBot code.
 
-## 🔐 Token Management
+## Access Model
 
-- **Token Storage:** All sensitive tokens (e.g., Telegram Bot API tokens, Docker access tokens) are stored in a
-  configuration file (`pytmbot.yaml`).
-- **Access Control:** The `pytmbot.yaml` file is configured to be readable only by the `root` user, ensuring that no
-  unauthorized access can occur.
-- **User Isolation:** The configuration file and environment are isolated within the container, limiting potential
-  access points.
+- Access is controlled by `access_control.allowed_user_ids`.
+- Privileged operations are restricted by `access_control.allowed_admins_ids`.
+- `allowed_admins_ids` must be a subset of `allowed_user_ids` (validated at startup).
+- `/getmyid` is intentionally unrestricted for bootstrap setup.
 
-## 🛡 Docker Container Security
+See also: [auth_control.md](auth_control.md).
 
-### Root User Access
+## Session and 2FA Controls
 
-The bot runs within a Docker container as the `root` user. This is necessary because the bot requires access to the
-Docker socket (`/var/run/docker.sock`) to manage and retrieve information about Docker containers. Running as `root`
-ensures:
+- Session state is managed by `SessionManager` with expiration and cleanup workers.
+- TOTP verification is used for sensitive flows.
+- Failed TOTP attempts are tracked and can lead to temporary blocking.
+- Authentication/session checks are applied in middleware and critical handlers.
 
-- **Full Access to Docker Services:** Certain Docker operations (like managing containers and fetching container logs)
-  are not permitted without `root` privileges. Running the container as `root` allows the bot to interact with the
-  Docker API seamlessly.
+## Docker Runtime Security
 
-### Best Practices for Running Containers
+- Official container runs as non-root user `pytmbot` (`UID/GID 1001`).
+- Docker socket access is handled via group membership/GID alignment in `entrypoint.sh`.
+- Recommended runtime hardening:
+  - read-only root filesystem
+  - `no-new-privileges`
+  - dropped Linux capabilities
+  - read-only bind mount for `/var/run/docker.sock`
 
-- **Minimal Image Size:** The Docker image is kept minimal, ensuring that only essential libraries and dependencies are
-  installed, reducing the attack surface.
-- **Container Updates:** The bot regularly checks for image and library updates. Users are encouraged to pull the latest
-  image and ensure the bot is up-to-date with the latest security patches.
+## Webhook Security
 
-## 🔒 Two-Factor Authentication (TOTP)
+- Webhook server uses:
+  - random webhook path segment
+  - Telegram secret token verification header
+  - Telegram IP allowlist validation
+  - request rate limiting + temporary bans
+- `webhook_config.trusted_proxy_ips` controls whether forwarded IP headers are trusted.
+- Privileged ports are rejected by webhook startup checks.
 
-- **TOTP Integration:** The bot includes two-factor authentication (2FA) using time-based one-time passwords (TOTP).
-  This feature adds an extra layer of security for critical operations like managing Docker containers.
-- **QR Code for 2FA:** A QR code is generated for setting up TOTP, ensuring easy integration with authentication apps
-  like Google Authenticator or Authy.
+## Logging and Data Protection
 
-## 👥 Access Control
+- Log messages are structured and include trace identifiers.
+- Sensitive values (tokens, IDs/usernames where applicable) are masked before output.
+- Webhook path/token values are masked in lifecycle and error logs.
+- At `INFO` and above, exception logs are emitted without full Python traceback dumps.
+- Full stack traces are preserved for troubleshooting in `DEBUG`.
+- Security-relevant events (auth failures, bans, invalid webhook requests) are explicitly logged.
 
-- **Role-Based Access:** Access to bot commands and functionality is controlled by user roles. Only superusers (
-  root-level) can manage Docker containers or access sensitive operations.
-- **Admin Whitelist:** Admins are whitelisted in the `settings` file to ensure that only authorized users can access
-  critical operations, including QR code generation for 2FA setup.
+## Configuration Hardening
 
-More details on access control can be found in the [auth_control.md](auth_control.md) document.
+- Store secrets only in `pytmbot.yaml`.
+- Restrict config permissions (recommended `600`).
+- Mount config as read-only in container deployments.
+- Expose webhook mode only behind a trusted reverse proxy with TLS.
 
-## 📊 Audit Logs
+## Operational Baseline
 
-- **Logging:** The bot leverages detailed logging to track user activity and access to critical resources. Logs include:
-    - User actions (e.g., starting/stopping containers)
-    - Access attempts
-    - Errors and warnings
-
-Logs can be accessed through the Docker log aggregator, ensuring visibility and traceability of operations.
-
-## 📈 Continuous Monitoring and Updates
-
-- **Automatic Update Checks:** The bot regularly checks for new releases, bug fixes, and security patches. Users are
-  notified via a bot command (`/check_bot_updates`) to stay current with the latest version.
-
-## 🚧 Future Enhancements
-
-- **Non-Root Container Execution:** We are exploring ways to safely run the bot with limited privileges while retaining
-  access to the Docker socket.
-
-
+- Use `orenlab/pytmbot:0.3.0` for exact-release reproducibility.
+- Use `orenlab/pytmbot:0.3` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
+- Run periodic vulnerability scans for container image and host.
+- Review auth/rate-limit/webhook logs regularly.

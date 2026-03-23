@@ -5,14 +5,13 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-from enum import Enum
-from typing import Dict, TypeAlias, TypedDict, Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 
-class ContainersState:
-    """Class for container states."""
+class ContainersState(StrEnum):
+    """Container states with enum semantics for safer matching and typing."""
 
     running = "running"
     paused = "paused"
@@ -33,7 +32,7 @@ class TagInfo(BaseModel):
 
     name: str
     created_at: str  # ISO 8601 date format
-    digest: Optional[str]
+    digest: str | None = None
 
 
 class UpdateInfo(BaseModel):
@@ -52,20 +51,12 @@ class UpdateInfo(BaseModel):
     created_at_remote: str
     current_digest: str
 
-    def to_dict(self) -> Dict[str, str]:
-        """Converts UpdateInfo to a dictionary.
 
-        Returns:
-            Dict[str, str]: Dictionary representation of the UpdateInfo instance.
-        """
-        return self.model_dump()  # Convert UpdateInfo to a dictionary
+type ContainerId = str | int
+type DockerResponse = bool | None
 
 
-ContainerId: TypeAlias = str | int
-DockerResponse: TypeAlias = bool | None
-
-
-class ContainerAction(str, Enum):
+class ContainerAction(StrEnum):
     START = "START"
     STOP = "STOP"
     RESTART = "RESTART"
@@ -75,9 +66,5 @@ class ContainerAction(str, Enum):
     def from_str(cls, value: str) -> "ContainerAction":
         try:
             return cls(value.upper())
-        except ValueError:
-            raise ValueError(f"Invalid action: {value}")
-
-
-class ContainerConfig(TypedDict):
-    new_container_name: str | None
+        except ValueError as error:
+            raise ValueError(f"Invalid action: {value}") from error

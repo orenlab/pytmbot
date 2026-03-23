@@ -1,0 +1,78 @@
+{{ thought_balloon }} <b>Container Volumes:</b>
+
+{{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
+
+{% if mounts_count > 0 -%}
+{{ luggage_emoji }} <b>Active mounts (showing {{ mounts_count }} of {{ mounts_total }}):</b>
+
+{% for mount in mounts -%}
+<b>{{ loop.index }}.</b> <code>{{ mount.type }}</code> {% if mount.name != '-' %}<code>{{ mount.name }}</code>{% endif %}{{ '' }}
+<code>Source:</code> {{ mount.source }}
+<code>Target:</code> {{ mount.destination }}
+<code>Access:</code> {{ mount.access }} | <code>Mode:</code> {{ mount.mode }} | <code>Propagation:</code> {{ mount.propagation }}
+<code>Driver:</code> {{ mount.driver }}
+
+{% if not loop.last -%}
+<i>───────────────</i>
+
+{% endif -%}
+{% endfor -%}
+{% if hidden_mounts_count > 0 -%}
+<i>... and {{ hidden_mounts_count }} more mounts</i>
+
+{% endif -%}
+{% else -%}
+<b>No mounts configured for this container.</b>
+
+{% endif -%}
+
+{{ backpack_emoji }} <b>Declared image volumes{% if declared_volumes_count > 0 %} ({{ declared_volumes_count }}){% endif %}:</b>
+{% if declared_volumes_count > 0 -%}
+{% for volume in declared_volumes -%}
+<code>{{ volume }}</code>
+{% endfor -%}
+{% if hidden_declared_volumes_count > 0 -%}
+<i>... and {{ hidden_declared_volumes_count }} more declared volumes</i>
+{% endif -%}
+{% else -%}
+<code>none</code>
+{% endif %}
+
+{{ chart_emoji }} <b>Host volume directives:</b>
+<code>Binds:</code>
+{% if bind_specs_count > 0 -%}
+{% for bind in bind_specs -%}
+<code>{{ bind }}</code>
+{% endfor -%}
+{% if hidden_bind_specs_count > 0 -%}
+<i>... and {{ hidden_bind_specs_count }} more bind directives</i>
+{% endif -%}
+{% else -%}
+<code>none</code>
+{% endif %}
+
+<code>VolumesFrom:</code>
+{% if volumes_from_count > 0 -%}
+{% for parent in volumes_from -%}
+<code>{{ parent }}</code>
+{% endfor -%}
+{% if hidden_volumes_from_count > 0 -%}
+<i>... and {{ hidden_volumes_from_count }} more entries</i>
+{% endif -%}
+{% else -%}
+<code>none</code>
+{% endif %}
+
+<code>Tmpfs:</code>
+{% if tmpfs_mounts_count > 0 -%}
+{% for tmpfs in tmpfs_mounts -%}
+<code>{{ tmpfs }}</code>
+{% endfor -%}
+{% if hidden_tmpfs_mounts_count > 0 -%}
+<i>... and {{ hidden_tmpfs_mounts_count }} more tmpfs directives</i>
+{% endif -%}
+{% else -%}
+<code>none</code>
+{% endif %}
+
+{{ banjo }} <i>Container volume details retrieved.</i>
