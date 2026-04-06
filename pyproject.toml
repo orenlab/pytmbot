@@ -82,7 +82,7 @@ module-name = ["pytmbot"]
 module-root = ""
 
 [tool.uv.sources]
-codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "feat/2.0.0" }
+codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "feat/2.0.0b4" }
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.11.0"]
