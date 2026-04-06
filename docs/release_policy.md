@@ -19,7 +19,7 @@ Source of truth:
 
 Public stable tags published to `orenlab/pytmbot`:
 
-- `0.3.0`: exact release image, immutable
+- `0.3.1`: exact release image, immutable
 - `0.3`: current supported stable line, mutable
 - `stable`: alias for the current supported stable line, mutable
 - `latest`: alias for `stable`, mutable
@@ -27,22 +27,22 @@ Public stable tags published to `orenlab/pytmbot`:
 
 ## Tag Semantics
 
-- Use `0.3.0` when you need a reproducible artifact tied to a specific release.
+- Use `0.3.1` when you need a reproducible artifact tied to a specific release.
 - Use `0.3` when you want the current supported stable line with weekly OS/base-image refreshes.
 - Use `stable` when you want the supported stable channel without caring about the numeric line tag.
 - Use `latest` only as an alias of `stable`; it is not a separate policy channel.
 
 Important:
 
-- Exact release tags such as `0.3.0` must never be republished with different contents.
-- Weekly rebuilds must never move `0.3.0`.
+- Exact release tags such as `0.3.1` must never be republished with different contents.
+- Weekly rebuilds must never move `0.3.1`.
 - `latest` must always point to the newest supported stable line.
 
 ## Release Workflow
 
-The release workflow publishes all of the following tags for `0.3.0`:
+The release workflow publishes all of the following tags for `0.3.1`:
 
-- `0.3.0`
+- `0.3.1`
 - `0.3`
 - `stable`
 - `latest`
@@ -63,7 +63,7 @@ The rebuild publishes:
 
 The rebuild does not publish:
 
-- `0.3.0`
+- `0.3.1`
 
 ## What Weekly Rebuilds Refresh
 
@@ -93,7 +93,7 @@ Development tags are mutable and unsupported for production use.
 
 ## Operational Guidance
 
-- For production fleets that prioritize predictable rollbacks, pin `0.3.0`.
+- For production fleets that prioritize predictable rollbacks, pin `0.3.1`.
 - For production fleets that prioritize automatic base-image security refreshes inside the supported line, use `0.3` or
   `stable`.
 - If you use `latest`, treat it exactly the same as `stable`.

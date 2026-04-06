@@ -1,6 +1,6 @@
 [project]
 name = "pyTMBot"
-version = "0.3.0"
+version = "0.3.1"
 description = "Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating the need for webhooks"
 authors = [{ name = "Denis Rozhnovskiy", email = "pytelemonbot@mail.ru" }]
 requires-python = ">=3.12,<4"

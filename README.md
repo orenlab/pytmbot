@@ -58,7 +58,7 @@ pyTMbot is built on [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBo
 
 See [docs/plugins.md](docs/plugins.md) for details.
 
-## What's new in 0.3.0
+## What's new in 0.3.1
 
 - Expanded server monitoring views and streamlined quick-view navigation
 - Docker UI pagination for containers, images, and logs

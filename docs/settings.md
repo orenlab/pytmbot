@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current repository sample value: `0.3.0`.
+- Current repository sample value: `0.3.1`.
 - Legacy configs without this field are auto-migrated.
 
 ### `bot_token`
@@ -130,7 +130,7 @@ Optional. Required when the `monitor` plugin is enabled.
 ## Minimal Required Configuration
 
 ```yaml
-config_version: "0.3.0"
+config_version: "0.3.1"
 
 bot_token:
   prod_token:
