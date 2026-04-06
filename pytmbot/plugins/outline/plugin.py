@@ -114,6 +114,24 @@ class OutlinePlugin(PluginInterface):
             message.chat.id, response, reply_markup=keyboard, parse_mode="Markdown"
         )
 
+    def _reply_html(self, message: Message, text: str) -> Message:
+        """Send a simple HTML reply."""
+        return self.bot.send_message(message.chat.id, text, parse_mode="HTML")
+
+    def _get_outline_action_data_or_reply(
+        self,
+        message: Message,
+        *,
+        action: Literal["key_information", "server_information", "traffic_information"],
+        error_message: str,
+    ) -> dict[str, object] | Message:
+        """Fetch outline action data or send a user-facing error reply."""
+        self.bot.send_chat_action(message.chat.id, "typing")
+        action_data = self._get_action_data(action=action)
+        if action_data is None:
+            return self._reply_html(message, error_message)
+        return action_data
+
     def handle_server_info(self, message: Message) -> Message | None:
         """
         Handles messages with 'Server info' by sending server information
@@ -121,15 +139,13 @@ class OutlinePlugin(PluginInterface):
 
         :param message: The incoming Message object from Telegram.
         """
-        self.bot.send_chat_action(message.chat.id, "typing")
-
-        server_info = self._get_action_data(action="server_information")
-        if server_info is None:
-            return self.bot.send_message(
-                message.chat.id,
-                "Error: Unable to process server information.",
-                parse_mode="HTML",
-            )
+        server_info = self._get_outline_action_data_or_reply(
+            message,
+            action="server_information",
+            error_message="Error: Unable to process server information.",
+        )
+        if isinstance(server_info, Message):
+            return server_info
         server_context = self._normalize_server_context(server_info)
 
         response = self._compile_template(
@@ -142,7 +158,7 @@ class OutlinePlugin(PluginInterface):
             alarm_clock=em.get_emoji("alarm_clock"),
             key=em.get_emoji("key"),
         )
-        return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+        return self._reply_html(message, response)
 
     def handle_keys(self, message: Message) -> Message | None:
         """
@@ -151,15 +167,13 @@ class OutlinePlugin(PluginInterface):
 
         :param message: The incoming Message object from Telegram.
         """
-        self.bot.send_chat_action(message.chat.id, "typing")
-
-        keys = self._get_action_data(action="key_information")
-        if keys is None:
-            return self.bot.send_message(
-                message.chat.id,
-                "Error: Unable to process key information.",
-                parse_mode="HTML",
-            )
+        keys = self._get_outline_action_data_or_reply(
+            message,
+            action="key_information",
+            error_message="Error: Unable to process key information.",
+        )
+        if isinstance(keys, Message):
+            return keys
 
         response = self._compile_template(
             template_name="plugin_outline_keys.jinja2",
@@ -168,7 +182,7 @@ class OutlinePlugin(PluginInterface):
             thought_balloon=em.get_emoji("thought_balloon"),
             minus=em.get_emoji("minus"),
         )
-        return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+        return self._reply_html(message, response)
 
     def handle_traffic(self, message: Message) -> Message | None:
         """
@@ -177,25 +191,19 @@ class OutlinePlugin(PluginInterface):
 
         :param message: The incoming Message object from Telegram.
         """
-        self.bot.send_chat_action(message.chat.id, "typing")
-
-        traffic = self._get_action_data(action="traffic_information")
-        if traffic is None:
-            return self.bot.send_message(
-                message.chat.id,
-                "Error: Unable to process traffic data.",
-                parse_mode="HTML",
-            )
+        traffic = self._get_outline_action_data_or_reply(
+            message,
+            action="traffic_information",
+            error_message="Error: Unable to process traffic data.",
+        )
+        if isinstance(traffic, Message):
+            return traffic
 
         bytes_transferred = self._extract_transferred_bytes(traffic)
         user_names = self._get_user_names()
 
         if user_names is None:
-            return self.bot.send_message(
-                message.chat.id,
-                "Error: Unable to process user data.",
-                parse_mode="HTML",
-            )
+            return self._reply_html(message, "Error: Unable to process user data.")
 
         try:
             response = self._compile_template(
@@ -208,16 +216,12 @@ class OutlinePlugin(PluginInterface):
                 thought_balloon=em.get_emoji("thought_balloon"),
                 minus=em.get_emoji("minus"),
             )
-            return self.bot.send_message(message.chat.id, response, parse_mode="HTML")
+            return self._reply_html(message, response)
         except Exception:
             self.plugin_logger.error(
                 "bot.plugins.outline.plugin.compiling.sending.fail"
             )
-            return self.bot.send_message(
-                message.chat.id,
-                "Error: An unexpected error occurred.",
-                parse_mode="HTML",
-            )
+            return self._reply_html(message, "Error: An unexpected error occurred.")
 
     def _get_action_data(
         self,

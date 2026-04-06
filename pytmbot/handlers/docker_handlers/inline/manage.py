@@ -12,7 +12,9 @@ from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import get_container_state
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
-    get_authorized_container_callback_context,
+    get_manage_container_callback_context as get_authorized_container_callback_context,
+)
+from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
@@ -46,7 +48,6 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     auth_context = get_authorized_container_callback_context(
         call=call,
         bot=bot,
-        operation_label="Managing",
         missing_user_event="bot.handler.docker.manage.missing.user.warn",
         denied_event="bot.handler.docker.manage.denied.function.deny",
     )

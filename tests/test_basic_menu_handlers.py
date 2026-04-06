@@ -63,6 +63,18 @@ def _raw_handler(handler: _RawHandlerInput) -> _MessageHandler:
     return cast(_MessageHandler, raw)
 
 
+def _invoke_message_handler(
+    handler: _MessageHandler,
+    bot: TeleBot,
+    *,
+    sent_payloads: list[_PayloadDict] | None = None,
+    expected_text: str | None = None,
+) -> None:
+    handler(cast(Message, _Message()), bot)
+    if sent_payloads is not None and expected_text is not None:
+        assert sent_payloads and sent_payloads[0]["text"] == expected_text
+
+
 def test_about_handler_success_and_error(monkeypatch: pytest.MonkeyPatch) -> None:
     sent_payloads: list[_PayloadDict] = []
     monkeypatch.setattr(
@@ -78,8 +90,12 @@ def test_about_handler_success_and_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
     bot = _Bot()
     handler = _raw_handler(about_module.handle_about_command)
-    handler(cast(Message, _Message()), cast(TeleBot, bot))
-    assert sent_payloads and sent_payloads[0]["text"] == "about-text"
+    _invoke_message_handler(
+        handler,
+        cast(TeleBot, bot),
+        sent_payloads=sent_payloads,
+        expected_text="about-text",
+    )
     assert bot.actions == [(10, "typing")]
 
     monkeypatch.setattr(
@@ -261,8 +277,12 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
 
     bot = _Bot()
     handler = _raw_handler(docker_module.handle_docker)
-    handler(cast(Message, _Message()), cast(TeleBot, bot))
-    assert sent_payloads and sent_payloads[0]["text"] == "docker-ui"
+    _invoke_message_handler(
+        handler,
+        cast(TeleBot, bot),
+        sent_payloads=sent_payloads,
+        expected_text="docker-ui",
+    )
 
     monkeypatch.setattr(
         docker_module,

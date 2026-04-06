@@ -21,8 +21,14 @@ from pytmbot.parsers.compiler import Compiler
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
 from tests._inline_edit_helpers import (
     assert_reply_markup_has_callbacks,
+    patch_authorized_inline_render,
     patch_not_modified_edit_error,
     patch_rate_limited_edit_error,
+)
+from tests._telebot_objects import (
+    record_callback_answer,
+    record_edited_message,
+    unwrap_handler,
 )
 
 type _JsonLike = (
@@ -70,23 +76,16 @@ class _Bot:
     def answer_callback_query(
         self, callback_query_id: str, **kwargs: _JsonLike
     ) -> bool:
-        payload: _JsonDict = {
-            "callback_query_id": callback_query_id,
-            **kwargs,
-        }
-        self.callback_answers.append(payload)
+        record_callback_answer(self.callback_answers, callback_query_id, **kwargs)
         return True
 
     def edit_message_text(self, **kwargs: _JsonLike) -> str:
-        self.edited_messages.append(cast(_JsonDict, dict(kwargs)))
+        record_edited_message(self.edited_messages, **kwargs)
         return "edited"
 
 
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
-    wrapped = handler
-    for _ in range(3):
-        wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(_CallbackHandler, wrapped)
+    return cast(_CallbackHandler, unwrap_handler(handler, depth=3))
 
 
 def _assert_common_callback_context_errors(
@@ -783,20 +782,15 @@ def test_handle_image_info_handles_telegram_rate_limit(
     handler = _raw_handler(image_info_module.handle_image_info)
     bot = _Bot()
 
-    monkeypatch.setattr(
-        image_info_module,
-        "parse_image_info_callback_data",
-        lambda data: (0, 11, 1),
-    )
-    monkeypatch.setattr(
-        image_callback_module,
-        "authorize_docker_callback_request",
-        lambda **kwargs: (True, ""),
-    )
-    monkeypatch.setattr(
-        image_info_module,
-        "render_image_details",
-        lambda **kwargs: ("image", "kbd"),
+    patch_authorized_inline_render(
+        monkeypatch,
+        parse_module=image_info_module,
+        parse_name="parse_image_info_callback_data",
+        parse_result=(0, 11, 1),
+        authorize_module=image_callback_module,
+        render_module=image_info_module,
+        render_name="render_image_details",
+        render_result=("image", "kbd"),
     )
 
     patch_rate_limited_edit_error(monkeypatch, bot, retry_after=11)

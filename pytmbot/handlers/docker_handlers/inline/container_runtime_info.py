@@ -424,26 +424,29 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
         show_handler_info(call, text=f"Container details: {deny_reason}", bot=bot)
         return None
 
-    if not validate_container_name(parsed.container_name):
-        show_handler_info(call, text="This container reference is invalid.", bot=bot)
-        return None
+    container_name_valid = validate_container_name(parsed.container_name)
+    container_details = (
+        get_container_full_details(parsed.container_name)
+        if container_name_valid
+        else None
+    )
+    validation_errors = (
+        (not container_name_valid, "This container reference is invalid."),
+        (
+            container_name_valid and container_details is None,
+            f"{parsed.container_name}: Container not found",
+        ),
+        (
+            call.message is None,
+            "This container details message can no longer be updated.",
+        ),
+    )
+    for failed, error_text in validation_errors:
+        if failed:
+            show_handler_info(call, text=error_text, bot=bot)
+            return None
 
-    container_details = get_container_full_details(parsed.container_name)
     if container_details is None:
-        show_handler_info(
-            call,
-            text=f"{parsed.container_name}: Container not found",
-            bot=bot,
-        )
-        return None
-
-    callback_message = call.message
-    if callback_message is None:
-        show_handler_info(
-            call,
-            text="This container details message can no longer be updated.",
-            bot=bot,
-        )
         return None
 
     attrs = _extract_container_attrs(container_details)

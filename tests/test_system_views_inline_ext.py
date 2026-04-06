@@ -19,6 +19,11 @@ from pytmbot.handlers.server_handlers.network import (
 )
 from pytmbot.handlers.server_handlers.sensors import FAN_SPEEDS_PREFIX
 from pytmbot.parsers.compiler import Compiler
+from tests._telebot_objects import (
+    record_callback_answer,
+    record_edited_message,
+    unwrap_handler,
+)
 
 type _PayloadValue = (
     str | int | float | bool | None | dict[str, _PayloadValue] | list[_PayloadValue]
@@ -63,23 +68,16 @@ class _Bot:
     def answer_callback_query(
         self, callback_query_id: str, **kwargs: _PayloadValue
     ) -> bool:
-        payload: _PayloadDict = {
-            "callback_query_id": callback_query_id,
-            **kwargs,
-        }
-        self.callback_answers.append(payload)
+        record_callback_answer(self.callback_answers, callback_query_id, **kwargs)
         return True
 
     def edit_message_text(self, **kwargs: _PayloadValue) -> str:
-        self.edited_messages.append(kwargs)
+        record_edited_message(self.edited_messages, **kwargs)
         return "edited"
 
 
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
-    wrapped = handler
-    for _ in range(3):
-        wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(_CallbackHandler, wrapped)
+    return cast(_CallbackHandler, unwrap_handler(handler, depth=3))
 
 
 def _raise_runtime_error(message: str = "boom") -> Never:

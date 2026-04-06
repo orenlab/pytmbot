@@ -12,7 +12,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from functools import wraps
 from threading import RLock
-from typing import Final
+from typing import Final, NoReturn
 
 from docker.errors import DockerException
 from docker.models.containers import Container
@@ -56,6 +56,18 @@ def validate_access(
     min_operation_interval: Final[float] = 1.0  # Minimum seconds between operations
     rate_limit_cache_ttl_seconds: Final[float] = 300.0
     max_rate_limited_users: Final[int] = 2048
+
+    def deny_access(
+        *,
+        log_method: Callable[..., object],
+        event_name: str,
+        message: str,
+        context: dict[str, object],
+        **details: object,
+    ) -> NoReturn:
+        """Log an access denial once and raise a consistent permission error."""
+        log_method(event_name, **context, **details)
+        raise PermissionError(message)
 
     @wraps(func)
     def wrapper(
@@ -101,14 +113,16 @@ def validate_access(
             last_operation = _rate_limits.get(user_id, 0)
 
             if current_time - last_operation < min_operation_interval:
-                logger.warning(
-                    "docker.containers.rate.limit.warn",
+                deny_access(
+                    log_method=logger.warning,
+                    event_name="docker.containers.rate.limit.warn",
+                    message=(
+                        "Rate limit exceeded. "
+                        f"Wait {min_operation_interval}s between operations"
+                    ),
+                    context=context,
                     time_since_last=f"{current_time - last_operation:.2f}s",
                     min_interval=min_operation_interval,
-                    **context,
-                )
-                raise PermissionError(
-                    f"Rate limit exceeded. Wait {min_operation_interval}s between operations"
                 )
 
             _rate_limits[user_id] = current_time
@@ -116,20 +130,21 @@ def validate_access(
         try:
             # Check if user is in allowed admins
             if user_id not in settings.access_control.allowed_admins_ids:
-                logger.critical(
-                    "docker.containers.unauthorized.container.deny",
-                    **context,
-                )
-                raise PermissionError(
-                    f"User {user_id} not authorized to manage containers"
+                deny_access(
+                    log_method=logger.critical,
+                    event_name="docker.containers.unauthorized.container.deny",
+                    message=f"User {user_id} not authorized to manage containers",
+                    context=context,
                 )
 
             # Check session authentication with timeout validation
             if not session_manager.is_authenticated(user_id):
-                logger.critical(
-                    "docker.containers.unauthorized.container.deny", **context
+                deny_access(
+                    log_method=logger.critical,
+                    event_name="docker.containers.unauthorized.container.deny",
+                    message=f"User {user_id} session invalid or expired",
+                    context=context,
                 )
-                raise PermissionError(f"User {user_id} session invalid or expired")
 
             # Additional security: check if session is recent enough
             session_info: dict[str, object] = {}
@@ -152,13 +167,14 @@ def validate_access(
                 )  # 1 hour default
 
                 if session_age > max_session_age:
-                    logger.warning(
-                        "docker.containers.session.too.warn",
+                    deny_access(
+                        log_method=logger.warning,
+                        event_name="docker.containers.session.too.warn",
+                        message="Session expired. Please re-authenticate",
+                        context=context,
                         session_age=f"{session_age:.1f}s",
                         max_age=f"{max_session_age}s",
-                        **context,
                     )
-                    raise PermissionError("Session expired. Please re-authenticate")
 
         except (PermissionError, AttributeError, TypeError, ValueError) as e:
             logger.error(

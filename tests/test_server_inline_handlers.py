@@ -17,6 +17,11 @@ import pytmbot.handlers.server_handlers.inline.top_process as top_process_module
 from pytmbot import exceptions
 from pytmbot.parsers.compiler import Compiler
 from tests._inline_edit_helpers import assert_reply_markup_has_callbacks
+from tests._telebot_objects import (
+    record_callback_answer,
+    record_edited_message,
+    unwrap_handler,
+)
 
 _NOT_MODIFIED_DESCRIPTION = (
     "Bad Request: message is not modified: specified new message content and reply "
@@ -67,23 +72,16 @@ class _Bot:
     def answer_callback_query(
         self, callback_query_id: str, **kwargs: _PayloadValue
     ) -> bool:
-        payload: _PayloadDict = {
-            "callback_query_id": callback_query_id,
-            **kwargs,
-        }
-        self.callback_answers.append(payload)
+        record_callback_answer(self.callback_answers, callback_query_id, **kwargs)
         return True
 
     def edit_message_text(self, **kwargs: _PayloadValue) -> str:
-        self.edited_messages.append(kwargs)
+        record_edited_message(self.edited_messages, **kwargs)
         return "edited"
 
 
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
-    wrapped = handler
-    for _ in range(2):
-        wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(_CallbackHandler, wrapped)
+    return cast(_CallbackHandler, unwrap_handler(handler, depth=2))
 
 
 def _invoke(
@@ -220,6 +218,23 @@ def _install_api_exception_stub(
 
     monkeypatch.setattr(module, "ApiTelegramException", _ApiTelegramExceptionStub)
     return _ApiTelegramExceptionStub
+
+
+def _assert_not_modified_callback_answer(
+    monkeypatch: pytest.MonkeyPatch,
+    bot: _Bot,
+    *,
+    invoke: Callable[[], None],
+    expected_text: str,
+) -> None:
+    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
+
+    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
+        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
+
+    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
+    invoke()
+    assert bot.callback_answers[-1]["text"] == expected_text
 
 
 def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -423,14 +438,12 @@ def test_handle_system_health_refresh_ignores_not_modified(
         lambda user_id: {"inline": user_id},
     )
 
-    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
-
-    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
-        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
-
-    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
-    _invoke(handler, bot, data="__health_refresh__:17")
-    assert bot.callback_answers[-1]["text"] == "Health snapshot is already current."
+    _assert_not_modified_callback_answer(
+        monkeypatch,
+        bot,
+        invoke=lambda: _invoke(handler, bot, data="__health_refresh__:17"),
+        expected_text="Health snapshot is already current.",
+    )
 
 
 def test_system_views_edit_message_ignores_not_modified(
@@ -438,21 +451,18 @@ def test_system_views_edit_message_ignores_not_modified(
 ) -> None:
     bot = _Bot()
     call = cast(CallbackQuery, _Call())
-
-    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
-
-    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
-        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
-
-    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
-    system_views_module._edit_message(
-        call,
-        cast(TeleBot, bot),
-        text="same",
-        parse_mode="HTML",
-        reply_markup=None,
+    _assert_not_modified_callback_answer(
+        monkeypatch,
+        bot,
+        invoke=lambda: system_views_module._edit_message(
+            call,
+            cast(TeleBot, bot),
+            text="same",
+            parse_mode="HTML",
+            reply_markup=None,
+        ),
+        expected_text="Already up to date.",
     )
-    assert bot.callback_answers[-1]["text"] == "Already up to date."
 
 
 def test_system_views_edit_message_handles_rate_limited_error(
@@ -516,14 +526,12 @@ def test_handle_swap_info_ignores_not_modified(
         implementation=lambda: None,
     )
 
-    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
-
-    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
-        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
-
-    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
-    _invoke(handler, bot, data="__swap_info__:17")
-    assert bot.callback_answers[-1]["text"] == "Already up to date."
+    _assert_not_modified_callback_answer(
+        monkeypatch,
+        bot,
+        invoke=lambda: _invoke(handler, bot, data="__swap_info__:17"),
+        expected_text="Already up to date.",
+    )
 
 
 def test_handle_process_info_ignores_not_modified(
@@ -539,14 +547,12 @@ def test_handle_process_info_ignores_not_modified(
         implementation=lambda count=10: [],
     )
 
-    api_exception_stub = _install_api_exception_stub(monkeypatch, inline_common_module)
-
-    def _raise_not_modified(**_kwargs: _PayloadValue) -> str:
-        raise api_exception_stub(_NOT_MODIFIED_DESCRIPTION)
-
-    bot.edit_message_text = _raise_not_modified  # type: ignore[method-assign]
-    _invoke(handler, bot, data="__process_info__:17")
-    assert bot.callback_answers[-1]["text"] == "Already up to date."
+    _assert_not_modified_callback_answer(
+        monkeypatch,
+        bot,
+        invoke=lambda: _invoke(handler, bot, data="__process_info__:17"),
+        expected_text="Already up to date.",
+    )
 
 
 def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -333,59 +333,85 @@ def test_memory_stats_provider_branches(monkeypatch: pytest.MonkeyPatch) -> None
 def test_get_container_memory_stats_fallback_branches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    running_from_stats = cast(Container, _ContainerStub(status="running"))
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider, "from_cgroups", lambda _cid: None
-    )
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider,
-        "from_container_stats",
-        lambda _container: {
-            "mem_usage": "10 MiB",
-            "mem_limit": "20 MiB",
-            "mem_percent": "50.0%",
-        },
-    )
-    from_stats = docker_utils.get_container_memory_stats(running_from_stats)
-    assert from_stats["mem_usage"] == "10 MiB"
+    def _patch_memory_source(name: str, value: dict[str, str] | None) -> None:
+        monkeypatch.setattr(
+            docker_utils.MemoryStatsProvider,
+            name,
+            lambda *_args: value,
+        )
 
-    stopped_container = cast(Container, _ContainerStub(status="stopped"))
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider, "from_cgroups", lambda _cid: None
-    )
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider,
-        "from_inspect",
-        lambda _container: {
-            "mem_usage": "N/A",
-            "mem_limit": "No Limit",
-            "mem_percent": "N/A",
-        },
-    )
-    inspect_fallback = docker_utils.get_container_memory_stats(stopped_container)
-    assert inspect_fallback["mem_limit"] == "No Limit"
+    def _assert_memory_fallback_case(
+        *,
+        status: str,
+        patched_sources: dict[str, dict[str, str] | None],
+        expected_key: str,
+        expected_value: str,
+    ) -> None:
+        for source_name in (
+            "from_cgroups",
+            "from_container_stats",
+            "from_inspect",
+            "from_docker_cli",
+        ):
+            _patch_memory_source(source_name, patched_sources.get(source_name))
 
-    running_container = cast(Container, _ContainerStub(status="running"))
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider, "from_container_stats", lambda _c: None
-    )
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider, "from_inspect", lambda _c: None
-    )
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider,
-        "from_docker_cli",
-        lambda _cid: {
-            "mem_usage": "5 MiB",
-            "mem_limit": "15 MiB",
-            "mem_percent": "33.3%",
-        },
-    )
-    from_cli = docker_utils.get_container_memory_stats(running_container)
-    assert from_cli["mem_percent"] == "33.3%"
+        resolved_stats = docker_utils.get_container_memory_stats(
+            cast(Container, _ContainerStub(status=status))
+        )
+        assert resolved_stats[expected_key] == expected_value
 
-    monkeypatch.setattr(
-        docker_utils.MemoryStatsProvider, "from_docker_cli", lambda _cid: None
+    _assert_memory_fallback_case(
+        status="running",
+        patched_sources={
+            "from_cgroups": None,
+            "from_container_stats": {
+                "mem_usage": "10 MiB",
+                "mem_limit": "20 MiB",
+                "mem_percent": "50.0%",
+            },
+        },
+        expected_key="mem_usage",
+        expected_value="10 MiB",
     )
-    unavailable = docker_utils.get_container_memory_stats(running_container)
-    assert unavailable["mem_usage"] == "Unavailable"
+
+    _assert_memory_fallback_case(
+        status="stopped",
+        patched_sources={
+            "from_cgroups": None,
+            "from_inspect": {
+                "mem_usage": "N/A",
+                "mem_limit": "No Limit",
+                "mem_percent": "N/A",
+            },
+        },
+        expected_key="mem_limit",
+        expected_value="No Limit",
+    )
+
+    _assert_memory_fallback_case(
+        status="running",
+        patched_sources={
+            "from_cgroups": None,
+            "from_container_stats": None,
+            "from_inspect": None,
+            "from_docker_cli": {
+                "mem_usage": "5 MiB",
+                "mem_limit": "15 MiB",
+                "mem_percent": "33.3%",
+            },
+        },
+        expected_key="mem_percent",
+        expected_value="33.3%",
+    )
+
+    _assert_memory_fallback_case(
+        status="running",
+        patched_sources={
+            "from_cgroups": None,
+            "from_container_stats": None,
+            "from_inspect": None,
+            "from_docker_cli": None,
+        },
+        expected_key="mem_usage",
+        expected_value="Unavailable",
+    )

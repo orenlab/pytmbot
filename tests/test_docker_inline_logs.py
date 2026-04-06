@@ -66,30 +66,40 @@ class _SentDocument:
     message_id: int = 987
 
 
-@dataclass
-class _DummyBot:
-    token: str = "12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"
-    edited: list[_PayloadDict] = field(default_factory=list)
-    documents: list[_PayloadDict] = field(default_factory=list)
-    messages: list[_PayloadDict] = field(default_factory=list)
-    callback_answers: list[_PayloadDict] = field(default_factory=list)
+def _make_dummy_bot() -> SimpleNamespace:
+    edited: list[_PayloadDict] = []
+    documents: list[_PayloadDict] = []
+    messages: list[_PayloadDict] = []
+    callback_answers: list[_PayloadDict] = []
 
-    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
-        self.edited.append(dict(kwargs))
+    def edit_message_text(**kwargs: _PayloadValue) -> str:
+        edited.append(dict(kwargs))
         return "edited"
 
-    def send_document(self, **kwargs: _PayloadValue) -> _SentDocument:
-        self.documents.append(dict(kwargs))
+    def send_document(**kwargs: _PayloadValue) -> _SentDocument:
+        documents.append(dict(kwargs))
         return _SentDocument()
 
-    def send_message(self, chat_id: int, text: str, **kwargs: _PayloadValue) -> str:
+    def send_message(chat_id: int, text: str, **kwargs: _PayloadValue) -> str:
         payload: _PayloadDict = {"chat_id": chat_id, "text": text, **kwargs}
-        self.messages.append(payload)
+        messages.append(payload)
         return "message-sent"
 
-    def answer_callback_query(self, **kwargs: _PayloadValue) -> bool:
-        self.callback_answers.append(dict(kwargs))
+    def answer_callback_query(**kwargs: _PayloadValue) -> bool:
+        callback_answers.append(dict(kwargs))
         return True
+
+    return SimpleNamespace(
+        token="12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE",
+        edited=edited,
+        documents=documents,
+        messages=messages,
+        callback_answers=callback_answers,
+        edit_message_text=edit_message_text,
+        send_document=send_document,
+        send_message=send_message,
+        answer_callback_query=answer_callback_query,
+    )
 
 
 def _make_session(
@@ -118,6 +128,17 @@ def _raw_handle_get_logs() -> Callable[[CallbackQuery, TeleBot], None]:
     return cast(Callable[[CallbackQuery, TeleBot], None], second_layer)
 
 
+def _dispatch_logs_callback(
+    raw_handler: Callable[[CallbackQuery, TeleBot], None],
+    bot: SimpleNamespace,
+    data: str,
+) -> None:
+    raw_handler(
+        cast(CallbackQuery, _DummyCall(data=data)),
+        cast(TeleBot, bot),
+    )
+
+
 def _allow_logs_actions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         logs_module,
@@ -129,6 +150,58 @@ def _allow_logs_actions(monkeypatch: pytest.MonkeyPatch) -> None:
         "_validate_logs_session_access",
         lambda **kwargs: True,
     )
+
+
+def _prepare_logs_access_case(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    is_owner: bool,
+    auth_result: tuple[bool, str],
+) -> tuple[list[str], LogsSession, _DummyCall, SimpleNamespace]:
+    shown: list[str] = []
+    monkeypatch.setattr(
+        logs_module,
+        "_is_logs_session_owner",
+        lambda call, session: is_owner,
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: auth_result,
+    )
+    monkeypatch.setattr(
+        logs_module,
+        "show_handler_info",
+        lambda call, text, bot: shown.append(text),
+    )
+    return (
+        shown,
+        _make_session(user_id=333),
+        _DummyCall(from_user=_DummyUser(id=333)),
+        _make_dummy_bot(),
+    )
+
+
+def _build_logs_file_context(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    schedule_result: DeletionResult,
+) -> tuple[SimpleNamespace, _DummyCall, LogsSession]:
+    monkeypatch.setattr(
+        logs_module,
+        "_validate_logs_session_access",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
+        lambda **kwargs: schedule_result,
+    )
+    bot = _make_dummy_bot()
+    call = _DummyCall(
+        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
+    )
+    session = _make_session(container_name="api", user_id=99, raw_logs="abc")
+    return bot, call, session
 
 
 def test_logs_session_store_create_get_and_expire(
@@ -303,20 +376,13 @@ def test_render_logs_page_fallback_when_template_always_too_long(
 def test_validate_logs_session_access_denies_non_owner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    shown: list[str] = []
-    monkeypatch.setattr(
-        logs_module,
-        "_is_logs_session_owner",
-        lambda call, session: False,
+    shown, session, call, bot = _prepare_logs_access_case(
+        monkeypatch,
+        is_owner=False,
+        auth_result=(True, ""),
     )
-    monkeypatch.setattr(
-        logs_module,
-        "show_handler_info",
-        lambda call, text, bot: shown.append(text),
-    )
-    session = _make_session(user_id=111)
-    call = _DummyCall(from_user=_DummyUser(id=999))
-    bot = _DummyBot()
+    session.user_id = 111
+    call.from_user = _DummyUser(id=999)
 
     allowed = logs_module._validate_logs_session_access(
         call=cast(CallbackQuery, call),
@@ -331,23 +397,11 @@ def test_validate_logs_session_access_denies_non_owner(
 def test_validate_logs_session_access_denies_by_authorization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    shown: list[str] = []
-    monkeypatch.setattr(
-        logs_module, "_is_logs_session_owner", lambda call, session: True
+    shown, session, call, bot = _prepare_logs_access_case(
+        monkeypatch,
+        is_owner=True,
+        auth_result=(False, "Not authenticated user."),
     )
-    monkeypatch.setattr(
-        logs_module,
-        "authorize_docker_callback_request",
-        lambda **kwargs: (False, "Not authenticated user."),
-    )
-    monkeypatch.setattr(
-        logs_module,
-        "show_handler_info",
-        lambda call, text, bot: shown.append(text),
-    )
-    session = _make_session(user_id=333)
-    call = _DummyCall(from_user=_DummyUser(id=333))
-    bot = _DummyBot()
 
     allowed = logs_module._validate_logs_session_access(
         call=cast(CallbackQuery, call),
@@ -370,7 +424,7 @@ def test_validate_logs_session_access_allowed(monkeypatch: pytest.MonkeyPatch) -
     )
     session = _make_session(user_id=333)
     call = _DummyCall(from_user=_DummyUser(id=333))
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
 
     assert (
         logs_module._validate_logs_session_access(
@@ -426,7 +480,7 @@ def test_edit_logs_message_handles_missing_message_context(
         "show_handler_info",
         lambda call, text, bot: shown.append(text),
     )
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
     call = _DummyCall(message=None)
     session = _make_session()
 
@@ -448,7 +502,7 @@ def test_edit_logs_message_edits_with_clamped_index(
         logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False)
     )
     monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
     call = _DummyCall(message=_DummyMessage(chat=_DummyChat(id=10), message_id=20))
     session = _make_session(chunks=["new", "old"])
 
@@ -482,8 +536,8 @@ def test_edit_logs_message_ignores_not_modified(
     )
     monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
 
-    bot = _DummyBot()
-    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(  # type: ignore[method-assign]
+    bot = _make_dummy_bot()
+    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(
         _ApiTelegramExceptionStub(_NOT_MODIFIED_DESCRIPTION)
     )
     call = _DummyCall(message=_DummyMessage(chat=_DummyChat(id=10), message_id=20))
@@ -511,7 +565,7 @@ def test_get_session_or_show_error_when_expired(
         lambda call, text, bot: shown.append(text),
     )
     call = _DummyCall()
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
 
     assert (
         logs_module._get_session_or_show_error(
@@ -527,25 +581,15 @@ def test_get_session_or_show_error_when_expired(
 def test_send_logs_as_file_scheduled_auto_deletion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        logs_module,
-        "_validate_logs_session_access",
-        lambda **kwargs: True,
-    )
-    monkeypatch.setattr(
-        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
-        lambda **kwargs: DeletionResult(
+    bot, call, session = _build_logs_file_context(
+        monkeypatch,
+        schedule_result=DeletionResult(
             status=DeletionStatus.SCHEDULED,
-            message_id=int(kwargs["message_id"]),
-            user_id=int(kwargs["user_id"]),
+            message_id=987,
+            user_id=99,
             pending_count=1,
         ),
     )
-    bot = _DummyBot()
-    call = _DummyCall(
-        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
-    )
-    session = _make_session(container_name="api", user_id=99, raw_logs="abc")
 
     result = logs_module._send_logs_as_file(
         call=cast(CallbackQuery, call),
@@ -562,25 +606,15 @@ def test_send_logs_as_file_scheduled_auto_deletion(
 def test_send_logs_as_file_handles_limit_exceeded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        logs_module,
-        "_validate_logs_session_access",
-        lambda **kwargs: True,
-    )
-    monkeypatch.setattr(
-        "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
-        lambda **kwargs: DeletionResult(
+    bot, call, session = _build_logs_file_context(
+        monkeypatch,
+        schedule_result=DeletionResult(
             status=DeletionStatus.LIMIT_EXCEEDED,
-            message_id=int(kwargs["message_id"]),
-            user_id=int(kwargs["user_id"]),
+            message_id=987,
+            user_id=99,
             pending_count=3,
         ),
     )
-    bot = _DummyBot()
-    call = _DummyCall(
-        from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
-    )
-    session = _make_session(container_name="api", user_id=99, raw_logs="abc")
 
     logs_module._send_logs_as_file(
         call=cast(CallbackQuery, call),
@@ -610,7 +644,7 @@ def test_send_logs_as_file_handles_unexpected_schedule_status(
             error_message="boom",
         ),
     )
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
     call = _DummyCall(
         from_user=_DummyUser(id=99), message=_DummyMessage(chat=_DummyChat(id=7))
     )
@@ -646,7 +680,7 @@ def test_handle_get_logs_invalid_and_unsupported(
     raw_handler = _raw_handle_get_logs()
     raw_handler(
         cast(CallbackQuery, invalid_call),
-        cast(TeleBot, _DummyBot()),
+        cast(TeleBot, _make_dummy_bot()),
     )
 
     monkeypatch.setattr(
@@ -657,7 +691,7 @@ def test_handle_get_logs_invalid_and_unsupported(
     unsupported_call = _DummyCall(data="__get_logs__:whatever")
     raw_handler(
         cast(CallbackQuery, unsupported_call),
-        cast(TeleBot, _DummyBot()),
+        cast(TeleBot, _make_dummy_bot()),
     )
 
     assert shown[0] == "This logs button is no longer valid."
@@ -689,7 +723,7 @@ def test_open_logs_session_handles_unsupported_logging_driver(
 
     logs_module._open_logs_session(
         call=cast(CallbackQuery, _DummyCall()),
-        bot=cast(TeleBot, _DummyBot()),
+        bot=cast(TeleBot, _make_dummy_bot()),
         container_name="amnezia-dns",
         user_id=333,
         emojis={},
@@ -705,29 +739,30 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _allow_logs_actions(monkeypatch)
-
-    opened: list[str] = []
-    edited: list[int] = []
-    sent_as_file: list[str] = []
-    removed_sessions: list[str] = []
-    created_sessions: list[tuple[str, int]] = []
+    events = SimpleNamespace(
+        opened=[],
+        edited=[],
+        sent_as_file=[],
+        removed_sessions=[],
+        created_sessions=[],
+    )
 
     monkeypatch.setattr(
         logs_module,
         "_open_logs_session",
-        lambda call, bot, container_name, user_id, emojis: opened.append(
+        lambda call, bot, container_name, user_id, emojis: events.opened.append(
             container_name
         ),
     )
     monkeypatch.setattr(
         logs_module,
         "_edit_logs_message",
-        lambda call, bot, session, page_index, emojis: edited.append(page_index),
+        lambda call, bot, session, page_index, emojis: events.edited.append(page_index),
     )
     monkeypatch.setattr(
         logs_module,
         "_send_logs_as_file",
-        lambda call, bot, session: sent_as_file.append(session.session_id),
+        lambda call, bot, session: events.sent_as_file.append(session.session_id),
     )
 
     old_session = _make_session(session_id="s1", container_name="api", user_id=333)
@@ -747,7 +782,7 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     monkeypatch.setattr(
         logs_module._logs_sessions,
         "remove",
-        lambda session_id: removed_sessions.append(session_id),
+        lambda session_id: events.removed_sessions.append(session_id),
     )
 
     def _create_session(
@@ -757,42 +792,23 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
         chunks: list[str],
     ) -> LogsSession:
         del raw_logs, chunks
-        created_sessions.append((container_name, user_id))
+        events.created_sessions.append((container_name, user_id))
         return refreshed_session
 
     monkeypatch.setattr(logs_module._logs_sessions, "create", _create_session)
 
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
     raw_handler = _raw_handle_get_logs()
-    call_open = _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:open:api:333")
-    raw_handler(
-        cast(CallbackQuery, call_open),
-        cast(TeleBot, bot),
-    )
+    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:open:api:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:nav:s1:2:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:file:s1:333")
 
-    call_nav = _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:nav:s1:2:333")
-    raw_handler(
-        cast(CallbackQuery, call_nav),
-        cast(TeleBot, bot),
-    )
-
-    call_refresh = _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")
-    raw_handler(
-        cast(CallbackQuery, call_refresh),
-        cast(TeleBot, bot),
-    )
-
-    call_file = _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:file:s1:333")
-    raw_handler(
-        cast(CallbackQuery, call_file),
-        cast(TeleBot, bot),
-    )
-
-    assert opened == ["api"]
-    assert 2 in edited and 0 in edited
-    assert sent_as_file == ["s1"]
-    assert removed_sessions == ["s1"]
-    assert created_sessions == [("api", 333)]
+    assert events.opened == ["api"]
+    assert 2 in events.edited and 0 in events.edited
+    assert events.sent_as_file == ["s1"]
+    assert events.removed_sessions == ["s1"]
+    assert events.created_sessions == [("api", 333)]
 
 
 def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
@@ -836,7 +852,7 @@ def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
     raw_handler = _raw_handle_get_logs()
     raw_handler(
         cast(CallbackQuery, _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")),
-        cast(TeleBot, _DummyBot()),
+        cast(TeleBot, _make_dummy_bot()),
     )
 
     assert shown == [
@@ -860,7 +876,7 @@ def test_send_logs_as_file_no_message_or_empty_logs_paths(
         "show_handler_info",
         lambda call, text, bot: shown.append(text),
     )
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
 
     no_message_call = _DummyCall(message=None)
     session = _make_session(raw_logs="abc")
@@ -911,7 +927,7 @@ def test_send_logs_as_file_includes_expected_schedule_delay(
         "pytmbot.handlers.docker_handlers.inline.logs.deletion_manager.schedule_deletion",
         _schedule,
     )
-    bot = _DummyBot()
+    bot = _make_dummy_bot()
     call = _DummyCall(
         from_user=_DummyUser(id=77), message=_DummyMessage(chat=_DummyChat(id=9))
     )

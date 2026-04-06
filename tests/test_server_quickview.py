@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import cast
 
@@ -10,14 +9,10 @@ from telebot import TeleBot
 from telebot.types import Message
 
 import pytmbot.handlers.server_handlers.quickview as quickview
-from pytmbot.adapters.psutil.adapter_types import (
-    CPUFrequencyStats,
-    CPUUsageStats,
-    MemoryStats,
-    ProcessStats,
-)
 from pytmbot.exceptions import HandlingException
 from pytmbot.parsers.compiler import Compiler
+from tests._telebot_objects import telegram_object_from_payload
+from tests._telebot_send_capture import build_bot_capture
 
 type _PayloadScalar = str | int | float | bool | None
 type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
@@ -25,66 +20,19 @@ type _PayloadDict = dict[str, _PayloadValue]
 type _RenderedMessage = dict[str, int | str | None]
 
 
-def _build_bot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TeleBot, list[tuple[int, str]], list[_RenderedMessage]]:
-    bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-    actions: list[tuple[int, str]] = []
-    messages: list[_RenderedMessage] = []
+def _exploding_adapter() -> SimpleNamespace:
+    def fail(message: str) -> None:
+        raise RuntimeError(message)
 
-    def _send_chat_action(
-        chat_id: int | str,
-        action: str,
-        timeout: int | None = None,
-        message_thread_id: int | None = None,
-        business_connection_id: str | None = None,
-    ) -> bool:
-        del timeout, message_thread_id, business_connection_id
-        actions.append((int(chat_id), action))
-        return True
-
-    def _send_message(
-        chat_id: int | str,
-        text: str,
-        parse_mode: str | None = None,
-        **kwargs: _PayloadValue,
-    ) -> _RenderedMessage:
-        del kwargs
-        payload: _RenderedMessage = {
-            "chat_id": int(chat_id),
-            "text": text,
-            "parse_mode": parse_mode,
-        }
-        messages.append(payload)
-        return payload
-
-    monkeypatch.setattr(bot, "send_chat_action", _send_chat_action)
-    monkeypatch.setattr(bot, "send_message", _send_message)
-    return bot, actions, messages
-
-
-@dataclass
-class _ExplodingAdapter:
-    def get_uptime(self) -> str:
-        raise RuntimeError("uptime error")
-
-    def get_load_average(self) -> tuple[float, float, float]:
-        raise RuntimeError("load error")
-
-    def get_memory(self) -> MemoryStats:
-        raise RuntimeError("memory error")
-
-    def get_cpu_usage(self) -> CPUUsageStats:
-        raise RuntimeError("cpu error")
-
-    def get_cpu_frequency(self) -> CPUFrequencyStats:
-        raise RuntimeError("cpu freq error")
-
-    def get_cpu_count(self) -> int:
-        raise RuntimeError("cpu count error")
-
-    def get_process_counts(self) -> ProcessStats:
-        raise RuntimeError("proc error")
+    return SimpleNamespace(
+        get_uptime=lambda: fail("uptime error"),
+        get_load_average=lambda: fail("load error"),
+        get_memory=lambda: fail("memory error"),
+        get_cpu_usage=lambda: fail("cpu error"),
+        get_cpu_frequency=lambda: fail("cpu freq error"),
+        get_cpu_count=lambda: fail("cpu count error"),
+        get_process_counts=lambda: fail("proc error"),
+    )
 
 
 def _build_message(chat_id: int = 1) -> Message:
@@ -95,11 +43,11 @@ def _build_message(chat_id: int = 1) -> Message:
         "from": {"id": 101, "is_bot": False, "first_name": "Test"},
         "text": "quick view",
     }
-    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
-    message_obj = message_from_json(payload)
-    if not isinstance(message_obj, Message):
-        raise AssertionError("Expected Message instance")
-    return message_obj
+    return telegram_object_from_payload(
+        payload,
+        parser=cast(Callable[[_PayloadDict], Message], Message.de_json),
+        expected_type=Message,
+    )
 
 
 def test_quickview_metric_collectors_happy_paths(
@@ -135,7 +83,7 @@ def test_quickview_metric_collectors_happy_paths(
 def test_quickview_metric_collectors_handle_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(quickview, "psutil_adapter", _ExplodingAdapter())
+    monkeypatch.setattr(quickview, "psutil_adapter", _exploding_adapter())
     monkeypatch.setattr(
         quickview,
         "fetch_docker_counters",
@@ -167,7 +115,7 @@ def test_collect_metrics_skips_none_results(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, actions, messages = _build_bot(monkeypatch)
+    bot, actions, messages = build_bot_capture(monkeypatch)
     message = _build_message(10)
 
     monkeypatch.setattr(
@@ -211,7 +159,7 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_quick_view_no_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, actions, messages = _build_bot(monkeypatch)
+    bot, actions, messages = build_bot_capture(monkeypatch)
     message = _build_message(11)
     monkeypatch.setattr(quickview, "_collect_metrics", lambda: {})
 
@@ -222,7 +170,7 @@ def test_handle_quick_view_no_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch)
     message = _build_message(12)
     monkeypatch.setattr(
         quickview,

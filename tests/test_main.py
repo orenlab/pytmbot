@@ -7,15 +7,11 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from pytmbot.exceptions import InitializationError
-from pytmbot.utils.cli import parse_cli_args
+from tests._main_module_loader import load_main_module
 
 
 def _load_main_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    parse_cli_args.cache_clear()
-    monkeypatch.setattr(sys, "argv", ["pytmbot-main-test"])
-    import pytmbot.main as main_module
-
-    return importlib.reload(main_module)
+    return load_main_module(monkeypatch, argv0="pytmbot-main-test")
 
 
 def test_launcher_normalize_mode_and_log_level_logic(
@@ -72,27 +68,27 @@ def test_start_bot_polling_sets_shutdown_on_failure(
     assert launcher.shutdown_requested.is_set() is True
 
 
-def test_check_health_exit_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("health_result", "expected_exit_code"),
+    [(True, 0), (False, 1), (None, 2)],
+)
+def test_check_health_exit_codes(
+    monkeypatch: pytest.MonkeyPatch,
+    health_result: bool | None,
+    expected_exit_code: int,
+) -> None:
     main_module = _load_main_module(monkeypatch)
 
     class _FakeHealthStatus:
         def __init__(self, result: bool | None) -> None:
             self.last_health_check_result = result
 
-    monkeypatch.setattr(main_module, "HealthStatus", lambda: _FakeHealthStatus(True))
-    with pytest.raises(SystemExit) as exc_true:
+    monkeypatch.setattr(
+        main_module, "HealthStatus", lambda: _FakeHealthStatus(health_result)
+    )
+    with pytest.raises(SystemExit) as exc_info:
         main_module.check_health()
-    assert exc_true.value.code == 0
-
-    monkeypatch.setattr(main_module, "HealthStatus", lambda: _FakeHealthStatus(False))
-    with pytest.raises(SystemExit) as exc_false:
-        main_module.check_health()
-    assert exc_false.value.code == 1
-
-    monkeypatch.setattr(main_module, "HealthStatus", lambda: _FakeHealthStatus(None))
-    with pytest.raises(SystemExit) as exc_none:
-        main_module.check_health()
-    assert exc_none.value.code == 2
+    assert exc_info.value.code == expected_exit_code
 
 
 def test_module_entrypoint_invokes_main(monkeypatch: pytest.MonkeyPatch) -> None:

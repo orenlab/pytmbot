@@ -14,7 +14,15 @@ import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
 from pytmbot.handlers.handlers_util.docker import validate_container_name
 from pytmbot.parsers.compiler import Compiler
-from tests._inline_edit_helpers import patch_not_modified_edit_error
+from tests._inline_edit_helpers import (
+    patch_authorized_inline_render,
+    patch_not_modified_edit_error,
+)
+from tests._telebot_objects import (
+    record_callback_answer,
+    record_edited_message,
+    unwrap_handler,
+)
 
 type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
 type _RawHandlerInput = (
@@ -56,23 +64,16 @@ class _Bot:
     edited_messages: list[_ValueDict] = field(default_factory=list)
 
     def answer_callback_query(self, callback_query_id: str, **kwargs: _Value) -> bool:
-        payload: _ValueDict = {
-            "callback_query_id": callback_query_id,
-            **kwargs,
-        }
-        self.callback_answers.append(payload)
+        record_callback_answer(self.callback_answers, callback_query_id, **kwargs)
         return True
 
     def edit_message_text(self, **kwargs: _Value) -> str:
-        self.edited_messages.append(cast(_ValueDict, dict(kwargs)))
+        record_edited_message(self.edited_messages, **kwargs)
         return "edited"
 
 
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
-    wrapped = handler
-    for _ in range(3):
-        wrapped = getattr(wrapped, "__wrapped__", wrapped)
-    return cast(_CallbackHandler, wrapped)
+    return cast(_CallbackHandler, unwrap_handler(handler, depth=3))
 
 
 def _prepare_handler_context(
@@ -598,23 +599,18 @@ def test_handle_container_full_info_ignores_not_modified(
     handler = _raw_handler(container_info_module.handle_containers_full_info)
     bot = _Bot()
 
-    monkeypatch.setattr(
-        container_info_module,
-        "parse_container_full_info_callback_data",
-        lambda data: ("api", 11, 1),
-    )
-    monkeypatch.setattr(
-        container_info_module,
-        "authorize_docker_callback_request",
-        lambda **kwargs: (True, ""),
+    patch_authorized_inline_render(
+        monkeypatch,
+        parse_module=container_info_module,
+        parse_name="parse_container_full_info_callback_data",
+        parse_result=("api", 11, 1),
+        authorize_module=container_info_module,
+        render_module=container_info_module,
+        render_name="get_comprehensive_container_details",
+        render_result={"name": "api"},
     )
     monkeypatch.setattr(
         container_info_module, "validate_container_name", lambda name: True
-    )
-    monkeypatch.setattr(
-        container_info_module,
-        "get_comprehensive_container_details",
-        lambda name: {"name": "api"},
     )
 
     class _Access:

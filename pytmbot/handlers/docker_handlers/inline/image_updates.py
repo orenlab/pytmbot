@@ -77,6 +77,41 @@ class RenderContext(TypedDict):
     no_updates: list[str]
 
 
+def _authorize_image_updates_callback(
+    call: CallbackQuery, bot: TeleBot
+) -> tuple[bool, int | None]:
+    """Validate and authorize image-updates callback with legacy testable seams."""
+
+    def reject_callback(
+        text: str, target_user_id: int | None
+    ) -> tuple[bool, int | None]:
+        bot.answer_callback_query(call.id, text=text, show_alert=True)
+        return False, target_user_id
+
+    try:
+        target_user_id = parse_callback_target_user(
+            call.data or "", "__check_updates__"
+        )
+    except ValueError:
+        return reject_callback("This image updates button is no longer valid.", None)
+
+    is_allowed, deny_reason = authorize_callback_request(
+        call,
+        target_user_id=target_user_id,
+        require_owner_match=target_user_id is not None,
+    )
+    if not is_allowed:
+        return reject_callback(deny_reason, target_user_id)
+
+    if call.message is None:
+        return reject_callback(
+            "This image updates message can no longer be refreshed.",
+            target_user_id,
+        )
+
+    return True, target_user_id
+
+
 def _extract_repository_updates(
     data: object,
 ) -> dict[str, RawRepositoryUpdateInfo]:
@@ -137,33 +172,11 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     Returns:
         None
     """
-    try:
-        target_user_id = parse_callback_target_user(
-            call.data or "", "__check_updates__"
-        )
-    except ValueError:
-        bot.answer_callback_query(
-            call.id,
-            text="This image updates button is no longer valid.",
-            show_alert=True,
-        )
-        return None
-
-    is_allowed, deny_reason = authorize_callback_request(
-        call,
-        target_user_id=target_user_id,
-        require_owner_match=target_user_id is not None,
-    )
+    is_allowed, target_user_id = _authorize_image_updates_callback(call, bot)
     if not is_allowed:
-        bot.answer_callback_query(call.id, text=deny_reason, show_alert=True)
         return None
 
     if call.message is None:
-        bot.answer_callback_query(
-            call.id,
-            text="This image updates message can no longer be refreshed.",
-            show_alert=True,
-        )
         return None
 
     updater = DockerImageUpdater()

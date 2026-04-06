@@ -155,147 +155,154 @@ class ContainerStateCache:
 _state_cache = ContainerStateCache()
 
 
-class MemoryStatsProvider:
-    """Fast memory statistics provider using multiple fallback methods."""
+def _format_memory_stats(usage: int, limit: int | None) -> MemoryStats:
+    """Format raw memory statistics into human-readable format."""
+    mem_usage = set_naturalsize(usage)
+    mem_limit = set_naturalsize(limit) if limit else "No Limit"
+    mem_percent = round(usage / limit * 100, 2) if limit and limit > 0 else 0
 
-    @staticmethod
-    def from_cgroups(container_id: str) -> MemoryStats | None:
-        """Get memory stats directly from cgroups - fastest method."""
+    return {
+        "mem_usage": mem_usage,
+        "mem_limit": mem_limit,
+        "mem_percent": f"{mem_percent}%",
+    }
+
+
+def _memory_from_cgroups(container_id: str) -> MemoryStats | None:
+    """Get memory stats directly from cgroups - fastest method."""
+    try:
+        cgroup_v2_paths = [
+            f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.current",
+            f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.max",
+        ]
+        cgroup_v1_paths = [
+            f"/sys/fs/cgroup/memory/docker/{container_id}/memory.usage_in_bytes",
+            f"/sys/fs/cgroup/memory/docker/{container_id}/memory.limit_in_bytes",
+        ]
+
+        usage, limit = None, None
+
         try:
-            # Try cgroups v2 first (newer Docker installations)
-            cgroup_v2_paths = [
-                f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.current",
-                f"/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.max",
-            ]
-
-            # Try cgroups v1 (older Docker installations)
-            cgroup_v1_paths = [
-                f"/sys/fs/cgroup/memory/docker/{container_id}/memory.usage_in_bytes",
-                f"/sys/fs/cgroup/memory/docker/{container_id}/memory.limit_in_bytes",
-            ]
-
+            usage = int(Path(cgroup_v2_paths[0]).read_text().strip())
+            limit_str = Path(cgroup_v2_paths[1]).read_text().strip()
+            limit = int(limit_str) if limit_str != "max" else None
+        except (FileNotFoundError, ValueError, PermissionError):
             usage, limit = None, None
 
-            # Check cgroups v2 (EAFP: no redundant stat() before read)
+        if usage is None:
             try:
-                usage = int(Path(cgroup_v2_paths[0]).read_text().strip())
-                limit_str = Path(cgroup_v2_paths[1]).read_text().strip()
-                limit = int(limit_str) if limit_str != "max" else None
+                usage = int(Path(cgroup_v1_paths[0]).read_text().strip())
+                limit = int(Path(cgroup_v1_paths[1]).read_text().strip())
             except (FileNotFoundError, ValueError, PermissionError):
-                usage, limit = None, None
+                pass
 
-            # Check cgroups v1 if v2 failed
-            if usage is None:
-                try:
-                    usage = int(Path(cgroup_v1_paths[0]).read_text().strip())
-                    limit = int(Path(cgroup_v1_paths[1]).read_text().strip())
-                except (FileNotFoundError, ValueError, PermissionError):
-                    pass
+        if usage is not None:
+            return _format_memory_stats(usage, limit)
 
-            if usage is not None:
-                return MemoryStatsProvider._format_memory_stats(usage, limit)
+    except Exception:
+        logger.debug("docker.utils.get.memory.fail")
 
-        except Exception:
-            logger.debug("docker.utils.get.memory.fail")
+    return None
 
-        return None
 
-    @staticmethod
-    def from_docker_cli(container_id: str) -> MemoryStats | None:
-        """Get memory stats via Docker CLI command."""
-        try:
-            result = subprocess.run(
-                [
-                    "docker",
-                    "stats",
-                    "--no-stream",
-                    "--format",
-                    "{{.MemUsage}},{{.MemPerc}}",
-                    container_id[:12],
-                ],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
+def _memory_from_docker_cli(container_id: str) -> MemoryStats | None:
+    """Get memory stats via Docker CLI command."""
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "stats",
+                "--no-stream",
+                "--format",
+                "{{.MemUsage}},{{.MemPerc}}",
+                container_id[:12],
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+            check=False,
+        )
 
-            if result.returncode == 0 and result.stdout.strip():
-                parts = result.stdout.strip().split(",")
-                if len(parts) == 2:
-                    mem_usage_raw, mem_percent = parts[0].strip(), parts[1].strip()
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split(",")
+            if len(parts) == 2:
+                mem_usage_raw, mem_percent = parts[0].strip(), parts[1].strip()
 
-                    if " / " in mem_usage_raw:
-                        usage_part, limit_part = mem_usage_raw.split(" / ")
-                        return {
-                            "mem_usage": usage_part.strip(),
-                            "mem_limit": limit_part.strip(),
-                            "mem_percent": mem_percent,
-                        }
+                if " / " in mem_usage_raw:
+                    usage_part, limit_part = mem_usage_raw.split(" / ")
+                    return {
+                        "mem_usage": usage_part.strip(),
+                        "mem_limit": limit_part.strip(),
+                        "mem_percent": mem_percent,
+                    }
 
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
-            logger.debug("docker.utils.get.memory.fail")
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+        logger.debug("docker.utils.get.memory.fail")
 
-        return None
+    return None
 
-    @staticmethod
-    def from_inspect(container: Container) -> MemoryStats | None:
-        """Get memory limit from container inspect - fast but limited."""
-        try:
-            host_config = container.attrs.get("HostConfig", {})
-            memory_limit = host_config.get("Memory", 0)
 
-            if memory_limit > 0:
-                return {
-                    "mem_usage": "N/A",
-                    "mem_limit": set_naturalsize(memory_limit),
-                    "mem_percent": "N/A",
-                }
-            else:
-                return {
-                    "mem_usage": "N/A",
-                    "mem_limit": "No Limit",
-                    "mem_percent": "N/A",
-                }
+def _memory_from_inspect(container: Container) -> MemoryStats | None:
+    """Get memory limit from container inspect - fast but limited."""
+    try:
+        host_config = container.attrs.get("HostConfig", {})
+        memory_limit = host_config.get("Memory", 0)
 
-        except Exception:
-            logger.debug("docker.utils.get.memory.fail")
-            return None
-
-    @staticmethod
-    def from_container_stats(container: Container) -> MemoryStats | None:
-        """Fallback to container.stats() - slowest method."""
-        try:
-            stats = get_container_stats_snapshot(container)
-            memory_stats_obj = stats.get("memory_stats", {})
-            memory_stats = (
-                memory_stats_obj if isinstance(memory_stats_obj, dict) else {}
-            )
-            usage_raw = memory_stats.get("usage", 0)
-            limit_raw = memory_stats.get("limit", 0)
-            usage = int(usage_raw) if isinstance(usage_raw, (int, float)) else 0
-            limit = int(limit_raw) if isinstance(limit_raw, (int, float)) else 0
-
-            if usage == 0 and limit == 0:
-                return {"mem_usage": "N/A", "mem_limit": "N/A", "mem_percent": "N/A"}
-
-            return MemoryStatsProvider._format_memory_stats(usage, limit)
-
-        except Exception:
-            logger.debug("docker.utils.container.stats.fail")
-            return None
-
-    @staticmethod
-    def _format_memory_stats(usage: int, limit: int | None) -> MemoryStats:
-        """Format raw memory statistics into human-readable format."""
-        mem_usage = set_naturalsize(usage)
-        mem_limit = set_naturalsize(limit) if limit else "No Limit"
-        mem_percent = round(usage / limit * 100, 2) if limit and limit > 0 else 0
+        if memory_limit > 0:
+            return {
+                "mem_usage": "N/A",
+                "mem_limit": set_naturalsize(memory_limit),
+                "mem_percent": "N/A",
+            }
 
         return {
-            "mem_usage": mem_usage,
-            "mem_limit": mem_limit,
-            "mem_percent": f"{mem_percent}%",
+            "mem_usage": "N/A",
+            "mem_limit": "No Limit",
+            "mem_percent": "N/A",
         }
+
+    except Exception:
+        logger.debug("docker.utils.get.memory.fail")
+        return None
+
+
+def _memory_from_container_stats(container: Container) -> MemoryStats | None:
+    """Fallback to container.stats() - slowest method."""
+    try:
+        stats = get_container_stats_snapshot(container)
+        memory_stats_obj = stats.get("memory_stats", {})
+        memory_stats = memory_stats_obj if isinstance(memory_stats_obj, dict) else {}
+        usage_raw = memory_stats.get("usage", 0)
+        limit_raw = memory_stats.get("limit", 0)
+        usage = int(usage_raw) if isinstance(usage_raw, (int, float)) else 0
+        limit = int(limit_raw) if isinstance(limit_raw, (int, float)) else 0
+
+        if usage == 0 and limit == 0:
+            return {"mem_usage": "N/A", "mem_limit": "N/A", "mem_percent": "N/A"}
+
+        return _format_memory_stats(usage, limit)
+
+    except Exception:
+        logger.debug("docker.utils.container.stats.fail")
+        return None
+
+
+@dataclass(slots=True)
+class _MemoryStatsProviderFacade:
+    """Typed registry preserving the historical ``MemoryStatsProvider.*`` API."""
+
+    from_cgroups: Callable[[str], MemoryStats | None]
+    from_docker_cli: Callable[[str], MemoryStats | None]
+    from_inspect: Callable[[Container], MemoryStats | None]
+    from_container_stats: Callable[[Container], MemoryStats | None]
+
+
+MemoryStatsProvider: Final[_MemoryStatsProviderFacade] = _MemoryStatsProviderFacade(
+    from_cgroups=_memory_from_cgroups,
+    from_docker_cli=_memory_from_docker_cli,
+    from_inspect=_memory_from_inspect,
+    from_container_stats=_memory_from_container_stats,
+)
 
 
 def get_container_stats_snapshot(container: Container) -> dict[str, object]:
@@ -321,7 +328,7 @@ def get_container_stats_snapshot(container: Container) -> dict[str, object]:
             return stats
 
         # docker-py may return an iterator in some environments
-        snapshot = next(iter(stats), {}) or {}
+        snapshot: object = next(iter(stats), {}) or {}
         return snapshot if isinstance(snapshot, dict) else {}
 
     except Exception:
@@ -602,28 +609,26 @@ def get_container_memory_stats(container: Container) -> MemoryStats:
         Dictionary with memory statistics
     """
     container_id = container.id
+    is_running = container.status.lower() == "running"
 
     # Method 1: Direct cgroups read (fastest)
-    if memory_stats := MemoryStatsProvider.from_cgroups(container_id):
-        logger.debug("docker.utils.got.memory.debug")
-        return memory_stats
+    memory_stats = MemoryStatsProvider.from_cgroups(container_id)
 
     # Method 2: Runtime one-shot stats for running containers
-    if container.status.lower() == "running":
-        if memory_stats := MemoryStatsProvider.from_container_stats(container):
-            logger.debug("docker.utils.got.memory.debug")
-            return memory_stats
+    if not memory_stats and is_running:
+        memory_stats = MemoryStatsProvider.from_container_stats(container)
 
     # Method 3: Container inspect (limited but fast)
-    if memory_stats := MemoryStatsProvider.from_inspect(container):
-        logger.debug("docker.utils.got.memory.debug")
-        return memory_stats
+    if not memory_stats:
+        memory_stats = MemoryStatsProvider.from_inspect(container)
 
     # Method 4: Fallback to docker CLI for running containers
-    if container.status.lower() == "running":
-        if memory_stats := MemoryStatsProvider.from_docker_cli(container_id):
-            logger.debug("docker.utils.got.memory.debug")
-            return memory_stats
+    if not memory_stats and is_running:
+        memory_stats = MemoryStatsProvider.from_docker_cli(container_id)
+
+    if memory_stats:
+        logger.debug("docker.utils.got.memory.debug")
+        return memory_stats
 
     # Ultimate fallback
     return {
@@ -674,37 +679,36 @@ def sanitize_kwargs_for_logging(kwargs: dict[str, object]) -> dict[str, object]:
         "cookie",
     }
 
-    safe_kwargs: dict[str, object] = {}
-    for key, value in kwargs.items():
+    def sanitize_value(key: str, value: object) -> object:
         key_lower = key.lower()
 
         if any(sensitive in key_lower for sensitive in sensitive_keys):
-            safe_kwargs[key] = "[REDACTED]"
-        elif isinstance(value, str):
+            return "[REDACTED]"
+
+        if isinstance(value, str):
             if len(value) > 200:
-                safe_kwargs[key] = f"{value[:100]}...[TRUNCATED:{len(value)} chars]"
-            elif (
+                return f"{value[:100]}...[TRUNCATED:{len(value)} chars]"
+            if (
                 len(value) > 20
                 and any(char in value for char in "abcdefABCDEF0123456789")
                 and len(set(value)) > 10
             ):  # High entropy strings
-                safe_kwargs[key] = f"[REDACTED:{len(value)} chars]"
-            else:
-                safe_kwargs[key] = value
-        elif isinstance(value, (list, tuple)):
-            if len(value) > 10:
-                safe_kwargs[key] = f"[LIST:{len(value)} items]"
-            else:
-                safe_kwargs[key] = value
-        elif isinstance(value, dict):
-            if len(value) > 20:
-                safe_kwargs[key] = f"[DICT:{len(value)} keys]"
-            else:
-                safe_kwargs[key] = sanitize_kwargs_for_logging(value)
-        else:
-            safe_kwargs[key] = value
+                return f"[REDACTED:{len(value)} chars]"
+            return value
 
-    return safe_kwargs
+        if isinstance(value, (list, tuple)):
+            return f"[LIST:{len(value)} items]" if len(value) > 10 else value
+
+        if isinstance(value, dict):
+            return (
+                f"[DICT:{len(value)} keys]"
+                if len(value) > 20
+                else sanitize_kwargs_for_logging(value)
+            )
+
+        return value
+
+    return {key: sanitize_value(key, value) for key, value in kwargs.items()}
 
 
 def build_container_context(

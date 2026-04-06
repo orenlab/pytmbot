@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 
 import pytmbot.settings as settings_module
-from pytmbot.models.settings_model import WebhookConfig
 from pytmbot.settings import (
     _get_config_file_path,
     _get_var_config,
@@ -20,6 +19,7 @@ from pytmbot.settings import (
     get_default_server_keyboard,
     load_settings_from_yaml,
 )
+from tests._settings_helpers import build_webhook_config
 
 
 def test_default_settings_factories_return_expected_keys() -> None:
@@ -78,22 +78,8 @@ def test_var_config_defaults_are_within_bounds() -> None:
 
 
 def test_webhook_trusted_proxy_validation() -> None:
-    cfg = WebhookConfig(
-        url=[SecretStr("https://example.com")],
-        webhook_port=[8443],
-        local_port=[8080],
-        cert=None,
-        cert_key=None,
-        trusted_proxy_ips=["10.0.0.0/8", "192.168.1.1"],
-    )
+    cfg = build_webhook_config(trusted_proxy_ips=["10.0.0.0/8", "192.168.1.1"])
     assert cfg.trusted_proxy_ips == ["10.0.0.0/8", "192.168.1.1"]
 
     with pytest.raises(ValidationError):
-        WebhookConfig(
-            url=[SecretStr("https://example.com")],
-            webhook_port=[8443],
-            local_port=[8080],
-            cert=None,
-            cert_key=None,
-            trusted_proxy_ips=["invalid-ip"],
-        )
+        build_webhook_config(trusted_proxy_ips=["invalid-ip"])

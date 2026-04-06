@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import signal
 import sys
 from collections.abc import Callable, Generator
@@ -10,17 +9,13 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from pytmbot.exceptions import ShutdownError
-from pytmbot.utils.cli import parse_cli_args
+from tests._main_module_loader import load_main_module
 
 type _ThreadKwarg = str | int | float | bool | None
 
 
 def _load_main_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    parse_cli_args.cache_clear()
-    monkeypatch.setattr(sys, "argv", ["pytmbot-main-extra-test"])
-    import pytmbot.main as main_module
-
-    return importlib.reload(main_module)
+    return load_main_module(monkeypatch, argv0="pytmbot-main-extra-test")
 
 
 def _install_run_main_loop_stubs(

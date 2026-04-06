@@ -30,6 +30,194 @@ from pytmbot.logs import BaseComponent
 from pytmbot.utils.state_paths import ensure_private_directory, get_state_root_path
 
 
+def _build_secret_key_material() -> str:
+    salt = settings.access_control.auth_salt[0].get_secret_value()
+    prod_token_values = settings.bot_token.prod_token or []
+    dev_token_values = settings.bot_token.dev_bot_token or []
+    prod_token = prod_token_values[0].get_secret_value() if prod_token_values else ""
+    dev_token = dev_token_values[0].get_secret_value() if dev_token_values else ""
+    return "|".join(segment for segment in (salt, prod_token, dev_token) if segment)
+
+
+def _derive_totp_secret(
+    *,
+    user_id: int,
+    username: str,
+    secret_key_material: str,
+    hash_digest_size: int,
+) -> str:
+    message = f"{user_id}:{username.lower()}".encode()
+    key_material = hashlib.blake2b(
+        secret_key_material.encode(),
+        digest_size=32,
+    ).digest()
+    hash_obj = hashlib.blake2b(
+        message,
+        key=key_material,
+        digest_size=hash_digest_size,
+    )
+    return base64.b32encode(hash_obj.digest()).decode("ascii")
+
+
+def _build_totp_auth_uri(
+    *,
+    secret: str,
+    username: str,
+    issuer_name: str,
+    digits: int,
+    interval: int,
+) -> str:
+    totp = pyotp.TOTP(secret, digits=digits, interval=interval)
+    return totp.provisioning_uri(name=username, issuer_name=issuer_name)
+
+
+def _generate_qr_code_bytes(auth_uri: str) -> bytes:
+    qr_code = qrcode.make(auth_uri, image_factory=PyPNGImage)
+    with io.BytesIO() as img_bytes:
+        qr_code.save(img_bytes)
+        return img_bytes.getvalue()
+
+
+def _resolve_matching_step(
+    *, totp: pyotp.TOTP, code: str, current_step: int, interval: int
+) -> int | None:
+    for step in range(current_step - 1, current_step + 2):
+        step_time = datetime.fromtimestamp(step * interval, tz=UTC)
+        if totp.verify(code, for_time=step_time, valid_window=0):
+            return step
+    return None
+
+
+def _load_replay_state_locked(
+    auth_cls: type[TwoFactorAuthenticator], *, min_step: int
+) -> None:
+    if auth_cls._replay_state_loaded:
+        return
+    auth_cls._replay_state_loaded = True
+
+    state_file = auth_cls._REPLAY_STATE_FILE
+    try:
+        payload_raw = state_file.read_text(encoding="utf-8")
+        payload = json.loads(payload_raw)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return
+
+    if not isinstance(payload, dict):
+        return
+    replay_state = payload.get("replay")
+    if not isinstance(replay_state, dict):
+        return
+
+    loaded_entries: dict[int, set[tuple[str, int]]] = {}
+    for raw_user_id, markers in replay_state.items():
+        if not (
+            isinstance(raw_user_id, str)
+            and raw_user_id.isdigit()
+            and isinstance(markers, list)
+        ):
+            continue
+
+        user_id = int(raw_user_id)
+        user_markers: set[tuple[str, int]] = set()
+        for marker in markers:
+            if (
+                isinstance(marker, list)
+                and len(marker) == 2
+                and isinstance(marker[0], str)
+                and isinstance(marker[1], int)
+                and marker[1] >= min_step
+            ):
+                user_markers.add((marker[0], marker[1]))
+
+        if user_markers:
+            loaded_entries[user_id] = user_markers
+
+    if loaded_entries:
+        auth_cls._used_totp_codes.update(loaded_entries)
+
+
+def _persist_replay_state_locked(
+    auth_cls: type[TwoFactorAuthenticator], *, min_step: int
+) -> None:
+    state_file = auth_cls._REPLAY_STATE_FILE
+    parent_dir = state_file.parent
+    try:
+        ensure_private_directory(parent_dir)
+    except OSError:
+        return
+
+    pruned_entries: dict[int, set[tuple[str, int]]] = {}
+    for user_id, markers in auth_cls._used_totp_codes.items():
+        active_markers = {
+            marker
+            for marker in markers
+            if isinstance(marker[0], str)
+            and isinstance(marker[1], int)
+            and marker[1] >= min_step
+        }
+        if active_markers:
+            pruned_entries[user_id] = active_markers
+
+    auth_cls._used_totp_codes = pruned_entries
+
+    payload = {
+        "replay": {
+            str(user_id): [[code, step] for code, step in sorted(markers)]
+            for user_id, markers in pruned_entries.items()
+        }
+    }
+
+    temp_path: str | None = None
+    try:
+        file_descriptor, temp_path = tempfile.mkstemp(
+            prefix=".totp_replay_",
+            suffix=".json",
+            dir=str(parent_dir),
+            text=True,
+        )
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as temp_file:
+            json.dump(payload, temp_file, separators=(",", ":"), sort_keys=True)
+        os.chmod(temp_path, 0o600)
+        os.replace(temp_path, state_file)
+    except OSError:
+        if temp_path is not None:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+
+def _register_code_usage(
+    auth: TwoFactorAuthenticator,
+    *,
+    code: str,
+    matched_step: int,
+    current_step: int,
+) -> bool:
+    min_step = current_step - auth._REPLAY_WINDOW_STEPS
+    code_marker = (code, matched_step)
+
+    with auth._used_totp_codes_lock:
+        _load_replay_state_locked(type(auth), min_step=min_step)
+        user_entries = {
+            marker
+            for marker in auth._used_totp_codes.get(auth.user_id, set())
+            if marker[1] >= min_step
+        }
+        if code_marker in user_entries:
+            auth._used_totp_codes[auth.user_id] = user_entries
+            _persist_replay_state_locked(type(auth), min_step=min_step)
+            return False
+
+        user_entries.add(code_marker)
+        if len(user_entries) > auth._MAX_TRACKED_CODES_PER_USER:
+            sorted_entries = sorted(user_entries, key=lambda marker: marker[1])
+            user_entries = set(sorted_entries[-auth._MAX_TRACKED_CODES_PER_USER :])
+        auth._used_totp_codes[auth.user_id] = user_entries
+        _persist_replay_state_locked(type(auth), min_step=min_step)
+        return True
+
+
 class TwoFactorAuthenticator(BaseComponent):
     """Two-factor authentication handler using TOTP (Time-based One-Time Password)."""
 
@@ -84,15 +272,7 @@ class TwoFactorAuthenticator(BaseComponent):
         self.user_id: int = user_id
         self.username: str = username.strip()
         self._salt: str = settings.access_control.auth_salt[0].get_secret_value()
-        prod_token_values = settings.bot_token.prod_token or []
-        dev_token_values = settings.bot_token.dev_bot_token or []
-        prod_token = (
-            prod_token_values[0].get_secret_value() if prod_token_values else ""
-        )
-        dev_token = dev_token_values[0].get_secret_value() if dev_token_values else ""
-        self._secret_key_material = "|".join(
-            segment for segment in (self._salt, prod_token, dev_token) if segment
-        )
+        self._secret_key_material = _build_secret_key_material()
         if not self._secret_key_material:
             raise TOTPError("Missing TOTP key material")
         self._secret_cache: str | None = None  # Cache for secret to avoid regeneration
@@ -113,20 +293,12 @@ class TwoFactorAuthenticator(BaseComponent):
             return self._secret_cache
 
         try:
-            # Generate a deterministic user secret from private key material.
-            message = f"{self.user_id}:{self.username.lower()}".encode()
-            key_material = hashlib.blake2b(
-                self._secret_key_material.encode(),
-                digest_size=32,
-            ).digest()
-            hash_obj = hashlib.blake2b(
-                message,
-                key=key_material,
-                digest_size=self.HASH_DIGEST_SIZE,
+            self._secret_cache = _derive_totp_secret(
+                user_id=self.user_id,
+                username=self.username,
+                secret_key_material=self._secret_key_material,
+                hash_digest_size=self.HASH_DIGEST_SIZE,
             )
-
-            # Encode the hash digest as base32 and decode it to a string
-            self._secret_cache = base64.b32encode(hash_obj.digest()).decode("ascii")
 
             with self.log_context(user_id=self.user_id, username=self.username) as log:
                 log.debug("bot.utils.totp.secret.generated.debug")
@@ -150,16 +322,12 @@ class TwoFactorAuthenticator(BaseComponent):
             TOTPError: If URI generation fails
         """
         try:
-            # Generate TOTP object using the secret key
-            totp = pyotp.TOTP(
-                self._generate_secret(),
+            uri = _build_totp_auth_uri(
+                secret=self._generate_secret(),
+                username=self.username,
+                issuer_name=self.ISSUER_NAME,
                 digits=self.TOTP_DIGITS,
                 interval=self.TOTP_INTERVAL,
-            )
-
-            # Generate the URI using the TOTP object and account name
-            uri = totp.provisioning_uri(
-                name=self.username, issuer_name=self.ISSUER_NAME
             )
 
             with self.log_context(user_id=self.user_id, username=self.username) as log:
@@ -189,16 +357,8 @@ class TwoFactorAuthenticator(BaseComponent):
             log.debug("bot.utils.totp.qr.code.start")
 
             try:
-                # Generate the TOTP authentication URI
                 auth_uri = self._generate_totp_auth_uri()
-
-                # Use pure-Python PNG backend (PyPNGImage) to avoid Pillow dependency.
-                qr_code = qrcode.make(auth_uri, image_factory=PyPNGImage)
-
-                # Save the QR code as bytes in a BytesIO object
-                with io.BytesIO() as img_bytes:
-                    qr_code.save(img_bytes)
-                    qr_data = img_bytes.getvalue()
+                qr_data = _generate_qr_code_bytes(auth_uri)
 
                 log.info("bot.utils.totp.qr.code.info", qr_size=len(qr_data))
                 return qr_data
@@ -262,10 +422,11 @@ class TwoFactorAuthenticator(BaseComponent):
                 log.debug("bot.utils.totp.verification.start")
 
                 current_step = int(time.time()) // self.TOTP_INTERVAL
-                matched_step = self._resolve_matching_step(
+                matched_step = _resolve_matching_step(
                     totp=totp,
                     code=cleaned_code,
                     current_step=current_step,
+                    interval=self.TOTP_INTERVAL,
                 )
 
                 if matched_step is None:
@@ -275,8 +436,11 @@ class TwoFactorAuthenticator(BaseComponent):
                     )
                     return False
 
-                if not self._register_code_usage(
-                    cleaned_code, matched_step, current_step
+                if not _register_code_usage(
+                    self,
+                    code=cleaned_code,
+                    matched_step=matched_step,
+                    current_step=current_step,
                 ):
                     log.warning("bot.utils.totp.verification.replay.fail")
                     return False
@@ -289,133 +453,3 @@ class TwoFactorAuthenticator(BaseComponent):
                 raise TOTPError(
                     f"TOTP verification failed for user {self.username}: {e}"
                 ) from e
-
-    def _resolve_matching_step(
-        self, totp: pyotp.TOTP, code: str, current_step: int
-    ) -> int | None:
-        """Resolve the exact time-step for a code inside verification window."""
-        for step in range(current_step - 1, current_step + 2):
-            step_time = datetime.fromtimestamp(step * self.TOTP_INTERVAL, tz=UTC)
-            if totp.verify(code, for_time=step_time, valid_window=0):
-                return step
-        return None
-
-    def _register_code_usage(
-        self, code: str, matched_step: int, current_step: int
-    ) -> bool:
-        """Reject replayed TOTP codes and track successful code usage."""
-        min_step = current_step - self._REPLAY_WINDOW_STEPS
-        code_marker = (code, matched_step)
-
-        with self._used_totp_codes_lock:
-            self._load_replay_state_locked(min_step=min_step)
-            user_entries = {
-                marker
-                for marker in self._used_totp_codes.get(self.user_id, set())
-                if marker[1] >= min_step
-            }
-            if code_marker in user_entries:
-                self._used_totp_codes[self.user_id] = user_entries
-                self._persist_replay_state_locked(min_step=min_step)
-                return False
-
-            user_entries.add(code_marker)
-            if len(user_entries) > self._MAX_TRACKED_CODES_PER_USER:
-                sorted_entries = sorted(user_entries, key=lambda marker: marker[1])
-                user_entries = set(sorted_entries[-self._MAX_TRACKED_CODES_PER_USER :])
-            self._used_totp_codes[self.user_id] = user_entries
-            self._persist_replay_state_locked(min_step=min_step)
-            return True
-
-    @classmethod
-    def _load_replay_state_locked(cls, *, min_step: int) -> None:
-        if cls._replay_state_loaded:
-            return
-        cls._replay_state_loaded = True
-
-        state_file = cls._REPLAY_STATE_FILE
-        try:
-            payload_raw = state_file.read_text(encoding="utf-8")
-            payload = json.loads(payload_raw)
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
-            return
-
-        if not isinstance(payload, dict):
-            return
-        replay_state = payload.get("replay")
-        if not isinstance(replay_state, dict):
-            return
-
-        loaded_entries: dict[int, set[tuple[str, int]]] = {}
-        for raw_user_id, markers in replay_state.items():
-            if not isinstance(raw_user_id, str) or not raw_user_id.isdigit():
-                continue
-            if not isinstance(markers, list):
-                continue
-
-            user_id = int(raw_user_id)
-            user_markers: set[tuple[str, int]] = set()
-            for marker in markers:
-                if (
-                    isinstance(marker, list)
-                    and len(marker) == 2
-                    and isinstance(marker[0], str)
-                    and isinstance(marker[1], int)
-                    and marker[1] >= min_step
-                ):
-                    user_markers.add((marker[0], marker[1]))
-
-            if user_markers:
-                loaded_entries[user_id] = user_markers
-
-        if loaded_entries:
-            cls._used_totp_codes.update(loaded_entries)
-
-    @classmethod
-    def _persist_replay_state_locked(cls, *, min_step: int) -> None:
-        state_file = cls._REPLAY_STATE_FILE
-        parent_dir = state_file.parent
-        try:
-            ensure_private_directory(parent_dir)
-        except OSError:
-            return
-
-        pruned_entries: dict[int, set[tuple[str, int]]] = {}
-        for user_id, markers in cls._used_totp_codes.items():
-            active_markers = {
-                marker
-                for marker in markers
-                if isinstance(marker[0], str)
-                and isinstance(marker[1], int)
-                and marker[1] >= min_step
-            }
-            if active_markers:
-                pruned_entries[user_id] = active_markers
-
-        cls._used_totp_codes = pruned_entries
-
-        payload = {
-            "replay": {
-                str(user_id): [[code, step] for code, step in sorted(markers)]
-                for user_id, markers in pruned_entries.items()
-            }
-        }
-
-        temp_path: str | None = None
-        try:
-            file_descriptor, temp_path = tempfile.mkstemp(
-                prefix=".totp_replay_",
-                suffix=".json",
-                dir=str(parent_dir),
-                text=True,
-            )
-            with os.fdopen(file_descriptor, "w", encoding="utf-8") as temp_file:
-                json.dump(payload, temp_file, separators=(",", ":"), sort_keys=True)
-            os.chmod(temp_path, 0o600)
-            os.replace(temp_path, state_file)
-        except OSError:
-            if temp_path is not None:
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass

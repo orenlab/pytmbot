@@ -11,6 +11,7 @@ from telebot.handler_backends import CancelUpdate
 from telebot.types import CallbackQuery, Message
 
 import pytmbot.middleware.update_dedup as update_dedup_module
+from tests._telebot_objects import telegram_object_from_payload
 
 type _PayloadScalar = str | int | float | bool | None
 type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
@@ -30,11 +31,11 @@ def _build_message(*, chat_id: int, message_id: int | None) -> Message:
         "from": {"id": 99, "is_bot": False, "first_name": "T"},
         "text": "x",
     }
-    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
-    message = message_from_json(payload)
-    if not isinstance(message, Message):
-        raise AssertionError("Expected Message instance")
-    return message
+    return telegram_object_from_payload(
+        payload,
+        parser=cast(Callable[[_PayloadDict], Message], Message.de_json),
+        expected_type=Message,
+    )
 
 
 def _build_callback(*, callback_id: str, message_id: int = 1) -> CallbackQuery:
@@ -51,13 +52,11 @@ def _build_callback(*, callback_id: str, message_id: int = 1) -> CallbackQuery:
             "text": "x",
         },
     }
-    callback_from_json = cast(
-        Callable[[_PayloadDict], CallbackQuery], CallbackQuery.de_json
+    return telegram_object_from_payload(
+        payload,
+        parser=cast(Callable[[_PayloadDict], CallbackQuery], CallbackQuery.de_json),
+        expected_type=CallbackQuery,
     )
-    callback = callback_from_json(payload)
-    if not isinstance(callback, CallbackQuery):
-        raise AssertionError("Expected CallbackQuery instance")
-    return callback
 
 
 def test_update_dedup_rejects_invalid_configuration() -> None:

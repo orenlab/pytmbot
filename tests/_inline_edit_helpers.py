@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import ModuleType
 from typing import Protocol
 
 import pytest
@@ -79,4 +80,28 @@ def patch_rate_limited_edit_error(
             429,
             result_json={"parameters": {"retry_after": retry_after}},
         )
+    )
+
+
+def patch_authorized_inline_render(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    parse_module: ModuleType,
+    parse_name: str,
+    parse_result: object,
+    authorize_module: ModuleType,
+    render_module: ModuleType,
+    render_name: str,
+    render_result: object,
+) -> None:
+    monkeypatch.setattr(parse_module, parse_name, lambda data: parse_result)
+    monkeypatch.setattr(
+        authorize_module,
+        "authorize_docker_callback_request",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        render_module,
+        render_name,
+        lambda *args, **kwargs: render_result,
     )

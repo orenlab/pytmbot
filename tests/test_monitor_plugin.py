@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import ClassVar, cast
+from typing import Any, cast
 
 import pytest
 from telebot import TeleBot
@@ -29,77 +29,90 @@ class _Message:
     text: str | None = None
 
 
-class _StubMonitorAdapter:
-    cpu_percent: ClassVar[float] = 0.0
-    cpu_percent_per_core: ClassVar[list[float]] = []
-    memory_percent: ClassVar[float] = 0.0
-    disk_percent: ClassVar[float] = 0.0
-    sensor_value: ClassVar[float] = 0.0
-    load_average: ClassVar[tuple[float, float, float]] = (0.0, 0.0, 0.0)
-    top_processes: ClassVar[list[_PayloadDict]] = []
-    fail_cpu_usage: ClassVar[bool] = False
-    last_top_count: ClassVar[int | None] = None
-    closed_state: ClassVar[dict[str, bool] | None] = None
+def _configure_monitor_adapter(
+    cls: Any,
+    *,
+    cpu_percent: float = 0.0,
+    cpu_percent_per_core: list[float] | None = None,
+    memory_percent: float = 0.0,
+    disk_percent: float = 0.0,
+    sensor_value: float = 0.0,
+    load_average: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    top_processes: list[_PayloadDict] | None = None,
+    fail_cpu_usage: bool = False,
+    closed_state: dict[str, bool] | None = None,
+) -> None:
+    cls.cpu_percent = cpu_percent
+    cls.cpu_percent_per_core = list(cpu_percent_per_core or [])
+    cls.memory_percent = memory_percent
+    cls.disk_percent = disk_percent
+    cls.sensor_value = sensor_value
+    cls.load_average = load_average
+    cls.top_processes = list(top_processes or [])
+    cls.fail_cpu_usage = fail_cpu_usage
+    cls.last_top_count = None
+    cls.closed_state = closed_state
 
-    @classmethod
-    def configure(
-        cls,
-        *,
-        cpu_percent: float = 0.0,
-        cpu_percent_per_core: list[float] | None = None,
-        memory_percent: float = 0.0,
-        disk_percent: float = 0.0,
-        sensor_value: float = 0.0,
-        load_average: tuple[float, float, float] = (0.0, 0.0, 0.0),
-        top_processes: list[_PayloadDict] | None = None,
-        fail_cpu_usage: bool = False,
-        closed_state: dict[str, bool] | None = None,
-    ) -> None:
-        cls.cpu_percent = cpu_percent
-        cls.cpu_percent_per_core = list(cpu_percent_per_core or [])
-        cls.memory_percent = memory_percent
-        cls.disk_percent = disk_percent
-        cls.sensor_value = sensor_value
-        cls.load_average = load_average
-        cls.top_processes = list(top_processes or [])
-        cls.fail_cpu_usage = fail_cpu_usage
-        cls.last_top_count = None
-        cls.closed_state = closed_state
 
-    @classmethod
-    def get_cpu_usage(cls) -> _PayloadDict:
-        if cls.fail_cpu_usage:
-            raise RuntimeError("cpu snapshot failed")
-        return {
-            "cpu_percent": cls.cpu_percent,
-            "cpu_percent_per_core": list(cls.cpu_percent_per_core),
-        }
+def _get_monitor_cpu_usage(cls: Any) -> _PayloadDict:
+    if cls.fail_cpu_usage:
+        raise RuntimeError("cpu snapshot failed")
+    return {
+        "cpu_percent": cls.cpu_percent,
+        "cpu_percent_per_core": list(cls.cpu_percent_per_core),
+    }
 
-    @classmethod
-    def get_load_average(cls) -> tuple[float, float, float]:
-        return cls.load_average
 
-    @classmethod
-    def get_top_processes(cls, count: int = 5) -> list[_PayloadDict]:
-        cls.last_top_count = count
-        return list(cls.top_processes)
+def _get_monitor_load_average(cls: Any) -> tuple[float, float, float]:
+    return cast(tuple[float, float, float], cls.load_average)
 
-    @classmethod
-    def get_memory(cls) -> _PayloadDict:
-        return {"percent": cls.memory_percent}
 
-    @classmethod
-    def get_disk_usage(cls) -> list[_PayloadDict]:
-        return [{"mnt_point": "/", "percent": cls.disk_percent}]
+def _get_monitor_top_processes(cls: Any, count: int = 5) -> list[_PayloadDict]:
+    cls.last_top_count = count
+    return list(cls.top_processes)
 
-    @classmethod
-    def get_sensors_temperatures(cls) -> list[_PayloadDict]:
-        return [{"sensor_name": "cpu", "sensor_value": cls.sensor_value}]
 
-    @classmethod
-    def close(cls) -> None:
-        if cls.closed_state is not None:
-            cls.closed_state["value"] = True
+def _get_monitor_memory(cls: Any) -> _PayloadDict:
+    return {"percent": cls.memory_percent}
+
+
+def _get_monitor_disk_usage(cls: Any) -> list[_PayloadDict]:
+    return [{"mnt_point": "/", "percent": cls.disk_percent}]
+
+
+def _get_monitor_temperatures(cls: Any) -> list[_PayloadDict]:
+    return [{"sensor_name": "cpu", "sensor_value": cls.sensor_value}]
+
+
+def _close_monitor_adapter(cls: Any) -> None:
+    if cls.closed_state is not None:
+        cls.closed_state["value"] = True
+
+
+_StubMonitorAdapter: Any = type(
+    "_StubMonitorAdapter",
+    (),
+    {
+        "cpu_percent": 0.0,
+        "cpu_percent_per_core": [],
+        "memory_percent": 0.0,
+        "disk_percent": 0.0,
+        "sensor_value": 0.0,
+        "load_average": (0.0, 0.0, 0.0),
+        "top_processes": [],
+        "fail_cpu_usage": False,
+        "last_top_count": None,
+        "closed_state": None,
+        "configure": classmethod(_configure_monitor_adapter),
+        "get_cpu_usage": classmethod(_get_monitor_cpu_usage),
+        "get_load_average": classmethod(_get_monitor_load_average),
+        "get_top_processes": classmethod(_get_monitor_top_processes),
+        "get_memory": classmethod(_get_monitor_memory),
+        "get_disk_usage": classmethod(_get_monitor_disk_usage),
+        "get_sensors_temperatures": classmethod(_get_monitor_temperatures),
+        "close": classmethod(_close_monitor_adapter),
+    },
+)
 
 
 def _patch_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -141,10 +154,28 @@ def _patch_ui_helpers(
     )
 
 
+def _build_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+    sent_messages: list[_PayloadDict],
+    *,
+    keyboard_name: str | None = None,
+    emoji: str | None = None,
+    **adapter_config: object,
+) -> MonitoringPlugin:
+    _StubMonitorAdapter.configure(**cast(dict[str, Any], adapter_config))
+    _patch_adapter(monkeypatch)
+    _patch_send_message(monkeypatch, sent_messages)
+    if keyboard_name is not None and emoji is not None:
+        _patch_ui_helpers(monkeypatch, keyboard_name=keyboard_name, emoji=emoji)
+    return MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
+
+
 def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
     sent_messages: list[_PayloadDict] = []
     adapter_closed = {"value": False}
-    _StubMonitorAdapter.configure(
+    plugin = _build_plugin(
+        monkeypatch,
+        sent_messages,
         cpu_percent=12.3,
         cpu_percent_per_core=[10.0, 14.6],
         load_average=(0.12, 0.34, 0.56),
@@ -157,12 +188,9 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
             }
         ],
         closed_state=adapter_closed,
+        keyboard_name="monitor-kbd",
+        emoji="📈",
     )
-    _patch_adapter(monkeypatch)
-    _patch_ui_helpers(monkeypatch, keyboard_name="monitor-kbd", emoji="📈")
-    _patch_send_message(monkeypatch, sent_messages)
-
-    plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
     result = plugin.handle_cpu_usage(cast(Message, cast(object, _Message())))
 
     assert result is not None
@@ -183,11 +211,12 @@ def test_handle_cpu_usage_failure_fallback(
 ) -> None:
     sent_messages: list[_PayloadDict] = []
     adapter_closed = {"value": False}
-    _StubMonitorAdapter.configure(fail_cpu_usage=True, closed_state=adapter_closed)
-    _patch_adapter(monkeypatch)
-    _patch_send_message(monkeypatch, sent_messages)
-
-    plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
+    plugin = _build_plugin(
+        monkeypatch,
+        sent_messages,
+        fail_cpu_usage=True,
+        closed_state=adapter_closed,
+    )
     plugin.handle_cpu_usage(cast(Message, cast(object, _Message())))
 
     assert adapter_closed["value"] is False
@@ -201,18 +230,17 @@ def test_handle_monitoring_uses_html_parse_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent_messages: list[_PayloadDict] = []
-    _StubMonitorAdapter.configure(
+    plugin = _build_plugin(
+        monkeypatch,
+        sent_messages,
         cpu_percent=21.7,
         cpu_percent_per_core=[21.7],
         memory_percent=48.1,
         disk_percent=71.4,
         sensor_value=59.0,
+        keyboard_name="monitor-main-kbd",
+        emoji="ℹ️",
     )
-    _patch_adapter(monkeypatch)
-    _patch_ui_helpers(monkeypatch, keyboard_name="monitor-main-kbd", emoji="ℹ️")
-    _patch_send_message(monkeypatch, sent_messages)
-
-    plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
     plugin.handle_monitoring(cast(Message, cast(object, _Message())))
 
     assert len(sent_messages) == 1
@@ -226,18 +254,17 @@ def test_handle_period_choice_updates_selected_period(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent_messages: list[_PayloadDict] = []
-    _StubMonitorAdapter.configure(
+    plugin = _build_plugin(
+        monkeypatch,
+        sent_messages,
         cpu_percent=10.0,
         cpu_percent_per_core=[10.0],
         memory_percent=11.0,
         disk_percent=22.0,
         sensor_value=33.0,
+        keyboard_name="monitor-main-kbd",
+        emoji="ℹ️",
     )
-    _patch_adapter(monkeypatch)
-    _patch_ui_helpers(monkeypatch, keyboard_name="monitor-main-kbd", emoji="ℹ️")
-    _patch_send_message(monkeypatch, sent_messages)
-
-    plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
     period_message = _Message()
     period_message.text = monitor_config.PERIOD_PRESETS["24h"]["label"]
     plugin.handle_period_choice(cast(Message, cast(object, period_message)))
@@ -252,18 +279,17 @@ def test_handle_period_choice_accepts_emoji_prefixed_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent_messages: list[_PayloadDict] = []
-    _StubMonitorAdapter.configure(
+    plugin = _build_plugin(
+        monkeypatch,
+        sent_messages,
         cpu_percent=15.0,
         cpu_percent_per_core=[15.0],
         memory_percent=25.0,
         disk_percent=35.0,
         sensor_value=45.0,
+        keyboard_name="monitor-main-kbd",
+        emoji="ℹ️",
     )
-    _patch_adapter(monkeypatch)
-    _patch_ui_helpers(monkeypatch, keyboard_name="monitor-main-kbd", emoji="ℹ️")
-    _patch_send_message(monkeypatch, sent_messages)
-
-    plugin = MonitoringPlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
     period_message = _Message()
     period_message.text = "⏳ Last 15 minutes"
     plugin.handle_period_choice(cast(Message, cast(object, period_message)))

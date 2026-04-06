@@ -76,35 +76,47 @@ class _Sent:
     message_id: int = 99
 
 
-@dataclass
-class _Bot:
-    sent_messages: list[_PayloadDict] = field(default_factory=list)
-    replies: list[_PayloadDict] = field(default_factory=list)
-    actions: list[tuple[int, str]] = field(default_factory=list)
-    deleted: list[tuple[int, int]] = field(default_factory=list)
-    sent_photos: list[_PayloadDict] = field(default_factory=list)
+def _make_bot() -> SimpleNamespace:
+    sent_messages: list[_PayloadDict] = []
+    replies: list[_PayloadDict] = []
+    actions: list[tuple[int, str]] = []
+    deleted: list[tuple[int, int]] = []
+    sent_photos: list[_PayloadDict] = []
 
-    def send_message(self, chat_id: int, text: str, **kwargs: _PayloadValue) -> _Sent:
-        self.sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
+    def send_message(chat_id: int, text: str, **kwargs: _PayloadValue) -> _Sent:
+        sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return _Sent()
 
-    def reply_to(self, message: _Msg, text: str, **kwargs: _PayloadValue) -> _Sent:
-        self.replies.append({"message_id": message.message_id, "text": text, **kwargs})
+    def reply_to(message: _Msg, text: str, **kwargs: _PayloadValue) -> _Sent:
+        replies.append({"message_id": message.message_id, "text": text, **kwargs})
         return _Sent()
 
-    def send_chat_action(self, chat_id: int, action: str) -> bool:
-        self.actions.append((chat_id, action))
+    def send_chat_action(chat_id: int, action: str) -> bool:
+        actions.append((chat_id, action))
         return True
 
-    def delete_message(self, chat_id: int, message_id: int) -> bool:
-        self.deleted.append((chat_id, message_id))
+    def delete_message(chat_id: int, message_id: int) -> bool:
+        deleted.append((chat_id, message_id))
         return True
 
     def send_photo(
-        self, chat_id: int, photo: _PayloadValue, **kwargs: _PayloadValue
+        chat_id: int, photo: _PayloadValue, **kwargs: _PayloadValue
     ) -> _Sent:
-        self.sent_photos.append({"chat_id": chat_id, "photo": photo, **kwargs})
+        sent_photos.append({"chat_id": chat_id, "photo": photo, **kwargs})
         return _Sent(message_id=123)
+
+    return SimpleNamespace(
+        sent_messages=sent_messages,
+        replies=replies,
+        actions=actions,
+        deleted=deleted,
+        sent_photos=sent_photos,
+        send_message=send_message,
+        reply_to=reply_to,
+        send_chat_action=send_chat_action,
+        delete_message=delete_message,
+        send_photo=send_photo,
+    )
 
 
 @dataclass
@@ -114,55 +126,78 @@ class _StateFabric:
     BLOCKED: str = "blocked"
 
 
-@dataclass
-class _SessionManagerStub:
-    state_fabric: _StateFabric = field(default_factory=_StateFabric)
-    blocked_users: set[int] = field(default_factory=set)
-    auth_states: dict[int, str] = field(default_factory=dict)
-    attempts: dict[int, int] = field(default_factory=dict)
-    blocked_until: dict[int, datetime] = field(default_factory=dict)
-    referer_uri: str | None = None
-    handler_type: str = "message"
-    login_set: list[int] = field(default_factory=list)
-    referer_reset: list[int] = field(default_factory=list)
+def _make_session_manager_stub() -> SimpleNamespace:
+    state_fabric = _StateFabric()
+    blocked_users: set[int] = set()
+    auth_states: dict[int, str] = {}
+    attempts: dict[int, int] = {}
+    blocked_until: dict[int, datetime] = {}
+    login_set: list[int] = []
+    referer_reset: list[int] = []
 
-    def is_blocked(self, user_id: int) -> bool:
-        return user_id in self.blocked_users
+    session_manager = SimpleNamespace(
+        state_fabric=state_fabric,
+        blocked_users=blocked_users,
+        auth_states=auth_states,
+        attempts=attempts,
+        blocked_until=blocked_until,
+        referer_uri=None,
+        handler_type="message",
+        login_set=login_set,
+        referer_reset=referer_reset,
+    )
 
-    def set_auth_state(self, user_id: int, state: str) -> None:
-        self.auth_states[user_id] = state
+    def is_blocked(user_id: int) -> bool:
+        return user_id in blocked_users
 
-    def get_auth_state(self, user_id: int) -> str:
-        return self.auth_states.get(user_id, "idle")
+    def set_auth_state(user_id: int, state: str) -> None:
+        auth_states[user_id] = state
 
-    def get_blocked_time(self, user_id: int) -> datetime | None:
-        return self.blocked_until.get(user_id)
+    def get_auth_state(user_id: int) -> str:
+        return auth_states.get(user_id, "idle")
 
-    def set_blocked_time(self, user_id: int) -> None:
-        self.blocked_until[user_id] = datetime.now() + timedelta(minutes=1)
+    def get_blocked_time(user_id: int) -> datetime | None:
+        return blocked_until.get(user_id)
 
-    def get_totp_attempts(self, user_id: int) -> int:
-        return self.attempts.get(user_id, 0)
+    def set_blocked_time(user_id: int) -> None:
+        blocked_until[user_id] = datetime.now() + timedelta(minutes=1)
 
-    def increment_totp_attempts(self, user_id: int) -> None:
-        self.attempts[user_id] = self.attempts.get(user_id, 0) + 1
+    def get_totp_attempts(user_id: int) -> int:
+        return attempts.get(user_id, 0)
 
-    def reset_totp_attempts(self, user_id: int) -> None:
-        self.attempts[user_id] = 0
+    def increment_totp_attempts(user_id: int) -> None:
+        attempts[user_id] = attempts.get(user_id, 0) + 1
 
-    def set_login_time(self, user_id: int) -> None:
-        self.login_set.append(user_id)
+    def reset_totp_attempts(user_id: int) -> None:
+        attempts[user_id] = 0
 
-    def get_handler_type(self, user_id: int) -> str:
+    def set_login_time(user_id: int) -> None:
+        login_set.append(user_id)
+
+    def get_handler_type(user_id: int) -> str:
         del user_id
-        return self.handler_type
+        return str(session_manager.handler_type)
 
-    def get_referer_uri(self, user_id: int) -> str | None:
+    def get_referer_uri(user_id: int) -> str | None:
         del user_id
-        return self.referer_uri
+        return cast(str | None, session_manager.referer_uri)
 
-    def reset_referer_data(self, user_id: int) -> None:
-        self.referer_reset.append(user_id)
+    def reset_referer_data(user_id: int) -> None:
+        referer_reset.append(user_id)
+
+    session_manager.is_blocked = is_blocked
+    session_manager.set_auth_state = set_auth_state
+    session_manager.get_auth_state = get_auth_state
+    session_manager.get_blocked_time = get_blocked_time
+    session_manager.set_blocked_time = set_blocked_time
+    session_manager.get_totp_attempts = get_totp_attempts
+    session_manager.increment_totp_attempts = increment_totp_attempts
+    session_manager.reset_totp_attempts = reset_totp_attempts
+    session_manager.set_login_time = set_login_time
+    session_manager.get_handler_type = get_handler_type
+    session_manager.get_referer_uri = get_referer_uri
+    session_manager.reset_referer_data = reset_referer_data
+    return session_manager
 
 
 def _raw_session_handler(handler: _SessionRawInput) -> _MessageHandler:
@@ -185,7 +220,7 @@ def test_auth_helpers_get_user_name_and_send_response(
     assert auth_module._get_user_name(cast(Message, msg)) == "Denis"
     assert auth_module._get_user_name(cast(Message, _Msg(from_user=None))) == "User"
 
-    bot = _Bot()
+    bot = _make_bot()
     auth_module._send_response(
         cast(Message, msg),
         cast(TeleBot, bot),
@@ -225,7 +260,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
 
     auth_module._handle_auth_message(
         query=cast(Message, _Msg()),
-        bot=cast(TeleBot, _Bot()),
+        bot=cast(TeleBot, _make_bot()),
         template_name="tpl",
         keyboard_type="auth",
         emojis={},
@@ -236,7 +271,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(NotImplementedError):
         auth_module._handle_auth_message(
             query=cast(Message, 123),
-            bot=cast(TeleBot, _Bot()),
+            bot=cast(TeleBot, _make_bot()),
             template_name="tpl",
             keyboard_type="auth",
             emojis={},
@@ -254,7 +289,7 @@ def test_auth_handle_message_success_and_error(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(exceptions.AuthError) as exc_info:
         auth_module._handle_auth_message(
             query=cast(Message, _Msg()),
-            bot=cast(TeleBot, _Bot()),
+            bot=cast(TeleBot, _make_bot()),
             template_name="tpl",
             keyboard_type="auth",
             emojis={},
@@ -278,9 +313,9 @@ def test_auth_public_handlers_delegate(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     auth_module.handle_unauthorized_message(
-        cast(Message, _Msg()), cast(TeleBot, _Bot())
+        cast(Message, _Msg()), cast(TeleBot, _make_bot())
     )
-    auth_module.handle_access_denied(cast(Message, _Msg()), cast(TeleBot, _Bot()))
+    auth_module.handle_access_denied(cast(Message, _Msg()), cast(TeleBot, _make_bot()))
     assert called == [
         ("a_auth_required.jinja2", "auth_keyboard"),
         ("a_access_denied.jinja2", "back_keyboard"),
@@ -325,7 +360,7 @@ def test_twofa_send_totp_code_message_private_and_group(
         chat=_Chat(id=1, type="private"), from_user=_User(first_name="Alice")
     )
     twofa_module._send_totp_code_message(
-        cast(Message, private_message), cast(TeleBot, _Bot())
+        cast(Message, private_message), cast(TeleBot, _make_bot())
     )
     assert captured[-1]["reply_to_message_id"] is None
 
@@ -333,7 +368,7 @@ def test_twofa_send_totp_code_message_private_and_group(
         chat=_Chat(id=2, type="group"), from_user=_User(first_name="Bob")
     )
     twofa_module._send_totp_code_message(
-        cast(Message, group_message), cast(TeleBot, _Bot())
+        cast(Message, group_message), cast(TeleBot, _make_bot())
     )
     assert captured[-1]["reply_to_message_id"] == group_message.message_id
 
@@ -341,10 +376,10 @@ def test_twofa_send_totp_code_message_private_and_group(
 def test_twofa_invalid_and_max_attempt_and_blocking_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session_stub = _SessionManagerStub()
+    session_stub = _make_session_manager_stub()
     monkeypatch.setattr(twofa_module, "session_manager", session_stub)
 
-    bot = _Bot()
+    bot = _make_bot()
     message = _Msg(from_user=_User(id=7), text="bad-code")
 
     twofa_module._handle_invalid_totp_code(cast(Message, message), cast(TeleBot, bot))
@@ -364,7 +399,7 @@ def test_twofa_invalid_and_max_attempt_and_blocking_paths(
 def test_twofa_create_referer_keyboard_and_reset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session_stub = _SessionManagerStub()
+    session_stub = _make_session_manager_stub()
     session_stub.referer_uri = "/docker"
     monkeypatch.setattr(twofa_module, "session_manager", session_stub)
     monkeypatch.setattr(
@@ -391,7 +426,7 @@ def test_twofa_create_referer_keyboard_and_reset(
 def test_handle_twofa_message_and_totp_verification_branches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session_stub = _SessionManagerStub()
+    session_stub = _make_session_manager_stub()
     session_stub.auth_states[55] = session_stub.state_fabric.PROCESSING
     monkeypatch.setattr(twofa_module, "session_manager", session_stub)
     monkeypatch.setattr(
@@ -443,7 +478,7 @@ def test_handle_twofa_message_and_totp_verification_branches(
 
     raw_twofa = _raw_session_handler(twofa_module.handle_twofa_message)
     raw_verify = _raw_session_handler(twofa_module.handle_totp_code_verification)
-    bot = _Bot()
+    bot = _make_bot()
 
     # handle_twofa_message with blocked user.
     blocked_msg = _Msg(from_user=_User(id=77))
@@ -510,7 +545,7 @@ def test_qrcode_handler_success_limit_and_failure_paths(
     )
 
     raw_qr = _raw_qr_handler(qrcode_module.handle_qr_code_message)
-    bot = _Bot()
+    bot = _make_bot()
     message = _Msg(from_user=_User(id=11), chat=_Chat(id=1))
     sent = raw_qr(cast(Message, message), cast(TeleBot, bot), 60)
     assert sent is not None
@@ -561,7 +596,7 @@ def test_qrcode_handler_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     raw_qr = _raw_qr_handler(qrcode_module.handle_qr_code_message)
-    bot = _Bot()
+    bot = _make_bot()
     message = _Msg(from_user=_User(id=11), chat=_Chat(id=1))
 
     with pytest.raises(exceptions.HandlingException) as exc_info:
@@ -577,7 +612,7 @@ def test_qrcode_deletion_callback_sends_back_navigation(
         "_build_back_navigation_keyboard",
         lambda: "back-kbd",
     )
-    bot = _Bot()
+    bot = _make_bot()
     callback = message_deletion_module.create_post_delete_navigation_callback(
         qrcode_module._qr_deletion_callback,
         bot=cast(TeleBot, bot),

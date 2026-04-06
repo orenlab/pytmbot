@@ -245,14 +245,12 @@ class BotLauncher(logs.BaseComponent):
             return False
         current_overall = str(current_summary.get("overall", "offline"))
 
-        if (
+        should_log_now = (
             self._previous_health_level is None
             or current_overall != self._previous_health_level
-        ):
-            self._last_health_log = current_time
-            return True
-
-        if (current_time - self._last_health_log) >= self.HEALTH_LOG_INTERVAL:
+            or (current_time - self._last_health_log) >= self.HEALTH_LOG_INTERVAL
+        )
+        if should_log_now:
             self._last_health_log = current_time
             return True
         return False

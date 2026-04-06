@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from types import TracebackType
+from types import SimpleNamespace, TracebackType
 from typing import Literal, cast
 
 import pytest
@@ -20,6 +20,11 @@ from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import DeletionResult, DeletionStatus
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
 from tests._inline_edit_helpers import assert_reply_markup_has_callbacks
+from tests._telebot_objects import (
+    record_callback_answer,
+    record_edited_message,
+    unwrap_handler,
+)
 
 _NOT_MODIFIED_DESCRIPTION = (
     "Bad Request: message is not modified: specified new message content and reply "
@@ -76,44 +81,45 @@ type _HandlerInput = (
 )
 
 
-@dataclass
-class _Bot:
-    sent_messages: list[_PayloadDict] = field(default_factory=list)
-    callback_answers: list[_PayloadDict] = field(default_factory=list)
-    edited_messages: list[_PayloadDict] = field(default_factory=list)
-    chat_actions: list[tuple[int, str]] = field(default_factory=list)
-    admin_ids: list[int] = field(default_factory=list)
+def _make_bot() -> SimpleNamespace:
+    sent_messages: list[_PayloadDict] = []
+    callback_answers: list[_PayloadDict] = []
+    edited_messages: list[_PayloadDict] = []
+    chat_actions: list[tuple[int, str]] = []
+    admin_ids: list[int] = []
 
-    def send_chat_action(self, chat_id: int, action: str) -> bool:
-        self.chat_actions.append((chat_id, action))
+    def send_chat_action(chat_id: int, action: str) -> bool:
+        chat_actions.append((chat_id, action))
         return True
 
-    def send_message(
-        self, chat_id: int, text: str, **kwargs: _PayloadValue
-    ) -> _SentMessage:
+    def send_message(chat_id: int, text: str, **kwargs: _PayloadValue) -> _SentMessage:
         payload: _PayloadDict = {"chat_id": chat_id, "text": text, **kwargs}
-        self.sent_messages.append(payload)
-        return _SentMessage(message_id=1000 + len(self.sent_messages))
+        sent_messages.append(payload)
+        return _SentMessage(message_id=1000 + len(sent_messages))
 
-    def answer_callback_query(
-        self, callback_query_id: str, **kwargs: _PayloadValue
-    ) -> str:
-        payload: _PayloadDict = {
-            "callback_query_id": callback_query_id,
-            **kwargs,
-        }
-        self.callback_answers.append(payload)
+    def answer_callback_query(callback_query_id: str, **kwargs: _PayloadValue) -> str:
+        record_callback_answer(callback_answers, callback_query_id, **kwargs)
         return "ok"
 
-    def edit_message_text(self, **kwargs: _PayloadValue) -> str:
-        self.edited_messages.append(dict(kwargs))
+    def edit_message_text(**kwargs: _PayloadValue) -> str:
+        record_edited_message(edited_messages, **kwargs)
         return "edited"
+
+    return SimpleNamespace(
+        sent_messages=sent_messages,
+        callback_answers=callback_answers,
+        edited_messages=edited_messages,
+        chat_actions=chat_actions,
+        admin_ids=admin_ids,
+        send_chat_action=send_chat_action,
+        send_message=send_message,
+        answer_callback_query=answer_callback_query,
+        edit_message_text=edit_message_text,
+    )
 
 
 def _raw_handler(handler: _HandlerInput) -> _ResolvedHandler:
-    first_layer = getattr(handler, "__wrapped__", handler)
-    second_layer = getattr(first_layer, "__wrapped__", first_layer)
-    return cast(_ResolvedHandler, second_layer)
+    return cast(_ResolvedHandler, unwrap_handler(handler, depth=2))
 
 
 def test_getmyid_deletion_callback_logs_statuses(
@@ -156,7 +162,7 @@ def test_getmyid_deletion_callback_logs_statuses(
 
 
 def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, getmyid_module.handle_getmyid))
 
     missing_user_message = _Message(from_user=None)
@@ -219,7 +225,7 @@ def test_handle_getmyid_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_handle_getmyid_raises_handling_exception_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, getmyid_module.handle_getmyid))
 
     monkeypatch.setattr(
@@ -237,7 +243,7 @@ def test_handle_getmyid_raises_handling_exception_on_failure(
 
 def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     sent_payloads: list[_PayloadDict] = []
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, plugins_module.handle_plugins))
 
     @dataclass
@@ -401,7 +407,7 @@ def test_check_bot_update_success_and_fail(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     sent_payloads: list[_PayloadDict] = []
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, updates_module.handle_bot_updates))
 
     monkeypatch.setattr(
@@ -446,7 +452,7 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, inline_update_module.handle_update_info))
 
     assert_standard_callback_auth_paths(
@@ -493,7 +499,7 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_handle_update_info_ignores_not_modified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = _Bot()
+    bot = _make_bot()
     handler = _raw_handler(cast(_HandlerInput, inline_update_module.handle_update_info))
 
     monkeypatch.setattr(
@@ -521,7 +527,7 @@ def test_handle_update_info_ignores_not_modified(
     monkeypatch.setattr(
         inline_common_module, "ApiTelegramException", _ApiTelegramExceptionStub
     )
-    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(  # type: ignore[method-assign]
+    bot.edit_message_text = lambda **kwargs: (_ for _ in ()).throw(
         _ApiTelegramExceptionStub(_NOT_MODIFIED_DESCRIPTION)
     )
 
