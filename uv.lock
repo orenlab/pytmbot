@@ -286,8 +286,8 @@ wheels = [
 
 [[package]]
 name = "codeclone"
-version = "2.0.0b4"
-source = { git = "https://github.com/orenlab/codeclone.git?rev=feat%2F2.0.0b4#37c24e381bf98ba022ea5b91d689f1b0d1767332" }
+version = "2.0.0b5"
+source = { git = "https://github.com/orenlab/codeclone.git?rev=feat%2F2.0.0b5#6953347eb9b29ea284b40cc57cc8b3d3027640a5" }
 dependencies = [
     { name = "orjson" },
     { name = "pygments" },
@@ -1583,7 +1583,7 @@ provides-extras = ["pyoutlineapi", "click"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "codeclone", git = "https://github.com/orenlab/codeclone.git?rev=feat%2F2.0.0b4" },
+    { name = "codeclone", git = "https://github.com/orenlab/codeclone.git?rev=feat%2F2.0.0b5" },
     { name = "mkdocs", specifier = ">=1.6.1,<2" },
     { name = "mkdocs-material", specifier = ">=9.7.5,<10" },
     { name = "mypy", specifier = ">=1.0.0,<2" },

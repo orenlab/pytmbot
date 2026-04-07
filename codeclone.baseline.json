@@ -2,51 +2,30 @@
   "meta": {
     "generator": {
       "name": "codeclone",
-      "version": "2.0.0b1"
+      "version": "2.0.0b5"
     },
     "schema_version": "2.0",
     "fingerprint_version": "1",
     "python_tag": "cp314",
-    "created_at": "2026-03-20T15:45:39Z",
+    "created_at": "2026-04-07T11:07:14Z",
     "payload_sha256": "a2e5e3ac672ddbc7ba95c3a9608257727a01480ef343bc6a70c168fc9355e99a",
-    "metrics_payload_sha256": "5bec2051a3eb1fb0fd2e07ac5037f8cfad84b8aad37ffd3a57732a7c26122669"
+    "metrics_payload_sha256": "498e6ebdbf3af580fcbf38ba41076003d24d6aa35f7474913fd4364da821212b"
   },
   "clones": {
     "functions": [],
     "blocks": []
   },
   "metrics": {
-    "max_complexity": 33,
-    "high_risk_functions": [
-      "pytmbot.adapters.docker.updates:TagAnalyzer.analyze_tag"
-    ],
-    "max_coupling": 12,
-    "high_coupling_classes": [
-      "pytmbot.adapters.docker.updates:DockerImageUpdater",
-      "pytmbot.utils.totp:TwoFactorAuthenticator"
-    ],
-    "max_cohesion": 30,
-    "low_cohesion_classes": [
-      "pytmbot.adapters.docker.utils:MemoryStatsProvider",
-      "pytmbot.handlers.handler_manager:InlineFilters",
-      "pytmbot.models.settings_model:ConfigMigrator",
-      "pytmbot.parsers.compiler:Compiler",
-      "pytmbot.plugins.plugin_manager:PluginManager",
-      "tests.test_auth_handlers:_Bot",
-      "tests.test_auth_handlers:_SessionManagerStub",
-      "tests.test_bot_handlers_misc:_Bot",
-      "tests.test_docker_inline_logs:_DummyBot",
-      "tests.test_monitor_plugin:_StubMonitorAdapter",
-      "tests.test_psutil_adapter_extra:_FakeProcess",
-      "tests.test_psutil_adapter_extra:_FakePsutil",
-      "tests.test_pytmbot_instance:_DummyTeleBot",
-      "tests.test_server_quickview:_ExplodingAdapter",
-      "tests.test_session_wrapper:_SessionManagerStub"
-    ],
+    "max_complexity": 20,
+    "high_risk_functions": [],
+    "max_coupling": 10,
+    "high_coupling_classes": [],
+    "max_cohesion": 3,
+    "low_cohesion_classes": [],
     "dependency_cycles": [],
-    "dependency_max_depth": 17,
+    "dependency_max_depth": 18,
     "dead_code_items": [],
-    "health_score": 68,
-    "health_grade": "C"
+    "health_score": 86,
+    "health_grade": "B"
   }
 }
