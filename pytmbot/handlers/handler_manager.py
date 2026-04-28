@@ -151,235 +151,219 @@ class AdminFilter:
         return message.from_user.id in cls._get_admin_ids()
 
 
-class InlineFilters:
-    """Collection of inline callback filters."""
+def _callback_data(call: CallbackQueryType) -> str | None:
+    """Return callback data when present."""
+    return call.data
 
-    @staticmethod
-    def swap_info(call: CallbackQueryType) -> bool:
-        """Filter for swap info callback."""
-        if call.data is None:
-            return False
-        return call.data == "__swap_info__" or call.data.startswith("__swap_info__:")
 
-    @staticmethod
-    def process_info(call: CallbackQueryType) -> bool:
-        """Filter for process info callback."""
-        if call.data is None:
-            return False
-        return (
-            call.data == "__process_info__"
-            or call.data.startswith("__process_info__:")
-            or call.data == PROCESS_INFO_FROM_PROCESS_PREFIX
-            or call.data.startswith(f"{PROCESS_INFO_FROM_PROCESS_PREFIX}:")
-        )
+def _starts_with(call: CallbackQueryType, prefix: str) -> bool:
+    """Match callback data by prefix."""
+    data = _callback_data(call)
+    return data is not None and data.startswith(prefix)
 
-    @staticmethod
-    def process_overview(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == PROCESS_OVERVIEW_PREFIX or call.data.startswith(
-            f"{PROCESS_OVERVIEW_PREFIX}:"
-        )
 
-    @staticmethod
-    def cpu_info(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__cpu_info__" or call.data.startswith("__cpu_info__:")
+def _matches_exact_or_prefix(call: CallbackQueryType, prefix: str) -> bool:
+    """Match callback data by exact value or ``prefix:...`` form."""
+    data = _callback_data(call)
+    return data is not None and (data == prefix or data.startswith(f"{prefix}:"))
 
-    @staticmethod
-    def cpu_per_core(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__cpu_per_core__" or call.data.startswith(
-            "__cpu_per_core__:"
-        )
 
-    @staticmethod
-    def cpu_times(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__cpu_times__" or call.data.startswith("__cpu_times__:")
+def _update_info_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__how_update__")
 
-    @staticmethod
-    def update_info(call: CallbackQueryType) -> bool:
-        """Filter for update info callback."""
-        if call.data is None:
-            return False
-        return call.data == "__how_update__" or call.data.startswith("__how_update__:")
 
-    @staticmethod
-    def get_logs(call: CallbackQueryType) -> bool:
-        """Filter for get logs callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__get_logs__")
+def _get_logs_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__get_logs__")
 
-    @staticmethod
-    def containers_full_info(call: CallbackQueryType) -> bool:
-        """Filter for containers full info callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__get_full__")
 
-    @staticmethod
-    def back_to_containers(call: CallbackQueryType) -> bool:
-        """Filter for back to containers callback."""
-        if call.data is None:
-            return False
-        return call.data == "back_to_containers" or call.data.startswith(
-            "__containers_page__"
-        )
+def _containers_full_info_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__get_full__")
 
-    @staticmethod
-    def manage_container(call: CallbackQueryType) -> bool:
-        """Filter for manage container callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__manage__")
 
-    @staticmethod
-    def container_extra_info(call: CallbackQueryType) -> bool:
-        """Filter for 2FA-protected container runtime details callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith(CONTAINER_EXTRA_CALLBACK_PREFIX)
+def _back_to_containers_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "back_to_containers") or _starts_with(
+        call, "__containers_page__"
+    )
 
-    @staticmethod
-    def image_updates(call: CallbackQueryType) -> bool:
-        """Filter for image updates callback."""
-        if call.data is None:
-            return False
-        return call.data == "__check_updates__" or call.data.startswith(
-            "__check_updates__:"
-        )
 
-    @staticmethod
-    def images_page(call: CallbackQueryType) -> bool:
-        """Filter for images pagination callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__images_page__")
+def _manage_container_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__manage__")
 
-    @staticmethod
-    def image_info(call: CallbackQueryType) -> bool:
-        """Filter for image details callback."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__image_info__")
 
-    @staticmethod
-    def image_extra(call: CallbackQueryType) -> bool:
-        """Filter for image history/usage callbacks."""
-        if call.data is None:
-            return False
-        return call.data.startswith("__image_extra__")
+def _container_extra_info_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, CONTAINER_EXTRA_CALLBACK_PREFIX)
 
-    @staticmethod
-    def network_overview(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__network_overview__" or call.data.startswith(
-            "__network_overview__:"
-        )
 
-    @staticmethod
-    def network_interfaces(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__network_interfaces__" or call.data.startswith(
-            "__network_interfaces__:"
-        )
+def _image_updates_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__check_updates__")
 
-    @staticmethod
-    def network_connections(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__network_connections__" or call.data.startswith(
-            "__network_connections__:"
-        )
 
-    @staticmethod
-    def filesystem_overview(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__filesystem_overview__" or call.data.startswith(
-            "__filesystem_overview__:"
-        )
+def _images_page_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__images_page__")
 
-    @staticmethod
-    def disk_io(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__disk_io__" or call.data.startswith("__disk_io__:")
 
-    @staticmethod
-    def users_info(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__users_info__" or call.data.startswith("__users_info__:")
+def _image_info_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__image_info__")
 
-    @staticmethod
-    def sensors_overview(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__sensors_overview__" or call.data.startswith(
-            "__sensors_overview__:"
-        )
 
-    @staticmethod
-    def fan_speeds(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__fan_speeds__" or call.data.startswith("__fan_speeds__:")
+def _image_extra_filter(call: CallbackQueryType) -> bool:
+    return _starts_with(call, "__image_extra__")
 
-    @staticmethod
-    def quickview_overview(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__quickview_overview__" or call.data.startswith(
-            "__quickview_overview__:"
-        )
 
-    @staticmethod
-    def quickview_memory(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__quickview_memory__" or call.data.startswith(
-            "__quickview_memory__:"
-        )
+def _swap_info_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__swap_info__")
 
-    @staticmethod
-    def quickview_sensors(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__quickview_sensors__" or call.data.startswith(
-            "__quickview_sensors__:"
-        )
 
-    @staticmethod
-    def quickview_cpu(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__quickview_cpu__" or call.data.startswith(
-            "__quickview_cpu__:"
-        )
+def _process_info_filter(call: CallbackQueryType) -> bool:
+    data = _callback_data(call)
+    return data is not None and (
+        data == "__process_info__"
+        or data.startswith("__process_info__:")
+        or data == PROCESS_INFO_FROM_PROCESS_PREFIX
+        or data.startswith(f"{PROCESS_INFO_FROM_PROCESS_PREFIX}:")
+    )
 
-    @staticmethod
-    def quickview_disk(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == "__quickview_disk__" or call.data.startswith(
-            "__quickview_disk__:"
-        )
 
-    @staticmethod
-    def health_refresh(call: CallbackQueryType) -> bool:
-        if call.data is None:
-            return False
-        return call.data == HEALTH_REFRESH_PREFIX or call.data.startswith(
-            f"{HEALTH_REFRESH_PREFIX}:"
-        )
+def _process_overview_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, PROCESS_OVERVIEW_PREFIX)
+
+
+def _cpu_info_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__cpu_info__")
+
+
+def _cpu_per_core_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__cpu_per_core__")
+
+
+def _cpu_times_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__cpu_times__")
+
+
+def _network_overview_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__network_overview__")
+
+
+def _network_interfaces_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__network_interfaces__")
+
+
+def _network_connections_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__network_connections__")
+
+
+def _filesystem_overview_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__filesystem_overview__")
+
+
+def _disk_io_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__disk_io__")
+
+
+def _users_info_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__users_info__")
+
+
+def _sensors_overview_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__sensors_overview__")
+
+
+def _fan_speeds_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__fan_speeds__")
+
+
+def _quickview_overview_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__quickview_overview__")
+
+
+def _quickview_memory_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__quickview_memory__")
+
+
+def _quickview_sensors_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__quickview_sensors__")
+
+
+def _quickview_cpu_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__quickview_cpu__")
+
+
+def _quickview_disk_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, "__quickview_disk__")
+
+
+def _health_refresh_filter(call: CallbackQueryType) -> bool:
+    return _matches_exact_or_prefix(call, HEALTH_REFRESH_PREFIX)
+
+
+@dataclass(frozen=True, slots=True)
+class _InlineFilterRegistry:
+    """Typed registry preserving the historical ``InlineFilters.*`` API."""
+
+    swap_info: CallbackFilterFunc
+    process_info: CallbackFilterFunc
+    process_overview: CallbackFilterFunc
+    cpu_info: CallbackFilterFunc
+    cpu_per_core: CallbackFilterFunc
+    cpu_times: CallbackFilterFunc
+    update_info: CallbackFilterFunc
+    get_logs: CallbackFilterFunc
+    containers_full_info: CallbackFilterFunc
+    back_to_containers: CallbackFilterFunc
+    manage_container: CallbackFilterFunc
+    container_extra_info: CallbackFilterFunc
+    image_updates: CallbackFilterFunc
+    images_page: CallbackFilterFunc
+    image_info: CallbackFilterFunc
+    image_extra: CallbackFilterFunc
+    network_overview: CallbackFilterFunc
+    network_interfaces: CallbackFilterFunc
+    network_connections: CallbackFilterFunc
+    filesystem_overview: CallbackFilterFunc
+    disk_io: CallbackFilterFunc
+    users_info: CallbackFilterFunc
+    sensors_overview: CallbackFilterFunc
+    fan_speeds: CallbackFilterFunc
+    quickview_overview: CallbackFilterFunc
+    quickview_memory: CallbackFilterFunc
+    quickview_sensors: CallbackFilterFunc
+    quickview_cpu: CallbackFilterFunc
+    quickview_disk: CallbackFilterFunc
+    health_refresh: CallbackFilterFunc
+
+
+InlineFilters: Final[_InlineFilterRegistry] = _InlineFilterRegistry(
+    swap_info=_swap_info_filter,
+    process_info=_process_info_filter,
+    process_overview=_process_overview_filter,
+    cpu_info=_cpu_info_filter,
+    cpu_per_core=_cpu_per_core_filter,
+    cpu_times=_cpu_times_filter,
+    update_info=_update_info_filter,
+    get_logs=_get_logs_filter,
+    containers_full_info=_containers_full_info_filter,
+    back_to_containers=_back_to_containers_filter,
+    manage_container=_manage_container_filter,
+    container_extra_info=_container_extra_info_filter,
+    image_updates=_image_updates_filter,
+    images_page=_images_page_filter,
+    image_info=_image_info_filter,
+    image_extra=_image_extra_filter,
+    network_overview=_network_overview_filter,
+    network_interfaces=_network_interfaces_filter,
+    network_connections=_network_connections_filter,
+    filesystem_overview=_filesystem_overview_filter,
+    disk_io=_disk_io_filter,
+    users_info=_users_info_filter,
+    sensors_overview=_sensors_overview_filter,
+    fan_speeds=_fan_speeds_filter,
+    quickview_overview=_quickview_overview_filter,
+    quickview_memory=_quickview_memory_filter,
+    quickview_sensors=_quickview_sensors_filter,
+    quickview_cpu=_quickview_cpu_filter,
+    quickview_disk=_quickview_disk_filter,
+    health_refresh=_health_refresh_filter,
+)
 
 
 @cache

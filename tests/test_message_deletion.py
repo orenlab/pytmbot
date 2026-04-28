@@ -86,6 +86,28 @@ def manager() -> message_deletion_module._MessageDeletionManager:
     return manager_instance
 
 
+def _register_pending_task(
+    manager: message_deletion_module._MessageDeletionManager,
+    task: message_deletion_module._DeletionTask,
+) -> None:
+    with manager._deletion_lock:
+        manager._active_tasks[(task.user_id, task.message_id)] = task
+        manager._user_pending_deletions[task.user_id].add(task.message_id)
+
+
+def _assert_failed_deletion_result(
+    callback_results: list[message_deletion_module.DeletionResult],
+    *,
+    expected_error_fragment: str,
+    pending_count: int,
+) -> None:
+    assert callback_results
+    result = callback_results[0]
+    assert result.status.name == "FAILED"
+    assert expected_error_fragment in (result.error_message or "")
+    assert pending_count == 0
+
+
 def test_schedule_deletion_success_and_callback(
     manager: message_deletion_module._MessageDeletionManager,
     monkeypatch: pytest.MonkeyPatch,
@@ -129,18 +151,16 @@ def test_execute_deletion_handles_api_error_and_callback(
         callback=callback_results.append,
     )
 
-    with manager._deletion_lock:
-        manager._active_tasks[(3, 20)] = task
-        manager._user_pending_deletions[3].add(20)
+    _register_pending_task(manager, task)
 
     monkeypatch.setattr("pytmbot.utils.message_deletion.time.sleep", lambda _s: None)
     manager._execute_deletion(task)
 
-    assert callback_results
-    result = callback_results[0]
-    assert result.status.name == "FAILED"
-    assert "Telegram API error" in (result.error_message or "")
-    assert manager.get_pending_count(3) == 0
+    _assert_failed_deletion_result(
+        callback_results,
+        expected_error_fragment="Telegram API error",
+        pending_count=manager.get_pending_count(3),
+    )
 
 
 def test_execute_deletion_handles_missing_bot_reference(
@@ -159,17 +179,15 @@ def test_execute_deletion_handles_missing_bot_reference(
         callback=callback_results.append,
     )
 
-    with manager._deletion_lock:
-        manager._active_tasks[(4, 21)] = task
-        manager._user_pending_deletions[4].add(21)
+    _register_pending_task(manager, task)
 
     monkeypatch.setattr("pytmbot.utils.message_deletion.time.sleep", lambda _s: None)
     manager._execute_deletion(task)
 
-    assert callback_results
-    assert callback_results[0].status.name == "FAILED"
-    assert "Bot instance no longer available" in (
-        callback_results[0].error_message or ""
+    _assert_failed_deletion_result(
+        callback_results,
+        expected_error_fragment="Bot instance no longer available",
+        pending_count=manager.get_pending_count(4),
     )
 
 
@@ -185,9 +203,7 @@ def test_cleanup_stale_references(
         user_id=6,
         delay_seconds=1,
     )
-    with manager._deletion_lock:
-        manager._active_tasks[(6, 40)] = task
-        manager._user_pending_deletions[6].add(40)
+    _register_pending_task(manager, task)
 
     manager._cleanup_stale_references()
 

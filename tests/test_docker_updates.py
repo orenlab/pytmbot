@@ -17,6 +17,7 @@ from packaging import version
 from packaging.version import InvalidVersion
 from yarl import URL
 
+import pytmbot.adapters.docker.updates as updates_module
 from pytmbot.adapters.docker.updates import (
     MAX_TAGS_PER_REPO,
     DockerImageUpdater,
@@ -167,18 +168,16 @@ def test_rate_limiter_and_cache_helpers(monkeypatch: pytest.MonkeyPatch) -> None
             TagInfo(name="latest", created_at="2026-01-01T00:00:00Z", digest=None)
         )
     ]
-    updater._set_cached_tags("repo/app", tags, now)
-    assert updater._get_cached_tags("repo/app", now + 1) == tags
+    updater._cache.set("repo/app", tags, now)
+    assert updater._cache.get_valid("repo/app", now + 1) == tags
     assert (
-        updater._get_cached_tags("repo/app", now + updates_module.CACHE_TTL + 1) is None
+        updater._cache.get_valid("repo/app", now + updates_module.CACHE_TTL + 1) is None
     )
 
 
 def test_updater_initialize_local_images_and_digest_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pytmbot.adapters.docker.updates as updates_module
-
     updater = DockerImageUpdater()
 
     with monkeypatch.context() as local_patch:
@@ -209,57 +208,72 @@ def test_updater_initialize_local_images_and_digest_paths(
         )  # noqa: FBT002
 
     monkeypatch.setattr(updates_module, "docker_client_context", _client_context)
+    original_process_image_tags = updates_module._process_local_image_tags
     monkeypatch.setattr(
-        updater,
-        "_process_image_tags",
-        lambda image, digest, local: (
+        updates_module,
+        "_process_local_image_tags",
+        lambda image, digest, local, *, log, parse_tag: (
             (_ for _ in ()).throw(RuntimeError("tag fail"))
             if image is image_bad
-            else DockerImageUpdater._process_image_tags(updater, image, digest, local)
+            else original_process_image_tags(
+                image, digest, local, log=log, parse_tag=parse_tag
+            )
         ),
     )
     parsed = updater._get_local_images()
     assert "repo/app" in parsed
 
     assert (
-        updater._extract_digest(SimpleNamespace(attrs={"RepoDigests": ["bad-format"]}))
+        updates_module._extract_image_digest(
+            SimpleNamespace(attrs={"RepoDigests": ["bad-format"]}),
+            log=updater._log,
+        )
         is None
     )
     bad_digest_image = SimpleNamespace(attrs=cast(dict[str, str], None))
-    assert updater._extract_digest(bad_digest_image) is None
+    assert (
+        updates_module._extract_image_digest(bad_digest_image, log=updater._log) is None
+    )
 
 
 def test_process_tags_parse_and_bridge_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
-    import pytmbot.adapters.docker.updates as updates_module
-
     updater = DockerImageUpdater()
     local: dict[str, list[dict[str, str | None]]] = {}
     image = SimpleNamespace(
         tags=["repo/app:1.0", " ", cast(str, None), "too/" + "x" * 300 + ":1.0"],
         attrs={"Created": "2026-01-01T00:00:00Z"},
     )
-    updater._process_image_tags(image, "sha256:" + "a" * 64, local)
+    updates_module._process_local_image_tags(
+        image,
+        "sha256:" + "a" * 64,
+        local,
+        log=updater._log,
+        parse_tag=updates_module._parse_image_tag,
+    )
     assert "repo/app" in local
 
     with pytest.raises(ValueError):
-        updater._parse_tag("repo/:")
-    assert updater._parse_tag("docker.io/library/nginx:1.2") == ("library/nginx", "1.2")
+        updates_module._parse_image_tag("repo/:")
+    assert updates_module._parse_image_tag("docker.io/library/nginx:1.2") == (
+        "library/nginx",
+        "1.2",
+    )
 
     # _ensure_sync_bridge early-return path.
     async def _run_ensure_sync_bridge_early_return() -> None:
-        updater._sync_bridge_thread = threading.current_thread()
-        updater._sync_bridge_loop = asyncio.get_running_loop()
+        updater._sync_bridge.thread = threading.current_thread()
+        updater._sync_bridge.loop = asyncio.get_running_loop()
         updater._ensure_sync_bridge()
 
     asyncio.run(_run_ensure_sync_bridge_early_return())
 
     # _ensure_sync_bridge start failure path.
-    updater._sync_bridge_thread = None
-    updater._sync_bridge_loop = None
+    updater._sync_bridge.thread = None
+    updater._sync_bridge.loop = None
     monkeypatch.setattr(
         updates_module, "Thread", lambda *a, **k: SimpleNamespace(start=lambda: None)
     )
-    monkeypatch.setattr(updater._sync_bridge_ready, "wait", lambda timeout: False)
+    monkeypatch.setattr(updater._sync_bridge.ready, "wait", lambda timeout: False)
     with pytest.raises(RuntimeError, match="failed to start"):
         updater._ensure_sync_bridge()
 
@@ -287,17 +301,17 @@ def test_sync_bridge_stop_and_sync_runner_paths(
         "join",
         lambda timeout: join_called.__setitem__("value", timeout is not None),
     )
-    updater._sync_bridge_loop = loop
-    updater._sync_bridge_thread = thread
+    updater._sync_bridge.loop = loop
+    updater._sync_bridge.thread = thread
     updater._stop_sync_bridge()
     assert join_called["value"] is True
 
     updater._ensure_sync_bridge = lambda: None  # type: ignore[method-assign]
-    updater._sync_bridge_loop = None
+    updater._sync_bridge.loop = None
     with pytest.raises(RuntimeError, match="unavailable"):
         updater._run_check_updates_sync()
 
-    updater._sync_bridge_loop = asyncio.new_event_loop()
+    updater._sync_bridge.loop = asyncio.new_event_loop()
 
     def _fake_run_coroutine_threadsafe(
         coro: Coroutine[None, None, UpdaterResponse],
@@ -313,8 +327,8 @@ def test_sync_bridge_stop_and_sync_runner_paths(
         _fake_run_coroutine_threadsafe,
     )
     assert updater._run_check_updates_sync().status == UpdaterStatus.SUCCESS
-    if updater._sync_bridge_loop is not None:
-        updater._sync_bridge_loop.close()
+    if updater._sync_bridge.loop is not None:
+        updater._sync_bridge.loop.close()
 
 
 def test_normalize_created_at_supports_timestamp_and_iso() -> None:
@@ -361,23 +375,23 @@ def test_tag_analyzer_classifies_core_formats() -> None:
 
 
 def test_build_repository_urls_handles_namespaced_and_library() -> None:
-    assert DockerImageUpdater._build_repository_urls("orenlab/pytmbot") == [
+    assert updates_module._build_repository_urls("orenlab/pytmbot") == [
         "https://registry.hub.docker.com/v2/repositories/orenlab/pytmbot/tags/"
     ]
-    assert DockerImageUpdater._build_repository_urls("nginx") == [
+    assert updates_module._build_repository_urls("nginx") == [
         "https://registry.hub.docker.com/v2/repositories/nginx/tags/",
         "https://registry.hub.docker.com/v2/repositories/library/nginx/tags/",
     ]
 
 
 def test_parse_tag_handles_registry_prefix_and_default_latest() -> None:
-    assert DockerImageUpdater._parse_tag("docker.io/library/nginx:1.27") == (
+    assert updates_module._parse_image_tag("docker.io/library/nginx:1.27") == (
         "library/nginx",
         "1.27",
     )
-    assert DockerImageUpdater._parse_tag("redis") == ("redis", "latest")
+    assert updates_module._parse_image_tag("redis") == ("redis", "latest")
     with pytest.raises(ValueError):
-        DockerImageUpdater._parse_tag("")
+        updates_module._parse_image_tag("")
 
 
 def test_compare_versions_and_digest_equality() -> None:
@@ -396,8 +410,8 @@ def test_compare_versions_and_digest_equality() -> None:
             digest="sha256:b",
         )
     )
-    assert DockerImageUpdater._compare_versions(local, remote) is True
-    assert DockerImageUpdater._digests_equal(local, remote) is False
+    assert updates_module._compare_enhanced_tags(local, remote) is True
+    assert updates_module._tag_digests_equal(local, remote) is False
 
     remote_same_digest = analyzer.analyze_tag(
         TagInfo(
@@ -406,7 +420,7 @@ def test_compare_versions_and_digest_equality() -> None:
             digest="sha256:a",
         )
     )
-    assert DockerImageUpdater._digests_equal(local, remote_same_digest) is True
+    assert updates_module._tag_digests_equal(local, remote_same_digest) is True
 
 
 def test_find_compatible_updates_respects_digest_and_semver_major() -> None:
@@ -443,7 +457,13 @@ def test_find_compatible_updates_respects_digest_and_semver_major() -> None:
             )
         ),
     ]
-    updates = updater._find_compatible_updates(local, remote_tags)
+    updates = updates_module._find_compatible_tag_updates(
+        local,
+        remote_tags,
+        log=updater._log,
+        compare_versions=updates_module._compare_enhanced_tags,
+        digests_equal=updates_module._tag_digests_equal,
+    )
     newer_tags = {update.newer_tag for update in updates}
     assert "v1.3.0" in newer_tags
     assert "v2.0.0" not in newer_tags
@@ -666,7 +686,7 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
     analyzed = updater.analyzer.analyze_tag(
         TagInfo(name="latest", created_at="2026-02-01T00:00:00Z", digest="sha256:a")
     )
-    updater.tag_cache["repo/app"] = ([analyzed], time.time())
+    updater._cache.entries["repo/app"] = ([analyzed], time.time())
 
     async def _run_from_cache() -> list[EnhancedTagInfo]:
         async with ClientSession() as session:
@@ -676,7 +696,7 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(from_cache) == 1
     assert updater._stats["cache_hits"] == 1
 
-    updater.tag_cache.clear()
+    updater._cache.entries.clear()
 
     async def _always_404(
         _session: ClientSession, _url: str, _repo: str
@@ -691,8 +711,8 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
 
     missing = asyncio.run(_run_missing())
     assert missing == []
-    assert "missing" in updater.tag_cache
-    assert updater.tag_cache["missing"][0] == []
+    assert "missing" in updater._cache.entries
+    assert updater._cache.entries["missing"][0] == []
 
 
 def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -862,8 +882,13 @@ def test_updater_init_get_local_images_and_process_tags_error_paths(
                 raise ValueError("bad tag")
             raise RuntimeError("unexpected parse fail")
 
-        local_patch.setattr(updater, "_parse_tag", _parse_tag)
-        updater._process_image_tags(image, None, local)
+        updates_module._process_local_image_tags(
+            image,
+            None,
+            local,
+            log=updater._log,
+            parse_tag=_parse_tag,
+        )
     assert local == {}
 
 
@@ -901,7 +926,7 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
     ) -> list[EnhancedTagInfo] | None:
         raise _make_client_response_error(429, "rate limited")
 
-    updater.tag_cache.clear()
+    updater._cache.entries.clear()
     monkeypatch.setattr(updater, "_fetch_tags_from_url", _fetch_rate_limit)
     with pytest.raises(ClientResponseError):
         asyncio.run(_run_repo("repo/rate"))
@@ -1046,8 +1071,6 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
 def test_compare_find_and_check_updates_edge_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pytmbot.adapters.docker.updates as updates_module
-
     updater = DockerImageUpdater()
 
     local_custom = updater.analyzer.analyze_tag(
@@ -1056,15 +1079,24 @@ def test_compare_find_and_check_updates_edge_paths(
     remote_custom = updater.analyzer.analyze_tag(
         TagInfo(name="custom2", created_at="bad-remote", digest=None)
     )
-    assert DockerImageUpdater._compare_versions(local_custom, remote_custom) is False
-    assert DockerImageUpdater._digests_equal(local_custom, remote_custom) is False
+    assert updates_module._compare_enhanced_tags(local_custom, remote_custom) is False
+    assert updates_module._tag_digests_equal(local_custom, remote_custom) is False
 
     invalid_local = EnhancedTagInfo(
         tag_info=TagInfo(name="x", created_at="", digest=None),
         tag_type=TagType.INVALID,
         parse_error="bad",
     )
-    assert updater._find_compatible_updates(invalid_local, [remote_custom]) == []
+    assert (
+        updates_module._find_compatible_tag_updates(
+            invalid_local,
+            [remote_custom],
+            log=updater._log,
+            compare_versions=updates_module._compare_enhanced_tags,
+            digests_equal=updates_module._tag_digests_equal,
+        )
+        == []
+    )
 
     same_name_local = updater.analyzer.analyze_tag(
         TagInfo(name="latest", created_at="2026-01-01T00:00:00Z", digest="sha256:a")
@@ -1072,7 +1104,16 @@ def test_compare_find_and_check_updates_edge_paths(
     same_name_remote = updater.analyzer.analyze_tag(
         TagInfo(name="latest", created_at="2026-02-01T00:00:00Z", digest="sha256:a")
     )
-    assert updater._find_compatible_updates(same_name_local, [same_name_remote]) == []
+    assert (
+        updates_module._find_compatible_tag_updates(
+            same_name_local,
+            [same_name_remote],
+            log=updater._log,
+            compare_versions=updates_module._compare_enhanced_tags,
+            digests_equal=updates_module._tag_digests_equal,
+        )
+        == []
+    )
 
     date_local = updater.analyzer.analyze_tag(
         TagInfo(name="2026-02-01", created_at="2026-02-01T00:00:00Z", digest="sha256:a")
@@ -1080,7 +1121,13 @@ def test_compare_find_and_check_updates_edge_paths(
     date_remote = updater.analyzer.analyze_tag(
         TagInfo(name="2026-02-02", created_at="2026-02-02T00:00:00Z", digest="sha256:b")
     )
-    assert updater._find_compatible_updates(date_local, [date_remote])
+    assert updates_module._find_compatible_tag_updates(
+        date_local,
+        [date_remote],
+        log=updater._log,
+        compare_versions=updates_module._compare_enhanced_tags,
+        digests_equal=updates_module._tag_digests_equal,
+    )
 
     with monkeypatch.context() as local_patch:
         local_patch.setattr(
@@ -1088,7 +1135,16 @@ def test_compare_find_and_check_updates_edge_paths(
             "UpdateInfo",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("build fail")),
         )
-        assert updater._find_compatible_updates(date_local, [date_remote]) == []
+        assert (
+            updates_module._find_compatible_tag_updates(
+                date_local,
+                [date_remote],
+                log=updater._log,
+                compare_versions=updates_module._compare_enhanced_tags,
+                digests_equal=updates_module._tag_digests_equal,
+            )
+            == []
+        )
 
     updater.local_images = {}
     validation = asyncio.run(updater._check_updates())

@@ -187,29 +187,39 @@ class InfluxDBInterface(BaseComponent):
 
     def _require_write_api(self) -> WriteApi:
         """Return initialized write API or raise connection error."""
-        if self._write_api is None:
-            self._ensure_client_initialized()
-        if self._write_api is None:
-            raise InfluxDBConnectionError(
-                ErrorContext(
-                    message="InfluxDB write API is not initialized",
-                    error_code="WRITE_API_NOT_INITIALIZED",
-                )
-            )
-        return self._write_api
+        return self._require_initialized_api(
+            current_api=self._write_api,
+            api_getter=lambda: self._write_api,
+            message="InfluxDB write API is not initialized",
+            error_code="WRITE_API_NOT_INITIALIZED",
+        )
 
     def _require_query_api(self) -> QueryApi:
         """Return initialized query API or raise connection error."""
-        if self._query_api is None:
+        return self._require_initialized_api(
+            current_api=self._query_api,
+            api_getter=lambda: self._query_api,
+            message="InfluxDB query API is not initialized",
+            error_code="QUERY_API_NOT_INITIALIZED",
+        )
+
+    def _require_initialized_api[T](
+        self,
+        *,
+        current_api: T | None,
+        api_getter: Callable[[], T | None],
+        message: str,
+        error_code: str,
+    ) -> T:
+        """Return initialized API object or raise connection error."""
+        if current_api is None:
             self._ensure_client_initialized()
-        if self._query_api is None:
+            current_api = api_getter()
+        if current_api is None:
             raise InfluxDBConnectionError(
-                ErrorContext(
-                    message="InfluxDB query API is not initialized",
-                    error_code="QUERY_API_NOT_INITIALIZED",
-                )
+                ErrorContext(message=message, error_code=error_code)
             )
-        return self._query_api
+        return current_api
 
     @staticmethod
     def _to_flux_string_literal(value: str) -> str:
@@ -237,12 +247,7 @@ class InfluxDBInterface(BaseComponent):
 
     def _sanitize_flux_identifier(self, value: str, field_name: str) -> str:
         """Validate identifier-like value to prevent Flux injection."""
-        if not isinstance(value, str):
-            raise ValueError(f"{field_name} must be a string")
-
-        candidate = value.strip()
-        if not candidate:
-            raise ValueError(f"{field_name} cannot be empty")
+        candidate = self._normalize_flux_input(value, field_name)
 
         if not self._FLUX_IDENTIFIER_PATTERN.fullmatch(candidate):
             raise ValueError(f"Invalid {field_name} format")
@@ -251,12 +256,7 @@ class InfluxDBInterface(BaseComponent):
 
     def _sanitize_flux_range_value(self, value: str, field_name: str) -> str:
         """Validate and format Flux range values."""
-        if not isinstance(value, str):
-            raise ValueError(f"{field_name} must be a string")
-
-        candidate = value.strip()
-        if not candidate:
-            raise ValueError(f"{field_name} cannot be empty")
+        candidate = self._normalize_flux_input(value, field_name)
 
         if candidate == "now()":
             return candidate
@@ -277,6 +277,17 @@ class InfluxDBInterface(BaseComponent):
 
         iso_value = parsed_dt.isoformat().replace("+00:00", "Z")
         return f'time(v: "{iso_value}")'
+
+    @staticmethod
+    def _normalize_flux_input(value: str, field_name: str) -> str:
+        """Validate and normalize a Flux string input."""
+        if not isinstance(value, str):
+            raise ValueError(f"{field_name} must be a string")
+
+        candidate = value.strip()
+        if not candidate:
+            raise ValueError(f"{field_name} cannot be empty")
+        return candidate
 
     def __exit__(
         self,
@@ -337,31 +348,31 @@ class InfluxDBInterface(BaseComponent):
         if hostname in ("localhost", "127.0.0.1"):
             return True
 
-        try:
-            ip_addr = ipaddress.ip_address(hostname)
-            is_private = ip_addr.is_private
-
-            # Log IP check only in debug mode
+        def log_locality_check(event: str, *, is_private: bool) -> None:
             if self._config.debug_mode:
                 with self.log_context(action="check_url") as log:
                     log.debug(
-                        "bot.db.influxdb_interface.ip.address.debug",
+                        event,
                         extra={"hostname_present": True, "is_private": is_private},
                     )
+
+        try:
+            ip_addr = ipaddress.ip_address(hostname)
+            is_private = ip_addr.is_private
+            log_locality_check(
+                "bot.db.influxdb_interface.ip.address.debug",
+                is_private=is_private,
+            )
             return is_private
 
         except ValueError:
             try:
                 ip_str = str(ipaddress.ip_address(self._resolve_hostname(hostname)))
                 is_private = ipaddress.ip_address(ip_str).is_private
-
-                # Log hostname resolution only in debug mode
-                if self._config.debug_mode:
-                    with self.log_context(action="check_url") as log:
-                        log.debug(
-                            "bot.db.influxdb_interface.hostname.resolved.debug",
-                            extra={"hostname_present": True, "is_private": is_private},
-                        )
+                log_locality_check(
+                    "bot.db.influxdb_interface.hostname.resolved.debug",
+                    is_private=is_private,
+                )
                 return is_private
 
             except ValueError:

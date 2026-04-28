@@ -13,7 +13,9 @@ from telebot.types import CallbackQuery
 from pytmbot.adapters.docker.container_manager import ContainerManager
 from pytmbot.globals import ButtonDataType, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
-    get_authorized_container_callback_context,
+    get_manage_container_callback_context as get_authorized_container_callback_context,
+)
+from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
@@ -47,6 +49,21 @@ def managing_action_fabric(call: CallbackQuery) -> bool:
     return any(callback_data.startswith(action_name) for action_name in action)
 
 
+def _get_manage_action_context(
+    call: CallbackQuery, bot: TeleBot
+) -> tuple[str, str] | None:
+    """Return validated manage-action callback data and container name."""
+    context = get_authorized_container_callback_context(
+        call=call,
+        bot=bot,
+        missing_user_event="bot.handler.docker.manage_action.missing.user.warn",
+        denied_event="bot.handler.docker.manage_action.denied.manage.deny",
+    )
+    if context is None:
+        return None
+    return context.callback_data, context.container_name
+
+
 # func=lambda call: managing_action_fabric(call)
 @logger.session_decorator
 @two_factor_auth_required
@@ -61,17 +78,10 @@ def handle_manage_container_action(call: CallbackQuery, bot: TeleBot) -> None:
     Returns:
         None
     """
-    context = get_authorized_container_callback_context(
-        call=call,
-        bot=bot,
-        operation_label="Managing",
-        missing_user_event="bot.handler.docker.manage_action.missing.user.warn",
-        denied_event="bot.handler.docker.manage_action.denied.manage.deny",
-    )
-    if context is None:
+    callback_context = _get_manage_action_context(call, bot)
+    if callback_context is None:
         return
-    callback_data = context.callback_data
-    container_name = context.container_name
+    callback_data, container_name = callback_context
 
     managing_actions = {
         "__start__": __start_container,

@@ -33,7 +33,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.3.0"
+        return "0.3.1"
 
 
 class ConfigVersionError(Exception):
@@ -227,119 +227,6 @@ class ConfigMigrator(logs.BaseComponent):
         super().__init__("config_migrator")
         self.app_version = get_app_version()
 
-    @staticmethod
-    def _normalize_version_alias(version_value: str) -> str:
-        """Normalize version aliases to PEP 440 representation."""
-        return str(version.parse(version_value))
-
-    @staticmethod
-    def get_compatibility_matrix() -> dict[str, dict[str, str]]:
-        """
-        Returns compatibility matrix for config versions with app versions.
-        Config version should match app version exactly.
-
-        Returns:
-            Dict mapping config versions to compatibility info.
-        """
-        return {
-            "0.2.2": {
-                "min_app": "0.2.2",
-                "max_app": "0.2.2",
-                "description": "Legacy version (minimum supported)",
-            },
-            "0.3.0.dev0": {
-                "min_app": "0.3.0.dev0",
-                "max_app": "0.3.0.dev0",
-                "description": "Development version with config versioning",
-            },
-            "0.3.0": {
-                "min_app": "0.3.0",
-                "max_app": "0.3.0",
-                "description": "Stable release with config versioning",
-            },
-        }
-
-    @classmethod
-    def validate_compatibility(
-        cls, config_version: str | None, app_version: str
-    ) -> None:
-        """
-        Validate compatibility between config and app versions.
-        Config version should match app version exactly.
-
-        Args:
-            config_version: Version of the configuration (None for legacy configs)
-            app_version: Version of the application
-
-        Raises:
-            ConfigVersionError: If versions are incompatible
-        """
-        # Handle special case: no config version means legacy (0.2.2 compatibility)
-        if config_version is None:
-            app_ver_clean = cls._normalize_version_alias(app_version)
-            if version.parse(app_ver_clean) < version.parse("0.2.2"):
-                raise ConfigVersionError(
-                    f"App version '{app_version}' is End-of-Life (< 0.2.2). "
-                    f"Minimum supported version is 0.2.2"
-                )
-            return  # Legacy configs are allowed for 0.2.2+
-
-        # Check for EOL versions FIRST, before checking compatibility matrix
-        normalized_config_version = cls._normalize_version_alias(config_version)
-        normalized_app_version = cls._normalize_version_alias(app_version)
-        config_ver_clean = normalized_config_version
-        if version.parse(config_ver_clean) < version.parse("0.2.2"):
-            raise ConfigVersionError(
-                f"Configuration version '{config_version}' is End-of-Life (< 0.2.2). "
-                f"Minimum supported version is 0.2.2. "
-                f"Current app version: {app_version}"
-            )
-
-        matrix = cls.get_compatibility_matrix()
-
-        if normalized_config_version not in matrix:
-            supported = list(matrix.keys())
-            raise ConfigVersionError(
-                f"Unsupported config version '{config_version}'. "
-                f"Supported versions: {supported}"
-            )
-
-        # Config version should match app version exactly
-        if normalized_config_version != normalized_app_version:
-            raise ConfigVersionError(
-                f"Config version '{config_version}' does not match "
-                f"app version '{app_version}'. They should be identical."
-            )
-
-    @classmethod
-    def check_deprecation(cls, config_version: str | None, app_version: str) -> None:
-        """
-        Check if config version is deprecated and issue warnings.
-
-        Args:
-            config_version: Version to check (None for legacy configs)
-            app_version: Current app version
-        """
-        # Check for legacy configs without version
-        if config_version is None:
-            warnings.warn(
-                f"Configuration without version field detected. "
-                f"This is legacy 0.2.2 compatibility mode. "
-                f"Consider adding 'config_version: \"{app_version}\"' to your config.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            return
-
-        # Version 0.2.2 is considered legacy
-        if config_version == "0.2.2":
-            warnings.warn(
-                f"Configuration version '{config_version}' is legacy. "
-                f"Consider upgrading to version {app_version} for new features.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-
     def migrate_config(self, config_data: dict[str, object]) -> dict[str, object]:
         """
         Migrate configuration to current app version.
@@ -370,6 +257,115 @@ class ConfigMigrator(logs.BaseComponent):
             config_data["config_version"] = self.app_version
 
         return config_data
+
+
+def normalize_version_alias(version_value: str) -> str:
+    """Normalize version aliases to PEP 440 representation."""
+    return str(version.parse(version_value))
+
+
+def get_compatibility_matrix() -> dict[str, dict[str, str]]:
+    """
+    Returns compatibility matrix for config versions with app versions.
+    Config version should match app version exactly.
+
+    Returns:
+        Dict mapping config versions to compatibility info.
+    """
+    return {
+        "0.2.2": {
+            "min_app": "0.2.2",
+            "max_app": "0.2.2",
+            "description": "Legacy version (minimum supported)",
+        },
+        "0.3.0.dev0": {
+            "min_app": "0.3.0.dev0",
+            "max_app": "0.3.0.dev0",
+            "description": "Development version with config versioning",
+        },
+        "0.3.0": {
+            "min_app": "0.3.0",
+            "max_app": "0.3.0",
+            "description": "Stable release with config versioning",
+        },
+        "0.3.1": {
+            "min_app": "0.3.1",
+            "max_app": "0.3.1",
+            "description": "Patch release with config versioning",
+        },
+    }
+
+
+def validate_config_compatibility(config_version: str | None, app_version: str) -> None:
+    """
+    Validate compatibility between config and app versions.
+    Config version should match app version exactly.
+
+    Args:
+        config_version: Version of the configuration (None for legacy configs)
+        app_version: Version of the application
+
+    Raises:
+        ConfigVersionError: If versions are incompatible
+    """
+    if config_version is None:
+        app_ver_clean = normalize_version_alias(app_version)
+        if version.parse(app_ver_clean) < version.parse("0.2.2"):
+            raise ConfigVersionError(
+                f"App version '{app_version}' is End-of-Life (< 0.2.2). "
+                f"Minimum supported version is 0.2.2"
+            )
+        return
+
+    normalized_config_version = normalize_version_alias(config_version)
+    normalized_app_version = normalize_version_alias(app_version)
+    if version.parse(normalized_config_version) < version.parse("0.2.2"):
+        raise ConfigVersionError(
+            f"Configuration version '{config_version}' is End-of-Life (< 0.2.2). "
+            f"Minimum supported version is 0.2.2. "
+            f"Current app version: {app_version}"
+        )
+
+    matrix = get_compatibility_matrix()
+    if normalized_config_version not in matrix:
+        supported = list(matrix.keys())
+        raise ConfigVersionError(
+            f"Unsupported config version '{config_version}'. "
+            f"Supported versions: {supported}"
+        )
+
+    if normalized_config_version != normalized_app_version:
+        raise ConfigVersionError(
+            f"Config version '{config_version}' does not match "
+            f"app version '{app_version}'. They should be identical."
+        )
+
+
+def check_config_deprecation(config_version: str | None, app_version: str) -> None:
+    """
+    Check if config version is deprecated and issue warnings.
+
+    Args:
+        config_version: Version to check (None for legacy configs)
+        app_version: Current app version
+    """
+    if config_version is None:
+        warnings.warn(
+            f"Configuration without version field detected. "
+            f"This is legacy 0.2.2 compatibility mode. "
+            f"Consider adding 'config_version: \"{app_version}\"' to your config.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return
+
+    if config_version == "0.2.2":
+        warnings.warn(
+            f"Configuration version '{config_version}' is legacy. "
+            f"Consider upgrading to version {app_version} for new features.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
 
 
 class SettingsModel(BaseSettings):
@@ -421,10 +417,10 @@ class SettingsModel(BaseSettings):
         """
         try:
             # Check for EOL versions and validate compatibility
-            ConfigMigrator.validate_compatibility(v, cls.app_version)
+            validate_config_compatibility(v, cls.app_version)
 
             # Check for deprecation warnings
-            ConfigMigrator.check_deprecation(v, cls.app_version)
+            check_config_deprecation(v, cls.app_version)
 
             return v
 
@@ -468,12 +464,8 @@ class SettingsModel(BaseSettings):
             return values
 
         try:
-            normalized_config_version = ConfigMigrator._normalize_version_alias(
-                str(config_version)
-            )
-            normalized_app_version = ConfigMigrator._normalize_version_alias(
-                cls.app_version
-            )
+            normalized_config_version = normalize_version_alias(str(config_version))
+            normalized_app_version = normalize_version_alias(cls.app_version)
         except Exception:
             normalized_config_version = str(config_version)
             normalized_app_version = cls.app_version

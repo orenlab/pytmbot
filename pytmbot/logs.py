@@ -522,37 +522,16 @@ class SecureLoggerFilter:
         normalized_message = self._normalize_identifier(message or "")
 
         for key, value in extra.items():
-            if value is None:
-                continue
-
-            if key in self._DROP_EXTRA_KEYS:
-                continue
-
-            if (
-                key == "component"
-                and isinstance(component, str)
-                and self._is_component_duplicate(
-                    component=component,
-                    module_name=module_name,
-                    logger_name=logger_name,
-                )
+            if self._should_skip_extra_field(
+                key=key,
+                value=value,
+                component=component,
+                action=action,
+                module_name=module_name,
+                logger_name=logger_name,
+                normalized_message=normalized_message,
             ):
                 continue
-
-            if key == "action" and action == component:
-                continue
-
-            if key == "action" and isinstance(value, str):
-                normalized_action = self._normalize_identifier(value)
-                if normalized_action and (
-                    normalized_action in normalized_message
-                    or normalized_message.endswith(normalized_action)
-                    or (
-                        isinstance(component, str)
-                        and normalized_action == self._normalize_identifier(component)
-                    )
-                ):
-                    continue
 
             normalized_key = self._EXTRA_KEY_ALIAS.get(key, key)
             sanitized_value = self._sanitize_value(normalized_key, value)
@@ -568,6 +547,54 @@ class SecureLoggerFilter:
                 normalized[normalized_key] = sanitized_value
 
         return self._order_extra(normalized)
+
+    def _should_skip_extra_field(
+        self,
+        *,
+        key: str,
+        value: object,
+        component: object,
+        action: object,
+        module_name: str | None,
+        logger_name: str | None,
+        normalized_message: str,
+    ) -> bool:
+        """Return True when an extra field is redundant or intentionally dropped."""
+        if value is None or key in self._DROP_EXTRA_KEYS:
+            return True
+
+        if (
+            key == "component"
+            and isinstance(component, str)
+            and self._is_component_duplicate(
+                component=component,
+                module_name=module_name,
+                logger_name=logger_name,
+            )
+        ):
+            return True
+
+        if key != "action":
+            return False
+
+        if action == component:
+            return True
+
+        if not isinstance(value, str):
+            return False
+
+        normalized_action = self._normalize_identifier(value)
+        return bool(
+            normalized_action
+            and (
+                normalized_action in normalized_message
+                or normalized_message.endswith(normalized_action)
+                or (
+                    isinstance(component, str)
+                    and normalized_action == self._normalize_identifier(component)
+                )
+            )
+        )
 
     @classmethod
     def _normalize_duration_value(cls, value: object) -> object:

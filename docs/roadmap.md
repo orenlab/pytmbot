@@ -16,7 +16,7 @@ Active release line:
 
 Primary objective:
 
-- stabilize and complete the `0.3.0` release line
+- stabilize and complete the `0.3.1` release line
 
 ## Active Priorities
 

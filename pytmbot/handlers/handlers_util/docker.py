@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -114,6 +115,32 @@ def show_handler_info(call: CallbackQuery, text: str, bot: TeleBot) -> bool:
     )
 
 
+def get_required_callback_data(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    missing_message_text: str,
+    invalid_button_text: str,
+    missing_user_text: str = "Couldn't verify who pressed this button.",
+    alert_handler: Callable[[CallbackQuery, str, TeleBot], object] = show_handler_info,
+) -> str | None:
+    """Validate common callback prerequisites and return callback data."""
+    checks = (
+        (call.from_user is None, missing_user_text),
+        (call.message is None, missing_message_text),
+        (call.data is None, invalid_button_text),
+    )
+    for failed, text in checks:
+        if failed:
+            alert_handler(call, text, bot)
+            return None
+
+    callback_data = call.data
+    if callback_data is None:
+        return None
+    return callback_data
+
+
 def authorize_docker_callback_request(
     call: CallbackQuery,
     called_user_id: int | str,
@@ -191,6 +218,23 @@ def get_authorized_container_callback_context(
         callback_data=callback_data,
         container_name=container_name,
         user_id=call.from_user.id,
+    )
+
+
+def get_manage_container_callback_context(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    missing_user_event: str,
+    denied_event: str,
+) -> AuthorizedContainerCallbackContext | None:
+    """Return authorized context for container management callbacks."""
+    return get_authorized_container_callback_context(
+        call=call,
+        bot=bot,
+        operation_label="Managing",
+        missing_user_event=missing_user_event,
+        denied_event=denied_event,
     )
 
 

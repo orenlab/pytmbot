@@ -8,10 +8,18 @@ also providing basic information about the status of local servers.
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
+from typing import cast
 
 from telebot import TeleBot
-from telebot.types import ForceReply, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
+from telebot.types import (
+    ForceReply,
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardMarkup,
+    User,
+)
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -168,43 +176,63 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     Returns:
         None
     """
-    if message.from_user is None:
-        bot.send_message(
+
+    def stop_if(should_stop: bool, action: Callable[[], object]) -> bool:
+        if should_stop:
+            action()
+            return True
+        return False
+
+    if stop_if(
+        message.from_user is None,
+        lambda: bot.send_message(
             message.chat.id, "⚠️ Cannot identify user for TOTP verification."
-        )
+        ),
+    ):
         return
 
-    user_id: int = message.from_user.id
+    from_user = cast(User, message.from_user)
+    user_id: int = from_user.id
     current_state = session_manager.get_auth_state(user_id)
-    if current_state != session_manager.state_fabric.PROCESSING:
-        logger.debug(
+    if stop_if(
+        current_state != session_manager.state_fabric.PROCESSING,
+        lambda: logger.debug(
             "bot.handler.auth_processing.twofa_processing.ignoring.totp.debug",
             user_id=user_id,
             auth_state=current_state,
-        )
+        ),
+    ):
         return
 
     totp_code: str = _extract_totp_code(message.text)
 
-    if not is_valid_totp_code(totp_code):
-        _handle_invalid_totp_code(message, bot)
+    if stop_if(
+        not is_valid_totp_code(totp_code),
+        lambda: _handle_invalid_totp_code(message, bot),
+    ):
         return
 
     blocked_until = session_manager.get_blocked_time(user_id)
-    if blocked_until is not None and datetime.now() < blocked_until:
-        _handle_blocked_user(message, bot)
-        return
-
-    if _consume_totp_attempt(user_id):
-        _handle_rate_limited_totp_attempt(message, bot)
-        return
-
     attempts = session_manager.get_totp_attempts(user_id)
-    if attempts >= var_config.totp_max_attempts:
-        _handle_max_attempts_reached(message, bot)
-        return
+    attempt_guards = (
+        (
+            blocked_until is not None and datetime.now() < blocked_until,
+            lambda: _handle_blocked_user(message, bot),
+        ),
+        (
+            _consume_totp_attempt(user_id),
+            lambda: _handle_rate_limited_totp_attempt(message, bot),
+        ),
+        (
+            attempts >= var_config.totp_max_attempts,
+            lambda: _handle_max_attempts_reached(message, bot),
+        ),
+    )
+    for should_stop, action in attempt_guards:
+        if stop_if(should_stop, action):
+            return None
 
-    username = message.from_user.username or ""
+    username = from_user.username or ""
     authenticator = TwoFactorAuthenticator(user_id, username)
     if authenticator.verify_totp_code(totp_code):
         bot.send_chat_action(message.chat.id, "typing")

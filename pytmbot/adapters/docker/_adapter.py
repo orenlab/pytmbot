@@ -150,26 +150,31 @@ class DockerAdapter:
 
     def _validate_configuration(self) -> None:
         """Validate Docker configuration with comprehensive checks."""
+
+        def fail_configuration(message: str) -> None:
+            self._handle_configuration_issue(message)
+
         docker_settings = getattr(settings, "docker", None)
+        validation_error: str | None = None
+        docker_url = ""
         if docker_settings is None:
-            self._handle_configuration_issue("Docker configuration is missing")
-            return
+            validation_error = "Docker configuration is missing"
+        else:
+            host_value = getattr(docker_settings, "host", None)
+            if not isinstance(host_value, (list, tuple)) or not host_value:
+                validation_error = "Docker host must be a non-empty list"
+            else:
+                docker_url = str(host_value[0]).strip()
+                if not docker_url:
+                    validation_error = "Docker host URL cannot be empty"
 
-        host_value = getattr(docker_settings, "host", None)
-        if not isinstance(host_value, (list, tuple)) or not host_value:
-            self._handle_configuration_issue("Docker host must be a non-empty list")
-            return
-
-        docker_url = str(host_value[0]).strip()
-        if not docker_url:
-            self._handle_configuration_issue("Docker host URL cannot be empty")
+        if validation_error is not None:
+            fail_configuration(validation_error)
             return
         self._docker_url = docker_url
 
         # Validate timeout if provided; degrade to default in non-strict mode
-        timeout = getattr(docker_settings, "timeout", self._DEFAULT_TIMEOUT)
-        if not isinstance(timeout, int):
-            message = "Docker timeout must be an integer"
+        def use_default_timeout(message: str) -> None:
             if self._strict_docker_access:
                 raise ValueError(message)
             self._configured_timeout = self._DEFAULT_TIMEOUT
@@ -178,20 +183,16 @@ class DockerAdapter:
                 invalid_timeout=timeout,
                 fallback_timeout=self._DEFAULT_TIMEOUT,
             )
+
+        timeout = getattr(docker_settings, "timeout", self._DEFAULT_TIMEOUT)
+        if not isinstance(timeout, int):
+            use_default_timeout("Docker timeout must be an integer")
             return
 
         if not (self._MIN_TIMEOUT <= timeout <= self._MAX_TIMEOUT):
-            message = (
+            use_default_timeout(
                 f"Docker timeout must be between {self._MIN_TIMEOUT} "
                 f"and {self._MAX_TIMEOUT} seconds"
-            )
-            if self._strict_docker_access:
-                raise ValueError(message)
-            self._configured_timeout = self._DEFAULT_TIMEOUT
-            self._log.warning(
-                "docker.adapter.timeout.default.warn",
-                invalid_timeout=timeout,
-                fallback_timeout=self._DEFAULT_TIMEOUT,
             )
             return
 

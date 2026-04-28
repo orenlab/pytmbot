@@ -65,15 +65,21 @@ def authorize_user_bound_callback(
     missing_message_text: str,
 ) -> tuple[bool, int | None]:
     """Parse/authorize callback with standard owner-matching semantics."""
+
+    def reject_callback(
+        text: str, target_user_id: int | None
+    ) -> tuple[bool, int | None]:
+        bot.answer_callback_query(
+            callback_query_id=call.id,
+            text=text,
+            show_alert=True,
+        )
+        return False, target_user_id
+
     try:
         target_user_id = parse_callback_target_user(call.data or "", prefix)
     except ValueError:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text=invalid_payload_text,
-            show_alert=True,
-        )
-        return False, None
+        return reject_callback(invalid_payload_text, None)
 
     is_allowed, deny_reason = authorize_callback_request(
         call,
@@ -81,20 +87,10 @@ def authorize_user_bound_callback(
         require_owner_match=target_user_id is not None,
     )
     if not is_allowed:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text=deny_reason,
-            show_alert=True,
-        )
-        return False, target_user_id
+        return reject_callback(deny_reason, target_user_id)
 
     if call.message is None:
-        bot.answer_callback_query(
-            callback_query_id=call.id,
-            text=missing_message_text,
-            show_alert=True,
-        )
-        return False, target_user_id
+        return reject_callback(missing_message_text, target_user_id)
 
     return True, target_user_id
 

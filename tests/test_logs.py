@@ -20,6 +20,43 @@ class _FakeRecord:
     name: str = "pytmbot.main"
 
 
+@dataclass
+class _FakeBoundLogger:
+    calls: list[tuple[str, str, dict[str, object]]]
+
+    def error(self, message: str, *args: object, **kwargs: object) -> None:
+        del args
+        self.calls.append(("error", message, dict(kwargs)))
+
+    def exception(self, message: str, *args: object, **kwargs: object) -> None:
+        del args
+        self.calls.append(("exception", message, dict(kwargs)))
+
+
+def _run_logger_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    traceback_enabled: bool,
+    raised_error: BaseException,
+    **exception_kwargs: object,
+) -> list[tuple[str, str, dict[str, object]]]:
+    logger = Logger()
+    logger._traceback_enabled = traceback_enabled
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        Logger,
+        "_get_bound_logger",
+        lambda self: _FakeBoundLogger(calls),
+    )
+
+    try:
+        raise raised_error
+    except type(raised_error):
+        logger.exception("bot.test.fail", **exception_kwargs)
+
+    return calls
+
+
 def test_data_masker_masks_registered_identifiers() -> None:
     masker = DataMasker()
     masker.add_username("test_user")
@@ -123,25 +160,11 @@ def test_logger_json_sink_writes_compact_json(
 def test_logger_exception_without_traceback_in_non_debug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = Logger()
-    logger._traceback_enabled = False
-    calls: list[tuple[str, str, dict[str, object]]] = []
-
-    class _FakeBoundLogger:
-        def error(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("error", message, dict(kwargs)))
-
-        def exception(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("exception", message, dict(kwargs)))
-
-    monkeypatch.setattr(Logger, "_get_bound_logger", lambda self: _FakeBoundLogger())
-
-    try:
-        raise RuntimeError("boom")
-    except RuntimeError:
-        logger.exception("bot.test.fail")
+    calls = _run_logger_exception(
+        monkeypatch,
+        traceback_enabled=False,
+        raised_error=RuntimeError("boom"),
+    )
 
     assert len(calls) == 1
     method, message, payload = calls[0]
@@ -154,25 +177,12 @@ def test_logger_exception_without_traceback_in_non_debug(
 def test_logger_exception_keeps_explicit_error_payload_in_non_debug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = Logger()
-    logger._traceback_enabled = False
-    calls: list[tuple[str, str, dict[str, object]]] = []
-
-    class _FakeBoundLogger:
-        def error(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("error", message, dict(kwargs)))
-
-        def exception(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("exception", message, dict(kwargs)))
-
-    monkeypatch.setattr(Logger, "_get_bound_logger", lambda self: _FakeBoundLogger())
-
-    try:
-        raise ValueError("broken")
-    except ValueError:
-        logger.exception("bot.test.fail", error={"message": "already-sanitized"})
+    calls = _run_logger_exception(
+        monkeypatch,
+        traceback_enabled=False,
+        raised_error=ValueError("broken"),
+        error={"message": "already-sanitized"},
+    )
 
     assert len(calls) == 1
     method, _, payload = calls[0]
@@ -184,25 +194,11 @@ def test_logger_exception_keeps_explicit_error_payload_in_non_debug(
 def test_logger_exception_with_traceback_in_debug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = Logger()
-    logger._traceback_enabled = True
-    calls: list[tuple[str, str, dict[str, object]]] = []
-
-    class _FakeBoundLogger:
-        def error(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("error", message, dict(kwargs)))
-
-        def exception(self, message: str, *args: object, **kwargs: object) -> None:
-            del args
-            calls.append(("exception", message, dict(kwargs)))
-
-    monkeypatch.setattr(Logger, "_get_bound_logger", lambda self: _FakeBoundLogger())
-
-    try:
-        raise RuntimeError("boom")
-    except RuntimeError:
-        logger.exception("bot.test.fail")
+    calls = _run_logger_exception(
+        monkeypatch,
+        traceback_enabled=True,
+        raised_error=RuntimeError("boom"),
+    )
 
     assert len(calls) == 1
     method, message, _ = calls[0]

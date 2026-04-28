@@ -502,14 +502,18 @@ class SystemMonitorPlugin(PluginCore):
 
         sanitized_fields = self._sanitize_fields(fields)
         numeric_fields = self._extract_numeric_fields(sanitized_fields)
+
+        def skip_metric_recording(event: str) -> None:
+            logger.warning(event)
+
         if not numeric_fields:
-            logger.warning("bot.plugins.monitor.methods.metrics.empty.warn")
+            skip_metric_recording("bot.plugins.monitor.methods.metrics.empty.warn")
             return
 
         if not self.influxdb_client.write_data_async(
             "system_metrics", numeric_fields, metadata
         ):
-            logger.warning("bot.plugins.monitor.methods.metrics.skipped.warn")
+            skip_metric_recording("bot.plugins.monitor.methods.metrics.skipped.warn")
             return
 
         logger.debug("bot.plugins.monitor.methods.metrics.recorded.ok", extra=fields)
@@ -633,53 +637,25 @@ class SystemMonitorPlugin(PluginCore):
             return []
 
     def _format_cpu_alert(self, event_id: str, usage: float) -> str:
-        """
-        Format CPU alert message with top processes information.
-
-        Args:
-            event_id: Unique identifier for the alert event
-            usage: Current CPU usage percentage
-
-        Returns:
-            Formatted alert message with top processes
-        """
-        process_info = self._format_process_info(
-            self._get_top_processes(),
+        """Format CPU alert message with top processes information."""
+        return self._format_resource_alert(
+            event_id=event_id,
+            usage=usage,
+            title="🔥 <b>High CPU Usage Alert!</b> 🔥",
             resource_key="cpu_percent",
             suffix="% CPU",
-        )
-
-        return (
-            f"🔥 <b>High CPU Usage Alert!</b> 🔥\n"
-            f"Event ID: {event_id}\n"
-            f"Current Usage: {usage:.1f}%\n\n"
-            f"<b>Top CPU Consuming Processes:</b>\n"
-            f"{process_info}"
+            resource_heading="Top CPU Consuming Processes",
         )
 
     def _format_memory_alert(self, event_id: str, usage: float) -> str:
-        """
-        Format memory alert message with top processes information.
-
-        Args:
-            event_id: Unique identifier for the alert event
-            usage: Current memory usage percentage
-
-        Returns:
-            Formatted alert message with top processes
-        """
-        process_info = self._format_process_info(
-            self._get_top_processes(),
+        """Format memory alert message with top processes information."""
+        return self._format_resource_alert(
+            event_id=event_id,
+            usage=usage,
+            title="🧠 <b>High Memory Usage Alert!</b> 🧠",
             resource_key="memory_percent",
             suffix="% MEM",
-        )
-
-        return (
-            f"🧠 <b>High Memory Usage Alert!</b> 🧠\n"
-            f"Event ID: {event_id}\n"
-            f"Current Usage: {usage:.1f}%\n\n"
-            f"<b>Top Memory Consuming Processes:</b>\n"
-            f"{process_info}"
+            resource_heading="Top Memory Consuming Processes",
         )
 
     @staticmethod
@@ -705,6 +681,31 @@ class SystemMonitorPlugin(PluginCore):
             f"  • {proc['name']} (PID: {proc['pid']}) - "
             f"{proc[resource_key]:.1f}{suffix}"
             for proc in sorted(processes, key=lambda x: x[resource_key], reverse=True)
+        )
+
+    def _format_resource_alert(
+        self,
+        *,
+        event_id: str,
+        usage: float,
+        title: str,
+        resource_key: Literal["cpu_percent", "memory_percent"],
+        suffix: str,
+        resource_heading: str,
+    ) -> str:
+        """Build a resource alert message with shared top-process formatting."""
+        process_info = self._format_process_info(
+            self._get_top_processes(),
+            resource_key=resource_key,
+            suffix=suffix,
+        )
+
+        return (
+            f"{title}\n"
+            f"Event ID: {event_id}\n"
+            f"Current Usage: {usage:.1f}%\n\n"
+            f"<b>{resource_heading}:</b>\n"
+            f"{process_info}"
         )
 
     @staticmethod

@@ -652,6 +652,27 @@ class PsutilAdapter:
         """Get fan speeds in RPM. Cached for 15 seconds."""
         context: dict[str, object] = {"action": "fan_speeds"}
 
+        def to_fan_stats(
+            sensor_name: object,
+            fan_entry: object,
+        ) -> FanSpeedStats | None:
+            with suppress(Exception):
+                current_rpm = getattr(fan_entry, "current", None)
+                if current_rpm is None:
+                    return None
+
+                rpm_value = int(round(float(current_rpm)))
+                if rpm_value < 0:
+                    return None
+
+                label = str(getattr(fan_entry, "label", "")).strip() or "main"
+                return {
+                    "sensor_name": str(sensor_name),
+                    "label": label,
+                    "rpm": rpm_value,
+                }
+            return None
+
         def _get_fans() -> list[FanSpeedStats]:
             try:
                 fans = self._psutil.sensors_fans()
@@ -669,21 +690,8 @@ class PsutilAdapter:
                 if not entries:
                     continue
                 for fan_entry in entries:
-                    with suppress(Exception):
-                        current_rpm = getattr(fan_entry, "current", None)
-                        if current_rpm is None:
-                            continue
-                        rpm_value = int(round(float(current_rpm)))
-                        if rpm_value < 0:
-                            continue
-                        label = str(getattr(fan_entry, "label", "")).strip() or "main"
-                        fan_stats.append(
-                            {
-                                "sensor_name": str(sensor_name),
-                                "label": label,
-                                "rpm": rpm_value,
-                            }
-                        )
+                    if fan_stats_entry := to_fan_stats(sensor_name, fan_entry):
+                        fan_stats.append(fan_stats_entry)
 
             fan_stats.sort(key=lambda item: (item["sensor_name"], item["label"]))
             return fan_stats

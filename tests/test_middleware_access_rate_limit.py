@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from types import SimpleNamespace, TracebackType
@@ -173,6 +174,18 @@ def _install_log_capture(
     return captured
 
 
+def _raise_keyboard_interrupt_on_second_wait() -> Callable[[], bool]:
+    call_count = {"wait": 0}
+
+    def _wait() -> bool:
+        call_count["wait"] += 1
+        if call_count["wait"] > 1:
+            raise KeyboardInterrupt
+        return False
+
+    return _wait
+
+
 def test_access_control_authorized_user_passes(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _BotStub()
     middleware = _build_access_control_middleware(
@@ -303,18 +316,7 @@ def test_access_control_notify_admin_suppression_and_send_fail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(
-        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
-    )
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
 
     user_id = 123
     middleware._last_admin_notify[user_id] = datetime.now()
@@ -343,18 +345,7 @@ def test_access_control_notify_admin_sends_outside_state_lock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(
-        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
-    )
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     lock_probe = {"was_available": False}
 
     def _send_message(**kwargs: _PayloadValue) -> None:
@@ -437,15 +428,11 @@ def test_access_control_periodic_cleanup_removes_expired_state(
     middleware._attempt_count[expired_user] = 2
     middleware._last_admin_notify[expired_user] = datetime.now()
 
-    call_count = {"wait": 0}
-
-    def _wait() -> bool:
-        call_count["wait"] += 1
-        if call_count["wait"] > 1:
-            raise KeyboardInterrupt
-        return False
-
-    monkeypatch.setattr(middleware, "_wait_for_cleanup_interval", _wait)
+    monkeypatch.setattr(
+        middleware,
+        "_wait_for_cleanup_interval",
+        _raise_keyboard_interrupt_on_second_wait(),
+    )
 
     with pytest.raises(KeyboardInterrupt):
         middleware._periodic_cleanup()
@@ -466,15 +453,11 @@ def test_access_control_periodic_cleanup_masks_expired_ids_in_logs(
 
     captured = _install_log_capture(monkeypatch, middleware)
 
-    call_count = {"wait": 0}
-
-    def _wait() -> bool:
-        call_count["wait"] += 1
-        if call_count["wait"] > 1:
-            raise KeyboardInterrupt
-        return False
-
-    monkeypatch.setattr(middleware, "_wait_for_cleanup_interval", _wait)
+    monkeypatch.setattr(
+        middleware,
+        "_wait_for_cleanup_interval",
+        _raise_keyboard_interrupt_on_second_wait(),
+    )
 
     with pytest.raises(KeyboardInterrupt):
         middleware._periodic_cleanup()
@@ -492,18 +475,7 @@ def test_access_control_post_process_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = _BotStub()
-    monkeypatch.setattr(
-        "pytmbot.middleware.access_control.threading.Thread", _NoopThread
-    )
-    monkeypatch.setattr(
-        access_control_module,
-        "settings",
-        SimpleNamespace(
-            access_control=SimpleNamespace(allowed_user_ids=[]),
-            chat_id=SimpleNamespace(global_chat_id=[999]),
-        ),
-    )
-    middleware = access_control_module.AccessControl(cast(TeleBot, bot))
+    middleware = _build_access_control_middleware(monkeypatch, bot)
     message = _build_message(user_id=1, text="hello")
 
     middleware.post_process(message, {}, None)

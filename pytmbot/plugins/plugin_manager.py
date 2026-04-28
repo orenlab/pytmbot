@@ -174,28 +174,41 @@ class PluginManager:
 
     def _import_module(self, plugin_name: str) -> ModuleType:
         """Safely imports the plugin module."""
-        if not self._validate_plugin_path(plugin_name):
-            raise ImportError(f"Plugin path validation failed for '{plugin_name}'")
-
-        module_path = f"{self._plugin_base_for_import}.{plugin_name}.plugin"
-        try:
-            return importlib.import_module(module_path)
-        except ImportError:
-            logger.error("bot.plugins.plugin_manager.import.fail")
-            raise
+        return self._import_plugin_submodule(
+            plugin_name=plugin_name,
+            module_suffix="plugin",
+            invalid_path_message=f"Plugin path validation failed for '{plugin_name}'",
+            error_log_key="bot.plugins.plugin_manager.import.fail",
+        )
 
     def _import_module_config(self, plugin_name: str) -> ModuleType:
         """Safely imports the plugin configuration module."""
-        if not self._validate_plugin_path(plugin_name):
-            raise ImportError(
+        return self._import_plugin_submodule(
+            plugin_name=plugin_name,
+            module_suffix="config",
+            invalid_path_message=(
                 f"Plugin config path validation failed for '{plugin_name}'"
-            )
+            ),
+            error_log_key="bot.plugins.plugin_manager.import.plugin.fail",
+        )
 
-        module_path = f"{self._plugin_base_for_import}.{plugin_name}.config"
+    def _import_plugin_submodule(
+        self,
+        *,
+        plugin_name: str,
+        module_suffix: str,
+        invalid_path_message: str,
+        error_log_key: str,
+    ) -> ModuleType:
+        """Validate plugin path and import a specific plugin submodule."""
+        if not self._validate_plugin_path(plugin_name):
+            raise ImportError(invalid_path_message)
+
+        module_path = f"{self._plugin_base_for_import}.{plugin_name}.{module_suffix}"
         try:
             return importlib.import_module(module_path)
         except ImportError:
-            logger.error("bot.plugins.plugin_manager.import.plugin.fail")
+            logger.error(error_log_key)
             raise
 
     @staticmethod

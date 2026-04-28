@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.1] — 20260406
+
+Patch release focused on dependency refresh, structural cleanup, and release polish.
+
+### Security And Reliability
+
+- Refreshed runtime and development dependencies, including security-driven updates, and regenerated `uv.lock`.
+- Tightened callback, Docker, logging, and runtime guard paths; improved several reliability edge cases surfaced by CI
+  and static analysis.
+
+### Quality And Maintainability
+
+- Reduced structural duplication across core handlers, Docker update flows, utilities, and tests.
+- Raised the default `codeclone` grade to `B` and expanded regression coverage around the refactors.
+
+### Release And Docs
+
+- Bumped the project, sample config, docs, and Docker exact-tag references to `0.3.1`.
+- Updated Docker Hub and release-facing documentation to match the supported stable-image contract.
+
 ## [0.3.0] — 20260323
 
 Major release focused on observability, Docker UX, security hardening, and release discipline.

@@ -4,10 +4,9 @@ import argparse
 import concurrent.futures
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from types import SimpleNamespace, TracebackType
-from typing import cast
+from typing import Any, cast
 
 import pytest
 import requests
@@ -52,80 +51,116 @@ class _SecretValue:
         return self._value
 
 
-@dataclass
-class _DummyTeleBot:
-    token: str = "12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"
-    polling: bool = False
-    stop_calls: int = 0
-    remove_calls: int = 0
-    middleware_instances: list[SimpleNamespace] = field(default_factory=list)
-    message_handlers: list[tuple[_MessageCallback, dict[str, _PayloadValue]]] = field(
-        default_factory=list
+def _dummy_telebot_init(
+    self: object,
+    token: str = "12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE",
+    **kwargs: _PayloadValue,
+) -> None:
+    del kwargs
+    self.token = token  # type: ignore[attr-defined]
+    self.polling = False  # type: ignore[attr-defined]
+    self.stop_calls = 0  # type: ignore[attr-defined]
+    self.remove_calls = 0  # type: ignore[attr-defined]
+    self.middleware_instances = []  # type: ignore[attr-defined]
+    self.message_handlers = []  # type: ignore[attr-defined]
+    self.callback_handlers = []  # type: ignore[attr-defined]
+    self.commands_set = []  # type: ignore[attr-defined]
+    self.description_set = ""  # type: ignore[attr-defined]
+    self.get_me_error = None  # type: ignore[attr-defined]
+
+
+def _dummy_stop_polling(self: object) -> None:
+    self.stop_calls += 1  # type: ignore[attr-defined]
+    self.polling = False  # type: ignore[attr-defined]
+
+
+def _dummy_remove_webhook(self: object) -> bool:
+    self.remove_calls += 1  # type: ignore[attr-defined]
+    return True
+
+
+def _dummy_get_me(self: object) -> dict[str, str]:
+    if self.get_me_error is not None:  # type: ignore[attr-defined]
+        raise self.get_me_error  # type: ignore[attr-defined]
+    return {"ok": "true"}
+
+
+def _dummy_set_my_commands(
+    self: object,
+    commands: list[BotCommand],
+    scope: SimpleNamespace | None = None,
+    language_code: str | None = None,
+) -> bool:
+    del scope, language_code
+    self.commands_set = commands  # type: ignore[attr-defined]
+    return True
+
+
+def _dummy_set_my_description(
+    self: object,
+    description: str | None = None,
+    language_code: str | None = None,
+) -> None:
+    del language_code
+    self.description_set = description or ""  # type: ignore[attr-defined]
+
+
+def _dummy_setup_middleware(self: object, middleware: SimpleNamespace) -> None:
+    self.middleware_instances.append(middleware)  # type: ignore[attr-defined]
+
+
+def _dummy_register_message_handler(
+    self: object,
+    callback: _MessageCallback,
+    **kwargs: _PayloadValue,
+) -> None:
+    self.message_handlers.append((callback, kwargs))  # type: ignore[attr-defined]
+
+
+def _dummy_register_callback_query_handler(
+    self: object,
+    callback: _MessageCallback,
+    func: _PredicateCallback,
+    pass_bot: bool | None = False,
+    **kwargs: _PayloadValue,
+) -> None:
+    self.callback_handlers.append(  # type: ignore[attr-defined]
+        (callback, {"func": func, "pass_bot": pass_bot, **kwargs})
     )
-    callback_handlers: list[
-        tuple[_MessageCallback, dict[str, _PayloadValue | _PredicateCallback]]
-    ] = field(default_factory=list)
-    commands_set: list[BotCommand] = field(default_factory=list)
-    description_set: str = ""
-    get_me_error: Exception | None = None
 
-    def stop_polling(self) -> None:
-        self.stop_calls += 1
-        self.polling = False
 
-    def remove_webhook(self) -> bool:
-        self.remove_calls += 1
-        return True
+def _dummy_infinity_polling(self: object, **_kwargs: _PayloadValue) -> None:
+    return
 
-    def get_me(self) -> dict[str, str]:
-        if self.get_me_error is not None:
-            raise self.get_me_error
-        return {"ok": "true"}
 
-    def set_my_commands(
-        self,
-        commands: list[BotCommand],
-        scope: SimpleNamespace | None = None,
-        language_code: str | None = None,
-    ) -> bool:
-        del scope, language_code
-        self.commands_set = commands
-        return True
+_DummyTeleBot = type(
+    "_DummyTeleBot",
+    (),
+    {
+        "__init__": _dummy_telebot_init,
+        "stop_polling": _dummy_stop_polling,
+        "remove_webhook": _dummy_remove_webhook,
+        "get_me": _dummy_get_me,
+        "set_my_commands": _dummy_set_my_commands,
+        "set_my_description": _dummy_set_my_description,
+        "setup_middleware": _dummy_setup_middleware,
+        "register_message_handler": _dummy_register_message_handler,
+        "register_callback_query_handler": _dummy_register_callback_query_handler,
+        "infinity_polling": _dummy_infinity_polling,
+    },
+)
 
-    def set_my_description(
-        self,
-        description: str | None = None,
-        language_code: str | None = None,
-    ) -> None:
-        del language_code
-        self.description_set = description or ""
 
-    def setup_middleware(self, middleware: SimpleNamespace) -> None:
-        self.middleware_instances.append(middleware)
-
-    def register_message_handler(
-        self,
-        callback: _MessageCallback,
-        **kwargs: _PayloadValue,
-    ) -> None:
-        self.message_handlers.append((callback, kwargs))
-
-    def register_callback_query_handler(
-        self,
-        callback: _MessageCallback,
-        func: _PredicateCallback,
-        pass_bot: bool | None = False,
-        **kwargs: _PayloadValue,
-    ) -> None:
-        self.callback_handlers.append(
-            (
-                callback,
-                {"func": func, "pass_bot": pass_bot, **kwargs},
-            )
-        )
-
-    def infinity_polling(self, **_kwargs: _PayloadValue) -> None:
-        return
+def _make_dummy_telebot(
+    *,
+    token: str = "12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE",
+    polling: bool = False,
+    get_me_error: Exception | None = None,
+) -> Any:
+    bot = _DummyTeleBot(token=token)
+    bot.polling = polling
+    bot.get_me_error = get_me_error
+    return bot
 
 
 def _set_bot_args(
@@ -148,7 +183,7 @@ def _build_bot_with_dummy_telebot(
 ) -> instance_module.PyTMBot:
     bot = instance_module.PyTMBot()
     monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
-    bot.bot = cast(TeleBot, _DummyTeleBot())
+    bot.bot = cast(TeleBot, _make_dummy_telebot())
     return bot
 
 
@@ -257,7 +292,7 @@ def test_safe_stop_polling_handles_timeout(monkeypatch: pytest.MonkeyPatch) -> N
             return _TimeoutFuture()
 
     bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
+    dummy = _make_dummy_telebot()
     bot.bot = cast(TeleBot, dummy)
     monkeypatch.setattr(concurrent.futures, "ThreadPoolExecutor", _TimeoutExecutor)
 
@@ -326,10 +361,7 @@ def test_setup_middleware_chain_and_stats(monkeypatch: pytest.MonkeyPatch) -> No
         def cleanup(self) -> None:
             self.cleaned = True
 
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
 
     bot._setup_middleware_chain([(RateLimitLike, {"limit": 5})])
     assert bot.get_middleware_stats("RateLimitLike") == {"limit": 5}
@@ -346,10 +378,8 @@ def test_default_middlewares_start_with_update_dedup() -> None:
 def test_register_handler_chain_registers_message_and_callback_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
-    bot.bot = cast(TeleBot, dummy)
-    monkeypatch.setattr(instance_module, "TeleBot", _DummyTeleBot)
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
+    dummy = cast(SimpleNamespace, bot.bot)
 
     message_handler = SimpleNamespace(
         callback=lambda _message, _bot: None,
@@ -381,7 +411,7 @@ def test_initialize_bot_core_sets_running_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
+    dummy = _make_dummy_telebot()
 
     monkeypatch.setattr(
         instance_module.PyTMBot,
@@ -409,7 +439,7 @@ def test_get_bot_session_statistics_includes_runtime_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot(polling=True)
+    dummy = _make_dummy_telebot(polling=True)
     bot.bot = cast(TeleBot, dummy)
 
     monkeypatch.setattr(instance_module.PyTMBot, "is_healthy", lambda self: True)
@@ -481,7 +511,7 @@ def test_graceful_conflict_and_force_takeover_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    bot.bot = cast(TeleBot, _DummyTeleBot())
+    bot.bot = cast(TeleBot, _make_dummy_telebot())
 
     monkeypatch.setattr(
         instance_module.PyTMBot,
@@ -502,7 +532,7 @@ def test_polling_safety_context_conflict_and_reraise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    bot.bot = cast(TeleBot, _DummyTeleBot())
+    bot.bot = cast(TeleBot, _make_dummy_telebot())
     stop_calls: list[str] = []
 
     def _stop(self: instance_module.PyTMBot) -> bool:
@@ -544,7 +574,7 @@ def test_is_healthy_state_checks() -> None:
     bot = instance_module.PyTMBot()
     assert bot.is_healthy() is False
 
-    dummy = _DummyTeleBot(polling=False)
+    dummy = _make_dummy_telebot(polling=False)
     bot.bot = cast(TeleBot, dummy)
     bot._state = instance_module.BotState.RUNNING
     bot._session = instance_module.BotSession.create(mode="dev", webhook_enabled=False)
@@ -582,7 +612,7 @@ def test_start_webhook_server_requires_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot()
+    dummy = _make_dummy_telebot()
     bot.bot = cast(TeleBot, dummy)
     bot.args = argparse.Namespace(
         mode="dev",
@@ -626,7 +656,7 @@ def test_conflict_resolution_success_and_polling_context_unresolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bot = instance_module.PyTMBot()
-    dummy = _DummyTeleBot(polling=True)
+    dummy = _make_dummy_telebot(polling=True)
     bot.bot = cast(TeleBot, dummy)
     sleeps: list[int] = []
     monkeypatch.setattr(
@@ -687,18 +717,23 @@ def test_create_base_bot_and_commands_exception_paths(
     with pytest.raises(RuntimeError):
         bot._create_base_bot("token")
 
-    class _ApiErrorBot(_DummyTeleBot):
-        def set_my_commands(
-            self,
-            commands: list[BotCommand],
-            scope: SimpleNamespace | None = None,
-            language_code: str | None = None,
-        ) -> bool:
-            del commands, scope, language_code
-            raise _build_api_exception(400)
+    def _api_error_set_my_commands(
+        self: object,
+        commands: list[BotCommand],
+        scope: SimpleNamespace | None = None,
+        language_code: str | None = None,
+    ) -> bool:
+        del self, commands, scope, language_code
+        raise _build_api_exception(400)
 
-    monkeypatch.setattr(instance_module, "TeleBot", _ApiErrorBot)
-    bot.bot = cast(TeleBot, _ApiErrorBot())
+    api_error_bot_type = type(
+        "_ApiErrorBot",
+        (_DummyTeleBot,),
+        {"set_my_commands": _api_error_set_my_commands},
+    )
+
+    monkeypatch.setattr(instance_module, "TeleBot", api_error_bot_type)
+    bot.bot = cast(TeleBot, api_error_bot_type())
     bot._setup_commands_and_description()
 
 

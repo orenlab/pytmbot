@@ -19,6 +19,8 @@ import pytmbot.handlers.server_handlers.sensors as sensors_module
 import pytmbot.handlers.server_handlers.uptime as uptime_module
 from pytmbot.exceptions import HandlingException
 from pytmbot.parsers.compiler import Compiler
+from tests._telebot_objects import telegram_object_from_payload
+from tests._telebot_send_capture import build_bot_capture
 
 type _MessageHandler = Callable[[Message, TeleBot], None]
 type _RawHandlerInput = (
@@ -33,46 +35,6 @@ class _CompilerLike(Protocol):
     def quick_render(self, template_name: str, **kwargs: _PayloadValue) -> str: ...
 
 
-def _build_bot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TeleBot, list[tuple[int, str]], list[_PayloadDict]]:
-    bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
-    actions: list[tuple[int, str]] = []
-    messages: list[_PayloadDict] = []
-
-    def _send_chat_action(
-        chat_id: int | str,
-        action: str,
-        timeout: int | None = None,
-        message_thread_id: int | None = None,
-        business_connection_id: str | None = None,
-    ) -> bool:
-        del timeout, message_thread_id, business_connection_id
-        actions.append((int(chat_id), action))
-        return True
-
-    def _send_message(
-        chat_id: int | str,
-        text: str,
-        parse_mode: str | None = None,
-        reply_markup: _PayloadValue | None = None,
-        **kwargs: _PayloadValue,
-    ) -> _PayloadDict:
-        del kwargs
-        payload: _PayloadDict = {
-            "chat_id": int(chat_id),
-            "text": text,
-            "parse_mode": parse_mode,
-            "reply_markup": reply_markup,
-        }
-        messages.append(payload)
-        return payload
-
-    monkeypatch.setattr(bot, "send_chat_action", _send_chat_action)
-    monkeypatch.setattr(bot, "send_message", _send_message)
-    return bot, actions, messages
-
-
 def _build_message(chat_id: int = 1, user_id: int = 101) -> Message:
     payload: _PayloadDict = {
         "message_id": 1,
@@ -81,11 +43,11 @@ def _build_message(chat_id: int = 1, user_id: int = 101) -> Message:
         "from": {"id": user_id, "is_bot": False, "first_name": "Test"},
         "text": "command",
     }
-    message_from_json = cast(Callable[[_PayloadDict], Message], Message.de_json)
-    message_obj = message_from_json(payload)
-    if not isinstance(message_obj, Message):
-        raise AssertionError("Expected Message instance")
-    return message_obj
+    return telegram_object_from_payload(
+        payload,
+        parser=cast(Callable[[_PayloadDict], Message], Message.de_json),
+        expected_type=Message,
+    )
 
 
 def _invoke_handler(
@@ -258,7 +220,7 @@ def _assert_simple_handler_paths(
 
 
 def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, actions, messages = _build_bot(monkeypatch)
+    bot, actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(10)
 
     monkeypatch.setattr(
@@ -298,7 +260,7 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(11)
 
     monkeypatch.setattr(
@@ -334,7 +296,7 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(12)
 
     _assert_simple_handler_paths(
@@ -355,7 +317,7 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(13, user_id=777)
 
     _assert_memory_or_process_handler_paths(
@@ -387,7 +349,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(14)
 
     _assert_simple_handler_paths(
@@ -408,7 +370,7 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(15, user_id=777)
 
     monkeypatch.setattr(
@@ -475,7 +437,7 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, _actions, messages = _build_bot(monkeypatch)
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(16)
 
     monkeypatch.setattr(
