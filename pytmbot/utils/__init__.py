@@ -135,11 +135,39 @@ _LAZY_EXPORTS: Final[dict[str, tuple[str, str]]] = {
 }
 
 
+_RESOLVED_CACHE: dict[str, object] = {}
+
+
 def __getattr__(name: str) -> object:
+    if name in _RESOLVED_CACHE:
+        return _RESOLVED_CACHE[name]
+
     target = _LAZY_EXPORTS.get(name)
     if target is None:
-        raise AttributeError(f"Module {__name__} has no attribute {name}")
+        raise AttributeError(f"Module {__name__!r} has no attribute {name!r}")
 
-    module_name, attr_name = target
-    module = importlib.import_module(module_name, __name__)
-    return getattr(module, attr_name)
+    module_path, attr_name = target
+
+    if not module_path.startswith("."):
+        raise AttributeError(
+            f"Unsafe module path {module_path!r} for attribute {name!r}: "
+            "only relative imports are permitted in _LAZY_EXPORTS"
+        )
+
+    try:
+        module = importlib.import_module(module_path, __name__)
+    except ImportError as exc:
+        raise ImportError(
+            f"Cannot import module {module_path!r} while resolving {__name__}.{name}"
+        ) from exc
+
+    try:
+        obj = getattr(module, attr_name)
+    except AttributeError as exc:
+        raise AttributeError(
+            f"Module {module_path!r} has no attribute {attr_name!r} "
+            f"(requested as {__name__}.{name})"
+        ) from exc
+
+    _RESOLVED_CACHE[name] = obj
+    return obj
