@@ -23,7 +23,7 @@ Stable public tags:
 
 | Tag      | Description                   |
 |----------|-------------------------------|
-| `0.3.0`  | Exact immutable release image |
+| `0.3.2`  | Exact immutable release image |
 | `0.3`    | Current supported stable line |
 | `stable` | Stable channel alias          |
 | `latest` | Alias of `stable`             |
@@ -36,7 +36,7 @@ Additional tags:
 | `edge-<branch>`     | Development image for a feature or fix branch |
 | `edge-sha-<gitsha>` | Development image pinned to a branch commit   |
 
-Recommended: use `0.3.0` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
+Recommended: use `0.3.2` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
 tags in production.
 
 ## Image Features
@@ -91,16 +91,18 @@ docker run -d \
   --name pytmbot \
   --restart on-failure \
   -e TZ=UTC \
+  -e PYTMBOT_STATE_DIR=/run/pytmbot \
   -v /etc/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   --read-only \
   --security-opt no-new-privileges \
   --cap-drop ALL \
   --pid host \
+  --tmpfs /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001 \
   orenlab/pytmbot:stable --mode prod
 ```
 
-For pinned rollouts, replace `stable` with `0.3.0`. To enforce Docker socket availability on startup, add
+For pinned rollouts, replace `stable` with `0.3.2`. To enforce Docker socket availability on startup, add
 `-e STRICT_DOCKER_ACCESS=True`.
 
 ## Docker Compose Example
@@ -113,6 +115,7 @@ services:
     restart: on-failure
     environment:
       TZ: UTC
+      PYTMBOT_STATE_DIR: /run/pytmbot
     volumes:
       - /etc/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -123,6 +126,7 @@ services:
       - ALL
     pid: host
     tmpfs:
+      - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
       - /tmp:noexec,nosuid,nodev,size=100m,uid=1001,gid=1001
       - /var/tmp:noexec,nosuid,nodev,size=50m,uid=1001,gid=1001
     command: [ "--mode", "prod" ]
@@ -187,7 +191,7 @@ docker run -d \
 
 ## Upgrade Policy
 
-- Exact release tags (`0.3.0`) are immutable.
+- Exact release tags (`0.3.2`) are immutable.
 - Floating tags (`0.3`, `stable`, `latest`) can move forward.
 - Weekly rebuilds refresh the Ubuntu base image and installed OS packages.
 - Python dependency updates require a committed `uv.lock` change and a new release.
