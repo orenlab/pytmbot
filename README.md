@@ -29,8 +29,6 @@
 
 ---
 
----
-
 ## Overview
 
 **pyTMbot** lets you manage Docker containers and monitor server health directly from Telegram — without opening a
