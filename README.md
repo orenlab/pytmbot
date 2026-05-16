@@ -3,11 +3,11 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="docs/assets/pytmbot-wordmark-dark.svg"
+      srcset="https://raw.githubusercontent.com/orenlab/pytmbot/master/docs/assets/pytmbot-wordmark-dark.svg"
     >
     <source
       media="(prefers-color-scheme: light)"
-      srcset="docs/assets/pytmbot-wordmark.svg"
+      srcset="https://raw.githubusercontent.com/orenlab/pytmbot/master/docs/assets/pytmbot-wordmark.svg"
     >
     <img
       alt="pyTMbot"
@@ -26,6 +26,8 @@
   </p>
 
 </div>
+
+---
 
 ---
 
@@ -130,7 +132,7 @@ See [docs/plugins.md](docs/plugins.md) for the plugin API and configuration refe
 
 | Component      | Requirement                       |
 |----------------|-----------------------------------|
-| Python         | `>=3.12,<4` (CI: 3.12-3.14)      |
+| Python         | `>=3.12,<4` (CI: 3.12-3.14)       |
 | Docker Engine  | 20.10+                            |
 | Docker Compose | v2.0+                             |
 | Docker socket  | required for container management |
