@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.2] — 20260516
+
+Patch release focused on dependency refresh, Docker polish, and release documentation.
+
+### Security And Reliability
+
+- Refreshed runtime and development dependencies and regenerated `uv.lock`.
+- Updated Docker runtime configuration and image metadata for the current supported patch line.
+
+### Docs And Release
+
+- Bumped project docs, sample config, security policy, and exact Docker tag references to `0.3.2`.
+- Kept the `0.3` stable-line contract unchanged for floating weekly rebuilds.
+
 ## [0.3.1] — 20260406
 
 Patch release focused on dependency refresh, structural cleanup, and release polish.

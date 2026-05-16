@@ -125,7 +125,7 @@ def _docker_settings_stub() -> SimpleNamespace:
             stop_timeout=5,
             restart_timeout=5,
         ),
-        version="0.3.1",
+        version="0.3.2",
     )
 
 
@@ -391,7 +391,7 @@ def test_docker_adapter_security_checks_and_context_sanitization(
             ca_cert=True,
             debug_docker_client=False,
         ),
-        version="0.3.1",
+        version="0.3.2",
     )
     monkeypatch.setattr(docker_adapter_module, "settings", insecure_settings)
     with pytest.warns(RuntimeWarning):
@@ -421,7 +421,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
             timeout=1,
             strict_access=False,
         ),
-        version="0.3.1",
+        version="0.3.2",
     )
     monkeypatch.setattr(docker_adapter_module, "settings", bad_timeout_settings)
     adapter_with_default_timeout = docker_adapter_module.DockerAdapter()
@@ -433,7 +433,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
             timeout=1,
             strict_access=True,
         ),
-        version="0.3.1",
+        version="0.3.2",
     )
     monkeypatch.setattr(docker_adapter_module, "settings", strict_bad_timeout_settings)
     with pytest.raises(ValueError):
@@ -450,7 +450,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
             debug_docker_client=False,
             strict_access=False,
         ),
-        version="0.3.1",
+        version="0.3.2",
     )
     monkeypatch.setattr(docker_adapter_module, "settings", https_settings)
     adapter = docker_adapter_module.DockerAdapter()
@@ -548,7 +548,7 @@ def test_create_tls_config_hostname_paths(monkeypatch: pytest.MonkeyPatch) -> No
                 verify_hostname=True,
                 strict_access=False,
             ),
-            version="0.3.1",
+            version="0.3.2",
         ),
     )
     adapter = docker_adapter_module.DockerAdapter()

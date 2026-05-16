@@ -1,6 +1,6 @@
 services:
   pytmbot:
-    image: orenlab/pytmbot:ubuntu-dev
+    image: orenlab/pytmbot:stable
     container_name: pytmbot
     restart: on-failure
 
