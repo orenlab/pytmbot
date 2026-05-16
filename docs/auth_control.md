@@ -51,7 +51,8 @@ Default timing:
 
 - session timeout: `10` minutes
 - cleanup interval: `600` seconds
-- max TOTP attempts: `5`
+- user-facing invalid TOTP attempts before a block: `3`
+- short-window TOTP burst limit: at least `5` attempts per `60` seconds
 - temporary TOTP block duration: `10` minutes
 
 Implementation notes:
@@ -71,6 +72,7 @@ Current behavior:
 - QR codes are generated from the per-user TOTP secret.
 - Successful verification transitions the user session to `authenticated`.
 - Replayed or invalid codes are rejected by `pytmbot/utils/totp.py`.
+- Replay state is persisted in the runtime state directory when it is writable.
 
 ## What Is Protected
 

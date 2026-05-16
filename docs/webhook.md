@@ -79,7 +79,14 @@ Ban behavior:
 
 - repeated abuse can trigger an IP ban
 - ban TTL is `3600` seconds
-- ban state is persisted under `/tmp/pytmbot_webhook_ratelimit/<port>/` outside pytest
+- ban state is persisted under `webhook_ratelimit/<port>/` in the runtime state directory outside pytest when that
+  directory is writable
+
+Runtime state directory resolution:
+
+- `PYTMBOT_STATE_DIR` when set
+- otherwise `$XDG_STATE_HOME/pytmbot` when `XDG_STATE_HOME` is set
+- otherwise `~/.local/state/pytmbot`
 
 ## Credential Rotation
 

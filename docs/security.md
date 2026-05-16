@@ -52,11 +52,12 @@ See also: [auth_control.md](auth_control.md).
 - Store secrets only in `pytmbot.yaml`.
 - Restrict config permissions (recommended `600`).
 - Mount config as read-only in container deployments.
+- For read-only containers, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume.
 - Expose webhook mode only behind a trusted reverse proxy with TLS.
 
 ## Operational Baseline
 
-- Use `orenlab/pytmbot:0.3.1` for exact-release reproducibility.
+- Use `orenlab/pytmbot:0.3.2` for exact-release reproducibility.
 - Use `orenlab/pytmbot:0.3` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
 - Run periodic vulnerability scans for container image and host.
 - Review auth/rate-limit/webhook logs regularly.

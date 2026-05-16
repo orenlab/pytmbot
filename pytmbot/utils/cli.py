@@ -148,8 +148,8 @@ def parse_cli_args() -> argparse.Namespace:
         epilog="""
 Examples:
   %(prog)s --mode dev --log-level DEBUG
-  %(prog)s --webhook --socket_host 0.0.0.0
-  %(prog)s --plugins docker system --health_check
+  %(prog)s --webhook true --socket_host 0.0.0.0
+  %(prog)s --plugins monitor outline --health_check
         """,
     )
 

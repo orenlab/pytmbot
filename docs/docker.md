@@ -20,7 +20,7 @@ Published image:
 
 Stable public tags:
 
-- `0.3.1` for an exact release image
+- `0.3.2` for an exact release image
 - `0.3` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`
@@ -64,11 +64,26 @@ Optional:
 
 Current runtime-relevant environment variables:
 
-| Variable               | Default | Purpose                                                       |
-|------------------------|---------|---------------------------------------------------------------|
-| `TZ`                   | `UTC`   | Container timezone                                            |
-| `STRICT_DOCKER_ACCESS` | `False` | Fails startup when Docker access is unavailable if set truthy |
-| `PYTMBOT_CONFIG_PATH`  | unset   | Overrides the config path when needed                         |
+| Variable               | Default                  | Purpose                                                            |
+|------------------------|--------------------------|--------------------------------------------------------------------|
+| `TZ`                   | `UTC`                    | Container timezone                                                 |
+| `STRICT_DOCKER_ACCESS` | `False`                  | Fails startup when Docker access is unavailable if set truthy      |
+| `PYTMBOT_CONFIG_PATH`  | unset                    | Overrides the config path when needed                              |
+| `PYTMBOT_STATE_DIR`    | `~/.local/state/pytmbot` | Overrides runtime state path                                       |
+| `XDG_STATE_HOME`       | unset                    | Base directory for runtime state when `PYTMBOT_STATE_DIR` is unset |
+
+## Runtime State
+
+Runtime state is used for TOTP replay protection and persisted webhook rate-limit bans.
+
+State path resolution:
+
+- `PYTMBOT_STATE_DIR` when set
+- otherwise `$XDG_STATE_HOME/pytmbot` when `XDG_STATE_HOME` is set
+- otherwise `~/.local/state/pytmbot`
+
+When using a read-only root filesystem, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume, for example
+`/run/pytmbot`.
 
 ## Minimal Run
 
@@ -134,6 +149,7 @@ Recommended runtime flags for production:
 - `--security-opt no-new-privileges`
 - `--cap-drop ALL`
 - read-only bind mount for `/var/run/docker.sock`
+- writable private tmpfs or volume for `PYTMBOT_STATE_DIR`
 
 Important:
 
