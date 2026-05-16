@@ -1,15 +1,31 @@
-# pyTMbot
+<div align="center">
 
-<p align="center">
-  Docker-first Telegram bot for container management, server monitoring, and secure remote administration.
-</p>
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="docs/assets/pytmbot-wordmark-dark.svg"
+    >
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="docs/assets/pytmbot-wordmark.svg"
+    >
+    <img
+      alt="pyTMbot"
+      src="https://raw.githubusercontent.com/orenlab/pytmbot/master/docs/assets/pytmbot-wordmark.svg"
+      width="280"
+    >
+  </picture>
 
-<p align="center">
-  <a href="https://hub.docker.com/r/orenlab/pytmbot/"><img src="https://img.shields.io/docker/pulls/orenlab/pytmbot?style=flat-square&logo=docker&logoColor=white&label=pulls&color=1a7fd4&labelColor=2b3137" alt="Docker Pulls"></a>
-  <a href="https://hub.docker.com/r/orenlab/pytmbot/"><img src="https://img.shields.io/docker/image-size/orenlab/pytmbot?style=flat-square&logo=docker&logoColor=white&label=image%20size&color=1a7fd4&labelColor=2b3137" alt="Image Size"></a>
-  <a href="https://github.com/orenlab/pytmbot/releases"><img src="https://img.shields.io/github/v/release/orenlab/pytmbot?style=flat-square&logo=github&logoColor=white&color=1a7fd4&labelColor=2b3137" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/orenlab/pytmbot?style=flat-square&logo=opensourceinitiative&logoColor=white&color=1a7fd4&labelColor=2b3137" alt="License"></a>
-</p>
+  <p>Docker-first Telegram bot for container management, server monitoring, and secure remote administration.</p>
+
+  <p>
+    <a href="https://hub.docker.com/r/orenlab/pytmbot/"><img src="https://img.shields.io/docker/pulls/orenlab/pytmbot?style=flat-square&logo=docker&logoColor=white&label=pulls&color=1a7fd4&labelColor=2b3137" alt="Docker Pulls"></a>
+    <a href="https://hub.docker.com/r/orenlab/pytmbot/"><img src="https://img.shields.io/docker/image-size/orenlab/pytmbot?style=flat-square&logo=docker&logoColor=white&label=image%20size&color=1a7fd4&labelColor=2b3137" alt="Image Size"></a>
+    <a href="https://github.com/orenlab/pytmbot/releases"><img src="https://img.shields.io/github/v/release/orenlab/pytmbot?style=flat-square&logo=github&logoColor=white&color=1a7fd4&labelColor=2b3137" alt="Release"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/orenlab/pytmbot?style=flat-square&logo=opensourceinitiative&logoColor=white&color=1a7fd4&labelColor=2b3137" alt="License"></a>
+  </p>
+
+</div>
 
 ---
 
@@ -39,6 +55,9 @@ services:
     image: orenlab/pytmbot:stable
     container_name: pytmbot
     restart: on-failure
+    environment:
+      TZ: UTC
+      PYTMBOT_STATE_DIR: /run/pytmbot
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
@@ -48,6 +67,8 @@ services:
     cap_drop:
       - ALL
     pid: host
+    tmpfs:
+      - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
     command: [ "--log-level", "INFO" ]
 ```
 
@@ -107,9 +128,9 @@ See [docs/plugins.md](docs/plugins.md) for the plugin API and configuration refe
 
 ## Requirements
 
-| Component      | Minimum                           |
+| Component      | Requirement                       |
 |----------------|-----------------------------------|
-| Python         | 3.12 / 3.13                       |
+| Python         | `>=3.12,<4` (CI: 3.12-3.14)      |
 | Docker Engine  | 20.10+                            |
 | Docker Compose | v2.0+                             |
 | Docker socket  | required for container management |

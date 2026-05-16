@@ -52,13 +52,13 @@ uv run codeclone .
 Build documentation strictly:
 
 ```bash
-uv run mkdocs build --strict
+uv run zensical build --strict
 ```
 
 Preview documentation locally:
 
 ```bash
-uv run mkdocs serve
+uv run zensical serve
 ```
 
 Run the full local gate set:
@@ -78,7 +78,6 @@ Current local / CI gates include:
 - codeclone
 - pre-commit hooks
 - `uv sync --frozen` in CI to enforce `uv.lock`
-- blocking Hadolint checks for Dockerfile changes on pushes and pull requests
 
 ## CI Overview
 
@@ -88,9 +87,8 @@ Current GitHub Actions workflows cover:
 - Ruff
 - mypy
 - codeclone baseline checks on Python `3.14`
-- MkDocs strict build for the docs site
+- Zensical strict build for the docs site
 - Docker image builds for development, releases, and weekly stable-line rebuilds
-- Hadolint for the Dockerfile
 - GitHub Pages deployment from the GitHub Actions artifact flow
 
 ## Release Image Policy
@@ -123,7 +121,7 @@ Operational notes:
 
 - `pytmbot.yaml.sample` is the canonical sample config.
 - Docs should point to current code paths, not historical behavior.
-- Docs site must pass `mkdocs build --strict`.
+- Docs site must pass `zensical build --strict`.
 - If codeclone flags dynamic false positives, use the supported inline suppression syntax rather than broad ignores.
 
 Current suppression form:

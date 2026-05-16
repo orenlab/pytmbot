@@ -12,6 +12,7 @@ Patch release focused on dependency refresh, Docker polish, and release document
 ### Docs And Release
 
 - Bumped project docs, sample config, security policy, and exact Docker tag references to `0.3.2`.
+- Migrated the documentation site from MkDocs Material to Zensical with strict CI validation.
 - Kept the `0.3` stable-line contract unchanged for floating weekly rebuilds.
 
 ## [0.3.1] — 20260406

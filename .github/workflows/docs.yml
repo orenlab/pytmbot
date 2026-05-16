@@ -5,7 +5,7 @@ on:
     branches: ["**"]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "README.md"
       - "CNAME"
       - "pyproject.toml"
@@ -14,7 +14,7 @@ on:
   pull_request:
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "README.md"
       - "CNAME"
       - "pyproject.toml"
@@ -54,7 +54,7 @@ jobs:
         run: uv sync --frozen --dev
 
       - name: Build docs
-        run: uv run mkdocs build --strict
+        run: uv run zensical build --strict
 
       - name: Copy custom domain file
         run: |

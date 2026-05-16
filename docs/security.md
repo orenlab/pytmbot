@@ -52,6 +52,7 @@ See also: [auth_control.md](auth_control.md).
 - Store secrets only in `pytmbot.yaml`.
 - Restrict config permissions (recommended `600`).
 - Mount config as read-only in container deployments.
+- For read-only containers, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume.
 - Expose webhook mode only behind a trusted reverse proxy with TLS.
 
 ## Operational Baseline
