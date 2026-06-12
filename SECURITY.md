@@ -6,7 +6,7 @@ The following versions of pyTMbot are actively supported:
 
 | Version | Supported          | End of Life |
 |---------|--------------------|-------------|
-| 0.3.2   | :white_check_mark: | TBD         |
+| 0.3.3   | :white_check_mark: | TBD         |
 | < 0.3.0 | :x:                | 2026-02-18  |
 
 ## Reporting a Vulnerability
