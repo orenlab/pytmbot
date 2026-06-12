@@ -20,7 +20,7 @@ Published image:
 
 Stable public tags:
 
-- `0.3.2` for an exact release image
+- `0.3.3` for an exact release image
 - `0.3` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`

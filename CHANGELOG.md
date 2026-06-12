@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.3] — 20260612
+
+Patch release focused exclusively on dependency maintenance.
+
+### Maintenance
+
+- Refreshed runtime and development dependencies and regenerated `uv.lock`.
+- Updated release metadata, sample configuration, documentation, and exact Docker tag references to `0.3.3`.
+- No intentional feature or behavior changes.
+
 ## [0.3.2] — 20260516
 
 Patch release focused on dependency refresh, Docker polish, and release documentation.
