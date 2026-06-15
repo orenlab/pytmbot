@@ -11,6 +11,8 @@
 - Added `0.4.0.dev0` to the supported `config_version` compatibility matrix.
 - Bumped the development version to `0.4.0-dev`.
 - Refreshed direct dependencies and regenerated `uv.lock`: `fastapi` (`>=0.137.1`), `pyotp` (`>=2.10.0`), and dev `pytest` (`>=9.1.0`).
+- Unified Telegram outbound messaging through `send_bot_message()` / `send_*_message()` helpers so text-only replies, plugin screens, auth flows, and post-delete navigation consistently preserve the active reply keyboard.
+- Post-delete navigation now accepts a section keyboard (`main`, `server`, or `docker`); Docker log exports restore the Docker menu after auto-delete.
 
 ## [0.3.3] — 20260612
 

@@ -11,6 +11,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.utils import send_bot_message, send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
@@ -69,7 +70,8 @@ def handle_qr_code_message(
         - All operations are logged for security monitoring
     """
     if message.from_user is None:
-        bot.send_message(
+        send_main_message(
+            bot,
             message.chat.id,
             "⚠️ Cannot identify user for QR generation.",
         )
@@ -123,10 +125,12 @@ def handle_qr_code_message(
                     "<i>Please manually delete this message immediately after scanning for security!</i>"
                 )
 
-                bot.send_message(
-                    chat_id=message.chat.id,
+                send_bot_message(
+                    bot,
+                    message.chat.id,
                     text=warning_msg,
                     parse_mode="HTML",
+                    reply_markup=keyboard,
                     reply_to_message_id=sent_message.message_id,
                 )
 
@@ -160,7 +164,12 @@ def handle_qr_code_message(
                 **emojis,
             )
 
-            error_message = bot.send_message(message.chat.id, text=response)
+            error_message = send_bot_message(
+                bot,
+                message.chat.id,
+                text=response,
+                reply_markup=keyboard,
+            )
 
             # Schedule deletion of error message as well (shorter delay)
             deletion_manager.schedule_deletion(
@@ -187,7 +196,12 @@ def handle_qr_code_message(
     except Exception as error:
         # Send user-friendly error message
         error_msg = "⚠️ An error occurred while processing the QR code request."
-        error_message = bot.send_message(message.chat.id, error_msg)
+        error_message = send_bot_message(
+            bot,
+            message.chat.id,
+            text=error_msg,
+            reply_markup=keyboard,
+        )
 
         # Schedule deletion of error message
         try:

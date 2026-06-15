@@ -11,7 +11,11 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
-from pytmbot.handlers.handlers_util.utils import send_server_message
+from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
+    send_bot_message,
+    send_server_message,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -58,7 +62,8 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             template_name="b_server.jinja2", first_name=first_name, **emojis
         )
 
-        bot.send_message(
+        send_bot_message(
+            bot,
             message.chat.id,
             text=response,
             reply_markup=server_keyboard,
@@ -68,7 +73,7 @@ def handle_server(message: Message, bot: TeleBot) -> None:
         send_server_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

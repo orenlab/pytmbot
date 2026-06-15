@@ -282,10 +282,12 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         bot: TeleBot,
         chat_id: int,
         text: str,
+        *,
         reply_markup: _PayloadValue,
         parse_mode: str,
+        **kwargs: _PayloadValue,
     ) -> bool:
-        del bot
+        del bot, kwargs
         sent_payloads.append(
             {
                 "chat_id": chat_id,

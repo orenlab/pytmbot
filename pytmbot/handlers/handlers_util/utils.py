@@ -7,7 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
@@ -25,6 +25,18 @@ from pytmbot.keyboards.keyboards import (
 from pytmbot.logs import Logger
 
 logger = Logger()
+
+TELEGRAM_MAX_MESSAGE_LENGTH: Final[int] = 4096
+HANDLER_COMMAND_ERROR_MESSAGE: Final[str] = (
+    "⚠️ An error occurred while processing the command."
+)
+
+
+def truncate_telegram_text(text: str) -> str:
+    """Trim message text to Telegram's maximum message size."""
+    if len(text) < TELEGRAM_MAX_MESSAGE_LENGTH:
+        return text
+    return "Message is too long. I cut it down to 4096 characters: \n\n" + text[:4000]
 
 
 def send_bot_message(
@@ -79,6 +91,7 @@ def send_telegram_message(
     bot: TeleBot,
     chat_id: int,
     text: str,
+    *,
     reply_markup: ReplyMarkupType | None = None,
     parse_mode: str = "HTML",
     link_preview_options: LinkPreviewOptions | None = None,
@@ -88,32 +101,19 @@ def send_telegram_message(
     """
     Safely sends a message in Telegram with error handling.
 
-    Args:
-        bot: TeleBot instance
-        chat_id: Chat ID
-        text: Message text
-        reply_markup: Keyboard markup
-        parse_mode: Formatting mode
-        link_preview_options: Telegram link preview settings (LinkPreviewOptions | None)
-        reply_to_message_id: ID of a message to reply to (int | None)
-        nav_keyboard: Navigation reply keyboard when ``reply_markup`` is omitted
-
     Returns:
         bool: True if the message was sent successfully
 
     Raises:
-        exceptions.PyTMBotErrorHandlerError: In case of a sending error
+        exceptions.ConnectionException: In case of a Telegram API sending error
     """
     try:
-        bot.send_message(
-            chat_id=chat_id,
-            text=(
-                text
-                if len(text) < 4096
-                else "Message is too long. I cut it down to 4096 characters: \n\n"
-                + text[:4000]
-            ),
-            reply_markup=resolve_reply_markup(reply_markup, nav_keyboard=nav_keyboard),
+        send_bot_message(
+            bot,
+            chat_id,
+            truncate_telegram_text(text),
+            reply_markup=reply_markup,
+            nav_keyboard=nav_keyboard,
             parse_mode=parse_mode,
             link_preview_options=link_preview_options,
             reply_to_message_id=reply_to_message_id,

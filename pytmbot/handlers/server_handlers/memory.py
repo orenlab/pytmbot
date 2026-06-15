@@ -16,7 +16,11 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
-from pytmbot.handlers.handlers_util.utils import send_server_message
+from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
+    send_bot_message,
+    send_server_message,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -66,7 +70,8 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
             abacus=em.get_emoji("abacus"),
         )
 
-        bot.send_message(
+        send_bot_message(
+            bot,
             message.chat.id,
             text=bot_answer,
             reply_markup=keyboard,
@@ -78,7 +83,7 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         send_server_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

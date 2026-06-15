@@ -13,6 +13,7 @@ from pytmbot.adapters.docker.containers_info import fetch_docker_counters
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
     send_telegram_message,
 )
@@ -49,7 +50,7 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
         send_docker_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

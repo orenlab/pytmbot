@@ -23,6 +23,7 @@ from pytmbot.handlers.docker_handlers.pagination import (
     paginate_items,
 )
 from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
     send_telegram_message,
 )
@@ -238,7 +239,7 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
         send_docker_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

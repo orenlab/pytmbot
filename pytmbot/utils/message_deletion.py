@@ -474,9 +474,11 @@ _DEFAULT_POST_DELETE_NAVIGATION_TEXT: Final[str] = (
 )
 
 
-def _build_post_delete_navigation_keyboard() -> ReplyKeyboardMarkup:
-    """Restore the main menu reply keyboard after ephemeral messages are removed."""
-    return build_nav_keyboard(NAV_MAIN)
+def _build_post_delete_navigation_keyboard(
+    nav_keyboard: str = NAV_MAIN,
+) -> ReplyKeyboardMarkup:
+    """Restore the section reply keyboard after ephemeral messages are removed."""
+    return build_nav_keyboard(nav_keyboard)
 
 
 def create_post_delete_navigation_callback(
@@ -485,9 +487,10 @@ def create_post_delete_navigation_callback(
     bot: TeleBot,
     chat_id: int,
     navigation_text: str = _DEFAULT_POST_DELETE_NAVIGATION_TEXT,
+    nav_keyboard: str = NAV_MAIN,
 ) -> Callable[[_DeletionResult], None]:
     """
-    Wrap deletion callback to send a back-to-main-menu keyboard after successful deletion.
+    Wrap deletion callback to restore navigation keyboard after successful deletion.
 
     This keeps UX consistent when ephemeral bot messages are auto-removed.
     """
@@ -503,10 +506,13 @@ def create_post_delete_navigation_callback(
 
         if result.status == _DeletionStatus.SUCCESS:
             try:
-                bot.send_message(
-                    chat_id=chat_id,
-                    text=navigation_text,
-                    reply_markup=_build_post_delete_navigation_keyboard(),
+                from pytmbot.handlers.handlers_util.utils import send_bot_message
+
+                send_bot_message(
+                    bot,
+                    chat_id,
+                    navigation_text,
+                    reply_markup=_build_post_delete_navigation_keyboard(nav_keyboard),
                 )
             except Exception as error:
                 _callback_logger.warning(

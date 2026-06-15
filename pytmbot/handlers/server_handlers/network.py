@@ -16,7 +16,11 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
-from pytmbot.handlers.handlers_util.utils import send_server_message
+from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
+    send_bot_message,
+    send_server_message,
+)
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
@@ -81,7 +85,8 @@ def handle_network(message: Message, bot: TeleBot) -> None:
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = _build_network_keyboard(user_id)
 
-        bot.send_message(
+        send_bot_message(
+            bot,
             message.chat.id,
             text=message_text,
             parse_mode="HTML",
@@ -93,7 +98,7 @@ def handle_network(message: Message, bot: TeleBot) -> None:
         send_server_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

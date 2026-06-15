@@ -30,7 +30,11 @@ from pytmbot.globals import (
     settings,
     var_config,
 )
-from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
+    send_main_message,
+    send_telegram_message,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_valid_totp_code
@@ -135,7 +139,8 @@ def handle_twofa_message(message: Message, bot: TeleBot) -> None:
         None
     """
     if message.from_user is None:
-        bot.send_message(
+        send_main_message(
+            bot,
             message.chat.id,
             "⚠️ Cannot identify user for 2FA flow.",
         )
@@ -151,8 +156,10 @@ def handle_twofa_message(message: Message, bot: TeleBot) -> None:
         _send_totp_code_message(message, bot)
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the plugins command."
+        send_main_message(
+            bot,
+            message.chat.id,
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(
@@ -185,8 +192,10 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
 
     if stop_if(
         message.from_user is None,
-        lambda: bot.send_message(
-            message.chat.id, "⚠️ Cannot identify user for TOTP verification."
+        lambda: send_main_message(
+            bot,
+            message.chat.id,
+            "⚠️ Cannot identify user for TOTP verification.",
         ),
     ):
         return

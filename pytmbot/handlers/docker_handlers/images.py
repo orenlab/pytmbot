@@ -29,9 +29,11 @@ from pytmbot.handlers.docker_handlers.pagination import (
     paginate_items,
 )
 from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
     send_telegram_message,
 )
+from pytmbot.keyboards.keyboards import NAV_DOCKER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -844,18 +846,19 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         bot_answer, inline_button = render_images_page(page=1, user_id=user_id)
 
         return send_telegram_message(
-            bot,
-            message.chat.id,
-            bot_answer,
-            inline_button,
-            "HTML",
+            bot=bot,
+            chat_id=message.chat.id,
+            text=bot_answer,
+            reply_markup=inline_button,
+            parse_mode="HTML",
+            nav_keyboard=NAV_DOCKER,
         )
 
     except Exception as error:
         send_docker_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the command.",
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         logger.error(
             "bot.handler.docker.images.fail",

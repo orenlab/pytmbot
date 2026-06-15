@@ -610,7 +610,7 @@ def test_qrcode_deletion_callback_sends_main_navigation(
     monkeypatch.setattr(
         message_deletion_module,
         "_build_post_delete_navigation_keyboard",
-        lambda: "main-kbd",
+        lambda nav_keyboard="main_keyboard": "main-kbd",
     )
     bot = _make_bot()
     callback = message_deletion_module.create_post_delete_navigation_callback(
