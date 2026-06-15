@@ -19,6 +19,7 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.utils import send_server_message
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
@@ -99,8 +100,10 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
         cpu_context = _build_cpu_overview_context()
         if not cpu_context:
             logger.error("bot.handler.server.cpu.get.fail")
-            bot.send_message(
-                message.chat.id, text="⚠️ Failed to get CPU statistics. Try again later."
+            send_server_message(
+                bot,
+                message.chat.id,
+                text="⚠️ Failed to get CPU statistics. Try again later.",
             )
             return None
 
@@ -126,8 +129,10 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
         return None
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

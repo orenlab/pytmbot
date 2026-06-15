@@ -112,6 +112,37 @@ def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
         )
 
 
+def test_build_reply_keyboard_is_persistent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    markup = Keyboards().build_reply_keyboard("server_keyboard")
+    assert markup.is_persistent is True
+
+
+def test_build_nav_keyboard_and_resolve_reply_markup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    nav = keyboards_module.build_nav_keyboard(keyboards_module.NAV_MAIN)
+    assert isinstance(nav, ReplyKeyboardMarkup)
+    assert nav.is_persistent is True
+
+    inline = Keyboards().build_inline_keyboard(
+        ButtonData(text="Open", callback_data="ok")
+    )
+    assert keyboards_module.resolve_reply_markup(inline) is inline
+    assert keyboards_module.resolve_reply_markup(None) is None
+    resolved = keyboards_module.resolve_reply_markup(
+        None, nav_keyboard=keyboards_module.NAV_SERVER
+    )
+    assert isinstance(resolved, ReplyKeyboardMarkup)
+
+
 def test_build_referer_keyboards_validation_and_callback_size() -> None:
     keyboard = Keyboards()
 

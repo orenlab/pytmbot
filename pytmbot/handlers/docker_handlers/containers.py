@@ -22,7 +22,10 @@ from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
     paginate_items,
 )
-from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.handlers.handlers_util.utils import (
+    send_docker_message,
+    send_telegram_message,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -232,8 +235,10 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
         )
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_docker_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

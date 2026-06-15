@@ -21,6 +21,7 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import ReplyKeyboardMarkup
 
+from pytmbot.keyboards.keyboards import NAV_MAIN, build_nav_keyboard
 from pytmbot.logs import BaseComponent, Logger
 
 # Type aliases for better readability
@@ -473,11 +474,9 @@ _DEFAULT_POST_DELETE_NAVIGATION_TEXT: Final[str] = (
 )
 
 
-def _build_back_navigation_keyboard() -> ReplyKeyboardMarkup:
-    """Build back-to-main-menu keyboard lazily to avoid import side effects."""
-    from pytmbot.globals import get_keyboards
-
-    return get_keyboards().build_reply_keyboard(keyboard_type="back_keyboard")
+def _build_post_delete_navigation_keyboard() -> ReplyKeyboardMarkup:
+    """Restore the main menu reply keyboard after ephemeral messages are removed."""
+    return build_nav_keyboard(NAV_MAIN)
 
 
 def create_post_delete_navigation_callback(
@@ -507,7 +506,7 @@ def create_post_delete_navigation_callback(
                 bot.send_message(
                     chat_id=chat_id,
                     text=navigation_text,
-                    reply_markup=_build_back_navigation_keyboard(),
+                    reply_markup=_build_post_delete_navigation_keyboard(),
                 )
             except Exception as error:
                 _callback_logger.warning(

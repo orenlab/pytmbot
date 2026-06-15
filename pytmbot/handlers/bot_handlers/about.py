@@ -12,6 +12,7 @@ from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import __version__
 from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -51,11 +52,15 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
             text=response,
             parse_mode="Markdown",
             link_preview_options=LinkPreviewOptions(is_disabled=True),
+            nav_keyboard=NAV_MAIN,
         )
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while opening the About screen."
+        send_telegram_message(
+            bot=bot,
+            chat_id=message.chat.id,
+            text="⚠️ An error occurred while opening the About screen.",
+            nav_keyboard=NAV_MAIN,
         )
         raise exceptions.HandlingException(
             ErrorContext(

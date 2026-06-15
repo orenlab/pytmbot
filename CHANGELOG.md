@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0] — Unreleased
+
+### Fixed
+
+- Fixed the reply keyboard disappearing on Telegram iOS during normal bot use by enabling persistent section keyboards and re-attaching the correct navigation keyboard on text-only replies, middleware warnings, and post-delete navigation.
+
+### Changed
+
+- Added `0.4.0.dev0` to the supported `config_version` compatibility matrix.
+- Bumped the development version to `0.4.0-dev`.
+- Refreshed direct dependencies and regenerated `uv.lock`: `fastapi` (`>=0.137.1`), `pyotp` (`>=2.10.0`), and dev `pytest` (`>=9.1.0`).
+
 ## [0.3.3] — 20260612
 
 Patch release focused exclusively on dependency maintenance.

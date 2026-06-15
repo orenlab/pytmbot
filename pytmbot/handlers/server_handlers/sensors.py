@@ -18,6 +18,7 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.utils import send_server_message
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
@@ -65,7 +66,8 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
         fan_speeds = fan_getter()
 
         if (sensors_data is None or sensors_data == []) and not fan_speeds:
-            bot.send_message(
+            send_server_message(
+                bot,
                 message.chat.id,
                 text="⚠️ No temperature or fan sensors were found.",
             )
@@ -100,8 +102,10 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
         )
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

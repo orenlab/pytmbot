@@ -21,6 +21,7 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.utils import send_server_message
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
     build_user_bound_callback_data,
@@ -489,8 +490,10 @@ def handle_system_health(message: Message, bot: TeleBot) -> None:
         )
         return None
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

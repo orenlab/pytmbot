@@ -14,9 +14,11 @@ from functools import lru_cache
 from typing import Final
 
 from telebot.types import (
+    ForceReply,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
 )
 
 from pytmbot.exceptions import KeyboardError
@@ -31,6 +33,17 @@ class KeyboardOperation(StrEnum):
     BUILD_REPLY = "build_reply_keyboard"
     GET_DATA = "get_keyboard_data"
     CONSTRUCT = "construct_keyboard"
+
+
+# Navigation reply-keyboard contexts (values match KeyboardSettings map keys).
+NAV_MAIN: Final[str] = "main_keyboard"
+NAV_SERVER: Final[str] = "server_keyboard"
+NAV_DOCKER: Final[str] = "docker_keyboard"
+NAV_BACK: Final[str] = "back_keyboard"
+
+type ReplyMarkupType = (
+    InlineKeyboardMarkup | ReplyKeyboardMarkup | ForceReply | ReplyKeyboardRemove
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +118,10 @@ class Keyboards:
             operation=KeyboardOperation.BUILD_MAIN, data=main_keyboard_data
         ):
             keyboard = ReplyKeyboardMarkup(
-                resize_keyboard=True, one_time_keyboard=True, selective=True
+                resize_keyboard=True,
+                one_time_keyboard=True,
+                selective=True,
+                is_persistent=True,
             )
             keyboard.add(main_keyboard_data)
             return keyboard
@@ -180,6 +196,7 @@ class Keyboards:
                 resize_keyboard=True,
                 row_width=self.DEFAULT_ROW_WIDTH,
                 one_time_keyboard=False,
+                is_persistent=True,
             )
 
             # Build rows with proper chunking
@@ -313,3 +330,29 @@ class Keyboards:
 
             log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard
+
+
+def build_nav_keyboard(keyboard_type: str = NAV_MAIN) -> ReplyKeyboardMarkup:
+    """Build a persistent reply keyboard for the current navigation section."""
+    keyboards = Keyboards()
+    if keyboard_type == NAV_MAIN:
+        return keyboards.build_reply_keyboard()
+    return keyboards.build_reply_keyboard(keyboard_type=keyboard_type)
+
+
+def resolve_reply_markup(
+    reply_markup: ReplyMarkupType | None,
+    *,
+    nav_keyboard: str | None = None,
+) -> ReplyMarkupType | None:
+    """
+    Prefer an explicit markup; otherwise attach a navigation reply keyboard when requested.
+
+    Inline keyboards are left unchanged. Use ``nav_keyboard=NAV_*`` for text-only replies
+    so Telegram clients keep the section menu visible (notably on iOS).
+    """
+    if reply_markup is not None:
+        return reply_markup
+    if nav_keyboard is None:
+        return None
+    return build_nav_keyboard(nav_keyboard)

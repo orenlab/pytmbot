@@ -210,7 +210,7 @@ def test_cleanup_stale_references(
     assert manager.get_pending_count(6) == 0
 
 
-def test_create_post_delete_navigation_callback_sends_back_keyboard(
+def test_create_post_delete_navigation_callback_sends_main_keyboard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _NavBot:
@@ -231,8 +231,8 @@ def test_create_post_delete_navigation_callback_sends_back_keyboard(
 
     monkeypatch.setattr(
         message_deletion_module,
-        "_build_back_navigation_keyboard",
-        lambda: "back-kbd",
+        "_build_post_delete_navigation_keyboard",
+        lambda: "main-kbd",
     )
 
     callback = message_deletion_module.create_post_delete_navigation_callback(
@@ -263,4 +263,4 @@ def test_create_post_delete_navigation_callback_sends_back_keyboard(
     assert callback_results == ["SUCCESS", "FAILED"]
     assert len(bot.messages) == 1
     assert bot.messages[0]["chat_id"] == 77
-    assert bot.messages[0]["reply_markup"] == "back-kbd"
+    assert bot.messages[0]["reply_markup"] == "main-kbd"

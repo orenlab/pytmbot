@@ -49,7 +49,7 @@ def test_get_app_version_fallback_when_package_not_installed(
         raise PackageNotFoundError
 
     monkeypatch.setattr(settings_model_module, "package_version", _raise_not_found)
-    assert get_app_version() == "0.3.3"
+    assert get_app_version() == "0.4.0.dev0"
     get_app_version.cache_clear()
 
 
@@ -72,6 +72,9 @@ def test_webhook_config_trusted_proxy_ips_normalization_and_validation() -> None
         ("0.3.2", "0.3.2", False),
         ("0.3.2", "0.3.3", True),
         ("0.3.3", "0.3.3", False),
+        ("0.4.0.dev0", "0.4.0.dev0", False),
+        ("0.4.0-dev", "0.4.0.dev0", False),
+        ("0.3.3", "0.4.0.dev0", True),
     ],
 )
 def test_config_migrator_validate_compatibility(

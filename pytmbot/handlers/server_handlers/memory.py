@@ -16,6 +16,7 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.utils import send_server_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -41,7 +42,8 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         memory_info = psutil_adapter.get_memory()
         if memory_info is None:
             logger.error("bot.handler.server.memory.get.fail")
-            bot.send_message(
+            send_server_message(
+                bot,
                 message.chat.id,
                 text=(
                     "⚠️ Couldn't retrieve memory usage right now. "
@@ -73,8 +75,10 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         return None
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

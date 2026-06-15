@@ -17,6 +17,7 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.utils import send_server_message
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
@@ -91,7 +92,8 @@ def handle_process(message: Message, bot: TeleBot) -> None:
         message_text = render_process_overview_text()
         if message_text is None:
             logger.error("bot.handler.server.process.get.fail")
-            bot.send_message(
+            send_server_message(
+                bot,
                 message.chat.id,
                 text=(
                     "⚠️ Couldn't retrieve process information right now. "
@@ -108,8 +110,10 @@ def handle_process(message: Message, bot: TeleBot) -> None:
         return None
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while processing the command.",
         )
         raise exceptions.HandlingException(
             ErrorContext(
