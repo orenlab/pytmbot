@@ -199,10 +199,11 @@ docker run -d \
 ## Documentation
 
 - [Project repository](https://github.com/orenlab/pytmbot)
-- [Runtime documentation](https://github.com/orenlab/pytmbot/blob/master/docs/docker.md)
-- [Settings reference](https://github.com/orenlab/pytmbot/blob/master/docs/settings.md)
-- [CLI reference](https://github.com/orenlab/pytmbot/blob/master/docs/bot_cli_args.md)
-- [Release policy](https://github.com/orenlab/pytmbot/blob/master/docs/release_policy.md)
+- [Documentation home](https://orenlab.github.io/pytmbot/)
+- [Runtime documentation](https://orenlab.github.io/pytmbot/docker/)
+- [Settings reference](https://orenlab.github.io/pytmbot/settings/)
+- [CLI reference](https://orenlab.github.io/pytmbot/bot_cli_args/)
+- [Release policy](https://orenlab.github.io/pytmbot/release_policy/)
 
 ## License
 

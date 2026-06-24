@@ -120,6 +120,7 @@ Operational notes:
 ## Documentation Maintenance Rules
 
 - `pytmbot.yaml.sample` is the canonical sample config.
+- User-facing files outside `docs/` (`README.md`, `SECURITY.md`, Docker Hub README, bot templates) must link to `https://orenlab.github.io/pytmbot/`, not repository `docs/*.md` paths.
 - Docs should point to current code paths, not historical behavior.
 - Docs site must pass `zensical build --strict`.
 - If codeclone flags dynamic false positives, use the supported inline suppression syntax rather than broad ignores.

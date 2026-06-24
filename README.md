@@ -45,7 +45,7 @@ and [docker-py](https://github.com/docker/docker-py).
 
 ### 1. Prepare your config
 
-Create `/etc/pytmbot/pytmbot.yaml` following the [settings guide](docs/settings.md).
+Create `/etc/pytmbot/pytmbot.yaml` following the [settings guide](https://orenlab.github.io/pytmbot/settings/).
 
 ### 2. Deploy with Docker Compose
 
@@ -77,7 +77,7 @@ docker compose up -d
 ```
 
 For a hardened production setup with resource limits, tmpfs, network isolation, and health checks —
-see [docs/docker.md](docs/docker.md).
+see the [Docker runtime guide](https://orenlab.github.io/pytmbot/docker/).
 
 ---
 
@@ -122,7 +122,7 @@ Two plugins are included out of the box:
 
 **Outline VPN Plugin** — monitor your [Outline VPN](https://getoutline.org/) server from Telegram.
 
-See [docs/plugins.md](docs/plugins.md) for the plugin API and configuration reference.
+See the [plugins guide](https://orenlab.github.io/pytmbot/plugins/) for the plugin API and configuration reference.
 
 ---
 
@@ -140,7 +140,7 @@ See [docs/plugins.md](docs/plugins.md) for the plugin API and configuration refe
 **Polling** — simplest deployment; no HTTPS or public endpoint required.
 
 **Webhook** — lower latency; requires a public hostname for Telegram `setWebhook`.
-See [docs/webhook.md](docs/webhook.md).
+See the [webhook guide](https://orenlab.github.io/pytmbot/webhook/).
 
 ---
 
@@ -150,26 +150,26 @@ Full docs: [orenlab.github.io/pytmbot](https://orenlab.github.io/pytmbot/)
 
 | Guide                                        | Description                           |
 |----------------------------------------------|---------------------------------------|
-| [Installation](docs/installation.md)         | Step-by-step setup                    |
-| [Docker](docs/docker.md)                     | Docker-specific deployment            |
-| [Settings](docs/settings.md)                 | `pytmbot.yaml` reference              |
-| [Commands](docs/commands.md)                 | All bot commands                      |
-| [Webhook mode](docs/webhook.md)              | Webhook setup and proxy config        |
-| [Security](docs/security.md)                 | Hardening and threat model            |
-| [Access control & 2FA](docs/auth_control.md) | Allowlists and TOTP                   |
-| [Health system](docs/health.md)              | Startup and runtime checks            |
-| [Plugins](docs/plugins.md)                   | Plugin API and bundled plugins        |
-| [CLI arguments](docs/bot_cli_args.md)        | `--log-level`, `--health_check`, etc. |
-| [Architecture](docs/architecture.md)         | Internal design overview              |
-| [Development](docs/development.md)           | Contributing and local setup          |
-| [Roadmap](docs/roadmap.md)                   | Planned features                      |
-| [Debugging](docs/debug.md)                   | Logging and troubleshooting           |
+| [Installation](https://orenlab.github.io/pytmbot/installation/)         | Step-by-step setup                    |
+| [Docker](https://orenlab.github.io/pytmbot/docker/)                     | Docker-specific deployment            |
+| [Settings](https://orenlab.github.io/pytmbot/settings/)                 | `pytmbot.yaml` reference              |
+| [Commands](https://orenlab.github.io/pytmbot/commands/)                 | All bot commands                      |
+| [Webhook mode](https://orenlab.github.io/pytmbot/webhook/)              | Webhook setup and proxy config        |
+| [Security](https://orenlab.github.io/pytmbot/security/)                 | Hardening and threat model            |
+| [Access control & 2FA](https://orenlab.github.io/pytmbot/auth_control/) | Allowlists and TOTP                   |
+| [Health system](https://orenlab.github.io/pytmbot/health/)              | Startup and runtime checks            |
+| [Plugins](https://orenlab.github.io/pytmbot/plugins/)                   | Plugin API and bundled plugins        |
+| [CLI arguments](https://orenlab.github.io/pytmbot/bot_cli_args/)        | `--log-level`, `--health_check`, etc. |
+| [Architecture](https://orenlab.github.io/pytmbot/architecture/)         | Internal design overview              |
+| [Development](https://orenlab.github.io/pytmbot/development/)           | Contributing and local setup          |
+| [Roadmap](https://orenlab.github.io/pytmbot/roadmap/)                   | Planned features                      |
+| [Debugging](https://orenlab.github.io/pytmbot/debug/)                   | Logging and troubleshooting           |
 
 ---
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome. Please read [docs/development.md](docs/development.md)
+Bug reports, feature requests, and pull requests are welcome. Please read the [development guide](https://orenlab.github.io/pytmbot/development/)
 before submitting a PR.
 
 ---

@@ -231,7 +231,7 @@ influxdb:
 # - config_version should normally match the running pytmbot version.
 # - This repository sample is prepared for pytmbot 0.4.0-dev.
 # - If config_version is missing or mismatched, startup migrates it to the current app version.
-# - Review docs/settings.md after upgrades to pick up new fields or changed behavior.
+# - Review https://orenlab.github.io/pytmbot/settings/ after upgrades to pick up new fields or changed behavior.
 #
 ################################################################
 # QUICK START GUIDE:
@@ -254,7 +254,7 @@ influxdb:
 # 3. Version Management:
 #    - Keep config_version aligned with your pytmbot version
 #    - Review migration or validation messages in logs after upgrades
-#    - Recheck docs/settings.md when new releases add configuration fields
+#    - Recheck https://orenlab.github.io/pytmbot/settings/ when new releases add configuration fields
 #
 # 4. Security features (automatic):
 #    - Webhook URLs include random tokens for security

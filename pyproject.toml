@@ -54,6 +54,7 @@ click = ["click>=8.4.1"]
 
 [project.urls]
 Homepage = "https://github.com/orenlab/pytmbot"
+Documentation = "https://orenlab.github.io/pytmbot/"
 Repository = "https://github.com/orenlab/pytmbot"
 
 [dependency-groups]
