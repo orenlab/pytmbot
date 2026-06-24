@@ -10,7 +10,7 @@ permissions:
 
 env:
   DOCKER_IMAGE: orenlab/pytmbot
-  STABLE_RELEASE_LINE: "0.3"
+  STABLE_RELEASE_LINE: "0.4"
 
 jobs:
   docker:

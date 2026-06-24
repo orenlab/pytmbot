@@ -16,6 +16,7 @@ from telebot.types import (
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.utils import send_bot_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -63,15 +64,20 @@ def _send_response(
         if callback_message is None:
             raise ValueError("Callback query does not contain message")
         bot.delete_message(callback_message.chat.id, callback_message.message_id)
-        bot.send_message(
+        send_bot_message(
+            bot,
             callback_message.chat.id,
             text=response,
             reply_markup=keyboard,
             parse_mode="HTML",
         )
     else:
-        bot.send_message(
-            query.chat.id, text=response, reply_markup=keyboard, parse_mode="HTML"
+        send_bot_message(
+            bot,
+            query.chat.id,
+            text=response,
+            reply_markup=keyboard,
+            parse_mode="HTML",
         )
 
 

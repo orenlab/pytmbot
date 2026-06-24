@@ -18,6 +18,7 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.utils import HANDLER_COMMAND_ERROR_MESSAGE
 from pytmbot.handlers.server_handlers.cpu import (
     PROCESS_INFO_PREFIX,
     build_cpu_detail_keyboard,
@@ -225,7 +226,7 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text="⚠️ An error occurred while processing the command.",
+            text=HANDLER_COMMAND_ERROR_MESSAGE,
             reply_markup=keyboard,
         )
         raise exceptions.HandlingException(

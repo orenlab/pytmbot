@@ -22,7 +22,9 @@ from pytmbot.handlers.handlers_util.docker import (
     get_sanitized_logs,
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.utils import send_docker_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
+from pytmbot.keyboards.keyboards import NAV_DOCKER
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.parsers.compiler import Compiler
@@ -583,6 +585,7 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
             bot=bot,
             chat_id=chat_id,
             navigation_text=LOGS_FILE_DELETED_NAVIGATION_TEXT,
+            nav_keyboard=NAV_DOCKER,
         ),
     )
 
@@ -594,7 +597,8 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
             "This logs file will not be automatically deleted.\n\n"
             "<i>Please manually delete this file message.</i>"
         )
-        bot.send_message(
+        send_docker_message(
+            bot,
             chat_id=chat_id,
             text=warning_message,
             parse_mode="HTML",

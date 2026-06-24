@@ -604,13 +604,13 @@ def test_qrcode_handler_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> Non
     assert exc_info.value.context.error_code == "HAND_021"
 
 
-def test_qrcode_deletion_callback_sends_back_navigation(
+def test_qrcode_deletion_callback_sends_main_navigation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         message_deletion_module,
-        "_build_back_navigation_keyboard",
-        lambda: "back-kbd",
+        "_build_post_delete_navigation_keyboard",
+        lambda nav_keyboard="main_keyboard": "main-kbd",
     )
     bot = _make_bot()
     callback = message_deletion_module.create_post_delete_navigation_callback(
@@ -630,5 +630,5 @@ def test_qrcode_deletion_callback_sends_back_navigation(
 
     assert bot.sent_messages
     assert bot.sent_messages[-1]["chat_id"] == 555
-    assert bot.sent_messages[-1]["reply_markup"] == "back-kbd"
+    assert bot.sent_messages[-1]["reply_markup"] == "main-kbd"
     assert "deleted for security" in str(bot.sent_messages[-1]["text"])

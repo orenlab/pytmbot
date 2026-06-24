@@ -210,7 +210,7 @@ def test_cleanup_stale_references(
     assert manager.get_pending_count(6) == 0
 
 
-def test_create_post_delete_navigation_callback_sends_back_keyboard(
+def test_create_post_delete_navigation_callback_sends_main_keyboard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _NavBot:
@@ -231,8 +231,8 @@ def test_create_post_delete_navigation_callback_sends_back_keyboard(
 
     monkeypatch.setattr(
         message_deletion_module,
-        "_build_back_navigation_keyboard",
-        lambda: "back-kbd",
+        "_build_post_delete_navigation_keyboard",
+        lambda nav_keyboard="main_keyboard": "main-kbd",
     )
 
     callback = message_deletion_module.create_post_delete_navigation_callback(
@@ -263,4 +263,41 @@ def test_create_post_delete_navigation_callback_sends_back_keyboard(
     assert callback_results == ["SUCCESS", "FAILED"]
     assert len(bot.messages) == 1
     assert bot.messages[0]["chat_id"] == 77
-    assert bot.messages[0]["reply_markup"] == "back-kbd"
+    assert bot.messages[0]["reply_markup"] == "main-kbd"
+
+
+def test_create_post_delete_navigation_callback_uses_nav_keyboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _NavBot:
+        def __init__(self) -> None:
+            self.messages: list[_PayloadDict] = []
+
+        def send_message(self, **kwargs: _PayloadValue) -> bool:
+            self.messages.append(dict(kwargs))
+            return True
+
+    bot = _NavBot()
+    monkeypatch.setattr(
+        message_deletion_module,
+        "_build_post_delete_navigation_keyboard",
+        lambda nav_keyboard="main_keyboard": f"nav:{nav_keyboard}",
+    )
+
+    callback = message_deletion_module.create_post_delete_navigation_callback(
+        None,
+        bot=cast(TeleBot, bot),
+        chat_id=88,
+        navigation_text="deleted",
+        nav_keyboard="docker_keyboard",
+    )
+    callback(
+        message_deletion_module.DeletionResult(
+            status=message_deletion_module.DeletionStatus.SUCCESS,
+            message_id=1,
+            user_id=1,
+            pending_count=0,
+        )
+    )
+
+    assert bot.messages[0]["reply_markup"] == "nav:docker_keyboard"

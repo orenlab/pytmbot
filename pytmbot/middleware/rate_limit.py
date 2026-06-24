@@ -15,6 +15,7 @@ from telebot import TeleBot
 from telebot.handler_backends import BaseMiddleware, CancelUpdate
 from telebot.types import CallbackQuery, Message
 
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import BaseComponent
 from pytmbot.utils import mask_user_id, mask_username
 
@@ -265,7 +266,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
                     show_alert=False,
                 )
             elif isinstance(chat_id, int):
-                self.bot.send_message(chat_id=chat_id, text=self.WARNING_MESSAGE)
+                send_main_message(self.bot, chat_id, self.WARNING_MESSAGE)
             message_sent = True
         except Exception as e:
             message_context = {

@@ -12,38 +12,39 @@ Source of truth:
 ## Support Scope
 
 - Starting with `0.3.0`, all versions older than `0.3.0` are end-of-life.
-- Only the current `0.3` stable line receives rebuilds and security refreshes.
+- Only the current `0.4` stable line receives rebuilds and security refreshes.
+- The `0.3.x` line is end-of-life as of `0.4.0`.
 - No compatibility or support guarantees are provided for pre-`0.3.0` images.
 
 ## Public Stable Tags
 
 Public stable tags published to `orenlab/pytmbot`:
 
-- `0.3.3`: exact release image, immutable
-- `0.3`: current supported stable line, mutable
+- `0.4.0`: exact release image, immutable
+- `0.4`: current supported stable line, mutable
 - `stable`: alias for the current supported stable line, mutable
 - `latest`: alias for `stable`, mutable
-- `0.3-rYYYYMMDD`: dated stable-line rebuild, mutable only by date creation
+- `0.4-rYYYYMMDD`: dated stable-line rebuild, mutable only by date creation
 
 ## Tag Semantics
 
-- Use `0.3.3` when you need a reproducible artifact tied to a specific release.
-- Use `0.3` when you want the current supported stable line with weekly OS/base-image refreshes.
+- Use `0.4.0` when you need a reproducible artifact tied to a specific release.
+- Use `0.4` when you want the current supported stable line with weekly OS/base-image refreshes.
 - Use `stable` when you want the supported stable channel without caring about the numeric line tag.
 - Use `latest` only as an alias of `stable`; it is not a separate policy channel.
 
 Important:
 
-- Exact release tags such as `0.3.3` must never be republished with different contents.
-- Weekly rebuilds must never move `0.3.3`.
+- Exact release tags such as `0.4.0` must never be republished with different contents.
+- Weekly rebuilds must never move `0.4.0`.
 - `latest` must always point to the newest supported stable line.
 
 ## Release Workflow
 
-The release workflow publishes all of the following tags for `0.3.3`:
+The release workflow publishes all of the following tags for `0.4.0`:
 
-- `0.3.3`
-- `0.3`
+- `0.4.0`
+- `0.4`
 - `stable`
 - `latest`
 
@@ -51,19 +52,19 @@ This keeps a strict split between immutable release artifacts and floating stabl
 
 ## Weekly Rebuild Workflow
 
-The weekly rebuild workflow resolves the latest release tag in the supported `0.3.x` line and rebuilds that source with
+The weekly rebuild workflow resolves the latest release tag in the supported `0.4.x` line and rebuilds that source with
 the current container base image and OS packages.
 
 The rebuild publishes:
 
-- `0.3`
+- `0.4`
 - `stable`
 - `latest`
-- `0.3-rYYYYMMDD`
+- `0.4-rYYYYMMDD`
 
 The rebuild does not publish:
 
-- `0.3.3`
+- `0.4.0`
 
 ## What Weekly Rebuilds Refresh
 
@@ -93,7 +94,7 @@ Development tags are mutable and unsupported for production use.
 
 ## Operational Guidance
 
-- For production fleets that prioritize predictable rollbacks, pin `0.3.3`.
-- For production fleets that prioritize automatic base-image security refreshes inside the supported line, use `0.3` or
+- For production fleets that prioritize predictable rollbacks, pin `0.4.0`.
+- For production fleets that prioritize automatic base-image security refreshes inside the supported line, use `0.4` or
   `stable`.
 - If you use `latest`, treat it exactly the same as `stable`.

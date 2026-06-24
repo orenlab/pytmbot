@@ -20,14 +20,14 @@ Published image:
 
 Stable public tags:
 
-- `0.3.3` for an exact release image
-- `0.3` for the current supported stable line
+- `0.4.0` for an exact release image
+- `0.4` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`
 
 Additional tags:
 
-- `0.3-rYYYYMMDD` for dated weekly stable-line rebuilds
+- `0.4-rYYYYMMDD` for dated weekly stable-line rebuilds
 - `edge-<branch>` and `edge-sha-<gitsha>` for development images from `feat/*` and `fix/*` branches
 
 See [release_policy.md](release_policy.md) for the full contract.

@@ -11,6 +11,10 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_psutil_adapter
+from pytmbot.handlers.handlers_util.utils import (
+    HANDLER_COMMAND_ERROR_MESSAGE,
+    send_server_message,
+)
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import round_up_tuple
@@ -35,7 +39,8 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
 
         if load_average is None:
             logger.error("bot.handler.server.load_average.get.fail")
-            bot.send_message(
+            send_server_message(
+                bot,
                 message.chat.id,
                 text=(
                     "⚠️ Couldn't retrieve load average right now. "
@@ -47,11 +52,18 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
             "b_load_average.jinja2", context=load_average, **emojis
         )
 
-        bot.send_message(message.chat.id, text=bot_answer, parse_mode="Markdown")
+        send_server_message(
+            bot,
+            message.chat.id,
+            text=bot_answer,
+            parse_mode="Markdown",
+        )
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while processing the command."
+        send_server_message(
+            bot,
+            message.chat.id,
+            HANDLER_COMMAND_ERROR_MESSAGE,
         )
         raise exceptions.HandlingException(
             ErrorContext(

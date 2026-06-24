@@ -6,8 +6,8 @@ The following versions of pyTMbot are actively supported:
 
 | Version | Supported          | End of Life |
 |---------|--------------------|-------------|
-| 0.3.3   | :white_check_mark: | TBD         |
-| < 0.3.0 | :x:                | 2026-02-18  |
+| 0.4.0   | :white_check_mark: | TBD         |
+| < 0.4.0 | :x:                | 2026-06-24  |
 
 ## Reporting a Vulnerability
 
@@ -21,7 +21,7 @@ Instead, please report them privately by:
 To assist us in understanding and addressing the issue, please include the following information:
 
 1. **Description of the vulnerability:** Clearly describe the issue, including steps to reproduce if possible.
-2. **Debug Log:** Attach the [debug log](docs/debug.md) of the bot's activity, which will help us diagnose the problem.
+2. **Debug Log:** Attach the [debug log](https://orenlab.github.io/pytmbot/debug/) of the bot's activity, which will help us diagnose the problem.
    Ensure that no sensitive data (such as tokens or personal information) is included in the log.
 
 ## Our Commitment

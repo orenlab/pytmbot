@@ -11,7 +11,11 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
-from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.handlers.handlers_util.utils import (
+    send_main_message,
+    send_telegram_message,
+)
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.plugin_manager import PluginManager
@@ -51,6 +55,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
                 chat_id=message.chat.id,
                 text=f"⚠️ {first_name}, no plugins are available right now.",
                 parse_mode="Markdown",
+                nav_keyboard=NAV_MAIN,
             )
             return
 
@@ -87,8 +92,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         )
 
     except Exception as error:
-        bot.send_message(
-            message.chat.id, "⚠️ An error occurred while opening the plugins menu."
+        send_main_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while opening the plugins menu.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

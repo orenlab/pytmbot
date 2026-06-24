@@ -12,6 +12,7 @@ from telebot.types import LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.message_deletion import (
@@ -68,7 +69,8 @@ def handle_getmyid(
     """
     try:
         if message.from_user is None:
-            bot.send_message(
+            send_main_message(
+                bot,
                 message.chat.id,
                 "⚠️ Unable to resolve user identity for this message.",
             )
@@ -114,9 +116,10 @@ def handle_getmyid(
         )
 
         # Send the response message
-        sent_message = bot.send_message(
-            chat_id=chat_id,
-            text=answer,
+        sent_message = send_main_message(
+            bot,
+            chat_id,
+            answer,
             parse_mode="HTML",
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
@@ -145,9 +148,10 @@ def handle_getmyid(
                 "<i>Please manually delete this message for privacy.</i>"
             )
 
-            bot.send_message(
-                chat_id=chat_id,
-                text=warning_msg,
+            send_main_message(
+                bot,
+                chat_id,
+                warning_msg,
                 parse_mode="HTML",
                 reply_to_message_id=sent_message.message_id,
             )
@@ -166,7 +170,7 @@ def handle_getmyid(
     except Exception as error:
         # Send user-friendly error message
         error_msg = "⚠️ An error occurred while retrieving ID information."
-        bot.send_message(message.chat.id, error_msg)
+        send_main_message(bot, message.chat.id, error_msg)
 
         # Log detailed error information and raise custom exception
         error_context = ErrorContext(

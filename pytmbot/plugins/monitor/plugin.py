@@ -19,6 +19,7 @@ from telebot.types import Message, ReplyKeyboardMarkup
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.db.influxdb_interface import InfluxDBInterface
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.utils import send_bot_message
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
@@ -413,7 +414,8 @@ class MonitoringPlugin(PluginInterface):
             computer_disk=em.get_emoji("computer_disk"),
             thermometer=em.get_emoji("thermometer"),
         )
-        return self.bot.send_message(
+        return send_bot_message(
+            self.bot,
             message.chat.id,
             text=response,
             reply_markup=self._build_monitor_keyboard(),
@@ -459,7 +461,8 @@ class MonitoringPlugin(PluginInterface):
             information=em.get_emoji("information"),
             warning=em.get_emoji("warning"),
         )
-        return self.bot.send_message(
+        return send_bot_message(
+            self.bot,
             message.chat.id,
             text=response,
             reply_markup=self._build_monitor_keyboard(),
@@ -479,9 +482,11 @@ class MonitoringPlugin(PluginInterface):
             self.plugin_logger.error(
                 "bot.plugins.monitor.plugin.cpu.snapshot.fail", error=str(error)
             )
-            return self.bot.send_message(
+            return send_bot_message(
+                self.bot,
                 message.chat.id,
                 "⚠️ Failed to collect CPU usage metrics. Please try again.",
+                reply_markup=self._build_monitor_keyboard(),
             )
 
     def handle_memory_usage(self, message: Message) -> Message:
@@ -497,7 +502,8 @@ class MonitoringPlugin(PluginInterface):
         options = "\n".join(
             f"• {preset['label']}" for preset in config.PERIOD_PRESETS.values()
         )
-        return self.bot.send_message(
+        return send_bot_message(
+            self.bot,
             message.chat.id,
             (
                 f"{em.get_emoji('calendar')} <b>Select monitoring period</b>\n"
@@ -515,7 +521,8 @@ class MonitoringPlugin(PluginInterface):
         label = self._normalize_button_text(raw_label)
         period_key = config.PERIOD_LABEL_TO_KEY.get(label)
         if period_key is None:
-            return self.bot.send_message(
+            return send_bot_message(
+                self.bot,
                 message.chat.id,
                 "⚠️ Unknown period option. Use the period keyboard buttons.",
                 reply_markup=self._build_period_keyboard(),

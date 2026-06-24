@@ -1,14 +1,14 @@
 ################################################################
 # pyTMBot Configuration File
-# Version: 0.3.3
-# Compatible with app version: 0.3.3
+# Version: 0.4.0
+# Compatible with app version: 0.4.0
 ################################################################
 
 # Configuration Schema Version
 # Keep this equal to the running pytmbot version.
 # This repository sample targets the current repository runtime version.
 # If omitted or mismatched, pytmbot auto-fills config_version with the current app version during migration.
-config_version: '0.3.3'
+config_version: '0.4.0'
 
 ################################################################
 # General Bot Settings
@@ -229,15 +229,15 @@ influxdb:
 # VERSIONING NOTES:
 ################################################################
 # - config_version should normally match the running pytmbot version.
-# - This repository sample is prepared for pytmbot 0.3.3.
+# - This repository sample is prepared for pytmbot 0.4.0.
 # - If config_version is missing or mismatched, startup migrates it to the current app version.
-# - Review docs/settings.md after upgrades to pick up new fields or changed behavior.
+# - Review https://orenlab.github.io/pytmbot/settings/ after upgrades to pick up new fields or changed behavior.
 #
 ################################################################
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
-#    - Set config_version to match your pytmbot version (this sample uses '0.3.3')
+#    - Set config_version to match your pytmbot version (this sample uses '0.4.0')
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
 #    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID
@@ -254,7 +254,7 @@ influxdb:
 # 3. Version Management:
 #    - Keep config_version aligned with your pytmbot version
 #    - Review migration or validation messages in logs after upgrades
-#    - Recheck docs/settings.md when new releases add configuration fields
+#    - Recheck https://orenlab.github.io/pytmbot/settings/ when new releases add configuration fields
 #
 # 4. Security features (automatic):
 #    - Webhook URLs include random tokens for security

@@ -96,6 +96,8 @@ Current GitHub Actions workflows cover:
 Starting with the `0.3.0` release line:
 
 - all versions older than `0.3.0` are end-of-life
+- the `0.3.x` line is end-of-life as of `0.4.0`
+- only the current `0.4` stable line receives weekly rebuilds
 - exact release tags stay immutable
 - floating stable tags are refreshed by the weekly rebuild workflow
 - development tags are separate from the public stable contract
@@ -120,6 +122,7 @@ Operational notes:
 ## Documentation Maintenance Rules
 
 - `pytmbot.yaml.sample` is the canonical sample config.
+- User-facing files outside `docs/` (`README.md`, `SECURITY.md`, Docker Hub README, bot templates) must link to `https://orenlab.github.io/pytmbot/`, not repository `docs/*.md` paths.
 - Docs should point to current code paths, not historical behavior.
 - Docs site must pass `zensical build --strict`.
 - If codeclone flags dynamic false positives, use the supported inline suppression syntax rather than broad ignores.

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0] — 20260624
+
+Modest stable release focused on Telegram iOS keyboard reliability, unified outbound messaging, dependency maintenance, and documentation polish.
+
+### Fixed
+
+- Fixed the reply keyboard disappearing on Telegram iOS during normal bot use by enabling persistent section keyboards and re-attaching the correct navigation keyboard on text-only replies, middleware warnings, and post-delete navigation.
+
+### Security
+
+- Bumped `pydantic-settings` to `>=2.14.2` and refreshed transitive dependencies in `uv.lock` to address symlink traversal in `NestedSecretsSettingsSource`.
+
+### Changed
+
+- Added `0.4.0` to the supported `config_version` compatibility matrix.
+- Unified Telegram outbound messaging through `send_bot_message()` / `send_*_message()` helpers so text-only replies, plugin screens, auth flows, and post-delete navigation consistently preserve the active reply keyboard.
+- Post-delete navigation now accepts a section keyboard (`main`, `server`, or `docker`); Docker log exports restore the Docker menu after auto-delete.
+- Refreshed direct dependencies and regenerated `uv.lock`: `fastapi` (`>=0.138.0`), `pydantic-settings` (`>=2.14.2`), `pyotp` (`>=2.10.0`), and dev `pytest` (`>=9.1.1`).
+- Updated release metadata, sample configuration, documentation, Docker tag references, and user-facing documentation links to `0.4.0`.
+
 ## [0.3.3] — 20260612
 
 Patch release focused exclusively on dependency maintenance.

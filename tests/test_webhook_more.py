@@ -101,7 +101,11 @@ def test_webhook_verify_telegram_dependency_paths(
     for route in server.app.routes:
         if not isinstance(route, APIRoute):
             continue
-        if route.path == server.WEBHOOK_ROUTE_PATH and "POST" in route.methods:
+        if (
+            route.path == server.WEBHOOK_ROUTE_PATH
+            and route.methods is not None
+            and "POST" in route.methods
+        ):
             dependencies = route.dependant.dependencies
             dependency = dependencies[0] if dependencies else None
             call = getattr(dependency, "call", None)

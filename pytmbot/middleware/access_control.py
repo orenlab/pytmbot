@@ -16,6 +16,7 @@ from telebot.handler_backends import BaseMiddleware, CancelUpdate
 from telebot.types import CallbackQuery, Message, User
 
 from pytmbot.globals import settings
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import BaseComponent
 from pytmbot.utils import mask_chat_id, mask_user_id, mask_username
 
@@ -170,7 +171,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         message_chat = getattr(update, "chat", None)
         chat_id = getattr(message_chat, "id", None)
         if isinstance(chat_id, int):
-            self.bot.send_message(chat_id=chat_id, text=message_text)
+            send_main_message(self.bot, chat_id, message_text)
 
     # codeclone: ignore[dead-code]
     def pre_process(

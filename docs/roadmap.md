@@ -10,13 +10,17 @@ Implemented behavior is defined by:
 
 ## Current Line
 
-Active release line:
+Active development line:
 
-- `0.3.x`
+- `0.5.x` (planning)
+
+Latest stable release line:
+
+- `0.4.x` (`0.4.0`)
 
 Primary objective:
 
-- stabilize and complete the `0.3.3` release line
+- maintain the `0.4.x` stable line while planning the next development cycle
 
 ## Active Priorities
 

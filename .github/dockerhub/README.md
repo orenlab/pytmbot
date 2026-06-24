@@ -23,8 +23,8 @@ Stable public tags:
 
 | Tag      | Description                   |
 |----------|-------------------------------|
-| `0.3.3`  | Exact immutable release image |
-| `0.3`    | Current supported stable line |
+| `0.4.0`  | Exact immutable release image |
+| `0.4`    | Current supported stable line |
 | `stable` | Stable channel alias          |
 | `latest` | Alias of `stable`             |
 
@@ -32,11 +32,11 @@ Additional tags:
 
 | Tag                 | Description                                   |
 |---------------------|-----------------------------------------------|
-| `0.3-rYYYYMMDD`     | Dated weekly rebuild of the stable line       |
+| `0.4-rYYYYMMDD`     | Dated weekly rebuild of the stable line       |
 | `edge-<branch>`     | Development image for a feature or fix branch |
 | `edge-sha-<gitsha>` | Development image pinned to a branch commit   |
 
-Recommended: use `0.3.3` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
+Recommended: use `0.4.0` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
 tags in production.
 
 ## Image Features
@@ -102,7 +102,7 @@ docker run -d \
   orenlab/pytmbot:stable --mode prod
 ```
 
-For pinned rollouts, replace `stable` with `0.3.3`. To enforce Docker socket availability on startup, add
+For pinned rollouts, replace `stable` with `0.4.0`. To enforce Docker socket availability on startup, add
 `-e STRICT_DOCKER_ACCESS=True`.
 
 ## Docker Compose Example
@@ -191,18 +191,19 @@ docker run -d \
 
 ## Upgrade Policy
 
-- Exact release tags (`0.3.3`) are immutable.
-- Floating tags (`0.3`, `stable`, `latest`) can move forward.
+- Exact release tags (`0.4.0`) are immutable.
+- Floating tags (`0.4`, `stable`, `latest`) can move forward.
 - Weekly rebuilds refresh the Ubuntu base image and installed OS packages.
 - Python dependency updates require a committed `uv.lock` change and a new release.
 
 ## Documentation
 
 - [Project repository](https://github.com/orenlab/pytmbot)
-- [Runtime documentation](https://github.com/orenlab/pytmbot/blob/master/docs/docker.md)
-- [Settings reference](https://github.com/orenlab/pytmbot/blob/master/docs/settings.md)
-- [CLI reference](https://github.com/orenlab/pytmbot/blob/master/docs/bot_cli_args.md)
-- [Release policy](https://github.com/orenlab/pytmbot/blob/master/docs/release_policy.md)
+- [Documentation home](https://orenlab.github.io/pytmbot/)
+- [Runtime documentation](https://orenlab.github.io/pytmbot/docker/)
+- [Settings reference](https://orenlab.github.io/pytmbot/settings/)
+- [CLI reference](https://orenlab.github.io/pytmbot/bot_cli_args/)
+- [Release policy](https://orenlab.github.io/pytmbot/release_policy/)
 
 ## License
 

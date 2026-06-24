@@ -99,6 +99,12 @@ The bot also exposes callback-driven flows that are not slash commands:
 - Those views are entered through the reply keyboard or inline navigation after `/server` or `Quick view`.
 - Command access is still gated by allowlists, middleware, and optional 2FA.
 
+## Reply Keyboard Behavior
+
+- Section menus (`main`, `server`, `docker`, plugins) use persistent reply keyboards so Telegram clients (notably iOS) keep the menu visible while you browse inline screens.
+- Text-only bot replies re-attach the matching section keyboard automatically.
+- Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
+
 ## Related Docs
 
 - [auth_control.md](auth_control.md)
