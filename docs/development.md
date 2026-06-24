@@ -96,6 +96,8 @@ Current GitHub Actions workflows cover:
 Starting with the `0.3.0` release line:
 
 - all versions older than `0.3.0` are end-of-life
+- the `0.3.x` line is end-of-life as of `0.4.0`
+- only the current `0.4` stable line receives weekly rebuilds
 - exact release tags stay immutable
 - floating stable tags are refreshed by the weekly rebuild workflow
 - development tags are separate from the public stable contract
