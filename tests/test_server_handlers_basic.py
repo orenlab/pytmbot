@@ -18,6 +18,7 @@ import pytmbot.handlers.server_handlers.process as process_module
 import pytmbot.handlers.server_handlers.sensors as sensors_module
 import pytmbot.handlers.server_handlers.uptime as uptime_module
 from pytmbot.exceptions import HandlingException
+from pytmbot.handlers.handlers_util.utils import NAV_KEYBOARD_SYNC_TEXT
 from pytmbot.parsers.compiler import Compiler
 from tests._telebot_objects import telegram_object_from_payload
 from tests._telebot_send_capture import build_bot_capture
@@ -59,6 +60,14 @@ def _invoke_handler(
     typed_handler(message, bot)
 
 
+def _latest_content_message(messages: list[_PayloadDict]) -> _PayloadDict:
+    """Return the latest non-nav-sync outbound message."""
+    for message in reversed(messages):
+        if message.get("text") != NAV_KEYBOARD_SYNC_TEXT:
+            return message
+    raise AssertionError("No content message found")
+
+
 def _extract_inline_payload(message_payload: _PayloadDict) -> _PayloadValue:
     reply_markup = message_payload["reply_markup"]
     assert isinstance(reply_markup, dict)
@@ -81,8 +90,9 @@ def _assert_handler_renders_html(
         lambda template_name, **_kwargs: expected_text,
     )
     _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == expected_text
-    assert messages[-1]["parse_mode"] == "HTML"
+    content = _latest_content_message(messages)
+    assert content["text"] == expected_text
+    assert content["parse_mode"] == "HTML"
 
 
 def _assert_memory_or_process_handler_paths(
@@ -120,9 +130,10 @@ def _assert_memory_or_process_handler_paths(
         lambda template_name, **_kwargs: success_text,
     )
     _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == success_text
-    assert messages[-1]["parse_mode"] == "HTML"
-    inline_payload = _extract_inline_payload(messages[-1])
+    content = _latest_content_message(messages)
+    assert content["text"] == success_text
+    assert content["parse_mode"] == "HTML"
+    inline_payload = _extract_inline_payload(content)
     callback_data_values: list[str] = []
     if isinstance(inline_payload, dict):
         callback_data = inline_payload.get("callback_data")
@@ -143,7 +154,7 @@ def _assert_memory_or_process_handler_paths(
         type("A", (), {adapter_method: lambda self: None})(),
     )
     _invoke_handler(handler, message, bot)
-    assert "Couldn't retrieve" in str(messages[-1]["text"])
+    assert "Couldn't retrieve" in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         module,
@@ -190,8 +201,9 @@ def _assert_simple_handler_paths(
         lambda template_name, **_kwargs: success_text,
     )
     _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == success_text
-    assert messages[-1]["parse_mode"] == parse_mode
+    content = _latest_content_message(messages)
+    assert content["text"] == success_text
+    assert content["parse_mode"] == parse_mode
 
     monkeypatch.setattr(
         module,
@@ -199,7 +211,7 @@ def _assert_simple_handler_paths(
         type("A", (), {adapter_method: lambda self: None})(),
     )
     _invoke_handler(handler, message, bot)
-    assert none_text_contains in str(messages[-1]["text"])
+    assert none_text_contains in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         module,
@@ -235,7 +247,7 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
     assert actions[-1] == (10, "typing")
-    assert messages[-1]["text"] == "uptime ok"
+    assert _latest_content_message(messages)["text"] == "uptime ok"
 
     monkeypatch.setattr(
         uptime_module,
@@ -243,7 +255,7 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         type("A", (), {"get_uptime": lambda self: None})(),
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
-    assert "Couldn't retrieve uptime" in str(messages[-1]["text"])
+    assert "Couldn't retrieve uptime" in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         uptime_module,
@@ -410,7 +422,7 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         messages=messages,
         expected_text="cpu ok",
     )
-    inline_buttons = _extract_inline_payload(messages[-1])
+    inline_buttons = _extract_inline_payload(_latest_content_message(messages))
     assert isinstance(inline_buttons, list)
     first_button = inline_buttons[0]
     assert isinstance(first_button, dict)

@@ -11,7 +11,7 @@ from typing import Any, Final
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import LinkPreviewOptions, Message
+from telebot.types import InlineKeyboardMarkup, LinkPreviewOptions, Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
@@ -20,6 +20,7 @@ from pytmbot.keyboards.keyboards import (
     NAV_MAIN,
     NAV_SERVER,
     ReplyMarkupType,
+    build_nav_keyboard,
     resolve_reply_markup,
 )
 from pytmbot.logs import Logger
@@ -30,6 +31,8 @@ TELEGRAM_MAX_MESSAGE_LENGTH: Final[int] = 4096
 HANDLER_COMMAND_ERROR_MESSAGE: Final[str] = (
     "⚠️ An error occurred while processing the command."
 )
+# Sent after inline-keyboard messages so reply keyboards stay visible (notably on iOS).
+NAV_KEYBOARD_SYNC_TEXT: Final[str] = "Use the menu below to continue."
 
 
 def truncate_telegram_text(text: str) -> str:
@@ -48,7 +51,28 @@ def send_bot_message(
     nav_keyboard: str | None = None,
     **kwargs: Any,
 ) -> Message:
-    """Send a message, optionally preserving the navigation reply keyboard."""
+    """
+    Send a message, optionally preserving the navigation reply keyboard.
+
+    Telegram allows only one ``reply_markup`` per message. When both an inline
+    keyboard and ``nav_keyboard`` are requested, the content message keeps the
+    inline actions and a short follow-up re-attaches the section reply keyboard.
+    """
+    if isinstance(reply_markup, InlineKeyboardMarkup) and nav_keyboard is not None:
+        message = bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=reply_markup,
+            **kwargs,
+        )
+        bot.send_message(
+            chat_id=chat_id,
+            text=NAV_KEYBOARD_SYNC_TEXT,
+            reply_markup=build_nav_keyboard(nav_keyboard),
+            disable_notification=True,
+        )
+        return message
+
     return bot.send_message(
         chat_id=chat_id,
         text=text,

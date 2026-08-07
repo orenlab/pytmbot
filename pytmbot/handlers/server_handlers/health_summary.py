@@ -24,7 +24,7 @@ from pytmbot.globals import (
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_bot_message,
-    send_server_message,
+    send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
@@ -32,6 +32,7 @@ from pytmbot.handlers.server_handlers.inline.common import (
     edit_callback_message_text,
 )
 from pytmbot.health_system import HealthStatus
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import to_float, to_int
@@ -492,10 +493,11 @@ def handle_system_health(message: Message, bot: TeleBot) -> None:
             text=health_message,
             parse_mode="HTML",
             reply_markup=keyboard,
+            nav_keyboard=NAV_MAIN,
         )
         return None
     except Exception as error:
-        send_server_message(
+        send_main_message(
             bot,
             message.chat.id,
             HANDLER_COMMAND_ERROR_MESSAGE,

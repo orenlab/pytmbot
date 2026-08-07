@@ -115,7 +115,7 @@ def test_collect_metrics_skips_none_results(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, actions, messages = build_bot_capture(monkeypatch)
+    bot, actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(10)
 
     monkeypatch.setattr(
@@ -143,8 +143,11 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     handler(message, bot)
 
     assert actions == [(10, "typing")]
-    assert messages[-1]["text"] == "quickview text"
-    assert messages[-1]["parse_mode"] == "Markdown"
+    assert messages[0]["text"] == "quickview text"
+    assert messages[0]["parse_mode"] == "HTML"
+    assert messages[0]["reply_markup"] is not None
+    assert messages[1]["text"] == "Use the menu below to continue."
+    assert messages[1]["reply_markup"] is not None
     assert render_calls["template_name"] == "b_quick_view.jinja2"
     render_context = render_calls["context"]
     assert isinstance(render_context, dict)

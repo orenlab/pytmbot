@@ -191,7 +191,7 @@ _HANDLER_CASES: tuple[_HandlerCase, ...] = (
     (system_views_module.handle_users_info, "HAND_UP_001", "HTML"),
     (system_views_module.handle_sensors_overview, "HAND_SENS_001", "HTML"),
     (system_views_module.handle_fan_speeds, "HAND_SENS_002", "HTML"),
-    (system_views_module.handle_quickview_overview, "HAND_QV2", "Markdown"),
+    (system_views_module.handle_quickview_overview, "HAND_QV2", "HTML"),
     (system_views_module.handle_quickview_memory, "HAND_QV3", "HTML"),
     (system_views_module.handle_quickview_sensors, "HAND_QV4", "HTML"),
     (system_views_module.handle_quickview_cpu, "HAND_QV5", "HTML"),

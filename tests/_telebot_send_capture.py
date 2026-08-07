@@ -35,7 +35,6 @@ def build_bot_capture(
         reply_markup: PayloadValue | None = None,
         **kwargs: PayloadValue,
     ) -> PayloadDict:
-        del kwargs
         payload: PayloadDict = {
             "chat_id": int(chat_id),
             "text": text,
@@ -43,6 +42,8 @@ def build_bot_capture(
         }
         if include_reply_markup:
             payload["reply_markup"] = reply_markup
+        if "disable_notification" in kwargs:
+            payload["disable_notification"] = kwargs["disable_notification"]
         messages.append(payload)
         return payload
 

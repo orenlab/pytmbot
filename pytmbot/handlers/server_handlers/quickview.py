@@ -22,11 +22,12 @@ from pytmbot.globals import (
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_bot_message,
-    send_server_message,
+    send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -256,7 +257,7 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
 
         if not metrics:
             logger.error("bot.handler.server.quickview.collect.any.fail")
-            send_server_message(
+            send_main_message(
                 bot,
                 message.chat.id,
                 text="⚠️ Failed to get system metrics. Please try again later.",
@@ -271,16 +272,19 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
             template_name="b_quick_view.jinja2", context=context, **emojis
         )
 
+        # Quick view lives on the main menu; keep inline drill-down and re-attach
+        # the main reply keyboard so navigation stays usable (notably on iOS).
         send_bot_message(
             bot,
             message.chat.id,
             text=bot_answer,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=keyboard,
+            nav_keyboard=NAV_MAIN,
         )
 
     except Exception as error:
-        send_server_message(
+        send_main_message(
             bot,
             message.chat.id,
             HANDLER_COMMAND_ERROR_MESSAGE,

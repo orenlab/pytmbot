@@ -52,9 +52,32 @@ def test_send_bot_message_prefers_explicit_reply_markup(
         1,
         "ok",
         reply_markup=inline,
-        nav_keyboard=NAV_MAIN,
     )
     assert bot.messages[0]["reply_markup"] is inline
+    assert len(bot.messages) == 1
+
+
+def test_send_bot_message_syncs_nav_keyboard_after_inline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inline = InlineKeyboardMarkup()  # type: ignore[no-untyped-call]
+    nav = cast(ReplyKeyboardMarkup, object())
+
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    bot = _BotStub()
+    utils_module.send_bot_message(
+        bot,  # type: ignore[arg-type]
+        7,
+        "overview",
+        reply_markup=inline,
+        nav_keyboard=NAV_MAIN,
+    )
+    assert len(bot.messages) == 2
+    assert bot.messages[0]["reply_markup"] is inline
+    assert bot.messages[0]["text"] == "overview"
+    assert bot.messages[1]["reply_markup"] is nav
+    assert bot.messages[1]["text"] == utils_module.NAV_KEYBOARD_SYNC_TEXT
+    assert bot.messages[1]["disable_notification"] is True
 
 
 def test_send_main_server_and_docker_messages_attach_nav_keyboards(

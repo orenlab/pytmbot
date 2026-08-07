@@ -680,9 +680,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
             docker=em.get_emoji("whale"),
             warning=em.get_emoji("warning"),
         )
-        _edit_message(
-            call, bot, text=text, parse_mode="Markdown", reply_markup=keyboard
-        )
+        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(

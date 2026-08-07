@@ -1,8 +1,8 @@
 {# templates/b_quick_view.jinja2 #}
-📊 *System Status Overview*
+📊 <b>System Status Overview</b>
 
 {% if context.system %}
-```bash
+<pre>
 🖥️ System Resources
 ├─ ⏱️ Uptime
 │  └─ {{ "{:>12}".format(context.system.uptime if context.system.uptime is not none else 'N/A') }}
@@ -27,13 +27,15 @@
    ├─ Sleeping: {{ "{:>8}".format(context.system.processes.sleeping if context.system.processes and context.system.processes.sleeping is not none else 'N/A') }}
    ├─ Idle:     {{ "{:>8}".format(context.system.processes.idle if context.system.processes and context.system.processes.idle is not none else 'N/A') }}
    └─ Total:    {{ "{:>8}".format(context.system.processes.total if context.system.processes and context.system.processes.total is not none else 'N/A') }}
+</pre>
 {% else %}
 ⚠️ System monitoring data is currently unavailable
 {% endif %}
 
 {% if context.docker %}
+<pre>
 🐳 Docker Environment
 ├─ Active Containers: {{ "{:>8}".format(context.docker.containers_count if context.docker.containers_count is not none else 'N/A') }}
 └─ Available Images:  {{ "{:>8}".format(context.docker.images_count if context.docker.images_count is not none else 'N/A') }}
+</pre>
 {% endif %}
-```

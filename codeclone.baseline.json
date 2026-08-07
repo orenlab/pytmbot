@@ -2,18 +2,20 @@
   "meta": {
     "generator": {
       "name": "codeclone",
-      "version": "2.0.0b5"
+      "version": "2.0.2"
     },
-    "schema_version": "2.0",
+    "schema_version": "2.1",
     "fingerprint_version": "1",
     "python_tag": "cp314",
-    "created_at": "2026-04-07T11:07:14Z",
-    "payload_sha256": "a2e5e3ac672ddbc7ba95c3a9608257727a01480ef343bc6a70c168fc9355e99a",
-    "metrics_payload_sha256": "498e6ebdbf3af580fcbf38ba41076003d24d6aa35f7474913fd4364da821212b"
+    "created_at": "2026-08-07T15:38:53Z",
+    "payload_sha256": "8e23d84e9269a01c594c7213517b0864061a1dd4cfcfa92cd75e4ddd728e607a",
+    "metrics_payload_sha256": "eb34e8fee87d1897a91aaea4430b67b077c40ed1fc5c57df918ebc99fe6f5439"
   },
   "clones": {
     "functions": [],
-    "blocks": []
+    "blocks": [
+      "18892b67df87ac34ba556a31258e152244cd7396|a5f6b2711a92805a0eaf6c158c61a3247a970b4a|01729639bdc41ae609df8d065840113b2309299c|f54283e87e94644c49cdb57923d78fcd48d9ddd3"
+    ]
   },
   "metrics": {
     "max_complexity": 20,
@@ -23,9 +25,13 @@
     "max_cohesion": 3,
     "low_cohesion_classes": [],
     "dependency_cycles": [],
-    "dependency_max_depth": 18,
+    "dependency_max_depth": 17,
     "dead_code_items": [],
-    "health_score": 86,
-    "health_grade": "B"
+    "health_score": 89,
+    "health_grade": "B",
+    "typing_param_permille": 1000,
+    "typing_return_permille": 997,
+    "docstring_permille": 380,
+    "typing_any_count": 22
   }
 }

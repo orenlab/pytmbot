@@ -24,6 +24,7 @@ from pytmbot.handlers.handlers_util.utils import (
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -91,6 +92,7 @@ def handle_network(message: Message, bot: TeleBot) -> None:
             text=message_text,
             parse_mode="HTML",
             reply_markup=keyboard,
+            nav_keyboard=NAV_SERVER,
         )
         return None
 

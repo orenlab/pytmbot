@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] — Unreleased
+
+### Fixed
+
+- Restored reply-keyboard navigation after Quick view and other inline screens by re-attaching the section menu when both an inline keyboard and a navigation keyboard are required (notably on iOS).
+- Migrated Quick view templates and callbacks from legacy Markdown to HTML.
+
+### Changed
+
+- Bumped runtime dependencies including `pyTelegramBotAPI` (`>=4.36.0`) for current Bot API keyboard and rich-message types.
+
 ## [0.4.0] — 20260624
 
 Modest stable release focused on Telegram iOS keyboard reliability, unified outbound messaging, dependency maintenance, and documentation polish.
