@@ -2,15 +2,26 @@
 
 ## [0.5.0] — Unreleased
 
-### Fixed
+### Added
 
-- Restored reply-keyboard navigation after Quick view and other inline screens by re-attaching the section menu when both an inline keyboard and a navigation keyboard are required (notably on iOS).
-- Migrated Quick view templates and callbacks from legacy Markdown to HTML.
+- Telegram Rich Messages helpers (`send_rich_*` / `InputRichMessage(html=...)`) for structured screens, with the same dual-markup nav-keyboard sync used by classic sends.
+- `KeyboardButton.style` on reply menus: `primary` for Server/Docker/Quick view/Health, `danger` for Back to main menu.
 
 ### Changed
 
+- Migrated structured server, Docker list/detail, plugin monitor/outline, and start/about/plugins screens from classic HTML/Markdown to rich HTML templates.
+- Rich metric layouts use compact `<p><b>…</b></p>` titles (not large `<h2>`/`<h3>` headings) with native rich tables (`<table bordered striped>`, `<th>`/`<td>`, optional `align`) for structured metrics.
+- Migrated Network I/O / interfaces / connections (plus Disk I/O, fans, and users overlays) from ASCII/`<pre>` classic HTML to the same compact rich format.
 - Bumped runtime dependencies including `pyTelegramBotAPI` (`>=4.36.0`) for current Bot API keyboard and rich-message types.
+- Bumped Docker build base images: Ubuntu `26.04` and `ghcr.io/astral-sh/uv:0.12.2`.
+- Raised the development app/`config_version` line to `0.5.0-dev`.
 
+### Fixed
+
+- Restored reply-keyboard navigation after Quick view and other inline screens by re-attaching the section menu when both an inline keyboard and a navigation keyboard are required (notably on iOS).
+- Fixed rich-message overlay when editing Memory → Swap (and CPU → Process overview) by keeping the same message lifecycle on `rich_message` edits instead of mixing classic `text` edits onto rich content.
+- Stopped forwarding classic-only kwargs such as `link_preview_options` into `TeleBot.send_rich_message` (broke `/start` and `/about`).
+- Fixed empty/blank rows in Docker container detail rich tables by keeping emoji badges outside table cells and omitting empty/`N/A` finished rows.
 ## [0.4.0] — 20260624
 
 Modest stable release focused on Telegram iOS keyboard reliability, unified outbound messaging, dependency maintenance, and documentation polish.

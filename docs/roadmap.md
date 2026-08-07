@@ -12,7 +12,7 @@ Implemented behavior is defined by:
 
 Active development line:
 
-- `0.5.x` (planning)
+- `0.5.x` (`0.5.0-dev` in this repository)
 
 Latest stable release line:
 
@@ -20,7 +20,7 @@ Latest stable release line:
 
 Primary objective:
 
-- maintain the `0.4.x` stable line while planning the next development cycle
+- ship the `0.5.0` development line (Rich Messages, keyboard styles) while keeping the `0.4.x` stable channel available for production fleets
 
 ## Active Priorities
 

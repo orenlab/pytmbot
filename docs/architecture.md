@@ -117,10 +117,10 @@ Responsibilities:
 
 Responsibilities:
 
-- Jinja2 template rendering
+- Jinja2 template rendering for classic and rich Telegram content
 - render validation
 - cache management
-- output formatting for Telegram responses
+- output formatting for Telegram responses, including Rich Messages via `InputRichMessage(html=...)` helpers in `pytmbot/handlers/handlers_util/rich_messages.py`
 
 ### Plugins
 

@@ -39,12 +39,13 @@ Supported image architectures:
 
 ## Runtime Defaults
 
-- base image: Ubuntu
+- base image: Ubuntu (`26.04` in the current `Dockerfile`)
 - container user: `pytmbot`
 - user/group id: `1001:1001`
 - working directory: `/opt/app`
 - default timezone env: `TZ=UTC`
 - built-in Docker `HEALTHCHECK` calls `./entrypoint.sh --health_check`
+- development images (`edge-*`) track the active `0.5.0-dev` line; production fleets should stay on the `0.4` stable tags until `0.5.0` is released
 
 ## Required And Optional Mounts
 
