@@ -11,7 +11,7 @@ import re
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import CallbackQuery, InlineKeyboardMarkup
+from telebot.types import CallbackQuery, InlineKeyboardMarkup, InputRichMessage
 
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
@@ -99,17 +99,34 @@ def edit_callback_message_text(
     call: CallbackQuery,
     bot: TeleBot,
     *,
-    text: str,
+    text: str | None = None,
     parse_mode: str | None = None,
     reply_markup: InlineKeyboardMarkup | None = None,
+    rich_message: InputRichMessage | None = None,
     not_modified_text: str = "Already up to date.",
 ) -> bool:
-    """Edit callback-bound message and treat Telegram 'not modified' as a no-op."""
+    """
+    Edit callback-bound message and treat Telegram 'not modified' as a no-op.
+
+    Pass either classic ``text`` (optionally with ``parse_mode``) or
+    ``rich_message``. Do not mix both content representations.
+    """
     if call.message is None:
         return False
+    if rich_message is not None and text is not None:
+        raise ValueError("Pass either text or rich_message, not both")
+    if rich_message is None and text is None:
+        raise ValueError("Either text or rich_message is required")
 
     try:
-        if parse_mode is not None and reply_markup is not None:
+        if rich_message is not None:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                rich_message=rich_message,
+                reply_markup=reply_markup,
+            )
+        elif parse_mode is not None and reply_markup is not None:
             bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
