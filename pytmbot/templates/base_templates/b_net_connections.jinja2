@@ -1,14 +1,21 @@
-{{ thought_balloon }} <b>Connections Summary:</b>
+{# templates/b_net_connections.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Connections Summary</b></p>
 
-<code>Total:</code> {{ context.total }}
-<code>TCP:</code> {{ context.tcp }}
-<code>UDP:</code> {{ context.udp }}
+<table bordered striped>
+<tr><th>Metric</th><th align="right">Value</th></tr>
+<tr><td>Total</td><td align="right">{{ context.total|e }}</td></tr>
+<tr><td>TCP</td><td align="right">{{ context.tcp|e }}</td></tr>
+<tr><td>UDP</td><td align="right">{{ context.udp|e }}</td></tr>
+</table>
 
 {% if context.statuses %}
-<b>Status distribution:</b>
+<p><b>Status distribution</b></p>
+<table bordered striped>
+<tr><th>Status</th><th align="right">Count</th></tr>
 {% for status, count in context.statuses.items() %}
-<code>{{ status }}:</code> {{ count }}
+<tr><td>{{ status|e }}</td><td align="right">{{ count|e }}</td></tr>
 {% endfor %}
+</table>
 {% else %}
-No active connection status data available.
+<p>No active connection status data available.</p>
 {% endif %}

@@ -1,13 +1,25 @@
-{{ thought_balloon }} <b>Network Interfaces:</b>
+{# templates/b_net_interfaces.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Network Interfaces</b></p>
 
 {% if context.interfaces %}
-<pre language="bash">
-Name       State  Speed       MTU   IPv4
----------- ------ ----------- ----- ---------------
+<table bordered striped>
+<tr>
+<th>Name</th>
+<th>State</th>
+<th align="right">Speed</th>
+<th align="right">MTU</th>
+<th>IPv4</th>
+</tr>
 {% for item in context.interfaces %}
-{{ "%-10s"|format(item.name) }} {{ "%-6s"|format(item.state) }} {{ "%-11s"|format(item.speed) }} {{ "%5d"|format(item.mtu) }} {{ item.ip_address }}
+<tr>
+<td>{{ item.name|e }}</td>
+<td>{{ item.state|e }}</td>
+<td align="right">{{ item.speed|e }}</td>
+<td align="right">{{ item.mtu|e }}</td>
+<td>{{ item.ip_address|e }}</td>
+</tr>
 {% endfor %}
-</pre>
+</table>
 {% else %}
-No network interface data available.
+<p>No network interface data available.</p>
 {% endif %}

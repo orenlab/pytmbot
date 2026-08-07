@@ -1,8 +1,11 @@
-{{ thought_balloon }} Hello, {{ first_name }}.
+{# b_plugins.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Hello, {{ first_name|e }}.</b></p>
 
-Available plugins:
-
-{% for plugin_name, plugin_description in plugins.items() %}- *{{ plugin_name }}*: {{ plugin_description }}
+<p><b>Available plugins</b></p>
+<ul>
+{% for plugin_name, plugin_description in plugins.items() %}
+<li><b>{{ plugin_name|e }}</b>: {{ plugin_description|e }}</li>
 {% endfor %}
+</ul>
 
-Select a plugin below to open it.
+<p>Select a plugin below to open it.</p>

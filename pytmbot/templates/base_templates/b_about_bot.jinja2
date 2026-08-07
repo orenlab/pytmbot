@@ -1,19 +1,26 @@
-# 🤖 pyTMBot
+{# b_about_bot.jinja2 — rich HTML #}
+<p><b>🤖 pyTMBot</b></p>
 
-Hello, *{{ context['username'] }}*!
-I help you manage Docker workloads, inspect server health, and check operational status from Telegram.
+<p>Hello, <b>{{ context['username']|e }}</b>!</p>
+<p>I help you manage Docker workloads, inspect server health, and check operational status from Telegram.</p>
 
-📊 **Information**
-• Version: `{{ context['app_version'] }}`
-• Update check: `/check_bot_updates`
-• Health summary: `/health`
+<p><b>📊 Information</b></p>
+<ul>
+<li>Version: <code>{{ context['app_version']|e }}</code></li>
+<li>Update check: <code>/check_bot_updates</code></li>
+<li>Health summary: <code>/health</code></li>
+</ul>
 
-📚 **Resources**
-• [📖 Documentation](https://orenlab.github.io/pytmbot/)
-• [📝 Report an issue](https://github.com/orenlab/pytmbot/issues)
-• [💻 Source code](https://github.com/orenlab/pytmbot/)
-• [💬 Discussions](https://github.com/orenlab/pytmbot/discussions)
+<p><b>📚 Resources</b></p>
+<ul>
+<li><a href="https://orenlab.github.io/pytmbot/">Documentation</a></li>
+<li><a href="https://github.com/orenlab/pytmbot/issues">Report an issue</a></li>
+<li><a href="https://github.com/orenlab/pytmbot/">Source code</a></li>
+<li><a href="https://github.com/orenlab/pytmbot/discussions">Discussions</a></li>
+</ul>
 
-👥 **Project**
-• Author: [@orenlab](https://github.com/orenlab)
-• License: [MIT](https://opensource.org/licenses/MIT)
+<p><b>👥 Project</b></p>
+<ul>
+<li>Author: <a href="https://github.com/orenlab">@orenlab</a></li>
+<li>License: <a href="https://opensource.org/licenses/MIT">MIT</a></li>
+</ul>

@@ -1,46 +1,57 @@
-{{ thought_balloon }} <b>Container Runtime:</b>
+{# d_container_runtime_info.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Container Runtime</b></p>
 
-{{ package_emoji }} <b>Container:</b> <code>{{ container_name }}</code>
+<p>{{ package_emoji }} <b>Container:</b> <code>{{ container_name|e }}</code></p>
 
-{{ stethoscope_emoji }} <b>Health:</b>
-<code>Status:</code> {{ health_badge }}
-<code>Failing streak:</code> {{ health_failing_streak }}
-<code>Last check:</code> {{ health_last_checked_at }}
-<code>Last output:</code> {{ health_last_log }}
+<p><b>{{ stethoscope_emoji }} Health</b></p>
+<table bordered striped>
+<tr><td>Status</td><td>{{ health_badge|e }}</td></tr>
+<tr><td>Failing streak</td><td>{{ health_failing_streak|e }}</td></tr>
+<tr><td>Last check</td><td>{{ health_last_checked_at|e }}</td></tr>
+<tr><td>Last output</td><td>{{ health_last_log|e }}</td></tr>
+</table>
 
-{{ chart_emoji }} <b>Lifecycle:</b>
-<code>Created:</code> {{ created_at }}
-<code>Started:</code> {{ started_at }}
-<code>Finished:</code> {{ finished_at }}
-<code>PID:</code> {{ pid }}
-<code>Exit code:</code> {{ exit_code }}
-<code>Stop signal:</code> {{ stop_signal }}
-<code>Stop timeout:</code> {{ stop_timeout }}
-<code>OOM killed:</code> {{ oom_killed }}
-<code>Dead:</code> {{ dead }}
-<code>State error:</code> {{ state_error }}
+<p><b>{{ chart_emoji }} Lifecycle</b></p>
+<table bordered striped>
+<tr><td>Created</td><td>{{ created_at|e }}</td></tr>
+<tr><td>Started</td><td>{{ started_at|e }}</td></tr>
+<tr><td>Finished</td><td>{{ finished_at|e }}</td></tr>
+<tr><td>PID</td><td>{{ pid|e }}</td></tr>
+<tr><td>Exit code</td><td>{{ exit_code|e }}</td></tr>
+<tr><td>Stop signal</td><td>{{ stop_signal|e }}</td></tr>
+<tr><td>Stop timeout</td><td>{{ stop_timeout|e }}</td></tr>
+<tr><td>OOM killed</td><td>{{ oom_killed|e }}</td></tr>
+<tr><td>Dead</td><td>{{ dead|e }}</td></tr>
+<tr><td>State error</td><td>{{ state_error|e }}</td></tr>
+</table>
 
-{{ shield_emoji }} <b>Security profile:</b>
-<code>Privileged:</code> {{ privileged }}
-<code>Read-only rootfs:</code> {{ read_only_rootfs }}
-<code>OOM kill disable:</code> {{ oom_kill_disable }}
-<code>No new privileges:</code> {{ no_new_privileges }}
-<code>Init process:</code> {{ init_process }}
+<p><b>{{ shield_emoji }} Security profile</b></p>
+<table bordered striped>
+<tr><td>Privileged</td><td>{{ privileged|e }}</td></tr>
+<tr><td>Read-only rootfs</td><td>{{ read_only_rootfs|e }}</td></tr>
+<tr><td>OOM kill disable</td><td>{{ oom_kill_disable|e }}</td></tr>
+<tr><td>No new privileges</td><td>{{ no_new_privileges|e }}</td></tr>
+<tr><td>Init process</td><td>{{ init_process|e }}</td></tr>
+</table>
 
-<code>Security options:</code>
+<p><b>Security options:</b></p>
 {% if security_opts_count > 0 %}
+<ul>
 {% for option in security_opts %}
-<code>{{ option }}</code>
+<li><code>{{ option|e }}</code></li>
 {% endfor %}
+</ul>
 {% if hidden_security_opts_count > 0 %}
-<i>... and {{ hidden_security_opts_count }} more security options</i>
+<p><i>... and {{ hidden_security_opts_count|e }} more security options</i></p>
 {% endif %}
 {% else %}
-<code>none</code>
+<p><code>none</code></p>
 {% endif %}
 
-{{ gear_emoji }} <b>Linux capabilities:</b>
-<code>CapAdd:</code> {{ cap_add_text | default("none", true) }}
-<code>CapDrop:</code> {{ cap_drop_text | default("none", true) }}
+<p><b>{{ gear_emoji }} Linux capabilities</b></p>
+<table bordered striped>
+<tr><td>CapAdd</td><td>{{ (cap_add_text | default("none", true))|e }}</td></tr>
+<tr><td>CapDrop</td><td>{{ (cap_drop_text | default("none", true))|e }}</td></tr>
+</table>
 
-{{ banjo }} <i>Container runtime details retrieved.</i>
+<p>{{ banjo }} <i>Container runtime details retrieved.</i></p>

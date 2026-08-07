@@ -1,12 +1,25 @@
-{{ thought_balloon }} <b>Disk I/O Statistics:</b>
+{# templates/b_disk_io.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Disk I/O Statistics</b></p>
 
 {% if context.disks %}
 {% for disk in context.disks %}
-<b>{{ disk.device_name }}</b>
-<code>Read:</code> {{ disk.read_bytes }} (ops: {{ disk.read_count }}, time: {{ disk.read_time_ms }}ms)
-<code>Write:</code> {{ disk.write_bytes }} (ops: {{ disk.write_count }}, time: {{ disk.write_time_ms }}ms)
-
+<p><b>{{ disk.device_name|e }}</b></p>
+<table bordered striped>
+<tr><th>Direction</th><th>Bytes</th><th align="right">Ops</th><th align="right">Time</th></tr>
+<tr>
+<td>Read</td>
+<td>{{ disk.read_bytes|e }}</td>
+<td align="right">{{ disk.read_count|e }}</td>
+<td align="right">{{ disk.read_time_ms|e }}ms</td>
+</tr>
+<tr>
+<td>Write</td>
+<td>{{ disk.write_bytes|e }}</td>
+<td align="right">{{ disk.write_count|e }}</td>
+<td align="right">{{ disk.write_time_ms|e }}ms</td>
+</tr>
+</table>
 {% endfor %}
 {% else %}
-No disk I/O counters available.
+<p>No disk I/O counters available.</p>
 {% endif %}

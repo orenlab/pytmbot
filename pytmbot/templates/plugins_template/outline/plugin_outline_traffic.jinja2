@@ -1,13 +1,17 @@
+{# plugin_outline_traffic.jinja2 — rich HTML #}
 {% set bytes_transferred = context['bytesTransferredByUserId'] %}
 {% set user_names = context['userNames'] %}
-{{ thought_balloon }}{{ first_name }},
 
-<b>Here is the information about bytes transferred by users:</b>
+<p><b>{{ thought_balloon }} {{ first_name|e }}</b></p>
+
+<p><b>Bytes transferred by users</b></p>
 {% if bytes_transferred %}
-    Total Bytes Transferred:
-    {% for user_id, bytes in bytes_transferred.items() %}{% set user_name = user_names.get(user_id, 'Unknown') %}
-        {{ minus }} <i>{{ user_name }} (User ID {{ user_id }}): {{ set_naturalsize(bytes if bytes else 0) }}</i>
-    {% endfor %}
+<ul>
+{% for user_id, bytes in bytes_transferred.items() %}
+{% set user_name = user_names.get(user_id, 'Unknown') %}
+<li><i>{{ user_name|e }} (User ID {{ user_id|e }}): {{ set_naturalsize(bytes if bytes else 0)|e }}</i></li>
+{% endfor %}
+</ul>
 {% else %}
-    <i>No data available.</i>
+<p><i>No data available.</i></p>
 {% endif %}

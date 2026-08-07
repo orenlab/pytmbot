@@ -1,9 +1,16 @@
-{{ thought_balloon }} <b>Fan Speeds:</b>
+{# templates/b_fans.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Fan Speeds</b></p>
 
 {% if context.fans %}
+<table bordered striped>
+<tr><th>Fan</th><th align="right">RPM</th></tr>
 {% for fan in context.fans %}
-<b>{{ fan.sensor_name }} / {{ fan.label }}</b>: <code>{{ fan.rpm }} RPM</code>
+<tr>
+<td>{{ fan.sensor_name|e }} / {{ fan.label|e }}</td>
+<td align="right">{{ fan.rpm|e }}</td>
+</tr>
 {% endfor %}
+</table>
 {% else %}
-No fan speed data available.
+<p>No fan speed data available.</p>
 {% endif %}

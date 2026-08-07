@@ -1,8 +1,6 @@
-{{ emojis['thought_balloon'] }} <b>Container logs</b>
+{# d_logs.jinja2 — rich HTML #}
+<p><b>{{ emojis['thought_balloon'] }} Container logs</b></p>
 
-<pre><code class="language-bash">
-{{ logs }}
-</code></pre>
+<pre><code>{{ logs|e }}</code></pre>
 <blockquote>Sensitive values may be masked here. If you need the raw logs, check them on the host with:</blockquote>
-
-<pre><code class="language-bash">sudo docker logs {{ container_name }}</code></pre>
+<pre><code>sudo docker logs {{ container_name|e }}</code></pre>

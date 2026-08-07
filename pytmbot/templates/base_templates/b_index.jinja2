@@ -1,23 +1,32 @@
-Hello, *{{ first_name }}*! 👋
+{# b_index.jinja2 — rich HTML #}
+<p><b>Hello, {{ first_name|e }}! 👋</b></p>
 
-I’m *pyTMBot* — Docker and server operations in Telegram.
+<p>I’m <b>pyTMBot</b> — Docker and server operations in Telegram.</p>
 
-*What I can do:*
+<p><b>What I can do</b></p>
 
-🐳 *Docker*
-- Containers and images management
-- Logs, runtime details, health and updates
+<p><b>🐳 Docker</b></p>
+<ul>
+<li>Containers and images management</li>
+<li>Logs, runtime details, health and updates</li>
+</ul>
 
-🖥️ *Server*
-- CPU, memory, load, filesystem, network, sensors, uptime
-- Quick View with inline drill-down (CPU/Memory/Disk/Sensors)
-- Health snapshot with runtime analytics
+<p><b>🖥️ Server</b></p>
+<ul>
+<li>CPU, memory, load, filesystem, network, sensors, uptime</li>
+<li>Quick View with inline drill-down (CPU/Memory/Disk/Sensors)</li>
+<li>Health snapshot with runtime analytics</li>
+</ul>
 
-🧩 *Plugins*
-- Monitor, 2FA, Outline VPN
+<p><b>🧩 Plugins</b></p>
+<ul>
+<li>Monitor, 2FA, Outline VPN</li>
+</ul>
 
-🔧 *Service commands*
-- Bot updates: `/check_bot_updates`
-- Health summary: `/health`
+<p><b>🔧 Service commands</b></p>
+<ul>
+<li>Bot updates: <code>/check_bot_updates</code></li>
+<li>Health summary: <code>/health</code></li>
+</ul>
 
-Source: [GitHub](https://github.com/orenlab/pytmbot/)
+<p>Source: <a href="https://github.com/orenlab/pytmbot/">GitHub</a></p>

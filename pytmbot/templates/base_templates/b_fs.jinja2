@@ -1,12 +1,17 @@
-{{ thought_balloon }} <b>Filesystem Info:</b>
+{# templates/b_fs.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Filesystem Info</b></p>
 
 {% for value in context %}
-{{ floppy_disk }} <b>{{ value['device_name'] }}</b>
-<code>Type:</code> {{ value['fs_type'] }}
-<code>Mount:</code> {{ value['mnt_point'] }}
-<code>Size:</code> {{ value['size'] }}
-<code>Used:</code> {{ value['used'] }} ({{ value['percent'] }}%)
-<code>Free:</code> {{ value['free'] }}
-
+<p><b>{{ floppy_disk }} {{ value['device_name']|e }}</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Type</td><td>{{ value['fs_type']|e }}</td></tr>
+<tr><td>Mount</td><td>{{ value['mnt_point']|e }}</td></tr>
+<tr><td>Size</td><td align="right">{{ value['size']|e }}</td></tr>
+<tr><td>Used</td><td align="right">{{ value['used']|e }} ({{ value['percent']|e }}%)</td></tr>
+<tr><td>Free</td><td align="right">{{ value['free']|e }}</td></tr>
+</table>
 {% endfor %}
-{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}
+{% if running_in_docker %}
+<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% endif %}

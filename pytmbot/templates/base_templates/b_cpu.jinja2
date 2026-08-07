@@ -1,16 +1,25 @@
-{{ thought_balloon }} <b>CPU Overview:</b>
+{# templates/b_cpu.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} CPU Overview</b></p>
 
-{{ electric_plug }} <b>Total usage:</b> <code>{{ "%.1f"|format(context.cpu_percent) }}%</code>
-<code>Logical cores:</code> {{ context.logical_cores }}
-<code>Physical cores:</code> {{ context.physical_cores }}
+<table bordered striped>
+<tr><th>Parameter</th><th align="right">Value</th></tr>
+<tr><td>{{ electric_plug }} Total usage</td><td align="right">{{ "%.1f"|format(context.cpu_percent) }}%</td></tr>
+<tr><td>Logical cores</td><td align="right">{{ context.logical_cores|e }}</td></tr>
+<tr><td>Physical cores</td><td align="right">{{ context.physical_cores|e }}</td></tr>
+</table>
 
-<b>Frequency:</b>
+<p><b>Frequency</b></p>
 {% if context.current_freq_mhz > 0 %}
-<code>Current:</code> {{ "%.1f"|format(context.current_freq_mhz) }} MHz
-<code>Min:</code> {{ "%.1f"|format(context.min_freq_mhz) }} MHz
-<code>Max:</code> {{ "%.1f"|format(context.max_freq_mhz) }} MHz
+<table bordered striped>
+<tr><th>Parameter</th><th align="right">Value</th></tr>
+<tr><td>Current</td><td align="right">{{ "%.1f"|format(context.current_freq_mhz) }} MHz</td></tr>
+<tr><td>Min</td><td align="right">{{ "%.1f"|format(context.min_freq_mhz) }} MHz</td></tr>
+<tr><td>Max</td><td align="right">{{ "%.1f"|format(context.max_freq_mhz) }} MHz</td></tr>
+</table>
 {% else %}
-<code>N/A</code>
+<p>N/A</p>
 {% endif %}
 
-{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}
+{% if running_in_docker %}
+<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% endif %}

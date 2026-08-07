@@ -1,26 +1,30 @@
-{{ context.emojis.thought_balloon }} <b>Image Usage:</b>
+{# d_image_usage_info.jinja2 — rich HTML #}
+<p><b>{{ context.emojis.thought_balloon }} Image Usage</b></p>
 
-{{ context.emojis.package }} <b>{{ context.image_name }}</b>
-{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id }}</code>
+<p><b>{{ context.emojis.package }} {{ context.image_name|e }}</b></p>
+<p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id|e }}</code></p>
 
-{{ context.emojis.gear }} <b>Summary:</b>
-<code>Total containers:</code> {{ context.containers_count }}
-<code>Running:</code> {{ context.running_count }} | <code>Stopped:</code> {{ context.stopped_count }}
+<p><b>{{ context.emojis.gear }} Summary</b></p>
+<table bordered striped>
+<tr><td>Total containers</td><td>{{ context.containers_count|e }}</td></tr>
+<tr><td>Running</td><td>{{ context.running_count|e }}</td></tr>
+<tr><td>Stopped</td><td>{{ context.stopped_count|e }}</td></tr>
+</table>
 
-<b>Containers{% if context.containers_count > 0 %} ({{ context.containers_count }}){% endif %}:</b>
-{% if context.containers -%}
-{% for container in context.containers -%}
-<code>{{ loop.index }}.</code> <b>{{ container.name }}</b> <code>{{ container.id }}</code>
-<code>Status:</code> {{ container.status }} | <code>Started:</code> {{ container.started_at }}
-{% if not loop.last -%}
-<i>───────────────</i>
+<p><b>Containers{% if context.containers_count > 0 %} ({{ context.containers_count|e }}){% endif %}</b></p>
+{% if context.containers %}
+{% for container in context.containers %}
+<p><b>{{ loop.index }}. {{ container.name|e }} <code>{{ container.id|e }}</code></b></p>
+<table bordered striped>
+<tr><td>Status</td><td>{{ container.status|e }}</td></tr>
+<tr><td>Started</td><td>{{ container.started_at|e }}</td></tr>
+</table>
+{% endfor %}
+{% if context.hidden_containers_count > 0 %}
+<p><i>... and {{ context.hidden_containers_count|e }} more containers</i></p>
 {% endif %}
-{% endfor -%}
-{% if context.hidden_containers_count > 0 -%}
-<i>... and {{ context.hidden_containers_count }} more containers</i>
-{% endif %}
-{% else -%}
-<code>No containers use this image</code>
+{% else %}
+<p><code>No containers use this image</code></p>
 {% endif %}
 
-{{ context.emojis.minus }} <i>Image usage details retrieved.</i>
+<p>{{ context.emojis.minus }} <i>Image usage details retrieved.</i></p>

@@ -1,25 +1,25 @@
-{{ context.emojis.thought_balloon }} <b>Image History:</b>
+{# d_image_history_info.jinja2 — rich HTML #}
+<p><b>{{ context.emojis.thought_balloon }} Image History</b></p>
 
-{{ context.emojis.package }} <b>{{ context.image_name }}</b>
-{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id }}</code>
+<p><b>{{ context.emojis.package }} {{ context.image_name|e }}</b></p>
+<p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id|e }}</code></p>
 
-<b>Layers{% if context.layers_count > 0 %} ({{ context.layers_count }}){% endif %}:</b>
-{% if context.layers -%}
-{% for layer in context.layers -%}
-<code>{{ loop.index }}.</code> <code>{{ layer.id }}</code>
-<code>Created:</code> {{ layer.created }} | <code>Size:</code> {{ layer.size }}
-<code>By:</code> {{ layer.created_by }}
-{% if layer.comment %}<code>Comment:</code> {{ layer.comment }}
+<p><b>Layers{% if context.layers_count > 0 %} ({{ context.layers_count|e }}){% endif %}</b></p>
+{% if context.layers %}
+{% for layer in context.layers %}
+<p><b>{{ loop.index }}. <code>{{ layer.id|e }}</code></b></p>
+<table bordered striped>
+<tr><td>Created</td><td>{{ layer.created|e }}</td></tr>
+<tr><td>Size</td><td>{{ layer.size|e }}</td></tr>
+<tr><td>By</td><td>{{ layer.created_by|e }}</td></tr>
+{% if layer.comment %}<tr><td>Comment</td><td>{{ layer.comment|e }}</td></tr>{% endif %}
+</table>
+{% endfor %}
+{% if context.hidden_layers_count > 0 %}
+<p><i>... and {{ context.hidden_layers_count|e }} more layers</i></p>
 {% endif %}
-{% if not loop.last -%}
-<i>───────────────</i>
-{% endif %}
-{% endfor -%}
-{% if context.hidden_layers_count > 0 -%}
-<i>... and {{ context.hidden_layers_count }} more layers</i>
-{% endif %}
-{% else -%}
-<code>No history available</code>
+{% else %}
+<p><code>No history available</code></p>
 {% endif %}
 
-{{ context.emojis.minus }} <i>Image history retrieved.</i>
+<p>{{ context.emojis.minus }} <i>Image history retrieved.</i></p>

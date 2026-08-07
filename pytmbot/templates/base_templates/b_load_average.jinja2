@@ -1,6 +1,10 @@
-{{ thought_balloon }} *Load average*
+{# templates/b_load_average.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Load average</b></p>
 
-{{ desktop_computer }} *Current values:*
-- *1 minute:* {{ context[0] }}
-- *5 minutes:* {{ context[1] }}
-- *15 minutes:* {{ context[2] }}
+<p><b>{{ desktop_computer }} Current values</b></p>
+<table bordered striped>
+<tr><th>Window</th><th align="right">Load</th></tr>
+<tr><td>1 minute</td><td align="right">{{ context[0]|e }}</td></tr>
+<tr><td>5 minutes</td><td align="right">{{ context[1]|e }}</td></tr>
+<tr><td>15 minutes</td><td align="right">{{ context[2]|e }}</td></tr>
+</table>

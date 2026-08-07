@@ -1,11 +1,14 @@
+{# plugin_outline_keys.jinja2 — rich HTML #}
 {% set access_keys = context['accessKeys'] %}
 
-{{ thought_balloon }}{{ first_name }},
+<p><b>{{ thought_balloon }} {{ first_name|e }}</b></p>
 
-Here is the information about your access keys:
+<p>Here is the information about your access keys:</p>
+<p>Total number of keys: <b>{{ access_keys | length }}</b></p>
 
-Total number of keys: <b>{{ access_keys | length }}</b>
-
-<b>Key Names:</b>
-{% for key in access_keys %}{{ minus }} <i>{{ key['name'] }}</i>
+<p><b>Key Names</b></p>
+<ul>
+{% for key in access_keys %}
+<li><i>{{ key['name']|e }}</i></li>
 {% endfor %}
+</ul>

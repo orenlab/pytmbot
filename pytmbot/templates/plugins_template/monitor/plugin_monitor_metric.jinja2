@@ -1,20 +1,25 @@
-{{ thought_balloon }} <b>{{ title }}</b>
-<b>Period:</b> {{ period_label }}
+{# plugin_monitor_metric.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} {{ title|e }}</b></p>
+<p><b>Period:</b> {{ period_label|e }}</p>
 
-{% if summary_lines -%}
-<b>Summary:</b>
-{% for line in summary_lines -%}
-{{ line }}
+{% if summary_lines %}
+<p><b>Summary</b></p>
+<ul>
+{% for line in summary_lines %}
+<li>{{ line|e }}</li>
 {% endfor %}
-{% else -%}
-{{ warning }} No metrics found for this period.
-{%- endif %}
+</ul>
+{% else %}
+<p>{{ warning }} No metrics found for this period.</p>
+{% endif %}
 
-{% if detail_lines -%}
-<b>Details:</b>
-{% for line in detail_lines -%}
-{{ line }}
+{% if detail_lines %}
+<p><b>Details</b></p>
+<ul>
+{% for line in detail_lines %}
+<li>{{ line|e }}</li>
 {% endfor %}
-{%- endif %}
+</ul>
+{% endif %}
 
-{{ information }} Use <b>Select period</b> to switch time range or choose another section.
+<p>{{ information }} Use <b>Select period</b> to switch time range or choose another section.</p>

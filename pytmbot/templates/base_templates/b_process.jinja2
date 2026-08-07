@@ -1,10 +1,20 @@
-{{ thought_balloon }} <b>Process Summary:</b>{% if context %}{{ '' }}
+{# templates/b_process.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Process Summary</b></p>
 
-
+{% if context %}
+<table bordered striped>
+<tr><th>State</th><th align="right">Count</th></tr>
 {% for key, value in context.items() %}
-{{ horizontal_traffic_light }} <b>{{ key }}</b>: <code>{{ value }}</code>
-{% endfor %}{% else %}
-{{ warning }} <i>Process data is unavailable right now.</i>{% endif %}{{ '' }}
+<tr>
+<td>{{ horizontal_traffic_light }} {{ key|e }}</td>
+<td align="right">{{ value|e }}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>{{ warning }} <i>Process data is unavailable right now.</i></p>
+{% endif %}
 
-
-{% if running_in_docker %}{{ warning }} <i>Limited resource information available in Docker environment</i>{% endif %}
+{% if running_in_docker %}
+<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% endif %}

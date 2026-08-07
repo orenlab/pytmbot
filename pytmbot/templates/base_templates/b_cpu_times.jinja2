@@ -1,10 +1,12 @@
-{{ thought_balloon }} <b>CPU Times Breakdown:</b>
+{# templates/b_cpu_times.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} CPU Times Breakdown</b></p>
 
-<pre language="bash">
-user     : {{ "%5.1f"|format(context.user) }}%
-system   : {{ "%5.1f"|format(context.system) }}%
-idle     : {{ "%5.1f"|format(context.idle) }}%
-iowait   : {{ "%5.1f"|format(context.iowait) }}%
-irq      : {{ "%5.1f"|format(context.irq) }}%
-softirq  : {{ "%5.1f"|format(context.softirq) }}%
-</pre>
+<table bordered striped>
+<tr><th>State</th><th align="right">Share</th></tr>
+<tr><td>user</td><td align="right">{{ "%.1f"|format(context.user) }}%</td></tr>
+<tr><td>system</td><td align="right">{{ "%.1f"|format(context.system) }}%</td></tr>
+<tr><td>idle</td><td align="right">{{ "%.1f"|format(context.idle) }}%</td></tr>
+<tr><td>iowait</td><td align="right">{{ "%.1f"|format(context.iowait) }}%</td></tr>
+<tr><td>irq</td><td align="right">{{ "%.1f"|format(context.irq) }}%</td></tr>
+<tr><td>softirq</td><td align="right">{{ "%.1f"|format(context.softirq) }}%</td></tr>
+</table>

@@ -1,4 +1,16 @@
-{{ thought_balloon }} Swap Memory
+{# templates/b_swap.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Swap Memory</b></p>
 
-{% for key, value in context.items() %}{{ paperclip }} {{ key }}: {{ value }}
+{% if context %}
+<table bordered striped>
+<tr><th>Parameter</th><th align="right">Value</th></tr>
+{% for key, value in context.items() %}
+<tr>
+<td>{{ paperclip }} {{ key|e }}</td>
+<td align="right">{{ value|e }}</td>
+</tr>
 {% endfor %}
+</table>
+{% else %}
+<p>No swap data available.</p>
+{% endif %}

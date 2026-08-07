@@ -1,13 +1,21 @@
-{{ thought_balloon }} <b>Per-Core CPU Load:</b>
+{# templates/b_cpu_per_core.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Per-Core CPU Load</b></p>
 
 {% if context.core_rows %}
-<pre language="bash">
-Core | Usage
------+----------------------------
+<table bordered striped>
+<tr>
+<th>Core</th>
+<th>Usage</th>
+<th align="right">%</th>
+</tr>
 {% for row in context.core_rows %}
-{{ "%4d"|format(row.core) }} | {{ row.bar }} {{ "%5.1f"|format(row.usage_percent) }}%
+<tr>
+<td>{{ row.core|e }}</td>
+<td><code>{{ row.bar|e }}</code></td>
+<td align="right">{{ "%.1f"|format(row.usage_percent) }}%</td>
+</tr>
 {% endfor %}
-</pre>
+</table>
 {% else %}
-No per-core CPU data available.
+<p>No per-core CPU data available.</p>
 {% endif %}

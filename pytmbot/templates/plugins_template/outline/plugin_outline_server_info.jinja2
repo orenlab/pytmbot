@@ -1,13 +1,12 @@
-{# templates/server_info.jinja2 #}
-{{ thought_balloon }}{{ first_name }},
+{# plugin_outline_server_info.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} {{ first_name|e }}</b></p>
 
-Your Outline server is <b>{{ "up and running" if context else "down" }}</b>.
+<p>Your Outline server is <b>{{ "up and running" if context else "down" }}</b>.</p>
 
-Server information:
-
-{{ label }} Server name: <b>{{ context['name'] if context['name'] else 'Unknown' }}</b>
-{{ bar_chart }} Metrics enabled: <b>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</b>
-{{ alarm_clock }} Created:
-<b>{{ context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A' }}</b>
-{{ key }} Port for new access keys:
-<b>{{ context['portForNewAccessKeys'] if context['portForNewAccessKeys'] else 'N/A' }}</b>
+<p><b>Server information</b></p>
+<table bordered striped>
+<tr><td>{{ label }} Server name</td><td>{{ (context['name'] if context['name'] else 'Unknown')|e }}</td></tr>
+<tr><td>{{ bar_chart }} Metrics enabled</td><td>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</td></tr>
+<tr><td>{{ alarm_clock }} Created</td><td>{{ (context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A')|e }}</td></tr>
+<tr><td>{{ key }} Port for new access keys</td><td>{{ (context['portForNewAccessKeys'] if context['portForNewAccessKeys'] else 'N/A')|e }}</td></tr>
+</table>

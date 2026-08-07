@@ -1,60 +1,84 @@
-{{ thought_balloon }} <b>System Health Snapshot:</b>
+{# templates/b_health_summary.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} System Health Snapshot</b></p>
 
-{{ stethoscope }} <b>Bot monitor status:</b>
-<code>{{ context.monitor.overall_badge }} {{ context.monitor.overall_status }}</code>
-<code>Operational components:</code> {{ context.monitor.operational }}/{{ context.monitor.total }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)
-<code>Last check duration:</code> {{ "%.1f"|format(context.monitor.duration_ms) }} ms
-<code>Guidance:</code> {{ context.monitor.action }}
+<p><b>{{ stethoscope }} Bot monitor status</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Status</td><td>{{ context.monitor.overall_badge|e }} {{ context.monitor.overall_status|e }}</td></tr>
+<tr><td>Operational components</td><td>{{ context.monitor.operational|e }}/{{ context.monitor.total|e }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)</td></tr>
+<tr><td>Last check duration</td><td align="right">{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
+<tr><td>Guidance</td><td>{{ context.monitor.action|e }}</td></tr>
+</table>
 
 {% if context.monitor.available and context.monitor.components %}
-<b>Component checks:</b>
+<p><b>Component checks</b></p>
 {% for component in context.monitor.components %}
-<code>{{ component.badge }} {{ component.component_label }}</code> {{ component.status_label }} ({{ "%.1f"|format(component.latency_ms) }} ms)
+<p><b>{{ component.badge|e }} {{ component.component_label|e }}</b> — {{ component.status_label|e }} ({{ "%.1f"|format(component.latency_ms) }} ms)</p>
+{% if component.insights %}
+<ul>
 {% for insight in component.insights %}
-• {{ insight }}
+<li>{{ insight|e }}</li>
 {% endfor %}
+</ul>
+{% endif %}
 {% endfor %}
 {% endif %}
 
-{{ stethoscope }} <b>Overall status:</b>
-<code>{{ context.overall_badge }} {{ context.overall_status }}</code>
-<code>Health score:</code> {{ context.health_score }}/100
-<code>Dominant pressure:</code> {{ context.dominant_metric }}
+<p><b>{{ stethoscope }} Overall status</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Status</td><td>{{ context.overall_badge|e }} {{ context.overall_status|e }}</td></tr>
+<tr><td>Health score</td><td align="right">{{ context.health_score|e }}/100</td></tr>
+<tr><td>Dominant pressure</td><td>{{ context.dominant_metric|e }}</td></tr>
+</table>
 
-<b>Compute & Memory:</b>
-<code>{{ context.cpu_badge }} CPU:</code> {{ "%.1f"|format(context.cpu_percent) }}%
-<code>Status:</code> {{ context.cpu_status }}
+<p><b>Compute &amp; Memory</b></p>
+<table bordered striped>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>{{ context.cpu_badge|e }} CPU</td><td>{{ "%.1f"|format(context.cpu_percent) }}% — {{ context.cpu_status|e }}</td></tr>
+<tr><td>{{ context.memory_badge|e }} RAM</td><td>{{ "%.1f"|format(context.memory_percent) }}% — {{ context.memory_status|e }}</td></tr>
+<tr><td>Used / Available</td><td>{{ context.memory_used|e }} / {{ context.memory_available|e }}</td></tr>
+<tr><td>{{ context.load_badge|e }} Load avg (1/5/15m)</td><td>{{ "%.2f"|format(context.load_1m) }} / {{ "%.2f"|format(context.load_5m) }} / {{ "%.2f"|format(context.load_15m) }}</td></tr>
+<tr><td>Per-core pressure (1m)</td><td>{{ "%.1f"|format(context.load_ratio_percent) }}% of {{ context.cpu_count|e }} cores</td></tr>
+<tr><td>Assessment</td><td>{{ context.load_status|e }}</td></tr>
+</table>
 
-<code>{{ context.memory_badge }} RAM:</code> {{ "%.1f"|format(context.memory_percent) }}%
-<code>Status:</code> {{ context.memory_status }}
-<code>Used / Available:</code> {{ context.memory_used }} / {{ context.memory_available }}
+<p><b>{{ desktop_computer }} Runtime</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Uptime</td><td>{{ context.uptime|e }}</td></tr>
+<tr><td>Processes</td><td align="right">{{ context.process_total|e }}</td></tr>
+</table>
 
-<code>{{ context.load_badge }} Load avg (1/5/15m):</code> {{ "%.2f"|format(context.load_1m) }} / {{ "%.2f"|format(context.load_5m) }} / {{ "%.2f"|format(context.load_15m) }}
-<code>Per-core pressure (1m):</code> {{ "%.1f"|format(context.load_ratio_percent) }}% of {{ context.cpu_count }} cores
-<code>Assessment:</code> {{ context.load_status }}
-
-{{ desktop_computer }} <b>Runtime:</b>
-<code>Uptime:</code> {{ context.uptime }}
-<code>Processes:</code> {{ context.process_total }}
-
-<b>Docker Workload:</b>
+<p><b>Docker Workload</b></p>
 {% if context.docker.available %}
-<code>{{ context.docker.badge }} Status:</code> {{ context.docker.status_label }}
-<code>Containers (running/stopped):</code> {{ context.docker.running_containers }} / {{ context.docker.stopped_containers }} (total {{ context.docker.containers_total }})
-<code>Running ratio:</code> {{ "%.1f"|format(context.docker.running_ratio) }}%
-<code>Containers per core:</code> {{ "%.2f"|format(context.docker.containers_per_core) }}
-<code>Images:</code> {{ context.docker.images_count }}
-<code>Comment:</code> {{ context.docker.trend_text }}
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>{{ context.docker.badge|e }} Status</td><td>{{ context.docker.status_label|e }}</td></tr>
+<tr><td>Containers (running/stopped)</td><td>{{ context.docker.running_containers|e }} / {{ context.docker.stopped_containers|e }} (total {{ context.docker.containers_total|e }})</td></tr>
+<tr><td>Running ratio</td><td align="right">{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>
+<tr><td>Containers per core</td><td align="right">{{ "%.2f"|format(context.docker.containers_per_core) }}</td></tr>
+<tr><td>Images</td><td align="right">{{ context.docker.images_count|e }}</td></tr>
+<tr><td>Comment</td><td>{{ context.docker.trend_text|e }}</td></tr>
+</table>
 {% else %}
-<code>⚪ Docker:</code> {{ context.docker.trend_text }}
+<p>⚪ Docker: {{ context.docker.trend_text|e }}</p>
 {% endif %}
 
-<b>Analytics:</b>
+{% if context.insights %}
+<p><b>Analytics</b></p>
+<ul>
 {% for insight in context.insights %}
-• {{ insight }}
+<li>{{ insight|e }}</li>
 {% endfor %}
+</ul>
+{% endif %}
 
-<b>Recommended actions:</b>
+{% if context.recommendations %}
+<p><b>Recommended actions</b></p>
+<ul>
 {% for recommendation in context.recommendations %}
-• {{ recommendation }}
+<li>{{ recommendation|e }}</li>
 {% endfor %}
+</ul>
+{% endif %}

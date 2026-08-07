@@ -1,53 +1,70 @@
-{{ context.emojis.thought_balloon }} <b>Image Details:</b>
+{# d_image_full_info.jinja2 — rich HTML #}
+<p><b>{{ context.emojis.thought_balloon }} Image Details</b></p>
 
-{{ context.emojis.package }} <b>{{ context.image.name }}</b>
-{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image.id }}</code>
+<p><b>{{ context.emojis.package }} {{ context.image.name|e }}</b></p>
+<p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image.id|e }}</code></p>
 
-{{ context.emojis.bookmark_tabs }} <b>Identity:</b>
-<code>Tags:</code> {{ context.image.tags | join(", ") if context.image.tags_count > 0 else "none" }}
-<code>Repo digests:</code> {{ context.image.repo_digests | join(", ") if context.image.repo_digests_count > 0 else "none" }}
-<code>Parent:</code> {{ context.image.parent_id }}
+<p><b>{{ context.emojis.bookmark_tabs }} Identity</b></p>
+<table bordered striped>
+<tr><td>Tags</td><td>{{ context.image.tags | map('e') | join(", ") if context.image.tags_count > 0 else "none" }}</td></tr>
+<tr><td>Repo digests</td><td>{{ context.image.repo_digests | map('e') | join(", ") if context.image.repo_digests_count > 0 else "none" }}</td></tr>
+<tr><td>Parent</td><td>{{ context.image.parent_id|e }}</td></tr>
+</table>
 
-{{ context.emojis.gear }} <b>Platform & Size:</b>
-<code>Platform:</code> {{ context.image.os }}/{{ context.image.architecture }}{% if context.image.variant != "N/A" %} ({{ context.image.variant }}){% endif %}{{ '' }}
-<code>Size:</code> {{ context.image.size }} | <code>Virtual:</code> {{ context.image.virtual_size }}{% if context.image.shared_size != "N/A" %} | <code>Shared:</code> {{ context.image.shared_size }}{% endif %}{{ '' }}
-<code>Layers:</code> {{ context.image.layers_count }} | <code>RootFS:</code> {{ context.image.rootfs_type }}
-<code>Created:</code> {{ context.image.created }}{% if context.image.created_at != "N/A" %} ({{ context.image.created_at }}){% endif %}{{ '' }}
+<p><b>{{ context.emojis.gear }} Platform &amp; Size</b></p>
+<table bordered striped>
+<tr><td>Platform</td><td>{{ context.image.os|e }}/{{ context.image.architecture|e }}{% if context.image.variant != "N/A" %} ({{ context.image.variant|e }}){% endif %}</td></tr>
+<tr><td>Size</td><td>{{ context.image.size|e }}</td></tr>
+<tr><td>Virtual</td><td>{{ context.image.virtual_size|e }}</td></tr>
+{% if context.image.shared_size != "N/A" %}<tr><td>Shared</td><td>{{ context.image.shared_size|e }}</td></tr>{% endif %}
+<tr><td>Layers</td><td>{{ context.image.layers_count|e }}</td></tr>
+<tr><td>RootFS</td><td>{{ context.image.rootfs_type|e }}</td></tr>
+<tr><td>Created</td><td>{{ context.image.created|e }}{% if context.image.created_at != "N/A" %} ({{ context.image.created_at|e }}){% endif %}</td></tr>
+</table>
 
-{{ context.emojis.key }} <b>Runtime defaults:</b>
-<code>User:</code> {{ context.image.user }} | <code>WorkDir:</code> {{ context.image.working_dir }}
-<code>Stop signal:</code> {{ context.image.stop_signal }}
-<code>Entrypoint:</code> {{ context.image.entrypoint | join(" ") if context.image.entrypoint else "none" }}
-<code>Command:</code> {{ context.image.cmd | join(" ") if context.image.cmd else "none" }}
-<code>Shell:</code> {{ context.image.shell | join(" ") if context.image.shell else "none" }}
-<code>Healthcheck:</code> {{ context.image.healthcheck }}
+<p><b>{{ context.emojis.key }} Runtime defaults</b></p>
+<table bordered striped>
+<tr><td>User</td><td>{{ context.image.user|e }}</td></tr>
+<tr><td>WorkDir</td><td>{{ context.image.working_dir|e }}</td></tr>
+<tr><td>Stop signal</td><td>{{ context.image.stop_signal|e }}</td></tr>
+<tr><td>Entrypoint</td><td>{{ context.image.entrypoint | map('e') | join(" ") if context.image.entrypoint else "none" }}</td></tr>
+<tr><td>Command</td><td>{{ context.image.cmd | map('e') | join(" ") if context.image.cmd else "none" }}</td></tr>
+<tr><td>Shell</td><td>{{ context.image.shell | map('e') | join(" ") if context.image.shell else "none" }}</td></tr>
+<tr><td>Healthcheck</td><td>{{ context.image.healthcheck|e }}</td></tr>
+</table>
 
-{{ context.emojis.electric_plug }} <b>Network & Storage:</b>
-<code>Exposed ports{% if context.image.exposed_ports_count > 0 %} ({{ context.image.exposed_ports_count }}){% endif %}:</code> {{ context.image.exposed_ports | join(", ") if context.image.exposed_ports_count > 0 else "none" }}
-<code>Declared volumes{% if context.image.volumes_count > 0 %} ({{ context.image.volumes_count }}){% endif %}:</code> {{ context.image.volumes | join(", ") if context.image.volumes_count > 0 else "none" }}
-<code>Env vars{% if context.image.env_variables_count > 0 %} ({{ context.image.env_variables_count }}){% endif %}:</code>
+<p><b>{{ context.emojis.electric_plug }} Network &amp; Storage</b></p>
+<table bordered striped>
+<tr><td>Exposed ports{% if context.image.exposed_ports_count > 0 %} ({{ context.image.exposed_ports_count|e }}){% endif %}</td><td>{{ context.image.exposed_ports | map('e') | join(", ") if context.image.exposed_ports_count > 0 else "none" }}</td></tr>
+<tr><td>Declared volumes{% if context.image.volumes_count > 0 %} ({{ context.image.volumes_count|e }}){% endif %}</td><td>{{ context.image.volumes | map('e') | join(", ") if context.image.volumes_count > 0 else "none" }}</td></tr>
+</table>
+<p><b>Env vars{% if context.image.env_variables_count > 0 %} ({{ context.image.env_variables_count|e }}){% endif %}:</b></p>
 {% if context.image.env_variables_count > 0 %}
-<pre>{% for env_var in context.image.env_variables %}{{ env_var }}
-{% endfor %}</pre>
+<pre><code>{% for env_var in context.image.env_variables %}{{ env_var|e }}
+{% endfor %}</code></pre>
 {% else %}
-<code>none</code>
+<p><code>none</code></p>
 {% endif %}
 
-{{ context.emojis.label }} <b>Metadata:</b>
-<code>Author:</code> {{ context.image.author }}
-<code>Docker version:</code> {{ context.image.docker_version }}
-{% if context.image.comment != "N/A" %}<code>Comment:</code> {{ context.image.comment }}
-{% endif %}<code>Labels{% if context.image.label_count > 0 %} ({{ context.image.label_count }}){% endif %}:</code>
+<p><b>{{ context.emojis.label }} Metadata</b></p>
+<table bordered striped>
+<tr><td>Author</td><td>{{ context.image.author|e }}</td></tr>
+<tr><td>Docker version</td><td>{{ context.image.docker_version|e }}</td></tr>
+{% if context.image.comment != "N/A" %}<tr><td>Comment</td><td>{{ context.image.comment|e }}</td></tr>{% endif %}
+</table>
+<p><b>Labels{% if context.image.label_count > 0 %} ({{ context.image.label_count|e }}){% endif %}:</b></p>
 {% if context.image.labels %}
+<ul>
 {% for label_key, label_value in context.image.labels.items() %}
 {% if label_key == "__truncated__" %}
-<i>... {{ label_value }}</i>
+<li><i>... {{ label_value|e }}</i></li>
 {% else %}
-<code>{{ label_key }}</code>=<code>{{ label_value }}</code>
+<li><code>{{ label_key|e }}</code>=<code>{{ label_value|e }}</code></li>
 {% endif %}
 {% endfor %}
+</ul>
 {% else %}
-<code>none</code>
+<p><code>none</code></p>
 {% endif %}
 
-{{ context.emojis.minus }} <i>Image details retrieved.</i>
+<p>{{ context.emojis.minus }} <i>Image details retrieved.</i></p>
