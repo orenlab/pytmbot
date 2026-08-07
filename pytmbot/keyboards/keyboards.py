@@ -17,6 +17,7 @@ from telebot.types import (
     ForceReply,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
@@ -89,6 +90,9 @@ class Keyboards:
     CACHE_SIZE: Final[int] = 32
     BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
     RETURN_BUTTON_EMOJI: Final[str] = "🦈"
+    PRIMARY_BUTTON_TITLES: Final[frozenset[str]] = frozenset(
+        {"Server", "Docker", "Quick view", "Health"}
+    )
 
     __slots__ = ("_emojis", "_logger")
 
@@ -123,7 +127,7 @@ class Keyboards:
                 selective=True,
                 is_persistent=True,
             )
-            keyboard.add(main_keyboard_data)
+            keyboard.add(KeyboardButton(main_keyboard_data))
             return keyboard
 
     def build_referer_inline_keyboard(self, data: str) -> InlineKeyboardMarkup:
@@ -190,7 +194,9 @@ class Keyboards:
 
             # Add back button for non-back keyboards
             if keyboard_type and keyboard_type != "back_keyboard":
-                keyboard_buttons.append(self.BACK_BUTTON_TEXT)
+                keyboard_buttons.append(
+                    self._make_reply_button(self.BACK_BUTTON_TEXT, style="danger")
+                )
 
             reply_keyboard = ReplyKeyboardMarkup(
                 resize_keyboard=True,
@@ -208,6 +214,13 @@ class Keyboards:
                 total_buttons=len(keyboard_buttons),
             )
             return reply_keyboard
+
+    @staticmethod
+    def _make_reply_button(text: str, *, style: str | None = None) -> KeyboardButton:
+        """Build a typed reply keyboard button, optionally with a client style."""
+        if style is None:
+            return KeyboardButton(text)
+        return KeyboardButton(text, style=style)
 
     @staticmethod
     @lru_cache(maxsize=CACHE_SIZE)
@@ -256,14 +269,16 @@ class Keyboards:
 
             return keyboard_map[keyboard_type]
 
-    def _construct_keyboard(self, keyboard_data: dict[str, str]) -> list[str]:
-        """Construct a keyboard with emojis and titles.
+    def _construct_keyboard(
+        self, keyboard_data: dict[str, str]
+    ) -> list[KeyboardButton]:
+        """Construct reply keyboard buttons with emojis, titles, and optional styles.
 
         Args:
             keyboard_data: Dictionary mapping emoji keys to button titles
 
         Returns:
-            list[str]: List of formatted button texts
+            list[KeyboardButton]: Typed reply buttons
 
         Raises:
             KeyboardError: If keyboard data format is invalid
@@ -277,11 +292,17 @@ class Keyboards:
         with self._logger.context(
             operation=KeyboardOperation.CONSTRUCT, button_count=len(keyboard_data)
         ) as log:
-            buttons = [
-                f"{self._emojis.get_emoji(emoji)} {title}"
-                for emoji, title in keyboard_data.items()
-                if emoji and title  # Skip empty entries
-            ]
+            buttons: list[KeyboardButton] = []
+            for emoji, title in keyboard_data.items():
+                if not emoji or not title:
+                    continue
+                style = "primary" if title in self.PRIMARY_BUTTON_TITLES else None
+                buttons.append(
+                    self._make_reply_button(
+                        f"{self._emojis.get_emoji(emoji)} {title}",
+                        style=style,
+                    )
+                )
 
             log.trace("bot.keyboards.keyboard.buttons.debug", total=len(buttons))
             return buttons

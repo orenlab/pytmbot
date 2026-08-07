@@ -92,7 +92,8 @@ def test_construct_keyboard_validation() -> None:
         keyboard._construct_keyboard({})
 
     built = keyboard._construct_keyboard({"rocket": "Server", "": "Ignored"})
-    assert any("Server" in value for value in built)
+    assert any("Server" in button.text for button in built)
+    assert built[0].style == "primary"
 
 
 def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
@@ -120,6 +121,40 @@ def test_build_reply_keyboard_is_persistent(
 
     markup = Keyboards().build_reply_keyboard("server_keyboard")
     assert markup.is_persistent is True
+
+
+def test_main_reply_keyboard_applies_button_styles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    markup = Keyboards().build_reply_keyboard("main_keyboard")
+    styles_by_title: dict[str, str | None] = {}
+    for row in markup.keyboard:
+        for button in row:
+            if isinstance(button, dict):
+                text = str(button.get("text") or "")
+                style = button.get("style")
+            else:
+                text = str(getattr(button, "text", "") or "")
+                style = getattr(button, "style", None)
+            for title in (
+                "Server",
+                "Docker",
+                "Quick view",
+                "Health",
+                "Back to main menu",
+            ):
+                if title in text:
+                    styles_by_title[title] = style if isinstance(style, str) else None
+    assert styles_by_title == {
+        "Server": "primary",
+        "Docker": "primary",
+        "Quick view": "primary",
+        "Health": "primary",
+        "Back to main menu": "danger",
+    }
 
 
 def test_build_nav_keyboard_and_resolve_reply_markup(
