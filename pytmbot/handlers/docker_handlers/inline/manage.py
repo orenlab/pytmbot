@@ -17,6 +17,7 @@ from pytmbot.handlers.handlers_util.docker import (
 from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
@@ -128,8 +129,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=rendered_context,
+        rich_message=build_rich_html_message(rendered_context),
         reply_markup=inline_keyboard,
-        parse_mode="HTML",
         not_modified_text="Container management view is already current.",
     )

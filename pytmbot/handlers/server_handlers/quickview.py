@@ -19,9 +19,9 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
@@ -274,11 +274,10 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
 
         # Quick view lives on the main menu; keep inline drill-down and re-attach
         # the main reply keyboard so navigation stays usable (notably on iOS).
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=bot_answer,
-            parse_mode="HTML",
+            bot_answer,
             reply_markup=keyboard,
             nav_keyboard=NAV_MAIN,
         )

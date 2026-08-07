@@ -6,13 +6,13 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import LinkPreviewOptions, Message
+from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import __version__
-from pytmbot.handlers.handlers_util.utils import send_telegram_message
-from pytmbot.keyboards.keyboards import NAV_MAIN
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -46,21 +46,17 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
             template_name="b_about_bot.jinja2", context=template_data
         )
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=response,
-            parse_mode="Markdown",
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
-            nav_keyboard=NAV_MAIN,
+        send_rich_main_message(
+            bot,
+            message.chat.id,
+            response,
         )
 
     except Exception as error:
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text="⚠️ An error occurred while opening the About screen.",
-            nav_keyboard=NAV_MAIN,
+        send_main_message(
+            bot,
+            message.chat.id,
+            "⚠️ An error occurred while opening the About screen.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

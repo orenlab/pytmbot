@@ -11,6 +11,7 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_psutil_adapter
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_server_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_server_message,
@@ -52,11 +53,10 @@ def handle_load_average(message: Message, bot: TeleBot) -> None:
             "b_load_average.jinja2", context=load_average, **emojis
         )
 
-        send_server_message(
+        send_rich_server_message(
             bot,
             message.chat.id,
-            text=bot_answer,
-            parse_mode="Markdown",
+            bot_answer,
         )
 
     except Exception as error:

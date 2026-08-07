@@ -28,12 +28,11 @@ from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
     paginate_items,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
-    send_telegram_message,
 )
-from pytmbot.keyboards.keyboards import NAV_DOCKER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -366,8 +365,8 @@ def _render_images_page_text(
         context=template_context,
     )
     footer = (
-        f"\n\n<i>Page {page}/{total_pages} | "
-        f"Shown: {len(page_items)} | Total images: {total_items}</i>"
+        f"\n\n<p><i>Page {page}/{total_pages} | "
+        f"Shown: {len(page_items)} | Total images: {total_items}</i></p>"
     )
     return f"{rendered}{footer}"
 
@@ -397,8 +396,8 @@ def _render_paginated_images_text(
         page_size -= 1
 
     fallback = (
-        f"{em.get_emoji('warning')} <b>Images view is too large for Telegram.</b>\n"
-        f"{em.get_emoji('thought_balloon')} Try opening a different page."
+        f"<h2>{em.get_emoji('warning')} Images view is too large for Telegram.</h2>"
+        f"<p>{em.get_emoji('thought_balloon')} Try opening a different page.</p>"
     )
     return fallback, 1, 1, [], 0
 
@@ -845,14 +844,13 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         user_id = int(message.from_user.id) if message.from_user else 0
         bot_answer, inline_button = render_images_page(page=1, user_id=user_id)
 
-        return send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=bot_answer,
+        send_rich_docker_message(
+            bot,
+            message.chat.id,
+            bot_answer,
             reply_markup=inline_button,
-            parse_mode="HTML",
-            nav_keyboard=NAV_DOCKER,
         )
+        return True
 
     except Exception as error:
         send_docker_message(

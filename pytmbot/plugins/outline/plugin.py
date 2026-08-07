@@ -13,7 +13,10 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import get_emoji_converter, get_keyboards
-from pytmbot.handlers.handlers_util.utils import send_bot_message, send_main_message
+from pytmbot.handlers.handlers_util.rich_messages import (
+    send_rich_bot_message,
+    send_rich_main_message,
+)
 from pytmbot.parsers._types import TemplateContext, TemplateValue
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
@@ -111,17 +114,16 @@ class OutlinePlugin(PluginInterface):
             thought_balloon=em.get_emoji("thought_balloon"),
         )
         keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
-        send_bot_message(
+        send_rich_bot_message(
             self.bot,
             message.chat.id,
             response,
             reply_markup=keyboard,
-            parse_mode="Markdown",
         )
 
     def _reply_html(self, message: Message, text: str) -> Message:
-        """Send a simple HTML reply."""
-        return send_main_message(self.bot, message.chat.id, text, parse_mode="HTML")
+        """Send a rich HTML reply while keeping the main menu keyboard."""
+        return send_rich_main_message(self.bot, message.chat.id, text)
 
     def _get_outline_action_data_or_reply(
         self,

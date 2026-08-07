@@ -6,15 +6,13 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import LinkPreviewOptions, Message
+from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_keyboards
-from pytmbot.handlers.handlers_util.utils import (
-    send_main_message,
-    send_telegram_message,
-)
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -37,13 +35,11 @@ def handle_start(message: Message, bot: TeleBot) -> None:
             template_name="b_index.jinja2", first_name=first_name
         )
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=answer,
+        send_rich_main_message(
+            bot,
+            message.chat.id,
+            answer,
             reply_markup=keyboard,
-            parse_mode="Markdown",
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     except Exception as error:

@@ -11,11 +11,8 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
-from pytmbot.handlers.handlers_util.utils import (
-    send_main_message,
-    send_telegram_message,
-)
-from pytmbot.keyboards.keyboards import NAV_MAIN
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
+from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.plugin_manager import PluginManager
@@ -50,12 +47,10 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
 
         # Check if there are any plugins available
         if not plugin_names:
-            send_telegram_message(
-                bot=bot,
-                chat_id=message.chat.id,
+            send_main_message(
+                bot,
+                message.chat.id,
                 text=f"⚠️ {first_name}, no plugins are available right now.",
-                parse_mode="Markdown",
-                nav_keyboard=NAV_MAIN,
             )
             return
 
@@ -83,12 +78,11 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
             **emojis,
         )
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=response,
+        send_rich_main_message(
+            bot,
+            message.chat.id,
+            response,
             reply_markup=plugins_keyboard,
-            parse_mode="Markdown",
         )
 
     except Exception as error:

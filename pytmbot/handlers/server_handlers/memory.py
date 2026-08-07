@@ -16,9 +16,9 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.keyboards.keyboards import NAV_SERVER
@@ -71,12 +71,11 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
             abacus=em.get_emoji("abacus"),
         )
 
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=bot_answer,
+            bot_answer,
             reply_markup=keyboard,
-            parse_mode="HTML",
             nav_keyboard=NAV_SERVER,
         )
         return None

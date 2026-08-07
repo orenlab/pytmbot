@@ -19,6 +19,7 @@ from telebot.types import Message, ReplyKeyboardMarkup
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.db.influxdb_interface import InfluxDBInterface
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import send_bot_message
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
@@ -414,12 +415,11 @@ class MonitoringPlugin(PluginInterface):
             computer_disk=em.get_emoji("computer_disk"),
             thermometer=em.get_emoji("thermometer"),
         )
-        return send_bot_message(
+        return send_rich_bot_message(
             self.bot,
             message.chat.id,
-            text=response,
+            response,
             reply_markup=self._build_monitor_keyboard(),
-            parse_mode="HTML",
         )
 
     def _send_metric_section(self, message: Message, metric_key: str) -> Message:
@@ -461,12 +461,11 @@ class MonitoringPlugin(PluginInterface):
             information=em.get_emoji("information"),
             warning=em.get_emoji("warning"),
         )
-        return send_bot_message(
+        return send_rich_bot_message(
             self.bot,
             message.chat.id,
-            text=response,
+            response,
             reply_markup=self._build_monitor_keyboard(),
-            parse_mode="HTML",
         )
 
     def handle_monitoring(self, message: Message) -> Message:
@@ -499,21 +498,23 @@ class MonitoringPlugin(PluginInterface):
         return self._send_metric_section(message, "temperature")
 
     def handle_select_period(self, message: Message) -> Message:
-        options = "\n".join(
-            f"• {preset['label']}" for preset in config.PERIOD_PRESETS.values()
+        from html import escape
+
+        options_html = "".join(
+            f"<li>{escape(str(preset['label']))}</li>"
+            for preset in config.PERIOD_PRESETS.values()
         )
-        return send_bot_message(
+        return send_rich_bot_message(
             self.bot,
             message.chat.id,
             (
-                f"{em.get_emoji('calendar')} <b>Select monitoring period</b>\n"
-                f"<b>Current:</b> {self._resolve_selected_period_label(message.chat.id)}\n\n"
-                f"{options}\n\n"
-                f"{em.get_emoji('information')} "
-                "After selecting period, return to any metric section."
+                f"<h2>{em.get_emoji('calendar')} Select monitoring period</h2>"
+                f"<p><b>Current:</b> {escape(self._resolve_selected_period_label(message.chat.id))}</p>"
+                f"<ul>{options_html}</ul>"
+                f"<p>{em.get_emoji('information')} "
+                "After selecting period, return to any metric section.</p>"
             ),
             reply_markup=self._build_period_keyboard(),
-            parse_mode="HTML",
         )
 
     def handle_period_choice(self, message: Message) -> Message:

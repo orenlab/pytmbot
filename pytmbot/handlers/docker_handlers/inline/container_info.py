@@ -27,6 +27,7 @@ from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
     validate_container_name,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -196,9 +197,8 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call=call,
             bot=bot,
-            text=context,
+            rich_message=build_rich_html_message(context),
             reply_markup=inline_keyboard,
-            parse_mode="HTML",
             not_modified_text="Container details are already current.",
         )
         return None

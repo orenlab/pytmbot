@@ -21,9 +21,12 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    send_rich_bot_message,
+)
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
@@ -487,11 +490,10 @@ def handle_system_health(message: Message, bot: TeleBot) -> None:
         health_message = _render_health_message()
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = _build_health_keyboard(user_id)
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=health_message,
-            parse_mode="HTML",
+            health_message,
             reply_markup=keyboard,
             nav_keyboard=NAV_MAIN,
         )
@@ -535,8 +537,7 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
         was_edited = edit_callback_message_text(
             call=call,
             bot=bot,
-            text=health_message,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(health_message),
             reply_markup=keyboard,
             not_modified_text="Health snapshot is already current.",
         )

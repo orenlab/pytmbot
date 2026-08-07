@@ -17,9 +17,9 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
@@ -109,11 +109,10 @@ def handle_process(message: Message, bot: TeleBot) -> None:
 
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = build_process_overview_keyboard(user_id)
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=message_text,
-            parse_mode="HTML",
+            message_text,
             reply_markup=keyboard,
             nav_keyboard=NAV_SERVER,
         )

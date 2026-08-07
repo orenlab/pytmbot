@@ -22,10 +22,10 @@ from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
     paginate_items,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
-    send_telegram_message,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -91,8 +91,8 @@ def _render_container_page_text(
         **_get_containers_emojis(),
     )
     footer = (
-        f"\n\n<i>Page {page}/{total_pages} | "
-        f"Shown: {len(page_items)} | Total containers: {total_items}</i>"
+        f"\n\n<p><i>Page {page}/{total_pages} | "
+        f"Shown: {len(page_items)} | Total containers: {total_items}</i></p>"
     )
     return f"{text}{footer}"
 
@@ -123,8 +123,8 @@ def _render_paginated_container_text(
         page_size -= 1
 
     fallback_text = (
-        f"{em.get_emoji('warning')} <b>Containers view is too large for Telegram.</b>\n"
-        f"<i>Page {fallback_window.page}/{fallback_window.total_pages}</i>"
+        f"<h2>{em.get_emoji('warning')} Containers view is too large for Telegram.</h2>"
+        f"<p><i>Page {fallback_window.page}/{fallback_window.total_pages}</i></p>"
     )
     return (
         fallback_text,
@@ -227,12 +227,11 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
 
         context, inline_keyboard = render_containers_page(page=1, user_id=user_id)
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=context,
+        send_rich_docker_message(
+            bot,
+            message.chat.id,
+            context,
             reply_markup=inline_keyboard,
-            parse_mode="HTML",
         )
 
     except Exception as error:

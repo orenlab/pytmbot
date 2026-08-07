@@ -19,9 +19,9 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
@@ -125,11 +125,10 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
             electric_plug=em.get_emoji("electric_plug"),
         )
 
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=cpu_message,
-            parse_mode="HTML",
+            cpu_message,
             reply_markup=keyboard,
             nav_keyboard=NAV_SERVER,
         )
