@@ -128,7 +128,24 @@ def _patch_send_message(
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return cast(Message, cast(object, SimpleNamespace(ok=True)))
 
+    def _fake_send_rich_message(
+        self: TeleBot,
+        chat_id: int,
+        rich_message: object,
+        **kwargs: _PayloadValue,
+    ) -> Message:
+        html = getattr(rich_message, "html", None)
+        payload: _PayloadDict = {
+            "chat_id": chat_id,
+            "text": html if isinstance(html, str) else None,
+            "rich_message": cast(_PayloadValue, rich_message),
+        }
+        payload.update(kwargs)
+        sent_messages.append(payload)
+        return cast(Message, cast(object, SimpleNamespace(ok=True)))
+
     monkeypatch.setattr(TeleBot, "send_message", _fake_send_message)
+    monkeypatch.setattr(TeleBot, "send_rich_message", _fake_send_rich_message)
 
 
 def _patch_ui_helpers(
@@ -197,10 +214,10 @@ def test_handle_cpu_usage_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert adapter_closed["value"] is False
     assert len(sent_messages) == 1
     assert sent_messages[0]["chat_id"] == 101
-    assert "<b>CPU usage</b>" in str(sent_messages[0]["text"])
+    assert "CPU usage" in str(sent_messages[0]["text"])
     assert "Latest CPU usage: 12.3%" in str(sent_messages[0]["text"])
     assert sent_messages[0]["reply_markup"] == "monitor-kbd"
-    assert sent_messages[0]["parse_mode"] == "HTML"
+    assert sent_messages[0].get("rich_message") is not None
     assert _StubMonitorAdapter.last_top_count == 5
     plugin.cleanup()
     assert adapter_closed["value"] is True
@@ -226,7 +243,7 @@ def test_handle_cpu_usage_failure_fallback(
     assert adapter_closed["value"] is True
 
 
-def test_handle_monitoring_uses_html_parse_mode(
+def test_handle_monitoring_uses_rich_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent_messages: list[_PayloadDict] = []
@@ -244,8 +261,8 @@ def test_handle_monitoring_uses_html_parse_mode(
     plugin.handle_monitoring(cast(Message, cast(object, _Message())))
 
     assert len(sent_messages) == 1
-    assert "<b>Monitoring dashboard</b>" in str(sent_messages[0]["text"])
-    assert sent_messages[0]["parse_mode"] == "HTML"
+    assert "Monitoring dashboard" in str(sent_messages[0]["text"])
+    assert sent_messages[0].get("rich_message") is not None
     assert sent_messages[0]["reply_markup"] == "monitor-main-kbd"
     plugin.cleanup()
 
@@ -271,7 +288,7 @@ def test_handle_period_choice_updates_selected_period(
 
     assert len(sent_messages) == 1
     assert "Period updated: Last 24 hours" in str(sent_messages[0]["text"])
-    assert sent_messages[0]["parse_mode"] == "HTML"
+    assert sent_messages[0].get("rich_message") is not None
     plugin.cleanup()
 
 

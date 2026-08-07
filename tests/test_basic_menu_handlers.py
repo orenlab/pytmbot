@@ -82,11 +82,19 @@ def test_about_handler_success_and_error(monkeypatch: pytest.MonkeyPatch) -> Non
         "quick_render",
         lambda template_name, context: "about-text",
     )
-    monkeypatch.setattr(
-        about_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+
+    def _send_rich(
+        bot: object,
+        chat_id: int,
+        html: str,
+        **kwargs: _PayloadValue,
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": html, "html": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    monkeypatch.setattr(about_module, "send_rich_main_message", _send_rich)
 
     bot = _Bot()
     handler = _raw_handler(about_module.handle_about_command)
@@ -117,11 +125,19 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
         "send_telegram_message",
         lambda **kwargs: sent_payloads.append(kwargs),
     )
-    monkeypatch.setattr(
-        start_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+
+    def _send_rich(
+        bot: object,
+        chat_id: int,
+        html: str,
+        **kwargs: _PayloadValue,
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": html, "html": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    monkeypatch.setattr(start_module, "send_rich_main_message", _send_rich)
     monkeypatch.setattr(
         Compiler,
         "quick_render",
@@ -410,10 +426,22 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
     assert any(str(callback).startswith("__get_full__") for callback in callbacks)
 
     sent_payloads: list[_PayloadDict] = []
+
+    def _send_rich(
+        bot: object,
+        chat_id: int,
+        html: str,
+        **kwargs: _PayloadValue,
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "html": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
     monkeypatch.setattr(
         containers_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
+        "send_rich_docker_message",
+        _send_rich,
     )
     monkeypatch.setattr(
         containers_module,
@@ -424,7 +452,7 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
     bot = _Bot()
     handler = _raw_handler(containers_module.handle_containers)
     handler(cast(Message, _Message(from_user=_User(id=55))), cast(TeleBot, bot))
-    assert sent_payloads and sent_payloads[0]["text"] == "containers-ui"
+    assert sent_payloads and sent_payloads[0]["html"] == "containers-ui"
 
     monkeypatch.setattr(
         containers_module,

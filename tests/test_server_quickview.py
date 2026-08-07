@@ -144,7 +144,8 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert actions == [(10, "typing")]
     assert messages[0]["text"] == "quickview text"
-    assert messages[0]["parse_mode"] == "HTML"
+    assert messages[0].get("rich_message") is not None
+    assert messages[0].get("parse_mode") is None
     assert messages[0]["reply_markup"] is not None
     assert messages[1]["text"] == "Use the menu below to continue."
     assert messages[1]["reply_markup"] is not None

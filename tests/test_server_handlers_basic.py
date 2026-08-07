@@ -92,7 +92,29 @@ def _assert_handler_renders_html(
     _invoke_handler(handler, message, bot)
     content = _latest_content_message(messages)
     assert content["text"] == expected_text
-    assert content["parse_mode"] == "HTML"
+    assert content.get("rich_message") is not None
+    assert content.get("parse_mode") is None
+
+
+def _render_success_and_get_content(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    compiler: _CompilerLike,
+    handler: _RawHandlerInput,
+    message: Message,
+    bot: TeleBot,
+    messages: list[_PayloadDict],
+    success_text: str,
+) -> _PayloadDict:
+    monkeypatch.setattr(
+        compiler,
+        "quick_render",
+        lambda template_name, **_kwargs: success_text,
+    )
+    _invoke_handler(handler, message, bot)
+    content = _latest_content_message(messages)
+    assert content["text"] == success_text
+    return content
 
 
 def _assert_memory_or_process_handler_paths(
@@ -108,6 +130,7 @@ def _assert_memory_or_process_handler_paths(
     message: Message,
     bot: TeleBot,
     messages: list[_PayloadDict],
+    expect_rich: bool = True,
 ) -> None:
     monkeypatch.setattr(
         module,
@@ -124,15 +147,20 @@ def _assert_memory_or_process_handler_paths(
         "keyboards",
         type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
     )
-    monkeypatch.setattr(
-        compiler,
-        "quick_render",
-        lambda template_name, **_kwargs: success_text,
+    content = _render_success_and_get_content(
+        monkeypatch=monkeypatch,
+        compiler=compiler,
+        handler=handler,
+        message=message,
+        bot=bot,
+        messages=messages,
+        success_text=success_text,
     )
-    _invoke_handler(handler, message, bot)
-    content = _latest_content_message(messages)
-    assert content["text"] == success_text
-    assert content["parse_mode"] == "HTML"
+    if expect_rich:
+        assert content.get("rich_message") is not None
+        assert content.get("parse_mode") is None
+    else:
+        assert content["parse_mode"] == "HTML"
     inline_payload = _extract_inline_payload(content)
     callback_data_values: list[str] = []
     if isinstance(inline_payload, dict):
@@ -183,7 +211,7 @@ def _assert_simple_handler_paths(
     adapter_method: str,
     success_payload: _PayloadValue,
     success_text: str,
-    parse_mode: str,
+    parse_mode: str | None,
     none_text_contains: str,
     expected_error_code: str,
     message: Message,
@@ -195,15 +223,20 @@ def _assert_simple_handler_paths(
         "psutil_adapter",
         type("A", (), {adapter_method: lambda self: success_payload})(),
     )
-    monkeypatch.setattr(
-        compiler,
-        "quick_render",
-        lambda template_name, **_kwargs: success_text,
+    content = _render_success_and_get_content(
+        monkeypatch=monkeypatch,
+        compiler=compiler,
+        handler=handler,
+        message=message,
+        bot=bot,
+        messages=messages,
+        success_text=success_text,
     )
-    _invoke_handler(handler, message, bot)
-    content = _latest_content_message(messages)
-    assert content["text"] == success_text
-    assert content["parse_mode"] == parse_mode
+    if parse_mode is None:
+        assert content.get("rich_message") is not None
+        assert content.get("parse_mode") is None
+    else:
+        assert content["parse_mode"] == parse_mode
 
     monkeypatch.setattr(
         module,
@@ -287,7 +320,8 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     _invoke_handler(load_average_module.handle_load_average, message, bot)
     assert messages[-1]["text"] == "load ok"
-    assert messages[-1]["parse_mode"] == "Markdown"
+    assert messages[-1].get("rich_message") is not None
+    assert messages[-1].get("parse_mode") is None
 
     monkeypatch.setattr(
         load_average_module,
@@ -319,7 +353,7 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         adapter_method="get_net_io_counters",
         success_payload={"rx": "1 MiB"},
         success_text="network ok",
-        parse_mode="HTML",
+        parse_mode=None,
         none_text_contains="error occurred while getting network statistics",
         expected_error_code="HAND_005",
         message=message,
@@ -357,6 +391,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         message=message,
         bot=bot,
         messages=messages,
+        expect_rich=True,
     )
 
 
@@ -372,7 +407,7 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
         adapter_method="get_sensors_temperatures",
         success_payload=[{"name": "cpu", "temp": 55}],
         success_text="sensors ok",
-        parse_mode="HTML",
+        parse_mode=None,
         none_text_contains="No temperature or fan sensors were found",
         expected_error_code="HAND_003",
         message=message,
@@ -512,7 +547,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         adapter_method="get_disk_usage",
         success_payload={"disk": []},
         success_text="fs ok",
-        parse_mode="HTML",
+        parse_mode=None,
         none_text_contains="Failed to handle disk usage",
         expected_error_code="HAND_008",
         message=message,

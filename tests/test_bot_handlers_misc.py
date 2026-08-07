@@ -264,11 +264,24 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     manager_stub = _PluginManagerStub(keys=[], names=[], descriptions={})
     monkeypatch.setattr(plugins_module, "plugin_manager", manager_stub)
 
-    monkeypatch.setattr(
-        plugins_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+    def _capture_send(
+        bot: object, chat_id: int, text: str, **kwargs: _PayloadValue
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": text}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    def _capture_rich(
+        bot: object, chat_id: int, html: str, **kwargs: _PayloadValue
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": html, "html": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    monkeypatch.setattr(plugins_module, "send_main_message", _capture_send)
+    monkeypatch.setattr(plugins_module, "send_rich_main_message", _capture_rich)
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert sent_payloads and "no plugins are available" in str(
@@ -314,7 +327,7 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "plugins menu" in str(bot.sent_messages[-1]["text"])
+    assert "plugins menu" in str(sent_payloads[-1]["text"])
 
 
 def test_version_helpers_and_process_message_branches(

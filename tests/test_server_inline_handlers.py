@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InputRichMessage
 
 import pytmbot.handlers.server_handlers.health_summary as health_module
 import pytmbot.handlers.server_handlers.inline.common as inline_common_module
@@ -237,6 +237,29 @@ def _assert_not_modified_callback_answer(
     assert bot.callback_answers[-1]["text"] == expected_text
 
 
+def _assert_latest_rich_edit(
+    bot: _Bot,
+    *,
+    expected_callbacks: list[str],
+    html_contains: str | None = None,
+    html_equals: str | None = None,
+    require_no_parse_mode: bool = False,
+) -> InputRichMessage:
+    edited = bot.edited_messages[-1]
+    rich_message = cast(InputRichMessage, edited["rich_message"])
+    if html_equals is not None:
+        assert rich_message.html == html_equals
+    if html_contains is not None:
+        assert html_contains in str(rich_message.html).lower()
+    if require_no_parse_mode:
+        assert "parse_mode" not in edited
+    assert_reply_markup_has_callbacks(
+        edited.get("reply_markup"),
+        expected_callbacks=expected_callbacks,
+    )
+    return rich_message
+
+
 def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     bot, handler = _prepare_handler_with_auth_paths(
         monkeypatch,
@@ -256,12 +279,9 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         implementation=lambda: None,
     )
     _invoke(handler, bot, data="__swap_info__:17")
-    assert (
-        "couldn't retrieve swap information"
-        in str(bot.edited_messages[-1]["text"]).lower()
-    )
-    assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
+    _assert_latest_rich_edit(
+        bot,
+        html_contains="couldn't retrieve swap information",
         expected_callbacks=["__swap_info__:17"],
     )
 
@@ -273,9 +293,9 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(Compiler, "quick_render", lambda **kwargs: "swap-ok")
     _invoke(handler, bot, data="__swap_info__:17")
-    assert bot.edited_messages[-1]["text"] == "swap-ok"
-    assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
+    _assert_latest_rich_edit(
+        bot,
+        html_equals="swap-ok",
         expected_callbacks=["__swap_info__:17"],
     )
 
@@ -311,10 +331,8 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         implementation=lambda count=10: [],
     )
     _invoke(handler, bot, data="__process_info__:17")
-    assert (
-        "couldn't retrieve process information"
-        in str(bot.edited_messages[-1]["text"]).lower()
-    )
+    empty_rich = cast(InputRichMessage, bot.edited_messages[-1]["rich_message"])
+    assert "couldn't retrieve process information" in str(empty_rich.html).lower()
 
     _patch_adapter_method(
         monkeypatch,
@@ -338,16 +356,18 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda template_name, context, **emojis: context["process_table"],
+        lambda template_name, context, **emojis: (
+            f"rows:{len(context['process_rows'])}:{context['process_rows'][0]['name']}"
+        ),
     )
     monkeypatch.setattr(top_process_module, "running_in_docker", True)
     _invoke(handler, bot, data="__process_info__:17")
-    rendered_table = cast(str, bot.edited_messages[-1]["text"])
-    assert "PID" in rendered_table
-    assert "Process Name" in rendered_table
-    assert bot.edited_messages[-1]["parse_mode"] == "HTML"
+    edited = bot.edited_messages[-1]
+    rich_message = cast(InputRichMessage, edited["rich_message"])
+    assert rich_message.html == "rows:2:super-long-…"
+    assert "parse_mode" not in edited
     assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
+        edited.get("reply_markup"),
         expected_callbacks=["__cpu_info__:17", "__process_info__:17"],
     )
 
@@ -400,7 +420,8 @@ def test_handle_system_health_refresh_paths(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     _invoke(handler, bot, data="__health_refresh__:17")
-    assert bot.edited_messages[-1]["text"] == "health-refresh-ok"
+    health_rich = cast(InputRichMessage, bot.edited_messages[-1]["rich_message"])
+    assert health_rich.html == "health-refresh-ok"
     assert bot.callback_answers[-1]["text"] == "Health snapshot updated."
 
     monkeypatch.setattr(
@@ -571,12 +592,9 @@ def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         top_process_module, "render_process_overview_text", lambda: None
     )
     _invoke(handler, bot, data="__process_overview__:17")
-    assert (
-        "couldn't retrieve process information"
-        in str(bot.edited_messages[-1]["text"]).lower()
-    )
-    assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
+    _assert_latest_rich_edit(
+        bot,
+        html_contains="couldn't retrieve process information",
         expected_callbacks=["__process_info_process__:17"],
     )
 
@@ -584,11 +602,11 @@ def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         top_process_module, "render_process_overview_text", lambda: "process-overview"
     )
     _invoke(handler, bot, data="__process_overview__:17")
-    assert bot.edited_messages[-1]["text"] == "process-overview"
-    assert bot.edited_messages[-1]["parse_mode"] == "HTML"
-    assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
+    _assert_latest_rich_edit(
+        bot,
+        html_equals="process-overview",
         expected_callbacks=["__process_info_process__:17"],
+        require_no_parse_mode=True,
     )
 
     monkeypatch.setattr(

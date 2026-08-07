@@ -516,7 +516,8 @@ def test_edit_logs_message_edits_with_clamped_index(
     assert result is True
     assert bot.edited[0]["chat_id"] == 10
     assert bot.edited[0]["message_id"] == 20
-    assert bot.edited[0]["parse_mode"] == "HTML"
+    assert "rich_message" in bot.edited[0]
+    assert bot.edited[0]["rich_message"].html == "CTX"
 
 
 def test_edit_logs_message_ignores_not_modified(

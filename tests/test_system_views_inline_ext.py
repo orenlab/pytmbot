@@ -33,7 +33,7 @@ type _CallbackHandler = Callable[[CallbackQuery, TeleBot], None]
 type _RawHandlerInput = (
     Callable[..., None] | Callable[[Callable[..., None]], Callable[..., None]]
 )
-type _HandlerCase = tuple[_RawHandlerInput, str, str]
+type _HandlerCase = tuple[_RawHandlerInput, str, bool]
 
 
 @dataclass
@@ -180,31 +180,31 @@ def _patch_common_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 _HANDLER_CASES: tuple[_HandlerCase, ...] = (
-    (system_views_module.handle_cpu_info, "HAND_CPU_002", "HTML"),
-    (system_views_module.handle_cpu_per_core, "HAND_CPU_003", "HTML"),
-    (system_views_module.handle_cpu_times, "HAND_CPU_004", "HTML"),
-    (system_views_module.handle_network_overview, "HAND_NET_001", "HTML"),
-    (system_views_module.handle_network_interfaces, "HAND_NET_002", "HTML"),
-    (system_views_module.handle_network_connections, "HAND_NET_003", "HTML"),
-    (system_views_module.handle_filesystem_overview, "HAND_FS_001", "HTML"),
-    (system_views_module.handle_disk_io, "HAND_FS_002", "HTML"),
-    (system_views_module.handle_users_info, "HAND_UP_001", "HTML"),
-    (system_views_module.handle_sensors_overview, "HAND_SENS_001", "HTML"),
-    (system_views_module.handle_fan_speeds, "HAND_SENS_002", "HTML"),
-    (system_views_module.handle_quickview_overview, "HAND_QV2", "HTML"),
-    (system_views_module.handle_quickview_memory, "HAND_QV3", "HTML"),
-    (system_views_module.handle_quickview_sensors, "HAND_QV4", "HTML"),
-    (system_views_module.handle_quickview_cpu, "HAND_QV5", "HTML"),
-    (system_views_module.handle_quickview_disk, "HAND_QV6", "HTML"),
+    (system_views_module.handle_cpu_info, "HAND_CPU_002", True),
+    (system_views_module.handle_cpu_per_core, "HAND_CPU_003", True),
+    (system_views_module.handle_cpu_times, "HAND_CPU_004", True),
+    (system_views_module.handle_network_overview, "HAND_NET_001", True),
+    (system_views_module.handle_network_interfaces, "HAND_NET_002", True),
+    (system_views_module.handle_network_connections, "HAND_NET_003", True),
+    (system_views_module.handle_filesystem_overview, "HAND_FS_001", True),
+    (system_views_module.handle_disk_io, "HAND_FS_002", True),
+    (system_views_module.handle_users_info, "HAND_UP_001", True),
+    (system_views_module.handle_sensors_overview, "HAND_SENS_001", True),
+    (system_views_module.handle_fan_speeds, "HAND_SENS_002", True),
+    (system_views_module.handle_quickview_overview, "HAND_QV2", True),
+    (system_views_module.handle_quickview_memory, "HAND_QV3", True),
+    (system_views_module.handle_quickview_sensors, "HAND_QV4", True),
+    (system_views_module.handle_quickview_cpu, "HAND_QV5", True),
+    (system_views_module.handle_quickview_disk, "HAND_QV6", True),
 )
 
 
-@pytest.mark.parametrize(("handler_obj", "_error_code", "parse_mode"), _HANDLER_CASES)
+@pytest.mark.parametrize(("handler_obj", "_error_code", "as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_route_via_shared_edit(
     monkeypatch: pytest.MonkeyPatch,
     handler_obj: _RawHandlerInput,
     _error_code: str,
-    parse_mode: str,
+    as_rich: bool,
 ) -> None:
     _patch_common_success(monkeypatch)
     edit_calls: list[_PayloadDict] = []
@@ -218,15 +218,20 @@ def test_system_views_handlers_route_via_shared_edit(
     handler(cast(CallbackQuery, _Call()), cast(TeleBot, _Bot()))
 
     assert edit_calls
-    assert edit_calls[-1]["parse_mode"] == parse_mode
+    if as_rich:
+        assert edit_calls[-1].get("as_rich") is True
+        assert "parse_mode" not in edit_calls[-1]
+    else:
+        assert edit_calls[-1]["parse_mode"] == "HTML"
+        assert edit_calls[-1].get("as_rich") is not True
 
 
-@pytest.mark.parametrize(("handler_obj", "_error_code", "_parse_mode"), _HANDLER_CASES)
+@pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_return_without_edit_when_not_allowed(
     monkeypatch: pytest.MonkeyPatch,
     handler_obj: _RawHandlerInput,
     _error_code: str,
-    _parse_mode: str,
+    _as_rich: bool,
 ) -> None:
     _patch_common_success(monkeypatch)
     monkeypatch.setattr(
@@ -246,12 +251,12 @@ def test_system_views_handlers_return_without_edit_when_not_allowed(
     assert edit_calls == []
 
 
-@pytest.mark.parametrize(("handler_obj", "_error_code", "_parse_mode"), _HANDLER_CASES)
+@pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_return_without_edit_when_message_missing(
     monkeypatch: pytest.MonkeyPatch,
     handler_obj: _RawHandlerInput,
     _error_code: str,
-    _parse_mode: str,
+    _as_rich: bool,
 ) -> None:
     _patch_common_success(monkeypatch)
     edit_calls: list[_PayloadDict] = []
@@ -266,12 +271,12 @@ def test_system_views_handlers_return_without_edit_when_message_missing(
     assert edit_calls == []
 
 
-@pytest.mark.parametrize(("handler_obj", "error_code", "_parse_mode"), _HANDLER_CASES)
+@pytest.mark.parametrize(("handler_obj", "error_code", "_as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_wrap_exceptions(
     monkeypatch: pytest.MonkeyPatch,
     handler_obj: _RawHandlerInput,
     error_code: str,
-    _parse_mode: str,
+    _as_rich: bool,
 ) -> None:
     _patch_common_success(monkeypatch)
     monkeypatch.setattr(

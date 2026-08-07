@@ -72,6 +72,13 @@ class _Bot:
         return "edited"
 
 
+def _edited_content(payload: _ValueDict) -> object:
+    rich = payload.get("rich_message")
+    if rich is not None:
+        return getattr(rich, "html", rich)
+    return payload.get("text")
+
+
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     return cast(_CallbackHandler, unwrap_handler(handler, depth=3))
 
@@ -290,7 +297,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
     callbacks = cast(list[dict[str, str]], bot.edited_messages[-1]["reply_markup"])
     callback_data = [item["callback_data"] for item in callbacks]
-    assert bot.edited_messages[-1]["text"] == "container-full"
+    assert _edited_content(bot.edited_messages[-1]) == "container-full"
     assert any(
         value.startswith("__container_extra__:volumes:") for value in callback_data
     )
@@ -485,7 +492,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
         cast(TeleBot, bot),
     )
-    assert bot.edited_messages[-1]["text"] == "d_container_volumes_info.jinja2"
+    assert _edited_content(bot.edited_messages[-1]) == "d_container_volumes_info.jinja2"
     volumes_callbacks = cast(
         list[dict[str, str]],
         bot.edited_messages[-1]["reply_markup"],
@@ -496,13 +503,15 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         cast(CallbackQuery, _Call(data="__container_extra__:networks:api:11")),
         cast(TeleBot, bot),
     )
-    assert bot.edited_messages[-1]["text"] == "d_container_networks_info.jinja2"
+    assert (
+        _edited_content(bot.edited_messages[-1]) == "d_container_networks_info.jinja2"
+    )
 
     handler(
         cast(CallbackQuery, _Call(data="__container_extra__:runtime:api:11")),
         cast(TeleBot, bot),
     )
-    assert bot.edited_messages[-1]["text"] == "d_container_runtime_info.jinja2"
+    assert _edited_content(bot.edited_messages[-1]) == "d_container_runtime_info.jinja2"
 
 
 def test_runtime_template_line_breaks_are_stable() -> None:
@@ -546,11 +555,12 @@ def test_runtime_template_line_breaks_are_stable() -> None:
         hidden_cap_drop_count=0,
     )
 
-    assert "🟢 healthy\n<code>Failing streak:</code>" in rendered
-    assert "<code>PID:</code> 123\n<code>Exit code:</code> 0" in rendered
-    assert "<code>Stop signal:</code> SIGTERM\n<code>Stop timeout:</code> default" in (
-        rendered
-    )
+    assert "🟢 healthy" in rendered
+    assert "<td>Failing streak</td><td>0</td>" in rendered
+    assert "<td>PID</td><td>123</td>" in rendered
+    assert "<td>Exit code</td><td>0</td>" in rendered
+    assert "<td>Stop signal</td><td>SIGTERM</td>" in rendered
+    assert "<td>Stop timeout</td><td>default</td>" in rendered
 
 
 def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
