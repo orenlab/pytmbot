@@ -1,6 +1,6 @@
 [project]
 name = "pyTMBot"
-version = "0.4.0"
+version = "0.5.0-dev"
 description = "Versatile Telegram bot designed for managing Docker containers, monitoring server status, and extending its functionality through a modular plugin system. The bot operates synchronously, simplifying deployment by eliminating the need for webhooks"
 authors = [{ name = "Denis Rozhnovskiy", email = "pytelemonbot@mail.ru" }]
 requires-python = ">=3.12,<4"
@@ -63,7 +63,7 @@ dev = [
     "pytest>=9.1.1,<10",
     "pytest-cov>=7.1.0,<8",
     "mypy>=2.3.0,<3",
-    "codeclone[mcp]>=2.0.2",
+    "codeclone[mcp]",
     "types-cachetools>=7.0.0.20260713,<8",
     "types-PyYAML>=6.0.12.20260724,<7",
     "types-python-dateutil>=2.9.0.20260807,<3",
@@ -80,6 +80,9 @@ pytmbot = "pytmbot.main:main"
 [tool.uv.build-backend]
 module-name = ["pytmbot"]
 module-root = ""
+
+[tool.uv.sources]
+codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "fix/baseline-v3-migration" }
 
 
 [build-system]
