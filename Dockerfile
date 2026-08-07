@@ -8,8 +8,8 @@
 
 # syntax=docker/dockerfile:1.7
 
-ARG UBUNTU_IMAGE=24.04
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.24
+ARG UBUNTU_IMAGE=26.04
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.2
 ARG COMPILE_BYTECODE=1
 
 ########################################################################################################################
