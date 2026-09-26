@@ -8,6 +8,9 @@ Source of truth:
 - `pytmbot/settings.py`
 - `pytmbot/plugins/monitor/config.py`
 - `pytmbot/plugins/outline/config.py`
+- `pytmbot/keyboards/keyboards.py`
+- `pytmbot/middleware/callback_ack.py`
+- `pytmbot/handlers/bot_handlers/fallback.py`
 
 ## Slash Commands
 
@@ -108,13 +111,13 @@ The bot also exposes callback-driven flows that are not slash commands:
 ## Reply Keyboard Behavior
 
 - Section menus (`main`, `server`, `docker`, plugins) use persistent reply keyboards so Telegram clients (notably iOS) keep the menu visible while you browse inline screens.
-- Main menu accents use `KeyboardButton.style`: `primary` for Server / Docker / Quick view / Health, and `danger` for Back to main menu. Back-navigation buttons always sit on their own full-width bottom row so the label does not wrap on phones.
+- Reply keyboard accents use `KeyboardButton.style`: `primary` for Server / Docker / Quick view / Health in the main menu, and `danger` for back-navigation buttons in section and plugin menus. Back-navigation buttons always sit on their own full-width bottom row so the label does not wrap on phones.
 - Container action buttons use inline button styles: `danger` for Stop, `primary` for Restart, and `success` for Start.
 - Text-only bot replies re-attach the matching section keyboard automatically.
 - Structured screens (server metrics, Docker lists and details, menus, update checks, `/getmyid`, plugin screens) are Telegram Rich Messages with native tables; oversized content is trimmed to Telegram limits, and a rejected rich payload falls back to a plain-text message.
-- Every inline button press is acknowledged, so the client spinner never hangs; failures show a short "Something went wrong" toast.
+- Every inline button press is acknowledged, so the client spinner never hangs; failures show a short "Something went wrong. Please try again." toast.
 - Only the latest "Use the menu below to continue." follow-up is kept per chat; older copies are deleted.
-- Unrecognized text in a private chat gets a short hint pointing back to the menu instead of silence.
+- Unrecognized text from an allowed user in a private chat gets a short hint pointing back to the menu instead of silence; a mistyped code during 2FA gets the 2FA hint instead.
 - Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
 
 ## Related Docs

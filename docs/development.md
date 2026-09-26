@@ -155,8 +155,9 @@ Delivery safeguards:
 - `build_rich_html_message()` wraps plain text into paragraphs and trims content that exceeds Telegram rich-message
   limits (32,768 characters, 500 blocks, 16 nesting levels, 20 table columns) at a row/item/block boundary
 - `send_rich_bot_message()` falls back to a classic plain-text message when Telegram rejects the rich payload
-- `edit_callback_message_text()` keeps rich messages rich: classic text aimed at a rich message is converted to rich
-  paragraphs instead of overlaying it
+- `edit_callback_message_text()` (`pytmbot/handlers/server_handlers/inline/common.py`) keeps rich messages rich:
+  classic text aimed at a rich message is converted to rich paragraphs instead of overlaying it, and a rejected rich
+  edit falls back to plain text like the send path
 - a test fixture validates every `InputRichMessage` built during the test run with `find_rich_html_issues()`
 
 Short conversational replies and the 2FA prompts (`b_back`, `b_echo`, `b_none`, `a_*` templates) intentionally stay

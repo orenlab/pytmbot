@@ -103,6 +103,8 @@ _INLINE_ONLY_CONTAINERS: Final[frozenset[str]] = frozenset(
 _NO_TEXT_CONTAINERS: Final[frozenset[str]] = frozenset({"table", "tr", "ul", "ol"})
 # Closing one of these (or any top-level block) leaves the markup well-formed.
 _SAFE_CUT_END_TAGS: Final[frozenset[str]] = frozenset({"tr", "li"})
+# Blocks closed directly inside these containers are safe cut points as well.
+_SECTION_CONTAINERS: Final[frozenset[str]] = frozenset({"details", "blockquote"})
 _PLAIN_TEXT_LINE_TAGS: Final[frozenset[str]] = RICH_BLOCK_TAGS | {"caption", "summary"}
 _BLANK_LINES_PATTERN = re.compile(r"\n{3,}")
 _INLINE_WHITESPACE_PATTERN = re.compile(r"[ \t\r\f\v]+")
@@ -285,8 +287,10 @@ class _RichFitter:
             self.output.append(raw)
             return None
         remaining = max(0, self.text_budget - self.text_length)
-        if kind == "data" and self.stack and self.stack[-1] not in _NO_TEXT_CONTAINERS:
-            self.output.append(_clip_text(raw, remaining) + "…")
+        if self.stack and self.stack[-1] not in _NO_TEXT_CONTAINERS:
+            # Cut inside the text run; an entity is dropped whole, never split.
+            clipped = _clip_text(raw, remaining) if kind == "data" else ""
+            self.output.append(clipped + "…")
             return self.finish(len(self.output), tuple(self.stack))
         return self.finish(*self.safe_point)
 
@@ -325,7 +329,11 @@ class _RichFitter:
             return
         while self.stack.pop() != tag:
             pass
-        if not self.stack or tag in _SAFE_CUT_END_TAGS:
+        if (
+            not self.stack
+            or tag in _SAFE_CUT_END_TAGS
+            or (tag in RICH_BLOCK_TAGS and self.stack[-1] in _SECTION_CONTAINERS)
+        ):
             self.safe_point = (len(self.output), tuple(self.stack))
 
 
@@ -487,7 +495,10 @@ def rich_paragraphs(text: str, *, italic: bool = False) -> str:
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^#{1,6}\s+")
 _MARKDOWN_BULLET_PATTERN = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 # Code spans and links are matched first so bold markers never apply inside them.
-_MARKDOWN_SPAN_PATTERN = re.compile(r"`([^`]+)`|\[([^\]]+)\]\((https?://[^)\s]+)\)")
+# Link text and URL lengths are bounded to keep matching linear on odd input.
+_MARKDOWN_SPAN_PATTERN = re.compile(
+    r"`([^`]+)`|\[([^\]\n]{1,300})\]\((https?://[^)\s]{1,2048})\)"
+)
 _MARKDOWN_BOLD_PATTERN = re.compile(r"\*\*([^*]+)\*\*|(?<!\w)__([^_]+)__(?!\w)")
 
 

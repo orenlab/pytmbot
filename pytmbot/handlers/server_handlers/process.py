@@ -57,7 +57,7 @@ def build_process_overview_keyboard(
         *(
             [
                 button_data(
-                    text=f"{em.get_emoji('BACK_arrow')} Process",
+                    text=f"{em.get_emoji('BACK_arrow')} Processes",
                     callback_data=build_user_bound_callback_data(
                         PROCESS_OVERVIEW_PREFIX, user_id
                     ),

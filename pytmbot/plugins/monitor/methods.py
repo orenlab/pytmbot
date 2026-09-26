@@ -679,7 +679,7 @@ class SystemMonitorPlugin(PluginCore):
         if not processes:
             return "  • N/A"
         return "\n".join(
-            f"  • {proc['name']} (PID: {proc['pid']}) - "
+            f"  • {escape(str(proc['name']))} (PID: {proc['pid']}) - "
             f"{proc[resource_key]:.1f}{suffix}"
             for proc in sorted(processes, key=lambda x: x[resource_key], reverse=True)
         )
@@ -705,7 +705,7 @@ class SystemMonitorPlugin(PluginCore):
             f"{title}\n"
             f"Event ID: {event_id}\n"
             f"Current Usage: {usage:.1f}%\n\n"
-            f"<b>{resource_heading}:</b>\n"
+            f"<b>{escape(resource_heading)}:</b>\n"
             f"{process_info}"
         )
 
@@ -718,7 +718,7 @@ class SystemMonitorPlugin(PluginCore):
             f"{current_temp:.1f}°C" if isinstance(current_temp, (int, float)) else "N/A"
         )
         return (
-            f"🌡️ <b>High Temperature Alert - {sensor}</b>\n"
+            f"🌡️ <b>High Temperature Alert - {escape(sensor)}</b>\n"
             f"Event ID: {event_id}\n"
             f"Current: {current_temp_display}"
         )
@@ -726,7 +726,7 @@ class SystemMonitorPlugin(PluginCore):
     @staticmethod
     def _format_disk_alert(event_id: str, disk: str, usage: float) -> str:
         return (
-            f"💽 <b>High Disk Usage Alert - {disk}</b>\n"
+            f"💽 <b>High Disk Usage Alert - {escape(disk)}</b>\n"
             f"Event ID: {event_id}\n"
             f"Current Usage: {usage:.1f}%"
         )

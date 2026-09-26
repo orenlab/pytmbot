@@ -194,3 +194,24 @@ def test_simple_markdown_joins_wrapped_lines() -> None:
         "<li>Second</li></ul>"
         "<p>First line second line</p>"
     )
+
+
+def test_fit_rich_html_clips_escaped_text_instead_of_dropping_it() -> None:
+    html = "<p><b>Env</b></p><pre>" + "&lt;" * 40_000 + "</pre>"
+    fitted = fit_rich_html(html)
+
+    assert fitted.startswith("<p><b>Env</b></p><pre>&lt;&lt;")
+    assert "&lt;…</pre>" in fitted
+    assert measure_rich_html(fitted).fits
+    assert find_rich_html_issues(fitted) == []
+
+
+def test_fit_rich_html_cuts_between_blocks_inside_details() -> None:
+    paragraphs = "".join(f"<p>line {index}</p>" for index in range(600))
+    html = f"<p><b>Logs</b></p><details><summary>More</summary>{paragraphs}</details>"
+    fitted = fit_rich_html(html)
+
+    assert "<p>line 0</p>" in fitted
+    assert "</details>" in fitted
+    assert measure_rich_html(fitted).fits
+    assert find_rich_html_issues(fitted) == []

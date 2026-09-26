@@ -158,6 +158,7 @@ Notes:
 | `--mode dev\|prod`                                         | Runtime mode                         |
 | `--log-level TRACE\|DEBUG\|INFO\|WARNING\|ERROR\|CRITICAL` | Log verbosity                        |
 | `--log-format human\|json`                                 | Log format                           |
+| `--colorize_logs true\|false`                              | Colorize human-readable log output   |
 | `--plugins monitor outline`                                | Enable plugins                       |
 | `--webhook`                                                | Enable webhook mode                  |
 | `--socket_host 0.0.0.0`                                    | Bind address for webhook listener    |

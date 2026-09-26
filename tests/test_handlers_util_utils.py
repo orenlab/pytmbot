@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+import requests
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -192,3 +193,48 @@ def test_nav_keyboard_sync_keeps_only_latest_follow_up(
     # a failed deletion (already gone) is ignored.
     assert bot.deleted == [(7, 101), (7, 102)]
     assert dict(utils_module._nav_sync_messages) == {7: 103, 8: 104}
+
+
+def test_nav_keyboard_sync_keeps_newest_when_handlers_finish_out_of_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict({7: 11}))
+    deleted: list[int] = []
+    bot = SimpleNamespace(
+        send_message=lambda **kwargs: SimpleNamespace(message_id=10),
+        delete_message=lambda chat_id, message_id: deleted.append(message_id),
+    )
+
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+
+    assert deleted == [10]
+    assert dict(utils_module._nav_sync_messages) == {7: 11}
+
+
+class _TooManyRequests(ApiTelegramException):
+    def __init__(self) -> None:
+        Exception.__init__(self, "Too Many Requests: retry after 3")
+        self.error_code = 429
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_TooManyRequests(), requests.ConnectionError("connection reset")],
+)
+def test_nav_keyboard_sync_failure_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict({7: 11}))
+
+    def _fail(**kwargs: object) -> None:
+        raise error
+
+    bot = SimpleNamespace(send_message=_fail)
+
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+
+    assert dict(utils_module._nav_sync_messages) == {7: 11}

@@ -699,22 +699,3 @@ def inline_handler_factory() -> HandlerType:
     """
     configs = _get_inline_handler_configs()
     return _create_handlers_from_configs(configs)
-
-
-# Future echo handler implementation
-# @cache
-# def echo_handler_factory() -> HandlerType:
-#     """
-#     Returns a dictionary of HandlerManager objects for echo handling.
-#
-#     This is always the last handler to be registered.
-#     """
-#     configs = {
-#         "echo": [
-#             HandlerConfig(
-#                 callback=handle_echo,
-#                 filter_func=lambda message: True
-#             )
-#         ]
-#     }
-#     return _create_handlers_from_configs(configs)

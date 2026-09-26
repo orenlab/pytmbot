@@ -316,3 +316,63 @@ def test_send_rich_bot_message_reraises_non_content_bad_requests() -> None:
     with pytest.raises(_ChatNotFound):
         rich_module.send_rich_bot_message(bot, 5, "<p>x</p>")  # type: ignore[arg-type]
     assert bot.messages == []
+
+
+class _RejectingRichEditBotStub(_EditBotStub):
+    def edit_message_text(self, **kwargs: Any) -> dict[str, Any]:
+        if "rich_message" in kwargs:
+            raise _RichRejected()
+        return super().edit_message_text(**kwargs)
+
+
+def test_edit_callback_message_text_falls_back_to_plain_text_on_rejection() -> None:
+    bot = _RejectingRichEditBotStub()
+    markup = InlineKeyboardMarkup()
+    rich = rich_module.build_rich_html_message("<p><b>CPU</b></p><p>Load 5 &amp; 7</p>")
+
+    was_edited = inline_common_module.edit_callback_message_text(
+        cast(Any, _Call()),
+        cast(Any, bot),
+        rich_message=rich,
+        reply_markup=markup,
+    )
+
+    assert was_edited is True
+    assert bot.edits == [
+        {
+            "chat_id": 11,
+            "message_id": 22,
+            "text": "CPU\nLoad 5 & 7",
+            "reply_markup": markup,
+        }
+    ]
+
+
+def test_edit_callback_message_text_treats_not_modified_rich_edit_as_no_op() -> None:
+    class _NotModified(ApiTelegramException):
+        def __init__(self) -> None:
+            Exception.__init__(self, "Bad Request: message is not modified")
+            self.error_code = 400
+            self.description = "Bad Request: message is not modified"
+
+    class _Bot(_EditBotStub):
+        def edit_message_text(self, **kwargs: Any) -> dict[str, Any]:
+            del kwargs
+            raise _NotModified()
+
+    bot = _Bot()
+    was_edited = inline_common_module.edit_callback_message_text(
+        cast(Any, _Call()),
+        cast(Any, bot),
+        rich_message=rich_module.build_rich_html_message("<p>x</p>"),
+    )
+
+    assert was_edited is False
+    assert bot.edits == []
+    assert bot.callback_answers == [
+        {
+            "callback_query_id": "cb-1",
+            "text": "Already up to date.",
+            "show_alert": False,
+        }
+    ]

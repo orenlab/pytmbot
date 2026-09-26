@@ -18,21 +18,23 @@ refreshed.
 
 - One consistent screen layout (bold titles with section icons, compact bordered tables with aligned header rows,
   "updated at" footers, empty states), covered by render tests.
-- Refreshed menu labels and icons (`About`, `Processes`, `Get 2FA QR code`), command descriptions, and user-facing
-  copy for menus, 2FA, errors, and update notices; release notes are rendered as formatted text.
+- Refreshed menu labels and icons (`About`, `Processes`, `Get 2FA QR code`; the old labels still work), command
+  descriptions, and user-facing copy for menus, 2FA, errors, and update notices; release notes are rendered as
+  formatted text.
+- Reply buttons are matched by their exact label (the leading emoji is optional) instead of by substring, so any
+  text containing `CPU` no longer opens the CPU screen. Plugins should register buttons with `reply_button_pattern()`.
 - Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.0 / Bot API 10.3), Docker build images (Ubuntu `26.04`,
-  uv `0.12.19`), BuildKit, and all pinned GitHub Actions; `codeclone` is back on the stable 2.0.x release.
+  uv `0.12.19`), BuildKit, and all pinned GitHub Actions.
 - Added `0.5.0` to the `config_version` compatibility matrix; `0.5` is now the supported stable image line.
 
 ### Fixed
 
-- Reply keyboard disappearing after Quick view and other inline screens (notably on iOS).
-- Rich screens overwritten by classic text edits (image update check, container restart, Swap, Process overview).
-- Broken layouts: run-on container actions screen, empty rows in container details, doubled bullets in Monitor.
-- `/start` and `/about` failing due to classic-only arguments passed to rich sends.
+- Reply keyboard disappearing after Quick view and other inline screens (notably on iOS); a single
+  "Use the menu below to continue." follow-up per chat restores it.
 - Inline buttons spinning until timeout when a handler did not answer the callback; every press is now acknowledged.
-- Reply buttons matched by substring (for example, any text containing `CPU`); labels are now matched exactly.
-- Repeated "Use the menu below to continue." messages piling up in chats.
+- Container actions screen advertising a Remove action that does not exist.
+- Monitor plugin alerts escape container, image, process, sensor, and mount point names, so an unusual name no
+  longer makes Telegram reject the alert.
 
 ## [0.4.0] — 20260624
 

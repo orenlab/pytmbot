@@ -47,7 +47,7 @@ type ReplyMarkupType = (
     InlineKeyboardMarkup | ReplyKeyboardMarkup | ForceReply | ReplyKeyboardRemove
 )
 
-# Button colors supported by Telegram clients (Bot API 10.3).
+# Button colors supported by Telegram clients (Bot API 9.4+).
 BUTTON_STYLES: Final[frozenset[str]] = frozenset({"danger", "success", "primary"})
 
 
@@ -97,7 +97,7 @@ class Keyboards:
     DEFAULT_ROW_WIDTH: Final[int] = 3
     INLINE_ROW_WIDTH: Final[int] = 2
     CACHE_SIZE: Final[int] = 32
-    BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
+    BACK_BUTTON_TEXT: Final[str] = "🔙 Back to main menu"
     BACK_EMOJI_KEY: Final[str] = "BACK_arrow"
     RETURN_BUTTON_EMOJI: Final[str] = "🦈"
     PRIMARY_BUTTON_TITLES: Final[frozenset[str]] = frozenset(

@@ -1,3 +1,14 @@
+#!/usr/local/bin/python3
+"""
+(c) Copyright 2025, Denis Rozhnovskiy <pytelemonbot@mail.ru>
+pyTMBot - A simple Telegram bot to handle Docker containers and images,
+also providing basic information about the status of local servers.
+
+Send helpers for Telegram Rich Messages: build InputRichMessage from rich HTML,
+fit it to Telegram limits, and fall back to a plain-text message when Telegram
+rejects the rich payload.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -107,17 +118,20 @@ def build_rich_html_message(
     )
 
 
-# 400 errors that a plain-text retry cannot fix (target or markup problems).
+# 400 errors that a plain-text retry cannot fix (target, state or markup problems).
 _NON_CONTENT_ERROR_MARKERS: Final[tuple[str, ...]] = (
     "chat not found",
     "thread not found",
     "button",
     "reply markup",
     "not enough rights",
+    "message is not modified",
+    "message to edit not found",
+    "message can't be edited",
 )
 
 
-def _is_rich_content_rejection(error: ApiTelegramException) -> bool:
+def is_rich_content_rejection(error: ApiTelegramException) -> bool:
     """Return True for Telegram 400 errors caused by the rich payload itself."""
     if getattr(error, "error_code", None) != 400:
         return False
@@ -191,7 +205,7 @@ def send_rich_bot_message(
                 **rich_kwargs,
             )
     except ApiTelegramException as error:
-        if not _is_rich_content_rejection(error):
+        if not is_rich_content_rejection(error):
             raise
         logger.warning(
             "bot.handler.handlers_util.rich_messages.rejected.warn",

@@ -16,6 +16,7 @@ For class middlewares, the runtime order is:
 1. `UpdateDedup`
 2. `AccessControl`
 3. `RateLimit`
+4. `CallbackAcknowledger` (answers callback queries that handlers left unanswered)
 
 The middleware chain is assembled in `pytmbot/pytmbot_instance.py`.
 
