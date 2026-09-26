@@ -10,8 +10,8 @@
 
 {% for value in context %}
 <p><b>{{ oil_drum }} {{ value['name']|e }}</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {% for emoji, label, field_key in container_fields %}
 {% set field_value = value[field_key] if value[field_key] is not none else 'N/A' %}
 <tr><td>{{ emoji }} {{ label }}</td><td>{% if field_key in ('id', 'status') %}<code>{{ field_value|e }}</code>{% else %}{{ field_value|e }}{% endif %}</td></tr>

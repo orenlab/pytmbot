@@ -2,8 +2,8 @@
 <p><b>{{ thought_balloon }} Temperature Sensors</b></p>
 
 {% if context %}
-<table bordered striped>
-<tr><th>Sensor</th><th align="right">Temp</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Sensor</th><th align="right">Temp</th></tr>
 {% for value in context %}
 <tr>
 <td>{{ thermometer }} {{ value['sensor_name']|e }}</td>

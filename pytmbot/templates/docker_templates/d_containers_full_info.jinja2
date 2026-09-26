@@ -11,8 +11,8 @@
 
 <p><b>{{ container_emoji }} Basic Info</b></p>
 <p>{{ status_badge|e }} · {{ health_badge|e }}</p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Name', name) }}
 {{ kv_row('ID', id) }}
 {{ kv_row('Image', image_name ~ ':' ~ image_tag) }}
@@ -26,8 +26,8 @@
 </table>
 
 <p><b>{{ cpu_emoji }} Resource Limits</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Memory', resources.memory_limit) }}
 {{ kv_row('Memory reservation', resources.memory_reservation) }}
 {{ kv_row('CPU Quota', resources.cpu_quota) }}
@@ -41,8 +41,8 @@
 
 {% if stats.memory %}
 <p><b>{{ chart_emoji }} Current Usage</b></p>
-<table bordered striped>
-<tr><th>Metric</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="left">Value</th></tr>
 <tr><td>Memory</td><td>{{ stats.memory.mem_usage|e }} / {{ stats.memory.mem_limit|e }} ({% if stats.memory.mem_percent == 'N/A' %}N/A{% else %}{{ stats.memory.mem_percent|e }}%{% endif %})</td></tr>
 {% if stats.cpu.cpu_percent %}{{ kv_row('CPU', stats.cpu.cpu_percent ~ '%') }}{% endif %}
 {% if stats.network %}
@@ -56,8 +56,8 @@
 {% endif %}
 
 <p><b>{{ gear_emoji }} Runtime State</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Health failing streak', health_failing_streak) }}
 {{ kv_row('Last health check', health_last_checked_at) }}
 <tr><td>OOM killed</td><td>{% if oom_killed %}yes{% else %}no{% endif %}</td></tr>
@@ -66,8 +66,8 @@
 </table>
 
 <p><b>{{ network_emoji }} Network</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Mode', network.network_mode) }}
 <tr><td>Published ports</td><td>{{ network.published_ports|e }} / {{ network.declared_ports|e }}</td></tr>
 {% if network.ports %}<tr><td>Ports</td><td>{% for port in network.ports %}{{ port|e }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}
@@ -75,8 +75,8 @@
 </table>
 
 <p><b>{{ gear_emoji }} Configuration</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('User', environment.user) }}
 {{ kv_row('WorkDir', environment.working_dir) }}
 {% if environment.entrypoint != 'N/A' %}{{ kv_row('Entrypoint', environment.entrypoint) }}{% endif %}

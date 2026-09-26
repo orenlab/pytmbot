@@ -5,8 +5,8 @@
 <p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id|e }}</code></p>
 
 <p><b>{{ context.emojis.gear }} Summary</b></p>
-<table bordered striped>
-<tr><th>Metric</th><th align="right">Count</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Count</th></tr>
 <tr><td>Total containers</td><td align="right">{{ context.containers_count|e }}</td></tr>
 <tr><td>Running</td><td align="right">{{ context.running_count|e }}</td></tr>
 <tr><td>Stopped</td><td align="right">{{ context.stopped_count|e }}</td></tr>
@@ -16,8 +16,8 @@
 {% if context.containers %}
 {% for container in context.containers %}
 <p><b>{{ loop.index }}. {{ container.name|e }} <code>{{ container.id|e }}</code></b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Status</td><td>{{ container.status|e }}</td></tr>
 <tr><td>Started</td><td>{{ container.started_at|e }}</td></tr>
 </table>

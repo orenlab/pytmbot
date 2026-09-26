@@ -2,8 +2,8 @@
 <p><b>{{ thought_balloon }} Fan Speeds</b></p>
 
 {% if context.fans %}
-<table bordered striped>
-<tr><th>Fan</th><th align="right">RPM</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Fan</th><th align="right">RPM</th></tr>
 {% for fan in context.fans %}
 <tr>
 <td>{{ fan.sensor_name|e }} / {{ fan.label|e }}</td>

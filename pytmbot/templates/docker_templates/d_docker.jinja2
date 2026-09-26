@@ -1,8 +1,8 @@
 {# templates/docker_templates/d_docker.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} Docker Overview</b></p>
 
-<table bordered striped>
-<tr><th>Resource</th><th align="right">Count</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Resource</th><th align="right">Count</th></tr>
 <tr><td>{{ spouting_whale }} Images</td><td align="right">{{ context['images_count']|e }}</td></tr>
 <tr><td>{{ package }} Containers</td><td align="right">{{ context['containers_count']|e }}</td></tr>
 </table>

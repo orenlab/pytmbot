@@ -2,10 +2,10 @@
 <p><b>{{ thought_balloon }} Per-Core CPU Load</b></p>
 
 {% if context.core_rows %}
-<table bordered striped>
+<table bordered striped compact>
 <tr>
-<th>Core</th>
-<th>Usage</th>
+<th align="left">Core</th>
+<th align="left">Usage</th>
 <th align="right">%</th>
 </tr>
 {% for row in context.core_rows %}

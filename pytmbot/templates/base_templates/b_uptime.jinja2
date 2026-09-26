@@ -1,8 +1,8 @@
 {# templates/b_uptime.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} Uptime</b></p>
 
-<table bordered striped>
-<tr><th>Metric</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
 <tr><td>{{ hourglass_not_done }} System uptime</td><td align="right">{{ context|e }}</td></tr>
 </table>
 

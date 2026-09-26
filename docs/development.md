@@ -142,7 +142,9 @@ Structured screens are sent as Telegram Rich Messages (`InputRichMessage(html=..
 
 - the first block is a bold paragraph title: `<p><b>{emoji} Title</b></p>`; section titles use the same form (no
   `<h1>`–`<h6>` headings)
-- tabular data uses `<table bordered striped>` with a header row; a column is either left- or right-aligned in every row
+- tabular data uses `<table bordered striped compact>` (compact cell padding, Bot API 10.3) with a header row;
+  every header cell sets `align` explicitly (Telegram centers headers by default), and a column is either left- or
+  right-aligned in every row
 - lists use `<ul>`/`<ol>` without manual bullets; hints and warnings are `<p><i>…</i></p>` paragraphs
 - metadata such as pagination, timestamps, or auto-delete notices goes into a single `<footer>` placed last
 - table cells and paragraphs contain inline formatting only; line breaks come from separate blocks, not `\n`

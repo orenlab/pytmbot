@@ -3,8 +3,8 @@
 
 {% for image in context.images %}
 <p><b>{{ context.emojis.package }} {{ image.name|e }}</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>{{ context.emojis.spouting_whale }} ID</td><td><code>{{ image.id|e }}</code></td></tr>
 <tr><td>{{ context.emojis.bookmark_tabs }} Tags{% if image.tags_count > 0 %} ({{ image.tags_count|e }}){% endif %}</td><td>{% if image.tags_count > 0 %}<code>{{ image.tags | map("e") | join(", ") }}</code>{% else %}<code>none</code>{% endif %}</td></tr>
 <tr><td>{{ context.emojis.floppy_disk }} Size</td><td>{{ image.size|e }}</td></tr>

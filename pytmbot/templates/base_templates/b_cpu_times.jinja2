@@ -1,8 +1,8 @@
 {# templates/b_cpu_times.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} CPU Times Breakdown</b></p>
 
-<table bordered striped>
-<tr><th>State</th><th align="right">Share</th></tr>
+<table bordered striped compact>
+<tr><th align="left">State</th><th align="right">Share</th></tr>
 <tr><td>user</td><td align="right">{{ "%.1f"|format(context.user) }}%</td></tr>
 <tr><td>system</td><td align="right">{{ "%.1f"|format(context.system) }}%</td></tr>
 <tr><td>idle</td><td align="right">{{ "%.1f"|format(context.idle) }}%</td></tr>

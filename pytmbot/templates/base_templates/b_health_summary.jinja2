@@ -2,8 +2,8 @@
 <p><b>{{ thought_balloon }} System Health Snapshot</b></p>
 
 <p><b>{{ stethoscope }} Bot monitor status</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Status</td><td>{{ context.monitor.overall_badge|e }} {{ context.monitor.overall_status|e }}</td></tr>
 <tr><td>Operational components</td><td>{{ context.monitor.operational|e }}/{{ context.monitor.total|e }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)</td></tr>
 <tr><td>Last check duration</td><td>{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
@@ -25,16 +25,16 @@
 {% endif %}
 
 <p><b>{{ stethoscope }} Overall status</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Status</td><td>{{ context.overall_badge|e }} {{ context.overall_status|e }}</td></tr>
 <tr><td>Health score</td><td>{{ context.health_score|e }}/100</td></tr>
 <tr><td>Dominant pressure</td><td>{{ context.dominant_metric|e }}</td></tr>
 </table>
 
 <p><b>Compute &amp; Memory</b></p>
-<table bordered striped>
-<tr><th>Metric</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="left">Value</th></tr>
 <tr><td>{{ context.cpu_badge|e }} CPU</td><td>{{ "%.1f"|format(context.cpu_percent) }}% — {{ context.cpu_status|e }}</td></tr>
 <tr><td>{{ context.memory_badge|e }} RAM</td><td>{{ "%.1f"|format(context.memory_percent) }}% — {{ context.memory_status|e }}</td></tr>
 <tr><td>Used / Available</td><td>{{ context.memory_used|e }} / {{ context.memory_available|e }}</td></tr>
@@ -44,16 +44,16 @@
 </table>
 
 <p><b>{{ desktop_computer }} Runtime</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Uptime</td><td>{{ context.uptime|e }}</td></tr>
 <tr><td>Processes</td><td>{{ context.process_total|e }}</td></tr>
 </table>
 
 <p><b>Docker Workload</b></p>
 {% if context.docker.available %}
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>{{ context.docker.badge|e }} Status</td><td>{{ context.docker.status_label|e }}</td></tr>
 <tr><td>Containers (running/stopped)</td><td>{{ context.docker.running_containers|e }} / {{ context.docker.stopped_containers|e }} (total {{ context.docker.containers_total|e }})</td></tr>
 <tr><td>Running ratio</td><td>{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>

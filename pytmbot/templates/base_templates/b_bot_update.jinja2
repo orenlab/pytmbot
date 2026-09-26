@@ -1,8 +1,8 @@
 {# templates/b_bot_update.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} Update available</b></p>
 
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>{{ spouting_whale }} Version</td><td><code>{{ current_version|e }}</code></td></tr>
 <tr><td>{{ calendar }} Released</td><td>{{ release_date|e }}</td></tr>
 </table>

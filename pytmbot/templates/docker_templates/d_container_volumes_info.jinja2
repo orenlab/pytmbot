@@ -7,8 +7,8 @@
 <p><b>{{ luggage_emoji }} Active mounts (showing {{ mounts_count|e }} of {{ mounts_total|e }})</b></p>
 {% for mount in mounts %}
 <p><b>{{ loop.index }}. <code>{{ mount.type|e }}</code>{% if mount.name != '-' %} <code>{{ mount.name|e }}</code>{% endif %}</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Source</td><td>{{ mount.source|e }}</td></tr>
 <tr><td>Target</td><td>{{ mount.destination|e }}</td></tr>
 <tr><td>Access</td><td>{{ mount.access|e }}</td></tr>

@@ -3,8 +3,8 @@
 
 {% if context.system %}
 <p><b>🖥️ System Resources</b></p>
-<table bordered striped>
-<tr><th>Metric</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
 <tr><td>⏱️ Uptime</td><td align="right">{{ (context.system.uptime if context.system.uptime is not none else 'N/A')|e }}</td></tr>
 <tr><td>📈 Load 1 min</td><td align="right">{% if context.system.load_average and context.system.load_average[0] is not none %}{{ "%.2f"|format(context.system.load_average[0]) }}{% else %}N/A{% endif %}</td></tr>
 <tr><td>📈 Load 5 min</td><td align="right">{% if context.system.load_average and context.system.load_average[1] is not none %}{{ "%.2f"|format(context.system.load_average[1]) }}{% else %}N/A{% endif %}</td></tr>
@@ -26,8 +26,8 @@
 
 {% if context.docker %}
 <p><b>🐳 Docker Environment</b></p>
-<table bordered striped>
-<tr><th>Metric</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
 <tr><td>Active Containers</td><td align="right">{{ (context.docker.containers_count if context.docker.containers_count is not none else 'N/A')|e }}</td></tr>
 <tr><td>Available Images</td><td align="right">{{ (context.docker.images_count if context.docker.images_count is not none else 'N/A')|e }}</td></tr>
 </table>

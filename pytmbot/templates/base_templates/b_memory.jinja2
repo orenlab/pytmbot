@@ -1,8 +1,8 @@
 {# templates/b_memory.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} Memory Usage</b></p>
 
-<table bordered striped>
-<tr><th>Parameter</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="right">Value</th></tr>
 <tr><td>{{ abacus }} Total Memory</td><td align="right">{{ context.total|e }}</td></tr>
 <tr><td>Used</td><td align="right">{{ context.used|e }} ({{ context.percent|e }}%)</td></tr>
 <tr><td>Free</td><td align="right">{{ context.free|e }}</td></tr>
@@ -10,8 +10,8 @@
 </table>
 
 <p><b>Details</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="right">Value</th></tr>
 <tr><td>Active</td><td align="right">{{ context.active|e }}</td></tr>
 <tr><td>Inactive</td><td align="right">{{ context.inactive|e }}</td></tr>
 <tr><td>Cached</td><td align="right">{{ context.cached|e }}</td></tr>

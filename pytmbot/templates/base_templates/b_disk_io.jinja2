@@ -4,8 +4,8 @@
 {% if context.disks %}
 {% for disk in context.disks %}
 <p><b>{{ disk.device_name|e }}</b></p>
-<table bordered striped>
-<tr><th>Direction</th><th align="right">Bytes</th><th align="right">Ops</th><th align="right">Time</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Direction</th><th align="right">Bytes</th><th align="right">Ops</th><th align="right">Time</th></tr>
 <tr>
 <td>Read</td>
 <td align="right">{{ disk.read_bytes|e }}</td>

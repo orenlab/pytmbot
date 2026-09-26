@@ -4,8 +4,8 @@
 <p>Your Outline server is <b>{{ "up and running" if context else "down" }}</b>.</p>
 
 <p><b>Server information</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>{{ label }} Server name</td><td>{{ (context['name'] if context['name'] else 'Unknown')|e }}</td></tr>
 <tr><td>{{ bar_chart }} Metrics enabled</td><td>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</td></tr>
 <tr><td>{{ alarm_clock }} Created</td><td>{{ (context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A')|e }}</td></tr>

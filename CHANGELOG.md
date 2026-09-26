@@ -14,7 +14,8 @@ refreshed.
 
 ### Changed
 
-- One consistent screen layout (bold titles, bordered tables with header rows, footers), covered by render tests.
+- One consistent screen layout (bold titles, compact bordered tables with aligned header rows, footers), covered by
+  render tests.
 - Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.0 / Bot API 10.3), Docker build images (Ubuntu `26.04`,
   uv `0.12.19`), BuildKit, and all pinned GitHub Actions; `codeclone` is back on the stable 2.0.x release.
 - Added `0.5.0` to the `config_version` compatibility matrix; `0.5` is now the supported stable image line.

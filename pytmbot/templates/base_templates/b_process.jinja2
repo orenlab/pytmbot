@@ -2,8 +2,8 @@
 <p><b>{{ thought_balloon }} Process Summary</b></p>
 
 {% if context %}
-<table bordered striped>
-<tr><th>State</th><th align="right">Count</th></tr>
+<table bordered striped compact>
+<tr><th align="left">State</th><th align="right">Count</th></tr>
 {% for key, value in context.items() %}
 <tr>
 <td>{{ horizontal_traffic_light }} {{ key|e }}</td>

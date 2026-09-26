@@ -2,12 +2,12 @@
 <p><b>{{ thought_balloon }} Active Sessions</b></p>
 
 {% if context.users %}
-<table bordered striped>
+<table bordered striped compact>
 <tr>
-<th>User</th>
-<th>Terminal</th>
-<th>Host</th>
-<th>Started</th>
+<th align="left">User</th>
+<th align="left">Terminal</th>
+<th align="left">Host</th>
+<th align="left">Started</th>
 </tr>
 {% for user in context.users %}
 <tr>

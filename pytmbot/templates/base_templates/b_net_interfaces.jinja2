@@ -2,13 +2,13 @@
 <p><b>{{ thought_balloon }} Network Interfaces</b></p>
 
 {% if context.interfaces %}
-<table bordered striped>
+<table bordered striped compact>
 <tr>
-<th>Name</th>
-<th>State</th>
+<th align="left">Name</th>
+<th align="left">State</th>
 <th align="right">Speed</th>
 <th align="right">MTU</th>
-<th>IPv4</th>
+<th align="left">IPv4</th>
 </tr>
 {% for item in context.interfaces %}
 <tr>

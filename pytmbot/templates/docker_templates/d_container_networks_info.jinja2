@@ -4,8 +4,8 @@
 <p>{{ package_emoji }} <b>Container:</b> <code>{{ container_name|e }}</code></p>
 
 <p><b>{{ gear_emoji }} Runtime network summary</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Mode</td><td>{{ network_mode|e }}</td></tr>
 <tr><td>Hostname</td><td>{{ hostname|e }}{% if domainname != '-' %}.{{ domainname|e }}{% endif %}</td></tr>
 <tr><td>Bridge</td><td>{{ bridge_name|e }}</td></tr>
@@ -39,8 +39,8 @@
 {% endif %}
 
 <p><b>{{ gear_emoji }} DNS and host routing</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>DNS servers</td><td>{% if dns_servers_count > 0 %}{{ dns_servers | map('e') | join(", ") }}{% else %}none{% endif %}{% if hidden_dns_servers_count > 0 %} <i>(+{{ hidden_dns_servers_count|e }} more)</i>{% endif %}</td></tr>
 <tr><td>DNS search</td><td>{% if dns_search_count > 0 %}{{ dns_search | map('e') | join(", ") }}{% else %}none{% endif %}{% if hidden_dns_search_count > 0 %} <i>(+{{ hidden_dns_search_count|e }} more)</i>{% endif %}</td></tr>
 <tr><td>DNS options</td><td>{% if dns_options_count > 0 %}{{ dns_options | map('e') | join(", ") }}{% else %}none{% endif %}{% if hidden_dns_options_count > 0 %} <i>(+{{ hidden_dns_options_count|e }} more)</i>{% endif %}</td></tr>
@@ -52,8 +52,8 @@
 {% if networks_count > 0 %}
 {% for net in networks %}
 <p><b>{{ net.name|e }}</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>IPv4</td><td>{{ net.ip_address|e }}/{{ net.ip_prefix_len|e }}</td></tr>
 <tr><td>Gateway</td><td>{{ net.gateway|e }}</td></tr>
 <tr><td>IPv6</td><td>{{ net.global_ipv6_address|e }}/{{ net.global_ipv6_prefix_len|e }}</td></tr>

@@ -5,8 +5,8 @@
 <p><b>🌟 Updates found</b></p>
 {% for repo, info in updates.items() %}
 <p><b>🐳 <code>{{ repo|e }}</code></b></p>
-<table bordered striped>
-<tr><th>Tag</th><th>Created</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Tag</th><th align="left">Created</th></tr>
 <tr><td>🏷️ {{ info.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ info.created_at_local | default("Unknown") | format_timestamp | e }}</td></tr>
 {% if info.updates is defined and info.updates %}
 {% for update in info.updates %}

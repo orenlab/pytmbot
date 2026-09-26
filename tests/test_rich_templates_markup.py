@@ -2,8 +2,8 @@
 Render every rich-HTML template with realistic data and check the markup.
 
 These tests guard the rich message design system: valid Telegram rich HTML,
-a bold paragraph title first, no section headings, tables with header rows
-and consistent column alignment, footers last, and no manual list bullets.
+a bold paragraph title first, no section headings, compact tables with header
+rows and consistent column alignment, footers last, and no manual list bullets.
 """
 
 from __future__ import annotations
@@ -736,7 +736,9 @@ class _TableAlignmentCollector(HTMLParser):
         elif tag == "tr":
             self._row = []
         elif tag in {"td", "th"} and self._row is not None:
-            self._row.append(dict(attrs).get("align") or "left")
+            # Telegram centers header cells unless an alignment is given.
+            default_align = "center" if tag == "th" else "left"
+            self._row.append(dict(attrs).get("align") or default_align)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "tr" and self._row is not None:
@@ -761,7 +763,8 @@ def _assert_rich_design(template_name: str, html: str) -> None:
         assert stripped.endswith("</footer>"), f"{template_name}: footer must be last"
 
     for table_tag in re.findall(r"<table\b[^>]*>", html):
-        assert "bordered" in table_tag and "striped" in table_tag, template_name
+        for attribute in ("bordered", "striped", "compact"):
+            assert attribute in table_tag, f"{template_name}: table needs {attribute}"
     for table in re.split(r"<table\b", html)[1:]:
         first_row = table.split("</tr>", 1)[0]
         assert "<th" in first_row, f"{template_name}: table needs a header row"

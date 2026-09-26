@@ -1,8 +1,8 @@
 {# templates/b_net_connections.jinja2 — rich HTML #}
 <p><b>{{ thought_balloon }} Connections Summary</b></p>
 
-<table bordered striped>
-<tr><th>Metric</th><th align="right">Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
 <tr><td>Total</td><td align="right">{{ context.total|e }}</td></tr>
 <tr><td>TCP</td><td align="right">{{ context.tcp|e }}</td></tr>
 <tr><td>UDP</td><td align="right">{{ context.udp|e }}</td></tr>
@@ -10,8 +10,8 @@
 
 {% if context.statuses %}
 <p><b>Status distribution</b></p>
-<table bordered striped>
-<tr><th>Status</th><th align="right">Count</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Status</th><th align="right">Count</th></tr>
 {% for status, count in context.statuses.items() %}
 <tr><td>{{ status|e }}</td><td align="right">{{ count|e }}</td></tr>
 {% endfor %}

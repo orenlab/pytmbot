@@ -3,8 +3,8 @@
 
 {% for value in context %}
 <p><b>{{ floppy_disk }} {{ value['device_name']|e }}</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Type</td><td>{{ value['fs_type']|e }}</td></tr>
 <tr><td>Mount</td><td>{{ value['mnt_point']|e }}</td></tr>
 <tr><td>Size</td><td>{{ value['size']|e }}</td></tr>

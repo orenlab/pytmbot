@@ -8,8 +8,8 @@
 {% if context.layers %}
 {% for layer in context.layers %}
 <p><b>{{ loop.index }}. <code>{{ layer.id|e }}</code></b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Created</td><td>{{ layer.created|e }}</td></tr>
 <tr><td>Size</td><td>{{ layer.size|e }}</td></tr>
 <tr><td>By</td><td>{{ layer.created_by|e }}</td></tr>

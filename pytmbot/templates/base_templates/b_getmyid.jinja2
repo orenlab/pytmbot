@@ -9,8 +9,8 @@
 {% endif %}
 
 <p><b>👤 User</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>User ID</td><td><code>{{ user_id|e }}</code></td></tr>
 <tr><td>First name</td><td>{{ first_name|e }}</td></tr>
 {% if last_name %}
@@ -25,8 +25,8 @@
 </table>
 
 <p><b>💬 Chat</b></p>
-<table bordered striped>
-<tr><th>Parameter</th><th>Value</th></tr>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Chat ID</td><td><code>{{ chat_id|e }}</code></td></tr>
 <tr><td>Chat type</td><td>{{ chat_type|e }}</td></tr>
 {% if chat_title %}
