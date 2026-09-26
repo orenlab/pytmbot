@@ -4,6 +4,7 @@ from typing import Any, cast
 
 import pytest
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, InputRichMessage, ReplyKeyboardMarkup
 
 from pytmbot.handlers.handlers_util import rich_messages as rich_module
@@ -207,3 +208,93 @@ def test_edit_callback_message_text_requires_content() -> None:
             call,  # type: ignore[arg-type]
             bot,  # type: ignore[arg-type]
         )
+
+
+class _RichMessageTarget:
+    chat = _Chat()
+    message_id = 23
+    content_type = "rich_message"
+
+
+class _RichCall:
+    id = "cb-2"
+    message = _RichMessageTarget()
+
+
+class _RejectingRichBotStub(_RichBotStub):
+    def send_rich_message(self, **kwargs: Any) -> dict[str, Any]:
+        del kwargs
+        raise _RichRejected()
+
+
+class _RichRejected(ApiTelegramException):
+    def __init__(self) -> None:
+        Exception.__init__(self, "Bad Request: can't parse rich message")
+        self.error_code = 400
+        self.description = "Bad Request: can't parse rich message"
+
+
+def test_build_rich_html_message_wraps_plain_text() -> None:
+    rich = rich_module.build_rich_html_message("Disk full & hot\nRetry later")
+    assert rich.html == "<p>Disk full &amp; hot</p><p>Retry later</p>"
+
+
+def test_build_rich_html_message_trims_oversized_tables() -> None:
+    rows = "".join(f"<tr><td>{index}</td></tr>" for index in range(900))
+    rich = rich_module.build_rich_html_message(
+        f"<p><b>Title</b></p><table bordered striped>{rows}</table>"
+    )
+    assert rich.html is not None
+    assert rich.html.endswith(
+        "</table><p><i>Output truncated to fit Telegram limits.</i></p>"
+    )
+    assert rich.html.count("<tr>") < 500
+
+
+def test_send_rich_bot_message_falls_back_to_plain_text_on_rejection() -> None:
+    bot = _RejectingRichBotStub()
+    rich_module.send_rich_bot_message(
+        bot,  # type: ignore[arg-type]
+        5,
+        "<p><b>CPU</b></p><table><tr><th>Metric</th><th>Value</th></tr>"
+        "<tr><td>Load</td><td>12%</td></tr></table>",
+        disable_notification=True,
+        message_effect_id="effect",
+    )
+    assert bot.rich_messages == []
+    assert len(bot.messages) == 1
+    assert bot.messages[0]["text"] == "CPU\nMetric | Value\nLoad | 12%"
+    assert bot.messages[0]["disable_notification"] is True
+    assert "message_effect_id" not in bot.messages[0]
+    assert "parse_mode" not in bot.messages[0]
+
+
+def test_send_rich_bot_message_reraises_non_content_errors() -> None:
+    class _RateLimited(ApiTelegramException):
+        def __init__(self) -> None:
+            Exception.__init__(self, "Too Many Requests")
+            self.error_code = 429
+
+    class _Bot(_RichBotStub):
+        def send_rich_message(self, **kwargs: Any) -> dict[str, Any]:
+            del kwargs
+            raise _RateLimited()
+
+    with pytest.raises(_RateLimited):
+        rich_module.send_rich_bot_message(_Bot(), 5, "<p>x</p>")  # type: ignore[arg-type]
+
+
+def test_edit_callback_message_text_keeps_rich_lifecycle_for_classic_text() -> None:
+    bot = _EditBotStub()
+    was_edited = inline_common_module.edit_callback_message_text(
+        cast(Any, _RichCall()),
+        bot,  # type: ignore[arg-type]
+        text="<b>Restarted</b>\nState: running",
+        parse_mode="HTML",
+    )
+    assert was_edited is True
+    assert "text" not in bot.edits[0]
+    assert "parse_mode" not in bot.edits[0]
+    rich = bot.edits[0]["rich_message"]
+    assert isinstance(rich, InputRichMessage)
+    assert rich.html == "<p>Restarted</p><p>State: running</p>"

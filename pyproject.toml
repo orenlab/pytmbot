@@ -63,7 +63,7 @@ dev = [
     "pytest>=9.1.1,<10",
     "pytest-cov>=7.1.0,<8",
     "mypy>=2.3.1,<3",
-    "codeclone[mcp]",
+    "codeclone[mcp]>=2.0.2,<2.1",
     "types-cachetools>=7.0.0.20260713,<8",
     "types-PyYAML>=6.0.12.20260906,<7",
     "types-python-dateutil>=2.9.0.20260807,<3",
@@ -80,10 +80,6 @@ pytmbot = "pytmbot.main:main"
 [tool.uv.build-backend]
 module-name = ["pytmbot"]
 module-root = ""
-
-[tool.uv.sources]
-codeclone = { git = "https://github.com/orenlab/codeclone.git", rev = "fix/baseline-v3-migration" }
-
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]

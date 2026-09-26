@@ -138,23 +138,29 @@ class _RichTokenizer(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.tokens: list[_Token] = []
 
+    # codeclone: ignore[dead-code]
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del attrs
         self.tokens.append(("start", tag, self.get_starttag_text() or f"<{tag}>"))
 
+    # codeclone: ignore[dead-code]
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del attrs
         self.tokens.append(("void", tag, self.get_starttag_text() or f"<{tag}/>"))
 
+    # codeclone: ignore[dead-code]
     def handle_endtag(self, tag: str) -> None:
         self.tokens.append(("end", tag, f"</{tag}>"))
 
+    # codeclone: ignore[dead-code]
     def handle_data(self, data: str) -> None:
         self.tokens.append(("data", "", data))
 
+    # codeclone: ignore[dead-code]
     def handle_entityref(self, name: str) -> None:
         self.tokens.append(("entity", "", f"&{name};"))
 
+    # codeclone: ignore[dead-code]
     def handle_charref(self, name: str) -> None:
         self.tokens.append(("entity", "", f"&#{name};"))
 
@@ -269,6 +275,37 @@ def fit_rich_html(html: str) -> str:
     return "".join(output)
 
 
+def _open_tag_issues(tag: str, stack: list[str]) -> list[str]:
+    issues: list[str] = []
+    if tag not in RICH_ALLOWED_TAGS:
+        issues.append(f"unsupported tag <{tag}>")
+    parent = stack[-1] if stack else None
+    if parent in _INLINE_ONLY_CONTAINERS and tag not in RICH_INLINE_TAGS:
+        issues.append(f"<{tag}> is not allowed inside <{parent}>")
+    return issues
+
+
+def _close_tag_issues(tag: str, stack: list[str]) -> list[str]:
+    if stack and stack[-1] == tag:
+        stack.pop()
+        return []
+    if tag in stack:
+        while stack.pop() != tag:
+            pass
+    return [f"unexpected </{tag}>"]
+
+
+def _text_issues(text: str, stack: list[str]) -> list[str]:
+    snippet = repr(text[:40])
+    if not stack:
+        return [f"bare text outside a block: {snippet}"]
+    if stack[-1] in _NO_TEXT_CONTAINERS:
+        return [f"bare text inside <{stack[-1]}>: {snippet}"]
+    if "pre" not in stack and "\n" in text:
+        return [f"newline layout outside <pre>: {snippet}"]
+    return []
+
+
 def find_rich_html_issues(html: str) -> list[str]:
     """
     Report structural problems in rich HTML.
@@ -282,30 +319,13 @@ def find_rich_html_issues(html: str) -> list[str]:
 
     for kind, tag, raw in _tokenize(html):
         if kind in {"start", "void"}:
-            if tag not in RICH_ALLOWED_TAGS:
-                issues.append(f"unsupported tag <{tag}>")
-            parent = stack[-1] if stack else None
-            if parent in _INLINE_ONLY_CONTAINERS and tag not in RICH_INLINE_TAGS:
-                issues.append(f"<{tag}> is not allowed inside <{parent}>")
+            issues.extend(_open_tag_issues(tag, stack))
             if kind == "start" and tag not in _VOID_TAGS:
                 stack.append(tag)
-        elif kind == "end":
-            if tag in _VOID_TAGS:
-                continue
-            if not stack or stack[-1] != tag:
-                issues.append(f"unexpected </{tag}>")
-                if tag in stack:
-                    while stack and stack.pop() != tag:
-                        pass
-                continue
-            stack.pop()
+        elif kind == "end" and tag not in _VOID_TAGS:
+            issues.extend(_close_tag_issues(tag, stack))
         elif kind == "data" and raw.strip():
-            if not stack:
-                issues.append(f"bare text outside a block: {raw.strip()[:40]!r}")
-            elif stack[-1] in _NO_TEXT_CONTAINERS:
-                issues.append(f"bare text inside <{stack[-1]}>: {raw.strip()[:40]!r}")
-            elif "pre" not in stack and "\n" in raw.strip():
-                issues.append(f"newline layout outside <pre>: {raw.strip()[:40]!r}")
+            issues.extend(_text_issues(raw.strip(), stack))
 
     if stack:
         issues.append(f"unclosed elements: {', '.join(stack)}")
@@ -329,6 +349,7 @@ class _PlainTextExtractor(HTMLParser):
         if self.parts and not self.parts[-1].endswith("\n"):
             self.parts.append("\n")
 
+    # codeclone: ignore[dead-code]
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del attrs
         if tag == "pre":
@@ -348,15 +369,18 @@ class _PlainTextExtractor(HTMLParser):
         elif tag == "br":
             self.parts.append("\n")
 
+    # codeclone: ignore[dead-code]
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
 
+    # codeclone: ignore[dead-code]
     def handle_endtag(self, tag: str) -> None:
         if tag == "pre":
             self._pre_depth = max(0, self._pre_depth - 1)
         if tag in _PLAIN_TEXT_LINE_TAGS:
             self._newline()
 
+    # codeclone: ignore[dead-code]
     def handle_data(self, data: str) -> None:
         if self._pre_depth:
             self.parts.append(data)

@@ -132,7 +132,12 @@ def edit_callback_message_text(
     if rich_message is None and text is None:
         raise ValueError("Either text or rich_message is required")
     if rich_message is None and text is not None and _is_rich_message(call.message):
-        plain_text = rich_html_to_plain_text(text) if parse_mode == "HTML" else text
+        # Classic HTML keeps line breaks, so flatten tags line by line.
+        plain_text = (
+            "\n".join(rich_html_to_plain_text(line) for line in text.splitlines())
+            if parse_mode == "HTML"
+            else text
+        )
         rich_message = build_rich_html_message(
             rich_paragraphs(plain_text) or "<p>…</p>"
         )

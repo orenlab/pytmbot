@@ -129,7 +129,11 @@ def _patch_manage_view_render_dependencies(
     monkeypatch.setattr(
         manage_module,
         "button_data",
-        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+        lambda text, callback_data, style=None: {
+            "text": text,
+            "callback_data": callback_data,
+            "style": style,
+        },
     )
     monkeypatch.setattr(
         manage_module,
@@ -594,6 +598,13 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     running_values = [item["callback_data"] for item in running_callbacks]
     assert any(value.startswith("__stop__") for value in running_values)
     assert any(value.startswith("__restart__") for value in running_values)
+    running_styles = {
+        item["callback_data"].split(":", 1)[0]: item["style"]
+        for item in running_callbacks
+    }
+    assert running_styles["__stop__"] == "danger"
+    assert running_styles["__restart__"] == "primary"
+    assert running_styles["__get_full__"] is None
 
     _patch_manage_container_state(monkeypatch, state="exited")
     handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
@@ -602,6 +613,7 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     stopped_values = [item["callback_data"] for item in stopped_callbacks]
     assert any(value.startswith("__start__") for value in stopped_values)
+    assert stopped_callbacks[0]["style"] == "success"
 
     handler(
         cast(CallbackQuery, _Call(data="__manage__:api:11", message=None)),

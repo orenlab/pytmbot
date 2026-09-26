@@ -46,6 +46,9 @@ type ReplyMarkupType = (
     InlineKeyboardMarkup | ReplyKeyboardMarkup | ForceReply | ReplyKeyboardRemove
 )
 
+# Button colors supported by Telegram clients (Bot API 10.3).
+BUTTON_STYLES: Final[frozenset[str]] = frozenset({"danger", "success", "primary"})
+
 
 @dataclass(frozen=True, slots=True)
 class ButtonData:
@@ -53,6 +56,7 @@ class ButtonData:
 
     text: str
     callback_data: str
+    style: str | None = None
 
     def __post_init__(self) -> None:
         """Validate button data after initialization."""
@@ -60,6 +64,10 @@ class ButtonData:
             raise ValueError("Button text must be a non-empty string")
         if not self.callback_data or not isinstance(self.callback_data, str):
             raise ValueError("Callback data must be a non-empty string")
+        if self.style is not None and self.style not in BUTTON_STYLES:
+            raise ValueError(
+                f"Button style must be one of {sorted(BUTTON_STYLES)} or None"
+            )
 
 
 def _resolve_keyboard_settings() -> KeyboardSettings:
@@ -215,6 +223,16 @@ class Keyboards:
             )
             return reply_keyboard
 
+    @classmethod
+    def _make_inline_button(cls, button: ButtonData) -> InlineKeyboardButton:
+        """Build a typed inline button, optionally with a client style."""
+        callback_data = button.callback_data[: cls.MAX_CALLBACK_DATA_LENGTH]
+        if button.style is None:
+            return InlineKeyboardButton(text=button.text, callback_data=callback_data)
+        return InlineKeyboardButton(
+            text=button.text, callback_data=callback_data, style=button.style
+        )
+
     @staticmethod
     def _make_reply_button(text: str, *, style: str | None = None) -> KeyboardButton:
         """Build a typed reply keyboard button, optionally with a client style."""
@@ -340,13 +358,7 @@ class Keyboards:
                 raise KeyboardError("All buttons must be ButtonData instances")
 
             keyboard = _new_inline_keyboard_markup(row_width=self.INLINE_ROW_WIDTH)
-            buttons = [
-                InlineKeyboardButton(
-                    text=btn.text,
-                    callback_data=btn.callback_data[: self.MAX_CALLBACK_DATA_LENGTH],
-                )
-                for btn in buttons_data
-            ]
+            buttons = [self._make_inline_button(btn) for btn in buttons_data]
             keyboard.add(*buttons)
 
             log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))

@@ -113,6 +113,25 @@ def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
         )
 
 
+def test_build_inline_keyboard_applies_button_styles() -> None:
+    markup = Keyboards().build_inline_keyboard(
+        [
+            ButtonData(text="Stop", callback_data="stop", style="danger"),
+            ButtonData(text="Start", callback_data="start", style="success"),
+            ButtonData(text="Back", callback_data="back"),
+        ]
+    )
+    buttons = [button for row in markup.keyboard for button in row]
+    assert [button.style for button in buttons] == ["danger", "success", None]
+    assert "style" not in buttons[2].to_dict()
+    assert buttons[0].to_dict()["style"] == "danger"
+
+
+def test_button_data_rejects_unknown_style() -> None:
+    with pytest.raises(ValueError, match="Button style"):
+        ButtonData(text="Open", callback_data="ok", style="rainbow")
+
+
 def test_build_reply_keyboard_is_persistent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

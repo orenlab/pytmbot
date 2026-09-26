@@ -72,10 +72,12 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
                 button_data(
                     text=f"{em.get_emoji('no_entry')} Stop",
                     callback_data=f"__stop__:{container_name}:{auth_context.user_id}",
+                    style="danger",
                 ),
                 button_data(
                     text=f"{em.get_emoji('recycling_symbol')} Restart",
                     callback_data=f"__restart__:{container_name}:{auth_context.user_id}",
+                    style="primary",
                 ),
             ]
         )
@@ -90,6 +92,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
                 callback_data=f"__start__:{container_name}:{auth_context.user_id}",
+                style="success",
             )
         )
 
