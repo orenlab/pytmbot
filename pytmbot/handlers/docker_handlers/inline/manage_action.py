@@ -140,7 +140,7 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) 
 
     def _on_restart_success(user_id: int) -> None:
         keyboards_key = button_data(
-            text=f"Back to {container_name}",
+            text=f"{em.get_emoji('BACK_arrow')} {container_name}",
             callback_data=f"__manage__:{container_name}:{user_id}",
         )
         keyboard = keyboards.build_inline_keyboard(keyboards_key)

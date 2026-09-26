@@ -419,11 +419,11 @@ def _build_logs_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to {session.container_name} info",
+                text=f"{em.get_emoji('BACK_arrow')} {session.container_name}",
                 callback_data=f"__get_full__:{session.container_name}:{session.user_id}",
             ),
             button_data(
-                text=f"{em.get_emoji('house')} Back to all containers",
+                text=f"{em.get_emoji('house')} All containers",
                 callback_data="back_to_containers",
             ),
         ]

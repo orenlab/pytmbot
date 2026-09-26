@@ -176,6 +176,53 @@ def test_main_reply_keyboard_applies_button_styles(
     }
 
 
+def _row_texts(markup: ReplyKeyboardMarkup) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in markup.keyboard:
+        rows.append(
+            [
+                str(button.get("text") if isinstance(button, dict) else button.text)
+                for button in row
+            ]
+        )
+    return rows
+
+
+def test_back_to_main_menu_gets_its_own_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    for keyboard_type, section_buttons in (
+        ("docker_keyboard", 2),
+        ("server_keyboard", 8),
+    ):
+        rows = _row_texts(Keyboards().build_reply_keyboard(keyboard_type))
+        assert rows[-1] == [Keyboards.BACK_BUTTON_TEXT]
+        assert sum(len(row) for row in rows[:-1]) == section_buttons
+        assert all(Keyboards.BACK_BUTTON_TEXT not in row for row in rows[:-1])
+
+
+def test_plugin_back_buttons_move_to_styled_bottom_row() -> None:
+    markup = Keyboards().build_reply_keyboard(
+        plugin_keyboard_data={
+            "BACK_arrow": "Back to main menu",
+            "bar_chart": "Overview",
+            "electric_plug": "CPU usage",
+        }
+    )
+    rows = _row_texts(markup)
+    assert len(rows) == 2
+    assert [text.split(" ", 1)[1] for text in rows[0]] == ["Overview", "CPU usage"]
+    assert rows[1][0].endswith("Back to main menu")
+    back_button = markup.keyboard[1][0]
+    style = (
+        back_button.get("style")
+        if isinstance(back_button, dict)
+        else getattr(back_button, "style", None)
+    )
+    assert style == "danger"
+
+
 def test_build_nav_keyboard_and_resolve_reply_markup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

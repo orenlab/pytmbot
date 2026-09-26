@@ -600,7 +600,7 @@ def _build_image_details_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=max(1, page),
@@ -749,7 +749,7 @@ def _build_image_extra_keyboard(
     return keyboards.build_inline_keyboard(
         [
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to image details",
+                text=f"{em.get_emoji('BACK_arrow')} Image details",
                 callback_data=build_image_info_callback_data(
                     image_index=image_index,
                     user_id=user_id,
@@ -757,7 +757,7 @@ def _build_image_extra_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=max(1, page),

@@ -131,7 +131,7 @@ def _progress_bar(value: float, width: int = 12) -> str:
 def _build_cpu_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to CPU",
+            text=f"{em.get_emoji('BACK_arrow')} CPU",
             callback_data=build_user_bound_callback_data(CPU_INFO_PREFIX, user_id),
         ),
         button_data(
@@ -153,7 +153,7 @@ def _build_cpu_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
 def _build_network_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to Network",
+            text=f"{em.get_emoji('BACK_arrow')} Network",
             callback_data=build_user_bound_callback_data(
                 NETWORK_OVERVIEW_PREFIX, user_id
             ),
@@ -177,7 +177,7 @@ def _build_network_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
 def _build_filesystem_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to File system",
+            text=f"{em.get_emoji('BACK_arrow')} File system",
             callback_data=build_user_bound_callback_data(
                 FILESYSTEM_OVERVIEW_PREFIX, user_id
             ),
@@ -195,7 +195,7 @@ def _build_sensors_detail_keyboard(
 ) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to Sensors",
+            text=f"{em.get_emoji('BACK_arrow')} Sensors",
             callback_data=build_user_bound_callback_data(
                 SENSORS_OVERVIEW_PREFIX, user_id
             ),

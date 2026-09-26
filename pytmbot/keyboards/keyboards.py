@@ -97,6 +97,7 @@ class Keyboards:
     INLINE_ROW_WIDTH: Final[int] = 2
     CACHE_SIZE: Final[int] = 32
     BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
+    BACK_EMOJI_KEY: Final[str] = "BACK_arrow"
     RETURN_BUTTON_EMOJI: Final[str] = "🦈"
     PRIMARY_BUTTON_TITLES: Final[frozenset[str]] = frozenset(
         {"Server", "Docker", "Quick view", "Health"}
@@ -200,9 +201,25 @@ class Keyboards:
             if not keyboard_buttons:
                 raise KeyboardError("Empty keyboard buttons configuration")
 
-            # Add back button for non-back keyboards
+            # Back navigation gets full-width rows at the bottom so long labels
+            # never wrap next to section buttons on narrow (mobile) screens.
+            navigation_titles = {
+                f"{self._emojis.get_emoji(emoji)} {title}"
+                for emoji, title in keyboard_data.items()
+                if emoji == self.BACK_EMOJI_KEY and title
+            }
+            section_buttons = [
+                button
+                for button in keyboard_buttons
+                if button.text not in navigation_titles
+            ]
+            navigation_buttons = [
+                self._make_reply_button(button.text, style="danger")
+                for button in keyboard_buttons
+                if button.text in navigation_titles
+            ]
             if keyboard_type and keyboard_type != "back_keyboard":
-                keyboard_buttons.append(
+                navigation_buttons.append(
                     self._make_reply_button(self.BACK_BUTTON_TEXT, style="danger")
                 )
 
@@ -214,12 +231,14 @@ class Keyboards:
             )
 
             # Build rows with proper chunking
-            for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
-                reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
+            for i in range(0, len(section_buttons), self.DEFAULT_ROW_WIDTH):
+                reply_keyboard.row(*section_buttons[i : i + self.DEFAULT_ROW_WIDTH])
+            for button in navigation_buttons:
+                reply_keyboard.row(button)
 
             log.trace(
                 "bot.keyboards.reply.keyboard.debug",
-                total_buttons=len(keyboard_buttons),
+                total_buttons=len(section_buttons) + len(navigation_buttons),
             )
             return reply_keyboard
 

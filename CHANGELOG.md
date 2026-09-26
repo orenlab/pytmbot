@@ -10,7 +10,8 @@ refreshed.
 - Telegram Rich Messages (Bot API 10.1+) with native tables for all structured screens: server metrics, Quick view,
   Health, menus, Docker lists and details, container actions, update checks, `/getmyid`, and plugin screens.
 - Rich message safeguards: content is trimmed to Telegram limits, and a rejected rich payload falls back to plain text.
-- Colored buttons: accents on reply menus and color-coded container actions (Stop, Restart, Start).
+- Colored buttons: accents on reply menus and color-coded container actions (Stop, Restart, Start); back navigation
+  sits on its own full-width row, and inline back buttons use short labels so they fit on phones.
 
 ### Changed
 

@@ -11,7 +11,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot.adapters.docker.updates import DockerImageUpdater, UpdaterStatus
-from pytmbot.globals import ButtonDataType, get_keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.images import IMAGES_PAGE_CALLBACK_PREFIX
 from pytmbot.handlers.docker_handlers.pagination import build_page_callback_data
 from pytmbot.handlers.handlers_util.callback_auth import (
@@ -26,6 +26,7 @@ from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 button_data = ButtonDataType
+em = get_emoji_converter()
 keyboards = get_keyboards()
 
 
@@ -37,7 +38,7 @@ def _build_image_updates_keyboard(target_user_id: int | None) -> InlineKeyboardM
         check_updates_callback = f"__check_updates__:{target_user_id}"
         keyboard_buttons.append(
             button_data(
-                text="Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=1,

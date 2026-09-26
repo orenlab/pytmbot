@@ -400,7 +400,7 @@ def _build_back_keyboard(
     return keyboards.build_inline_keyboard(
         [
             button_data(
-                text=f"{emojis.get('BACK_arrow', '⬅️')} Back to {container_name} info",
+                text=f"{emojis.get('BACK_arrow', '⬅️')} {container_name}",
                 callback_data=f"__get_full__:{container_name}:{user_id}",
             )
         ]

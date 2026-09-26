@@ -177,7 +177,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         # Back button
         keyboard_buttons.append(
             button_data(
-                text=f"{emojis.get('BACK_arrow', '⬅️')} Back to all containers",
+                text=f"{emojis.get('BACK_arrow', '⬅️')} All containers",
                 callback_data=back_callback_data,
             )
         )

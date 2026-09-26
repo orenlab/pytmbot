@@ -70,7 +70,7 @@ def build_cpu_detail_keyboard(
         *(
             [
                 button_data(
-                    text="Back to CPU",
+                    text=f"{em.get_emoji('BACK_arrow')} CPU",
                     callback_data=build_user_bound_callback_data(
                         CPU_INFO_PREFIX, user_id
                     ),

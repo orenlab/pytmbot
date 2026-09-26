@@ -99,7 +99,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     # Always add back button
     keyboard_buttons.append(
         button_data(
-            text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
+            text=f"{em.get_emoji('BACK_arrow')} {container_name}",
             callback_data=f"__get_full__:{container_name}:{auth_context.user_id}",
         )
     )
