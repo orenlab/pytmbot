@@ -1,9 +1,9 @@
 {# d_container_networks_info.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Container Networks</b></p>
+<p><b>📦 Container networks</b></p>
 
-<p>{{ package_emoji }} <b>Container:</b> <code>{{ container_name|e }}</code></p>
+<p><b>Container:</b> <code>{{ container_name|e }}</code></p>
 
-<p><b>{{ gear_emoji }} Runtime network summary</b></p>
+<p><b>Runtime network summary</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Mode</td><td>{{ network_mode|e }}</td></tr>
@@ -14,7 +14,7 @@
 <tr><td>IPv6 enabled</td><td>{{ enable_ipv6|e }}</td></tr>
 </table>
 
-<p><b>{{ chart_emoji }} Published ports{% if ports_count > 0 %} ({{ ports_count|e }}){% endif %}</b></p>
+<p><b>Published ports{% if ports_count > 0 %} ({{ ports_count|e }}){% endif %}</b></p>
 {% if ports_count > 0 %}
 <ul>
 {% for port in ports %}
@@ -38,7 +38,7 @@
 <p><code>none</code></p>
 {% endif %}
 
-<p><b>{{ gear_emoji }} DNS and host routing</b></p>
+<p><b>DNS and host routing</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>DNS servers</td><td>{% if dns_servers_count > 0 %}{{ dns_servers | map('e') | join(", ") }}{% else %}none{% endif %}{% if hidden_dns_servers_count > 0 %} <i>(+{{ hidden_dns_servers_count|e }} more)</i>{% endif %}</td></tr>
@@ -48,7 +48,7 @@
 <tr><td>Links</td><td>{% if links_count > 0 %}{{ links | map('e') | join(", ") }}{% else %}none{% endif %}{% if hidden_links_count > 0 %} <i>(+{{ hidden_links_count|e }} more)</i>{% endif %}</td></tr>
 </table>
 
-<p><b>{{ network_emoji }} Attached networks{% if networks_count > 0 %} ({{ networks_count|e }}){% endif %}</b></p>
+<p><b>Attached networks{% if networks_count > 0 %} ({{ networks_count|e }}){% endif %}</b></p>
 {% if networks_count > 0 %}
 {% for net in networks %}
 <p><b>{{ net.name|e }}</b></p>
@@ -70,5 +70,3 @@
 {% else %}
 <p><code>No custom networks attached</code></p>
 {% endif %}
-
-<p>{{ banjo }} <i>Container network details retrieved.</i></p>

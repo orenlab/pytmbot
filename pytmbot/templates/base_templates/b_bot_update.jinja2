@@ -1,15 +1,15 @@
 {# templates/b_bot_update.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Update available</b></p>
+<p><b>🔄 Update available</b></p>
 
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>{{ spouting_whale }} Version</td><td><code>{{ current_version|e }}</code></td></tr>
-<tr><td>{{ calendar }} Released</td><td>{{ release_date|e }}</td></tr>
+<tr><td>Version</td><td><code>{{ current_version|e }}</code></td></tr>
+<tr><td>Released</td><td>{{ release_date|e }}</td></tr>
 </table>
 
 {% if release_notes_html %}
 <details>
-<summary>{{ cooking }} Release notes</summary>
+<summary>Release notes</summary>
 {{ release_notes_html|safe }}
 </details>
 {% endif %}

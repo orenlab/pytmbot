@@ -1,30 +1,18 @@
 {# plugin_monitor_index.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Hello, {{ first_name|e }}!</b></p>
-
-<p><b>{{ bar_chart }} Monitoring dashboard</b></p>
-<p><b>Period:</b> {{ period_label|e }}</p>
+<p><b>📊 Monitoring</b></p>
+<p>Period: <b>{{ period_label|e }}</b></p>
 
 {% if notice %}
-<p>{{ information }} {{ notice|e }}</p>
+<p>✅ {{ notice|e }}</p>
 {% endif %}
 
-<p><b>Current summary</b></p>
+<p><b>Summary</b></p>
 <table bordered striped compact>
 <tr><th align="left">Metric</th><th align="left">Value</th></tr>
-<tr><td>{{ electric_plug }} CPU</td><td>{{ cpu_line|e }}</td></tr>
-<tr><td>{{ brain }} Memory</td><td>{{ memory_line|e }}</td></tr>
-<tr><td>{{ computer_disk }} Disk</td><td>{{ disk_line|e }}</td></tr>
-<tr><td>{{ thermometer }} Temperatures</td><td>{{ temperature_line|e }}</td></tr>
+<tr><td>CPU</td><td>{{ cpu_line|e }}</td></tr>
+<tr><td>Memory</td><td>{{ memory_line|e }}</td></tr>
+<tr><td>Disk</td><td>{{ disk_line|e }}</td></tr>
+<tr><td>Temperatures</td><td>{{ temperature_line|e }}</td></tr>
 </table>
 
-<p><b>Navigation</b></p>
-<ul>
-<li>{{ minus }} Overview</li>
-<li>{{ minus }} CPU usage</li>
-<li>{{ minus }} Memory usage</li>
-<li>{{ minus }} Disk usage</li>
-<li>{{ minus }} Temperatures</li>
-<li>{{ minus }} Select period</li>
-</ul>
-
-<p>{{ information }} Pick a section from keyboard to view detailed statistics from InfluxDB.</p>
+<p><i>Pick a section from the menu below for detailed statistics from InfluxDB.</i></p>

@@ -164,7 +164,7 @@ def handle_getmyid(
 
     except Exception as error:
         # Send user-friendly error message
-        error_msg = "⚠️ An error occurred while retrieving ID information."
+        error_msg = "⚠️ Couldn't load your IDs right now. Please try again."
         send_main_message(bot, message.chat.id, error_msg)
 
         # Log detailed error information and raise custom exception

@@ -19,7 +19,10 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
-from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
+from pytmbot.handlers.handlers_util.rich_messages import (
+    screen_updated_at,
+    send_rich_bot_message,
+)
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_main_message,
@@ -201,7 +204,7 @@ def _build_quickview_context(metrics: dict[str, object]) -> dict[str, object]:
 def _build_quickview_keyboard(
     user_id: int | None, *, on_overview: bool = False
 ) -> InlineKeyboardMarkup:
-    overview_text = "🔄 Refresh data" if on_overview else "📊 Overview"
+    overview_text = "🔄 Refresh" if on_overview else "👀 Overview"
     buttons = [
         button_data(
             text=overview_text,
@@ -210,13 +213,13 @@ def _build_quickview_keyboard(
             ),
         ),
         button_data(
-            text="💾 Memory",
+            text="🧠 Memory",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_MEMORY_PREFIX, user_id
             ),
         ),
         button_data(
-            text="🌡 Temp",
+            text="🌡️ Sensors",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_SENSORS_PREFIX, user_id
             ),
@@ -226,7 +229,7 @@ def _build_quickview_keyboard(
             callback_data=build_user_bound_callback_data(QUICKVIEW_CPU_PREFIX, user_id),
         ),
         button_data(
-            text="📂 Disk",
+            text="💾 Disk",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_DISK_PREFIX, user_id
             ),
@@ -260,7 +263,7 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
             send_main_message(
                 bot,
                 message.chat.id,
-                text="⚠️ Failed to get system metrics. Please try again later.",
+                text="⚠️ Couldn't load system metrics right now. Please try again.",
             )
             return
 
@@ -269,7 +272,10 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
         keyboard = _build_quickview_keyboard(user_id, on_overview=True)
 
         bot_answer = Compiler.quick_render(
-            template_name="b_quick_view.jinja2", context=context, **emojis
+            template_name="b_quick_view.jinja2",
+            context=context,
+            updated_at=screen_updated_at(),
+            **emojis,
         )
 
         # Quick view lives on the main menu; keep inline drill-down and re-attach

@@ -1,32 +1,31 @@
 {# b_index.jinja2 — rich HTML #}
-<p><b>Hello, {{ first_name|e }}! 👋</b></p>
+<p><b>👋 Hello, {{ first_name|e }}!</b></p>
 
-<p>I’m <b>pyTMBot</b> — Docker and server operations in Telegram.</p>
-
-<p><b>What I can do</b></p>
-
-<p><b>🐳 Docker</b></p>
-<ul>
-<li>Containers and images management</li>
-<li>Logs, runtime details, health and updates</li>
-</ul>
+<p><b>pyTMBot</b> keeps an eye on this server and its Docker workloads, right here in Telegram.</p>
 
 <p><b>🖥️ Server</b></p>
 <ul>
-<li>CPU, memory, load, filesystem, network, sensors, uptime</li>
-<li>Quick View with inline drill-down (CPU/Memory/Disk/Sensors)</li>
-<li>Health snapshot with runtime analytics</li>
+<li>CPU, memory, load, disks, network, sensors and uptime</li>
+<li>Top processes, active sessions and disk I/O one tap away</li>
 </ul>
 
-<p><b>🧩 Plugins</b></p>
+<p><b>🐳 Docker</b></p>
 <ul>
-<li>Monitor, 2FA, Outline VPN</li>
+<li>Containers with details, logs and start, stop or restart</li>
+<li>Images with metadata, history, usage and update checks</li>
 </ul>
 
-<p><b>🔧 Service commands</b></p>
+<p><b>👀 Quick view</b> and <b>🩺 Health</b></p>
 <ul>
-<li>Bot updates: <code>/check_bot_updates</code></li>
-<li>Health summary: <code>/health</code></li>
+<li>One-screen status of the whole host</li>
+<li>Health score with guidance on what needs attention</li>
 </ul>
 
-<p>Source: <a href="https://github.com/orenlab/pytmbot/">GitHub</a></p>
+<p><b>Useful commands</b></p>
+<ul>
+<li><code>/health</code> — system health snapshot</li>
+<li><code>/getmyid</code> — your user and chat IDs</li>
+<li><code>/check_bot_updates</code> — check for a newer release</li>
+</ul>
+
+<p><i>Pick a section from the menu below.</i></p>

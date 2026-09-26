@@ -1,78 +1,8 @@
 {# templates/b_health_summary.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} System Health Snapshot</b></p>
+<p><b>🩺 System health</b></p>
 
-<p><b>{{ stethoscope }} Bot monitor status</b></p>
-<table bordered striped compact>
-<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>Status</td><td>{{ context.monitor.overall_badge|e }} {{ context.monitor.overall_status|e }}</td></tr>
-<tr><td>Operational components</td><td>{{ context.monitor.operational|e }}/{{ context.monitor.total|e }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)</td></tr>
-<tr><td>Last check duration</td><td>{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
-<tr><td>Guidance</td><td>{{ context.monitor.action|e }}</td></tr>
-</table>
-
-{% if context.monitor.available and context.monitor.components %}
-<p><b>Component checks</b></p>
-{% for component in context.monitor.components %}
-<p><b>{{ component.badge|e }} {{ component.component_label|e }}</b> — {{ component.status_label|e }} ({{ "%.1f"|format(component.latency_ms) }} ms)</p>
-{% if component.insights %}
-<ul>
-{% for insight in component.insights %}
-<li>{{ insight|e }}</li>
-{% endfor %}
-</ul>
-{% endif %}
-{% endfor %}
-{% endif %}
-
-<p><b>{{ stethoscope }} Overall status</b></p>
-<table bordered striped compact>
-<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>Status</td><td>{{ context.overall_badge|e }} {{ context.overall_status|e }}</td></tr>
-<tr><td>Health score</td><td>{{ context.health_score|e }}/100</td></tr>
-<tr><td>Dominant pressure</td><td>{{ context.dominant_metric|e }}</td></tr>
-</table>
-
-<p><b>Compute &amp; Memory</b></p>
-<table bordered striped compact>
-<tr><th align="left">Metric</th><th align="left">Value</th></tr>
-<tr><td>{{ context.cpu_badge|e }} CPU</td><td>{{ "%.1f"|format(context.cpu_percent) }}% — {{ context.cpu_status|e }}</td></tr>
-<tr><td>{{ context.memory_badge|e }} RAM</td><td>{{ "%.1f"|format(context.memory_percent) }}% — {{ context.memory_status|e }}</td></tr>
-<tr><td>Used / Available</td><td>{{ context.memory_used|e }} / {{ context.memory_available|e }}</td></tr>
-<tr><td>{{ context.load_badge|e }} Load avg (1/5/15m)</td><td>{{ "%.2f"|format(context.load_1m) }} / {{ "%.2f"|format(context.load_5m) }} / {{ "%.2f"|format(context.load_15m) }}</td></tr>
-<tr><td>Per-core pressure (1m)</td><td>{{ "%.1f"|format(context.load_ratio_percent) }}% of {{ context.cpu_count|e }} cores</td></tr>
-<tr><td>Assessment</td><td>{{ context.load_status|e }}</td></tr>
-</table>
-
-<p><b>{{ desktop_computer }} Runtime</b></p>
-<table bordered striped compact>
-<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>Uptime</td><td>{{ context.uptime|e }}</td></tr>
-<tr><td>Processes</td><td>{{ context.process_total|e }}</td></tr>
-</table>
-
-<p><b>Docker Workload</b></p>
-{% if context.docker.available %}
-<table bordered striped compact>
-<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>{{ context.docker.badge|e }} Status</td><td>{{ context.docker.status_label|e }}</td></tr>
-<tr><td>Containers (running/stopped)</td><td>{{ context.docker.running_containers|e }} / {{ context.docker.stopped_containers|e }} (total {{ context.docker.containers_total|e }})</td></tr>
-<tr><td>Running ratio</td><td>{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>
-<tr><td>Containers per core</td><td>{{ "%.2f"|format(context.docker.containers_per_core) }}</td></tr>
-<tr><td>Images</td><td>{{ context.docker.images_count|e }}</td></tr>
-<tr><td>Comment</td><td>{{ context.docker.trend_text|e }}</td></tr>
-</table>
-{% else %}
-<p>⚪ Docker: {{ context.docker.trend_text|e }}</p>
-{% endif %}
-
-{% if context.insights %}
-<p><b>Analytics</b></p>
-<ul>
-{% for insight in context.insights %}
-<li>{{ insight|e }}</li>
-{% endfor %}
-</ul>
-{% endif %}
+<p><b>{{ context.overall_badge|e }} {{ context.overall_status|e }}</b> · health score <b>{{ context.health_score|e }}/100</b></p>
+<p>Main pressure: {{ context.dominant_metric|e }}</p>
 
 {% if context.recommendations %}
 <p><b>Recommended actions</b></p>
@@ -81,4 +11,58 @@
 <li>{{ recommendation|e }}</li>
 {% endfor %}
 </ul>
+{% endif %}
+
+<p><b>Compute and memory</b></p>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="left">Value</th></tr>
+<tr><td>{{ context.cpu_badge|e }} CPU</td><td>{{ "%.1f"|format(context.cpu_percent) }}% — {{ context.cpu_status|e }}</td></tr>
+<tr><td>{{ context.memory_badge|e }} RAM</td><td>{{ "%.1f"|format(context.memory_percent) }}% — {{ context.memory_status|e }}</td></tr>
+<tr><td>Used / available</td><td>{{ context.memory_used|e }} / {{ context.memory_available|e }}</td></tr>
+<tr><td>{{ context.load_badge|e }} Load 1 / 5 / 15 min</td><td>{{ "%.2f"|format(context.load_1m) }} / {{ "%.2f"|format(context.load_5m) }} / {{ "%.2f"|format(context.load_15m) }}</td></tr>
+<tr><td>Load per core (1 min)</td><td>{{ "%.1f"|format(context.load_ratio_percent) }}% of {{ context.cpu_count|e }} cores — {{ context.load_status|e }}</td></tr>
+<tr><td>Uptime</td><td>{{ context.uptime|e }}</td></tr>
+<tr><td>Processes</td><td>{{ context.process_total|e }}</td></tr>
+</table>
+
+<p><b>Docker</b></p>
+{% if context.docker.available %}
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="left">Value</th></tr>
+<tr><td>{{ context.docker.badge|e }} Status</td><td>{{ context.docker.status_label|e }}</td></tr>
+<tr><td>Containers running / stopped</td><td>{{ context.docker.running_containers|e }} / {{ context.docker.stopped_containers|e }} of {{ context.docker.containers_total|e }}</td></tr>
+<tr><td>Running ratio</td><td>{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>
+<tr><td>Containers per core</td><td>{{ "%.2f"|format(context.docker.containers_per_core) }}</td></tr>
+<tr><td>Images</td><td>{{ context.docker.images_count|e }}</td></tr>
+</table>
+<p><i>{{ context.docker.trend_text|e }}</i></p>
+{% else %}
+<p>⚪ <i>{{ context.docker.trend_text|e }}</i></p>
+{% endif %}
+
+{% if context.insights %}
+<p><b>Observations</b></p>
+<ul>
+{% for insight in context.insights %}
+<li>{{ insight|e }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<details>
+<summary>{{ context.monitor.overall_badge|e }} Bot self-check: {{ context.monitor.overall_status|e }} ({{ context.monitor.operational|e }}/{{ context.monitor.total|e }})</summary>
+<table bordered striped compact>
+<tr><th align="left">Check</th><th align="left">Result</th></tr>
+{% if context.monitor.available and context.monitor.components %}
+{% for component in context.monitor.components %}
+<tr><td>{{ component.badge|e }} {{ component.component_label|e }}</td><td>{{ component.status_label|e }} · {{ "%.1f"|format(component.latency_ms) }} ms{% if component.insights %} · {{ component.insights | map("e") | join("; ") }}{% endif %}</td></tr>
+{% endfor %}
+{% endif %}
+<tr><td>Last check</td><td>{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
+</table>
+<p><i>{{ context.monitor.action|e }}</i></p>
+</details>
+{% if updated_at %}
+
+<footer>Updated {{ updated_at|e }}</footer>
 {% endif %}

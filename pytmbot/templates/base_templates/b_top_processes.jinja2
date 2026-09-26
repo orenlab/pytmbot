@@ -1,5 +1,5 @@
 {# templates/b_top_processes.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} System Resource Usage – Top Processes</b></p>
+<p><b>⚙️ Top processes</b></p>
 
 {% if context.process_rows %}
 <table bordered striped compact>
@@ -26,4 +26,4 @@
 <p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
 {% endif %}
 
-<footer>{{ information }} Updated: {{ context.timestamp|e }}</footer>
+<footer>Updated {{ context.timestamp|e }}</footer>

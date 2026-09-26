@@ -313,10 +313,7 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(exceptions.HandlingException) as exc_info:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert exc_info.value.context.error_code == "HAND_010"
-    assert (
-        "error occurred while processing the command"
-        in str(bot.sent_messages[-1]["text"]).lower()
-    )
+    assert "something went wrong" in str(bot.sent_messages[-1]["text"]).lower()
 
 
 def test_image_info_callback_helpers_and_details_render(

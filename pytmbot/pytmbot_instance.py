@@ -34,6 +34,10 @@ from pytmbot.globals import (
     settings,
     var_config,
 )
+from pytmbot.handlers.bot_handlers.fallback import (
+    handle_unrecognized_message,
+    is_unrecognized_private_text,
+)
 from pytmbot.handlers.handler_manager import (
     handler_factory,
     inline_handler_factory,
@@ -715,6 +719,19 @@ class PyTMBot(BaseComponent):
             log.info("bot.core.register.info")
 
     @bot_required
+    def _register_fallback_handler(self) -> None:
+        """Answer unrecognized private messages; must run after plugins load."""
+        bot = self.bot
+        if bot is None:
+            raise RuntimeError("Bot instance not initialized")
+        bot.register_message_handler(
+            handle_unrecognized_message,
+            func=is_unrecognized_private_text,
+            content_types=["text"],
+            pass_bot=True,
+        )
+
+    @bot_required
     def _load_plugins(self) -> None:
         """Load plugins if specified."""
         if not self.args.plugins:
@@ -751,6 +768,7 @@ class PyTMBot(BaseComponent):
             self._setup_middleware_chain(DEFAULT_MIDDLEWARES)
             self._register_handler_chain()
             self._load_plugins()
+            self._register_fallback_handler()
 
         except Exception as e:
             with self.log_context(

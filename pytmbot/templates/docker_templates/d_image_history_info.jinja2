@@ -1,8 +1,8 @@
 {# d_image_history_info.jinja2 — rich HTML #}
-<p><b>{{ context.emojis.thought_balloon }} Image History</b></p>
+<p><b>🖼️ Image history</b></p>
 
-<p><b>{{ context.emojis.package }} {{ context.image_name|e }}</b></p>
-<p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id|e }}</code></p>
+<p><b>{{ context.image_name|e }}</b></p>
+<p><b>ID:</b> <code>{{ context.image_id|e }}</code></p>
 
 <p><b>Layers{% if context.layers_count > 0 %} ({{ context.layers_count|e }}){% endif %}</b></p>
 {% if context.layers %}
@@ -22,5 +22,3 @@
 {% else %}
 <p><code>No history available</code></p>
 {% endif %}
-
-<p>{{ context.emojis.minus }} <i>Image history retrieved.</i></p>

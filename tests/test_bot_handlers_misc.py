@@ -257,7 +257,7 @@ def test_handle_getmyid_raises_handling_exception_on_failure(
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "retrieving ID information" in str(bot.sent_messages[-1]["text"])
+    assert "Couldn't load your IDs" in str(bot.sent_messages[-1]["text"])
 
 
 def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -346,7 +346,7 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "plugins menu" in str(sent_payloads[-1]["text"])
+    assert "Couldn't open Plugins" in str(sent_payloads[-1]["text"])
 
 
 def test_version_helpers_and_process_message_branches(

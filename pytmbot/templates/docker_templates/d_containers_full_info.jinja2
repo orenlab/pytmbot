@@ -7,10 +7,11 @@
 {%- endif -%}
 {%- endmacro %}
 
-<p><b>{{ thought_balloon }} Container Details</b></p>
+<p><b>📦 Container details</b></p>
 
-<p><b>{{ container_emoji }} Basic Info</b></p>
-<p>{{ status_badge|e }} · {{ health_badge|e }}</p>
+<p><b>{{ name|e }}</b> · {{ status_badge|e }} · {{ health_badge|e }}</p>
+
+<p><b>Basic info</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Name', name) }}
@@ -25,7 +26,7 @@
 {{ kv_row('PID', pid) }}
 </table>
 
-<p><b>{{ cpu_emoji }} Resource Limits</b></p>
+<p><b>Resource limits</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Memory', resources.memory_limit) }}
@@ -40,7 +41,7 @@
 </table>
 
 {% if stats.memory %}
-<p><b>{{ chart_emoji }} Current Usage</b></p>
+<p><b>Current usage</b></p>
 <table bordered striped compact>
 <tr><th align="left">Metric</th><th align="left">Value</th></tr>
 <tr><td>Memory</td><td>{{ stats.memory.mem_usage|e }} / {{ stats.memory.mem_limit|e }} ({% if stats.memory.mem_percent == 'N/A' %}N/A{% else %}{{ stats.memory.mem_percent|e }}%{% endif %})</td></tr>
@@ -55,7 +56,7 @@
 </table>
 {% endif %}
 
-<p><b>{{ gear_emoji }} Runtime State</b></p>
+<p><b>Runtime state</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Health failing streak', health_failing_streak) }}
@@ -65,7 +66,7 @@
 {{ kv_row('State error', state_error) }}
 </table>
 
-<p><b>{{ network_emoji }} Network</b></p>
+<p><b>Network</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('Mode', network.network_mode) }}
@@ -74,7 +75,7 @@
 {% if network.networks %}<tr><td>Networks</td><td>{% for net in network.networks %}{{ net|e }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}
 </table>
 
-<p><b>{{ gear_emoji }} Configuration</b></p>
+<p><b>Configuration</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 {{ kv_row('User', environment.user) }}
@@ -83,9 +84,9 @@
 {% if environment.command != 'N/A' %}{{ kv_row('Command', environment.command) }}{% endif %}
 </table>
 
-<p><b>{{ env_emoji }} Environment* ({{ environment.env_count|e }} vars)</b></p>
+<p><b>Environment* ({{ environment.env_count|e }} vars)</b></p>
 <pre><code>{% if environment.environment_vars %}{% for var in environment.environment_vars %}{{ var|e }}
 {% endfor %}{% else %}No environment variables{% endif %}</code></pre>
 <p><i>*Sensitive data is hidden</i></p>
 
-<p>{{ banjo }} <i>Container details retrieved. Other options are available:</i></p>
+<p><i>Use the buttons below for logs, runtime details, networks, volumes and actions.</i></p>

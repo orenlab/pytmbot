@@ -1,12 +1,12 @@
 {# templates/b_sensors.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Temperature Sensors</b></p>
+<p><b>🌡️ Temperatures</b></p>
 
 {% if context %}
 <table bordered striped compact>
 <tr><th align="left">Sensor</th><th align="right">Temp</th></tr>
 {% for value in context %}
 <tr>
-<td>{{ thermometer }} {{ value['sensor_name']|e }}</td>
+<td>{{ value['sensor_name']|e }}</td>
 <td align="right">{{ value['sensor_value']|e }}°C</td>
 </tr>
 {% endfor %}

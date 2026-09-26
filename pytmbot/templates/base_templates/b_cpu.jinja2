@@ -1,9 +1,9 @@
 {# templates/b_cpu.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} CPU Overview</b></p>
+<p><b>⚡ CPU</b></p>
 
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="right">Value</th></tr>
-<tr><td>{{ electric_plug }} Total usage</td><td align="right">{{ "%.1f"|format(context.cpu_percent) }}%</td></tr>
+<tr><td>Total usage</td><td align="right">{{ "%.1f"|format(context.cpu_percent) }}%</td></tr>
 <tr><td>Logical cores</td><td align="right">{{ context.logical_cores|e }}</td></tr>
 <tr><td>Physical cores</td><td align="right">{{ context.physical_cores|e }}</td></tr>
 </table>

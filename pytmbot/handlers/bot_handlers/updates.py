@@ -157,9 +157,9 @@ def _render_update_notice(message: str) -> str:
     """Render a rich status notice for the update check screen."""
     return Compiler.quick_render(
         template_name="b_notice.jinja2",
+        icon="🔄",
         title="Bot updates",
         message=message,
-        thought_balloon=em.get_emoji("thought_balloon"),
     )
 
 

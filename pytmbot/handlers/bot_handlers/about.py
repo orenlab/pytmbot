@@ -56,7 +56,7 @@ def handle_about_command(message: Message, bot: TeleBot) -> None:
         send_main_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while opening the About screen.",
+            "⚠️ Couldn't open About right now. Please try again.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

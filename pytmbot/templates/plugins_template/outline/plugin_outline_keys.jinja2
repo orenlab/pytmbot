@@ -1,14 +1,14 @@
 {# plugin_outline_keys.jinja2 — rich HTML #}
 {% set access_keys = context['accessKeys'] %}
+<p><b>🔑 Access keys</b></p>
 
-<p><b>{{ thought_balloon }} {{ first_name|e }}</b></p>
-
-<p>Here is the information about your access keys:</p>
-<p>Total number of keys: <b>{{ access_keys | length }}</b></p>
-
-<p><b>Key Names</b></p>
+{% if access_keys %}
+<p>{{ access_keys | length }} key{{ "s" if access_keys | length != 1 else "" }} on this server.</p>
 <ul>
 {% for key in access_keys %}
-<li><i>{{ key['name']|e }}</i></li>
+<li>{{ (key['name'] or 'Unnamed key')|e }}</li>
 {% endfor %}
 </ul>
+{% else %}
+<p>No access keys have been created yet.</p>
+{% endif %}

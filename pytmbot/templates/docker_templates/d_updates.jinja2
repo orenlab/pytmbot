@@ -1,16 +1,16 @@
 {# templates/docker_templates/d_updates.jinja2 — rich HTML #}
-<p><b>💭 Image updates</b></p>
+<p><b>🖼️ Image updates</b></p>
 
 {% if updates is defined and updates %}
-<p><b>🌟 Updates found</b></p>
+<p><b>Updates available</b></p>
 {% for repo, info in updates.items() %}
-<p><b>🐳 <code>{{ repo|e }}</code></b></p>
+<p><b><code>{{ repo|e }}</code></b></p>
 <table bordered striped compact>
 <tr><th align="left">Tag</th><th align="left">Created</th></tr>
-<tr><td>🏷️ {{ info.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ info.created_at_local | default("Unknown") | format_timestamp | e }}</td></tr>
+<tr><td>{{ info.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ info.created_at_local | default("Unknown") | format_timestamp | e }}</td></tr>
 {% if info.updates is defined and info.updates %}
 {% for update in info.updates %}
-<tr><td>➡️ <b>{{ update.newer_tag | default("Unknown") | e }}</b></td><td>{{ update.created_at_remote | default("Unknown") | format_timestamp | e }}</td></tr>
+<tr><td><b>{{ update.newer_tag | default("Unknown") | e }}</b></td><td>{{ update.created_at_remote | default("Unknown") | format_timestamp | e }}</td></tr>
 {% endfor %}
 {% endif %}
 </table>
@@ -18,7 +18,7 @@
 {% endif %}
 
 {% if no_updates is defined and no_updates %}
-<p><b>🚫 No updates found</b></p>
+<p><b>Up to date</b></p>
 <ul>
 {% for repo in no_updates %}
 <li><code>{{ repo|e }}</code></li>

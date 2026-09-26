@@ -1,8 +1,8 @@
 {# templates/b_fs.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Filesystem Info</b></p>
+<p><b>💾 File system</b></p>
 
 {% for value in context %}
-<p><b>{{ floppy_disk }} {{ value['device_name']|e }}</b></p>
+<p><b>{{ value['device_name']|e }}</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Type</td><td>{{ value['fs_type']|e }}</td></tr>

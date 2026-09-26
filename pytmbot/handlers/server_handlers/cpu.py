@@ -108,7 +108,7 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
             send_server_message(
                 bot,
                 message.chat.id,
-                text="⚠️ Failed to get CPU statistics. Try again later.",
+                text="⚠️ Couldn't load CPU statistics right now. Please try again.",
             )
             return None
 

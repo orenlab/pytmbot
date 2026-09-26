@@ -21,7 +21,10 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
-from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    screen_updated_at,
+)
 from pytmbot.handlers.server_handlers.cpu import (
     CPU_INFO_PREFIX,
     CPU_PER_CORE_PREFIX,
@@ -672,6 +675,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_quick_view.jinja2",
             context=context,
+            updated_at=screen_updated_at(),
             computer=em.get_emoji("desktop_computer"),
             chart=em.get_emoji("bar_chart"),
             memory=em.get_emoji("brain"),

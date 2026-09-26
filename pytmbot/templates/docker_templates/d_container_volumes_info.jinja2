@@ -1,10 +1,10 @@
 {# d_container_volumes_info.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Container Volumes</b></p>
+<p><b>📦 Container volumes</b></p>
 
-<p>{{ package_emoji }} <b>Container:</b> <code>{{ container_name|e }}</code></p>
+<p><b>Container:</b> <code>{{ container_name|e }}</code></p>
 
 {% if mounts_count > 0 %}
-<p><b>{{ luggage_emoji }} Active mounts (showing {{ mounts_count|e }} of {{ mounts_total|e }})</b></p>
+<p><b>Active mounts (showing {{ mounts_count|e }} of {{ mounts_total|e }})</b></p>
 {% for mount in mounts %}
 <p><b>{{ loop.index }}. <code>{{ mount.type|e }}</code>{% if mount.name != '-' %} <code>{{ mount.name|e }}</code>{% endif %}</b></p>
 <table bordered striped compact>
@@ -24,7 +24,7 @@
 <p><b>No mounts configured for this container.</b></p>
 {% endif %}
 
-<p><b>{{ backpack_emoji }} Declared image volumes{% if declared_volumes_count > 0 %} ({{ declared_volumes_count|e }}){% endif %}</b></p>
+<p><b>Declared image volumes{% if declared_volumes_count > 0 %} ({{ declared_volumes_count|e }}){% endif %}</b></p>
 {% if declared_volumes_count > 0 %}
 <ul>
 {% for volume in declared_volumes %}
@@ -38,7 +38,7 @@
 <p><code>none</code></p>
 {% endif %}
 
-<p><b>{{ chart_emoji }} Host volume directives</b></p>
+<p><b>Host volume directives</b></p>
 <p><b>Binds:</b></p>
 {% if bind_specs_count > 0 %}
 <ul>
@@ -80,5 +80,3 @@
 {% else %}
 <p><code>none</code></p>
 {% endif %}
-
-<p>{{ banjo }} <i>Container volume details retrieved.</i></p>

@@ -1,9 +1,9 @@
 {# d_container_runtime_info.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} Container Runtime</b></p>
+<p><b>📦 Container runtime</b></p>
 
-<p>{{ package_emoji }} <b>Container:</b> <code>{{ container_name|e }}</code></p>
+<p><b>Container:</b> <code>{{ container_name|e }}</code></p>
 
-<p><b>{{ stethoscope_emoji }} Health</b></p>
+<p><b>Health</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Status</td><td>{{ health_badge|e }}</td></tr>
@@ -12,7 +12,7 @@
 <tr><td>Last output</td><td>{{ health_last_log|e }}</td></tr>
 </table>
 
-<p><b>{{ chart_emoji }} Lifecycle</b></p>
+<p><b>Lifecycle</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Created</td><td>{{ created_at|e }}</td></tr>
@@ -27,7 +27,7 @@
 <tr><td>State error</td><td>{{ state_error|e }}</td></tr>
 </table>
 
-<p><b>{{ shield_emoji }} Security profile</b></p>
+<p><b>Security profile</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Privileged</td><td>{{ privileged|e }}</td></tr>
@@ -51,11 +51,9 @@
 <p><code>none</code></p>
 {% endif %}
 
-<p><b>{{ gear_emoji }} Linux capabilities</b></p>
+<p><b>Linux capabilities</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>CapAdd</td><td>{{ (cap_add_text | default("none", true))|e }}</td></tr>
 <tr><td>CapDrop</td><td>{{ (cap_drop_text | default("none", true))|e }}</td></tr>
 </table>
-
-<p>{{ banjo }} <i>Container runtime details retrieved.</i></p>

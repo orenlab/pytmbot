@@ -10,6 +10,7 @@ from telebot.types import Message
 
 import pytmbot.handlers.server_handlers.quickview as quickview
 from pytmbot.exceptions import HandlingException
+from pytmbot.handlers.handlers_util.utils import HANDLER_COMMAND_ERROR_MESSAGE
 from pytmbot.parsers.compiler import Compiler
 from tests._telebot_objects import telegram_object_from_payload
 from tests._telebot_send_capture import build_bot_capture
@@ -170,7 +171,7 @@ def test_handle_quick_view_no_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = cast(Callable[[Message, TeleBot], None], quickview.handle_quick_view)
     handler(message, bot)
     assert actions == [(11, "typing")]
-    assert "Failed to get system metrics" in str(messages[-1]["text"])
+    assert "Couldn't load system metrics" in str(messages[-1]["text"])
 
 
 def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -193,6 +194,4 @@ def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert exc_info.value.context.error_code == "HAND_QV1"
     assert "render failed" in str(exc_info.value.context.metadata["exception"])
-    assert "An error occurred while processing the command." in str(
-        messages[-1]["text"]
-    )
+    assert HANDLER_COMMAND_ERROR_MESSAGE in str(messages[-1]["text"])

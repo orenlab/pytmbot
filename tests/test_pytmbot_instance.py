@@ -15,6 +15,7 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import BotCommand
 
+import pytmbot.handlers.bot_handlers.fallback as fallback_module
 import pytmbot.pytmbot_instance as instance_module
 from pytmbot.exceptions import InitializationError
 from pytmbot.plugins.plugin_manager import PluginManager
@@ -840,3 +841,30 @@ def test_get_session_stats_without_session() -> None:
     bot = instance_module.PyTMBot()
     bot._session = None
     assert bot.get_bot_session_statistics() == {}
+
+
+def test_fallback_handler_is_registered_after_plugins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = _build_bot_with_dummy_telebot(monkeypatch)
+    calls: list[str] = []
+    for name in (
+        "_setup_commands_and_description",
+        "_setup_middleware_chain",
+        "_register_handler_chain",
+        "_load_plugins",
+    ):
+        monkeypatch.setattr(
+            instance_module.PyTMBot,
+            name,
+            lambda self, *args, _name=name: calls.append(_name),
+        )
+
+    bot._configure_bot_features()
+    dummy = cast(SimpleNamespace, bot.bot)
+    callback, kwargs = dummy.message_handlers[-1]
+
+    assert calls[-1] == "_load_plugins"
+    assert callback is fallback_module.handle_unrecognized_message
+    assert kwargs["func"] is fallback_module.is_unrecognized_private_text
+    assert kwargs["content_types"] == ["text"]

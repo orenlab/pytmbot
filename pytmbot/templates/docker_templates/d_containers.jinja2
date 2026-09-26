@@ -1,20 +1,20 @@
 {# templates/docker_templates/d_containers.jinja2 — rich HTML #}
 {% set container_fields = [
-    (id, 'ID', 'id'),
-    (package, 'Image', 'image'),
-    (mantelpiece_clock, 'Created', 'created'),
-    (rocket, 'Started', 'run_at'),
-    (antenna_bars, 'Status', 'status')
+    ('Status', 'status'),
+    ('Image', 'image'),
+    ('ID', 'id'),
+    ('Started', 'run_at'),
+    ('Created', 'created')
 ] %}
-<p><b>{{ thought_balloon }} Docker Containers</b></p>
+<p><b>📦 Containers</b></p>
 
 {% for value in context %}
-<p><b>{{ oil_drum }} {{ value['name']|e }}</b></p>
+<p><b>{{ value['name']|e }}</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-{% for emoji, label, field_key in container_fields %}
+{% for label, field_key in container_fields %}
 {% set field_value = value[field_key] if value[field_key] is not none else 'N/A' %}
-<tr><td>{{ emoji }} {{ label }}</td><td>{% if field_key in ('id', 'status') %}<code>{{ field_value|e }}</code>{% else %}{{ field_value|e }}{% endif %}</td></tr>
+<tr><td>{{ label }}</td><td>{% if field_key in ('id', 'status') %}<code>{{ field_value|e }}</code>{% else %}{{ field_value|e }}{% endif %}</td></tr>
 {% endfor %}
 </table>
 {% else %}
@@ -22,5 +22,5 @@
 {% endfor %}
 {% if context %}
 
-<p>{{ magnifying_glass }} <i>Tap a container below to open its details.</i></p>
+<p><i>Tap a container below to open its details.</i></p>
 {% endif %}

@@ -89,7 +89,7 @@ def handle_plugins(message: Message, bot: TeleBot) -> None:
         send_main_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while opening the plugins menu.",
+            "⚠️ Couldn't open Plugins right now. Please try again.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

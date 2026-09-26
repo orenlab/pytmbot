@@ -1,10 +1,10 @@
 {# d_image_usage_info.jinja2 — rich HTML #}
-<p><b>{{ context.emojis.thought_balloon }} Image Usage</b></p>
+<p><b>🖼️ Image usage</b></p>
 
-<p><b>{{ context.emojis.package }} {{ context.image_name|e }}</b></p>
-<p>{{ context.emojis.spouting_whale }} <b>ID:</b> <code>{{ context.image_id|e }}</code></p>
+<p><b>{{ context.image_name|e }}</b></p>
+<p><b>ID:</b> <code>{{ context.image_id|e }}</code></p>
 
-<p><b>{{ context.emojis.gear }} Summary</b></p>
+<p><b>Summary</b></p>
 <table bordered striped compact>
 <tr><th align="left">Metric</th><th align="right">Count</th></tr>
 <tr><td>Total containers</td><td align="right">{{ context.containers_count|e }}</td></tr>
@@ -28,5 +28,3 @@
 {% else %}
 <p><code>No containers use this image</code></p>
 {% endif %}
-
-<p>{{ context.emojis.minus }} <i>Image usage details retrieved.</i></p>

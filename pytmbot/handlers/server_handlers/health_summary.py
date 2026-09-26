@@ -23,6 +23,7 @@ from pytmbot.globals import (
 )
 from pytmbot.handlers.handlers_util.rich_messages import (
     build_rich_html_message,
+    screen_updated_at,
     send_rich_bot_message,
 )
 from pytmbot.handlers.handlers_util.utils import (
@@ -463,7 +464,7 @@ def _build_health_context() -> dict[str, object]:
 def _build_health_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="🔄 Refresh health",
+            text="🔄 Refresh",
             callback_data=build_user_bound_callback_data(
                 HEALTH_REFRESH_PREFIX, user_id
             ),
@@ -477,9 +478,7 @@ def _render_health_message() -> str:
     return Compiler.quick_render(
         template_name="b_health_summary.jinja2",
         context=context,
-        thought_balloon=em.get_emoji("thought_balloon"),
-        stethoscope=em.get_emoji("stethoscope"),
-        desktop_computer=em.get_emoji("desktop_computer"),
+        updated_at=screen_updated_at(),
     )
 
 

@@ -195,7 +195,7 @@ def handle_qr_code_message(
 
     except Exception as error:
         # Send user-friendly error message
-        error_msg = "⚠️ An error occurred while processing the QR code request."
+        error_msg = "⚠️ Couldn't create the QR code right now. Please try again."
         error_message = send_bot_message(
             bot,
             message.chat.id,

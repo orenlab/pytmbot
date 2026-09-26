@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Final
 
 from telebot import TeleBot
@@ -53,6 +54,12 @@ _CLASSIC_FALLBACK_KWARGS: Final[frozenset[str]] = frozenset(
         "reply_parameters",
     }
 )
+
+
+def screen_updated_at(now: datetime | None = None) -> str:
+    """Timestamp for the "Updated …" footer of refreshable screens."""
+    moment = (now or datetime.now()).astimezone()
+    return moment.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
 def _filter_kwargs(kwargs: dict[str, Any], allowed: frozenset[str]) -> dict[str, Any]:
@@ -236,6 +243,7 @@ def send_rich_docker_message(
 
 __all__ = [
     "build_rich_html_message",
+    "screen_updated_at",
     "send_rich_bot_message",
     "send_rich_docker_message",
     "send_rich_main_message",

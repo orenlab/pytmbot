@@ -31,7 +31,7 @@ logger = Logger()
 
 TELEGRAM_MAX_MESSAGE_LENGTH: Final[int] = 4096
 HANDLER_COMMAND_ERROR_MESSAGE: Final[str] = (
-    "⚠️ An error occurred while processing the command."
+    "⚠️ Something went wrong. Please try again in a moment."
 )
 # Sent after inline-keyboard messages so reply keyboards stay visible (notably on iOS).
 NAV_KEYBOARD_SYNC_TEXT: Final[str] = "Use the menu below to continue."

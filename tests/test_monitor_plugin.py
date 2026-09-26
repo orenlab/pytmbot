@@ -261,7 +261,7 @@ def test_handle_monitoring_uses_rich_message(
     plugin.handle_monitoring(cast(Message, cast(object, _Message())))
 
     assert len(sent_messages) == 1
-    assert "Monitoring dashboard" in str(sent_messages[0]["text"])
+    assert "📊 Monitoring" in str(sent_messages[0]["text"])
     assert sent_messages[0].get("rich_message") is not None
     assert sent_messages[0]["reply_markup"] == "monitor-main-kbd"
     plugin.cleanup()

@@ -61,7 +61,7 @@ def handle_file_system(message: Message, bot: TeleBot) -> None:
             send_server_message(
                 bot,
                 message.chat.id,
-                text="⚠️ Failed to handle disk usage. Please try again later.",
+                text="⚠️ Couldn't load disk usage right now. Please try again.",
             )
             return None
 

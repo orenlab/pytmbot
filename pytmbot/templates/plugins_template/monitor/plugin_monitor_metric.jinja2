@@ -1,6 +1,6 @@
 {# plugin_monitor_metric.jinja2 — rich HTML #}
-<p><b>{{ thought_balloon }} {{ title|e }}</b></p>
-<p><b>Period:</b> {{ period_label|e }}</p>
+<p><b>📊 {{ title|e }}</b></p>
+<p>Period: <b>{{ period_label|e }}</b></p>
 
 {% if summary_lines %}
 <p><b>Summary</b></p>
@@ -10,7 +10,7 @@
 {% endfor %}
 </ul>
 {% else %}
-<p>{{ warning }} No metrics found for this period.</p>
+<p>⚠️ <i>No metrics found for this period.</i></p>
 {% endif %}
 
 {% if detail_lines %}
@@ -22,4 +22,4 @@
 </ul>
 {% endif %}
 
-<p>{{ information }} Use <b>Select period</b> to switch time range or choose another section.</p>
+<p><i>Use Select period to change the time range.</i></p>

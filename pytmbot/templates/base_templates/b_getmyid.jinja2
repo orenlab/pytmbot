@@ -1,14 +1,13 @@
 {# templates/b_getmyid.jinja2 — rich HTML #}
-<p><b>🆔 ID Information</b></p>
+<p><b>🆔 Your IDs</b></p>
 
-<p>Hello, <b>{{ first_name|e }}{% if last_name %} {{ last_name|e }}{% endif %}</b>!</p>
 {% if is_bot_admin %}
 <p>✅ You are authorized to use this bot.</p>
 {% else %}
 <p>⚠️ You are not currently authorized to use this bot.</p>
 {% endif %}
 
-<p><b>👤 User</b></p>
+<p><b>User</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>User ID</td><td><code>{{ user_id|e }}</code></td></tr>
@@ -24,7 +23,7 @@
 {% endif %}
 </table>
 
-<p><b>💬 Chat</b></p>
+<p><b>Chat</b></p>
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Chat ID</td><td><code>{{ chat_id|e }}</code></td></tr>
@@ -34,7 +33,7 @@
 {% endif %}
 </table>
 
-<p><b>📋 Configuration notes</b></p>
+<p><b>Where to use them</b></p>
 <ul>
 <li>Use the User ID to set up admin privileges</li>
 <li>Use the Chat ID to configure allowed chats</li>

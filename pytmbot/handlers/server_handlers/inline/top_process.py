@@ -5,7 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import datetime
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
@@ -18,7 +17,10 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
-from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    screen_updated_at,
+)
 from pytmbot.handlers.handlers_util.utils import HANDLER_COMMAND_ERROR_MESSAGE
 from pytmbot.handlers.server_handlers.cpu import (
     PROCESS_INFO_PREFIX,
@@ -151,7 +153,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
         context = {
             "process_rows": format_process_rows(processes_data),
             "running_in_docker": running_in_docker,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": screen_updated_at(),
         }
 
         bot_answer = Compiler.quick_render(

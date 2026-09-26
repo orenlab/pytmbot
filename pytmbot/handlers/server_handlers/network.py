@@ -76,7 +76,7 @@ def handle_network(message: Message, bot: TeleBot) -> None:
             send_server_message(
                 bot,
                 message.chat.id,
-                text="⚠️ An error occurred while getting network statistics",
+                text="⚠️ Couldn't load network statistics right now. Please try again.",
             )
             return None
 

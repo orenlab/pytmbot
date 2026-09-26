@@ -1,13 +1,13 @@
 {# templates/docker_templates/d_managing_containers.jinja2 — rich HTML #}
-<p><b>{{ emojis['thought_balloon'] }} Container actions</b></p>
+<p><b>📦 Container actions</b></p>
 
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
-<tr><td>{{ emojis['briefcase'] }} Container</td><td><code>{{ container_name|e }}</code></td></tr>
+<tr><td>Container</td><td><code>{{ container_name|e }}</code></td></tr>
 <tr><td>State</td><td><code>{{ state|e }}</code></td></tr>
 </table>
 
-<p>{{ emojis['anxious_face_with_sweat'] }} <b>Changes here affect the live container immediately.</b></p>
+<p>⚠️ <b>Actions apply to the running container immediately.</b></p>
 
 <details>
 <summary>What each action does</summary>

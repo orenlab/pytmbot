@@ -423,7 +423,10 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
         "is_bot_admin": True,
         "auto_delete_delay": 30,
     },
-    "b_health_summary.jinja2": {"context": _HEALTH_CONTEXT},
+    "b_health_summary.jinja2": {
+        "context": _HEALTH_CONTEXT,
+        "updated_at": "2026-09-26 12:40:56 UTC",
+    },
     "b_how_update.jinja2": {},
     "b_index.jinja2": {"first_name": "Den"},
     "b_load_average.jinja2": {"context": [0.5, 0.6, 0.7]},
@@ -476,6 +479,7 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
         ]
     },
     "b_notice.jinja2": {
+        "icon": "🔄",
         "title": "Bot updates",
         "message": "You are running version 0.5.0.",
         "hint": "Try again later.",
@@ -498,7 +502,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                 "processes": {"running": 2, "sleeping": 200, "idle": 3, "total": 205},
             },
             "docker": {"containers_count": 4, "images_count": 9},
-        }
+        },
+        "updated_at": "2026-09-26 12:40:56 UTC",
     },
     "b_sensors.jinja2": {"context": [{"sensor_name": "cpu", "sensor_value": 55.0}]},
     "b_server.jinja2": {"first_name": "Den"},

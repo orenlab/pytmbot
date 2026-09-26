@@ -46,7 +46,7 @@ def handle_start(message: Message, bot: TeleBot) -> None:
         send_main_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while opening the main menu.",
+            "⚠️ Couldn't open the main menu. Please try again.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

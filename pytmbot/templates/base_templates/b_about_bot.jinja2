@@ -1,26 +1,21 @@
 {# b_about_bot.jinja2 — rich HTML #}
-<p><b>🤖 pyTMBot</b></p>
+<p><b>ℹ️ About pyTMBot</b></p>
 
-<p>Hello, <b>{{ context['username']|e }}</b>!</p>
-<p>I help you manage Docker workloads, inspect server health, and check operational status from Telegram.</p>
+<p>Server monitoring and Docker management in Telegram, with two-factor protection for sensitive actions.</p>
 
-<p><b>📊 Information</b></p>
-<ul>
-<li>Version: <code>{{ context['app_version']|e }}</code></li>
-<li>Update check: <code>/check_bot_updates</code></li>
-<li>Health summary: <code>/health</code></li>
-</ul>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
+<tr><td>Version</td><td><code>{{ context['app_version']|e }}</code></td></tr>
+<tr><td>License</td><td><a href="https://opensource.org/licenses/MIT">MIT</a></td></tr>
+<tr><td>Author</td><td><a href="https://github.com/orenlab">orenlab</a></td></tr>
+</table>
 
-<p><b>📚 Resources</b></p>
+<p><b>Links</b></p>
 <ul>
 <li><a href="https://orenlab.github.io/pytmbot/">Documentation</a></li>
-<li><a href="https://github.com/orenlab/pytmbot/issues">Report an issue</a></li>
 <li><a href="https://github.com/orenlab/pytmbot/">Source code</a></li>
+<li><a href="https://github.com/orenlab/pytmbot/issues">Report an issue</a></li>
 <li><a href="https://github.com/orenlab/pytmbot/discussions">Discussions</a></li>
 </ul>
 
-<p><b>👥 Project</b></p>
-<ul>
-<li>Author: <a href="https://github.com/orenlab">@orenlab</a></li>
-<li>License: <a href="https://opensource.org/licenses/MIT">MIT</a></li>
-</ul>
+<p><i>Send <code>/check_bot_updates</code> to see whether a newer release is available.</i></p>
