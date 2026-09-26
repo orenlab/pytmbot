@@ -6,18 +6,20 @@ also providing basic information about the status of local servers.
 """
 
 from collections.abc import Callable
+from html import escape
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
 from pytmbot.adapters.docker.container_manager import ContainerManager
-from pytmbot.globals import ButtonDataType, get_keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.docker import (
     get_manage_container_callback_context as get_authorized_container_callback_context,
 )
 from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
@@ -25,6 +27,7 @@ from pytmbot.utils import split_string_into_octets
 
 logger = Logger()
 button_data = ButtonDataType
+em = get_emoji_converter()
 keyboards = get_keyboards()
 container_manager = ContainerManager()
 
@@ -137,14 +140,20 @@ def __restart_container(call: CallbackQuery, container_name: str, bot: TeleBot) 
 
     def _on_restart_success(user_id: int) -> None:
         keyboards_key = button_data(
-            text=f"Back to {container_name}",
+            text=f"{em.get_emoji('BACK_arrow')} {container_name}",
             callback_data=f"__manage__:{container_name}:{user_id}",
         )
         keyboard = keyboards.build_inline_keyboard(keyboards_key)
+        safe_name = escape(container_name)
         edit_callback_message_text(
             call=call,
             bot=bot,
-            text=f"Restarting {container_name}: Success. State: running",
+            rich_message=build_rich_html_message(
+                f"<p><b>{em.get_emoji('thought_balloon')} Container actions</b></p>"
+                f"<p>{em.get_emoji('check_mark_button')} <code>{safe_name}</code> "
+                "restarted successfully.</p>"
+                "<p><i>Current state: running</i></p>"
+            ),
             reply_markup=keyboard,
             not_modified_text=f"Restart result for {container_name} is already shown.",
         )

@@ -19,14 +19,15 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -69,7 +70,7 @@ def build_cpu_detail_keyboard(
         *(
             [
                 button_data(
-                    text="Back to CPU",
+                    text=f"{em.get_emoji('BACK_arrow')} CPU",
                     callback_data=build_user_bound_callback_data(
                         CPU_INFO_PREFIX, user_id
                     ),
@@ -107,7 +108,7 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
             send_server_message(
                 bot,
                 message.chat.id,
-                text="⚠️ Failed to get CPU statistics. Try again later.",
+                text="⚠️ Couldn't load CPU statistics right now. Please try again.",
             )
             return None
 
@@ -124,12 +125,12 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
             electric_plug=em.get_emoji("electric_plug"),
         )
 
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=cpu_message,
-            parse_mode="HTML",
+            cpu_message,
             reply_markup=keyboard,
+            nav_keyboard=NAV_SERVER,
         )
         return None
 

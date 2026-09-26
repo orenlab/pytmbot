@@ -24,16 +24,16 @@ from pytmbot.adapters.docker.images_info import (
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.pagination import (
-    MAX_TELEGRAM_MESSAGE_LENGTH,
     build_page_callback_data,
+    build_page_footer,
+    fits_rich_message,
     paginate_items,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_docker_message,
-    send_telegram_message,
 )
-from pytmbot.keyboards.keyboards import NAV_DOCKER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -365,9 +365,12 @@ def _render_images_page_text(
         template_name="d_images.jinja2",
         context=template_context,
     )
-    footer = (
-        f"\n\n<i>Page {page}/{total_pages} | "
-        f"Shown: {len(page_items)} | Total images: {total_items}</i>"
+    footer = build_page_footer(
+        page=page,
+        total_pages=total_pages,
+        shown=len(page_items),
+        total_items=total_items,
+        noun="images",
     )
     return f"{rendered}{footer}"
 
@@ -388,7 +391,7 @@ def _render_paginated_images_text(
             total_pages=window.total_pages,
             total_items=window.total_items,
         )
-        if len(text) <= MAX_TELEGRAM_MESSAGE_LENGTH:
+        if fits_rich_message(text):
             start_index = (window.page - 1) * window.page_size
             return text, window.page, window.total_pages, window.items, start_index
 
@@ -397,8 +400,8 @@ def _render_paginated_images_text(
         page_size -= 1
 
     fallback = (
-        f"{em.get_emoji('warning')} <b>Images view is too large for Telegram.</b>\n"
-        f"{em.get_emoji('thought_balloon')} Try opening a different page."
+        f"<p><b>{em.get_emoji('warning')} Images view is too large for Telegram.</b></p>"
+        f"<p>{em.get_emoji('thought_balloon')} <i>Try opening a different page.</i></p>"
     )
     return fallback, 1, 1, [], 0
 
@@ -597,7 +600,7 @@ def _build_image_details_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=max(1, page),
@@ -623,7 +626,7 @@ def render_image_details(
         return None
 
     text = _render_image_details_text(image_data)
-    if len(text) > MAX_TELEGRAM_MESSAGE_LENGTH:
+    if not fits_rich_message(text):
         fallback_image = _compact_image(
             image_data,
             max_text_length=MAX_TEXT_FIELD_LENGTH,
@@ -635,10 +638,11 @@ def render_image_details(
         )
         text = _render_image_details_text(fallback_image)
 
-    if len(text) > MAX_TELEGRAM_MESSAGE_LENGTH:
+    if not fits_rich_message(text):
         text = (
-            f"{em.get_emoji('warning')} <b>Image details are too large for Telegram.</b>\n"
-            f"{em.get_emoji('thought_balloon')} Try reviewing this image locally with Docker CLI."
+            f"<p><b>{em.get_emoji('warning')} Image details are too large for Telegram.</b></p>"
+            f"<p>{em.get_emoji('thought_balloon')} <i>Try reviewing this image locally "
+            "with the Docker CLI.</i></p>"
         )
 
     keyboard = _build_image_details_keyboard(
@@ -745,7 +749,7 @@ def _build_image_extra_keyboard(
     return keyboards.build_inline_keyboard(
         [
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to image details",
+                text=f"{em.get_emoji('BACK_arrow')} Image details",
                 callback_data=build_image_info_callback_data(
                     image_index=image_index,
                     user_id=user_id,
@@ -753,7 +757,7 @@ def _build_image_extra_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=max(1, page),
@@ -795,10 +799,10 @@ def render_image_extra_info(
     else:
         return None
 
-    if len(text) > MAX_TELEGRAM_MESSAGE_LENGTH:
+    if not fits_rich_message(text):
         text = (
-            f"{em.get_emoji('warning')} <b>Image details are too large for Telegram.</b>\n"
-            f"{em.get_emoji('thought_balloon')} Try opening another section."
+            f"<p><b>{em.get_emoji('warning')} Image details are too large for Telegram.</b></p>"
+            f"<p>{em.get_emoji('thought_balloon')} <i>Try opening another section.</i></p>"
         )
 
     keyboard = _build_image_extra_keyboard(
@@ -845,14 +849,13 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
         user_id = int(message.from_user.id) if message.from_user else 0
         bot_answer, inline_button = render_images_page(page=1, user_id=user_id)
 
-        return send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=bot_answer,
+        send_rich_docker_message(
+            bot,
+            message.chat.id,
+            bot_answer,
             reply_markup=inline_button,
-            parse_mode="HTML",
-            nav_keyboard=NAV_DOCKER,
         )
+        return True
 
     except Exception as error:
         send_docker_message(

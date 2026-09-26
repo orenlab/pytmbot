@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -17,6 +18,7 @@ from telebot.types import (
     ForceReply,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
@@ -45,6 +47,9 @@ type ReplyMarkupType = (
     InlineKeyboardMarkup | ReplyKeyboardMarkup | ForceReply | ReplyKeyboardRemove
 )
 
+# Button colors supported by Telegram clients (Bot API 9.4+).
+BUTTON_STYLES: Final[frozenset[str]] = frozenset({"danger", "success", "primary"})
+
 
 @dataclass(frozen=True, slots=True)
 class ButtonData:
@@ -52,6 +57,7 @@ class ButtonData:
 
     text: str
     callback_data: str
+    style: str | None = None
 
     def __post_init__(self) -> None:
         """Validate button data after initialization."""
@@ -59,6 +65,10 @@ class ButtonData:
             raise ValueError("Button text must be a non-empty string")
         if not self.callback_data or not isinstance(self.callback_data, str):
             raise ValueError("Callback data must be a non-empty string")
+        if self.style is not None and self.style not in BUTTON_STYLES:
+            raise ValueError(
+                f"Button style must be one of {sorted(BUTTON_STYLES)} or None"
+            )
 
 
 def _resolve_keyboard_settings() -> KeyboardSettings:
@@ -87,8 +97,12 @@ class Keyboards:
     DEFAULT_ROW_WIDTH: Final[int] = 3
     INLINE_ROW_WIDTH: Final[int] = 2
     CACHE_SIZE: Final[int] = 32
-    BACK_BUTTON_TEXT: Final[str] = "⬅️ Back to main menu"
+    BACK_BUTTON_TEXT: Final[str] = "🔙 Back to main menu"
+    BACK_EMOJI_KEY: Final[str] = "BACK_arrow"
     RETURN_BUTTON_EMOJI: Final[str] = "🦈"
+    PRIMARY_BUTTON_TITLES: Final[frozenset[str]] = frozenset(
+        {"Server", "Docker", "Quick view", "Health"}
+    )
 
     __slots__ = ("_emojis", "_logger")
 
@@ -123,7 +137,7 @@ class Keyboards:
                 selective=True,
                 is_persistent=True,
             )
-            keyboard.add(main_keyboard_data)
+            keyboard.add(KeyboardButton(main_keyboard_data))
             return keyboard
 
     def build_referer_inline_keyboard(self, data: str) -> InlineKeyboardMarkup:
@@ -188,9 +202,27 @@ class Keyboards:
             if not keyboard_buttons:
                 raise KeyboardError("Empty keyboard buttons configuration")
 
-            # Add back button for non-back keyboards
+            # Back navigation gets full-width rows at the bottom so long labels
+            # never wrap next to section buttons on narrow (mobile) screens.
+            navigation_titles = {
+                f"{self._emojis.get_emoji(emoji)} {title}"
+                for emoji, title in keyboard_data.items()
+                if emoji == self.BACK_EMOJI_KEY and title
+            }
+            section_buttons = [
+                button
+                for button in keyboard_buttons
+                if button.text not in navigation_titles
+            ]
+            navigation_buttons = [
+                self._make_reply_button(button.text, style="danger")
+                for button in keyboard_buttons
+                if button.text in navigation_titles
+            ]
             if keyboard_type and keyboard_type != "back_keyboard":
-                keyboard_buttons.append(self.BACK_BUTTON_TEXT)
+                navigation_buttons.append(
+                    self._make_reply_button(self.BACK_BUTTON_TEXT, style="danger")
+                )
 
             reply_keyboard = ReplyKeyboardMarkup(
                 resize_keyboard=True,
@@ -200,14 +232,33 @@ class Keyboards:
             )
 
             # Build rows with proper chunking
-            for i in range(0, len(keyboard_buttons), self.DEFAULT_ROW_WIDTH):
-                reply_keyboard.row(*keyboard_buttons[i : i + self.DEFAULT_ROW_WIDTH])
+            for i in range(0, len(section_buttons), self.DEFAULT_ROW_WIDTH):
+                reply_keyboard.row(*section_buttons[i : i + self.DEFAULT_ROW_WIDTH])
+            for button in navigation_buttons:
+                reply_keyboard.row(button)
 
             log.trace(
                 "bot.keyboards.reply.keyboard.debug",
-                total_buttons=len(keyboard_buttons),
+                total_buttons=len(section_buttons) + len(navigation_buttons),
             )
             return reply_keyboard
+
+    @classmethod
+    def _make_inline_button(cls, button: ButtonData) -> InlineKeyboardButton:
+        """Build a typed inline button, optionally with a client style."""
+        callback_data = button.callback_data[: cls.MAX_CALLBACK_DATA_LENGTH]
+        if button.style is None:
+            return InlineKeyboardButton(text=button.text, callback_data=callback_data)
+        return InlineKeyboardButton(
+            text=button.text, callback_data=callback_data, style=button.style
+        )
+
+    @staticmethod
+    def _make_reply_button(text: str, *, style: str | None = None) -> KeyboardButton:
+        """Build a typed reply keyboard button, optionally with a client style."""
+        if style is None:
+            return KeyboardButton(text)
+        return KeyboardButton(text, style=style)
 
     @staticmethod
     @lru_cache(maxsize=CACHE_SIZE)
@@ -256,14 +307,16 @@ class Keyboards:
 
             return keyboard_map[keyboard_type]
 
-    def _construct_keyboard(self, keyboard_data: dict[str, str]) -> list[str]:
-        """Construct a keyboard with emojis and titles.
+    def _construct_keyboard(
+        self, keyboard_data: dict[str, str]
+    ) -> list[KeyboardButton]:
+        """Construct reply keyboard buttons with emojis, titles, and optional styles.
 
         Args:
             keyboard_data: Dictionary mapping emoji keys to button titles
 
         Returns:
-            list[str]: List of formatted button texts
+            list[KeyboardButton]: Typed reply buttons
 
         Raises:
             KeyboardError: If keyboard data format is invalid
@@ -277,11 +330,17 @@ class Keyboards:
         with self._logger.context(
             operation=KeyboardOperation.CONSTRUCT, button_count=len(keyboard_data)
         ) as log:
-            buttons = [
-                f"{self._emojis.get_emoji(emoji)} {title}"
-                for emoji, title in keyboard_data.items()
-                if emoji and title  # Skip empty entries
-            ]
+            buttons: list[KeyboardButton] = []
+            for emoji, title in keyboard_data.items():
+                if not emoji or not title:
+                    continue
+                style = "primary" if title in self.PRIMARY_BUTTON_TITLES else None
+                buttons.append(
+                    self._make_reply_button(
+                        f"{self._emojis.get_emoji(emoji)} {title}",
+                        style=style,
+                    )
+                )
 
             log.trace("bot.keyboards.keyboard.buttons.debug", total=len(buttons))
             return buttons
@@ -319,17 +378,27 @@ class Keyboards:
                 raise KeyboardError("All buttons must be ButtonData instances")
 
             keyboard = _new_inline_keyboard_markup(row_width=self.INLINE_ROW_WIDTH)
-            buttons = [
-                InlineKeyboardButton(
-                    text=btn.text,
-                    callback_data=btn.callback_data[: self.MAX_CALLBACK_DATA_LENGTH],
-                )
-                for btn in buttons_data
-            ]
+            buttons = [self._make_inline_button(btn) for btn in buttons_data]
             keyboard.add(*buttons)
 
             log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard
+
+
+def reply_button_pattern(*labels: str) -> str:
+    """
+    Build an anchored regexp for reply keyboard buttons.
+
+    Buttons are rendered as "<emoji> <label>"; the pattern accepts the label
+    with or without the emoji prefix, and nothing else, so a core button such
+    as "CPU" never captures a plugin button such as "CPU usage".
+    """
+    if not labels:
+        raise ValueError("At least one button label is required")
+    alternatives = "|".join(re.escape(label) for label in labels)
+    # The emoji prefix is a token without ASCII letters or digits; \w is not used
+    # because some emoji (e.g. "ℹ️") are Unicode word characters.
+    return rf"^(?:[^\sA-Za-z0-9]+\s+)?(?:{alternatives})$"
 
 
 def build_nav_keyboard(keyboard_type: str = NAV_MAIN) -> ReplyKeyboardMarkup:

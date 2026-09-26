@@ -62,7 +62,7 @@ def test_get_keyboard_data_default_and_invalid_type(
     monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
 
     default_data = keyboards_module.Keyboards._get_keyboard_data(None)
-    assert "rocket" in default_data
+    assert default_data["desktop_computer"] == "Server"
 
     with pytest.raises(KeyboardError):
         keyboards_module.Keyboards._get_keyboard_data("not_existing_keyboard")
@@ -92,7 +92,8 @@ def test_construct_keyboard_validation() -> None:
         keyboard._construct_keyboard({})
 
     built = keyboard._construct_keyboard({"rocket": "Server", "": "Ignored"})
-    assert any("Server" in value for value in built)
+    assert any("Server" in button.text for button in built)
+    assert built[0].style == "primary"
 
 
 def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
@@ -112,6 +113,25 @@ def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
         )
 
 
+def test_build_inline_keyboard_applies_button_styles() -> None:
+    markup = Keyboards().build_inline_keyboard(
+        [
+            ButtonData(text="Stop", callback_data="stop", style="danger"),
+            ButtonData(text="Start", callback_data="start", style="success"),
+            ButtonData(text="Back", callback_data="back"),
+        ]
+    )
+    buttons = [button for row in markup.keyboard for button in row]
+    assert [button.style for button in buttons] == ["danger", "success", None]
+    assert "style" not in buttons[2].to_dict()
+    assert buttons[0].to_dict()["style"] == "danger"
+
+
+def test_button_data_rejects_unknown_style() -> None:
+    with pytest.raises(ValueError, match="Button style"):
+        ButtonData(text="Open", callback_data="ok", style="rainbow")
+
+
 def test_build_reply_keyboard_is_persistent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -120,6 +140,87 @@ def test_build_reply_keyboard_is_persistent(
 
     markup = Keyboards().build_reply_keyboard("server_keyboard")
     assert markup.is_persistent is True
+
+
+def test_main_reply_keyboard_applies_button_styles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    markup = Keyboards().build_reply_keyboard("main_keyboard")
+    styles_by_title: dict[str, str | None] = {}
+    for row in markup.keyboard:
+        for button in row:
+            if isinstance(button, dict):
+                text = str(button.get("text") or "")
+                style = button.get("style")
+            else:
+                text = str(getattr(button, "text", "") or "")
+                style = getattr(button, "style", None)
+            for title in (
+                "Server",
+                "Docker",
+                "Quick view",
+                "Health",
+                "Back to main menu",
+            ):
+                if title in text:
+                    styles_by_title[title] = style if isinstance(style, str) else None
+    assert styles_by_title == {
+        "Server": "primary",
+        "Docker": "primary",
+        "Quick view": "primary",
+        "Health": "primary",
+        "Back to main menu": "danger",
+    }
+
+
+def _row_texts(markup: ReplyKeyboardMarkup) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in markup.keyboard:
+        rows.append(
+            [
+                str(button.get("text") if isinstance(button, dict) else button.text)
+                for button in row
+            ]
+        )
+    return rows
+
+
+def test_back_to_main_menu_gets_its_own_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    keyboards_module.Keyboards._get_keyboard_data.cache_clear()
+    monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
+
+    for keyboard_type, section_buttons in (
+        ("docker_keyboard", 2),
+        ("server_keyboard", 8),
+    ):
+        rows = _row_texts(Keyboards().build_reply_keyboard(keyboard_type))
+        assert rows[-1] == [Keyboards.BACK_BUTTON_TEXT]
+        assert sum(len(row) for row in rows[:-1]) == section_buttons
+        assert all(Keyboards.BACK_BUTTON_TEXT not in row for row in rows[:-1])
+
+
+def test_plugin_back_buttons_move_to_styled_bottom_row() -> None:
+    markup = Keyboards().build_reply_keyboard(
+        plugin_keyboard_data={
+            "BACK_arrow": "Back to main menu",
+            "bar_chart": "Overview",
+            "electric_plug": "CPU usage",
+        }
+    )
+    rows = _row_texts(markup)
+    assert len(rows) == 2
+    assert [text.split(" ", 1)[1] for text in rows[0]] == ["Overview", "CPU usage"]
+    assert rows[1][0].endswith("Back to main menu")
+    back_button = markup.keyboard[1][0]
+    style = (
+        back_button.get("style")
+        if isinstance(back_button, dict)
+        else getattr(back_button, "style", None)
+    )
+    assert style == "danger"
 
 
 def test_build_nav_keyboard_and_resolve_reply_markup(
@@ -155,3 +256,29 @@ def test_build_referer_keyboards_validation_and_callback_size() -> None:
     callbacks = _flatten_inline_callback_data(inline)
     assert callbacks
     assert len(callbacks[0]) <= keyboard.MAX_CALLBACK_DATA_LENGTH
+
+
+@pytest.mark.parametrize(
+    ("labels", "text", "expected"),
+    [
+        (("CPU",), "⚡ CPU", True),
+        (("CPU",), "CPU", True),
+        (("CPU",), "⚙️ CPU usage", False),
+        (("About", "About me"), "ℹ️ About", True),
+        (("About", "About me"), "🍄 About me", True),
+        (("Monitoring",), "Server Monitoring", False),
+        (("Back to main menu",), "⬅️ Back to main menu", True),
+    ],
+)
+def test_reply_button_pattern_is_anchored(
+    labels: tuple[str, ...], text: str, expected: bool
+) -> None:
+    import re
+
+    pattern = keyboards_module.reply_button_pattern(*labels)
+    assert bool(re.search(pattern, text)) is expected
+
+
+def test_reply_button_pattern_requires_labels() -> None:
+    with pytest.raises(ValueError):
+        keyboards_module.reply_button_pattern()

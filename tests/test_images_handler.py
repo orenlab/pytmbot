@@ -161,7 +161,7 @@ def test_load_images_data_cache_and_errors(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_render_paginated_images_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(images_module, "MAX_TELEGRAM_MESSAGE_LENGTH", 25)
+    monkeypatch.setattr(images_module, "fits_rich_message", lambda _html: False)
     monkeypatch.setattr(
         images_module,
         "_render_images_page_text",
@@ -281,30 +281,28 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     def _send(
         bot: TeleBot,
         chat_id: int,
-        text: str,
+        html: str,
         *,
         reply_markup: _PayloadValue,
-        parse_mode: str,
         **kwargs: _PayloadValue,
     ) -> bool:
         del bot, kwargs
         sent_payloads.append(
             {
                 "chat_id": chat_id,
-                "text": text,
+                "html": html,
                 "reply_markup": reply_markup,
-                "parse_mode": parse_mode,
             }
         )
         return True
 
-    monkeypatch.setattr(images_module, "send_telegram_message", _send)
+    monkeypatch.setattr(images_module, "send_rich_docker_message", _send)
 
     bot = _Bot()
     handler = _raw_handler(images_module.handle_images)
     result = handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert result is True
-    assert sent_payloads[-1]["text"] == "images-ui"
+    assert sent_payloads[-1]["html"] == "images-ui"
     assert bot.actions[-1] == (11, "typing")
 
     monkeypatch.setattr(
@@ -315,10 +313,7 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(exceptions.HandlingException) as exc_info:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert exc_info.value.context.error_code == "HAND_010"
-    assert (
-        "error occurred while processing the command"
-        in str(bot.sent_messages[-1]["text"]).lower()
-    )
+    assert "something went wrong" in str(bot.sent_messages[-1]["text"]).lower()
 
 
 def test_image_info_callback_helpers_and_details_render(
@@ -537,5 +532,7 @@ def test_image_details_template_line_breaks_and_env_pre() -> None:
         },
     )
 
-    assert "Tags:</code> repo/app:1.0\n<code>Repo digests:" in rendered
-    assert "<code>Env vars (2):</code>\n<pre>A=1\nB=2\n</pre>" in rendered
+    assert "<td>Tags</td><td>repo/app:1.0</td>" in rendered
+    assert "<td>Repo digests</td>" in rendered
+    assert "Env vars" in rendered
+    assert "<pre><code>A=1\nB=2\n</code></pre>" in rendered

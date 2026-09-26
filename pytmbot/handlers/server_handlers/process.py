@@ -17,14 +17,15 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -56,7 +57,7 @@ def build_process_overview_keyboard(
         *(
             [
                 button_data(
-                    text="Back to Process",
+                    text=f"{em.get_emoji('BACK_arrow')} Processes",
                     callback_data=build_user_bound_callback_data(
                         PROCESS_OVERVIEW_PREFIX, user_id
                     ),
@@ -88,7 +89,7 @@ def render_process_overview_text() -> str | None:
     )
 
 
-# regexp="Process")
+# regexp=reply_button_pattern("Processes", "Process")
 @logger.session_decorator
 def handle_process(message: Message, bot: TeleBot) -> None:
     try:
@@ -108,12 +109,12 @@ def handle_process(message: Message, bot: TeleBot) -> None:
 
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = build_process_overview_keyboard(user_id)
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=message_text,
-            parse_mode="HTML",
+            message_text,
             reply_markup=keyboard,
+            nav_keyboard=NAV_SERVER,
         )
         return None
 

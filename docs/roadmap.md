@@ -12,15 +12,15 @@ Implemented behavior is defined by:
 
 Active development line:
 
-- `0.5.x` (planning)
+- `0.6.x` (planning)
 
 Latest stable release line:
 
-- `0.4.x` (`0.4.0`)
+- `0.5.x` (`0.5.0`)
 
 Primary objective:
 
-- maintain the `0.4.x` stable line while planning the next development cycle
+- maintain the `0.5.x` stable line (Telegram rich messages, keyboard styles) while planning the next development cycle
 
 ## Active Priorities
 

@@ -35,11 +35,13 @@ High-level flow:
 1. CLI arguments are parsed.
 2. `BotLauncher` validates the environment and builds `PyTMBot`.
 3. `PyTMBot` creates the `TeleBot` instance.
-4. Middleware chain is registered.
-5. Handler chain is registered.
-6. Requested plugins are loaded.
-7. Health monitoring is initialized.
-8. Runtime enters polling or webhook mode.
+4. Bot commands, description, and short description are published.
+5. Middleware chain is registered.
+6. Handler chain is registered.
+7. Requested plugins are loaded.
+8. The fallback handler for unrecognized private-chat text is registered last.
+9. Health monitoring is initialized.
+10. Runtime enters polling or webhook mode.
 
 ## Major Subsystems
 
@@ -87,6 +89,7 @@ Responsibilities:
 - `update_dedup`
 - `access_control`
 - `rate_limit`
+- `callback_ack`
 - `session_manager`
 - `session_wrapper`
 
@@ -95,6 +98,7 @@ Responsibilities:
 - duplicate update rejection
 - allowlist enforcement
 - request throttling
+- acknowledging callback queries that handlers left unanswered
 - authentication state
 - 2FA protection for sensitive handlers
 
@@ -117,10 +121,11 @@ Responsibilities:
 
 Responsibilities:
 
-- Jinja2 template rendering
+- Jinja2 template rendering for classic and rich Telegram content
 - render validation
 - cache management
-- output formatting for Telegram responses
+- output formatting for Telegram responses, including Rich Messages via `InputRichMessage(html=...)` helpers in `pytmbot/handlers/handlers_util/rich_messages.py`
+- rich HTML limits and fallbacks in `pytmbot/utils/rich_html.py`: measuring and trimming content to Telegram limits, plain-text conversion for rejected rich payloads, and structural validation used by tests
 
 ### Plugins
 

@@ -12,7 +12,8 @@ Source of truth:
 ## Loading Model
 
 - Plugins are enabled with `--plugins`.
-- Startup loads plugins after commands, middleware, and handlers are registered.
+- Startup loads plugins after commands, middleware, and handlers are registered; the hint for unrecognized
+  private-chat text is registered after plugins, so plugin handlers take precedence.
 - Plugin names are validated before import.
 - Discovery is dynamic: the manager imports `pytmbot.plugins.<name>.config` and `pytmbot.plugins.<name>.plugin`.
 
@@ -108,6 +109,11 @@ The manager also rejects plugins with invalid permissions metadata or missing re
 - Plugin instances are tracked by the manager and cleaned up on exit.
 - Plugin metadata is merged into the plugin menu shown by the bot.
 - Plugins are startup-time extensions; there is no hot-reload mechanism in the current runtime.
+- Structured plugin screens should use the rich message helpers (`send_rich_bot_message` and friends in
+  `pytmbot/handlers/handlers_util/rich_messages.py`) and follow the rich template layout described in
+  [development.md](development.md#rich-message-templates).
+- Register reply-button handlers with `reply_button_pattern(label)` from `pytmbot/keyboards/keyboards.py` so labels
+  match exactly, with or without the emoji.
 
 ## Related Docs
 

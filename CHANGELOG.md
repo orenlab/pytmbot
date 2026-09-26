@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.5.0] — 20260926
+
+Feature release: structured bot screens move to Telegram Rich Messages; dependencies, Docker images, and CI are
+refreshed.
+
+### Added
+
+- Telegram Rich Messages (Bot API 10.1+) with native tables for all structured screens: server metrics, Quick view,
+  Health, menus, Docker lists and details, container actions, update checks, `/getmyid`, and plugin screens.
+- Rich message safeguards: content is trimmed to Telegram limits, and a rejected rich payload falls back to plain text.
+- Colored buttons: accents on reply menus and color-coded container actions (Stop, Restart, Start); back navigation
+  sits on its own full-width row, and inline back buttons use short labels so they fit on phones.
+- `/about` command, a bot short description, and a friendly hint for unrecognized messages in private chats.
+
+### Changed
+
+- One consistent screen layout (bold titles with section icons, compact bordered tables with aligned header rows,
+  "updated at" footers, empty states), covered by render tests.
+- Refreshed menu labels and icons (`About`, `Processes`, `Get 2FA QR code`; the old labels still work), command
+  descriptions, and user-facing copy for menus, 2FA, errors, and update notices; release notes are rendered as
+  formatted text.
+- Reply buttons are matched by their exact label (the leading emoji is optional) instead of by substring, so any
+  text containing `CPU` no longer opens the CPU screen. Plugins should register buttons with `reply_button_pattern()`.
+- Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.0 / Bot API 10.3), Docker build images (Ubuntu `26.04`,
+  uv `0.12.19`), BuildKit, and all pinned GitHub Actions.
+- Added `0.5.0` to the `config_version` compatibility matrix; `0.5` is now the supported stable image line.
+
+### Fixed
+
+- Reply keyboard disappearing after Quick view and other inline screens (notably on iOS); a single
+  "Use the menu below to continue." follow-up per chat restores it.
+- Inline buttons spinning until timeout when a handler did not answer the callback; every press is now acknowledged.
+- Container actions screen advertising a Remove action that does not exist.
+- Monitor plugin alerts escape container, image, process, sensor, and mount point names, so an unusual name no
+  longer makes Telegram reject the alert.
+
 ## [0.4.0] — 20260624
 
 Modest stable release focused on Telegram iOS keyboard reliability, unified outbound messaging, dependency maintenance, and documentation polish.

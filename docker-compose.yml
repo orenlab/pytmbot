@@ -7,6 +7,8 @@ services:
     # Environment variables
     environment:
       TZ: Asia/Yekaterinburg
+      # Writable state (TOTP replay protection) on the read-only root filesystem
+      PYTMBOT_STATE_DIR: /run/pytmbot
 
     # Volumes
     volumes:
@@ -44,6 +46,7 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,nodev,size=100m,uid=1001,gid=1001
       - /var/tmp:noexec,nosuid,nodev,size=50m,uid=1001,gid=1001
+      - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
 
     # Logging configuration
     logging:

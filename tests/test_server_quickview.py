@@ -10,6 +10,7 @@ from telebot.types import Message
 
 import pytmbot.handlers.server_handlers.quickview as quickview
 from pytmbot.exceptions import HandlingException
+from pytmbot.handlers.handlers_util.utils import HANDLER_COMMAND_ERROR_MESSAGE
 from pytmbot.parsers.compiler import Compiler
 from tests._telebot_objects import telegram_object_from_payload
 from tests._telebot_send_capture import build_bot_capture
@@ -115,7 +116,7 @@ def test_collect_metrics_skips_none_results(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot, actions, messages = build_bot_capture(monkeypatch)
+    bot, actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
     message = _build_message(10)
 
     monkeypatch.setattr(
@@ -135,7 +136,7 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_render(template_name: str, **context: _PayloadValue) -> str:
         render_calls["template_name"] = template_name
         render_calls["context"] = context
-        return "quickview text"
+        return "<p>quickview text</p>"
 
     monkeypatch.setattr(Compiler, "quick_render", _fake_render)
 
@@ -143,8 +144,12 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     handler(message, bot)
 
     assert actions == [(10, "typing")]
-    assert messages[-1]["text"] == "quickview text"
-    assert messages[-1]["parse_mode"] == "Markdown"
+    assert messages[0]["text"] == "<p>quickview text</p>"
+    assert messages[0].get("rich_message") is not None
+    assert messages[0].get("parse_mode") is None
+    assert messages[0]["reply_markup"] is not None
+    assert messages[1]["text"] == "Use the menu below to continue."
+    assert messages[1]["reply_markup"] is not None
     assert render_calls["template_name"] == "b_quick_view.jinja2"
     render_context = render_calls["context"]
     assert isinstance(render_context, dict)
@@ -166,7 +171,7 @@ def test_handle_quick_view_no_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = cast(Callable[[Message, TeleBot], None], quickview.handle_quick_view)
     handler(message, bot)
     assert actions == [(11, "typing")]
-    assert "Failed to get system metrics" in str(messages[-1]["text"])
+    assert "Couldn't load system metrics" in str(messages[-1]["text"])
 
 
 def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -189,6 +194,4 @@ def test_handle_quick_view_wraps_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert exc_info.value.context.error_code == "HAND_QV1"
     assert "render failed" in str(exc_info.value.context.metadata["exception"])
-    assert "An error occurred while processing the command." in str(
-        messages[-1]["text"]
-    )
+    assert HANDLER_COMMAND_ERROR_MESSAGE in str(messages[-1]["text"])

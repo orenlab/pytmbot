@@ -1,14 +1,14 @@
-{{ thought_balloon }} Hello <b>{{ first_name }}</b>!
+{# templates/b_server.jinja2 — rich HTML #}
+<p><b>🖥️ Server</b></p>
+<ul>
+<li><b>📈 Load average</b> — 1, 5 and 15 minute load</li>
+<li><b>⚡ CPU</b> — usage, frequency, per-core load, top processes</li>
+<li><b>🧠 Memory load</b> — RAM and swap usage</li>
+<li><b>🌡️ Sensors</b> — temperatures and fan speeds</li>
+<li><b>⚙️ Processes</b> — process states and top consumers</li>
+<li><b>⏱️ Uptime</b> — system uptime and active sessions</li>
+<li><b>💾 File system</b> — partitions and disk I/O</li>
+<li><b>🌐 Network</b> — traffic, interfaces and connections</li>
+</ul>
 
-<b>Available Server Information:</b>
-
-{{ battery }} Load Average
-{{ desktop_computer }} CPU
-{{ desktop_computer }} Memory Usage
-{{ thermometer }} Sensors
-{{ rocket }} Processes
-{{ hourglass_not_done }} Uptime
-{{ floppy_disk }} File System
-{{ satellite }} Network
-
-<i>Use buttons below to view details</i>
+<p><i>Use the buttons below to open a section.</i></p>

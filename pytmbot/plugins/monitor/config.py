@@ -13,7 +13,7 @@ PLUGIN_NAME = "monitor"
 PLUGIN_VERSION = "0.0.7"
 PLUGIN_DESCRIPTION = "System monitoring plugin for pyTMBot"
 PLUGIN_INDEX_KEY: dict[str, str] = {
-    "chart_increasing": "Monitoring",
+    "bar_chart": "Monitoring",
 }
 
 OVERVIEW_LABEL = "Overview"
@@ -26,9 +26,9 @@ BACK_TO_MONITORING_LABEL = "Back to monitoring"
 
 KEYBOARD: dict[str, str] = {
     "bar_chart": OVERVIEW_LABEL,
-    "gear": CPU_LABEL,
+    "high_voltage": CPU_LABEL,
     "brain": MEMORY_LABEL,
-    "computer_disk": DISK_LABEL,
+    "floppy_disk": DISK_LABEL,
     "thermometer": TEMPERATURES_LABEL,
     "calendar": SELECT_PERIOD_LABEL,
     "BACK_arrow": "Back to main menu",

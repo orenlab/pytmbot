@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import os
 import sys
+from collections import OrderedDict
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
+from telebot.types import InputRichMessage
 
 from pytmbot.utils.cli import parse_cli_args
 from pytmbot.utils.environment import get_environment_state, is_running_in_docker
+from pytmbot.utils.rich_html import find_rich_html_issues
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -25,6 +29,11 @@ def stable_process_state(
 ) -> Generator[None, None, None]:
     """Keep process-wide caches and argv deterministic across tests."""
     monkeypatch.setattr(sys, "argv", ["pytmbot-test"])
+    # Menu follow-up tracking is per process; isolate it between tests.
+    # Imported lazily: the module loads settings, which needs the sample config.
+    from pytmbot.handlers.handlers_util import utils as handlers_utils_module
+
+    monkeypatch.setattr(handlers_utils_module, "_nav_sync_messages", OrderedDict())
     parse_cli_args.cache_clear()
     is_running_in_docker.cache_clear()
     get_environment_state.cache_clear()
@@ -32,3 +41,19 @@ def stable_process_state(
     parse_cli_args.cache_clear()
     is_running_in_docker.cache_clear()
     get_environment_state.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def validate_rich_html(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that builds rich HTML Telegram would render incorrectly."""
+    original_init = InputRichMessage.__init__
+
+    def checked_init(
+        self: InputRichMessage, html: str | None = None, *args: Any, **kwargs: Any
+    ) -> None:
+        if html is not None:
+            issues = find_rich_html_issues(html)
+            assert not issues, f"Invalid rich HTML: {issues}\n{html}"
+        original_init(self, html, *args, **kwargs)
+
+    monkeypatch.setattr(InputRichMessage, "__init__", checked_init)

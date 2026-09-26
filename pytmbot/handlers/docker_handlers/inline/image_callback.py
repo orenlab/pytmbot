@@ -17,6 +17,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_required_callback_data,
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 
 
@@ -75,9 +76,8 @@ def handle_image_details_callback[ParsedT](
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=context,
+        rich_message=build_rich_html_message(context),
         reply_markup=inline_keyboard,
-        parse_mode="HTML",
         not_modified_text="Image details are already current.",
     )
     return None

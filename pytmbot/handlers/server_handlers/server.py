@@ -11,9 +11,9 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.logs import Logger
@@ -62,12 +62,11 @@ def handle_server(message: Message, bot: TeleBot) -> None:
             template_name="b_server.jinja2", first_name=first_name, **emojis
         )
 
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=response,
+            response,
             reply_markup=server_keyboard,
-            parse_mode="HTML",
         )
     except Exception as error:
         send_server_message(

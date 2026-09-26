@@ -13,7 +13,11 @@ from telebot import TeleBot
 from telebot.types import Message
 
 from pytmbot.globals import get_emoji_converter, get_keyboards
-from pytmbot.handlers.handlers_util.utils import send_bot_message, send_main_message
+from pytmbot.handlers.handlers_util.rich_messages import (
+    send_rich_bot_message,
+    send_rich_main_message,
+)
+from pytmbot.keyboards.keyboards import reply_button_pattern
 from pytmbot.parsers._types import TemplateContext, TemplateValue
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
@@ -111,17 +115,16 @@ class OutlinePlugin(PluginInterface):
             thought_balloon=em.get_emoji("thought_balloon"),
         )
         keyboard = keyboards.build_reply_keyboard(plugin_keyboard_data=config.KEYBOARD)
-        send_bot_message(
+        send_rich_bot_message(
             self.bot,
             message.chat.id,
             response,
             reply_markup=keyboard,
-            parse_mode="Markdown",
         )
 
     def _reply_html(self, message: Message, text: str) -> Message:
-        """Send a simple HTML reply."""
-        return send_main_message(self.bot, message.chat.id, text, parse_mode="HTML")
+        """Send a rich HTML reply while keeping the main menu keyboard."""
+        return send_rich_main_message(self.bot, message.chat.id, text)
 
     def _get_outline_action_data_or_reply(
         self,
@@ -405,10 +408,18 @@ class OutlinePlugin(PluginInterface):
         wrapped_traffic_handler = plugin.logger.session_decorator(self.handle_traffic)
 
         self.bot.register_message_handler(wrapped_outline_handler, commands=["outline"])
-        self.bot.register_message_handler(wrapped_outline_handler, regexp="Outline VPN")
-        self.bot.register_message_handler(wrapped_server_handler, regexp="Outline info")
-        self.bot.register_message_handler(wrapped_keys_handler, regexp="Keys")
-        self.bot.register_message_handler(wrapped_traffic_handler, regexp="Traffic")
+        self.bot.register_message_handler(
+            wrapped_outline_handler, regexp=reply_button_pattern("Outline VPN")
+        )
+        self.bot.register_message_handler(
+            wrapped_server_handler, regexp=reply_button_pattern("Outline info")
+        )
+        self.bot.register_message_handler(
+            wrapped_keys_handler, regexp=reply_button_pattern("Keys")
+        )
+        self.bot.register_message_handler(
+            wrapped_traffic_handler, regexp=reply_button_pattern("Traffic")
+        )
 
 
 __all__ = ["OutlinePlugin"]

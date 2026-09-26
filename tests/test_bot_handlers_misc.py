@@ -8,7 +8,7 @@ from typing import Literal, cast
 import pytest
 import requests
 from telebot import TeleBot
-from telebot.types import CallbackQuery, Message
+from telebot.types import CallbackQuery, InputRichMessage, Message
 
 import pytmbot.handlers.bot_handlers.getmyid as getmyid_module
 import pytmbot.handlers.bot_handlers.inline.update as inline_update_module
@@ -97,6 +97,17 @@ def _make_bot() -> SimpleNamespace:
         sent_messages.append(payload)
         return _SentMessage(message_id=1000 + len(sent_messages))
 
+    def send_rich_message(
+        chat_id: int, rich_message: InputRichMessage, **kwargs: _PayloadValue
+    ) -> _SentMessage:
+        payload: _PayloadDict = {
+            "chat_id": chat_id,
+            "text": rich_message.html,
+            **kwargs,
+        }
+        sent_messages.append(payload)
+        return _SentMessage(message_id=1000 + len(sent_messages))
+
     def answer_callback_query(callback_query_id: str, **kwargs: _PayloadValue) -> str:
         record_callback_answer(callback_answers, callback_query_id, **kwargs)
         return "ok"
@@ -113,9 +124,17 @@ def _make_bot() -> SimpleNamespace:
         admin_ids=admin_ids,
         send_chat_action=send_chat_action,
         send_message=send_message,
+        send_rich_message=send_rich_message,
         answer_callback_query=answer_callback_query,
         edit_message_text=edit_message_text,
     )
+
+
+def _edited_html(payload: _PayloadDict) -> str:
+    rich_message = payload.get("rich_message")
+    assert isinstance(rich_message, InputRichMessage)
+    assert "parse_mode" not in payload
+    return str(rich_message.html)
 
 
 def _raw_handler(handler: _HandlerInput) -> _ResolvedHandler:
@@ -238,7 +257,7 @@ def test_handle_getmyid_raises_handling_exception_on_failure(
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "retrieving ID information" in str(bot.sent_messages[-1]["text"])
+    assert "Couldn't load your IDs" in str(bot.sent_messages[-1]["text"])
 
 
 def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -264,11 +283,24 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     manager_stub = _PluginManagerStub(keys=[], names=[], descriptions={})
     monkeypatch.setattr(plugins_module, "plugin_manager", manager_stub)
 
-    monkeypatch.setattr(
-        plugins_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+    def _capture_send(
+        bot: object, chat_id: int, text: str, **kwargs: _PayloadValue
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": text}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    def _capture_rich(
+        bot: object, chat_id: int, html: str, **kwargs: _PayloadValue
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": html, "html": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    monkeypatch.setattr(plugins_module, "send_main_message", _capture_send)
+    monkeypatch.setattr(plugins_module, "send_rich_main_message", _capture_rich)
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
     assert sent_payloads and "no plugins are available" in str(
@@ -314,7 +346,7 @@ def test_handle_plugins_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
 
     assert exc_info.value.context.error_code == "HAND_015"
-    assert "plugins menu" in str(bot.sent_messages[-1]["text"])
+    assert "Couldn't open Plugins" in str(sent_payloads[-1]["text"])
 
 
 def test_version_helpers_and_process_message_branches(
@@ -427,11 +459,14 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
         )(),
     )
-    monkeypatch.setattr(
-        updates_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+
+    def _send_rich(
+        bot: object, chat_id: int, html: str, **kwargs: _PayloadValue
+    ) -> None:
+        del bot
+        sent_payloads.append({"chat_id": chat_id, "text": html, **kwargs})
+
+    monkeypatch.setattr(updates_module, "send_rich_bot_message", _send_rich)
 
     handler(cast(Message, _Message()), cast(TeleBot, bot))
     markup = cast(list[dict[str, str]], sent_payloads[-1]["reply_markup"])
@@ -443,8 +478,8 @@ def test_handle_bot_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(
         updates_module,
-        "send_telegram_message",
-        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("send fail")),
+        "send_rich_bot_message",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("send fail")),
     )
     with pytest.raises(exceptions.HandlingException) as exc_info:
         handler(cast(Message, _Message()), cast(TeleBot, bot))
@@ -475,7 +510,7 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda **kwargs: "how-to-update",
     )
     handler(cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot))
-    assert bot.edited_messages[-1]["text"] == "how-to-update"
+    assert _edited_html(bot.edited_messages[-1]) == "<p>how-to-update</p>"
     assert_reply_markup_has_callbacks(
         bot.edited_messages[-1].get("reply_markup"),
         expected_callbacks=["__how_update__:101"],
@@ -491,7 +526,7 @@ def test_handle_update_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             cast(CallbackQuery, _Call(data="__how_update__:101")), cast(TeleBot, bot)
         )
     assert exc_info.value.context.error_code == "HAND_019"
-    assert "Couldn't load the update guide" in str(bot.edited_messages[-1]["text"])
+    assert "Couldn't load the update guide" in _edited_html(bot.edited_messages[-1])
     error_markup = bot.edited_messages[-1].get("reply_markup")
     assert error_markup is not None
 

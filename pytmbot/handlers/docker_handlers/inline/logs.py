@@ -22,6 +22,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_sanitized_logs,
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.handlers_util.utils import send_docker_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.keyboards.keyboards import NAV_DOCKER
@@ -34,6 +35,7 @@ from pytmbot.utils.message_deletion import (
     create_post_delete_navigation_callback,
     deletion_manager,
 )
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 button_data = ButtonDataType
@@ -417,11 +419,11 @@ def _build_logs_keyboard(
                 ),
             ),
             button_data(
-                text=f"{em.get_emoji('BACK_arrow')} Back to {session.container_name} info",
+                text=f"{em.get_emoji('BACK_arrow')} {session.container_name}",
                 callback_data=f"__get_full__:{session.container_name}:{session.user_id}",
             ),
             button_data(
-                text=f"{em.get_emoji('house')} Back to all containers",
+                text=f"{em.get_emoji('house')} All containers",
                 callback_data="back_to_containers",
             ),
         ]
@@ -470,9 +472,8 @@ def _edit_logs_message(
     return edit_callback_message_text(
         call=call,
         bot=bot,
-        text=context,
+        rich_message=build_rich_html_message(context),
         reply_markup=inline_keyboard,
-        parse_mode="HTML",
         not_modified_text="Logs view is already current.",
     )
 
@@ -614,7 +615,7 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
         logger.error("bot.handler.docker.logging.unexpected.deletion.fail")
 
     return bot.answer_callback_query(
-        callback_query_id=call.id, text=callback_text, show_alert=False
+        callback_query_id=callback_query_id(call), text=callback_text, show_alert=False
     )
 
 

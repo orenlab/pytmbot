@@ -5,8 +5,6 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
-import datetime
-
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
@@ -17,6 +15,10 @@ from pytmbot.globals import (
     get_emoji_converter,
     get_psutil_adapter,
     is_docker_environment,
+)
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    screen_updated_at,
 )
 from pytmbot.handlers.handlers_util.utils import HANDLER_COMMAND_ERROR_MESSAGE
 from pytmbot.handlers.server_handlers.cpu import (
@@ -120,36 +122,37 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
             edit_callback_message_text(
                 call,
                 bot,
-                text=fallback_text,
+                rich_message=build_rich_html_message(f"<p>{fallback_text}</p>"),
                 reply_markup=keyboard,
             )
             return None
 
-        # Format table as fixed-width string
-        def format_process_table(
+        # Format rows for rich HTML table
+        def format_process_rows(
             processes: list[TopProcess], max_name_len: int = 18
-        ) -> str:
+        ) -> list[dict[str, object]]:
             from textwrap import shorten
 
-            header = f"{'PID':<6} | {'Process Name':<{max_name_len}} | {'CPU':>5} | {'MEM':>5}"
-            separator = "-" * len(header)
-            lines = [header, separator]
-
+            rows: list[dict[str, object]] = []
             for proc in processes:
-                pid = str(proc.get("pid", "-"))[:6]
-                name = shorten(
-                    proc.get("name") or "", width=max_name_len, placeholder="…"
+                rows.append(
+                    {
+                        "pid": str(proc.get("pid", "-"))[:6],
+                        "name": shorten(
+                            proc.get("name") or "",
+                            width=max_name_len,
+                            placeholder="…",
+                        ),
+                        "cpu_percent": float(proc.get("cpu_percent", 0) or 0),
+                        "memory_percent": float(proc.get("memory_percent", 0) or 0),
+                    }
                 )
-                cpu = f"{proc.get('cpu_percent', 0):>4.1f}%"
-                mem = f"{proc.get('memory_percent', 0):>4.1f}%"
-                lines.append(f"{pid:<6} | {name:<{max_name_len}} | {cpu:>5} | {mem:>5}")
-
-            return "\n".join(lines)
+            return rows
 
         context = {
-            "process_table": format_process_table(processes_data),
+            "process_rows": format_process_rows(processes_data),
             "running_in_docker": running_in_docker,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": screen_updated_at(),
         }
 
         bot_answer = Compiler.quick_render(
@@ -159,8 +162,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=bot_answer,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(bot_answer),
             reply_markup=keyboard,
         )
         return None
@@ -169,7 +171,7 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=fallback_text,
+            rich_message=build_rich_html_message(f"<p>{fallback_text}</p>"),
             reply_markup=keyboard,
         )
         raise exceptions.HandlingException(
@@ -206,9 +208,9 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
             edit_callback_message_text(
                 call,
                 bot,
-                text=(
-                    "⚠️ Couldn't retrieve process information right now. "
-                    "Please try again later."
+                rich_message=build_rich_html_message(
+                    "<p>⚠️ Couldn't retrieve process information right now. "
+                    "Please try again later.</p>"
                 ),
                 reply_markup=keyboard,
             )
@@ -217,8 +219,7 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=message_text,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(message_text),
             reply_markup=keyboard,
         )
         return None
@@ -226,7 +227,9 @@ def handle_process_overview(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=HANDLER_COMMAND_ERROR_MESSAGE,
+            rich_message=build_rich_html_message(
+                f"<p>{HANDLER_COMMAND_ERROR_MESSAGE}</p>"
+            ),
             reply_markup=keyboard,
         )
         raise exceptions.HandlingException(

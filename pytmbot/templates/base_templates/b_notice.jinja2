@@ -1,0 +1,8 @@
+{# templates/b_notice.jinja2 — rich HTML status notice #}
+<p><b>{{ icon|default('ℹ️', true) }} {{ title|e }}</b></p>
+
+<p>{{ message|e }}</p>
+{% if hint %}
+
+<p><i>{{ hint|e }}</i></p>
+{% endif %}

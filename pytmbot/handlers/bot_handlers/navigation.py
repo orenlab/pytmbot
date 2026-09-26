@@ -63,7 +63,7 @@ def handle_navigation(message: Message, bot: TeleBot) -> None:
         send_main_message(
             bot,
             message.chat.id,
-            "⚠️ An error occurred while processing the plugins command.",
+            "⚠️ Couldn't open the main menu. Please try again.",
         )
         raise exceptions.HandlingException(
             ErrorContext(

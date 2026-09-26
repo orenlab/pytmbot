@@ -23,14 +23,18 @@ from tests._settings_helpers import build_webhook_config
 
 
 def test_default_settings_factories_return_expected_keys() -> None:
-    assert "rocket" in get_default_main_keyboard()
+    assert get_default_main_keyboard()["desktop_computer"] == "Server"
     assert "stethoscope" in get_default_main_keyboard()
     assert "penguin" not in get_default_server_keyboard()
     assert "stethoscope" not in get_default_server_keyboard()
     assert "framed_picture" in get_default_docker_keyboard()
-    assert "first_quarter_moon" in get_default_auth_keyboard()
+    assert get_default_auth_keyboard()["mobile_phone"] == "Get 2FA QR code"
     assert "BACK_arrow" in get_default_back_keyboard()
-    assert "/start" in get_default_bot_commands()
+    commands = get_default_bot_commands()
+    assert "/start" in commands
+    # Every command is registered with a leading slash and a short description.
+    assert all(command.startswith("/") for command in commands)
+    assert all(0 < len(description) <= 40 for description in commands.values())
 
 
 def test_get_config_file_path_points_to_project_yaml() -> None:

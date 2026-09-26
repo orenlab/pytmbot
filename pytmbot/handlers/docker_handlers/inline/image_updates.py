@@ -11,19 +11,22 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot.adapters.docker.updates import DockerImageUpdater, UpdaterStatus
-from pytmbot.globals import ButtonDataType, get_keyboards
+from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.images import IMAGES_PAGE_CALLBACK_PREFIX
 from pytmbot.handlers.docker_handlers.pagination import build_page_callback_data
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 button_data = ButtonDataType
+em = get_emoji_converter()
 keyboards = get_keyboards()
 
 
@@ -35,7 +38,7 @@ def _build_image_updates_keyboard(target_user_id: int | None) -> InlineKeyboardM
         check_updates_callback = f"__check_updates__:{target_user_id}"
         keyboard_buttons.append(
             button_data(
-                text="Back to images",
+                text=f"{em.get_emoji('BACK_arrow')} Images",
                 callback_data=build_page_callback_data(
                     prefix=IMAGES_PAGE_CALLBACK_PREFIX,
                     page=1,
@@ -85,7 +88,7 @@ def _authorize_image_updates_callback(
     def reject_callback(
         text: str, target_user_id: int | None
     ) -> tuple[bool, int | None]:
-        bot.answer_callback_query(call.id, text=text, show_alert=True)
+        bot.answer_callback_query(callback_query_id(call), text=text, show_alert=True)
         return False, target_user_id
 
     try:
@@ -187,7 +190,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     status = response.get("status")
     if not isinstance(status, str):
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text="Couldn't understand the updater response.",
             show_alert=True,
         )
@@ -204,7 +207,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
             elif isinstance(retry_after_obj, str):
                 retry_after = retry_after_obj
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text=(f"Registry rate limit exceeded. Try again in {retry_after} seconds."),
             show_alert=True,
         )
@@ -217,7 +220,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
             error_message if isinstance(error_message, str) else "unknown error"
         )
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text=f"Couldn't check image updates: {rendered_message}",
             show_alert=True,
         )
@@ -230,7 +233,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         not image_info["updates"] for image_info in updates_data.values()
     ):
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text="No image updates were found.",
             show_alert=True,
         )
@@ -246,8 +249,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=formatted_context,
-        parse_mode="Markdown",
+        rich_message=build_rich_html_message(formatted_context),
         reply_markup=_build_image_updates_keyboard(target_user_id),
         not_modified_text="Image updates are already current.",
     )

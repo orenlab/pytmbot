@@ -21,6 +21,10 @@ from pytmbot.globals import (
     get_psutil_adapter,
     is_docker_environment,
 )
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    screen_updated_at,
+)
 from pytmbot.handlers.server_handlers.cpu import (
     CPU_INFO_PREFIX,
     CPU_PER_CORE_PREFIX,
@@ -89,14 +93,13 @@ def _edit_message(
     bot: TeleBot,
     *,
     text: str,
-    parse_mode: str,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
+    """Replace the callback message with a rich HTML screen."""
     edit_callback_message_text(
         call,
         bot,
-        text=text,
-        parse_mode=parse_mode,
+        rich_message=build_rich_html_message(text),
         reply_markup=reply_markup,
         not_modified_text="Already up to date.",
     )
@@ -131,7 +134,7 @@ def _progress_bar(value: float, width: int = 12) -> str:
 def _build_cpu_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to CPU",
+            text=f"{em.get_emoji('BACK_arrow')} CPU",
             callback_data=build_user_bound_callback_data(CPU_INFO_PREFIX, user_id),
         ),
         button_data(
@@ -153,7 +156,7 @@ def _build_cpu_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
 def _build_network_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to Network",
+            text=f"{em.get_emoji('BACK_arrow')} Network",
             callback_data=build_user_bound_callback_data(
                 NETWORK_OVERVIEW_PREFIX, user_id
             ),
@@ -177,7 +180,7 @@ def _build_network_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
 def _build_filesystem_detail_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to File system",
+            text=f"{em.get_emoji('BACK_arrow')} File system",
             callback_data=build_user_bound_callback_data(
                 FILESYSTEM_OVERVIEW_PREFIX, user_id
             ),
@@ -195,7 +198,7 @@ def _build_sensors_detail_keyboard(
 ) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="Back to Sensors",
+            text=f"{em.get_emoji('BACK_arrow')} Sensors",
             callback_data=build_user_bound_callback_data(
                 SENSORS_OVERVIEW_PREFIX, user_id
             ),
@@ -239,7 +242,7 @@ def handle_cpu_info(call: CallbackQuery, bot: TeleBot) -> None:
             warning=em.get_emoji("warning"),
             electric_plug=em.get_emoji("electric_plug"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -282,7 +285,7 @@ def handle_cpu_per_core(call: CallbackQuery, bot: TeleBot) -> None:
             context={"core_rows": core_rows},
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -316,7 +319,7 @@ def handle_cpu_times(call: CallbackQuery, bot: TeleBot) -> None:
             context=cpu_times,
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -352,7 +355,7 @@ def handle_network_overview(call: CallbackQuery, bot: TeleBot) -> None:
             globe_showing_europe_africa=em.get_emoji("globe_showing_Europe-Africa"),
             hugging_face=em.get_emoji("smiling_face_with_open_hands"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -400,7 +403,7 @@ def handle_network_interfaces(call: CallbackQuery, bot: TeleBot) -> None:
             context={"interfaces": rows},
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -434,7 +437,7 @@ def handle_network_connections(call: CallbackQuery, bot: TeleBot) -> None:
             context=summary,
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -472,7 +475,7 @@ def handle_filesystem_overview(call: CallbackQuery, bot: TeleBot) -> None:
             minus=em.get_emoji("minus"),
             warning=em.get_emoji("warning"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -506,7 +509,7 @@ def handle_disk_io(call: CallbackQuery, bot: TeleBot) -> None:
             context={"disks": disk_io},
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -554,7 +557,7 @@ def handle_users_info(call: CallbackQuery, bot: TeleBot) -> None:
             context={"users": normalized},
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -595,15 +598,15 @@ def handle_sensors_overview(call: CallbackQuery, bot: TeleBot) -> None:
             )
         else:
             text = (
-                f"{em.get_emoji('thought_balloon')} <b>Sensors:</b>\n\n"
-                f"{NO_TEMPERATURE_SENSORS_TEXT}"
+                f"<p><b>{em.get_emoji('thought_balloon')} Sensors</b></p>"
+                f"<p>{NO_TEMPERATURE_SENSORS_TEXT}</p>"
             )
 
         keyboard = None
         if fan_speeds:
             keyboard = _build_sensors_keyboard(target_user_id)
 
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -639,7 +642,7 @@ def handle_fan_speeds(call: CallbackQuery, bot: TeleBot) -> None:
             context={"fans": fan_speeds},
             thought_balloon=em.get_emoji("thought_balloon"),
         )
-        _edit_message(call, bot, text=text, parse_mode="HTML", reply_markup=keyboard)
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -672,6 +675,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_quick_view.jinja2",
             context=context,
+            updated_at=screen_updated_at(),
             computer=em.get_emoji("desktop_computer"),
             chart=em.get_emoji("bar_chart"),
             memory=em.get_emoji("brain"),
@@ -680,9 +684,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
             docker=em.get_emoji("whale"),
             warning=em.get_emoji("warning"),
         )
-        _edit_message(
-            call, bot, text=text, parse_mode="Markdown", reply_markup=keyboard
-        )
+        _edit_message(call, bot, text=text, reply_markup=keyboard)
         return None
     except Exception as error:
         raise exceptions.HandlingException(
@@ -724,7 +726,6 @@ def handle_quickview_memory(call: CallbackQuery, bot: TeleBot) -> None:
             call,
             bot,
             text=text,
-            parse_mode="HTML",
             reply_markup=_build_quickview_detail_keyboard(target_user_id),
         )
         return None
@@ -769,7 +770,6 @@ def handle_quickview_sensors(call: CallbackQuery, bot: TeleBot) -> None:
             call,
             bot,
             text=text,
-            parse_mode="HTML",
             reply_markup=_build_quickview_detail_keyboard(target_user_id),
         )
         return None
@@ -812,7 +812,6 @@ def handle_quickview_cpu(call: CallbackQuery, bot: TeleBot) -> None:
             call,
             bot,
             text=text,
-            parse_mode="HTML",
             reply_markup=_build_quickview_detail_keyboard(target_user_id),
         )
         return None
@@ -855,7 +854,6 @@ def handle_quickview_disk(call: CallbackQuery, bot: TeleBot) -> None:
             call,
             bot,
             text=text,
-            parse_mode="HTML",
             reply_markup=_build_quickview_detail_keyboard(target_user_id),
         )
         return None

@@ -1,39 +1,54 @@
-{# templates/b_quick_view.jinja2 #}
-📊 *System Status Overview*
+{# templates/b_quick_view.jinja2 — rich HTML #}
+{% macro value_or_na(value, suffix='') -%}
+{%- if value is not none %}{{ value|e }}{{ suffix }}{% else %}N/A{% endif -%}
+{%- endmacro %}
+{% macro number_or_na(value, pattern, suffix='') -%}
+{%- if value is not none %}{{ pattern|format(value) }}{{ suffix }}{% else %}N/A{% endif -%}
+{%- endmacro %}
+<p><b>👀 Quick view</b></p>
 
 {% if context.system %}
-```bash
-🖥️ System Resources
-├─ ⏱️ Uptime
-│  └─ {{ "{:>12}".format(context.system.uptime if context.system.uptime is not none else 'N/A') }}
-│
-├─ 📈 Load Average
-│  ├─ 1 min:  {{ "{:>8.2f}".format(context.system.load_average[0]) if context.system.load_average and context.system.load_average[0] is not none else '{:>8}'.format('N/A') }}
-│  ├─ 5 min:  {{ "{:>8.2f}".format(context.system.load_average[1]) if context.system.load_average and context.system.load_average[1] is not none else '{:>8}'.format('N/A') }}
-│  └─ 15 min: {{ "{:>8.2f}".format(context.system.load_average[2]) if context.system.load_average and context.system.load_average[2] is not none else '{:>8}'.format('N/A') }}
-│
-├─ ⚡ CPU
-│  ├─ Load:   {{ "{:>7.1f}%".format(context.system.cpu.cpu_percent) if context.system.cpu and context.system.cpu.cpu_percent is not none else '{:>8}'.format('N/A') }}
-│  ├─ Cores:  {{ "{:>8}".format(context.system.cpu.cpu_count if context.system.cpu and context.system.cpu.cpu_count is not none else 'N/A') }}
-│  └─ Freq:   {{ "{:>7.0f}MHz".format(context.system.cpu.frequency_mhz) if context.system.cpu and context.system.cpu.frequency_mhz is not none else '{:>8}'.format('N/A') }}
-│
-├─ 🧠 Memory Usage
-│  ├─ Used:   {{ "{:>8}".format(context.system.memory.used) if context.system.memory and context.system.memory.used is not none else '{:>8}'.format('N/A') }}
-│  ├─ Free:   {{ "{:>8}".format(context.system.memory.free) if context.system.memory and context.system.memory.free is not none else '{:>8}'.format('N/A') }}
-│  └─ Usage:  {{ "{:>7}%".format(context.system.memory.percent) if context.system.memory and context.system.memory.percent is not none else '{:>8}'.format('N/A') }}
-│
-└─ ⚙️ Process Stats
-   ├─ Running:  {{ "{:>8}".format(context.system.processes.running if context.system.processes and context.system.processes.running is not none else 'N/A') }}
-   ├─ Sleeping: {{ "{:>8}".format(context.system.processes.sleeping if context.system.processes and context.system.processes.sleeping is not none else 'N/A') }}
-   ├─ Idle:     {{ "{:>8}".format(context.system.processes.idle if context.system.processes and context.system.processes.idle is not none else 'N/A') }}
-   └─ Total:    {{ "{:>8}".format(context.system.processes.total if context.system.processes and context.system.processes.total is not none else 'N/A') }}
+{% set system = context.system %}
+{% set load = system.load_average or [none, none, none] %}
+<p><b>System</b></p>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
+<tr><td>Uptime</td><td align="right">{{ value_or_na(system.uptime) }}</td></tr>
+<tr><td>Load 1 / 5 / 15 min</td><td align="right">{{ number_or_na(load[0], "%.2f") }} / {{ number_or_na(load[1], "%.2f") }} / {{ number_or_na(load[2], "%.2f") }}</td></tr>
+</table>
+
+<p><b>CPU and memory</b></p>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="right">Value</th></tr>
+<tr><td>CPU usage</td><td align="right">{{ number_or_na(system.cpu.cpu_percent if system.cpu else none, "%.1f", "%") }}</td></tr>
+<tr><td>CPU cores</td><td align="right">{{ value_or_na(system.cpu.cpu_count if system.cpu else none) }}</td></tr>
+<tr><td>CPU frequency</td><td align="right">{{ number_or_na(system.cpu.frequency_mhz if system.cpu else none, "%.0f", " MHz") }}</td></tr>
+<tr><td>Memory usage</td><td align="right">{{ value_or_na(system.memory.percent if system.memory else none, "%") }}</td></tr>
+<tr><td>Memory used</td><td align="right">{{ value_or_na(system.memory.used if system.memory else none) }}</td></tr>
+<tr><td>Memory free</td><td align="right">{{ value_or_na(system.memory.free if system.memory else none) }}</td></tr>
+</table>
+
+<p><b>Processes</b></p>
+<table bordered striped compact>
+<tr><th align="left">State</th><th align="right">Count</th></tr>
+<tr><td>Running</td><td align="right">{{ value_or_na(system.processes.running if system.processes else none) }}</td></tr>
+<tr><td>Sleeping</td><td align="right">{{ value_or_na(system.processes.sleeping if system.processes else none) }}</td></tr>
+<tr><td>Idle</td><td align="right">{{ value_or_na(system.processes.idle if system.processes else none) }}</td></tr>
+<tr><td>Total</td><td align="right">{{ value_or_na(system.processes.total if system.processes else none) }}</td></tr>
+</table>
 {% else %}
-⚠️ System monitoring data is currently unavailable
+<p>⚠️ <i>System metrics are unavailable right now.</i></p>
 {% endif %}
 
 {% if context.docker %}
-🐳 Docker Environment
-├─ Active Containers: {{ "{:>8}".format(context.docker.containers_count if context.docker.containers_count is not none else 'N/A') }}
-└─ Available Images:  {{ "{:>8}".format(context.docker.images_count if context.docker.images_count is not none else 'N/A') }}
+<p><b>Docker</b></p>
+<table bordered striped compact>
+<tr><th align="left">Resource</th><th align="right">Count</th></tr>
+<tr><td>Running containers</td><td align="right">{{ value_or_na(context.docker.containers_count) }}</td></tr>
+<tr><td>Images</td><td align="right">{{ value_or_na(context.docker.images_count) }}</td></tr>
+</table>
 {% endif %}
-```
+{% if updated_at %}
+
+<footer>Updated {{ updated_at|e }}</footer>
+{% endif %}

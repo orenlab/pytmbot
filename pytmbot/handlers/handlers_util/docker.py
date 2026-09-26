@@ -35,6 +35,7 @@ from pytmbot.utils import (
     to_float,
     to_int,
 )
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 em = get_emoji_converter()
@@ -111,7 +112,7 @@ def show_handler_info(call: CallbackQuery, text: str, bot: TeleBot) -> bool:
         None
     """
     return bot.answer_callback_query(
-        callback_query_id=call.id, text=text, show_alert=True
+        callback_query_id=callback_query_id(call), text=text, show_alert=True
     )
 
 

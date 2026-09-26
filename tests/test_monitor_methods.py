@@ -559,6 +559,16 @@ def test_alert_formatting_and_notifications(monkeypatch: pytest.MonkeyPatch) -> 
     )
     assert process_info.splitlines()[0].startswith("  • b")
 
+    hostile_process = monitor._format_process_info(
+        [{"pid": 3, "name": "<x>", "cpu_percent": 99.0, "memory_percent": 1.0}],
+        "cpu_percent",
+    )
+    assert "&lt;x&gt;" in hostile_process and "<x>" not in hostile_process
+    assert "&lt;b" in SystemMonitorPlugin._format_disk_alert("ev-3", "/media/<b", 91.0)
+    assert "a&amp;b" in SystemMonitorPlugin._format_temperature_alert(
+        "ev-4", "a&b", {"current": 90.0}
+    )
+
     messages: list[str] = []
     monkeypatch.setattr(
         SystemMonitorPlugin,

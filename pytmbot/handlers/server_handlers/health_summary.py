@@ -21,10 +21,14 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    screen_updated_at,
+    send_rich_bot_message,
+)
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
-    send_server_message,
+    send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
@@ -32,9 +36,11 @@ from pytmbot.handlers.server_handlers.inline.common import (
     edit_callback_message_text,
 )
 from pytmbot.health_system import HealthStatus
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import to_float, to_int
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 em = get_emoji_converter()
@@ -458,7 +464,7 @@ def _build_health_context() -> dict[str, object]:
 def _build_health_keyboard(user_id: int | None) -> InlineKeyboardMarkup:
     buttons = [
         button_data(
-            text="🔄 Refresh health",
+            text="🔄 Refresh",
             callback_data=build_user_bound_callback_data(
                 HEALTH_REFRESH_PREFIX, user_id
             ),
@@ -472,9 +478,7 @@ def _render_health_message() -> str:
     return Compiler.quick_render(
         template_name="b_health_summary.jinja2",
         context=context,
-        thought_balloon=em.get_emoji("thought_balloon"),
-        stethoscope=em.get_emoji("stethoscope"),
-        desktop_computer=em.get_emoji("desktop_computer"),
+        updated_at=screen_updated_at(),
     )
 
 
@@ -486,16 +490,16 @@ def handle_system_health(message: Message, bot: TeleBot) -> None:
         health_message = _render_health_message()
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = _build_health_keyboard(user_id)
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=health_message,
-            parse_mode="HTML",
+            health_message,
             reply_markup=keyboard,
+            nav_keyboard=NAV_MAIN,
         )
         return None
     except Exception as error:
-        send_server_message(
+        send_main_message(
             bot,
             message.chat.id,
             HANDLER_COMMAND_ERROR_MESSAGE,
@@ -533,14 +537,13 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
         was_edited = edit_callback_message_text(
             call=call,
             bot=bot,
-            text=health_message,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(health_message),
             reply_markup=keyboard,
             not_modified_text="Health snapshot is already current.",
         )
         if was_edited:
             bot.answer_callback_query(
-                callback_query_id=call.id,
+                callback_query_id=callback_query_id(call),
                 text="Health snapshot updated.",
                 show_alert=False,
             )

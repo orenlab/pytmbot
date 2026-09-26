@@ -1,42 +1,26 @@
-{# templates/docker_templates/d_containers.jinja2 #}
-
-{# Макрос для форматирования поля с значением #}
-{% macro format_field(emoji, label, value, default='N/A') -%}
-{%- if value or default -%}
-{{ emoji }} <b>{{ label }}:</b> {{ value | default(default) }}
-{%- endif -%}
-{%- endmacro %}
-
+{# templates/docker_templates/d_containers.jinja2 — rich HTML #}
 {% set container_fields = [
-    (oil_drum, 'Container', 'name', None),
-    (id, 'ID', 'id', None),
-    (package, 'Image', 'image', None),
-    (mantelpiece_clock, 'Created', 'created', None),
-    (rocket, 'Started', 'run_at', None),
-    (antenna_bars, 'Status', 'status', None)
+    ('Status', 'status'),
+    ('Image', 'image'),
+    ('ID', 'id'),
+    ('Started', 'run_at'),
+    ('Created', 'created')
 ] %}
+<p><b>📦 Containers</b></p>
 
-{{ thought_balloon }} <b>Docker Containers:</b>
-
-{% for value in context -%}
-{% for emoji, label, field_key, default_value in container_fields -%}
-{%- if field_key == 'name' -%}
-{{ emoji }} <b>{{ value[field_key] }}</b>
-{% elif field_key == 'status' -%}
-{{ emoji }} <b>{{ label }}:</b> <code>{{ value[field_key] }}</code>
-{% else -%}
-{{ format_field(emoji, label, value[field_key], default_value) }}
-{% endif -%}
-{% endfor -%}
-{%- if not loop.last %}
-
-<i>───────────────</i>
-
-{% endif -%}
+{% for value in context %}
+<p><b>{{ value['name']|e }}</b></p>
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
+{% for label, field_key in container_fields %}
+{% set field_value = value[field_key] if value[field_key] is not none else 'N/A' %}
+<tr><td>{{ label }}</td><td>{% if field_key in ('id', 'status') %}<code>{{ field_value|e }}</code>{% else %}{{ field_value|e }}{% endif %}</td></tr>
+{% endfor %}
+</table>
 {% else %}
-<b>No containers available.</b>
-{%- endfor %}
+<p>No containers found. If you expected some, check that pyTMBot can reach the Docker socket.</p>
+{% endfor %}
+{% if context %}
 
-{% if context -%}
-{{ magnifying_glass }} <b>More details:</b>
-{%- endif -%}
+<p><i>Tap a container below to open its details.</i></p>
+{% endif %}

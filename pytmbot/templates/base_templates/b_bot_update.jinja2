@@ -1,7 +1,17 @@
-{{ thought_balloon }} <b>Update Available:</b>
+{# templates/b_bot_update.jinja2 — rich HTML #}
+<p><b>🔄 Update available</b></p>
 
-{{ spouting_whale }} <code>Version:</code> {{ current_version }}
-{{ calendar }} <code>Released:</code> {{ release_date }}
+<table bordered striped compact>
+<tr><th align="left">Parameter</th><th align="left">Value</th></tr>
+<tr><td>Version</td><td><code>{{ current_version|e }}</code></td></tr>
+<tr><td>Released</td><td>{{ release_date|e }}</td></tr>
+</table>
 
-{{ cooking }} <b>Changes:</b>
-{{ release_notes }}
+{% if release_notes_html %}
+<details>
+<summary>Release notes</summary>
+{{ release_notes_html|safe }}
+</details>
+{% endif %}
+
+<p><i>Open the update guide below for upgrade steps.</i></p>

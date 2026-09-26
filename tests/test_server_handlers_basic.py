@@ -18,6 +18,7 @@ import pytmbot.handlers.server_handlers.process as process_module
 import pytmbot.handlers.server_handlers.sensors as sensors_module
 import pytmbot.handlers.server_handlers.uptime as uptime_module
 from pytmbot.exceptions import HandlingException
+from pytmbot.handlers.handlers_util.utils import NAV_KEYBOARD_SYNC_TEXT
 from pytmbot.parsers.compiler import Compiler
 from tests._telebot_objects import telegram_object_from_payload
 from tests._telebot_send_capture import build_bot_capture
@@ -59,6 +60,14 @@ def _invoke_handler(
     typed_handler(message, bot)
 
 
+def _latest_content_message(messages: list[_PayloadDict]) -> _PayloadDict:
+    """Return the latest non-nav-sync outbound message."""
+    for message in reversed(messages):
+        if message.get("text") != NAV_KEYBOARD_SYNC_TEXT:
+            return message
+    raise AssertionError("No content message found")
+
+
 def _extract_inline_payload(message_payload: _PayloadDict) -> _PayloadValue:
     reply_markup = message_payload["reply_markup"]
     assert isinstance(reply_markup, dict)
@@ -81,8 +90,31 @@ def _assert_handler_renders_html(
         lambda template_name, **_kwargs: expected_text,
     )
     _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == expected_text
-    assert messages[-1]["parse_mode"] == "HTML"
+    content = _latest_content_message(messages)
+    assert content["text"] == expected_text
+    assert content.get("rich_message") is not None
+    assert content.get("parse_mode") is None
+
+
+def _render_success_and_get_content(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    compiler: _CompilerLike,
+    handler: _RawHandlerInput,
+    message: Message,
+    bot: TeleBot,
+    messages: list[_PayloadDict],
+    success_text: str,
+) -> _PayloadDict:
+    monkeypatch.setattr(
+        compiler,
+        "quick_render",
+        lambda template_name, **_kwargs: success_text,
+    )
+    _invoke_handler(handler, message, bot)
+    content = _latest_content_message(messages)
+    assert content["text"] == success_text
+    return content
 
 
 def _assert_memory_or_process_handler_paths(
@@ -98,6 +130,7 @@ def _assert_memory_or_process_handler_paths(
     message: Message,
     bot: TeleBot,
     messages: list[_PayloadDict],
+    expect_rich: bool = True,
 ) -> None:
     monkeypatch.setattr(
         module,
@@ -114,15 +147,21 @@ def _assert_memory_or_process_handler_paths(
         "keyboards",
         type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
     )
-    monkeypatch.setattr(
-        compiler,
-        "quick_render",
-        lambda template_name, **_kwargs: success_text,
+    content = _render_success_and_get_content(
+        monkeypatch=monkeypatch,
+        compiler=compiler,
+        handler=handler,
+        message=message,
+        bot=bot,
+        messages=messages,
+        success_text=success_text,
     )
-    _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == success_text
-    assert messages[-1]["parse_mode"] == "HTML"
-    inline_payload = _extract_inline_payload(messages[-1])
+    if expect_rich:
+        assert content.get("rich_message") is not None
+        assert content.get("parse_mode") is None
+    else:
+        assert content["parse_mode"] == "HTML"
+    inline_payload = _extract_inline_payload(content)
     callback_data_values: list[str] = []
     if isinstance(inline_payload, dict):
         callback_data = inline_payload.get("callback_data")
@@ -143,7 +182,7 @@ def _assert_memory_or_process_handler_paths(
         type("A", (), {adapter_method: lambda self: None})(),
     )
     _invoke_handler(handler, message, bot)
-    assert "Couldn't retrieve" in str(messages[-1]["text"])
+    assert "Couldn't retrieve" in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         module,
@@ -172,7 +211,7 @@ def _assert_simple_handler_paths(
     adapter_method: str,
     success_payload: _PayloadValue,
     success_text: str,
-    parse_mode: str,
+    parse_mode: str | None,
     none_text_contains: str,
     expected_error_code: str,
     message: Message,
@@ -184,14 +223,20 @@ def _assert_simple_handler_paths(
         "psutil_adapter",
         type("A", (), {adapter_method: lambda self: success_payload})(),
     )
-    monkeypatch.setattr(
-        compiler,
-        "quick_render",
-        lambda template_name, **_kwargs: success_text,
+    content = _render_success_and_get_content(
+        monkeypatch=monkeypatch,
+        compiler=compiler,
+        handler=handler,
+        message=message,
+        bot=bot,
+        messages=messages,
+        success_text=success_text,
     )
-    _invoke_handler(handler, message, bot)
-    assert messages[-1]["text"] == success_text
-    assert messages[-1]["parse_mode"] == parse_mode
+    if parse_mode is None:
+        assert content.get("rich_message") is not None
+        assert content.get("parse_mode") is None
+    else:
+        assert content["parse_mode"] == parse_mode
 
     monkeypatch.setattr(
         module,
@@ -199,7 +244,7 @@ def _assert_simple_handler_paths(
         type("A", (), {adapter_method: lambda self: None})(),
     )
     _invoke_handler(handler, message, bot)
-    assert none_text_contains in str(messages[-1]["text"])
+    assert none_text_contains in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         module,
@@ -231,11 +276,11 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda **_kwargs: "uptime ok",
+        lambda **_kwargs: "<p>uptime ok</p>",
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
     assert actions[-1] == (10, "typing")
-    assert messages[-1]["text"] == "uptime ok"
+    assert _latest_content_message(messages)["text"] == "<p>uptime ok</p>"
 
     monkeypatch.setattr(
         uptime_module,
@@ -243,7 +288,7 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         type("A", (), {"get_uptime": lambda self: None})(),
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
-    assert "Couldn't retrieve uptime" in str(messages[-1]["text"])
+    assert "Couldn't retrieve uptime" in str(_latest_content_message(messages)["text"])
 
     monkeypatch.setattr(
         uptime_module,
@@ -271,11 +316,12 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda *_args, **_kwargs: "load ok",
+        lambda *_args, **_kwargs: "<p>load ok</p>",
     )
     _invoke_handler(load_average_module.handle_load_average, message, bot)
-    assert messages[-1]["text"] == "load ok"
-    assert messages[-1]["parse_mode"] == "Markdown"
+    assert messages[-1]["text"] == "<p>load ok</p>"
+    assert messages[-1].get("rich_message") is not None
+    assert messages[-1].get("parse_mode") is None
 
     monkeypatch.setattr(
         load_average_module,
@@ -306,9 +352,9 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=network_module.handle_network,
         adapter_method="get_net_io_counters",
         success_payload={"rx": "1 MiB"},
-        success_text="network ok",
-        parse_mode="HTML",
-        none_text_contains="error occurred while getting network statistics",
+        success_text="<p>network ok</p>",
+        parse_mode=None,
+        none_text_contains="Couldn't load network statistics",
         expected_error_code="HAND_005",
         message=message,
         bot=bot,
@@ -327,7 +373,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         handler=memory_module.handle_memory,
         adapter_method="get_memory",
         success_payload={"percent": 25.0},
-        success_text="memory ok",
+        success_text="<p>memory ok</p>",
         expected_error_code="HAND_006",
         message=message,
         bot=bot,
@@ -340,11 +386,12 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         handler=process_module.handle_process,
         adapter_method="get_process_counts",
         success_payload={"running": 3},
-        success_text="process ok",
+        success_text="<p>process ok</p>",
         expected_error_code="HAND_004",
         message=message,
         bot=bot,
         messages=messages,
+        expect_rich=True,
     )
 
 
@@ -359,8 +406,8 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
         handler=sensors_module.handle_sensors,
         adapter_method="get_sensors_temperatures",
         success_payload=[{"name": "cpu", "temp": 55}],
-        success_text="sensors ok",
-        parse_mode="HTML",
+        success_text="<p>sensors ok</p>",
+        parse_mode=None,
         none_text_contains="No temperature or fan sensors were found",
         expected_error_code="HAND_003",
         message=message,
@@ -408,9 +455,9 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         message=message,
         bot=bot,
         messages=messages,
-        expected_text="cpu ok",
+        expected_text="<p>cpu ok</p>",
     )
-    inline_buttons = _extract_inline_payload(messages[-1])
+    inline_buttons = _extract_inline_payload(_latest_content_message(messages))
     assert isinstance(inline_buttons, list)
     first_button = inline_buttons[0]
     assert isinstance(first_button, dict)
@@ -473,7 +520,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         message=message,
         bot=bot,
         messages=messages,
-        expected_text="health ok",
+        expected_text="<p>health ok</p>",
     )
 
     monkeypatch.setattr(
@@ -499,9 +546,9 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=filesystem_module.handle_file_system,
         adapter_method="get_disk_usage",
         success_payload={"disk": []},
-        success_text="fs ok",
-        parse_mode="HTML",
-        none_text_contains="Failed to handle disk usage",
+        success_text="<p>fs ok</p>",
+        parse_mode=None,
+        none_text_contains="Couldn't load disk usage",
         expected_error_code="HAND_008",
         message=message,
         bot=bot,

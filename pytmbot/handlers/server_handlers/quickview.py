@@ -19,14 +19,18 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import (
+    screen_updated_at,
+    send_rich_bot_message,
+)
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
-    send_server_message,
+    send_main_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -200,7 +204,7 @@ def _build_quickview_context(metrics: dict[str, object]) -> dict[str, object]:
 def _build_quickview_keyboard(
     user_id: int | None, *, on_overview: bool = False
 ) -> InlineKeyboardMarkup:
-    overview_text = "🔄 Refresh data" if on_overview else "📊 Overview"
+    overview_text = "🔄 Refresh" if on_overview else "👀 Overview"
     buttons = [
         button_data(
             text=overview_text,
@@ -209,13 +213,13 @@ def _build_quickview_keyboard(
             ),
         ),
         button_data(
-            text="💾 Memory",
+            text="🧠 Memory",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_MEMORY_PREFIX, user_id
             ),
         ),
         button_data(
-            text="🌡 Temp",
+            text="🌡️ Sensors",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_SENSORS_PREFIX, user_id
             ),
@@ -225,7 +229,7 @@ def _build_quickview_keyboard(
             callback_data=build_user_bound_callback_data(QUICKVIEW_CPU_PREFIX, user_id),
         ),
         button_data(
-            text="📂 Disk",
+            text="💾 Disk",
             callback_data=build_user_bound_callback_data(
                 QUICKVIEW_DISK_PREFIX, user_id
             ),
@@ -256,10 +260,10 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
 
         if not metrics:
             logger.error("bot.handler.server.quickview.collect.any.fail")
-            send_server_message(
+            send_main_message(
                 bot,
                 message.chat.id,
-                text="⚠️ Failed to get system metrics. Please try again later.",
+                text="⚠️ Couldn't load system metrics right now. Please try again.",
             )
             return
 
@@ -268,19 +272,24 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
         keyboard = _build_quickview_keyboard(user_id, on_overview=True)
 
         bot_answer = Compiler.quick_render(
-            template_name="b_quick_view.jinja2", context=context, **emojis
+            template_name="b_quick_view.jinja2",
+            context=context,
+            updated_at=screen_updated_at(),
+            **emojis,
         )
 
-        send_bot_message(
+        # Quick view lives on the main menu; keep inline drill-down and re-attach
+        # the main reply keyboard so navigation stays usable (notably on iOS).
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=bot_answer,
-            parse_mode="Markdown",
+            bot_answer,
             reply_markup=keyboard,
+            nav_keyboard=NAV_MAIN,
         )
 
     except Exception as error:
-        send_server_message(
+        send_main_message(
             bot,
             message.chat.id,
             HANDLER_COMMAND_ERROR_MESSAGE,

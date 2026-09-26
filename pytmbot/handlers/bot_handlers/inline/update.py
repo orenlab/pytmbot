@@ -15,12 +15,14 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
     edit_callback_message_text,
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 em = get_emoji_converter()
@@ -60,7 +62,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
         )
     except ValueError:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text="This update button is no longer valid. Run /check_bot_updates again.",
             show_alert=True,
         )
@@ -72,14 +74,14 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
     )
     if not is_allowed:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=deny_reason,
             show_alert=True,
         )
 
     if call.message is None:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=(
                 "This update message can no longer be refreshed. "
                 "Run /check_bot_updates again."
@@ -97,8 +99,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
         edit_callback_message_text(
             call=call,
             bot=bot,
-            text=bot_answer,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(bot_answer),
             reply_markup=_build_update_info_keyboard(target_user_id),
             not_modified_text="Update guide is already current.",
         )
@@ -108,8 +109,9 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
             edit_callback_message_text(
                 call=call,
                 bot=bot,
-                text=(
-                    "Couldn't load the update guide right now. Please try again later."
+                rich_message=build_rich_html_message(
+                    "<p>Couldn't load the update guide right now. "
+                    "Please try again later.</p>"
                 ),
                 reply_markup=_build_update_info_keyboard(target_user_id),
                 not_modified_text="Update guide is already current.",

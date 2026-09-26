@@ -11,12 +11,22 @@ import re
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import CallbackQuery, InlineKeyboardMarkup
+from telebot.types import CallbackQuery, InlineKeyboardMarkup, InputRichMessage
 
 from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import (
+    build_rich_html_message,
+    is_rich_content_rejection,
+)
+from pytmbot.handlers.handlers_util.utils import truncate_telegram_text
+from pytmbot.logs import Logger
+from pytmbot.utils.rich_html import rich_html_to_plain_text, rich_paragraphs
+from pytmbot.utils.telegram_utils import callback_query_id
+
+logger = Logger()
 
 _RETRY_AFTER_PATTERN = re.compile(r"retry after\s+(\d+)", re.IGNORECASE)
 
@@ -70,7 +80,7 @@ def authorize_user_bound_callback(
         text: str, target_user_id: int | None
     ) -> tuple[bool, int | None]:
         bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=text,
             show_alert=True,
         )
@@ -95,77 +105,161 @@ def authorize_user_bound_callback(
     return True, target_user_id
 
 
+def _is_rich_message(message: object) -> bool:
+    """Return True when a callback message carries rich content."""
+    return (
+        getattr(message, "content_type", None) == "rich_message"
+        or getattr(message, "rich_message", None) is not None
+    )
+
+
 def edit_callback_message_text(
     call: CallbackQuery,
     bot: TeleBot,
     *,
-    text: str,
+    text: str | None = None,
     parse_mode: str | None = None,
     reply_markup: InlineKeyboardMarkup | None = None,
+    rich_message: InputRichMessage | None = None,
     not_modified_text: str = "Already up to date.",
 ) -> bool:
-    """Edit callback-bound message and treat Telegram 'not modified' as a no-op."""
+    """
+    Edit callback-bound message and treat Telegram 'not modified' as a no-op.
+
+    Pass either classic ``text`` (optionally with ``parse_mode``) or
+    ``rich_message``. Do not mix both content representations.
+
+    Classic text aimed at a rich message is converted to rich paragraphs so
+    the edit keeps the rich message lifecycle instead of overlaying it.
+    """
     if call.message is None:
         return False
+    if rich_message is not None and text is not None:
+        raise ValueError("Pass either text or rich_message, not both")
+    if rich_message is None and text is None:
+        raise ValueError("Either text or rich_message is required")
+    if rich_message is None and text is not None and _is_rich_message(call.message):
+        # Classic HTML keeps line breaks, so flatten tags line by line.
+        plain_text = (
+            "\n".join(rich_html_to_plain_text(line) for line in text.splitlines())
+            if parse_mode == "HTML"
+            else text
+        )
+        rich_message = build_rich_html_message(
+            rich_paragraphs(plain_text) or "<p>…</p>"
+        )
+        text = None
 
     try:
-        if parse_mode is not None and reply_markup is not None:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-                parse_mode=parse_mode,
-                reply_markup=reply_markup,
-            )
-        elif parse_mode is not None:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-                parse_mode=parse_mode,
-            )
-        elif reply_markup is not None:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-                reply_markup=reply_markup,
-            )
-        else:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-            )
+        _edit_message(
+            call,
+            bot,
+            text=text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+            rich_message=rich_message,
+        )
         return True
     except ApiTelegramException as error:
-        if getattr(error, "error_code", None) == 429:
-            retry_after = _extract_retry_after_seconds(error)
-            if getattr(call, "id", None) is not None:
-                callback_text = (
-                    "Telegram API is rate limited. Try again shortly."
-                    if retry_after is None
-                    else f"Telegram API is rate limited. Try again in {retry_after}s."
-                )
-                bot.answer_callback_query(
-                    callback_query_id=call.id,
-                    text=callback_text,
-                    show_alert=False,
-                )
-            return False
-
-        error_description = getattr(error, "description", str(error))
-        is_not_modified = (
-            getattr(error, "error_code", None) == 400
-            and "message is not modified" in str(error_description).lower()
+        if rich_message is None or not is_rich_content_rejection(error):
+            return _handle_edit_error(call, bot, error, not_modified_text)
+        # Mirror the send path: show the same content as plain text instead.
+        logger.warning(
+            "bot.handler.server_handlers.inline.common.rich.edit.rejected.warn",
+            error=str(getattr(error, "description", error)),
         )
-        if not is_not_modified:
-            raise
 
+    try:
+        _edit_message(
+            call,
+            bot,
+            text=truncate_telegram_text(
+                rich_html_to_plain_text(rich_message.html or "") or "…"
+            ),
+            reply_markup=reply_markup,
+        )
+        return True
+    except ApiTelegramException as error:
+        return _handle_edit_error(call, bot, error, not_modified_text)
+
+
+def _edit_message(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    text: str | None = None,
+    parse_mode: str | None = None,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    rich_message: InputRichMessage | None = None,
+) -> None:
+    if call.message is None:
+        return
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
+    if rich_message is not None:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            rich_message=rich_message,
+            reply_markup=reply_markup,
+        )
+    elif parse_mode is not None and reply_markup is not None:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+    elif parse_mode is not None:
+        bot.edit_message_text(
+            chat_id=chat_id, message_id=message_id, text=text, parse_mode=parse_mode
+        )
+    elif reply_markup is not None:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            reply_markup=reply_markup,
+        )
+    else:
+        bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text)
+
+
+def _handle_edit_error(
+    call: CallbackQuery,
+    bot: TeleBot,
+    error: ApiTelegramException,
+    not_modified_text: str,
+) -> bool:
+    """Turn rate limits and 'not modified' into toasts; re-raise anything else."""
+    if getattr(error, "error_code", None) == 429:
+        retry_after = _extract_retry_after_seconds(error)
         if getattr(call, "id", None) is not None:
+            callback_text = (
+                "Telegram API is rate limited. Try again shortly."
+                if retry_after is None
+                else f"Telegram API is rate limited. Try again in {retry_after}s."
+            )
             bot.answer_callback_query(
-                callback_query_id=call.id,
-                text=not_modified_text,
+                callback_query_id=callback_query_id(call),
+                text=callback_text,
                 show_alert=False,
             )
         return False
+
+    error_description = getattr(error, "description", str(error))
+    is_not_modified = (
+        getattr(error, "error_code", None) == 400
+        and "message is not modified" in str(error_description).lower()
+    )
+    if not is_not_modified:
+        raise error
+
+    if getattr(call, "id", None) is not None:
+        bot.answer_callback_query(
+            callback_query_id=callback_query_id(call),
+            text=not_modified_text,
+            show_alert=False,
+        )
+    return False

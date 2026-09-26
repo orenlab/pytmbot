@@ -18,14 +18,15 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
-    send_bot_message,
     send_server_message,
 )
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
 )
+from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 
@@ -88,9 +89,9 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
             )
         else:
             sensors_message = (
-                f"{em.get_emoji('thought_balloon')} <b>Sensors:</b>\n\n"
-                "No temperature sensors are available on this host.\n"
-                "Fan speed data is available via the button below."
+                f"<p><b>{em.get_emoji('thought_balloon')} Sensors</b></p>"
+                "<p>No temperature sensors are available on this host.</p>"
+                "<p><i>Fan speed data is available via the button below.</i></p>"
             )
 
         keyboard = None
@@ -98,12 +99,12 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
             user_id = message.from_user.id if message.from_user is not None else None
             keyboard = _build_sensors_keyboard(user_id)
 
-        send_bot_message(
+        send_rich_bot_message(
             bot,
             message.chat.id,
-            text=sensors_message,
-            parse_mode="HTML",
+            sensors_message,
             reply_markup=keyboard,
+            nav_keyboard=NAV_SERVER,
         )
 
     except Exception as error:

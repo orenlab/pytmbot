@@ -20,6 +20,7 @@ from pytmbot.handlers.handlers_util.docker import (
     get_required_callback_data,
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 
@@ -73,9 +74,8 @@ def handle_images_page(call: CallbackQuery, bot: TeleBot) -> None:
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=context,
+        rich_message=build_rich_html_message(context),
         reply_markup=inline_keyboard,
-        parse_mode="HTML",
         not_modified_text="Images list is already current.",
     )
     return None

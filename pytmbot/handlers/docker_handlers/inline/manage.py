@@ -17,6 +17,7 @@ from pytmbot.handlers.handlers_util.docker import (
 from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
@@ -71,10 +72,12 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
                 button_data(
                     text=f"{em.get_emoji('no_entry')} Stop",
                     callback_data=f"__stop__:{container_name}:{auth_context.user_id}",
+                    style="danger",
                 ),
                 button_data(
                     text=f"{em.get_emoji('recycling_symbol')} Restart",
                     callback_data=f"__restart__:{container_name}:{auth_context.user_id}",
+                    style="primary",
                 ),
             ]
         )
@@ -89,13 +92,14 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
             button_data(
                 text=f"{em.get_emoji('glowing_star')} Start",
                 callback_data=f"__start__:{container_name}:{auth_context.user_id}",
+                style="success",
             )
         )
 
     # Always add back button
     keyboard_buttons.append(
         button_data(
-            text=f"{em.get_emoji('BACK_arrow')} Back to {container_name} info",
+            text=f"{em.get_emoji('BACK_arrow')} {container_name}",
             callback_data=f"__get_full__:{container_name}:{auth_context.user_id}",
         )
     )
@@ -103,10 +107,9 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     inline_keyboard = keyboards.build_inline_keyboard(keyboard_buttons)
 
     emojis: dict[str, str] = {
-        "cross_mark": em.get_emoji("cross_mark"),
+        "thought_balloon": em.get_emoji("thought_balloon"),
         "briefcase": em.get_emoji("briefcase"),
         "anxious_face_with_sweat": em.get_emoji("anxious_face_with_sweat"),
-        "double_exclamation_mark": em.get_emoji("double_exclamation_mark"),
     }
 
     rendered_context = Compiler.quick_render(
@@ -128,8 +131,7 @@ def handle_manage_container(call: CallbackQuery, bot: TeleBot) -> None:
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=rendered_context,
+        rich_message=build_rich_html_message(rendered_context),
         reply_markup=inline_keyboard,
-        parse_mode="HTML",
         not_modified_text="Container management view is already current.",
     )

@@ -57,7 +57,8 @@ See also: [auth_control.md](auth_control.md).
 
 ## Operational Baseline
 
-- Use `orenlab/pytmbot:0.4.0` for exact-release reproducibility.
-- Use `orenlab/pytmbot:0.4` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
+- Use `orenlab/pytmbot:0.5.0` for exact-release reproducibility.
+- Use `orenlab/pytmbot:0.5` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
+- Development builds from `feat/*` / `fix/*` publish as `edge-*`; do not treat them as production tags.
 - Run periodic vulnerability scans for container image and host.
 - Review auth/rate-limit/webhook logs regularly.

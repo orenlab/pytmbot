@@ -1,13 +1,29 @@
-{# templates/b_top_processes.jinja2 #}
-{{ thought_balloon }} System Resource Usage – Top Processes
+{# templates/b_top_processes.jinja2 — rich HTML #}
+<p><b>⚙️ Top processes</b></p>
 
-<pre language="bash">
-{{ context.process_table }}
-</pre>
+{% if context.process_rows %}
+<table bordered striped compact>
+<tr>
+<th align="left">PID</th>
+<th align="left">Process</th>
+<th align="right">CPU</th>
+<th align="right">MEM</th>
+</tr>
+{% for row in context.process_rows %}
+<tr>
+<td>{{ row.pid|e }}</td>
+<td>{{ row.name|e }}</td>
+<td align="right">{{ "%.1f"|format(row.cpu_percent) }}%</td>
+<td align="right">{{ "%.1f"|format(row.memory_percent) }}%</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No process data available.</p>
+{% endif %}
 
-{{ information }} Updated: {{ context.timestamp }}
-{%- if context.running_in_docker %}
+{% if context.running_in_docker %}
+<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% endif %}
 
-
-{{ warning }} <i>Limited resource information available in Docker environment</i>
-{%- endif %}
+<footer>Updated {{ context.timestamp|e }}</footer>

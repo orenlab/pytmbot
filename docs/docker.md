@@ -20,14 +20,14 @@ Published image:
 
 Stable public tags:
 
-- `0.4.0` for an exact release image
-- `0.4` for the current supported stable line
+- `0.5.0` for an exact release image
+- `0.5` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`
 
 Additional tags:
 
-- `0.4-rYYYYMMDD` for dated weekly stable-line rebuilds
+- `0.5-rYYYYMMDD` for dated weekly stable-line rebuilds
 - `edge-<branch>` and `edge-sha-<gitsha>` for development images from `feat/*` and `fix/*` branches
 
 See [release_policy.md](release_policy.md) for the full contract.
@@ -39,12 +39,13 @@ Supported image architectures:
 
 ## Runtime Defaults
 
-- base image: Ubuntu
+- base image: Ubuntu (`26.04` in the current `Dockerfile`)
 - container user: `pytmbot`
 - user/group id: `1001:1001`
 - working directory: `/opt/app`
 - default timezone env: `TZ=UTC`
 - built-in Docker `HEALTHCHECK` calls `./entrypoint.sh --health_check`
+- development images (`edge-*`) track unreleased branch work; production fleets should use the `0.5` stable tags
 
 ## Required And Optional Mounts
 

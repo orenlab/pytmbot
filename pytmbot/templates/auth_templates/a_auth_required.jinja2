@@ -1,22 +1,16 @@
 {%- set example_apps = [
-    'Yandex Key',
+    'Google Authenticator',
     'Microsoft Authenticator',
-    'Google Authenticator'
+    'Yandex Key'
 ] -%}
+🔐 <b>Two-factor authentication required</b>
 
-{{ thought_balloon }} Hello, {{ name }}.
-
-{{ double_exclamation_mark }} Two-factor authentication (2FA) is required to open this section.
+This section is protected. Confirm it's you with a code from your authenticator app.
 {%- if not has_installed_app %}
-Install any app that supports standard TOTP codes if you do not have one yet.
+
+Any app that supports standard TOTP codes works, for example:
+<blockquote expandable>{{ example_apps | join(", ") }}</blockquote>
 {%- endif %}
 
-<blockquote expandable>
-Examples of compatible apps:
-{% for app in example_apps -%}
-- {{ app }}
-{% endfor %}
-</blockquote>
-
-{{ first_quarter_moon }} Need to set up 2FA? Tap "Get QR Code".
-{{ fountain_pen }} Already set up? Tap "Enter 2FA Code".
+📱 First time? Tap <b>Get 2FA QR code</b> and scan it in your app.
+🔢 Already set up? Tap <b>Enter 2FA code</b>.

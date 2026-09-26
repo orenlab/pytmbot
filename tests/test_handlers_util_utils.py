@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+import requests
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from pytmbot.handlers.handlers_util import utils as utils_module
@@ -52,9 +56,32 @@ def test_send_bot_message_prefers_explicit_reply_markup(
         1,
         "ok",
         reply_markup=inline,
-        nav_keyboard=NAV_MAIN,
     )
     assert bot.messages[0]["reply_markup"] is inline
+    assert len(bot.messages) == 1
+
+
+def test_send_bot_message_syncs_nav_keyboard_after_inline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inline = InlineKeyboardMarkup()
+    nav = cast(ReplyKeyboardMarkup, object())
+
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    bot = _BotStub()
+    utils_module.send_bot_message(
+        bot,  # type: ignore[arg-type]
+        7,
+        "overview",
+        reply_markup=inline,
+        nav_keyboard=NAV_MAIN,
+    )
+    assert len(bot.messages) == 2
+    assert bot.messages[0]["reply_markup"] is inline
+    assert bot.messages[0]["text"] == "overview"
+    assert bot.messages[1]["reply_markup"] is nav
+    assert bot.messages[1]["text"] == utils_module.NAV_KEYBOARD_SYNC_TEXT
+    assert bot.messages[1]["disable_notification"] is True
 
 
 def test_send_main_server_and_docker_messages_attach_nav_keyboards(
@@ -127,3 +154,87 @@ def test_build_referer_main_keyboard_is_persistent_and_not_one_time(
     assert isinstance(markup, ReplyKeyboardMarkup)
     assert markup.is_persistent is True
     assert markup.one_time_keyboard is False
+
+
+class _MessageGone(ApiTelegramException):
+    def __init__(self) -> None:
+        Exception.__init__(self, "Bad Request: message to delete not found")
+        self.error_code = 400
+
+
+def test_nav_keyboard_sync_keeps_only_latest_follow_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict())
+
+    class _Bot:
+        def __init__(self) -> None:
+            self.next_id = 100
+            self.deleted: list[tuple[int, int]] = []
+
+        def send_message(self, **kwargs: object) -> SimpleNamespace:
+            self.next_id += 1
+            return SimpleNamespace(message_id=self.next_id, **kwargs)
+
+        def delete_message(self, chat_id: int, message_id: int) -> bool:
+            self.deleted.append((chat_id, message_id))
+            if message_id == 102:
+                raise _MessageGone()
+            return True
+
+    bot = _Bot()
+    for _ in range(3):
+        utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 8, "docker_keyboard")
+
+    # Each new follow-up removes the previous one in the same chat only;
+    # a failed deletion (already gone) is ignored.
+    assert bot.deleted == [(7, 101), (7, 102)]
+    assert dict(utils_module._nav_sync_messages) == {7: 103, 8: 104}
+
+
+def test_nav_keyboard_sync_keeps_newest_when_handlers_finish_out_of_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict({7: 11}))
+    deleted: list[int] = []
+    bot = SimpleNamespace(
+        send_message=lambda **kwargs: SimpleNamespace(message_id=10),
+        delete_message=lambda chat_id, message_id: deleted.append(message_id),
+    )
+
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+
+    assert deleted == [10]
+    assert dict(utils_module._nav_sync_messages) == {7: 11}
+
+
+class _TooManyRequests(ApiTelegramException):
+    def __init__(self) -> None:
+        Exception.__init__(self, "Too Many Requests: retry after 3")
+        self.error_code = 429
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_TooManyRequests(), requests.ConnectionError("connection reset")],
+)
+def test_nav_keyboard_sync_failure_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict({7: 11}))
+
+    def _fail(**kwargs: object) -> None:
+        raise error
+
+    bot = SimpleNamespace(send_message=_fail)
+
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+
+    assert dict(utils_module._nav_sync_messages) == {7: 11}

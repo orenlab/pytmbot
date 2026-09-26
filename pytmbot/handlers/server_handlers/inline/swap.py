@@ -16,6 +16,7 @@ from pytmbot.globals import (
     get_keyboards,
     get_psutil_adapter,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import (
     authorize_user_bound_callback,
     build_user_bound_callback_data,
@@ -79,7 +80,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
             edit_callback_message_text(
                 call,
                 bot,
-                text=fallback_text,
+                rich_message=build_rich_html_message(f"<p>{fallback_text}</p>"),
                 reply_markup=_build_swap_keyboard(target_user_id),
             )
             return None
@@ -91,7 +92,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=bot_answer,
+            rich_message=build_rich_html_message(bot_answer),
             reply_markup=_build_swap_keyboard(target_user_id),
         )
         return None
@@ -99,7 +100,7 @@ def handle_swap_info(call: CallbackQuery, bot: TeleBot) -> None:
         edit_callback_message_text(
             call,
             bot,
-            text=fallback_text,
+            rich_message=build_rich_html_message(f"<p>{fallback_text}</p>"),
             reply_markup=_build_swap_keyboard(target_user_id),
         )
         raise exceptions.HandlingException(

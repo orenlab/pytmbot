@@ -51,7 +51,24 @@ def _build_plugin_harness(
         sent_messages.append({"chat_id": chat_id, "text": text, **kwargs})
         return cast(Message, SimpleNamespace(ok=True))
 
+    def _fake_send_rich_message(
+        self: TeleBot,
+        chat_id: int,
+        rich_message: object,
+        **kwargs: _PayloadValue,
+    ) -> Message:
+        html = getattr(rich_message, "html", None)
+        payload: _PayloadDict = {
+            "chat_id": chat_id,
+            "text": html if isinstance(html, str) else None,
+            "rich_message": cast(_PayloadValue, rich_message),
+        }
+        payload.update(kwargs)
+        sent_messages.append(payload)
+        return cast(Message, SimpleNamespace(ok=True))
+
     monkeypatch.setattr(TeleBot, "send_message", _fake_send_message)
+    monkeypatch.setattr(TeleBot, "send_rich_message", _fake_send_rich_message)
 
     plugin = OutlinePlugin(TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE"))
 
@@ -64,7 +81,7 @@ def _build_plugin_harness(
         rendered_context["template_name"] = template_name
         rendered_context["first_name"] = first_name
         rendered_context["context"] = context
-        return f"rendered-{template_name}"
+        return f"<p>rendered-{template_name}</p>"
 
     monkeypatch.setattr(plugin, "_compile_template", _fake_compile)
     return plugin, sent_messages, rendered_context
@@ -100,8 +117,10 @@ def test_handle_server_info_normalizes_snake_case_payload(
         "portForNewAccessKeys": 8443,
     }
     assert sent_messages[0]["chat_id"] == 101
-    assert sent_messages[0]["text"] == "rendered-plugin_outline_server_info.jinja2"
-    assert sent_messages[0]["parse_mode"] == "HTML"
+    assert (
+        sent_messages[0]["text"] == "<p>rendered-plugin_outline_server_info.jinja2</p>"
+    )
+    assert sent_messages[0].get("rich_message") is not None
 
 
 def test_handle_traffic_supports_snake_case_and_key_id(
@@ -127,8 +146,8 @@ def test_handle_traffic_supports_snake_case_and_key_id(
         "userNames": {"42": "Alice"},
     }
     assert sent_messages[0]["chat_id"] == 101
-    assert sent_messages[0]["text"] == "rendered-plugin_outline_traffic.jinja2"
-    assert sent_messages[0]["parse_mode"] == "HTML"
+    assert sent_messages[0]["text"] == "<p>rendered-plugin_outline_traffic.jinja2</p>"
+    assert sent_messages[0].get("rich_message") is not None
 
 
 def test_get_action_data_parses_json_list_payload(

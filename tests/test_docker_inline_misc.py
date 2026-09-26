@@ -84,6 +84,13 @@ class _Bot:
         return "edited"
 
 
+def _edited_content(payload: _JsonDict) -> object:
+    rich = payload.get("rich_message")
+    if rich is not None:
+        return getattr(rich, "html", rich)
+    return payload.get("text")
+
+
 def _raw_handler(handler: _RawHandlerInput) -> _CallbackHandler:
     return cast(_CallbackHandler, unwrap_handler(handler, depth=3))
 
@@ -201,7 +208,7 @@ def _assert_image_details_callback_paths(
 
     monkeypatch.setattr(module, render_attr, render_success)
     handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
-    assert bot.edited_messages[-1]["text"] == success_text
+    assert _edited_content(bot.edited_messages[-1]) == success_text
 
 
 def test_back_callback_parsing() -> None:
@@ -252,12 +259,12 @@ def test_handle_back_to_containers_paths(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         back_module,
         "get_list_of_containers_again",
-        lambda page, user_id: ("containers", "kbd"),
+        lambda page, user_id: ("<p>containers</p>", "kbd"),
     )
     handler(
         cast(CallbackQuery, _Call(data="__containers_page__:3:11")), cast(TeleBot, bot)
     )
-    assert bot.edited_messages[-1]["text"] == "containers"
+    assert _edited_content(bot.edited_messages[-1]) == "<p>containers</p>"
 
 
 def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -307,10 +314,10 @@ def test_handle_images_page_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         images_page_module,
         "render_images_page",
-        lambda page, user_id: ("images-page", "kbd"),
+        lambda page, user_id: ("<p>images-page</p>", "kbd"),
     )
     handler(cast(CallbackQuery, _Call(data="__images_page__:2:11")), cast(TeleBot, bot))
-    assert bot.edited_messages[-1]["text"] == "images-page"
+    assert _edited_content(bot.edited_messages[-1]) == "<p>images-page</p>"
     assert auth_kwargs[-1]["require_session"] is False
 
 
@@ -327,8 +334,11 @@ def test_handle_image_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         valid_callback_data="__image_info__:3:11:2",
         render_attr="render_image_details",
         render_none=lambda image_index, page, user_id: None,
-        render_success=lambda image_index, page, user_id: ("image-details", "kbd"),
-        success_text="image-details",
+        render_success=lambda image_index, page, user_id: (
+            "<p>image-details</p>",
+            "kbd",
+        ),
+        success_text="<p>image-details</p>",
     )
 
 
@@ -346,10 +356,10 @@ def test_handle_image_extra_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         render_attr="render_image_extra_info",
         render_none=lambda action, image_index, page, user_id: None,
         render_success=lambda action, image_index, page, user_id: (
-            "image-extra",
+            "<p>image-extra</p>",
             "kbd",
         ),
-        success_text="image-extra",
+        success_text="<p>image-extra</p>",
     )
 
 
@@ -464,13 +474,13 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
             }
 
     monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
-    monkeypatch.setattr(
-        Compiler,
-        "quick_render",
-        lambda **kwargs: "updates-rendered",
-    )
     handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert bot.edited_messages[-1]["text"] == "updates-rendered"
+    edited = bot.edited_messages[-1]
+    assert "parse_mode" not in edited
+    rendered = str(_edited_content(edited))
+    assert "<code>repo-a</code>" in rendered
+    assert "1.0.1" in rendered
+    assert "**" not in rendered
     assert_reply_markup_has_callbacks(
         bot.edited_messages[-1].get("reply_markup"),
         expected_callbacks=["__check_updates__:11", "__images_page__:1:11"],
@@ -648,7 +658,8 @@ def test_manage_action_private_functions(monkeypatch: pytest.MonkeyPatch) -> Non
     manage_action_module.__restart_container(
         cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
     )
-    assert "Restarting api: Success" in str(bot.edited_messages[-1]["text"])
+    restart_content = str(_edited_content(bot.edited_messages[-1]))
+    assert "<code>api</code> restarted successfully" in restart_content
 
     monkeypatch.setattr(
         manage_action_module.container_manager,
@@ -686,7 +697,7 @@ def test_handle_back_to_containers_ignores_not_modified(
     monkeypatch.setattr(
         back_module,
         "get_list_of_containers_again",
-        lambda page, user_id: ("containers", "kbd"),
+        lambda page, user_id: ("<p>containers</p>", "kbd"),
     )
 
     patch_not_modified_edit_error(monkeypatch, bot)
@@ -715,7 +726,7 @@ def test_handle_images_page_ignores_not_modified(
     monkeypatch.setattr(
         images_page_module,
         "render_images_page",
-        lambda page, user_id: ("images-page", "kbd"),
+        lambda page, user_id: ("<p>images-page</p>", "kbd"),
     )
 
     patch_not_modified_edit_error(monkeypatch, bot)

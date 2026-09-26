@@ -1,24 +1,18 @@
-{{ thought_balloon }} <b>Hello, {{ first_name }}!</b>
+{# plugin_monitor_index.jinja2 — rich HTML #}
+<p><b>📊 Monitoring</b></p>
+<p>Period: <b>{{ period_label|e }}</b></p>
 
-{{ bar_chart }} <b>Monitoring dashboard</b>
-<b>Period:</b> {{ period_label }}
+{% if notice %}
+<p>✅ {{ notice|e }}</p>
+{% endif %}
 
-{% if notice -%}
-{{ information }} {{ notice }}
-{% endif -%}
+<p><b>Summary</b></p>
+<table bordered striped compact>
+<tr><th align="left">Metric</th><th align="left">Value</th></tr>
+<tr><td>CPU</td><td>{{ cpu_line|e }}</td></tr>
+<tr><td>Memory</td><td>{{ memory_line|e }}</td></tr>
+<tr><td>Disk</td><td>{{ disk_line|e }}</td></tr>
+<tr><td>Temperatures</td><td>{{ temperature_line|e }}</td></tr>
+</table>
 
-<b>Current summary:</b>
-{{ electric_plug }} CPU: {{ cpu_line }}
-{{ brain }} Memory: {{ memory_line }}
-{{ computer_disk }} Disk: {{ disk_line }}
-{{ thermometer }} Temperatures: {{ temperature_line }}
-
-<b>Navigation:</b>
-{{ minus }} Overview
-{{ minus }} CPU usage
-{{ minus }} Memory usage
-{{ minus }} Disk usage
-{{ minus }} Temperatures
-{{ minus }} Select period
-
-{{ information }} Pick a section from keyboard to view detailed statistics from InfluxDB.
+<p><i>Pick a section from the menu below for detailed statistics from InfluxDB.</i></p>
