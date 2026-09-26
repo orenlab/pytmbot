@@ -89,7 +89,7 @@ def render_process_overview_text() -> str | None:
     )
 
 
-# regexp="Process")
+# regexp=reply_button_pattern("Processes", "Process")
 @logger.session_decorator
 def handle_process(message: Message, bot: TeleBot) -> None:
     try:

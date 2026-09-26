@@ -25,6 +25,7 @@ Always available in the core bot:
 | `/server`            | allowed users | Opens the server section                      |
 | `/health`            | allowed users | Shows the current health snapshot             |
 | `/plugins`           | allowed users | Opens the plugin menu                         |
+| `/about`             | allowed users | Shows the version and project links           |
 | `/check_bot_updates` | allowed users | Checks for newer bot versions                 |
 | `/qrcode`            | admins only   | Returns the TOTP QR code used for 2FA setup   |
 
@@ -38,39 +39,41 @@ Provided only when the plugin is loaded:
 
 Main menu buttons:
 
-- `Server`
-- `Docker`
-- `Plugins`
-- `Quick view`
-- `Health`
-- `About me`
+- `🖥️ Server`
+- `🐳 Docker`
+- `👀 Quick view`
+- `🩺 Health`
+- `🧩 Plugins`
+- `ℹ️ About`
 
 Server section buttons:
 
-- `Load average`
-- `CPU`
-- `Memory load`
-- `Sensors`
-- `Process`
-- `Uptime`
-- `File system`
-- `Network`
+- `📈 Load average`
+- `⚡ CPU`
+- `🧠 Memory load`
+- `🌡️ Sensors`
+- `⚙️ Processes`
+- `⏱️ Uptime`
+- `💾 File system`
+- `🌐 Network`
 
 Docker section buttons:
 
-- `Images`
-- `Containers`
+- `📦 Containers`
+- `🖼️ Images`
 
 Authentication buttons:
 
-- `Get QR-code for 2FA app`
-- `Enter 2FA code`
+- `📱 Get 2FA QR code`
+- `🔢 Enter 2FA code`
 
 Plugin buttons:
 
 - come from loaded plugin index metadata
-- `monitor` adds `Monitoring`
-- `outline` adds `Outline VPN`
+- `monitor` adds `📊 Monitoring`
+- `outline` adds `🪐 Outline VPN`
+
+Button text is matched by its label, so the leading emoji is optional: typing `CPU` or `⚡ CPU` opens the same view, while longer phrases that merely contain a label are ignored.
 
 ## 2FA Input
 
@@ -109,6 +112,9 @@ The bot also exposes callback-driven flows that are not slash commands:
 - Container action buttons use inline button styles: `danger` for Stop, `primary` for Restart, and `success` for Start.
 - Text-only bot replies re-attach the matching section keyboard automatically.
 - Structured screens (server metrics, Docker lists and details, menus, update checks, `/getmyid`, plugin screens) are Telegram Rich Messages with native tables; oversized content is trimmed to Telegram limits, and a rejected rich payload falls back to a plain-text message.
+- Every inline button press is acknowledged, so the client spinner never hangs; failures show a short "Something went wrong" toast.
+- Only the latest "Use the menu below to continue." follow-up is kept per chat; older copies are deleted.
+- Unrecognized text in a private chat gets a short hint pointing back to the menu instead of silence.
 - Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
 
 ## Related Docs

@@ -12,11 +12,14 @@ refreshed.
 - Rich message safeguards: content is trimmed to Telegram limits, and a rejected rich payload falls back to plain text.
 - Colored buttons: accents on reply menus and color-coded container actions (Stop, Restart, Start); back navigation
   sits on its own full-width row, and inline back buttons use short labels so they fit on phones.
+- `/about` command, a bot short description, and a friendly hint for unrecognized messages in private chats.
 
 ### Changed
 
-- One consistent screen layout (bold titles, compact bordered tables with aligned header rows, footers), covered by
-  render tests.
+- One consistent screen layout (bold titles with section icons, compact bordered tables with aligned header rows,
+  "updated at" footers, empty states), covered by render tests.
+- Refreshed menu labels and icons (`About`, `Processes`, `Get 2FA QR code`), command descriptions, and user-facing
+  copy for menus, 2FA, errors, and update notices; release notes are rendered as formatted text.
 - Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.0 / Bot API 10.3), Docker build images (Ubuntu `26.04`,
   uv `0.12.19`), BuildKit, and all pinned GitHub Actions; `codeclone` is back on the stable 2.0.x release.
 - Added `0.5.0` to the `config_version` compatibility matrix; `0.5` is now the supported stable image line.
@@ -27,6 +30,9 @@ refreshed.
 - Rich screens overwritten by classic text edits (image update check, container restart, Swap, Process overview).
 - Broken layouts: run-on container actions screen, empty rows in container details, doubled bullets in Monitor.
 - `/start` and `/about` failing due to classic-only arguments passed to rich sends.
+- Inline buttons spinning until timeout when a handler did not answer the callback; every press is now acknowledged.
+- Reply buttons matched by substring (for example, any text containing `CPU`); labels are now matched exactly.
+- Repeated "Use the menu below to continue." messages piling up in chats.
 
 ## [0.4.0] — 20260624
 
