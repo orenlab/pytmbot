@@ -15,6 +15,7 @@ from typing import Final
 from telebot.types import CallbackQuery, Message
 
 from pytmbot.globals import settings
+from pytmbot.keyboards.keyboards import reply_button_pattern
 from pytmbot.models.handlers_model import HandlerManager
 
 from .auth_processing.qrcode_processing import handle_qr_code_message
@@ -371,19 +372,34 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
     """Build and cache message handler configurations dictionary."""
     return {
         "authorization": [
-            HandlerConfig(callback=handle_twofa_message, regexp="Enter 2FA code")
+            HandlerConfig(
+                callback=handle_twofa_message,
+                regexp=reply_button_pattern("Enter 2FA code"),
+            )
         ],
-        "quick_view": [HandlerConfig(callback=handle_quick_view, regexp="Quick view")],
+        "quick_view": [
+            HandlerConfig(
+                callback=handle_quick_view, regexp=reply_button_pattern("Quick view")
+            )
+        ],
         "code_verification": [
             HandlerConfig(
                 callback=handle_totp_code_verification, regexp=TOTP_CODE_PATTERN
             )
         ],
         "start": [HandlerConfig(callback=handle_start, commands=["help", "start"])],
-        "about": [HandlerConfig(callback=handle_about_command, regexp="About me")],
+        "about": [
+            HandlerConfig(
+                callback=handle_about_command,
+                regexp=reply_button_pattern("About", "About me"),
+            )
+        ],
         "getmyid": [HandlerConfig(callback=handle_getmyid, commands=["getmyid"])],
         "navigation": [
-            HandlerConfig(callback=handle_navigation, regexp="Back to main menu"),
+            HandlerConfig(
+                callback=handle_navigation,
+                regexp=reply_button_pattern("Back to main menu"),
+            ),
             HandlerConfig(callback=handle_navigation, commands=["back"]),
         ],
         "updates": [
@@ -391,44 +407,82 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
         ],
         "containers": [
             HandlerConfig(callback=handle_containers, commands=["containers"]),
-            HandlerConfig(callback=handle_containers, regexp="Containers"),
+            HandlerConfig(
+                callback=handle_containers, regexp=reply_button_pattern("Containers")
+            ),
         ],
         "docker": [
             HandlerConfig(callback=handle_docker, commands=["docker"]),
-            HandlerConfig(callback=handle_docker, regexp="Docker"),
+            HandlerConfig(
+                callback=handle_docker, regexp=reply_button_pattern("Docker")
+            ),
         ],
         "filesystem": [
-            HandlerConfig(callback=handle_file_system, regexp="File system")
+            HandlerConfig(
+                callback=handle_file_system, regexp=reply_button_pattern("File system")
+            )
         ],
-        "cpu": [HandlerConfig(callback=handle_cpu, regexp="CPU")],
+        "cpu": [HandlerConfig(callback=handle_cpu, regexp=reply_button_pattern("CPU"))],
         "health": [
-            HandlerConfig(callback=handle_system_health, regexp="Health"),
+            HandlerConfig(
+                callback=handle_system_health, regexp=reply_button_pattern("Health")
+            ),
             HandlerConfig(callback=handle_system_health, commands=["health"]),
         ],
         "images": [
             HandlerConfig(callback=handle_images, commands=["images"]),
-            HandlerConfig(callback=handle_images, regexp="Images"),
+            HandlerConfig(
+                callback=handle_images, regexp=reply_button_pattern("Images")
+            ),
         ],
         "load_average": [
-            HandlerConfig(callback=handle_load_average, regexp="Load average")
+            HandlerConfig(
+                callback=handle_load_average,
+                regexp=reply_button_pattern("Load average"),
+            )
         ],
-        "memory": [HandlerConfig(callback=handle_memory, regexp="Memory load")],
-        "network": [HandlerConfig(callback=handle_network, regexp="Network")],
-        "process": [HandlerConfig(callback=handle_process, regexp="Process")],
-        "sensors": [HandlerConfig(callback=handle_sensors, regexp="Sensors")],
-        "uptime": [HandlerConfig(callback=handle_uptime, regexp="Uptime")],
+        "memory": [
+            HandlerConfig(
+                callback=handle_memory, regexp=reply_button_pattern("Memory load")
+            )
+        ],
+        "network": [
+            HandlerConfig(
+                callback=handle_network, regexp=reply_button_pattern("Network")
+            )
+        ],
+        "process": [
+            HandlerConfig(
+                callback=handle_process,
+                regexp=reply_button_pattern("Processes", "Process"),
+            )
+        ],
+        "sensors": [
+            HandlerConfig(
+                callback=handle_sensors, regexp=reply_button_pattern("Sensors")
+            )
+        ],
+        "uptime": [
+            HandlerConfig(callback=handle_uptime, regexp=reply_button_pattern("Uptime"))
+        ],
         "plugins": [
             HandlerConfig(callback=handle_plugins, commands=["plugins"]),
-            HandlerConfig(callback=handle_plugins, regexp="Plugins"),
+            HandlerConfig(
+                callback=handle_plugins, regexp=reply_button_pattern("Plugins")
+            ),
         ],
         "server": [
             HandlerConfig(callback=handle_server, commands=["server"]),
-            HandlerConfig(callback=handle_server, regexp="Server"),
+            HandlerConfig(
+                callback=handle_server, regexp=reply_button_pattern("Server")
+            ),
         ],
         "qrcode": [
             HandlerConfig(
                 callback=handle_qr_code_message,
-                regexp="Get QR-code for 2FA app",
+                regexp=reply_button_pattern(
+                    "Get 2FA QR code", "Get QR-code for 2FA app"
+                ),
                 filter_func=AdminFilter.is_admin,
             ),
             HandlerConfig(

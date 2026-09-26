@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -382,6 +383,22 @@ class Keyboards:
 
             log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard
+
+
+def reply_button_pattern(*labels: str) -> str:
+    """
+    Build an anchored regexp for reply keyboard buttons.
+
+    Buttons are rendered as "<emoji> <label>"; the pattern accepts the label
+    with or without the emoji prefix, and nothing else, so a core button such
+    as "CPU" never captures a plugin button such as "CPU usage".
+    """
+    if not labels:
+        raise ValueError("At least one button label is required")
+    alternatives = "|".join(re.escape(label) for label in labels)
+    # The emoji prefix is a token without ASCII letters or digits; \w is not used
+    # because some emoji (e.g. "ℹ️") are Unicode word characters.
+    return rf"^(?:[^\sA-Za-z0-9]+\s+)?(?:{alternatives})$"
 
 
 def build_nav_keyboard(keyboard_type: str = NAV_MAIN) -> ReplyKeyboardMarkup:

@@ -40,6 +40,7 @@ from pytmbot.handlers.handler_manager import (
 )
 from pytmbot.logs import BaseComponent, Logger
 from pytmbot.middleware.access_control import AccessControl
+from pytmbot.middleware.callback_ack import CallbackAcknowledger
 from pytmbot.middleware.rate_limit import RateLimit
 from pytmbot.middleware.update_dedup import UpdateDedup
 from pytmbot.models.handlers_model import HandlerManager
@@ -128,6 +129,7 @@ DEFAULT_MIDDLEWARES: Final[list[MiddlewareType]] = [
     (UpdateDedup, {"ttl_seconds": 120.0, "max_entries": 8192}),
     (AccessControl, {}),
     (RateLimit, {"limit": 8, "period": timedelta(seconds=10)}),
+    (CallbackAcknowledger, {}),
 ]
 
 CONFLICT_RESOLUTION_STRATEGY: Final[ConflictResolutionStrategy] = (

@@ -21,6 +21,7 @@ from pytmbot.db.influxdb_interface import InfluxDBInterface
 from pytmbot.globals import get_emoji_converter, get_keyboards
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import send_bot_message
+from pytmbot.keyboards.keyboards import reply_button_pattern
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.monitor import config
 from pytmbot.plugins.monitor.methods import SystemMonitorPlugin
@@ -84,8 +85,7 @@ class MonitoringPlugin(PluginInterface):
     @staticmethod
     def _button_regexp(text: str) -> str:
         # Reply keyboard buttons are rendered as "<emoji> <title>".
-        # Match both plain text and keyboard-rendered value with emoji prefix.
-        return rf"^(?:[^\w\s]+\s+)?{re.escape(text)}$"
+        return reply_button_pattern(text)
 
     @staticmethod
     def _normalize_button_text(text: str) -> str:

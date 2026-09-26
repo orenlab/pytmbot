@@ -17,6 +17,7 @@ from pytmbot.handlers.handlers_util.rich_messages import (
     send_rich_bot_message,
     send_rich_main_message,
 )
+from pytmbot.keyboards.keyboards import reply_button_pattern
 from pytmbot.parsers._types import TemplateContext, TemplateValue
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.plugins.outline import config
@@ -407,10 +408,18 @@ class OutlinePlugin(PluginInterface):
         wrapped_traffic_handler = plugin.logger.session_decorator(self.handle_traffic)
 
         self.bot.register_message_handler(wrapped_outline_handler, commands=["outline"])
-        self.bot.register_message_handler(wrapped_outline_handler, regexp="Outline VPN")
-        self.bot.register_message_handler(wrapped_server_handler, regexp="Outline info")
-        self.bot.register_message_handler(wrapped_keys_handler, regexp="Keys")
-        self.bot.register_message_handler(wrapped_traffic_handler, regexp="Traffic")
+        self.bot.register_message_handler(
+            wrapped_outline_handler, regexp=reply_button_pattern("Outline VPN")
+        )
+        self.bot.register_message_handler(
+            wrapped_server_handler, regexp=reply_button_pattern("Outline info")
+        )
+        self.bot.register_message_handler(
+            wrapped_keys_handler, regexp=reply_button_pattern("Keys")
+        )
+        self.bot.register_message_handler(
+            wrapped_traffic_handler, regexp=reply_button_pattern("Traffic")
+        )
 
 
 __all__ = ["OutlinePlugin"]

@@ -256,3 +256,29 @@ def test_build_referer_keyboards_validation_and_callback_size() -> None:
     callbacks = _flatten_inline_callback_data(inline)
     assert callbacks
     assert len(callbacks[0]) <= keyboard.MAX_CALLBACK_DATA_LENGTH
+
+
+@pytest.mark.parametrize(
+    ("labels", "text", "expected"),
+    [
+        (("CPU",), "⚡ CPU", True),
+        (("CPU",), "CPU", True),
+        (("CPU",), "⚙️ CPU usage", False),
+        (("About", "About me"), "ℹ️ About", True),
+        (("About", "About me"), "🍄 About me", True),
+        (("Monitoring",), "Server Monitoring", False),
+        (("Back to main menu",), "⬅️ Back to main menu", True),
+    ],
+)
+def test_reply_button_pattern_is_anchored(
+    labels: tuple[str, ...], text: str, expected: bool
+) -> None:
+    import re
+
+    pattern = keyboards_module.reply_button_pattern(*labels)
+    assert bool(re.search(pattern, text)) is expected
+
+
+def test_reply_button_pattern_requires_labels() -> None:
+    with pytest.raises(ValueError):
+        keyboards_module.reply_button_pattern()
