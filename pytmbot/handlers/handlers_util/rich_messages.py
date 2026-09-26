@@ -101,9 +101,22 @@ def build_rich_html_message(
     )
 
 
+# 400 errors that a plain-text retry cannot fix (target or markup problems).
+_NON_CONTENT_ERROR_MARKERS: Final[tuple[str, ...]] = (
+    "chat not found",
+    "thread not found",
+    "button",
+    "reply markup",
+    "not enough rights",
+)
+
+
 def _is_rich_content_rejection(error: ApiTelegramException) -> bool:
     """Return True for Telegram 400 errors caused by the rich payload itself."""
-    return getattr(error, "error_code", None) == 400
+    if getattr(error, "error_code", None) != 400:
+        return False
+    description = str(getattr(error, "description", error)).lower()
+    return not any(marker in description for marker in _NON_CONTENT_ERROR_MARKERS)
 
 
 def _send_plain_text_fallback(

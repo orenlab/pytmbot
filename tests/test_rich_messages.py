@@ -298,3 +298,21 @@ def test_edit_callback_message_text_keeps_rich_lifecycle_for_classic_text() -> N
     rich = bot.edits[0]["rich_message"]
     assert isinstance(rich, InputRichMessage)
     assert rich.html == "<p>Restarted</p><p>State: running</p>"
+
+
+def test_send_rich_bot_message_reraises_non_content_bad_requests() -> None:
+    class _ChatNotFound(ApiTelegramException):
+        def __init__(self) -> None:
+            Exception.__init__(self, "Bad Request: chat not found")
+            self.error_code = 400
+            self.description = "Bad Request: chat not found"
+
+    class _Bot(_RichBotStub):
+        def send_rich_message(self, **kwargs: Any) -> dict[str, Any]:
+            del kwargs
+            raise _ChatNotFound()
+
+    bot = _Bot()
+    with pytest.raises(_ChatNotFound):
+        rich_module.send_rich_bot_message(bot, 5, "<p>x</p>")  # type: ignore[arg-type]
+    assert bot.messages == []

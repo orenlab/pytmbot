@@ -173,10 +173,25 @@ def _tokenize(html: str) -> list[_Token]:
 
 
 def _cell_span(start_tag_text: str) -> int:
-    match = re.search(r'colspan\s*=\s*"?(\d+)', start_tag_text, re.IGNORECASE)
+    match = re.search(r"colspan\s*=\s*[\"']?(\d+)", start_tag_text, re.IGNORECASE)
     if match is None:
         return 1
     return max(1, int(match.group(1)))
+
+
+def _text_size(text: str) -> int:
+    """Count text in UTF-16 code units, the stricter of Telegram's length units."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _clip_text(text: str, budget: int) -> str:
+    """Return the longest prefix of ``text`` whose size fits ``budget``."""
+    size = 0
+    for index, char in enumerate(text):
+        size += _text_size(char)
+        if size > budget:
+            return text[:index]
+    return text
 
 
 def measure_rich_html(html: str) -> RichHtmlMetrics:
@@ -190,10 +205,7 @@ def measure_rich_html(html: str) -> RichHtmlMetrics:
 
     for kind, tag, raw in _tokenize(html):
         if kind == "data":
-            if depth:
-                text_length += len(raw)
-            else:
-                text_length += len(raw.strip())
+            text_length += _text_size(raw if depth else raw.strip())
         elif kind == "entity":
             text_length += 1
         elif kind == "void":
@@ -220,59 +232,115 @@ def measure_rich_html(html: str) -> RichHtmlMetrics:
     )
 
 
+class _RichFitter:
+    """Stream rich HTML tokens and cut them once Telegram limits would be exceeded."""
+
+    def __init__(self) -> None:
+        self.output: list[str] = []
+        self.stack: list[str] = []
+        self.blocks = 0
+        self.text_length = 0
+        self.row_columns = 0
+        self.skip_depth = 0
+        self.dropped_cells = False
+        self.safe_point: tuple[int, tuple[str, ...]] = (0, ())
+        self.block_budget = RICH_MESSAGE_MAX_BLOCKS - 1
+        # One extra character is reserved for the ellipsis of a clipped text run.
+        self.text_budget = (
+            RICH_MESSAGE_MAX_TEXT_LENGTH - _text_size(RICH_TRUNCATION_NOTICE) - 1
+        )
+
+    @staticmethod
+    def _notice() -> str:
+        return f"<p><i>{escape(RICH_TRUNCATION_NOTICE)}</i></p>"
+
+    def finish(self, cut_at: int, open_tags: tuple[str, ...]) -> str:
+        closing = "".join(f"</{tag}>" for tag in reversed(open_tags))
+        return "".join(self.output[:cut_at]) + closing + self._notice()
+
+    def fit(self, html: str) -> str:
+        for kind, tag, raw in _tokenize(html):
+            if self.skip_depth:
+                self._skip(kind, tag)
+                continue
+            if kind in {"data", "entity"}:
+                result = self._text(kind, raw)
+            else:
+                result = self._tag(kind, tag, raw)
+            if result is not None:
+                return result
+        fitted = "".join(self.output)
+        return fitted + self._notice() if self.dropped_cells else fitted
+
+    def _skip(self, kind: str, tag: str) -> None:
+        if kind == "start" and tag not in _VOID_TAGS:
+            self.skip_depth += 1
+        elif kind == "end" and tag not in _VOID_TAGS:
+            self.skip_depth -= 1
+
+    def _text(self, kind: str, raw: str) -> str | None:
+        size = 1 if kind == "entity" else _text_size(raw if self.stack else raw.strip())
+        if self.text_length + size <= self.text_budget:
+            self.text_length += size
+            self.output.append(raw)
+            return None
+        remaining = max(0, self.text_budget - self.text_length)
+        if kind == "data" and self.stack and self.stack[-1] not in _NO_TEXT_CONTAINERS:
+            self.output.append(_clip_text(raw, remaining) + "…")
+            return self.finish(len(self.output), tuple(self.stack))
+        return self.finish(*self.safe_point)
+
+    def _tag(self, kind: str, tag: str, raw: str) -> str | None:
+        if kind == "end":
+            self._close(tag, raw)
+            return None
+        if tag in RICH_BLOCK_TAGS:
+            if self.blocks + 1 > self.block_budget:
+                return self.finish(*self.safe_point)
+            self.blocks += 1
+        if kind == "start" and tag not in _VOID_TAGS:
+            if len(self.stack) >= RICH_MESSAGE_MAX_DEPTH:
+                return self.finish(*self.safe_point)
+            if not self._open_cell(tag, raw):
+                return None
+            self.stack.append(tag)
+        self.output.append(raw)
+        return None
+
+    def _open_cell(self, tag: str, raw: str) -> bool:
+        """Track table width; return False when the cell must be dropped."""
+        if tag == "tr":
+            self.row_columns = 0
+        elif tag in _TABLE_CELL_TAGS:
+            self.row_columns += _cell_span(raw)
+            if self.row_columns > RICH_TABLE_MAX_COLUMNS:
+                self.skip_depth = 1
+                self.dropped_cells = True
+                return False
+        return True
+
+    def _close(self, tag: str, raw: str) -> None:
+        self.output.append(raw)
+        if tag not in self.stack:
+            return
+        while self.stack.pop() != tag:
+            pass
+        if not self.stack or tag in _SAFE_CUT_END_TAGS:
+            self.safe_point = (len(self.output), tuple(self.stack))
+
+
 def fit_rich_html(html: str) -> str:
     """
     Return rich HTML that fits Telegram limits.
 
     Markup that already fits is returned unchanged. Oversized markup is cut at
     the last complete top-level block, table row, or list item (or inside a
-    long text run), open elements are closed, and a short notice is appended.
+    long text run), cells beyond the table width limit are dropped, open
+    elements are closed, and a short notice is appended.
     """
     if measure_rich_html(html).fits:
         return html
-
-    notice = f"<p><i>{escape(RICH_TRUNCATION_NOTICE)}</i></p>"
-    block_budget = RICH_MESSAGE_MAX_BLOCKS - 1
-    text_budget = RICH_MESSAGE_MAX_TEXT_LENGTH - len(RICH_TRUNCATION_NOTICE) - 1
-
-    output: list[str] = []
-    stack: list[str] = []
-    blocks = 0
-    text_length = 0
-    safe_point: tuple[int, tuple[str, ...]] = (0, ())
-
-    def _finish(cut_at: int, open_tags: tuple[str, ...]) -> str:
-        closing = "".join(f"</{tag}>" for tag in reversed(open_tags))
-        return "".join(output[:cut_at]) + closing + notice
-
-    for kind, tag, raw in _tokenize(html):
-        if kind in {"data", "entity"}:
-            size = 1 if kind == "entity" else len(raw if stack else raw.strip())
-            if text_length + size > text_budget:
-                remaining = text_budget - text_length
-                if kind == "data" and stack and remaining > 0:
-                    output.append(raw[:remaining] + "…")
-                    return _finish(len(output), tuple(stack))
-                return _finish(*safe_point)
-            text_length += size
-            output.append(raw)
-            continue
-
-        if kind in {"start", "void"} and tag in RICH_BLOCK_TAGS:
-            if blocks + 1 > block_budget or len(stack) >= RICH_MESSAGE_MAX_DEPTH:
-                return _finish(*safe_point)
-            blocks += 1
-
-        output.append(raw)
-        if kind == "start" and tag not in _VOID_TAGS:
-            stack.append(tag)
-        elif kind == "end" and tag in stack:
-            while stack and stack.pop() != tag:
-                pass
-            if not stack or tag in _SAFE_CUT_END_TAGS:
-                safe_point = (len(output), tuple(stack))
-
-    return "".join(output)
+    return _RichFitter().fit(html)
 
 
 def _open_tag_issues(tag: str, stack: list[str]) -> list[str]:
@@ -418,18 +486,71 @@ def rich_paragraphs(text: str, *, italic: bool = False) -> str:
 
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^#{1,6}\s+")
 _MARKDOWN_BULLET_PATTERN = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
-_MARKDOWN_CODE_PATTERN = re.compile(r"`([^`]+)`")
-_MARKDOWN_BOLD_PATTERN = re.compile(r"\*\*([^*]+)\*\*|__([^_]+)__")
-_MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
+# Code spans and links are matched first so bold markers never apply inside them.
+_MARKDOWN_SPAN_PATTERN = re.compile(r"`([^`]+)`|\[([^\]]+)\]\((https?://[^)\s]+)\)")
+_MARKDOWN_BOLD_PATTERN = re.compile(r"\*\*([^*]+)\*\*|(?<!\w)__([^_]+)__(?!\w)")
+
+
+def _markdown_plain_to_rich_html(text: str) -> str:
+    escaped = escape(text, quote=False)
+    return _MARKDOWN_BOLD_PATTERN.sub(
+        lambda match: f"<b>{match.group(1) or match.group(2)}</b>", escaped
+    )
 
 
 def _markdown_inline_to_rich_html(text: str) -> str:
-    rendered = escape(text, quote=True)
-    rendered = _MARKDOWN_LINK_PATTERN.sub(r'<a href="\2">\1</a>', rendered)
-    rendered = _MARKDOWN_CODE_PATTERN.sub(r"<code>\1</code>", rendered)
-    return _MARKDOWN_BOLD_PATTERN.sub(
-        lambda match: f"<b>{match.group(1) or match.group(2)}</b>", rendered
-    )
+    parts: list[str] = []
+    position = 0
+    for match in _MARKDOWN_SPAN_PATTERN.finditer(text):
+        parts.append(_markdown_plain_to_rich_html(text[position : match.start()]))
+        code, link_text, url = match.groups()
+        if code is not None:
+            parts.append(f"<code>{escape(code, quote=False)}</code>")
+        else:
+            parts.append(
+                f'<a href="{escape(url, quote=True)}">{escape(link_text, quote=False)}</a>'
+            )
+        position = match.end()
+    parts.append(_markdown_plain_to_rich_html(text[position:]))
+    return "".join(parts)
+
+
+class _MarkdownBlocks:
+    """Collect rich blocks for the Markdown subset used in release notes."""
+
+    def __init__(self) -> None:
+        self.blocks: list[str] = []
+        self.items: list[str] = []
+        self.paragraph: list[str] = []
+
+    def flush(self) -> None:
+        if self.paragraph:
+            self.blocks.append(f"<p>{' '.join(self.paragraph)}</p>")
+            self.paragraph.clear()
+        if self.items:
+            rendered = "".join(f"<li>{item}</li>" for item in self.items)
+            self.blocks.append(f"<ul>{rendered}</ul>")
+            self.items.clear()
+
+    def add_line(self, raw_line: str, line: str) -> None:
+        if _MARKDOWN_HEADING_PATTERN.match(line):
+            self.flush()
+            heading = _MARKDOWN_HEADING_PATTERN.sub("", line)
+            self.blocks.append(
+                f"<p><b>{_markdown_inline_to_rich_html(heading)}</b></p>"
+            )
+        elif _MARKDOWN_BULLET_PATTERN.match(line):
+            if self.paragraph:
+                self.flush()
+            item = _MARKDOWN_BULLET_PATTERN.sub("", line)
+            self.items.append(_markdown_inline_to_rich_html(item))
+        elif self.items and raw_line[:1].isspace():
+            # Hard-wrapped continuation of the previous bullet.
+            self.items[-1] += " " + _markdown_inline_to_rich_html(line)
+        else:
+            if self.items:
+                self.flush()
+            self.paragraph.append(_markdown_inline_to_rich_html(line))
 
 
 def simple_markdown_to_rich_html(text: str, *, max_lines: int = 40) -> str:
@@ -437,46 +558,29 @@ def simple_markdown_to_rich_html(text: str, *, max_lines: int = 40) -> str:
     Render a small, safe subset of Markdown (e.g. release notes) as rich HTML.
 
     Headings become bold paragraphs, bullet and numbered items become list
-    items, and inline code, bold text, and links are preserved. Everything
-    else is escaped. Output is capped at ``max_lines`` non-empty lines.
+    items (hard-wrapped continuation lines are joined), consecutive lines form
+    one paragraph, and inline code, bold text, and links are preserved.
+    Everything else is escaped. Output is capped at ``max_lines`` non-empty
+    lines.
     """
-    blocks: list[str] = []
-    items: list[str] = []
-
-    def _flush_items() -> None:
-        if items:
-            blocks.append(
-                "<ul>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>"
-            )
-            items.clear()
-
+    collector = _MarkdownBlocks()
     shown_lines = 0
     truncated = False
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or set(line) <= {"-", "*", "_", "="}:
-            _flush_items()
+            collector.flush()
             continue
         if shown_lines >= max_lines:
             truncated = True
             break
         shown_lines += 1
+        collector.add_line(raw_line, line)
 
-        if _MARKDOWN_HEADING_PATTERN.match(line):
-            _flush_items()
-            heading = _MARKDOWN_HEADING_PATTERN.sub("", line)
-            blocks.append(f"<p><b>{_markdown_inline_to_rich_html(heading)}</b></p>")
-        elif _MARKDOWN_BULLET_PATTERN.match(line):
-            item = _MARKDOWN_BULLET_PATTERN.sub("", line)
-            items.append(_markdown_inline_to_rich_html(item))
-        else:
-            _flush_items()
-            blocks.append(f"<p>{_markdown_inline_to_rich_html(line)}</p>")
-
-    _flush_items()
+    collector.flush()
     if truncated:
-        blocks.append("<p><i>…</i></p>")
-    return "".join(blocks)
+        collector.blocks.append("<p><i>…</i></p>")
+    return "".join(collector.blocks)
 
 
 __all__ = [

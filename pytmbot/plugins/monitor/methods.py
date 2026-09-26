@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
+from html import escape
 from typing import Literal
 
 from telebot import TeleBot
@@ -741,13 +742,13 @@ class SystemMonitorPlugin(PluginCore):
 
         message = (
             "🚨 <b>Security Alert: New Docker Container Detected</b> 🚨\n"
-            f"📦 <b>Name:</b> <i>{container_name}</i>\n"
-            f"🖼️ <b>Image:</b> <i>{image_name}</i>\n"
-            f"🕒 <b>Created:</b> <i>{created_at}</i>\n"
-            f"🚀 <b>Running Since:</b> <i>{running_since}</i>\n"
-            f"📊 <b>Status:</b> <i>{status}</i>\n"
-            f"🔍 <b>Networks:</b> <i>{networks}</i>\n"
-            f"🔌 <b>Ports:</b> <i>{ports}</i>\n"
+            f"📦 <b>Name:</b> <i>{escape(container_name)}</i>\n"
+            f"🖼️ <b>Image:</b> <i>{escape(image_name)}</i>\n"
+            f"🕒 <b>Created:</b> <i>{escape(created_at)}</i>\n"
+            f"🚀 <b>Running Since:</b> <i>{escape(running_since)}</i>\n"
+            f"📊 <b>Status:</b> <i>{escape(status)}</i>\n"
+            f"🔍 <b>Networks:</b> <i>{escape(networks)}</i>\n"
+            f"🔌 <b>Ports:</b> <i>{escape(ports)}</i>\n"
             "⚠️ Please verify this container's authenticity and permissions."
         )
         self._send_notification(message)
@@ -768,12 +769,12 @@ class SystemMonitorPlugin(PluginCore):
 
         message = (
             "🚨 <b>Security Alert: New Docker Image Detected</b> 🚨\n"
-            f"🖼️ <b>ID:</b> <i>{image_id}</i>\n"
-            f"🏷️ <b>Tags:</b> <i>{image_tags}</i>\n"
-            f"🔧 <b>Architecture:</b> <i>{architecture}</i>\n"
-            f"💻 <b>OS:</b> <i>{os_name}</i>\n"
+            f"🖼️ <b>ID:</b> <i>{escape(image_id)}</i>\n"
+            f"🏷️ <b>Tags:</b> <i>{escape(image_tags)}</i>\n"
+            f"🔧 <b>Architecture:</b> <i>{escape(architecture)}</i>\n"
+            f"💻 <b>OS:</b> <i>{escape(os_name)}</i>\n"
             f"📦 <b>Size:</b> <i>{set_naturalsize(size_in_bytes)}</i>\n"
-            f"🕒 <b>Created:</b> <i>{created_at}</i>\n"
+            f"🕒 <b>Created:</b> <i>{escape(created_at)}</i>\n"
             "⚠️ Please verify this image's authenticity and source."
         )
         self._send_notification(message)
