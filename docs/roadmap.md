@@ -12,15 +12,15 @@ Implemented behavior is defined by:
 
 Active development line:
 
-- `0.5.x` (`0.5.0-dev` in this repository)
+- `0.6.x` (planning)
 
 Latest stable release line:
 
-- `0.4.x` (`0.4.0`)
+- `0.5.x` (`0.5.0`)
 
 Primary objective:
 
-- ship the `0.5.0` development line (Rich Messages, keyboard styles) while keeping the `0.4.x` stable channel available for production fleets
+- maintain the `0.5.x` stable line (Telegram rich messages, keyboard styles) while planning the next development cycle
 
 ## Active Priorities
 

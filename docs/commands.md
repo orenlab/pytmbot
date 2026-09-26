@@ -103,8 +103,9 @@ The bot also exposes callback-driven flows that are not slash commands:
 
 - Section menus (`main`, `server`, `docker`, plugins) use persistent reply keyboards so Telegram clients (notably iOS) keep the menu visible while you browse inline screens.
 - Main menu accents use `KeyboardButton.style`: `primary` for Server / Docker / Quick view / Health, and `danger` for Back to main menu.
+- Container action buttons use inline button styles: `danger` for Stop, `primary` for Restart, and `success` for Start.
 - Text-only bot replies re-attach the matching section keyboard automatically.
-- Structured screens prefer Telegram Rich Messages (`send_rich_*`) instead of classic `parse_mode` HTML/Markdown where the layout is tabular or sectioned.
+- Structured screens (server metrics, Docker lists and details, menus, update checks, `/getmyid`, plugin screens) are Telegram Rich Messages with native tables; oversized content is trimmed to Telegram limits, and a rejected rich payload falls back to a plain-text message.
 - Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
 
 ## Related Docs

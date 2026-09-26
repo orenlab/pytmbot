@@ -49,7 +49,7 @@ def test_get_app_version_fallback_when_package_not_installed(
         raise PackageNotFoundError
 
     monkeypatch.setattr(settings_model_module, "package_version", _raise_not_found)
-    assert get_app_version() == "0.5.0-dev"
+    assert get_app_version() == "0.5.0"
     get_app_version.cache_clear()
 
 
@@ -81,6 +81,9 @@ def test_webhook_config_trusted_proxy_ips_normalization_and_validation() -> None
         ("0.5.0-dev", "0.5.0.dev0", False),
         ("0.5.0.dev0", "0.4.0", True),
         ("0.4.0", "0.5.0.dev0", True),
+        ("0.5.0.dev0", "0.5.0", True),
+        ("0.4.0", "0.5.0", True),
+        ("0.5.0", "0.5.0", False),
     ],
 )
 def test_config_migrator_validate_compatibility(
@@ -97,43 +100,43 @@ def test_config_migrator_validate_compatibility(
 
 def test_config_migrator_check_deprecation_emits_warning() -> None:
     with pytest.warns(DeprecationWarning):
-        check_config_deprecation(None, "0.4.0")
+        check_config_deprecation(None, "0.5.0")
 
     with pytest.warns(DeprecationWarning):
-        check_config_deprecation("0.2.2", "0.4.0")
+        check_config_deprecation("0.2.2", "0.5.0")
 
 
 def test_config_migrator_migrate_config_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings_model_module, "get_app_version", lambda: "0.4.0")
+    monkeypatch.setattr(settings_model_module, "get_app_version", lambda: "0.5.0")
     migrator = ConfigMigrator()
 
     legacy: _ConfigDict = {"bot_token": {"prod_token": ["token"]}}
     migrated_legacy = migrator.migrate_config(_as_object_dict(legacy))
-    assert migrated_legacy["config_version"] == "0.4.0"
+    assert migrated_legacy["config_version"] == "0.5.0"
 
     outdated: _ConfigDict = {"config_version": "0.2.2"}
     migrated_outdated = migrator.migrate_config(_as_object_dict(outdated))
-    assert migrated_outdated["config_version"] == "0.4.0"
+    assert migrated_outdated["config_version"] == "0.5.0"
 
-    current: _ConfigDict = {"config_version": "0.4.0"}
+    current: _ConfigDict = {"config_version": "0.5.0"}
     assert (
-        migrator.migrate_config(_as_object_dict(current))["config_version"] == "0.4.0"
+        migrator.migrate_config(_as_object_dict(current))["config_version"] == "0.5.0"
     )
 
 
 def test_settings_model_migration_and_compatibility(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(SettingsModel, "app_version", "0.4.0")
+    monkeypatch.setattr(SettingsModel, "app_version", "0.5.0")
     payload = _base_config()
 
     settings = SettingsModel.model_validate(payload)
-    assert settings.config_version == "0.4.0"
+    assert settings.config_version == "0.5.0"
 
     payload_with_mismatch = dict(payload)
     payload_with_mismatch["config_version"] = "0.2.2"
     upgraded = SettingsModel.model_validate(payload_with_mismatch)
-    assert upgraded.config_version == "0.4.0"
+    assert upgraded.config_version == "0.5.0"
 
 
 def test_access_control_requires_admins_subset_of_allowed_users() -> None:

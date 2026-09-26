@@ -98,6 +98,12 @@ see the [Docker runtime guide](https://orenlab.github.io/pytmbot/docker/).
 - Load average, uptime, filesystem, and process insights
 - Startup and component-level health checks
 
+### Telegram interface
+
+- Structured screens rendered as Telegram Rich Messages with native tables (Bot API 10.1+)
+- Persistent section keyboards with color accents and color-coded container actions
+- Oversized screens trimmed to Telegram limits, with a plain-text fallback if rich content is rejected
+
 ### Security
 
 - Access restricted by `allowed_user_ids` and `allowed_admins_ids`

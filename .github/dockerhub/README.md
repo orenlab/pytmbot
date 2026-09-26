@@ -14,7 +14,7 @@ optional plugins.
 - Source code and issues: [github.com/orenlab/pytmbot](https://github.com/orenlab/pytmbot)
 - Image: `orenlab/pytmbot`
 - Supported architectures: `linux/amd64`, `linux/arm64`
-- Base image: Ubuntu `24.04`
+- Base image: Ubuntu `26.04`
 - Runtime user: `pytmbot` (uid:gid `1001:1001`)
 
 ## Supported Tags
@@ -23,8 +23,8 @@ Stable public tags:
 
 | Tag      | Description                   |
 |----------|-------------------------------|
-| `0.4.0`  | Exact immutable release image |
-| `0.4`    | Current supported stable line |
+| `0.5.0`  | Exact immutable release image |
+| `0.5`    | Current supported stable line |
 | `stable` | Stable channel alias          |
 | `latest` | Alias of `stable`             |
 
@@ -32,11 +32,11 @@ Additional tags:
 
 | Tag                 | Description                                   |
 |---------------------|-----------------------------------------------|
-| `0.4-rYYYYMMDD`     | Dated weekly rebuild of the stable line       |
+| `0.5-rYYYYMMDD`     | Dated weekly rebuild of the stable line       |
 | `edge-<branch>`     | Development image for a feature or fix branch |
 | `edge-sha-<gitsha>` | Development image pinned to a branch commit   |
 
-Recommended: use `0.4.0` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
+Recommended: use `0.5.0` for reproducible production rollouts, `stable` for the supported channel. Do not use `edge-*`
 tags in production.
 
 ## Image Features
@@ -102,7 +102,7 @@ docker run -d \
   orenlab/pytmbot:stable --mode prod
 ```
 
-For pinned rollouts, replace `stable` with `0.4.0`. To enforce Docker socket availability on startup, add
+For pinned rollouts, replace `stable` with `0.5.0`. To enforce Docker socket availability on startup, add
 `-e STRICT_DOCKER_ACCESS=True`.
 
 ## Docker Compose Example
@@ -191,8 +191,8 @@ docker run -d \
 
 ## Upgrade Policy
 
-- Exact release tags (`0.4.0`) are immutable.
-- Floating tags (`0.4`, `stable`, `latest`) can move forward.
+- Exact release tags (`0.5.0`) are immutable.
+- Floating tags (`0.5`, `stable`, `latest`) can move forward.
 - Weekly rebuilds refresh the Ubuntu base image and installed OS packages.
 - Python dependency updates require a committed `uv.lock` change and a new release.
 

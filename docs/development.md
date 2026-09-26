@@ -97,7 +97,8 @@ Starting with the `0.3.0` release line:
 
 - all versions older than `0.3.0` are end-of-life
 - the `0.3.x` line is end-of-life as of `0.4.0`
-- only the current `0.4` stable line receives weekly rebuilds
+- the `0.4.x` line is end-of-life as of `0.5.0`
+- only the current `0.5` stable line receives weekly rebuilds
 - exact release tags stay immutable
 - floating stable tags are refreshed by the weekly rebuild workflow
 - development tags are separate from the public stable contract
@@ -132,6 +133,32 @@ Current suppression form:
 ```python
 # codeclone: ignore[dead-code]
 ```
+
+## Rich Message Templates
+
+Structured screens are sent as Telegram Rich Messages (`InputRichMessage(html=...)`) through the helpers in
+`pytmbot/handlers/handlers_util/rich_messages.py`. Rich templates follow one layout contract, enforced by
+`tests/test_rich_templates_markup.py`:
+
+- the first block is a bold paragraph title: `<p><b>{emoji} Title</b></p>`; section titles use the same form (no
+  `<h1>`–`<h6>` headings)
+- tabular data uses `<table bordered striped>` with a header row; a column is either left- or right-aligned in every row
+- lists use `<ul>`/`<ol>` without manual bullets; hints and warnings are `<p><i>…</i></p>` paragraphs
+- metadata such as pagination, timestamps, or auto-delete notices goes into a single `<footer>` placed last
+- table cells and paragraphs contain inline formatting only; line breaks come from separate blocks, not `\n`
+- dynamic values are escaped with `|e`
+
+Delivery safeguards:
+
+- `build_rich_html_message()` wraps plain text into paragraphs and trims content that exceeds Telegram rich-message
+  limits (32,768 characters, 500 blocks, 16 nesting levels, 20 table columns) at a row/item/block boundary
+- `send_rich_bot_message()` falls back to a classic plain-text message when Telegram rejects the rich payload
+- `edit_callback_message_text()` keeps rich messages rich: classic text aimed at a rich message is converted to rich
+  paragraphs instead of overlaying it
+- a test fixture validates every `InputRichMessage` built during the test run with `find_rich_html_issues()`
+
+Short conversational replies and the 2FA prompts (`b_back`, `b_echo`, `b_none`, `a_*` templates) intentionally stay
+classic messages.
 
 ## Adding Or Changing Features
 
