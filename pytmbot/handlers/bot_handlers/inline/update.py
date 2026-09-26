@@ -21,6 +21,7 @@ from pytmbot.handlers.server_handlers.inline.common import (
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 em = get_emoji_converter()
@@ -60,7 +61,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
         )
     except ValueError:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text="This update button is no longer valid. Run /check_bot_updates again.",
             show_alert=True,
         )
@@ -72,14 +73,14 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
     )
     if not is_allowed:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=deny_reason,
             show_alert=True,
         )
 
     if call.message is None:
         return bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=(
                 "This update message can no longer be refreshed. "
                 "Run /check_bot_updates again."

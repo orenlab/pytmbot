@@ -120,7 +120,7 @@ def test_send_rich_bot_message_prefers_explicit_reply_markup(
 def test_send_rich_bot_message_syncs_nav_keyboard_after_inline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    inline = InlineKeyboardMarkup()  # type: ignore[no-untyped-call]
+    inline = InlineKeyboardMarkup()
     nav = cast(ReplyKeyboardMarkup, object())
 
     monkeypatch.setattr(rich_module, "build_nav_keyboard", lambda _name: nav)
@@ -170,7 +170,7 @@ def test_edit_callback_message_text_supports_rich_message() -> None:
     bot = _EditBotStub()
     call = cast(object, _Call())
     rich = rich_module.build_rich_html_message("<h2>edited</h2>")
-    markup = InlineKeyboardMarkup()  # type: ignore[no-untyped-call]
+    markup = InlineKeyboardMarkup()
 
     was_edited = inline_common_module.edit_callback_message_text(
         call,  # type: ignore[arg-type]

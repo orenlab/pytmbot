@@ -18,6 +18,7 @@ from telebot.types import CallbackQuery, Message
 from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import BaseComponent
 from pytmbot.utils import mask_user_id, mask_username
+from pytmbot.utils.telegram_utils import callback_query_id
 
 # Type aliases for better readability
 type Timestamp = datetime
@@ -261,7 +262,7 @@ class RateLimit(BaseMiddleware, BaseComponent):
             if self._is_callback_update(update):
                 callback_update = cast(CallbackQuery, update)
                 self.bot.answer_callback_query(
-                    callback_update.id,
+                    callback_query_id(callback_update),
                     text=self.WARNING_MESSAGE,
                     show_alert=False,
                 )

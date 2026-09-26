@@ -21,6 +21,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 button_data = ButtonDataType
@@ -85,7 +86,7 @@ def _authorize_image_updates_callback(
     def reject_callback(
         text: str, target_user_id: int | None
     ) -> tuple[bool, int | None]:
-        bot.answer_callback_query(call.id, text=text, show_alert=True)
+        bot.answer_callback_query(callback_query_id(call), text=text, show_alert=True)
         return False, target_user_id
 
     try:
@@ -187,7 +188,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     status = response.get("status")
     if not isinstance(status, str):
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text="Couldn't understand the updater response.",
             show_alert=True,
         )
@@ -204,7 +205,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
             elif isinstance(retry_after_obj, str):
                 retry_after = retry_after_obj
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text=(f"Registry rate limit exceeded. Try again in {retry_after} seconds."),
             show_alert=True,
         )
@@ -217,7 +218,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
             error_message if isinstance(error_message, str) else "unknown error"
         )
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text=f"Couldn't check image updates: {rendered_message}",
             show_alert=True,
         )
@@ -230,7 +231,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
         not image_info["updates"] for image_info in updates_data.values()
     ):
         bot.answer_callback_query(
-            call.id,
+            callback_query_id(call),
             text="No image updates were found.",
             show_alert=True,
         )

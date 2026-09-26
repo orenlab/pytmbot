@@ -60,7 +60,7 @@ def test_send_bot_message_prefers_explicit_reply_markup(
 def test_send_bot_message_syncs_nav_keyboard_after_inline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    inline = InlineKeyboardMarkup()  # type: ignore[no-untyped-call]
+    inline = InlineKeyboardMarkup()
     nav = cast(ReplyKeyboardMarkup, object())
 
     monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)

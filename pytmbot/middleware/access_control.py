@@ -19,6 +19,7 @@ from pytmbot.globals import settings
 from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import BaseComponent
 from pytmbot.utils import mask_chat_id, mask_user_id, mask_username
+from pytmbot.utils.telegram_utils import callback_query_id
 
 
 class AccessControl(BaseMiddleware, BaseComponent):
@@ -162,7 +163,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
         if self._is_callback_update(update):
             callback_update = cast(CallbackQuery, update)
             self.bot.answer_callback_query(
-                callback_update.id,
+                callback_query_id(callback_update),
                 text=message_text,
                 show_alert=True,
             )
@@ -255,7 +256,7 @@ class AccessControl(BaseMiddleware, BaseComponent):
             if self._is_callback_update(update):
                 callback_update = cast(CallbackQuery, update)
                 self.bot.answer_callback_query(
-                    callback_update.id,
+                    callback_query_id(callback_update),
                     text="Access denied.",
                     show_alert=False,
                 )

@@ -39,6 +39,7 @@ from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import to_float, to_int
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 em = get_emoji_converter()
@@ -543,7 +544,7 @@ def handle_system_health_refresh(call: CallbackQuery, bot: TeleBot) -> None:
         )
         if was_edited:
             bot.answer_callback_query(
-                callback_query_id=call.id,
+                callback_query_id=callback_query_id(call),
                 text="Health snapshot updated.",
                 show_alert=False,
             )

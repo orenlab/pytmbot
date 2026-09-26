@@ -17,6 +17,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.utils.telegram_utils import callback_query_id
 
 _RETRY_AFTER_PATTERN = re.compile(r"retry after\s+(\d+)", re.IGNORECASE)
 
@@ -70,7 +71,7 @@ def authorize_user_bound_callback(
         text: str, target_user_id: int | None
     ) -> tuple[bool, int | None]:
         bot.answer_callback_query(
-            callback_query_id=call.id,
+            callback_query_id=callback_query_id(call),
             text=text,
             show_alert=True,
         )
@@ -165,7 +166,7 @@ def edit_callback_message_text(
                     else f"Telegram API is rate limited. Try again in {retry_after}s."
                 )
                 bot.answer_callback_query(
-                    callback_query_id=call.id,
+                    callback_query_id=callback_query_id(call),
                     text=callback_text,
                     show_alert=False,
                 )
@@ -181,7 +182,7 @@ def edit_callback_message_text(
 
         if getattr(call, "id", None) is not None:
             bot.answer_callback_query(
-                callback_query_id=call.id,
+                callback_query_id=callback_query_id(call),
                 text=not_modified_text,
                 show_alert=False,
             )

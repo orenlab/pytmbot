@@ -35,6 +35,7 @@ from pytmbot.utils.message_deletion import (
     create_post_delete_navigation_callback,
     deletion_manager,
 )
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 button_data = ButtonDataType
@@ -614,7 +615,7 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
         logger.error("bot.handler.docker.logging.unexpected.deletion.fail")
 
     return bot.answer_callback_query(
-        callback_query_id=call.id, text=callback_text, show_alert=False
+        callback_query_id=callback_query_id(call), text=callback_text, show_alert=False
     )
 
 
