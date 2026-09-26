@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from pytmbot.handlers.handlers_util import utils as utils_module
@@ -150,3 +153,42 @@ def test_build_referer_main_keyboard_is_persistent_and_not_one_time(
     assert isinstance(markup, ReplyKeyboardMarkup)
     assert markup.is_persistent is True
     assert markup.one_time_keyboard is False
+
+
+class _MessageGone(ApiTelegramException):
+    def __init__(self) -> None:
+        Exception.__init__(self, "Bad Request: message to delete not found")
+        self.error_code = 400
+
+
+def test_nav_keyboard_sync_keeps_only_latest_follow_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nav = cast(ReplyKeyboardMarkup, object())
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "_nav_sync_messages", OrderedDict())
+
+    class _Bot:
+        def __init__(self) -> None:
+            self.next_id = 100
+            self.deleted: list[tuple[int, int]] = []
+
+        def send_message(self, **kwargs: object) -> SimpleNamespace:
+            self.next_id += 1
+            return SimpleNamespace(message_id=self.next_id, **kwargs)
+
+        def delete_message(self, chat_id: int, message_id: int) -> bool:
+            self.deleted.append((chat_id, message_id))
+            if message_id == 102:
+                raise _MessageGone()
+            return True
+
+    bot = _Bot()
+    for _ in range(3):
+        utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 7, "server_keyboard")
+    utils_module.send_nav_keyboard_sync(cast(TeleBot, bot), 8, "docker_keyboard")
+
+    # Each new follow-up removes the previous one in the same chat only;
+    # a failed deletion (already gone) is ignored.
+    assert bot.deleted == [(7, 101), (7, 102)]
+    assert dict(utils_module._nav_sync_messages) == {7: 103, 8: 104}

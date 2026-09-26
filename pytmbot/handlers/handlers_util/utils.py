@@ -7,6 +7,8 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from threading import Lock
 from typing import Any, Final
 
 from telebot import TeleBot
@@ -42,6 +44,43 @@ def truncate_telegram_text(text: str) -> str:
     return "Message is too long. I cut it down to 4096 characters: \n\n" + text[:4000]
 
 
+_MAX_TRACKED_NAV_SYNC_CHATS: Final[int] = 1024
+_nav_sync_messages: OrderedDict[int, int] = OrderedDict()
+_nav_sync_lock = Lock()
+
+
+def send_nav_keyboard_sync(bot: TeleBot, chat_id: int, nav_keyboard: str) -> None:
+    """
+    Re-attach the section reply keyboard with a short follow-up message.
+
+    Only the latest follow-up per chat is kept: the previous one is deleted so
+    browsing inline screens does not fill the chat with identical notes.
+    """
+    sync_message = bot.send_message(
+        chat_id=chat_id,
+        text=NAV_KEYBOARD_SYNC_TEXT,
+        reply_markup=build_nav_keyboard(nav_keyboard),
+        disable_notification=True,
+    )
+    message_id = getattr(sync_message, "message_id", None)
+    if not isinstance(message_id, int):
+        return
+
+    with _nav_sync_lock:
+        previous_id = _nav_sync_messages.pop(chat_id, None)
+        _nav_sync_messages[chat_id] = message_id
+        while len(_nav_sync_messages) > _MAX_TRACKED_NAV_SYNC_CHATS:
+            _nav_sync_messages.popitem(last=False)
+
+    if previous_id is None or previous_id == message_id:
+        return
+    try:
+        bot.delete_message(chat_id, previous_id)
+    except ApiTelegramException:
+        # Already deleted by the user or too old to delete; nothing to clean up.
+        logger.debug("bot.handler.handlers_util.utils.nav.sync.cleanup.skip")
+
+
 def send_bot_message(
     bot: TeleBot,
     chat_id: int,
@@ -65,12 +104,7 @@ def send_bot_message(
             reply_markup=reply_markup,
             **kwargs,
         )
-        bot.send_message(
-            chat_id=chat_id,
-            text=NAV_KEYBOARD_SYNC_TEXT,
-            reply_markup=build_nav_keyboard(nav_keyboard),
-            disable_notification=True,
-        )
+        send_nav_keyboard_sync(bot, chat_id, nav_keyboard)
         return message
 
     return bot.send_message(

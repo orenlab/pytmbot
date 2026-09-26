@@ -124,7 +124,7 @@ def test_send_rich_bot_message_syncs_nav_keyboard_after_inline(
     inline = InlineKeyboardMarkup()
     nav = cast(ReplyKeyboardMarkup, object())
 
-    monkeypatch.setattr(rich_module, "build_nav_keyboard", lambda _name: nav)
+    monkeypatch.setattr(utils_module, "build_nav_keyboard", lambda _name: nav)
     bot = _RichBotStub()
     rich_module.send_rich_bot_message(
         bot,  # type: ignore[arg-type]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections import OrderedDict
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,11 @@ def stable_process_state(
 ) -> Generator[None, None, None]:
     """Keep process-wide caches and argv deterministic across tests."""
     monkeypatch.setattr(sys, "argv", ["pytmbot-test"])
+    # Menu follow-up tracking is per process; isolate it between tests.
+    # Imported lazily: the module loads settings, which needs the sample config.
+    from pytmbot.handlers.handlers_util import utils as handlers_utils_module
+
+    monkeypatch.setattr(handlers_utils_module, "_nav_sync_messages", OrderedDict())
     parse_cli_args.cache_clear()
     is_running_in_docker.cache_clear()
     get_environment_state.cache_clear()

@@ -7,8 +7,8 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, InputRichMessage, Message
 
 from pytmbot.handlers.handlers_util.utils import (
-    NAV_KEYBOARD_SYNC_TEXT,
     send_bot_message,
+    send_nav_keyboard_sync,
     truncate_telegram_text,
 )
 from pytmbot.keyboards.keyboards import (
@@ -16,7 +16,6 @@ from pytmbot.keyboards.keyboards import (
     NAV_MAIN,
     NAV_SERVER,
     ReplyMarkupType,
-    build_nav_keyboard,
     resolve_reply_markup,
 )
 from pytmbot.logs import Logger
@@ -201,12 +200,7 @@ def send_rich_bot_message(
         )
 
     if sync_nav_keyboard and nav_keyboard is not None:
-        bot.send_message(
-            chat_id=chat_id,
-            text=NAV_KEYBOARD_SYNC_TEXT,
-            reply_markup=build_nav_keyboard(nav_keyboard),
-            disable_notification=True,
-        )
+        send_nav_keyboard_sync(bot, chat_id, nav_keyboard)
     return message
 
 
