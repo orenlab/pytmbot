@@ -161,7 +161,7 @@ def test_load_images_data_cache_and_errors(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_render_paginated_images_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(images_module, "MAX_TELEGRAM_MESSAGE_LENGTH", 25)
+    monkeypatch.setattr(images_module, "fits_rich_message", lambda _html: False)
     monkeypatch.setattr(
         images_module,
         "_render_images_page_text",

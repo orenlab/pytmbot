@@ -17,9 +17,10 @@ from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.pagination import (
-    MAX_TELEGRAM_MESSAGE_LENGTH,
     build_container_full_info_callback_data,
     build_page_callback_data,
+    build_page_footer,
+    fits_rich_message,
     paginate_items,
 )
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
@@ -72,9 +73,9 @@ def _get_container_data() -> list[dict[str, str]]:
 
 def _render_empty_message() -> str:
     return Compiler.quick_render(
-        template_name="b_none.jinja2",
-        context="There are no containers or incorrect settings are specified.",
-        thought_balloon=em.get_emoji("thought_balloon"),
+        template_name="d_containers.jinja2",
+        context=[],
+        **_get_containers_emojis(),
     )
 
 
@@ -90,9 +91,12 @@ def _render_container_page_text(
         context=page_items,
         **_get_containers_emojis(),
     )
-    footer = (
-        f"\n\n<p><i>Page {page}/{total_pages} | "
-        f"Shown: {len(page_items)} | Total containers: {total_items}</i></p>"
+    footer = build_page_footer(
+        page=page,
+        total_pages=total_pages,
+        shown=len(page_items),
+        total_items=total_items,
+        noun="containers",
     )
     return f"{text}{footer}"
 
@@ -114,7 +118,7 @@ def _render_paginated_container_text(
             total_pages=window.total_pages,
             total_items=window.total_items,
         )
-        if len(text) <= MAX_TELEGRAM_MESSAGE_LENGTH:
+        if fits_rich_message(text):
             return text, window.items, window.page, window.total_pages
 
         fallback_window = window
@@ -123,8 +127,8 @@ def _render_paginated_container_text(
         page_size -= 1
 
     fallback_text = (
-        f"<h2>{em.get_emoji('warning')} Containers view is too large for Telegram.</h2>"
-        f"<p><i>Page {fallback_window.page}/{fallback_window.total_pages}</i></p>"
+        f"<p><b>{em.get_emoji('warning')} Containers view is too large for Telegram.</b></p>"
+        f"<footer>Page {fallback_window.page}/{fallback_window.total_pages}</footer>"
     )
     return (
         fallback_text,

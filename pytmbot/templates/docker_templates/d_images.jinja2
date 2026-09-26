@@ -4,16 +4,17 @@
 {% for image in context.images %}
 <p><b>{{ context.emojis.package }} {{ image.name|e }}</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>{{ context.emojis.spouting_whale }} ID</td><td><code>{{ image.id|e }}</code></td></tr>
-<tr><td>{{ context.emojis.bookmark_tabs }} Tags{% if image.tags_count > 0 %} ({{ image.tags_count }}){% endif %}</td><td>{% if image.tags_count > 0 %}<code>{{ image.tags | map('e') | join(", ") }}</code>{% else %}<code>none</code>{% endif %}</td></tr>
+<tr><td>{{ context.emojis.bookmark_tabs }} Tags{% if image.tags_count > 0 %} ({{ image.tags_count|e }}){% endif %}</td><td>{% if image.tags_count > 0 %}<code>{{ image.tags | map("e") | join(", ") }}</code>{% else %}<code>none</code>{% endif %}</td></tr>
 <tr><td>{{ context.emojis.floppy_disk }} Size</td><td>{{ image.size|e }}</td></tr>
 <tr><td>{{ context.emojis.gear }} Platform</td><td>{{ image.os|e }}/{{ image.architecture|e }}{% if image.variant != 'N/A' %} ({{ image.variant|e }}){% endif %}</td></tr>
 <tr><td>{{ context.emojis.mantelpiece_clock }} Created</td><td>{{ image.created|e }}</td></tr>
 </table>
 {% else %}
-<p><b>No images available.</b></p>
+<p>No images found.</p>
 {% endfor %}
-
 {% if context.images %}
-<p>{{ context.emojis.magnifying_glass }} <i>Use details buttons below for full image metadata.</i></p>
+
+<p>{{ context.emojis.magnifying_glass }} <i>Tap an image below to open its full metadata.</i></p>
 {% endif %}

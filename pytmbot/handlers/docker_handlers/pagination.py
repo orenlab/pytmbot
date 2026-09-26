@@ -10,8 +10,29 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-MAX_TELEGRAM_MESSAGE_LENGTH = 4096
+from pytmbot.utils.rich_html import measure_rich_html
+
 CONTAINER_FULL_INFO_CALLBACK_PREFIX = "__get_full__"
+
+
+def fits_rich_message(html: str) -> bool:
+    """Return True when rendered rich HTML fits Telegram rich-message limits."""
+    return measure_rich_html(html).fits
+
+
+def build_page_footer(
+    *,
+    page: int,
+    total_pages: int,
+    shown: int,
+    total_items: int,
+    noun: str,
+) -> str:
+    """Render the rich pagination footer shared by Docker list screens."""
+    return (
+        f"<footer>Page {page}/{total_pages} · Shown: {shown} · "
+        f"Total {noun}: {total_items}</footer>"
+    )
 
 
 @dataclass(frozen=True, slots=True)

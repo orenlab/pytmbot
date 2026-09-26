@@ -6,6 +6,7 @@
 
 <p><b>{{ context.emojis.bookmark_tabs }} Identity</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Tags</td><td>{{ context.image.tags | map('e') | join(", ") if context.image.tags_count > 0 else "none" }}</td></tr>
 <tr><td>Repo digests</td><td>{{ context.image.repo_digests | map('e') | join(", ") if context.image.repo_digests_count > 0 else "none" }}</td></tr>
 <tr><td>Parent</td><td>{{ context.image.parent_id|e }}</td></tr>
@@ -13,6 +14,7 @@
 
 <p><b>{{ context.emojis.gear }} Platform &amp; Size</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Platform</td><td>{{ context.image.os|e }}/{{ context.image.architecture|e }}{% if context.image.variant != "N/A" %} ({{ context.image.variant|e }}){% endif %}</td></tr>
 <tr><td>Size</td><td>{{ context.image.size|e }}</td></tr>
 <tr><td>Virtual</td><td>{{ context.image.virtual_size|e }}</td></tr>
@@ -24,6 +26,7 @@
 
 <p><b>{{ context.emojis.key }} Runtime defaults</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>User</td><td>{{ context.image.user|e }}</td></tr>
 <tr><td>WorkDir</td><td>{{ context.image.working_dir|e }}</td></tr>
 <tr><td>Stop signal</td><td>{{ context.image.stop_signal|e }}</td></tr>
@@ -35,6 +38,7 @@
 
 <p><b>{{ context.emojis.electric_plug }} Network &amp; Storage</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Exposed ports{% if context.image.exposed_ports_count > 0 %} ({{ context.image.exposed_ports_count|e }}){% endif %}</td><td>{{ context.image.exposed_ports | map('e') | join(", ") if context.image.exposed_ports_count > 0 else "none" }}</td></tr>
 <tr><td>Declared volumes{% if context.image.volumes_count > 0 %} ({{ context.image.volumes_count|e }}){% endif %}</td><td>{{ context.image.volumes | map('e') | join(", ") if context.image.volumes_count > 0 else "none" }}</td></tr>
 </table>
@@ -48,6 +52,7 @@
 
 <p><b>{{ context.emojis.label }} Metadata</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Author</td><td>{{ context.image.author|e }}</td></tr>
 <tr><td>Docker version</td><td>{{ context.image.docker_version|e }}</td></tr>
 {% if context.image.comment != "N/A" %}<tr><td>Comment</td><td>{{ context.image.comment|e }}</td></tr>{% endif %}

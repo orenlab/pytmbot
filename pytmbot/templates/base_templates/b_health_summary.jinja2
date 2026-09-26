@@ -6,7 +6,7 @@
 <tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Status</td><td>{{ context.monitor.overall_badge|e }} {{ context.monitor.overall_status|e }}</td></tr>
 <tr><td>Operational components</td><td>{{ context.monitor.operational|e }}/{{ context.monitor.total|e }} ({{ "%.0f"|format(context.monitor.health_ratio_percent) }}%)</td></tr>
-<tr><td>Last check duration</td><td align="right">{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
+<tr><td>Last check duration</td><td>{{ "%.1f"|format(context.monitor.duration_ms) }} ms</td></tr>
 <tr><td>Guidance</td><td>{{ context.monitor.action|e }}</td></tr>
 </table>
 
@@ -28,7 +28,7 @@
 <table bordered striped>
 <tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Status</td><td>{{ context.overall_badge|e }} {{ context.overall_status|e }}</td></tr>
-<tr><td>Health score</td><td align="right">{{ context.health_score|e }}/100</td></tr>
+<tr><td>Health score</td><td>{{ context.health_score|e }}/100</td></tr>
 <tr><td>Dominant pressure</td><td>{{ context.dominant_metric|e }}</td></tr>
 </table>
 
@@ -47,7 +47,7 @@
 <table bordered striped>
 <tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Uptime</td><td>{{ context.uptime|e }}</td></tr>
-<tr><td>Processes</td><td align="right">{{ context.process_total|e }}</td></tr>
+<tr><td>Processes</td><td>{{ context.process_total|e }}</td></tr>
 </table>
 
 <p><b>Docker Workload</b></p>
@@ -56,9 +56,9 @@
 <tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>{{ context.docker.badge|e }} Status</td><td>{{ context.docker.status_label|e }}</td></tr>
 <tr><td>Containers (running/stopped)</td><td>{{ context.docker.running_containers|e }} / {{ context.docker.stopped_containers|e }} (total {{ context.docker.containers_total|e }})</td></tr>
-<tr><td>Running ratio</td><td align="right">{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>
-<tr><td>Containers per core</td><td align="right">{{ "%.2f"|format(context.docker.containers_per_core) }}</td></tr>
-<tr><td>Images</td><td align="right">{{ context.docker.images_count|e }}</td></tr>
+<tr><td>Running ratio</td><td>{{ "%.1f"|format(context.docker.running_ratio) }}%</td></tr>
+<tr><td>Containers per core</td><td>{{ "%.2f"|format(context.docker.containers_per_core) }}</td></tr>
+<tr><td>Images</td><td>{{ context.docker.images_count|e }}</td></tr>
 <tr><td>Comment</td><td>{{ context.docker.trend_text|e }}</td></tr>
 </table>
 {% else %}

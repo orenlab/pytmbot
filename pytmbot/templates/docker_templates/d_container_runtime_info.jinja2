@@ -5,6 +5,7 @@
 
 <p><b>{{ stethoscope_emoji }} Health</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Status</td><td>{{ health_badge|e }}</td></tr>
 <tr><td>Failing streak</td><td>{{ health_failing_streak|e }}</td></tr>
 <tr><td>Last check</td><td>{{ health_last_checked_at|e }}</td></tr>
@@ -13,6 +14,7 @@
 
 <p><b>{{ chart_emoji }} Lifecycle</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Created</td><td>{{ created_at|e }}</td></tr>
 <tr><td>Started</td><td>{{ started_at|e }}</td></tr>
 <tr><td>Finished</td><td>{{ finished_at|e }}</td></tr>
@@ -27,6 +29,7 @@
 
 <p><b>{{ shield_emoji }} Security profile</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Privileged</td><td>{{ privileged|e }}</td></tr>
 <tr><td>Read-only rootfs</td><td>{{ read_only_rootfs|e }}</td></tr>
 <tr><td>OOM kill disable</td><td>{{ oom_kill_disable|e }}</td></tr>
@@ -50,6 +53,7 @@
 
 <p><b>{{ gear_emoji }} Linux capabilities</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>CapAdd</td><td>{{ (cap_add_text | default("none", true))|e }}</td></tr>
 <tr><td>CapDrop</td><td>{{ (cap_drop_text | default("none", true))|e }}</td></tr>
 </table>

@@ -5,6 +5,7 @@
 
 <p><b>Server information</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>{{ label }} Server name</td><td>{{ (context['name'] if context['name'] else 'Unknown')|e }}</td></tr>
 <tr><td>{{ bar_chart }} Metrics enabled</td><td>{{ 'Yes' if context['metricsEnabled'] else 'No' }}</td></tr>
 <tr><td>{{ alarm_clock }} Created</td><td>{{ (context['createdTimestampMs'] | format_timestamp if context['createdTimestampMs'] else 'N/A')|e }}</td></tr>

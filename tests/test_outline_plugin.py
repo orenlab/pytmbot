@@ -81,7 +81,7 @@ def _build_plugin_harness(
         rendered_context["template_name"] = template_name
         rendered_context["first_name"] = first_name
         rendered_context["context"] = context
-        return f"rendered-{template_name}"
+        return f"<p>rendered-{template_name}</p>"
 
     monkeypatch.setattr(plugin, "_compile_template", _fake_compile)
     return plugin, sent_messages, rendered_context
@@ -117,7 +117,9 @@ def test_handle_server_info_normalizes_snake_case_payload(
         "portForNewAccessKeys": 8443,
     }
     assert sent_messages[0]["chat_id"] == 101
-    assert sent_messages[0]["text"] == "rendered-plugin_outline_server_info.jinja2"
+    assert (
+        sent_messages[0]["text"] == "<p>rendered-plugin_outline_server_info.jinja2</p>"
+    )
     assert sent_messages[0].get("rich_message") is not None
 
 
@@ -144,7 +146,7 @@ def test_handle_traffic_supports_snake_case_and_key_id(
         "userNames": {"42": "Alice"},
     }
     assert sent_messages[0]["chat_id"] == 101
-    assert sent_messages[0]["text"] == "rendered-plugin_outline_traffic.jinja2"
+    assert sent_messages[0]["text"] == "<p>rendered-plugin_outline_traffic.jinja2</p>"
     assert sent_messages[0].get("rich_message") is not None
 
 

@@ -22,7 +22,8 @@
 <p>No process data available.</p>
 {% endif %}
 
-<footer>{{ information }} Updated: {{ context.timestamp|e }}</footer>
-{%- if context.running_in_docker %}
+{% if context.running_in_docker %}
 <p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
-{%- endif %}
+{% endif %}
+
+<footer>{{ information }} Updated: {{ context.timestamp|e }}</footer>

@@ -276,11 +276,11 @@ def test_handle_uptime_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda **_kwargs: "uptime ok",
+        lambda **_kwargs: "<p>uptime ok</p>",
     )
     _invoke_handler(uptime_module.handle_uptime, message, bot)
     assert actions[-1] == (10, "typing")
-    assert _latest_content_message(messages)["text"] == "uptime ok"
+    assert _latest_content_message(messages)["text"] == "<p>uptime ok</p>"
 
     monkeypatch.setattr(
         uptime_module,
@@ -316,10 +316,10 @@ def test_handle_load_average_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda *_args, **_kwargs: "load ok",
+        lambda *_args, **_kwargs: "<p>load ok</p>",
     )
     _invoke_handler(load_average_module.handle_load_average, message, bot)
-    assert messages[-1]["text"] == "load ok"
+    assert messages[-1]["text"] == "<p>load ok</p>"
     assert messages[-1].get("rich_message") is not None
     assert messages[-1].get("parse_mode") is None
 
@@ -352,7 +352,7 @@ def test_handle_network_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=network_module.handle_network,
         adapter_method="get_net_io_counters",
         success_payload={"rx": "1 MiB"},
-        success_text="network ok",
+        success_text="<p>network ok</p>",
         parse_mode=None,
         none_text_contains="error occurred while getting network statistics",
         expected_error_code="HAND_005",
@@ -373,7 +373,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         handler=memory_module.handle_memory,
         adapter_method="get_memory",
         success_payload={"percent": 25.0},
-        success_text="memory ok",
+        success_text="<p>memory ok</p>",
         expected_error_code="HAND_006",
         message=message,
         bot=bot,
@@ -386,7 +386,7 @@ def test_handle_memory_and_process_paths(monkeypatch: pytest.MonkeyPatch) -> Non
         handler=process_module.handle_process,
         adapter_method="get_process_counts",
         success_payload={"running": 3},
-        success_text="process ok",
+        success_text="<p>process ok</p>",
         expected_error_code="HAND_004",
         message=message,
         bot=bot,
@@ -406,7 +406,7 @@ def test_handle_sensors_and_filesystem_paths(monkeypatch: pytest.MonkeyPatch) ->
         handler=sensors_module.handle_sensors,
         adapter_method="get_sensors_temperatures",
         success_payload=[{"name": "cpu", "temp": 55}],
-        success_text="sensors ok",
+        success_text="<p>sensors ok</p>",
         parse_mode=None,
         none_text_contains="No temperature or fan sensors were found",
         expected_error_code="HAND_003",
@@ -455,7 +455,7 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         message=message,
         bot=bot,
         messages=messages,
-        expected_text="cpu ok",
+        expected_text="<p>cpu ok</p>",
     )
     inline_buttons = _extract_inline_payload(_latest_content_message(messages))
     assert isinstance(inline_buttons, list)
@@ -520,7 +520,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         message=message,
         bot=bot,
         messages=messages,
-        expected_text="health ok",
+        expected_text="<p>health ok</p>",
     )
 
     monkeypatch.setattr(
@@ -546,7 +546,7 @@ def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=filesystem_module.handle_file_system,
         adapter_method="get_disk_usage",
         success_payload={"disk": []},
-        success_text="fs ok",
+        success_text="<p>fs ok</p>",
         parse_mode=None,
         none_text_contains="Failed to handle disk usage",
         expected_error_code="HAND_008",

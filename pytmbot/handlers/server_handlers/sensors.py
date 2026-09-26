@@ -89,9 +89,9 @@ def handle_sensors(message: Message, bot: TeleBot) -> None:
             )
         else:
             sensors_message = (
-                f"<h2>{em.get_emoji('thought_balloon')} Sensors</h2>"
+                f"<p><b>{em.get_emoji('thought_balloon')} Sensors</b></p>"
                 "<p>No temperature sensors are available on this host.</p>"
-                "<p>Fan speed data is available via the button below.</p>"
+                "<p><i>Fan speed data is available via the button below.</i></p>"
             )
 
         keyboard = None

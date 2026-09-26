@@ -1,37 +1,44 @@
-🆔 <b>ID Information</b>
+{# templates/b_getmyid.jinja2 — rich HTML #}
+<p><b>🆔 ID Information</b></p>
 
-Hello, <b>{{ first_name }}{% if last_name %} {{ last_name }}{% endif %}</b>!
-
-{% if is_bot_admin %}✅ You are authorized to use this bot.
-{% else %}⚠️ You are not currently authorized to use this bot.
+<p>Hello, <b>{{ first_name|e }}{% if last_name %} {{ last_name|e }}{% endif %}</b>!</p>
+{% if is_bot_admin %}
+<p>✅ You are authorized to use this bot.</p>
+{% else %}
+<p>⚠️ You are not currently authorized to use this bot.</p>
 {% endif %}
 
-This information is provided for bot configuration and debugging purposes.
-
-———————————————————
-
-👤 <b>User Information:</b>
-• User ID: <code>{{ user_id }}</code>
-• First Name: <b>{{ first_name }}</b>
-{% if last_name %}• Last Name: <b>{{ last_name }}</b>
-{% endif %}{% if username %}• Username: @{{ username }}
-{% endif %}{% if is_bot_admin %}• Status: Bot Administrator ⭐
+<p><b>👤 User</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>User ID</td><td><code>{{ user_id|e }}</code></td></tr>
+<tr><td>First name</td><td>{{ first_name|e }}</td></tr>
+{% if last_name %}
+<tr><td>Last name</td><td>{{ last_name|e }}</td></tr>
 {% endif %}
-
-💬 <b>Chat Information:</b>
-• Chat ID: <code>{{ chat_id }}</code>
-• Chat Type: <b>{{ chat_type }}</b>
-{% if chat_title %}• Chat Title: <b>{{ chat_title }}</b>
+{% if username %}
+<tr><td>Username</td><td>@{{ username|e }}</td></tr>
 {% endif %}
+{% if is_bot_admin %}
+<tr><td>Status</td><td>Bot administrator ⭐</td></tr>
+{% endif %}
+</table>
 
-🔧 <b>Command Information:</b>
-• Command: /{{ command }}
+<p><b>💬 Chat</b></p>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Chat ID</td><td><code>{{ chat_id|e }}</code></td></tr>
+<tr><td>Chat type</td><td>{{ chat_type|e }}</td></tr>
+{% if chat_title %}
+<tr><td>Chat title</td><td>{{ chat_title|e }}</td></tr>
+{% endif %}
+</table>
 
-———————————————————
+<p><b>📋 Configuration notes</b></p>
+<ul>
+<li>Use the User ID to set up admin privileges</li>
+<li>Use the Chat ID to configure allowed chats</li>
+<li>Copy these values to your bot configuration file</li>
+</ul>
 
-📋 <b>Configuration Notes:</b>
-• Use User ID to set up admin privileges
-• Use Chat ID to configure allowed chats
-• Copy these values to your bot configuration file
-
-💡 <b>Pro Tip:</b> Save this message for future reference during bot setup!
+<footer>🔒 This message is deleted automatically after {{ auto_delete_delay|e }} seconds for privacy.</footer>

@@ -1,40 +1,29 @@
-{# Макрос для отображения информации о репозитории #}
-{% macro render_repo(repo, info) %}
-🔧 **{{ repo }}**
-🏷️ Current tag: **{{ info.current_tag | default("Unknown") }}**
-📅 Created: {{ info.created_at_local | default("Unknown") | format_timestamp }}
-{% endmacro %}
+{# templates/docker_templates/d_updates.jinja2 — rich HTML #}
+<p><b>💭 Image updates</b></p>
 
-{# Отображение доступных обновлений #}
-{%- if updates is defined and updates %}
-🌟 **Updates Found** 🌟
-
+{% if updates is defined and updates %}
+<p><b>🌟 Updates found</b></p>
 {% for repo, info in updates.items() %}
-{{ render_repo(repo, info) }}
+<p><b>🐳 <code>{{ repo|e }}</code></b></p>
+<table bordered striped>
+<tr><th>Tag</th><th>Created</th></tr>
+<tr><td>🏷️ {{ info.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ info.created_at_local | default("Unknown") | format_timestamp | e }}</td></tr>
 {% if info.updates is defined and info.updates %}
-🔽 **Available updates:**
 {% for update in info.updates %}
-➡️ **{{ update.newer_tag | default("Unknown") }}**
-   📅 Created: {{ update.created_at_remote | default("Unknown") | format_timestamp }}
+<tr><td>➡️ <b>{{ update.newer_tag | default("Unknown") | e }}</b></td><td>{{ update.created_at_remote | default("Unknown") | format_timestamp | e }}</td></tr>
 {% endfor %}
-{% else %}
-🔽 **No available updates.**
 {% endif %}
-
-{% if not loop.last %}
-───────────────
-{% endif %}
+</table>
 {% endfor %}
 {% endif %}
 
-{# Отображение репозиториев без обновлений #}
-{%- if no_updates is defined and no_updates %}
-🚫 **No Updates Found** 🚫
-
+{% if no_updates is defined and no_updates %}
+<p><b>🚫 No updates found</b></p>
+<ul>
 {% for repo in no_updates %}
-🐳 **{{ repo }}**
-{% if not loop.last %}
-───────────────
-{% endif %}
+<li><code>{{ repo|e }}</code></li>
 {% endfor %}
+</ul>
 {% endif %}
+
+<p><i>Pull a newer tag on the host and recreate the container to apply an update.</i></p>

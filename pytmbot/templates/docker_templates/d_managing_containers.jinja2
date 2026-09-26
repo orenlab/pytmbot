@@ -1,28 +1,21 @@
-{% macro format_container_name(name) %}
-{{ emojis['briefcase'] }} <b>{{ name }}</b>
-{% endmacro %}
+{# templates/docker_templates/d_managing_containers.jinja2 — rich HTML #}
+<p><b>{{ emojis['thought_balloon'] }} Container actions</b></p>
 
-{{ emojis['cross_mark'] }} <b>Container actions</b>
+<table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>{{ emojis['briefcase'] }} Container</td><td><code>{{ container_name|e }}</code></td></tr>
+<tr><td>State</td><td><code>{{ state|e }}</code></td></tr>
+</table>
 
-You are about to manage {{ format_container_name(container_name) }}.
-Current container state: <b>{{ state }}</b>
+<p>{{ emojis['anxious_face_with_sweat'] }} <b>Changes here affect the live container immediately.</b></p>
 
-{{ emojis['anxious_face_with_sweat'] }} <b>Changes here affect the live container immediately.</b>
-<b>Start</b>, <b>Stop</b>, and <b>Restart</b> are reversible.
-<b>Remove</b> deletes the container.
+<details>
+<summary>What each action does</summary>
+<ul>
+<li><b>Start</b> — start the container with its last set of arguments</li>
+<li><b>Stop</b> — stop the running container</li>
+<li><b>Restart</b> — restart the container with its last startup parameters</li>
+</ul>
+</details>
 
-{% set actions = {
-    'Start': 'Start the container using the last set of arguments',
-    'Stop': 'Stop the container completely',
-    'Restart': 'Restart the container using the last startup parameters',
-    'Remove': 'Remove the container'
-} %}
-
-Available actions depend on the current container state:
-<blockquote expandable>
-    {% for action, description in actions.items() %}
-    {{ action }}: {{ description }}
-    {% endfor %}
-</blockquote>
-
-Choose an action for {{ format_container_name(container_name) }}.
+<p><i>Available actions depend on the current container state. Choose one below.</i></p>

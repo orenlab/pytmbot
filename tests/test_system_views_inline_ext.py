@@ -199,12 +199,12 @@ _HANDLER_CASES: tuple[_HandlerCase, ...] = (
 )
 
 
-@pytest.mark.parametrize(("handler_obj", "_error_code", "as_rich"), _HANDLER_CASES)
+@pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_route_via_shared_edit(
     monkeypatch: pytest.MonkeyPatch,
     handler_obj: _RawHandlerInput,
     _error_code: str,
-    as_rich: bool,
+    _as_rich: bool,
 ) -> None:
     _patch_common_success(monkeypatch)
     edit_calls: list[_PayloadDict] = []
@@ -218,12 +218,10 @@ def test_system_views_handlers_route_via_shared_edit(
     handler(cast(CallbackQuery, _Call()), cast(TeleBot, _Bot()))
 
     assert edit_calls
-    if as_rich:
-        assert edit_calls[-1].get("as_rich") is True
-        assert "parse_mode" not in edit_calls[-1]
-    else:
-        assert edit_calls[-1]["parse_mode"] == "HTML"
-        assert edit_calls[-1].get("as_rich") is not True
+    # Every system view renders a rich screen; classic parse modes are gone.
+    assert "parse_mode" not in edit_calls[-1]
+    assert "as_rich" not in edit_calls[-1]
+    assert edit_calls[-1]["text"]
 
 
 @pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)

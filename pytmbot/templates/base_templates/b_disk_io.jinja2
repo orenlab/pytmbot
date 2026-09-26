@@ -5,16 +5,16 @@
 {% for disk in context.disks %}
 <p><b>{{ disk.device_name|e }}</b></p>
 <table bordered striped>
-<tr><th>Direction</th><th>Bytes</th><th align="right">Ops</th><th align="right">Time</th></tr>
+<tr><th>Direction</th><th align="right">Bytes</th><th align="right">Ops</th><th align="right">Time</th></tr>
 <tr>
 <td>Read</td>
-<td>{{ disk.read_bytes|e }}</td>
+<td align="right">{{ disk.read_bytes|e }}</td>
 <td align="right">{{ disk.read_count|e }}</td>
 <td align="right">{{ disk.read_time_ms|e }}ms</td>
 </tr>
 <tr>
 <td>Write</td>
-<td>{{ disk.write_bytes|e }}</td>
+<td align="right">{{ disk.write_bytes|e }}</td>
 <td align="right">{{ disk.write_count|e }}</td>
 <td align="right">{{ disk.write_time_ms|e }}ms</td>
 </tr>

@@ -135,7 +135,7 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_render(template_name: str, **context: _PayloadValue) -> str:
         render_calls["template_name"] = template_name
         render_calls["context"] = context
-        return "quickview text"
+        return "<p>quickview text</p>"
 
     monkeypatch.setattr(Compiler, "quick_render", _fake_render)
 
@@ -143,7 +143,7 @@ def test_handle_quick_view_success(monkeypatch: pytest.MonkeyPatch) -> None:
     handler(message, bot)
 
     assert actions == [(10, "typing")]
-    assert messages[0]["text"] == "quickview text"
+    assert messages[0]["text"] == "<p>quickview text</p>"
     assert messages[0].get("rich_message") is not None
     assert messages[0].get("parse_mode") is None
     assert messages[0]["reply_markup"] is not None

@@ -17,6 +17,8 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
+from pytmbot.utils.rich_html import rich_html_to_plain_text, rich_paragraphs
 from pytmbot.utils.telegram_utils import callback_query_id
 
 _RETRY_AFTER_PATTERN = re.compile(r"retry after\s+(\d+)", re.IGNORECASE)
@@ -96,6 +98,14 @@ def authorize_user_bound_callback(
     return True, target_user_id
 
 
+def _is_rich_message(message: object) -> bool:
+    """Return True when a callback message carries rich content."""
+    return (
+        getattr(message, "content_type", None) == "rich_message"
+        or getattr(message, "rich_message", None) is not None
+    )
+
+
 def edit_callback_message_text(
     call: CallbackQuery,
     bot: TeleBot,
@@ -111,6 +121,9 @@ def edit_callback_message_text(
 
     Pass either classic ``text`` (optionally with ``parse_mode``) or
     ``rich_message``. Do not mix both content representations.
+
+    Classic text aimed at a rich message is converted to rich paragraphs so
+    the edit keeps the rich message lifecycle instead of overlaying it.
     """
     if call.message is None:
         return False
@@ -118,6 +131,12 @@ def edit_callback_message_text(
         raise ValueError("Pass either text or rich_message, not both")
     if rich_message is None and text is None:
         raise ValueError("Either text or rich_message is required")
+    if rich_message is None and text is not None and _is_rich_message(call.message):
+        plain_text = rich_html_to_plain_text(text) if parse_mode == "HTML" else text
+        rich_message = build_rich_html_message(
+            rich_paragraphs(plain_text) or "<p>…</p>"
+        )
+        text = None
 
     try:
         if rich_message is not None:

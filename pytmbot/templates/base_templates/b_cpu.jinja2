@@ -17,7 +17,7 @@
 <tr><td>Max</td><td align="right">{{ "%.1f"|format(context.max_freq_mhz) }} MHz</td></tr>
 </table>
 {% else %}
-<p>N/A</p>
+<p><i>CPU frequency data is not available.</i></p>
 {% endif %}
 
 {% if running_in_docker %}

@@ -291,11 +291,11 @@ def test_handle_swap_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         method_name="get_swap_memory",
         implementation=lambda: {"used": "1 GiB"},
     )
-    monkeypatch.setattr(Compiler, "quick_render", lambda **kwargs: "swap-ok")
+    monkeypatch.setattr(Compiler, "quick_render", lambda **kwargs: "<p>swap-ok</p>")
     _invoke(handler, bot, data="__swap_info__:17")
     _assert_latest_rich_edit(
         bot,
-        html_equals="swap-ok",
+        html_equals="<p>swap-ok</p>",
         expected_callbacks=["__swap_info__:17"],
     )
 
@@ -357,14 +357,14 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         Compiler,
         "quick_render",
         lambda template_name, context, **emojis: (
-            f"rows:{len(context['process_rows'])}:{context['process_rows'][0]['name']}"
+            f"<p>rows:{len(context['process_rows'])}:{context['process_rows'][0]['name']}</p>"
         ),
     )
     monkeypatch.setattr(top_process_module, "running_in_docker", True)
     _invoke(handler, bot, data="__process_info__:17")
     edited = bot.edited_messages[-1]
     rich_message = cast(InputRichMessage, edited["rich_message"])
-    assert rich_message.html == "rows:2:super-long-…"
+    assert rich_message.html == "<p>rows:2:super-long-…</p>"
     assert "parse_mode" not in edited
     assert_reply_markup_has_callbacks(
         edited.get("reply_markup"),
@@ -411,7 +411,7 @@ def test_handle_system_health_refresh_paths(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(
         health_module,
         "_render_health_message",
-        lambda: "health-refresh-ok",
+        lambda: "<p>health-refresh-ok</p>",
     )
     monkeypatch.setattr(
         health_module,
@@ -421,7 +421,7 @@ def test_handle_system_health_refresh_paths(monkeypatch: pytest.MonkeyPatch) -> 
 
     _invoke(handler, bot, data="__health_refresh__:17")
     health_rich = cast(InputRichMessage, bot.edited_messages[-1]["rich_message"])
-    assert health_rich.html == "health-refresh-ok"
+    assert health_rich.html == "<p>health-refresh-ok</p>"
     assert bot.callback_answers[-1]["text"] == "Health snapshot updated."
 
     monkeypatch.setattr(
@@ -451,7 +451,7 @@ def test_handle_system_health_refresh_ignores_not_modified(
     monkeypatch.setattr(
         health_module,
         "_render_health_message",
-        lambda: "health-refresh-ok",
+        lambda: "<p>health-refresh-ok</p>",
     )
     monkeypatch.setattr(
         health_module,
@@ -479,7 +479,6 @@ def test_system_views_edit_message_ignores_not_modified(
             call,
             cast(TeleBot, bot),
             text="same",
-            parse_mode="HTML",
             reply_markup=None,
         ),
         expected_text="Already up to date.",
@@ -529,7 +528,6 @@ def test_system_views_edit_message_reraises_other_telegram_errors(
             call,
             cast(TeleBot, bot),
             text="will-fail",
-            parse_mode="HTML",
             reply_markup=None,
         )
 
@@ -599,12 +597,14 @@ def test_handle_process_overview_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     monkeypatch.setattr(
-        top_process_module, "render_process_overview_text", lambda: "process-overview"
+        top_process_module,
+        "render_process_overview_text",
+        lambda: "<p>process-overview</p>",
     )
     _invoke(handler, bot, data="__process_overview__:17")
     _assert_latest_rich_edit(
         bot,
-        html_equals="process-overview",
+        html_equals="<p>process-overview</p>",
         expected_callbacks=["__process_info_process__:17"],
         require_no_parse_mode=True,
     )

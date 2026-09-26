@@ -8,10 +8,11 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 from telebot import TeleBot
-from telebot.types import LinkPreviewOptions, Message
+from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
 from pytmbot.handlers.handlers_util.utils import send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -111,18 +112,12 @@ def handle_getmyid(
             username=username,
             chat_type=chat_type_display,
             chat_title=chat_title,
-            command="getmyid",
             is_bot_admin=is_bot_admin,
+            auto_delete_delay=auto_delete_delay,
         )
 
         # Send the response message
-        sent_message = send_main_message(
-            bot,
-            chat_id,
-            answer,
-            parse_mode="HTML",
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
-        )
+        sent_message = send_rich_main_message(bot, chat_id, answer)
 
         # Schedule automatic deletion for privacy protection
         deletion_result = deletion_manager.schedule_deletion(

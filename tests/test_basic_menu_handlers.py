@@ -138,6 +138,7 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
         sent_payloads.append(payload)
 
     monkeypatch.setattr(start_module, "send_rich_main_message", _send_rich)
+    monkeypatch.setattr(server_module, "send_rich_bot_message", _send_rich)
     monkeypatch.setattr(
         Compiler,
         "quick_render",
@@ -213,7 +214,12 @@ def test_navigation_start_and_server_handlers(monkeypatch: pytest.MonkeyPatch) -
     assert len(sent_payloads) >= 2
     assert any(str(payload["text"]).startswith("nav:") for payload in sent_payloads)
     assert any(str(payload["text"]).startswith("start:") for payload in sent_payloads)
-    assert any(str(msg["text"]).startswith("server:") for msg in bot.sent_messages)
+    server_payload = next(
+        payload
+        for payload in sent_payloads
+        if str(payload["text"]).startswith("server:")
+    )
+    assert server_payload["reply_markup"] == "server-kbd"
 
     monkeypatch.setattr(
         Compiler,
@@ -267,11 +273,19 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
         docker_module._compile_message()
 
     sent_payloads: list[_PayloadDict] = []
-    monkeypatch.setattr(
-        docker_module,
-        "send_telegram_message",
-        lambda **kwargs: sent_payloads.append(kwargs),
-    )
+
+    def _send_rich(
+        bot: object,
+        chat_id: int,
+        html: str,
+        **kwargs: _PayloadValue,
+    ) -> None:
+        del bot
+        payload: _PayloadDict = {"chat_id": chat_id, "text": html}
+        payload.update(kwargs)
+        sent_payloads.append(payload)
+
+    monkeypatch.setattr(docker_module, "send_rich_bot_message", _send_rich)
     monkeypatch.setattr(
         docker_module,
         "_compile_message",
@@ -299,6 +313,7 @@ def test_docker_fetch_compile_and_handle(monkeypatch: pytest.MonkeyPatch) -> Non
         sent_payloads=sent_payloads,
         expected_text="docker-ui",
     )
+    assert sent_payloads[0]["reply_markup"] == "docker-kbd"
 
     monkeypatch.setattr(
         docker_module,

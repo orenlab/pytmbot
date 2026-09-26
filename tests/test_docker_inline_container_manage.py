@@ -277,7 +277,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda **kwargs: "container-full",
+        lambda **kwargs: "<p>container-full</p>",
     )
     monkeypatch.setattr(
         container_info_module,
@@ -297,7 +297,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
     callbacks = cast(list[dict[str, str]], bot.edited_messages[-1]["reply_markup"])
     callback_data = [item["callback_data"] for item in callbacks]
-    assert _edited_content(bot.edited_messages[-1]) == "container-full"
+    assert _edited_content(bot.edited_messages[-1]) == "<p>container-full</p>"
     assert any(
         value.startswith("__container_extra__:volumes:") for value in callback_data
     )
@@ -462,7 +462,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda template_name, **kwargs: template_name,
+        lambda template_name, **kwargs: f"<p>{template_name}</p>",
     )
     monkeypatch.setattr(
         runtime_info_module,
@@ -492,7 +492,10 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
         cast(TeleBot, bot),
     )
-    assert _edited_content(bot.edited_messages[-1]) == "d_container_volumes_info.jinja2"
+    assert (
+        _edited_content(bot.edited_messages[-1])
+        == "<p>d_container_volumes_info.jinja2</p>"
+    )
     volumes_callbacks = cast(
         list[dict[str, str]],
         bot.edited_messages[-1]["reply_markup"],
@@ -504,14 +507,18 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         cast(TeleBot, bot),
     )
     assert (
-        _edited_content(bot.edited_messages[-1]) == "d_container_networks_info.jinja2"
+        _edited_content(bot.edited_messages[-1])
+        == "<p>d_container_networks_info.jinja2</p>"
     )
 
     handler(
         cast(CallbackQuery, _Call(data="__container_extra__:runtime:api:11")),
         cast(TeleBot, bot),
     )
-    assert _edited_content(bot.edited_messages[-1]) == "d_container_runtime_info.jinja2"
+    assert (
+        _edited_content(bot.edited_messages[-1])
+        == "<p>d_container_runtime_info.jinja2</p>"
+    )
 
 
 def test_runtime_template_line_breaks_are_stable() -> None:
@@ -649,7 +656,7 @@ def test_handle_container_full_info_ignores_not_modified(
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda **kwargs: "container-full",
+        lambda **kwargs: "<p>container-full</p>",
     )
     monkeypatch.setattr(
         container_info_module,

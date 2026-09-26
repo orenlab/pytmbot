@@ -1,22 +1,23 @@
-{{ thought_balloon }} <b>Update pyTMBot with Docker Compose</b>
+{# templates/b_how_update.jinja2 — rich HTML #}
+<p><b>{{ thought_balloon }} Update pyTMBot with Docker Compose</b></p>
 
-These steps apply if you run pyTMBot with Docker Compose and the service is named <code>pytmbot</code>.
-If your path or service name is different, adjust the commands below.
+<p>These steps apply if you run pyTMBot with Docker Compose and the service is named <code>pytmbot</code>. If your path or service name is different, adjust the commands below.</p>
 
-<b>Recommended steps:</b>
+<p><b>Recommended steps</b></p>
+<ol>
+<li>Open the directory with your <code>compose.yaml</code></li>
+<li>Pull the latest image</li>
+<li>Recreate the service</li>
+<li>Check status and recent logs</li>
+</ol>
 
-1) Open the directory with your <code>compose.yaml</code>
-2) Pull the latest image
-3) Recreate the service
-4) Check status and recent logs
-
-<pre>cd /opt/pytmbot
+<pre><code class="language-bash">cd /opt/pytmbot
 docker compose pull pytmbot
 docker compose up -d --force-recreate pytmbot
 docker compose ps
-docker compose logs -n 50 pytmbot</pre>
+docker compose logs -n 50 pytmbot</code></pre>
 
-<b>Optional cleanup:</b>
-<code>docker image prune -f</code>
+<p><b>Optional cleanup</b></p>
+<pre><code class="language-bash">docker image prune -f</code></pre>
 
-ℹ️ <i>Your mounted config and secret files stay in place.</i>
+<p>ℹ️ <i>Your mounted config and secret files stay in place.</i></p>

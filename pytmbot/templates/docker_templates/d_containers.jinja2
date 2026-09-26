@@ -1,30 +1,26 @@
 {# templates/docker_templates/d_containers.jinja2 — rich HTML #}
-
 {% set container_fields = [
-    (oil_drum, 'Container', 'name', None),
-    (id, 'ID', 'id', None),
-    (package, 'Image', 'image', None),
-    (mantelpiece_clock, 'Created', 'created', None),
-    (rocket, 'Started', 'run_at', None),
-    (antenna_bars, 'Status', 'status', None)
+    (id, 'ID', 'id'),
+    (package, 'Image', 'image'),
+    (mantelpiece_clock, 'Created', 'created'),
+    (rocket, 'Started', 'run_at'),
+    (antenna_bars, 'Status', 'status')
 ] %}
-
 <p><b>{{ thought_balloon }} Docker Containers</b></p>
 
 {% for value in context %}
 <p><b>{{ oil_drum }} {{ value['name']|e }}</b></p>
 <table bordered striped>
-{% for emoji, label, field_key, default_value in container_fields if field_key != 'name' %}
-<tr>
-<td>{{ emoji }} {{ label }}</td>
-<td>{% if field_key == 'status' %}<code>{{ value[field_key]|e }}</code>{% else %}{{ (value[field_key] if value[field_key] is not none else (default_value or 'N/A'))|e }}{% endif %}</td>
-</tr>
+<tr><th>Parameter</th><th>Value</th></tr>
+{% for emoji, label, field_key in container_fields %}
+{% set field_value = value[field_key] if value[field_key] is not none else 'N/A' %}
+<tr><td>{{ emoji }} {{ label }}</td><td>{% if field_key in ('id', 'status') %}<code>{{ field_value|e }}</code>{% else %}{{ field_value|e }}{% endif %}</td></tr>
 {% endfor %}
 </table>
 {% else %}
-<p><b>No containers available.</b></p>
+<p>No containers found. If you expected some, check that pyTMBot can reach the Docker socket.</p>
 {% endfor %}
-
 {% if context %}
-<p>{{ magnifying_glass }} <b>More details:</b></p>
+
+<p>{{ magnifying_glass }} <i>Tap a container below to open its details.</i></p>
 {% endif %}

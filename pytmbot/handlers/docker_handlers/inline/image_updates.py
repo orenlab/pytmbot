@@ -18,6 +18,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -247,8 +248,7 @@ def handle_image_updates(call: CallbackQuery, bot: TeleBot) -> None:
     edit_callback_message_text(
         call=call,
         bot=bot,
-        text=formatted_context,
-        parse_mode="Markdown",
+        rich_message=build_rich_html_message(formatted_context),
         reply_markup=_build_image_updates_keyboard(target_user_id),
         not_modified_text="Image updates are already current.",
     )

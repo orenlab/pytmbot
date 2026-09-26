@@ -6,9 +6,10 @@
 
 <p><b>{{ context.emojis.gear }} Summary</b></p>
 <table bordered striped>
-<tr><td>Total containers</td><td>{{ context.containers_count|e }}</td></tr>
-<tr><td>Running</td><td>{{ context.running_count|e }}</td></tr>
-<tr><td>Stopped</td><td>{{ context.stopped_count|e }}</td></tr>
+<tr><th>Metric</th><th align="right">Count</th></tr>
+<tr><td>Total containers</td><td align="right">{{ context.containers_count|e }}</td></tr>
+<tr><td>Running</td><td align="right">{{ context.running_count|e }}</td></tr>
+<tr><td>Stopped</td><td align="right">{{ context.stopped_count|e }}</td></tr>
 </table>
 
 <p><b>Containers{% if context.containers_count > 0 %} ({{ context.containers_count|e }}){% endif %}</b></p>
@@ -16,6 +17,7 @@
 {% for container in context.containers %}
 <p><b>{{ loop.index }}. {{ container.name|e }} <code>{{ container.id|e }}</code></b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Status</td><td>{{ container.status|e }}</td></tr>
 <tr><td>Started</td><td>{{ container.started_at|e }}</td></tr>
 </table>

@@ -6,6 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 from datetime import datetime
+from typing import Final
 
 import requests
 from packaging.version import InvalidVersion, Version
@@ -21,13 +22,16 @@ from pytmbot.globals import (
     get_emoji_converter,
     get_keyboards,
 )
-from pytmbot.handlers.handlers_util.utils import send_telegram_message
+from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
+from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_bot_development
+from pytmbot.utils.rich_html import simple_markdown_to_rich_html
 
 logger = Logger()
 button_data = ButtonDataType
+RELEASE_NOTES_MAX_LINES: Final[int] = 30
 em = get_emoji_converter()
 keyboards = get_keyboards()
 
@@ -93,12 +97,12 @@ def handle_bot_updates(message: Message, bot: TeleBot) -> None:
             keyboards.build_inline_keyboard(keyboard_button) if need_inline else None
         )
 
-        send_telegram_message(
-            bot=bot,
-            chat_id=message.chat.id,
-            text=bot_answer,
+        send_rich_bot_message(
+            bot,
+            message.chat.id,
+            bot_answer,
             reply_markup=inline_button,
-            parse_mode="HTML",
+            nav_keyboard=NAV_MAIN,
         )
 
     except Exception as error:
@@ -149,6 +153,16 @@ def _process_message() -> tuple[str, bool]:
         return _render_future_message(update_context), False
 
 
+def _render_update_notice(message: str) -> str:
+    """Render a rich status notice for the update check screen."""
+    return Compiler.quick_render(
+        template_name="b_notice.jinja2",
+        title="Bot updates",
+        message=message,
+        thought_balloon=em.get_emoji("thought_balloon"),
+    )
+
+
 def _render_development_message() -> str:
     """
     Render a message indicating that the bot is using the development version.
@@ -156,18 +170,12 @@ def _render_development_message() -> str:
     Returns:
         str: The rendered message indicating the bot is using the development version.
     """
-    emojis = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-    }
-
     message = (
         f"You are running the development build: {__version__}. "
         "For day-to-day use, a stable release is recommended."
     )
 
-    return Compiler.quick_render(
-        template_name="b_none.jinja2", context=message, **emojis
-    )
+    return _render_update_notice(message)
 
 
 def _render_update_difficulties_message() -> str:
@@ -177,15 +185,9 @@ def _render_update_difficulties_message() -> str:
     Returns:
         str: The rendered message.
     """
-    emojis = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-    }
-
     message = "I couldn't check for updates right now. Please try again later."
 
-    return Compiler.quick_render(
-        template_name="b_none.jinja2", context=message, **emojis
-    )
+    return _render_update_notice(message)
 
 
 def _render_new_update_message(update_context: dict[str, str]) -> str:
@@ -217,7 +219,10 @@ def _render_new_update_message(update_context: dict[str, str]) -> str:
         template_name="b_bot_update.jinja2",
         current_version=current_version,
         release_date=release_date,
-        release_notes=release_notes,
+        # Pre-rendered from escaped Markdown; the template marks it safe.
+        release_notes_html=simple_markdown_to_rich_html(
+            release_notes, max_lines=RELEASE_NOTES_MAX_LINES
+        ),
         **emojis,
     )
 
@@ -231,13 +236,7 @@ def _render_no_update_message() -> str:
     """
     context = f"You are running version {__version__}. No newer release was found."
 
-    emojis: dict[str, str] = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-    }
-
-    return Compiler.quick_render(
-        template_name="b_none.jinja2", context=context, **emojis
-    )
+    return _render_update_notice(context)
 
 
 def _render_future_message(update_context: dict[str, str]) -> str:
@@ -259,13 +258,7 @@ def _render_future_message(update_context: dict[str, str]) -> str:
         f"This bot is running {__version__}, which looks newer."
     )
 
-    emojis: dict[str, str] = {
-        "thought_balloon": em.get_emoji("thought_balloon"),
-    }
-
-    return Compiler.quick_render(
-        template_name="b_none.jinja2", context=context, **emojis
-    )
+    return _render_update_notice(context)
 
 
 def __check_bot_update() -> dict[str, str]:

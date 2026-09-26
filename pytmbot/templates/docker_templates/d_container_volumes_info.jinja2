@@ -8,6 +8,7 @@
 {% for mount in mounts %}
 <p><b>{{ loop.index }}. <code>{{ mount.type|e }}</code>{% if mount.name != '-' %} <code>{{ mount.name|e }}</code>{% endif %}</b></p>
 <table bordered striped>
+<tr><th>Parameter</th><th>Value</th></tr>
 <tr><td>Source</td><td>{{ mount.source|e }}</td></tr>
 <tr><td>Target</td><td>{{ mount.destination|e }}</td></tr>
 <tr><td>Access</td><td>{{ mount.access|e }}</td></tr>

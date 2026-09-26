@@ -194,11 +194,11 @@ class MonitoringPlugin(PluginInterface):
     @staticmethod
     def _format_stats_summary(stats: _SeriesStats, unit: str) -> list[str]:
         return [
-            f"• Latest: {stats.latest:.1f}{unit}",
-            f"• Average: {stats.avg_value:.1f}{unit}",
-            f"• Min / Max: {stats.min_value:.1f}{unit} / {stats.max_value:.1f}{unit}",
-            f"• Trend: {stats.delta:+.1f}{unit}",
-            f"• Samples: {stats.samples}",
+            f"Latest: {stats.latest:.1f}{unit}",
+            f"Average: {stats.avg_value:.1f}{unit}",
+            f"Min / Max: {stats.min_value:.1f}{unit} / {stats.max_value:.1f}{unit}",
+            f"Trend: {stats.delta:+.1f}{unit}",
+            f"Samples: {stats.samples}",
         ]
 
     @staticmethod
@@ -225,34 +225,34 @@ class MonitoringPlugin(PluginInterface):
             per_core_preview = "N/A"
 
         summary = [
-            f"• Latest CPU usage: {cpu_percent:.1f}%",
-            f"• CPU cores: {len(cpu_per_core)}",
+            f"Latest CPU usage: {cpu_percent:.1f}%",
+            f"CPU cores: {len(cpu_per_core)}",
             (
-                f"• Load average: "
+                f"Load average: "
                 f"{load_avg[0]:.2f} / {load_avg[1]:.2f} / {load_avg[2]:.2f}"
             ),
-            f"• Per-core (first 8): {per_core_preview}",
+            f"Per-core (first 8): {per_core_preview}",
         ]
 
         if top_processes:
             details = [
                 (
-                    f"• {proc['name']} (PID {proc['pid']}): "
+                    f"{proc['name']} (PID {proc['pid']}): "
                     f"CPU {proc['cpu_percent']:.1f}%, MEM {proc['memory_percent']:.1f}%"
                 )
                 for proc in top_processes
             ]
         else:
-            details = ["• Top processes are unavailable"]
+            details = ["Top processes are unavailable"]
 
         return summary, details
 
     def _build_memory_snapshot_section(self) -> tuple[list[str], list[str]]:
         memory = self._psutil_adapter.get_memory()
         summary = [
-            f"• Latest memory usage: {float(memory.get('percent', 0.0)):.1f}%",
-            f"• Used: {memory.get('used', 'N/A')}",
-            f"• Available: {memory.get('available', 'N/A')}",
+            f"Latest memory usage: {float(memory.get('percent', 0.0)):.1f}%",
+            f"Used: {memory.get('used', 'N/A')}",
+            f"Available: {memory.get('available', 'N/A')}",
         ]
         return summary, []
 
@@ -263,12 +263,12 @@ class MonitoringPlugin(PluginInterface):
             reverse=True,
         )
         if not disks:
-            return ["• Disk usage data is unavailable"], []
+            return ["Disk usage data is unavailable"], []
 
         summary = []
         for disk in disks[: self._TOP_GROUP_ITEMS]:
             summary.append(
-                f"• {disk.get('mnt_point', 'unknown')}: "
+                f"{disk.get('mnt_point', 'unknown')}: "
                 f"{float(disk.get('percent', 0.0)):.1f}%"
             )
         return summary, []
@@ -280,12 +280,12 @@ class MonitoringPlugin(PluginInterface):
             reverse=True,
         )
         if not sensors:
-            return ["• Temperature sensor data is unavailable"], []
+            return ["Temperature sensor data is unavailable"], []
 
         summary = []
         for sensor in sensors[: self._TOP_GROUP_ITEMS]:
             summary.append(
-                f"• {sensor.get('sensor_name', 'sensor')}: "
+                f"{sensor.get('sensor_name', 'sensor')}: "
                 f"{float(sensor.get('sensor_value', 0.0)):.1f}°C"
             )
         return summary, []
@@ -305,7 +305,7 @@ class MonitoringPlugin(PluginInterface):
             stats = self._query_field_stats(field, period_key)
             if stats is None:
                 continue
-            details.append(f"• {label}: {stats.latest:.2f} (avg {stats.avg_value:.2f})")
+            details.append(f"{label}: {stats.latest:.2f} (avg {stats.avg_value:.2f})")
 
         return summary, details
 
@@ -325,11 +325,11 @@ class MonitoringPlugin(PluginInterface):
             return self._build_disk_snapshot_section()
 
         summary = [
-            f"• {name}: {stats.latest:.1f}% (avg {stats.avg_value:.1f}%)"
+            f"{name}: {stats.latest:.1f}% (avg {stats.avg_value:.1f}%)"
             for name, stats in disks[: self._TOP_GROUP_ITEMS]
         ]
         details = [
-            f"• {name}: min {stats.min_value:.1f}% / max {stats.max_value:.1f}%"
+            f"{name}: min {stats.min_value:.1f}% / max {stats.max_value:.1f}%"
             for name, stats in disks[: self._TOP_GROUP_ITEMS]
         ]
         return summary, details
@@ -346,11 +346,11 @@ class MonitoringPlugin(PluginInterface):
             return self._build_temperature_snapshot_section()
 
         summary = [
-            f"• {name}: {stats.latest:.1f}°C (avg {stats.avg_value:.1f}°C)"
+            f"{name}: {stats.latest:.1f}°C (avg {stats.avg_value:.1f}°C)"
             for name, stats in temperatures[: self._TOP_GROUP_ITEMS]
         ]
         details = [
-            f"• {name}: min {stats.min_value:.1f}°C / max {stats.max_value:.1f}°C"
+            f"{name}: min {stats.min_value:.1f}°C / max {stats.max_value:.1f}°C"
             for name, stats in temperatures[: self._TOP_GROUP_ITEMS]
         ]
         return summary, details
@@ -444,10 +444,10 @@ class MonitoringPlugin(PluginInterface):
                 period_key
             )
             summary_lines = [
-                f"• CPU: {cpu_line}",
-                f"• Memory: {memory_line}",
-                f"• Disk: {disk_line}",
-                f"• Temperatures: {temp_line}",
+                f"CPU: {cpu_line}",
+                f"Memory: {memory_line}",
+                f"Disk: {disk_line}",
+                f"Temperatures: {temp_line}",
             ]
             detail_lines = []
 
@@ -508,11 +508,11 @@ class MonitoringPlugin(PluginInterface):
             self.bot,
             message.chat.id,
             (
-                f"<h2>{em.get_emoji('calendar')} Select monitoring period</h2>"
+                f"<p><b>{em.get_emoji('calendar')} Select monitoring period</b></p>"
                 f"<p><b>Current:</b> {escape(self._resolve_selected_period_label(message.chat.id))}</p>"
                 f"<ul>{options_html}</ul>"
                 f"<p>{em.get_emoji('information')} "
-                "After selecting period, return to any metric section.</p>"
+                "<i>After selecting a period, return to any metric section.</i></p>"
             ),
             reply_markup=self._build_period_keyboard(),
         )

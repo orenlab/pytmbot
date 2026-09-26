@@ -15,6 +15,7 @@ from pytmbot.handlers.handlers_util.callback_auth import (
     authorize_callback_request,
     parse_callback_target_user,
 )
+from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import (
     build_user_bound_callback_data,
     edit_callback_message_text,
@@ -98,8 +99,7 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
         edit_callback_message_text(
             call=call,
             bot=bot,
-            text=bot_answer,
-            parse_mode="HTML",
+            rich_message=build_rich_html_message(bot_answer),
             reply_markup=_build_update_info_keyboard(target_user_id),
             not_modified_text="Update guide is already current.",
         )
@@ -109,8 +109,9 @@ def handle_update_info(call: CallbackQuery, bot: TeleBot) -> object | None:
             edit_callback_message_text(
                 call=call,
                 bot=bot,
-                text=(
-                    "Couldn't load the update guide right now. Please try again later."
+                rich_message=build_rich_html_message(
+                    "<p>Couldn't load the update guide right now. "
+                    "Please try again later.</p>"
                 ),
                 reply_markup=_build_update_info_keyboard(target_user_id),
                 not_modified_text="Update guide is already current.",

@@ -499,7 +499,7 @@ def test_edit_logs_message_edits_with_clamped_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False)
+        logs_module, "_render_logs_page", lambda **kwargs: ("<p>CTX</p>", False)
     )
     monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
     bot = _make_dummy_bot()
@@ -517,7 +517,7 @@ def test_edit_logs_message_edits_with_clamped_index(
     assert bot.edited[0]["chat_id"] == 10
     assert bot.edited[0]["message_id"] == 20
     assert "rich_message" in bot.edited[0]
-    assert bot.edited[0]["rich_message"].html == "CTX"
+    assert bot.edited[0]["rich_message"].html == "<p>CTX</p>"
 
 
 def test_edit_logs_message_ignores_not_modified(
@@ -533,7 +533,7 @@ def test_edit_logs_message_ignores_not_modified(
         inline_common_module, "ApiTelegramException", _ApiTelegramExceptionStub
     )
     monkeypatch.setattr(
-        logs_module, "_render_logs_page", lambda **kwargs: ("CTX", False)
+        logs_module, "_render_logs_page", lambda **kwargs: ("<p>CTX</p>", False)
     )
     monkeypatch.setattr(logs_module, "_build_logs_keyboard", lambda **kwargs: "KBD")
 
