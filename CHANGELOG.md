@@ -2,54 +2,29 @@
 
 ## [0.5.0] — 20260926
 
-Feature release that moves structured bot screens to Telegram Rich Messages, adds colored keyboard accents, and
-refreshes dependencies, Docker build images, and CI.
+Feature release: structured bot screens move to Telegram Rich Messages; dependencies, Docker images, and CI are
+refreshed.
 
 ### Added
 
-- Telegram Rich Messages (Bot API 10.1+) for structured screens: server metrics, Quick view, Health, Uptime, Server and
-  Docker menus, Docker lists and details, container actions, image and bot update checks, `/getmyid`,
-  start/about/plugins, and the Monitor and Outline plugin screens.
-- Rich message safeguards: content is trimmed to Telegram rich-message limits (32,768 characters, 500 blocks,
-  16 nesting levels, 20 table columns) at a row or block boundary, and a rejected rich payload falls back to a
-  plain-text message instead of failing the handler.
-- `KeyboardButton.style` accents on reply menus (`primary` for Server/Docker/Quick view/Health, `danger` for Back to
-  main menu) and inline button styles for container actions (`danger` Stop, `primary` Restart, `success` Start).
-- The bot update check shows GitHub release notes in a collapsible block.
+- Telegram Rich Messages (Bot API 10.1+) with native tables for all structured screens: server metrics, Quick view,
+  Health, menus, Docker lists and details, container actions, update checks, `/getmyid`, and plugin screens.
+- Rich message safeguards: content is trimmed to Telegram limits, and a rejected rich payload falls back to plain text.
+- Colored buttons: accents on reply menus and color-coded container actions (Stop, Restart, Start).
 
 ### Changed
 
-- Unified rich layout: bold paragraph titles, bordered striped tables with header rows and consistent column
-  alignment, and footers for pagination, timestamps, and auto-delete notices. A template render test and a validator
-  applied to every rich message built in tests keep the layout consistent.
-- Network I/O, interfaces, connections, Disk I/O, fans, and users views moved from ASCII/preformatted text to native
-  tables.
-- Docker list pagination and image detail sizing follow rich-message limits instead of the classic 4,096-character
-  budget.
-- `/getmyid` now states that the message is deleted automatically instead of suggesting to save it.
-- Bumped runtime dependencies, including `pyTelegramBotAPI` 4.37.0 (Bot API 10.3), `uvicorn`, `pydantic`, `emoji`,
-  `cachetools`, and `click`, and regenerated `uv.lock`.
-- Bumped Docker build images (Ubuntu `26.04`, `ghcr.io/astral-sh/uv:0.12.19`), the BuildKit driver image (`v0.33.0`),
-  and every pinned GitHub Action to its latest release.
-- Refreshed development tooling (`ruff`, `mypy`, `zensical`, `pre-commit`, typing stubs); `codeclone` stays on the
-  stable 2.0.x release so the committed baseline remains trusted in CI.
-- Added `0.5.0` to the supported `config_version` compatibility matrix and moved the supported stable image line to
-  `0.5`; updated release metadata, sample configuration, documentation, and Docker Hub README.
+- One consistent screen layout (bold titles, bordered tables with header rows, footers), covered by render tests.
+- Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.0 / Bot API 10.3), Docker build images (Ubuntu `26.04`,
+  uv `0.12.19`), BuildKit, and all pinned GitHub Actions; `codeclone` is back on the stable 2.0.x release.
+- Added `0.5.0` to the `config_version` compatibility matrix; `0.5` is now the supported stable image line.
 
 ### Fixed
 
-- Restored reply-keyboard navigation after Quick view and other inline screens by re-attaching the section menu when
-  both an inline keyboard and a navigation keyboard are required (notably on iOS).
-- The image update check no longer replaces the rich images list with a legacy Markdown message; container restart
-  results and the update guide keep the rich message lifecycle as well.
-- Fixed rich-message overlay when editing Memory → Swap (and CPU → Process overview) by keeping the same message
-  lifecycle on rich edits instead of mixing classic text edits onto rich content.
-- The container actions screen no longer renders as a single run-on paragraph or mentions an unavailable Remove action.
-- Removed duplicated bullets in Monitor plugin lists.
-- Stopped forwarding classic-only kwargs such as `link_preview_options` into `TeleBot.send_rich_message` (broke
-  `/start` and `/about`).
-- Fixed empty/blank rows in Docker container detail tables by keeping emoji badges outside table cells and omitting
-  empty/`N/A` finished rows.
+- Reply keyboard disappearing after Quick view and other inline screens (notably on iOS).
+- Rich screens overwritten by classic text edits (image update check, container restart, Swap, Process overview).
+- Broken layouts: run-on container actions screen, empty rows in container details, doubled bullets in Monitor.
+- `/start` and `/about` failing due to classic-only arguments passed to rich sends.
 
 ## [0.4.0] — 20260624
 

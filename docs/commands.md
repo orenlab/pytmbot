@@ -87,7 +87,10 @@ The bot also exposes callback-driven flows that are not slash commands:
 
 - container list pagination and detail screens
 - container logs, runtime info, volumes, and networks
-- image list pagination and metadata screens
+- container actions (start, stop, restart)
+- image list pagination, metadata screens, and image update checks
+- bot update guide after `/check_bot_updates`
+- active sessions from `Uptime`
 - quick-view refresh
 - health refresh
 - detailed network, CPU, memory, and process drill-down views

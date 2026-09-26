@@ -121,6 +121,7 @@ Responsibilities:
 - render validation
 - cache management
 - output formatting for Telegram responses, including Rich Messages via `InputRichMessage(html=...)` helpers in `pytmbot/handlers/handlers_util/rich_messages.py`
+- rich HTML limits and fallbacks in `pytmbot/utils/rich_html.py`: measuring and trimming content to Telegram limits, plain-text conversion for rejected rich payloads, and structural validation used by tests
 
 ### Plugins
 
