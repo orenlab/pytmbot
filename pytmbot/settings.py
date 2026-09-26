@@ -67,49 +67,49 @@ def load_settings_from_yaml() -> SettingsModel:
 def get_default_main_keyboard() -> dict[str, str]:
     """Returns the default main keyboard configuration."""
     return {
-        "rocket": "Server",
+        "desktop_computer": "Server",
         "spouting_whale": "Docker",
-        "lollipop": "Plugins",
         "eyes": "Quick view",
         "stethoscope": "Health",
-        "mushroom": "About me",
+        "puzzle_piece": "Plugins",
+        "information": "About",
     }
 
 
 def get_default_server_keyboard() -> dict[str, str]:
     """Returns the default server keyboard configuration."""
     return {
-        "low_battery": "Load average",
-        "electric_plug": "CPU",
-        "pager": "Memory load",
-        "stopwatch": "Sensors",
-        "rocket": "Process",
-        "flying_saucer": "Uptime",
+        "chart_increasing": "Load average",
+        "high_voltage": "CPU",
+        "brain": "Memory load",
+        "thermometer": "Sensors",
+        "gear": "Processes",
+        "stopwatch": "Uptime",
         "floppy_disk": "File system",
-        "satellite": "Network",
+        "globe_with_meridians": "Network",
     }
 
 
 def get_default_docker_keyboard() -> dict[str, str]:
     """Returns the default docker keyboard configuration."""
     return {
+        "package": "Containers",
         "framed_picture": "Images",
-        "toolbox": "Containers",
     }
 
 
 def get_default_auth_keyboard() -> dict[str, str]:
     """Returns the default auth keyboard configuration."""
     return {
-        "first_quarter_moon": "Get QR-code for 2FA app",
-        "fountain_pen": "Enter 2FA code",
+        "mobile_phone": "Get 2FA QR code",
+        "input_numbers": "Enter 2FA code",
     }
 
 
 def get_default_auth_processing_keyboard() -> dict[str, str]:
     """Returns the default auth processing keyboard configuration."""
     return {
-        "fountain_pen": "Enter 2FA code",
+        "input_numbers": "Enter 2FA code",
     }
 
 
@@ -121,16 +121,19 @@ def get_default_back_keyboard() -> dict[str, str]:
 def get_default_bot_commands() -> dict[str, str]:
     """Returns the default bot commands configuration."""
     return {
-        "/start": "Start bot!",
-        "/help": "Get help",
-        "/docker": "Launch the section about Docker",
-        "/containers": "Get Containers info",
-        "/images": "Get Images info",
-        "/health": "Get current system health snapshot",
-        "/qrcode": "Get TOTP QR code for 2FA app",
-        "/back": "Back to main menu",
-        "/check_bot_updates": "Check for software updates",
-        "getmyid": "Check user and current chat credential",
+        "/start": "Open the main menu",
+        "/help": "What this bot can do",
+        "/server": "Server metrics",
+        "/docker": "Docker overview",
+        "/containers": "Containers and their status",
+        "/images": "Docker images",
+        "/health": "System health snapshot",
+        "/plugins": "Enabled plugins",
+        "/about": "Version and project links",
+        "/check_bot_updates": "Check for a newer pyTMBot release",
+        "/getmyid": "Show your user and chat IDs",
+        "/qrcode": "QR code for setting up 2FA",
+        "/back": "Back to the main menu",
     }
 
 
@@ -177,14 +180,21 @@ class BotDescriptionSettings(BaseModel):
     Configuration settings for the bot description.
 
     Attributes:
-        bot_description: The description of the bot.
+        bot_description: Shown in an empty chat before the user presses Start.
+        bot_short_description: Shown on the bot profile page and in shared links.
     """
 
     model_config = ConfigDict(frozen=True)
 
     bot_description: str = Field(
-        default="pyTMBot - A simple Telegram bot designed to gather basic information "
-        "about the status of your local servers"
+        default=(
+            "Monitor your server and manage Docker from Telegram: CPU, memory, "
+            "disks, network, sensors, containers, images and logs, with health "
+            "checks and two-factor protection for sensitive actions."
+        )
+    )
+    bot_short_description: str = Field(
+        default="Server monitoring and Docker management in Telegram."
     )
 
 

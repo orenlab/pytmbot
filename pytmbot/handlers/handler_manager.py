@@ -392,7 +392,8 @@ def _get_message_handler_configs() -> dict[str, list[HandlerConfig]]:
             HandlerConfig(
                 callback=handle_about_command,
                 regexp=reply_button_pattern("About", "About me"),
-            )
+            ),
+            HandlerConfig(callback=handle_about_command, commands=["about"]),
         ],
         "getmyid": [HandlerConfig(callback=handle_getmyid, commands=["getmyid"])],
         "navigation": [

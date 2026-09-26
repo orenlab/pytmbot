@@ -62,7 +62,7 @@ def test_get_keyboard_data_default_and_invalid_type(
     monkeypatch.setattr(keyboards_module, "keyboard_settings", KeyboardSettings())
 
     default_data = keyboards_module.Keyboards._get_keyboard_data(None)
-    assert "rocket" in default_data
+    assert default_data["desktop_computer"] == "Server"
 
     with pytest.raises(KeyboardError):
         keyboards_module.Keyboards._get_keyboard_data("not_existing_keyboard")

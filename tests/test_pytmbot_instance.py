@@ -105,6 +105,15 @@ def _dummy_set_my_description(
     self.description_set = description or ""  # type: ignore[attr-defined]
 
 
+def _dummy_set_my_short_description(
+    self: object,
+    short_description: str | None = None,
+    language_code: str | None = None,
+) -> None:
+    del language_code
+    self.short_description_set = short_description or ""  # type: ignore[attr-defined]
+
+
 def _dummy_setup_middleware(self: object, middleware: SimpleNamespace) -> None:
     self.middleware_instances.append(middleware)  # type: ignore[attr-defined]
 
@@ -143,6 +152,7 @@ _DummyTeleBot = type(
         "get_me": _dummy_get_me,
         "set_my_commands": _dummy_set_my_commands,
         "set_my_description": _dummy_set_my_description,
+        "set_my_short_description": _dummy_set_my_short_description,
         "setup_middleware": _dummy_setup_middleware,
         "register_message_handler": _dummy_register_message_handler,
         "register_callback_query_handler": _dummy_register_callback_query_handler,

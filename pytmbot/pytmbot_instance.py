@@ -553,6 +553,7 @@ class PyTMBot(BaseComponent):
             ]
             bot.set_my_commands(commands)
             bot.set_my_description(bot_description_settings.bot_description)
+            bot.set_my_short_description(bot_description_settings.bot_short_description)
 
             if self.args.mode == "dev" or commands:
                 with self.log_context(
