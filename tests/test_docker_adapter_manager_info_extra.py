@@ -16,6 +16,7 @@ from pytmbot.exceptions import (
     ContainerLogsUnavailableError,
     ContainerNotFoundError,
     DockerConnectionError,
+    DockerOperationException,
     InvalidContainerReferenceError,
 )
 from pytmbot.models.docker_models import ContainerAction
@@ -336,7 +337,8 @@ def test_containers_info_retrieve_and_logs_error_branches(
         "get_container_safely",
         lambda _cid, docker_client=None: SimpleNamespace(logs=_api_logs_failure),
     )
-    with pytest.raises(APIError, match="transport failure"):
+    # Other API errors become an operation error with an honest message.
+    with pytest.raises(DockerOperationException):
         containers_info_module.fetch_container_logs("cid", tail_lines=5)
 
     monkeypatch.setattr(

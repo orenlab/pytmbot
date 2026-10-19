@@ -107,6 +107,13 @@ _SECRET_NAME_MARKERS: Final[tuple[str, ...]] = (
 _URL_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?P<prefix>\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@'\"]*):(?P<secret>[^\s@/'\"]+)@"
 )
+# HTTP header credentials, e.g. ``curl -H "Authorization: Bearer x"`` in a
+# command line or healthcheck.
+_HEADER_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?P<name>\b(?:Proxy-)?Authorization|\bCookie|\bX-[A-Za-z0-9-]*"
+    r"(?:Key|Token|Auth|Secret|Password)[A-Za-z0-9-]*)\s*:\s*(?P<value>[^\"'\r\n]+)",
+    re.IGNORECASE,
+)
 _FLAG_VALUE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?<![\w-])(?P<flag>--?[A-Za-z][\w.-]*)(?P<sep>=|[ \t]+)"
     r"(?P<value>\"[^\"]*\"|'[^']*'|(?!-)[^\s;&|\"']+)"
@@ -813,7 +820,8 @@ def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> st
     Masks values after secret-looking flags (``--password x``, ``--token=x``),
     ``KEY=VALUE`` assignments with secret-looking keys (every non-allowlisted
     key when ``mask_all_assignments`` is set), legacy ``ENV KEY value`` build
-    steps (with ``mask_all_assignments``) and URL credentials.
+    steps (with ``mask_all_assignments``), HTTP header credentials and URL
+    credentials.
     """
 
     def _mask_flag(match: re.Match[str]) -> str:
@@ -834,7 +842,8 @@ def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> st
         prefix = match.group(0)[: match.start("value") - match.start(0)]
         return f"{prefix}{SECRET_MASK}"
 
-    masked = _FLAG_VALUE_PATTERN.sub(_mask_flag, text)
+    masked = _HEADER_CREDENTIALS_PATTERN.sub(rf"\g<name>: {SECRET_MASK}", text)
+    masked = _FLAG_VALUE_PATTERN.sub(_mask_flag, masked)
     masked = _ASSIGNMENT_PATTERN.sub(_mask_assignment, masked)
     if mask_all_assignments:
         masked = _LEGACY_BUILD_ASSIGNMENT_PATTERN.sub(_mask_legacy, masked)

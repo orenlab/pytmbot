@@ -249,7 +249,8 @@ def test_confirmed_stop_answers_first_then_reports_refreshed_state(
 
     progress, result = bot.edits()
     assert "Stopping web" in _html(progress)
-    assert _callbacks(progress) == []  # no buttons while the action runs
+    # Never a dead end: Refresh reopens Manage while the action runs.
+    assert _callbacks(progress) == [f"__manage__:{_CONTAINER_ID}:{_ADMIN}"]
     assert "web stopped. Current state: exited." in _html(result)
     assert _callbacks(result) == [
         f"__start__:{_CONTAINER_ID}:{_ADMIN}",
@@ -439,3 +440,42 @@ def test_background_jobs_run_in_pool_and_failures_are_logged(
     cancelled.cancel()
     action_module._log_background_failure(cancelled)
     assert logged == ["bot.handler.docker.manage_action.background.fail"]
+
+
+class _RateLimited(ApiTelegramException):
+    """Telegram 429 with a retry hint."""
+
+    def __init__(self) -> None:
+        Exception.__init__(self, "Too Many Requests: retry after 3")
+        self.description = "Too Many Requests: retry after 3"
+        self.error_code = 429
+        self.result_json = {"parameters": {"retry_after": 3}}
+
+
+def test_rate_limited_result_edit_is_retried_without_toasts(
+    docker: _FakeDocker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "pytmbot.handlers.server_handlers.inline.common.time.sleep", sleeps.append
+    )
+
+    class _OnceRateLimitedBot(_RecordingBot):
+        rate_limited = False
+
+        def edit_message_text(self, **kwargs: object) -> bool:
+            # The progress edit passes; the first result edit hits a 429.
+            if len(self.edits()) == 1 and not self.rate_limited:
+                self.rate_limited = True
+                raise _RateLimited()
+            return super().edit_message_text(**kwargs)
+
+    bot = _OnceRateLimitedBot()
+    _press(f"__stop_confirm__:{_CONTAINER_ID}:{_ADMIN}", bot)
+
+    assert docker.actions == [(_ADMIN, _CONTAINER_ID, "stop")]
+    assert sleeps == [3]
+    progress, result = bot.edits()
+    assert "web stopped" in _html(result)
+    # Only the first answer: no rate-limit or "not modified" toasts afterwards.
+    assert len(bot.answers()) == 1

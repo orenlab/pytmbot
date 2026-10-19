@@ -220,3 +220,32 @@ def test_image_history_masks_build_arguments(monkeypatch: pytest.MonkeyPatch) ->
     assert history is not None
     assert history[0]["created_by"] == f"RUN |1 GITHUB_TOKEN={M} /bin/sh -c make"
     assert history[0]["tags"] == []
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            'curl -H "Authorization: Bearer abc123" http://x',
+            'curl -H "Authorization: ••••" http://x',
+        ),
+        (
+            "curl -fsS -H 'X-Api-Key: k123' -H 'Accept: application/json' http://x",
+            "curl -fsS -H 'X-Api-Key: ••••' -H 'Accept: application/json' http://x",
+        ),
+        (
+            "wget --header='Cookie: session=abc' http://x",
+            "wget --header='Cookie: ••••' http://x",
+        ),
+    ],
+)
+def test_http_header_credentials_are_masked(text: str, expected: str) -> None:
+    assert mask_secrets_in_text(text) == expected
+
+
+def test_header_argument_in_argv_is_masked() -> None:
+    assert mask_command_args(["curl", "-H", "Proxy-Authorization: Basic Zm9v"]) == [
+        "curl",
+        "-H",
+        "Proxy-Authorization: ••••",
+    ]

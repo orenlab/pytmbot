@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from importlib.metadata import PackageNotFoundError
 from typing import cast
 
@@ -178,3 +179,13 @@ def test_docker_host_model_accepts_tls_and_timeout_settings() -> None:
         settings_model_module.DockerHostModel(host=["x"], ca_cert=False).ca_cert
         is False
     )
+
+
+@pytest.mark.parametrize(("raw", "expected"), [(1, 5), (10, 10), (900, 300)])
+def test_docker_timeout_is_clamped_instead_of_rejected(raw: int, expected: int) -> None:
+    from pytmbot.models.settings_model import DockerHostModel
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model = DockerHostModel(host=["unix:///var/run/docker.sock"], timeout=raw)
+    assert model.timeout == expected

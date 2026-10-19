@@ -14,7 +14,6 @@ from threading import Lock, Thread
 from typing import Final, TypedDict
 
 from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
 from pytmbot.adapters.docker.updates import (
@@ -34,7 +33,7 @@ from pytmbot.handlers.handlers_util.rich_messages import (
     build_rich_html_message,
     screen_updated_at,
 )
-from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
+from pytmbot.handlers.server_handlers.inline.common import edit_after_answer
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils.telegram_utils import callback_query_id
@@ -46,7 +45,6 @@ keyboards = get_keyboards()
 
 CHECK_STARTED_TEXT: Final[str] = "Checking for updates…"
 CHECK_RUNNING_TEXT: Final[str] = "A check is already running"
-NOT_MODIFIED_TEXT: Final[str] = "Image updates are already current."
 
 _DEADLINE_SECONDS: Final[int] = int(CHECK_DEADLINE)
 NOTICE_NO_IMAGES: Final[str] = "No tagged local images to check."
@@ -368,21 +366,15 @@ def render_update_report(response: UpdaterResponse) -> str:
 def _publish_report(
     call: CallbackQuery, bot: TeleBot, html: str, target_user_id: int | None
 ) -> None:
-    try:
-        edit_callback_message_text(
-            call=call,
-            bot=bot,
-            rich_message=build_rich_html_message(html),
-            reply_markup=_build_image_updates_keyboard(target_user_id),
-            not_modified_text=NOT_MODIFIED_TEXT,
-        )
-    except ApiTelegramException as error:
-        # The button was answered when the check started, so a failed edit
-        # cannot be reported with another toast; keep it in the logs.
-        logger.warning(
-            "bot.handler.docker.image.updates.edit.fail.warn",
-            error=str(getattr(error, "description", error)),
-        )
+    # The button was answered when the check started: no toasts, one bounded
+    # retry on rate limits or network errors, failures go to the logs.
+    edit_after_answer(
+        call,
+        bot,
+        rich_message=build_rich_html_message(html),
+        reply_markup=_build_image_updates_keyboard(target_user_id),
+        retry=True,
+    )
 
 
 def _run_update_check(

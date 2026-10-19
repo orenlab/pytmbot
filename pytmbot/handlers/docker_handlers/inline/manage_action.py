@@ -63,7 +63,10 @@ from pytmbot.handlers.handlers_util.docker import (
     show_handler_info,
 )
 from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
-from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
+from pytmbot.handlers.server_handlers.inline.common import (
+    edit_after_answer,
+    edit_callback_message_text,
+)
 from pytmbot.logs import Logger
 from pytmbot.middleware.session_wrapper import two_factor_auth_required
 from pytmbot.utils import sanitize_exception
@@ -251,7 +254,8 @@ def _start_action(
         bot,
         f"<p><b>⏳ {spec.progress} {escape(container.name)}…</b></p>"
         "<p><i>This can take up to a minute. The result will appear here.</i></p>",
-        reply_markup=None,
+        # Never a dead end: Refresh reopens Manage with the current state.
+        reply_markup=_progress_keyboard(container, user_id),
     )
     _run_in_background(
         lambda: _run_action_and_report(call, bot, spec, container, user_id)
@@ -299,6 +303,7 @@ def _run_action_and_report(
         bot,
         render_manage_text(refreshed, notice=notice),
         reply_markup=build_manage_keyboard(refreshed, user_id),
+        retry=True,
     )
 
 
@@ -371,29 +376,39 @@ def _refresh_container(container: ManagedContainer) -> ManagedContainer:
     return replace(container, state=state.lower())
 
 
+def _progress_keyboard(
+    container: ManagedContainer, user_id: int
+) -> InlineKeyboardMarkup:
+    return keyboards.build_inline_keyboard(
+        [
+            button_data(
+                text=f"{em.get_emoji('counterclockwise_arrows_button')} Refresh",
+                callback_data=build_container_callback(
+                    MANAGE_CALLBACK_PREFIX, container.ref, user_id
+                ),
+            )
+        ]
+    )
+
+
 def _edit_after_answer(
     call: CallbackQuery,
     bot: TeleBot,
     html: str,
     *,
     reply_markup: InlineKeyboardMarkup | None,
+    retry: bool = False,
 ) -> None:
     """
     Edit the Manage message after the callback has already been answered.
 
-    A Telegram error here cannot be shown as another callback answer, so it is
-    logged instead (for example, the message was deleted meanwhile).
+    Background results pass ``retry`` so a Telegram rate limit does not leave
+    the message on the progress view; other failures are logged.
     """
-    try:
-        edit_callback_message_text(
-            call=call,
-            bot=bot,
-            rich_message=build_rich_html_message(html),
-            reply_markup=reply_markup,
-            not_modified_text="Container view is already current.",
-        )
-    except ApiTelegramException as error:
-        logger.warning(
-            "bot.handler.docker.manage_action.edit.fail",
-            error=str(getattr(error, "description", error)),
-        )
+    edit_after_answer(
+        call,
+        bot,
+        rich_message=build_rich_html_message(html),
+        reply_markup=reply_markup,
+        retry=retry,
+    )

@@ -8,7 +8,10 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import re
+import time
+from typing import Final
 
+from requests import RequestException
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, InputRichMessage
@@ -122,9 +125,13 @@ def edit_callback_message_text(
     reply_markup: InlineKeyboardMarkup | None = None,
     rich_message: InputRichMessage | None = None,
     not_modified_text: str = "Already up to date.",
+    answer_callback: bool = True,
 ) -> bool:
     """
     Edit callback-bound message and treat Telegram 'not modified' as a no-op.
+
+    With ``answer_callback=False`` (the callback was already answered) no toast
+    is sent: 'not modified' is a quiet no-op and rate limits are re-raised.
 
     Pass either classic ``text`` (optionally with ``parse_mode``) or
     ``rich_message``. Do not mix both content representations.
@@ -162,7 +169,9 @@ def edit_callback_message_text(
         return True
     except ApiTelegramException as error:
         if rich_message is None or not is_rich_content_rejection(error):
-            return _handle_edit_error(call, bot, error, not_modified_text)
+            return _handle_edit_error(
+                call, bot, error, not_modified_text, answer_callback=answer_callback
+            )
         # Mirror the send path: show the same content as plain text instead.
         logger.warning(
             "bot.handler.server_handlers.inline.common.rich.edit.rejected.warn",
@@ -180,7 +189,9 @@ def edit_callback_message_text(
         )
         return True
     except ApiTelegramException as error:
-        return _handle_edit_error(call, bot, error, not_modified_text)
+        return _handle_edit_error(
+            call, bot, error, not_modified_text, answer_callback=answer_callback
+        )
 
 
 def _edit_message(
@@ -231,8 +242,12 @@ def _handle_edit_error(
     bot: TeleBot,
     error: ApiTelegramException,
     not_modified_text: str,
+    *,
+    answer_callback: bool = True,
 ) -> bool:
     """Turn rate limits and 'not modified' into toasts; re-raise anything else."""
+    if getattr(error, "error_code", None) == 429 and not answer_callback:
+        raise error
     if getattr(error, "error_code", None) == 429:
         retry_after = _extract_retry_after_seconds(error)
         if getattr(call, "id", None) is not None:
@@ -256,10 +271,62 @@ def _handle_edit_error(
     if not is_not_modified:
         raise error
 
-    if getattr(call, "id", None) is not None:
+    if answer_callback and getattr(call, "id", None) is not None:
         bot.answer_callback_query(
             callback_query_id=callback_query_id(call),
             text=not_modified_text,
             show_alert=False,
         )
     return False
+
+
+_MAX_RETRY_WAIT_SECONDS: Final[int] = 10
+
+
+def edit_after_answer(
+    call: CallbackQuery,
+    bot: TeleBot,
+    *,
+    rich_message: InputRichMessage,
+    reply_markup: InlineKeyboardMarkup | None,
+    retry: bool = False,
+) -> bool:
+    """
+    Edit a message whose button press was already answered.
+
+    No toast can be shown at this point, so failures are logged. With
+    ``retry`` (background jobs only: it may sleep) a Telegram rate limit or a
+    network error is retried once after a bounded wait, so a finished action
+    is not left behind a progress message.
+    """
+    attempts = 2 if retry else 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return edit_callback_message_text(
+                call=call,
+                bot=bot,
+                rich_message=rich_message,
+                reply_markup=reply_markup,
+                answer_callback=False,
+            )
+        except (ApiTelegramException, RequestException) as error:
+            wait = _retry_wait_seconds(error)
+            if attempt == attempts or wait is None:
+                logger.warning(
+                    "bot.handler.server_handlers.inline.common.edit.after.answer.fail",
+                    error=str(getattr(error, "description", error)),
+                )
+                return False
+            time.sleep(wait)
+    return False
+
+
+def _retry_wait_seconds(error: Exception) -> int | None:
+    """Seconds to wait before retrying an edit, or None when retrying is pointless."""
+    if isinstance(error, RequestException):
+        return 1
+    if getattr(error, "error_code", None) != 429:
+        return None
+    if not isinstance(error, ApiTelegramException):
+        return None
+    return min(_extract_retry_after_seconds(error) or 1, _MAX_RETRY_WAIT_SECONDS)

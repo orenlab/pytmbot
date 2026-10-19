@@ -40,8 +40,8 @@ Patch release focused on Docker hardening and dependency maintenance.
   a `:ro` socket mount does not restrict the Docker API.
 - Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.1, `pydantic` 2.14, `fastapi` 0.146, `aiohttp` 3.14.5), uv
   `0.13.1`, BuildKit `v0.34.0`, and `astral-sh/setup-uv` v10.3.0.
-- New optional `docker` settings: `timeout`, and `cert_path`, `key_path`, `ca_cert`, `verify_hostname` for a remote
-  `https://` daemon.
+- New optional `docker` settings: `timeout` (clamped to 5-300 s), and `cert_path`, `key_path`, `ca_cert`,
+  `verify_hostname` for a remote `https://` daemon.
 
 ## [0.5.0] — 20260926
 

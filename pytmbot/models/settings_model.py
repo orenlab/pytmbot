@@ -12,7 +12,7 @@ from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from ipaddress import ip_network
-from typing import ClassVar
+from typing import ClassVar, Final
 
 from packaging import version
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -89,6 +89,10 @@ class AccessControlModel(BaseModel):
         return self
 
 
+# Accepted Docker API request timeout, in seconds (matches the adapter).
+DOCKER_TIMEOUT_RANGE: Final[tuple[int, int]] = (5, 300)
+
+
 class DockerHostModel(BaseModel):
     """
     Model to store Docker host information.
@@ -115,6 +119,21 @@ class DockerHostModel(BaseModel):
     key_path: str | None = None
     ca_cert: bool | str = True
     verify_hostname: bool = True
+
+    @field_validator("timeout")
+    @classmethod
+    # codeclone: ignore[dead-code]
+    def clamp_timeout(cls, value: int) -> int:
+        """Keep the request timeout within 5-300 s instead of rejecting the config."""
+        clamped = min(max(value, DOCKER_TIMEOUT_RANGE[0]), DOCKER_TIMEOUT_RANGE[1])
+        if clamped != value:
+            warnings.warn(
+                f"docker.timeout={value} is outside {DOCKER_TIMEOUT_RANGE[0]}-"
+                f"{DOCKER_TIMEOUT_RANGE[1]} seconds; using {clamped}",
+                UserWarning,
+                stacklevel=2,
+            )
+        return clamped
 
 
 class InfluxDBModel(BaseModel):

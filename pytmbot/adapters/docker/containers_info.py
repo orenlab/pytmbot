@@ -11,7 +11,7 @@ from threading import RLock
 from typing import Final
 
 from docker.client import DockerClient
-from docker.errors import APIError
+from docker.errors import APIError, NotFound
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker.client import docker_client_context
@@ -26,6 +26,7 @@ from pytmbot.adapters.docker.utils import (
 from pytmbot.exceptions import (
     ContainerLogsUnavailableError,
     ContainerNotFoundError,
+    DockerOperationException,
     ErrorContext,
 )
 from pytmbot.logs import Logger
@@ -350,6 +351,10 @@ def fetch_container_logs(
     except ContainerNotFoundError:
         logger.warning("docker.containers.container.not.warn", **context)
         return None
+    except NotFound:
+        # The container disappeared between the lookup and the logs request.
+        logger.warning("docker.containers.container.not.warn", **context)
+        return None
     except APIError as error:
         if _is_logs_driver_not_readable_error(error):
             logger.info(
@@ -358,7 +363,20 @@ def fetch_container_logs(
                 **context,
             )
             raise _logs_unavailable_error(reference) from error
-        raise
+        # e.g. 409 "can not get logs from container which is dead or marked
+        # for removal": report it as an operation failure, not a crash.
+        logger.warning(
+            "docker.containers.container.logs.api.warn",
+            status_code=getattr(error, "status_code", None),
+            **context,
+        )
+        raise DockerOperationException(
+            ErrorContext(
+                message="Docker could not return the container logs",
+                error_code="DOCKER_013",
+                metadata={"container_id": reference},
+            )
+        ) from error
     except Exception as e:
         logger.error(
             "docker.containers.fetch.container.fail",

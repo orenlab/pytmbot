@@ -8,6 +8,7 @@ from types import ModuleType, SimpleNamespace
 from typing import cast
 
 import pytest
+from docker.errors import APIError, NotFound
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import ReadTimeout
 from telebot import TeleBot
@@ -20,6 +21,7 @@ import pytmbot.handlers.handlers_util.docker as handlers_docker
 from pytmbot.exceptions import (
     ContainerNotFoundError,
     DockerConnectionError,
+    DockerOperationException,
     InvalidContainerReferenceError,
 )
 from tests._docker_sdk_fakes import (
@@ -226,3 +228,19 @@ def test_logs_by_exact_reference_and_none_when_missing(
     monkeypatch.setattr(handlers_docker, "sanitize_logs", lambda logs, *_: logs)
     call = _callback_query("__get_logs__:missing:101")
     assert handlers_docker.get_sanitized_logs("missing", call, "TOKEN") is None
+
+
+def test_logs_api_error_becomes_operation_error(fake_api: FakeDockerApi) -> None:
+    fake_api.fail_on["logs"] = APIError(
+        "409 Client Error: can not get logs from container which is dead or "
+        "marked for removal"
+    )
+    with pytest.raises(DockerOperationException):
+        containers_info_module.fetch_container_logs("DB")
+
+
+def test_logs_for_container_removed_after_lookup_is_none(
+    fake_api: FakeDockerApi,
+) -> None:
+    fake_api.fail_on["logs"] = NotFound("No such container")
+    assert containers_info_module.fetch_container_logs("DB") is None
