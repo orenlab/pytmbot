@@ -8,10 +8,13 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Final
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
+from pytmbot.exceptions import DockerConnectionError, DockerOperationException
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_required_callback_data,
@@ -19,6 +22,36 @@ from pytmbot.handlers.handlers_util.docker import (
 )
 from pytmbot.handlers.handlers_util.rich_messages import build_rich_html_message
 from pytmbot.handlers.server_handlers.inline.common import edit_callback_message_text
+from pytmbot.logs import Logger
+
+logger = Logger()
+
+INVALID_IMAGE_BUTTON_TEXT: Final[str] = (
+    "This image button is outdated. Open the images list again."
+)
+IMAGE_NOT_FOUND_TEXT: Final[str] = (
+    "Image not found. It may have been removed — refresh the images list."
+)
+IMAGE_DETAILS_FAILED_TEXT: Final[str] = "Couldn't load image details right now."
+
+type _Rendered = tuple[str, InlineKeyboardMarkup]
+
+
+def _render_or_explain[ParsedT](
+    parsed: ParsedT,
+    render_callback: Callable[[ParsedT], _Rendered | None],
+) -> tuple[_Rendered | None, str | None]:
+    """Render the view, or return the reason it cannot be shown."""
+    try:
+        rendered = render_callback(parsed)
+    except DockerConnectionError:
+        return None, DOCKER_UNAVAILABLE_TEXT
+    except DockerOperationException:
+        logger.warning("bot.handler.docker.image_callback.render.fail")
+        return None, IMAGE_DETAILS_FAILED_TEXT
+    if rendered is None:
+        return None, IMAGE_NOT_FOUND_TEXT
+    return rendered, None
 
 
 def handle_image_details_callback[ParsedT](
@@ -27,7 +60,7 @@ def handle_image_details_callback[ParsedT](
     bot: TeleBot,
     parse_callback: Callable[[str], ParsedT | None],
     extract_user_id: Callable[[ParsedT], int],
-    render_callback: Callable[[ParsedT], tuple[str, InlineKeyboardMarkup] | None],
+    render_callback: Callable[[ParsedT], _Rendered | None],
 ) -> None:
     """Process shared image callback flow (validate, authorize, render, edit)."""
     callback_data = get_required_callback_data(
@@ -40,35 +73,26 @@ def handle_image_details_callback[ParsedT](
     if callback_data is None:
         return None
 
-    def reject_request(message_text: str) -> None:
-        show_handler_info(call=call, text=message_text, bot=bot)
-
     parsed = parse_callback(callback_data)
-    rejection_text: str | None = None
-    target_user_id: int | None = None
-    rendered: tuple[str, InlineKeyboardMarkup] | None = None
     if parsed is None:
-        rejection_text = "This image details button is no longer valid."
-    else:
-        target_user_id = extract_user_id(parsed)
-        is_allowed, deny_reason = authorize_docker_callback_request(
-            call=call,
-            called_user_id=target_user_id,
-            require_admin=False,
-            require_owner_match=True,
-            require_session=False,
-        )
-        if not is_allowed:
-            rejection_text = f"Images: {deny_reason}"
-        else:
-            rendered = render_callback(parsed)
-            if rendered is None:
-                rejection_text = "Image details are no longer available. Refresh the images list first."
+        show_handler_info(call=call, text=INVALID_IMAGE_BUTTON_TEXT, bot=bot)
+        return None
 
-    if rejection_text is not None or rendered is None:
-        reject_request(
-            rejection_text
-            or "Image details are no longer available. Refresh the images list first."
+    is_allowed, deny_reason = authorize_docker_callback_request(
+        call=call,
+        called_user_id=extract_user_id(parsed),
+        require_admin=False,
+        require_owner_match=True,
+        require_session=False,
+    )
+    if not is_allowed:
+        show_handler_info(call=call, text=f"Images: {deny_reason}", bot=bot)
+        return None
+
+    rendered, rejection_text = _render_or_explain(parsed, render_callback)
+    if rendered is None:
+        show_handler_info(
+            call=call, text=rejection_text or IMAGE_NOT_FOUND_TEXT, bot=bot
         )
         return None
 

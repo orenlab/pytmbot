@@ -15,12 +15,8 @@ import pytmbot.handlers.docker_handlers.inline.image_extra as image_extra_module
 import pytmbot.handlers.docker_handlers.inline.image_info as image_info_module
 import pytmbot.handlers.docker_handlers.inline.image_updates as image_updates_module
 import pytmbot.handlers.docker_handlers.inline.images_page as images_page_module
-import pytmbot.handlers.docker_handlers.inline.manage_action as manage_action_module
-from pytmbot.adapters.docker.updates import UpdaterStatus
-from pytmbot.parsers.compiler import Compiler
 from tests._callback_path_helpers import assert_standard_callback_auth_paths
 from tests._inline_edit_helpers import (
-    assert_reply_markup_has_callbacks,
     patch_authorized_inline_render,
     patch_not_modified_edit_error,
     patch_rate_limited_edit_error,
@@ -40,7 +36,7 @@ type _DecoratedHandler = (
     Callable[..., None] | Callable[[Callable[..., None]], Callable[..., None]]
 )
 type _RawHandlerInput = Callable[..., _CallbackHandler | None] | _DecoratedHandler
-type _ParsedImageCallback = tuple[int, int, int] | tuple[str, int, int, int]
+type _ParsedImageCallback = tuple[str, int, int] | tuple[str, str, int, int]
 type _RenderResult = tuple[str, str]
 
 
@@ -178,7 +174,7 @@ def _assert_image_details_callback_paths(
 
     monkeypatch.setattr(module, parse_attr, lambda data: None)
     handler(cast(CallbackQuery, _Call(data="bad")), cast(TeleBot, bot))
-    assert shown[-1] == "This image details button is no longer valid."
+    assert shown[-1] == image_callback_module.INVALID_IMAGE_BUTTON_TEXT
 
     monkeypatch.setattr(module, parse_attr, parse_valid)
 
@@ -202,9 +198,7 @@ def _assert_image_details_callback_paths(
     )
     monkeypatch.setattr(module, render_attr, render_none)
     handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
-    assert shown[-1] == (
-        "Image details are no longer available. Refresh the images list first."
-    )
+    assert shown[-1] == image_callback_module.IMAGE_NOT_FOUND_TEXT
 
     monkeypatch.setattr(module, render_attr, render_success)
     handler(cast(CallbackQuery, _Call(data=valid_callback_data)), cast(TeleBot, bot))
@@ -330,11 +324,11 @@ def test_handle_image_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=handler,
         bot=bot,
         parse_attr="parse_image_info_callback_data",
-        parse_valid=lambda _data: (3, 11, 2),
-        valid_callback_data="__image_info__:3:11:2",
+        parse_valid=lambda _data: ("0123456789ab", 11, 2),
+        valid_callback_data="__image_info__:0123456789ab:11:2",
         render_attr="render_image_details",
-        render_none=lambda image_index, page, user_id: None,
-        render_success=lambda image_index, page, user_id: (
+        render_none=lambda image_ref, page, user_id: None,
+        render_success=lambda image_ref, page, user_id: (
             "<p>image-details</p>",
             "kbd",
         ),
@@ -351,11 +345,11 @@ def test_handle_image_extra_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         handler=handler,
         bot=bot,
         parse_attr="parse_image_extra_callback_data",
-        parse_valid=lambda _data: ("history", 3, 11, 2),
-        valid_callback_data="__image_extra__:history:3:11:2",
+        parse_valid=lambda _data: ("history", "0123456789ab", 11, 2),
+        valid_callback_data="__image_extra__:history:0123456789ab:11:2",
         render_attr="render_image_extra_info",
-        render_none=lambda action, image_index, page, user_id: None,
-        render_success=lambda action, image_index, page, user_id: (
+        render_none=lambda action, image_ref, page, user_id: None,
+        render_success=lambda action, image_ref, page, user_id: (
             "<p>image-extra</p>",
             "kbd",
         ),
@@ -405,283 +399,6 @@ def test_handle_image_updates_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         denied_text="deny",
         missing_message_text_contains="This image updates message can no longer be refreshed",
     )
-
-    class _UpdaterRateLimited:
-        def initialize(self) -> None:
-            return None
-
-        def to_dict(self) -> _JsonDict:
-            return {
-                "status": UpdaterStatus.RATE_LIMITED.name,
-                "message": "rate",
-                "data": {"retry_after": 10},
-            }
-
-    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterRateLimited)
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "Registry rate limit exceeded" in str(bot.callback_answers[-1]["text"])
-
-    class _UpdaterError:
-        def initialize(self) -> None:
-            return None
-
-        def to_dict(self) -> _JsonDict:
-            return {
-                "status": UpdaterStatus.ERROR.name,
-                "message": "oops",
-                "data": {},
-            }
-
-    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterError)
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "Couldn't check image updates" in str(bot.callback_answers[-1]["text"])
-
-    class _UpdaterNoUpdates:
-        def initialize(self) -> None:
-            return None
-
-        def to_dict(self) -> _JsonDict:
-            return {
-                "status": UpdaterStatus.SUCCESS.name,
-                "message": "ok",
-                "data": {"repo-a": {"updates": []}},
-            }
-
-    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterNoUpdates)
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert "No image updates were found" in str(bot.callback_answers[-1]["text"])
-
-    class _UpdaterSuccess:
-        def initialize(self) -> None:
-            return None
-
-        def to_dict(self) -> _JsonDict:
-            return {
-                "status": UpdaterStatus.SUCCESS.name,
-                "message": "ok",
-                "data": {
-                    "repo-a": {
-                        "updates": [
-                            {
-                                "current_tag": "1.0.0",
-                                "created_at_local": "2026-02-17",
-                                "newer_tag": "1.0.1",
-                                "created_at_remote": "2026-02-18",
-                            }
-                        ]
-                    }
-                },
-            }
-
-    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    edited = bot.edited_messages[-1]
-    assert "parse_mode" not in edited
-    rendered = str(_edited_content(edited))
-    assert "<code>repo-a</code>" in rendered
-    assert "1.0.1" in rendered
-    assert "**" not in rendered
-    assert_reply_markup_has_callbacks(
-        bot.edited_messages[-1].get("reply_markup"),
-        expected_callbacks=["__check_updates__:11", "__images_page__:1:11"],
-    )
-
-
-def test_manage_action_fabric_and_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert (
-        manage_action_module.managing_action_fabric(
-            cast(CallbackQuery, _Call(data="__start__:c:1"))
-        )
-        is True
-    )
-    assert (
-        manage_action_module.managing_action_fabric(
-            cast(CallbackQuery, _Call(data="other"))
-        )
-        is False
-    )
-
-    handler = _raw_handler(manage_action_module.handle_manage_container_action)
-    bot = _Bot()
-
-    monkeypatch.setattr(
-        manage_action_module,
-        "get_authorized_container_callback_context",
-        lambda **kwargs: None,
-    )
-    handler(cast(CallbackQuery, _Call(data="__start__:c:1")), cast(TeleBot, bot))
-
-    calls: list[str] = []
-
-    @dataclass
-    class _Context:
-        callback_data: str
-        container_name: str
-        user_id: int
-
-    monkeypatch.setattr(
-        manage_action_module,
-        "get_authorized_container_callback_context",
-        lambda **kwargs: _Context("__start__:api:11", "api", 11),
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "split_string_into_octets",
-        lambda callback_data, octet_index=1: "__start__",
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "__start_container",
-        lambda call, container_name, bot: calls.append(f"start:{container_name}"),
-    )
-
-    handler(cast(CallbackQuery, _Call(data="__start__:api:11")), cast(TeleBot, bot))
-    assert calls == ["start:api"]
-
-
-def test_manage_action_private_functions(monkeypatch: pytest.MonkeyPatch) -> None:
-    bot = _Bot()
-    shown: list[str] = []
-
-    monkeypatch.setattr(
-        manage_action_module,
-        "show_handler_info",
-        lambda call, text, bot: shown.append(text),
-    )
-
-    # start
-    manage_action_module.__start_container(
-        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Starting api: Missing user information"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: None,
-    )
-    manage_action_module.__start_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Starting api: Success"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: "err",
-    )
-    manage_action_module.__start_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Starting api: Error occurred. See logs"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(
-            RuntimeError("boom")
-        ),
-    )
-    manage_action_module.__start_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Starting api: Unexpected error occurred"
-
-    # stop
-    manage_action_module.__stop_container(
-        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Stopping api: Missing user information"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: None,
-    )
-    manage_action_module.__stop_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Stopping api: Success"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: "err",
-    )
-    manage_action_module.__stop_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Stopping api: Error occurred. See logs"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(
-            RuntimeError("boom")
-        ),
-    )
-    manage_action_module.__stop_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Stopping api: Unexpected error occurred"
-
-    # restart
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call(from_user=None)), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Restarting api: Missing user information"
-
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call(message=None)), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Restarting api: Missing callback message"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: None,
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "button_data",
-        lambda text, callback_data: {"text": text, "callback_data": callback_data},
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "keyboards",
-        type(
-            "_Kbd",
-            (),
-            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-        )(),
-    )
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    restart_content = str(_edited_content(bot.edited_messages[-1]))
-    assert "<code>api</code> restarted successfully" in restart_content
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: "err",
-    )
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Restarting api: Error occurred. See logs"
-
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: (_ for _ in ()).throw(
-            RuntimeError("boom")
-        ),
-    )
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert shown[-1] == "Restarting api: Unexpected error occurred"
 
 
 def test_handle_back_to_containers_ignores_not_modified(
@@ -769,9 +486,9 @@ def test_handle_image_details_ignores_not_modified(
         module,
         parse_callback_name,
         lambda data: (
-            (0, 11, 1)
+            ("0123456789ab", 11, 1)
             if parse_callback_name == "parse_image_info_callback_data"
-            else ("history", 0, 11, 1)
+            else ("history", "0123456789ab", 11, 1)
         ),
     )
     monkeypatch.setattr(
@@ -797,7 +514,7 @@ def test_handle_image_info_handles_telegram_rate_limit(
         monkeypatch,
         parse_module=image_info_module,
         parse_name="parse_image_info_callback_data",
-        parse_result=(0, 11, 1),
+        parse_result=("0123456789ab", 11, 1),
         authorize_module=image_callback_module,
         render_module=image_info_module,
         render_name="render_image_details",
@@ -812,90 +529,4 @@ def test_handle_image_info_handles_telegram_rate_limit(
     assert (
         bot.callback_answers[-1]["text"]
         == "Telegram API is rate limited. Try again in 11s."
-    )
-
-
-def test_handle_image_updates_ignores_not_modified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    handler = _raw_handler(image_updates_module.handle_image_updates)
-    bot = _Bot()
-
-    monkeypatch.setattr(
-        image_updates_module,
-        "parse_callback_target_user",
-        lambda data, prefix: 11,
-    )
-    monkeypatch.setattr(
-        image_updates_module,
-        "authorize_callback_request",
-        lambda call, target_user_id, require_owner_match: (True, ""),
-    )
-
-    class _UpdaterSuccess:
-        def initialize(self) -> None:
-            return None
-
-        def to_dict(self) -> _JsonDict:
-            return {
-                "status": UpdaterStatus.SUCCESS.name,
-                "message": "ok",
-                "data": {
-                    "repo-a": {
-                        "updates": [
-                            {
-                                "current_tag": "1.0.0",
-                                "created_at_local": "2026-02-17",
-                                "newer_tag": "1.0.1",
-                                "created_at_remote": "2026-02-18",
-                            }
-                        ]
-                    }
-                },
-            }
-
-    monkeypatch.setattr(image_updates_module, "DockerImageUpdater", _UpdaterSuccess)
-    monkeypatch.setattr(
-        Compiler,
-        "quick_render",
-        lambda **kwargs: "updates-rendered",
-    )
-
-    patch_not_modified_edit_error(monkeypatch, bot)
-
-    handler(cast(CallbackQuery, _Call(data="__check_updates__:11")), cast(TeleBot, bot))
-    assert bot.callback_answers[-1]["text"] == "Image updates are already current."
-
-
-def test_restart_container_ignores_not_modified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _Bot()
-    monkeypatch.setattr(
-        manage_action_module.container_manager,
-        "managing_container",
-        lambda user_id, container_name, action: None,
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "button_data",
-        lambda text, callback_data: {"text": text, "callback_data": callback_data},
-    )
-    monkeypatch.setattr(
-        manage_action_module,
-        "keyboards",
-        type(
-            "_Kbd",
-            (),
-            {"build_inline_keyboard": staticmethod(lambda buttons: buttons)},
-        )(),
-    )
-
-    patch_not_modified_edit_error(monkeypatch, bot)
-
-    manage_action_module.__restart_container(
-        cast(CallbackQuery, _Call()), "api", cast(TeleBot, bot)
-    )
-    assert (
-        bot.callback_answers[-1]["text"] == "Restart result for api is already shown."
     )

@@ -140,30 +140,38 @@ class Keyboards:
             keyboard.add(KeyboardButton(main_keyboard_data))
             return keyboard
 
-    def build_referer_inline_keyboard(self, data: str) -> InlineKeyboardMarkup:
+    def build_referer_inline_keyboard(
+        self, data: str, label: str | None = None
+    ) -> InlineKeyboardMarkup:
         """Construct an InlineKeyboardMarkup object for the inline keyboard.
 
         Args:
             data: The callback data for the button
+            label: Button label after "Return to"; defaults to the second
+                callback segment
 
         Returns:
             InlineKeyboardMarkup: Configured inline keyboard
 
         Raises:
-            KeyboardError: If data is invalid
+            KeyboardError: If data is invalid or exceeds Telegram's size limit
         """
         if not data or not isinstance(data, str):
             raise KeyboardError("Inline keyboard data must be a non-empty string")
+        if not self.fits_callback_data_limit(data):
+            raise KeyboardError(
+                f"Callback data exceeds {self.MAX_CALLBACK_DATA_LENGTH} bytes"
+            )
 
         with self._logger.context(
             operation=KeyboardOperation.BUILD_INLINE, data=data
         ) as log:
-            button_text = split_string_into_octets(data)
+            button_text = label or split_string_into_octets(data)
             log.debug("bot.keyboards.split.string.debug", result=button_text)
 
             button = InlineKeyboardButton(
                 text=f"{self.RETURN_BUTTON_EMOJI} Return to {button_text}",
-                callback_data=data[: self.MAX_CALLBACK_DATA_LENGTH],
+                callback_data=data,
             )
 
             keyboard = _new_inline_keyboard_markup()
@@ -244,13 +252,28 @@ class Keyboards:
             return reply_keyboard
 
     @classmethod
+    def fits_callback_data_limit(cls, callback_data: str) -> bool:
+        """Return True when callback data fits Telegram's 64-byte limit."""
+        return len(callback_data.encode("utf-8")) <= cls.MAX_CALLBACK_DATA_LENGTH
+
+    @classmethod
     def _make_inline_button(cls, button: ButtonData) -> InlineKeyboardButton:
-        """Build a typed inline button, optionally with a client style."""
-        callback_data = button.callback_data[: cls.MAX_CALLBACK_DATA_LENGTH]
+        """Build a typed inline button, optionally with a client style.
+
+        Raises:
+            KeyboardError: If the callback data exceeds Telegram's size limit.
+                Truncating it would produce a button that targets something else.
+        """
+        if not cls.fits_callback_data_limit(button.callback_data):
+            raise KeyboardError(
+                f"Callback data exceeds {cls.MAX_CALLBACK_DATA_LENGTH} bytes"
+            )
         if button.style is None:
-            return InlineKeyboardButton(text=button.text, callback_data=callback_data)
+            return InlineKeyboardButton(
+                text=button.text, callback_data=button.callback_data
+            )
         return InlineKeyboardButton(
-            text=button.text, callback_data=callback_data, style=button.style
+            text=button.text, callback_data=button.callback_data, style=button.style
         )
 
     @staticmethod
@@ -378,11 +401,28 @@ class Keyboards:
                 raise KeyboardError("All buttons must be ButtonData instances")
 
             keyboard = _new_inline_keyboard_markup(row_width=self.INLINE_ROW_WIDTH)
-            buttons = [self._make_inline_button(btn) for btn in buttons_data]
+            buttons = [
+                self._make_inline_button(btn)
+                for btn in buttons_data
+                if self._has_valid_callback_size(btn, log)
+            ]
             keyboard.add(*buttons)
 
             log.trace("bot.keyboards.inline.keyboard.debug", total_buttons=len(buttons))
             return keyboard
+
+    def _has_valid_callback_size(self, button: ButtonData, log: Logger) -> bool:
+        """Log and skip buttons whose callback data Telegram would reject."""
+        if self.fits_callback_data_limit(button.callback_data):
+            return True
+        log.error(
+            "bot.keyboards.callback.data.too.long.fail",
+            code="CALLBACK_DATA_TOO_LONG",
+            callback_prefix=button.callback_data.split(":", 1)[0],
+            size_bytes=len(button.callback_data.encode("utf-8")),
+            max_bytes=self.MAX_CALLBACK_DATA_LENGTH,
+        )
+        return False
 
 
 def reply_button_pattern(*labels: str) -> str:

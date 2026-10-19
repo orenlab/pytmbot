@@ -279,3 +279,55 @@ def test_build_health_context_healthy_path_has_default_recommendation(
     assert context["recommendations"] == [
         "No immediate action required. Continue routine monitoring."
     ]
+
+
+@pytest.mark.parametrize(
+    ("counters", "expected_level", "expected_trend"),
+    [
+        (
+            {
+                "containers_count": 5,
+                "running_containers": 2,
+                "paused_containers": 2,
+                "created_containers": 1,
+                "stopped_containers": 0,
+            },
+            "healthy",
+            "All active containers are running (2 paused, 1 created)",
+        ),
+        (
+            {
+                "containers_count": 6,
+                "running_containers": 5,
+                "restarting_containers": 1,
+                "stopped_containers": 0,
+            },
+            "elevated",
+            "Mostly healthy, but has restarting workloads",
+        ),
+        (
+            {
+                "containers_count": 4,
+                "running_containers": 1,
+                "restarting_containers": 1,
+                "stopped_containers": 2,
+            },
+            "critical",
+            "Many containers are currently stopped or restarting",
+        ),
+    ],
+)
+def test_build_docker_context_counts_paused_created_restarting_separately(
+    monkeypatch: pytest.MonkeyPatch,
+    counters: dict[str, int],
+    expected_level: str,
+    expected_trend: str,
+) -> None:
+    monkeypatch.setattr(health_module, "fetch_docker_counters", lambda: counters)
+    context = health_module._build_docker_context(cpu_count=2)
+    assert context["level"] == expected_level
+    assert context["trend_text"] == expected_trend
+    assert context["paused_containers"] == counters.get("paused_containers", 0)
+    assert context["restarting_containers"] == counters.get("restarting_containers", 0)
+    assert context["created_containers"] == counters.get("created_containers", 0)
+    assert context["stopped_containers"] == counters["stopped_containers"]

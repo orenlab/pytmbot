@@ -52,12 +52,30 @@ def test_parse_and_build_page_callback_data() -> None:
 
 def test_parse_and_build_container_full_info_callback_data() -> None:
     payload = build_container_full_info_callback_data(
-        container_ref="  PyTMBot  ",
+        container_ref="1a2b3c4d5e6f",
         user_id=101,
         page=0,
     )
-    assert payload == f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:pytmbot:101:1"
-    assert parse_container_full_info_callback_data(payload) == ("pytmbot", 101, 1)
+    assert payload == f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:1a2b3c4d5e6f:101:1"
+    assert parse_container_full_info_callback_data(payload) == (
+        "1a2b3c4d5e6f",
+        101,
+        1,
+    )
+
+    # Names keep their case and are never trimmed into something else.
+    mixed_case = build_container_full_info_callback_data(
+        container_ref="PyTMBot", user_id=101
+    )
+    assert parse_container_full_info_callback_data(mixed_case) == (
+        "PyTMBot",
+        101,
+        None,
+    )
+    with pytest.raises(ValueError):
+        build_container_full_info_callback_data(container_ref="  PyTMBot  ", user_id=1)
+    with pytest.raises(ValueError):
+        build_container_full_info_callback_data(container_ref="a" * 60, user_id=1)
 
     payload_without_page = build_container_full_info_callback_data(
         container_ref="redis",
@@ -84,6 +102,18 @@ def test_parse_and_build_container_full_info_callback_data() -> None:
     assert (
         parse_container_full_info_callback_data(
             f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:101:0"
+        )
+        is None
+    )
+    assert (
+        parse_container_full_info_callback_data(
+            f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:../etc:101"
+        )
+        is None
+    )
+    assert (
+        parse_container_full_info_callback_data(
+            f"{CONTAINER_FULL_INFO_CALLBACK_PREFIX}:redis:-5"
         )
         is None
     )

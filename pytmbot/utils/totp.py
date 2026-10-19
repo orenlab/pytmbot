@@ -39,6 +39,20 @@ def _build_secret_key_material() -> str:
     return "|".join(segment for segment in (salt, prod_token, dev_token) if segment)
 
 
+def _totp_secret_message(*, user_id: int, username: str) -> str:
+    """
+    Return the per-user message the TOTP secret is derived from.
+
+    Users with a Telegram username keep the original ``"<id>:<username>"``
+    derivation byte for byte, so existing authenticator enrollments stay
+    valid. Users without a username get ``"<id>:"``, which no username-based
+    message can produce (usernames are never empty).
+    """
+    if username:
+        return f"{user_id}:{username.lower()}"
+    return f"{user_id}:"
+
+
 def _derive_totp_secret(
     *,
     user_id: int,
@@ -46,7 +60,7 @@ def _derive_totp_secret(
     secret_key_material: str,
     hash_digest_size: int,
 ) -> str:
-    message = f"{user_id}:{username.lower()}".encode()
+    message = _totp_secret_message(user_id=user_id, username=username).encode()
     key_material = hashlib.blake2b(
         secret_key_material.encode(),
         digest_size=32,
@@ -244,33 +258,35 @@ class TwoFactorAuthenticator(BaseComponent):
     __slots__ = (
         "user_id",
         "username",
+        "account_name",
         "_salt",
         "_secret_cache",
         "_secret_key_material",
     )
 
-    def __init__(self, user_id: int, username: str) -> None:
+    def __init__(self, user_id: int, username: str | None = None) -> None:
         """Initialize the TwoFactorAuthenticator with user ID and username.
 
         Args:
             user_id: The unique identifier for the user
-            username: The username of the user
+            username: The Telegram username; empty or ``None`` when the user
+                has none, in which case the secret is derived from the user
+                id and the bot's key material only
 
         Raises:
             TOTPError: If user_id or username is invalid
         """
         super().__init__("TwoFactorAuth")
 
-        if not isinstance(user_id, int) or user_id <= 0:
+        if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
             raise TOTPError(f"Invalid user_id: {user_id}. Must be a positive integer.")
 
-        if not isinstance(username, str) or not username.strip():
-            raise TOTPError(
-                f"Invalid username: {username}. Must be a non-empty string."
-            )
+        if username is not None and not isinstance(username, str):
+            raise TOTPError("Invalid username: must be a string or None.")
 
         self.user_id: int = user_id
-        self.username: str = username.strip()
+        self.username: str = (username or "").strip()
+        self.account_name: str = self.username or str(user_id)
         self._salt: str = settings.access_control.auth_salt[0].get_secret_value()
         self._secret_key_material = _build_secret_key_material()
         if not self._secret_key_material:
@@ -309,7 +325,7 @@ class TwoFactorAuthenticator(BaseComponent):
             with self.log_context(user_id=self.user_id, username=self.username) as log:
                 log.error("bot.utils.totp.secret.generation.fail")
             raise TOTPError(
-                f"Failed to generate secret for user {self.username}: {e}"
+                f"Failed to generate secret for user {self.account_name}: {e}"
             ) from e
 
     def _generate_totp_auth_uri(self) -> str:
@@ -324,7 +340,7 @@ class TwoFactorAuthenticator(BaseComponent):
         try:
             uri = _build_totp_auth_uri(
                 secret=self._generate_secret(),
-                username=self.username,
+                username=self.account_name,
                 issuer_name=self.ISSUER_NAME,
                 digits=self.TOTP_DIGITS,
                 interval=self.TOTP_INTERVAL,
@@ -339,7 +355,7 @@ class TwoFactorAuthenticator(BaseComponent):
             with self.log_context(user_id=self.user_id, username=self.username) as log:
                 log.error("bot.utils.totp.uri.generation.fail")
             raise TOTPError(
-                f"Failed to generate TOTP URI for user {self.username}: {e}"
+                f"Failed to generate TOTP URI for user {self.account_name}: {e}"
             ) from e
 
     def generate_totp_qr_code(self) -> bytes:
@@ -451,5 +467,5 @@ class TwoFactorAuthenticator(BaseComponent):
             except Exception as e:
                 log.error("bot.utils.totp.critical.verification.fail")
                 raise TOTPError(
-                    f"TOTP verification failed for user {self.username}: {e}"
+                    f"TOTP verification failed for user {self.account_name}: {e}"
                 ) from e

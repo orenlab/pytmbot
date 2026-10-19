@@ -13,7 +13,7 @@ from threading import RLock, local
 
 from docker.client import DockerClient
 
-from pytmbot.adapters.docker._adapter import DockerAdapter
+from pytmbot.adapters.docker._adapter import DockerAdapter, reset_connection_backoff
 
 _adapter_state = local()
 _adapter_lock = RLock()
@@ -30,12 +30,17 @@ def _get_thread_adapter() -> DockerAdapter:
 
 
 def reset_docker_client_context() -> None:
-    """Reset and close current thread DockerAdapter (mainly for tests/shutdown)."""
+    """
+    Reset and close current thread DockerAdapter (mainly for tests/shutdown).
+
+    Also forgets the shared connection backoff so the next call probes Docker.
+    """
     with _adapter_lock:
         adapter = getattr(_adapter_state, "adapter", None)
         if adapter is not None:
             adapter.close()
             delattr(_adapter_state, "adapter")
+    reset_connection_backoff()
 
 
 @contextmanager

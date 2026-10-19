@@ -7,7 +7,9 @@ also providing basic information about the status of local servers.
 
 import hashlib
 import io
+import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from threading import RLock
 from typing import Final
@@ -15,8 +17,33 @@ from typing import Final
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
-from pytmbot.exceptions import ContainerLogsUnavailableError
+from pytmbot.adapters.docker.containers_info import fetch_full_container_details
+from pytmbot.exceptions import (
+    ContainerLogsUnavailableError,
+    ContainerNotFoundError,
+    DockerConnectionError,
+    DockerOperationException,
+    InvalidContainerReferenceError,
+)
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
+from pytmbot.handlers.docker_handlers.callback_data import (
+    LOGS_CALLBACK_PREFIX,
+    build_callback_data,
+    container_short_id,
+    is_valid_container_ref,
+    parse_callback_user_id,
+)
+from pytmbot.handlers.docker_handlers.containers import CONTAINERS_PAGE_CALLBACK_PREFIX
+from pytmbot.handlers.docker_handlers.pagination import (
+    build_container_full_info_callback_data,
+    build_page_callback_data,
+)
+from pytmbot.handlers.docker_handlers.user_messages import (
+    CONTAINER_NOT_FOUND_TEXT,
+    DOCKER_REQUEST_FAILED_TEXT,
+    DOCKER_UNAVAILABLE_TEXT,
+    INVALID_CONTAINER_REF_TEXT,
+)
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_sanitized_logs,
@@ -45,7 +72,7 @@ keyboards = get_keyboards()
 MAX_TELEGRAM_MESSAGE_LENGTH: Final[int] = 4096
 MAX_LOGS_PAGE_CHARS: Final[int] = 3200
 LOGS_SESSION_TTL_SECONDS: Final[int] = 300
-LOGS_CALLBACK_PREFIX: Final[str] = "__get_logs__"
+LOGS_SESSION_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{12}")
 LOGS_ACTION_OPEN: Final[str] = "open"
 LOGS_ACTION_NAV: Final[str] = "nav"
 LOGS_ACTION_REFRESH: Final[str] = "refresh"
@@ -70,7 +97,7 @@ LOGS_FILE_DELETED_NAVIGATION_TEXT: Final[str] = (
 class ParsedLogsCallback:
     action: str
     user_id: int
-    container_name: str | None = None
+    container_ref: str | None = None
     session_id: str | None = None
     page_index: int = 0
 
@@ -78,6 +105,7 @@ class ParsedLogsCallback:
 @dataclass(slots=True)
 class LogsSession:
     session_id: str
+    container_ref: str
     container_name: str
     user_id: int
     raw_logs: str
@@ -103,12 +131,14 @@ class LogsSessionStore:
             self._sessions.pop(key, None)
 
     @staticmethod
-    def _generate_session_id(container_name: str, user_id: int) -> str:
-        seed = f"{container_name}:{user_id}:{time.time_ns()}"
+    def _generate_session_id(container_ref: str, user_id: int) -> str:
+        seed = f"{container_ref}:{user_id}:{time.time_ns()}"
         return hashlib.blake2s(seed.encode(), digest_size=6).hexdigest()
 
     def create(
         self,
+        *,
+        container_ref: str,
         container_name: str,
         user_id: int,
         raw_logs: str,
@@ -118,12 +148,13 @@ class LogsSessionStore:
         with self._lock:
             self._cleanup_expired_unlocked(now)
 
-            session_id = self._generate_session_id(container_name, user_id)
+            session_id = self._generate_session_id(container_ref, user_id)
             while session_id in self._sessions:
-                session_id = self._generate_session_id(container_name, user_id)
+                session_id = self._generate_session_id(container_ref, user_id)
 
             session = LogsSession(
                 session_id=session_id,
+                container_ref=container_ref,
                 container_name=container_name,
                 user_id=user_id,
                 raw_logs=raw_logs,
@@ -174,54 +205,72 @@ def _render_logs_template(
     )
 
 
+def _parse_logs_user_id(raw_user_id: str) -> int:
+    user_id = parse_callback_user_id(raw_user_id)
+    if user_id is None:
+        raise ValueError("Invalid logs callback user id")
+    return user_id
+
+
+def _parse_logs_container_ref(container_ref: str) -> str:
+    if not is_valid_container_ref(container_ref):
+        raise ValueError("Invalid logs container reference")
+    return container_ref
+
+
+def _parse_logs_session_id(session_id: str) -> str:
+    if LOGS_SESSION_ID_PATTERN.fullmatch(session_id) is None:
+        raise ValueError("Invalid logs session id")
+    return session_id
+
+
 def _parse_logs_callback_data(callback_data: str) -> ParsedLogsCallback:
     """
     Parse callback data for logs actions.
 
     Supported:
-    - Legacy: __get_logs__:<container_name>:<user_id>
-    - New: __get_logs__:open:<container_name>:<user_id>
+    - Legacy: __get_logs__:<container_ref>:<user_id>
+    - New: __get_logs__:open:<container_ref>:<user_id>
     - New: __get_logs__:nav:<session_id>:<page_index>:<user_id>
     - New: __get_logs__:refresh:<session_id>:<user_id>
     - New: __get_logs__:file:<session_id>:<user_id>
+
+    Raises:
+        ValueError: For unknown formats or invalid segments.
     """
     parts = callback_data.split(":")
     if not parts or parts[0] != LOGS_CALLBACK_PREFIX:
         raise ValueError("Invalid logs callback prefix")
 
+    actions = {LOGS_ACTION_OPEN, LOGS_ACTION_NAV, LOGS_ACTION_REFRESH, LOGS_ACTION_FILE}
     # Backward-compatible format.
-    if len(parts) == 3 and parts[1] not in {
-        LOGS_ACTION_OPEN,
-        LOGS_ACTION_NAV,
-        LOGS_ACTION_REFRESH,
-        LOGS_ACTION_FILE,
-    }:
+    if len(parts) == 3 and parts[1] not in actions:
         return ParsedLogsCallback(
             action=LOGS_ACTION_OPEN,
-            container_name=parts[1],
-            user_id=int(parts[2]),
+            container_ref=_parse_logs_container_ref(parts[1]),
+            user_id=_parse_logs_user_id(parts[2]),
         )
 
     if len(parts) == 4 and parts[1] == LOGS_ACTION_OPEN:
         return ParsedLogsCallback(
             action=LOGS_ACTION_OPEN,
-            container_name=parts[2],
-            user_id=int(parts[3]),
+            container_ref=_parse_logs_container_ref(parts[2]),
+            user_id=_parse_logs_user_id(parts[3]),
         )
 
     if len(parts) == 5 and parts[1] == LOGS_ACTION_NAV:
         return ParsedLogsCallback(
             action=LOGS_ACTION_NAV,
-            session_id=parts[2],
+            session_id=_parse_logs_session_id(parts[2]),
             page_index=int(parts[3]),
-            user_id=int(parts[4]),
+            user_id=_parse_logs_user_id(parts[4]),
         )
 
     if len(parts) == 4 and parts[1] in {LOGS_ACTION_REFRESH, LOGS_ACTION_FILE}:
         return ParsedLogsCallback(
             action=parts[1],
-            session_id=parts[2],
-            user_id=int(parts[3]),
+            session_id=_parse_logs_session_id(parts[2]),
+            user_id=_parse_logs_user_id(parts[3]),
         )
 
     raise ValueError("Unsupported logs callback format")
@@ -380,51 +429,49 @@ def _build_logs_keyboard(
     """Build logs keyboard with navigation and actions."""
     keyboard_buttons = []
 
+    def nav(page_index: int) -> str:
+        return build_callback_data(
+            LOGS_CALLBACK_PREFIX,
+            LOGS_ACTION_NAV,
+            session.session_id,
+            page_index,
+            session.user_id,
+        )
+
+    def session_action(action: str) -> str:
+        return build_callback_data(
+            LOGS_CALLBACK_PREFIX, action, session.session_id, session.user_id
+        )
+
     if current_page > 0:
         keyboard_buttons.append(
-            button_data(
-                text="Newer",
-                callback_data=(
-                    f"{LOGS_CALLBACK_PREFIX}:{LOGS_ACTION_NAV}:"
-                    f"{session.session_id}:{current_page - 1}:{session.user_id}"
-                ),
-            )
+            button_data(text="Newer", callback_data=nav(current_page - 1))
         )
 
     if current_page < total_pages - 1:
         keyboard_buttons.append(
-            button_data(
-                text="Older",
-                callback_data=(
-                    f"{LOGS_CALLBACK_PREFIX}:{LOGS_ACTION_NAV}:"
-                    f"{session.session_id}:{current_page + 1}:{session.user_id}"
-                ),
-            )
+            button_data(text="Older", callback_data=nav(current_page + 1))
         )
 
     keyboard_buttons.extend(
         [
             button_data(
-                text="Refresh",
-                callback_data=(
-                    f"{LOGS_CALLBACK_PREFIX}:{LOGS_ACTION_REFRESH}:"
-                    f"{session.session_id}:{session.user_id}"
-                ),
+                text="Refresh", callback_data=session_action(LOGS_ACTION_REFRESH)
             ),
-            button_data(
-                text="As file",
-                callback_data=(
-                    f"{LOGS_CALLBACK_PREFIX}:{LOGS_ACTION_FILE}:"
-                    f"{session.session_id}:{session.user_id}"
-                ),
-            ),
+            button_data(text="As file", callback_data=session_action(LOGS_ACTION_FILE)),
             button_data(
                 text=f"{em.get_emoji('BACK_arrow')} {session.container_name}",
-                callback_data=f"__get_full__:{session.container_name}:{session.user_id}",
+                callback_data=build_container_full_info_callback_data(
+                    container_ref=session.container_ref, user_id=session.user_id
+                ),
             ),
             button_data(
                 text=f"{em.get_emoji('house')} All containers",
-                callback_data="back_to_containers",
+                callback_data=build_page_callback_data(
+                    prefix=CONTAINERS_PAGE_CALLBACK_PREFIX,
+                    page=1,
+                    user_id=session.user_id,
+                ),
             ),
         ]
     )
@@ -478,37 +525,80 @@ def _edit_logs_message(
     )
 
 
-def _open_logs_session(
+def _resolve_logs_container(
+    call: CallbackQuery, bot: TeleBot, container_ref: str
+) -> tuple[str, str] | None:
+    """Return (short id, name) of the container or explain why it is unavailable."""
+    error_text: str | None = None
+    container: object | None = None
+    try:
+        container = fetch_full_container_details(container_ref)
+    except DockerConnectionError:
+        error_text = DOCKER_UNAVAILABLE_TEXT
+    except InvalidContainerReferenceError:
+        error_text = INVALID_CONTAINER_REF_TEXT
+    except DockerOperationException:
+        error_text = DOCKER_REQUEST_FAILED_TEXT
+
+    if container is None:
+        show_handler_info(call, text=error_text or CONTAINER_NOT_FOUND_TEXT, bot=bot)
+        return None
+    short_id = container_short_id(getattr(container, "id", None)) or container_ref
+    name = str(getattr(container, "name", "") or "").lstrip("/") or short_id
+    return short_id, name
+
+
+def _fetch_sanitized_logs(
     call: CallbackQuery,
     bot: TeleBot,
+    container_ref: str,
     container_name: str,
-    user_id: int,
-    emojis: dict[str, str],
-) -> bool:
-    logger.info("bot.handler.docker.logging.user.getting.info")
+) -> str | None:
+    """Fetch sanitized logs, or tell the user why they cannot be shown."""
     try:
-        logs = get_sanitized_logs(container_name, call, bot.token)
+        logs = get_sanitized_logs(container_ref, call, bot.token)
+        if logs is not None:
+            return logs
+        error_text = CONTAINER_NOT_FOUND_TEXT
     except ContainerLogsUnavailableError:
         logger.info(
             "bot.handler.docker.logging.logs.unavailable.info",
             container_name=container_name,
             reason="logging_driver_not_readable",
         )
-        return show_handler_info(
-            call,
-            text=f"{container_name}: {LOGS_UNSUPPORTED_DRIVER_MESSAGE}",
-            bot=bot,
-        )
+        error_text = f"{container_name}: {LOGS_UNSUPPORTED_DRIVER_MESSAGE}"
+    except ContainerNotFoundError:
+        error_text = CONTAINER_NOT_FOUND_TEXT
+    except DockerConnectionError:
+        error_text = DOCKER_UNAVAILABLE_TEXT
+    except InvalidContainerReferenceError:
+        error_text = INVALID_CONTAINER_REF_TEXT
+    except DockerOperationException:
+        error_text = DOCKER_REQUEST_FAILED_TEXT
 
-    if not logs:
-        logger.error("bot.handler.docker.logging.getting.logs.fail")
-        return show_handler_info(
-            call,
-            text=f"{container_name}: Couldn't load logs right now.",
-            bot=bot,
-        )
+    show_handler_info(call, text=error_text, bot=bot)
+    return None
+
+
+def _open_logs_session(
+    call: CallbackQuery,
+    bot: TeleBot,
+    container_ref: str,
+    user_id: int,
+    emojis: dict[str, str],
+) -> bool:
+    logger.info("bot.handler.docker.logging.user.getting.info")
+    container = _resolve_logs_container(call, bot, container_ref)
+    if container is None:
+        return False
+    short_id, container_name = container
+
+    logs = _fetch_sanitized_logs(call, bot, short_id, container_name)
+    if logs is None:
+        return False
 
     session = _logs_sessions.create(
+        container_ref=short_id,
         container_name=container_name,
         user_id=user_id,
         raw_logs=logs,
@@ -619,6 +709,114 @@ def _send_logs_as_file(call: CallbackQuery, bot: TeleBot, session: LogsSession) 
     )
 
 
+def _handle_open(
+    call: CallbackQuery,
+    bot: TeleBot,
+    parsed: ParsedLogsCallback,
+    emojis: dict[str, str],
+) -> None:
+    if parsed.container_ref:
+        _open_logs_session(
+            call=call,
+            bot=bot,
+            container_ref=parsed.container_ref,
+            user_id=parsed.user_id,
+            emojis=emojis,
+        )
+
+
+def _load_owned_session(
+    call: CallbackQuery, bot: TeleBot, parsed: ParsedLogsCallback
+) -> LogsSession | None:
+    if not parsed.session_id:
+        return None
+    session = _get_session_or_show_error(call, parsed.session_id, bot)
+    if session is None:
+        return None
+    if not _validate_logs_session_access(
+        call=call,
+        bot=bot,
+        session=session,
+        requested_action=parsed.action,
+    ):
+        return None
+    return session
+
+
+def _handle_nav(
+    call: CallbackQuery,
+    bot: TeleBot,
+    parsed: ParsedLogsCallback,
+    emojis: dict[str, str],
+) -> None:
+    session = _load_owned_session(call, bot, parsed)
+    if session is not None:
+        _edit_logs_message(
+            call=call,
+            bot=bot,
+            session=session,
+            page_index=parsed.page_index,
+            emojis=emojis,
+        )
+
+
+def _handle_refresh(
+    call: CallbackQuery,
+    bot: TeleBot,
+    parsed: ParsedLogsCallback,
+    emojis: dict[str, str],
+) -> None:
+    old_session = _load_owned_session(call, bot, parsed)
+    if old_session is None:
+        return
+    logs = _fetch_sanitized_logs(
+        call, bot, old_session.container_ref, old_session.container_name
+    )
+    if logs is None:
+        return
+
+    _logs_sessions.remove(old_session.session_id)
+    refreshed_session = _logs_sessions.create(
+        container_ref=old_session.container_ref,
+        container_name=old_session.container_name,
+        user_id=old_session.user_id,
+        raw_logs=logs,
+        chunks=_build_logs_chunks(logs),
+    )
+    _edit_logs_message(
+        call=call,
+        bot=bot,
+        session=refreshed_session,
+        page_index=0,
+        emojis=emojis,
+    )
+
+
+def _handle_file(
+    call: CallbackQuery,
+    bot: TeleBot,
+    parsed: ParsedLogsCallback,
+    emojis: dict[str, str],
+) -> None:
+    del emojis
+    if not parsed.session_id:
+        return
+    session = _get_session_or_show_error(call, parsed.session_id, bot)
+    if session is not None:
+        _send_logs_as_file(call=call, bot=bot, session=session)
+
+
+type _LogsActionHandler = Callable[
+    [CallbackQuery, TeleBot, ParsedLogsCallback, dict[str, str]], None
+]
+_LOGS_ACTION_HANDLERS: Final[dict[str, _LogsActionHandler]] = {
+    LOGS_ACTION_OPEN: _handle_open,
+    LOGS_ACTION_NAV: _handle_nav,
+    LOGS_ACTION_REFRESH: _handle_refresh,
+    LOGS_ACTION_FILE: _handle_file,
+}
+
+
 # func=lambda call: call.data.startswith('__get_logs__')
 @logger.session_decorator
 @two_factor_auth_required
@@ -651,98 +849,11 @@ def handle_get_logs(call: CallbackQuery, bot: TeleBot) -> None:
         show_handler_info(call=call, text=f"Getting logs: {deny_reason}", bot=bot)
         return None
 
+    action_handler = _LOGS_ACTION_HANDLERS.get(parsed.action)
+    if action_handler is None:
+        show_handler_info(call, text="This logs action is not supported.", bot=bot)
+        return None
+
     emojis: dict[str, str] = {"thought_balloon": em.get_emoji("thought_balloon")}
-
-    if parsed.action == LOGS_ACTION_OPEN and parsed.container_name:
-        _open_logs_session(
-            call=call,
-            bot=bot,
-            container_name=parsed.container_name,
-            user_id=parsed.user_id,
-            emojis=emojis,
-        )
-        return None
-
-    if parsed.action == LOGS_ACTION_NAV and parsed.session_id:
-        session = _get_session_or_show_error(call, parsed.session_id, bot)
-        if not session:
-            return None
-        if not _validate_logs_session_access(
-            call=call,
-            bot=bot,
-            session=session,
-            requested_action=LOGS_ACTION_NAV,
-        ):
-            return None
-        _edit_logs_message(
-            call=call,
-            bot=bot,
-            session=session,
-            page_index=parsed.page_index,
-            emojis=emojis,
-        )
-        return None
-
-    if parsed.action == LOGS_ACTION_REFRESH and parsed.session_id:
-        old_session = _get_session_or_show_error(call, parsed.session_id, bot)
-        if not old_session:
-            return None
-        if not _validate_logs_session_access(
-            call=call,
-            bot=bot,
-            session=old_session,
-            requested_action=LOGS_ACTION_REFRESH,
-        ):
-            return None
-
-        try:
-            logs = get_sanitized_logs(old_session.container_name, call, bot.token)
-        except ContainerLogsUnavailableError:
-            logger.info(
-                "bot.handler.docker.logging.logs.unavailable.info",
-                container_name=old_session.container_name,
-                reason="logging_driver_not_readable",
-            )
-            show_handler_info(
-                call,
-                text=(
-                    f"{old_session.container_name}: {LOGS_UNSUPPORTED_DRIVER_MESSAGE}"
-                ),
-                bot=bot,
-            )
-            return None
-
-        if not logs:
-            logger.error("bot.handler.docker.logging.getting.logs.fail")
-            show_handler_info(
-                call,
-                text=f"{old_session.container_name}: Error getting logs",
-                bot=bot,
-            )
-            return None
-
-        _logs_sessions.remove(parsed.session_id)
-        refreshed_session = _logs_sessions.create(
-            container_name=old_session.container_name,
-            user_id=old_session.user_id,
-            raw_logs=logs,
-            chunks=_build_logs_chunks(logs),
-        )
-        _edit_logs_message(
-            call=call,
-            bot=bot,
-            session=refreshed_session,
-            page_index=0,
-            emojis=emojis,
-        )
-        return None
-
-    if parsed.action == LOGS_ACTION_FILE and parsed.session_id:
-        session = _get_session_or_show_error(call, parsed.session_id, bot)
-        if not session:
-            return None
-        _send_logs_as_file(call=call, bot=bot, session=session)
-        return None
-
-    show_handler_info(call, text="This logs action is not supported.", bot=bot)
+    action_handler(call, bot, parsed, emojis)
     return None

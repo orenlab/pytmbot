@@ -9,6 +9,7 @@ from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 import pytmbot.keyboards.keyboards as keyboards_module
 from pytmbot.exceptions import KeyboardError
 from pytmbot.keyboards.keyboards import ButtonData, Keyboards
+from pytmbot.logs import Logger
 from pytmbot.settings import KeyboardSettings
 
 
@@ -96,16 +97,37 @@ def test_construct_keyboard_validation() -> None:
     assert built[0].style == "primary"
 
 
-def test_build_inline_keyboard_truncates_and_validates_buttons() -> None:
+def test_build_inline_keyboard_skips_oversized_callbacks_and_validates_buttons(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     keyboard = Keyboards()
+    errors: list[str] = []
+    monkeypatch.setattr(
+        Logger,
+        "error",
+        lambda self, message, **kwargs: errors.append(message),
+        raising=False,
+    )
 
+    # Never truncate: a cut payload would address something else entirely.
     long_payload = "x" * 120
+    exact_payload = "y" * keyboard.MAX_CALLBACK_DATA_LENGTH
+    multibyte_payload = "é" * 33  # 66 bytes in UTF-8, 33 characters
     markup = keyboard.build_inline_keyboard(
-        ButtonData(text="Open", callback_data=long_payload)
+        [
+            ButtonData(text="Open", callback_data=long_payload),
+            ButtonData(text="Exact", callback_data=exact_payload),
+            ButtonData(text="Wide", callback_data=multibyte_payload),
+        ]
     )
     callbacks = _flatten_inline_callback_data(markup)
-    assert callbacks
-    assert len(callbacks[0]) == keyboard.MAX_CALLBACK_DATA_LENGTH
+    assert callbacks == [exact_payload]
+    assert errors.count("bot.keyboards.callback.data.too.long.fail") == 2
+
+    with pytest.raises(KeyboardError):
+        Keyboards._make_inline_button(
+            ButtonData(text="Open", callback_data=long_payload)
+        )
 
     with pytest.raises(KeyboardError):
         keyboard.build_inline_keyboard(
@@ -254,8 +276,16 @@ def test_build_referer_keyboards_validation_and_callback_size() -> None:
 
     inline = keyboard.build_referer_inline_keyboard("__get_logs__:container:123456")
     callbacks = _flatten_inline_callback_data(inline)
-    assert callbacks
-    assert len(callbacks[0]) <= keyboard.MAX_CALLBACK_DATA_LENGTH
+    assert callbacks == ["__get_logs__:container:123456"]
+    assert inline.keyboard[0][0].text == "🦈 Return to container"
+
+    labelled = keyboard.build_referer_inline_keyboard(
+        "__manage__:0123456789ab:123456", label="container actions"
+    )
+    assert labelled.keyboard[0][0].text == "🦈 Return to container actions"
+
+    with pytest.raises(KeyboardError):
+        keyboard.build_referer_inline_keyboard("__manage__:" + "x" * 60)
 
 
 @pytest.mark.parametrize(

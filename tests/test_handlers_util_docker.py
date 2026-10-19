@@ -218,8 +218,10 @@ def test_sanitize_environment_variables_masks_and_limits() -> None:
     ]
     sanitized = sanitize_environment_variables(env_list)
     assert len(sanitized) == 20
-    assert any(item.startswith("DB_PASSWORD=<HIDDEN>") for item in sanitized)
-    assert any(item.startswith("API_KEY=<HIDDEN>") for item in sanitized)
+    assert "DB_PASSWORD=\u2022\u2022\u2022\u2022" in sanitized
+    assert "API_KEY=\u2022\u2022\u2022\u2022" in sanitized
+    assert "FLAG" in sanitized
+    assert all("value" not in item for item in sanitized)
 
 
 def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -261,9 +263,9 @@ def test_parse_container_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     assert environment["env_count"] == 3
     env_vars = environment.get("environment_vars")
     assert isinstance(env_vars, list)
-    assert any(
-        isinstance(item, str) and "DB_PASSWORD=<HIDDEN>" in item for item in env_vars
-    )
+    assert "DB_PASSWORD=\u2022\u2022\u2022\u2022" in env_vars
+    assert "PUBLIC_FLAG=\u2022\u2022\u2022\u2022" in env_vars
+    assert all("secret" not in str(item) for item in env_vars)
 
     runtime = parse_container_runtime_info(container, attrs=attrs)
     assert runtime["started_at"] == "2026-02-15 12:00:00 UTC"
@@ -414,6 +416,9 @@ def test_get_comprehensive_container_details_paths(
 
     # Force runtime memory parsing miss to cover fallback provider path
     monkeypatch.setattr(
+        "pytmbot.handlers.handlers_util.docker.time.sleep", lambda _seconds: None
+    )
+    monkeypatch.setattr(
         docker_utils,
         "get_container_stats_snapshot",
         lambda _container: {"memory_stats": {"usage": 0, "limit": 0}},
@@ -426,3 +431,124 @@ def test_get_comprehensive_container_details_paths(
     fallback_memory = fallback_stats.get("memory")
     assert isinstance(fallback_memory, dict)
     assert fallback_memory.get("mem_percent") == 9.0
+
+
+def _cpu_sample(total: int, system: int, **extra: object) -> _ObjectDict:
+    return {"cpu_usage": {"total_usage": total}, "system_cpu_usage": system, **extra}
+
+
+def test_cpu_percent_uses_online_cpus_and_is_cgroup_v2_safe() -> None:
+    # cgroup v2: no percpu_usage, online_cpus present.
+    cpu = parse_container_cpu_stats(
+        {
+            "cpu_stats": _cpu_sample(300, 2000, online_cpus=4),
+            "precpu_stats": _cpu_sample(100, 1000, online_cpus=4),
+        }
+    )
+    assert cpu["cpu_percent"] == 80.0  # 200/1000 * 4 cores * 100
+
+
+def test_cpu_percent_without_previous_sample_is_not_since_boot_average() -> None:
+    one_shot: _ObjectDict = {
+        "cpu_stats": _cpu_sample(5_000, 10_000, online_cpus=8),
+        "precpu_stats": {"cpu_usage": {"total_usage": 0}, "system_cpu_usage": 0},
+    }
+    assert parse_container_cpu_stats(one_shot)["cpu_percent"] == 0.0
+    assert docker_utils.has_cpu_baseline(one_shot) is False
+
+
+def test_runtime_stats_take_second_sample_when_precpu_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples = iter(
+        [
+            {
+                "cpu_stats": _cpu_sample(1_000, 10_000, online_cpus=2),
+                "precpu_stats": {},
+            },
+            {
+                "cpu_stats": _cpu_sample(1_500, 11_000, online_cpus=2),
+                "precpu_stats": {},
+                "memory_stats": {"usage": 1, "limit": 2},
+            },
+        ]
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        docker_utils, "get_container_stats_snapshot", lambda _c: next(samples)
+    )
+    monkeypatch.setattr(
+        "pytmbot.handlers.handlers_util.docker.time.sleep", sleeps.append
+    )
+
+    stats = docker_utils.collect_container_runtime_stats(object())
+
+    assert sleeps == [docker_utils.CPU_SAMPLE_INTERVAL_SECONDS]
+    assert parse_container_cpu_stats(stats)["cpu_percent"] == 100.0
+    assert stats["memory_stats"] == {"usage": 1, "limit": 2}
+
+
+def test_runtime_stats_reuse_daemon_precpu_when_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample = {
+        "cpu_stats": _cpu_sample(300, 2_000),
+        "precpu_stats": _cpu_sample(100, 1_000),
+    }
+    monkeypatch.setattr(docker_utils, "get_container_stats_snapshot", lambda _c: sample)
+    monkeypatch.setattr(
+        "pytmbot.handlers.handlers_util.docker.time.sleep",
+        lambda _s: pytest.fail("no second sample"),
+    )
+    assert docker_utils.collect_container_runtime_stats(object()) is sample
+
+
+@pytest.mark.parametrize(
+    ("state", "badge"),
+    [
+        ({"Status": "running", "Running": True}, "🟢 Running"),
+        ({"Status": "paused", "Running": True, "Paused": True}, "🟡 Paused"),
+        (
+            {"Status": "restarting", "Running": True, "Restarting": True},
+            "🔄 Restarting",
+        ),
+        ({"Status": "created"}, "⚪ Created"),
+        ({"Status": "exited"}, "🔴 Stopped"),
+        ({"Running": True, "Paused": True}, "🟡 Paused"),
+        ({}, "🔴 Stopped"),
+    ],
+)
+def test_status_badge_follows_state_status(state: _ObjectDict, badge: str) -> None:
+    info = parse_container_basic_info(object(), attrs={"State": state})
+    assert info["status_badge"] == badge
+    assert info["running"] is (badge == "🟢 Running")
+
+
+@pytest.mark.parametrize(
+    ("reference", "expected"),
+    [
+        ("nginx", ("nginx", "latest")),
+        ("nginx:1.25", ("nginx", "1.25")),
+        ("registry:5000/team/app", ("registry:5000/team/app", "latest")),
+        ("registry:5000/team/app:2.1", ("registry:5000/team/app", "2.1")),
+        ("app:1@sha256:" + "a" * 64, ("app", "1")),
+        ("app@sha256:" + "b" * 64, ("app", "sha256:" + "b" * 12)),
+    ],
+)
+def test_split_image_reference_keeps_registry_port(
+    reference: str, expected: tuple[str, str]
+) -> None:
+    assert docker_utils.split_image_reference(reference) == expected
+
+
+def test_comprehensive_details_propagates_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pytmbot.exceptions import DockerConnectionError
+
+    def _down(_name: str) -> object:
+        raise DockerConnectionError("docker down")
+
+    monkeypatch.setattr(docker_utils, "get_container_full_details", _down)
+    with pytest.raises(DockerConnectionError):
+        get_comprehensive_container_details("pytmbot")

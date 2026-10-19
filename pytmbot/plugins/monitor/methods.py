@@ -39,6 +39,12 @@ class SystemMonitorPlugin(PluginCore):
     """Plugin for monitoring system resources."""
 
     DEFAULT_DOCKER_COUNTERS_UPDATE_INTERVAL_SECONDS = 300
+    # First retry delay after a failed Docker refresh (doubles per failure,
+    # capped at the regular refresh interval).
+    DOCKER_REFRESH_RETRY_BASE_SECONDS = 30
+    # New container/image alerts sent per refresh; the rest stay queued (not
+    # marked as known) and are sent on the next refresh.
+    MAX_SECURITY_ALERTS_PER_REFRESH = 10
     DEFAULT_NOTIFICATION_RESET_WINDOW_SECONDS = 300
     MAX_CHECK_INTERVAL_SECONDS = 30
     MONITOR_THREAD_JOIN_TIMEOUT_SECONDS = 2
@@ -255,12 +261,13 @@ class SystemMonitorPlugin(PluginCore):
                 metrics: dict[str, object] = dict(
                     self.system_metrics.collect_metrics(cpu_usage=cycle_cpu_usage)
                 )
+                # Resource alerts first: a slow or unavailable Docker daemon
+                # must never delay CPU/memory/disk/temperature alerts.
+                self._process_alerts(metrics)
                 if self.monitor_settings.monitor_docker:
                     self._process_docker_metrics(metrics)
 
-                # Record metrics and process alerts
                 self._record_metrics(metrics)
-                self._process_alerts(metrics)
 
                 time.sleep(self.check_interval)
 
@@ -418,26 +425,89 @@ class SystemMonitorPlugin(PluginCore):
             "stopped_containers": max(containers_count - running_containers, 0),
         }
 
-    def _process_docker_metrics(self, metrics: dict[str, object]) -> None:
-        current_time = time.time()
-        if (
+    def _docker_refresh_due(self, current_time: float) -> bool:
+        return (
             current_time - self.state.docker_counters_last_updated
             >= self.docker_counters_update_interval
-        ):
-            try:
-                new_containers = retrieve_containers_stats()
-                new_images = fetch_image_details()
-                new_counts = self._build_docker_counters(new_containers, new_images)
+            and current_time >= self.state.docker_next_retry_at
+        )
 
-                self._detect_docker_changes(new_counts, new_containers, new_images)
-                self.state.docker_counters_last_updated = current_time
+    def _schedule_docker_retry(self, current_time: float) -> float:
+        """Back off Docker refreshes after a failure (exponential, capped)."""
+        self.state.docker_refresh_failures += 1
+        exponent = min(self.state.docker_refresh_failures - 1, 16)
+        delay = float(
+            min(
+                self.DOCKER_REFRESH_RETRY_BASE_SECONDS * (2**exponent),
+                max(self.docker_counters_update_interval, 1),
+            )
+        )
+        self.state.docker_next_retry_at = current_time + delay
+        return delay
 
-                metrics.update(
-                    {f"docker_{key}": value for key, value in new_counts.items()}
-                )
+    def _process_docker_metrics(self, metrics: dict[str, object]) -> None:
+        current_time = time.time()
+        if not self._docker_refresh_due(current_time):
+            return
 
-            except Exception as e:
-                logger.error("bot.plugins.monitor.methods.metrics.processing.fail", e)
+        try:
+            new_containers = retrieve_containers_stats()
+            new_images = fetch_image_details()
+        except Exception as e:
+            retry_in = self._schedule_docker_retry(current_time)
+            logger.error(
+                "bot.plugins.monitor.methods.metrics.processing.fail",
+                e,
+                extra={"retry_in_seconds": retry_in},
+            )
+            return
+
+        self.state.docker_refresh_failures = 0
+        self.state.docker_next_retry_at = 0.0
+        new_counts = self._build_docker_counters(new_containers, new_images)
+        self._detect_docker_changes(new_counts, new_containers, new_images)
+        self.state.docker_counters_last_updated = current_time
+        metrics.update({f"docker_{key}": value for key, value in new_counts.items()})
+
+    @staticmethod
+    def _index_by_id(
+        items: Sequence[Mapping[str, object]],
+    ) -> dict[str, Mapping[str, object]]:
+        indexed: dict[str, Mapping[str, object]] = {}
+        for item in items:
+            item_id = item.get("id")
+            if isinstance(item_id, str):
+                indexed[item_id] = item
+        return indexed
+
+    def _notify_new_items(
+        self,
+        current: Mapping[str, Mapping[str, object]],
+        known_ids: set[str],
+        notifier: Callable[[Mapping[str, object]], bool],
+        kind: str,
+    ) -> set[str]:
+        """
+        Alert about unseen items and return the updated set of known IDs.
+
+        An item becomes known only after its alert was actually sent, so an
+        alert that failed (or was deferred) is retried on the next refresh.
+        Items that no longer exist are forgotten, which bounds the set.
+        """
+        retained = {item_id for item_id in known_ids if item_id in current}
+        pending = sorted(set(current) - retained)
+        for item_id in pending[: self.MAX_SECURITY_ALERTS_PER_REFRESH]:
+            if not notifier(current[item_id]):
+                break  # e.g. Telegram unavailable: retry on the next refresh
+            retained.add(item_id)
+
+        deferred = len(set(current) - retained)
+        if deferred:
+            logger.warning(
+                "bot.plugins.monitor.methods.security.alerts.deferred.warn",
+                extra={"kind": kind, "deferred": deferred},
+            )
+        return retained
 
     def _detect_docker_changes(
         self,
@@ -446,22 +516,13 @@ class SystemMonitorPlugin(PluginCore):
         new_images: Sequence[Mapping[str, object]],
     ) -> None:
         try:
-            new_container_hashes: dict[str, Mapping[str, object]] = {}
-            for container in new_containers:
-                container_id = container.get("id")
-                if isinstance(container_id, str):
-                    new_container_hashes[container_id] = container
-
-            new_image_hashes: dict[str, Mapping[str, object]] = {}
-            for image in new_images:
-                image_id = image.get("id")
-                if isinstance(image_id, str):
-                    new_image_hashes[image_id] = image
+            new_container_hashes = self._index_by_id(new_containers)
+            new_image_hashes = self._index_by_id(new_images)
 
             if self.state.init_mode:
-                # During initialization, add all current containers and images to known sets
-                self._known_container_ids.update(new_container_hashes.keys())
-                self._known_image_ids.update(new_image_hashes.keys())
+                # During initialization, everything that exists is the baseline.
+                self._known_container_ids = set(new_container_hashes)
+                self._known_image_ids = set(new_image_hashes)
                 self.state.init_mode = False
                 logger.info(
                     "bot.plugins.monitor.methods.monitoring.init",
@@ -471,21 +532,18 @@ class SystemMonitorPlugin(PluginCore):
                     },
                 )
             else:
-                # Check for genuinely new containers (not seen before)
-                new_container_ids = (
-                    set(new_container_hashes.keys()) - self._known_container_ids
+                self._known_container_ids = self._notify_new_items(
+                    new_container_hashes,
+                    self._known_container_ids,
+                    self._send_container_notification,
+                    "container",
                 )
-                for container_id in new_container_ids:
-                    self._send_container_notification(
-                        new_container_hashes[container_id]
-                    )
-                    self._known_container_ids.add(container_id)
-
-                # Check for genuinely new images (not seen before)
-                new_image_ids = set(new_image_hashes.keys()) - self._known_image_ids
-                for image_id in new_image_ids:
-                    self._send_image_notification(new_image_hashes[image_id])
-                    self._known_image_ids.add(image_id)
+                self._known_image_ids = self._notify_new_items(
+                    new_image_hashes,
+                    self._known_image_ids,
+                    self._send_image_notification,
+                    "image",
+                )
 
             # Update tracking state
             self._previous_container_hashes = new_container_hashes
@@ -566,7 +624,8 @@ class SystemMonitorPlugin(PluginCore):
 
     def _send_notification(
         self, message: str, *, count_towards_budget: bool = True
-    ) -> None:
+    ) -> bool:
+        """Send a notification; return True only if Telegram accepted it."""
         current_time = time.time()
         if count_towards_budget:
             self._maybe_reset_notification_budget(current_time)
@@ -580,7 +639,7 @@ class SystemMonitorPlugin(PluginCore):
                         "bot.plugins.monitor.methods.maximum.notifications.warn"
                     )
                     self.state.max_notifications_reached = True
-                return
+                return False
 
         try:
             self.bot.send_message(
@@ -596,9 +655,11 @@ class SystemMonitorPlugin(PluginCore):
                 self.state.next_notification_reset_at = (
                     current_time + self._get_notification_reset_window_seconds()
                 )
+            return True
 
         except Exception as e:
             logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
+            return False
 
     def _resolve_notification_reset_window_seconds(self) -> int:
         """Resolve notification reset window from settings with safe fallback."""
@@ -731,7 +792,7 @@ class SystemMonitorPlugin(PluginCore):
             f"Current Usage: {usage:.1f}%"
         )
 
-    def _send_container_notification(self, container: Mapping[str, object]) -> None:
+    def _send_container_notification(self, container: Mapping[str, object]) -> bool:
         container_name = str(container.get("name", "unknown"))
         image_name = str(container.get("image", "unknown"))
         created_at = str(container.get("created", "unknown"))
@@ -751,9 +812,20 @@ class SystemMonitorPlugin(PluginCore):
             f"🔌 <b>Ports:</b> <i>{escape(ports)}</i>\n"
             "⚠️ Please verify this container's authenticity and permissions."
         )
-        self._send_notification(message)
+        # Security alerts bypass the resource-alert budget so they are never
+        # silently dropped; the caller bounds how many are sent per refresh.
+        return self._send_notification(message, count_towards_budget=False)
 
-    def _send_image_notification(self, image: Mapping[str, object]) -> None:
+    @staticmethod
+    def _format_image_size(size_value: object) -> str:
+        """Image details carry a preformatted size; raw byte counts also work."""
+        if isinstance(size_value, (int, float)) and not isinstance(size_value, bool):
+            return set_naturalsize(size_value)
+        if isinstance(size_value, str) and size_value.strip():
+            return size_value.strip()
+        return "unknown"
+
+    def _send_image_notification(self, image: Mapping[str, object]) -> bool:
         image_id = str(image.get("id", "unknown"))[:12]
         image_tags_raw = image.get("tags")
         image_tags = (
@@ -763,8 +835,7 @@ class SystemMonitorPlugin(PluginCore):
         )
         architecture = str(image.get("architecture", "unknown"))
         os_name = str(image.get("os", "unknown"))
-        size_value = image.get("size")
-        size_in_bytes = size_value if isinstance(size_value, (int, float)) else 0
+        image_size = self._format_image_size(image.get("size"))
         created_at = str(image.get("created", "unknown"))
 
         message = (
@@ -773,11 +844,11 @@ class SystemMonitorPlugin(PluginCore):
             f"🏷️ <b>Tags:</b> <i>{escape(image_tags)}</i>\n"
             f"🔧 <b>Architecture:</b> <i>{escape(architecture)}</i>\n"
             f"💻 <b>OS:</b> <i>{escape(os_name)}</i>\n"
-            f"📦 <b>Size:</b> <i>{set_naturalsize(size_in_bytes)}</i>\n"
+            f"📦 <b>Size:</b> <i>{escape(image_size)}</i>\n"
             f"🕒 <b>Created:</b> <i>{escape(created_at)}</i>\n"
             "⚠️ Please verify this image's authenticity and source."
         )
-        self._send_notification(message)
+        return self._send_notification(message, count_towards_budget=False)
 
     def _send_resolution_notification(self, event_type: str, duration: float) -> None:
         message = (

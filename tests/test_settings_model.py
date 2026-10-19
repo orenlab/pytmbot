@@ -151,3 +151,30 @@ def test_access_control_requires_admins_subset_of_allowed_users() -> None:
 
     with pytest.raises(ValidationError, match="allowed_admins_ids must be a subset"):
         SettingsModel.model_validate(payload)
+
+
+def test_docker_host_model_optional_connection_fields_have_safe_defaults() -> None:
+    model = settings_model_module.DockerHostModel(host=["unix:///var/run/docker.sock"])
+    assert model.timeout == 10
+    assert model.cert_path is None
+    assert model.key_path is None
+    assert model.ca_cert is True
+    assert model.verify_hostname is True
+
+
+def test_docker_host_model_accepts_tls_and_timeout_settings() -> None:
+    model = settings_model_module.DockerHostModel(
+        host=["https://docker.example:2376"],
+        timeout=45,
+        cert_path="/certs/cert.pem",
+        key_path="/certs/key.pem",
+        ca_cert="/certs/ca.pem",
+        verify_hostname=False,
+    )
+    assert model.timeout == 45
+    assert model.ca_cert == "/certs/ca.pem"
+    assert model.verify_hostname is False
+    assert (
+        settings_model_module.DockerHostModel(host=["x"], ca_cert=False).ca_cert
+        is False
+    )

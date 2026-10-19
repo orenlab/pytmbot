@@ -79,6 +79,15 @@ docker:
   # true = fail fast during startup/operations if Docker access is broken
   strict_access: false
 
+  # Docker API request timeout in seconds, 5-300 (OPTIONAL, default 10)
+  # timeout: 10
+
+  # TLS for a remote https:// Docker daemon (OPTIONAL; ignored for unix:// sockets)
+  # cert_path: '/certs/cert.pem'   # client certificate
+  # key_path: '/certs/key.pem'     # client key
+  # ca_cert: '/certs/ca.pem'       # CA bundle path; true = system CAs (default)
+  # verify_hostname: true
+
 ################################################################
 # Webhook Configuration (OPTIONAL)
 ################################################################

@@ -8,19 +8,23 @@ also providing basic information about the status of local servers.
 import os
 import time
 import warnings
+from collections.abc import Callable
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from inspect import signature
 from pathlib import Path
 from threading import Lock, RLock
-from types import SimpleNamespace, TracebackType
-from typing import Final
+from types import TracebackType
+from typing import Final, NoReturn
 from uuid import uuid4
 
 from docker.client import DockerClient
 from docker.errors import DockerException
 from docker.tls import TLSConfig
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 
 from pytmbot.exceptions import DockerConnectionError
 from pytmbot.globals import settings
@@ -50,12 +54,30 @@ class _UnavailableDockerCollection:
         raise DockerConnectionError(f"Docker is unavailable: {self._reason}")
 
 
+class _UnavailableDockerApi:
+    """Fallback low-level API client: every call raises DockerConnectionError."""
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+        self._version = "unavailable"
+
+    def __getattr__(self, name: str) -> Callable[..., NoReturn]:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        reason = self._reason
+
+        def _unavailable(*_args: object, **_kwargs: object) -> NoReturn:
+            raise DockerConnectionError(f"Docker is unavailable: {reason}")
+
+        return _unavailable
+
+
 class _UnavailableDockerClient:
     """Fallback client for non-strict mode when Docker is inaccessible."""
 
     def __init__(self, reason: str) -> None:
         self._reason = reason
-        self.api = SimpleNamespace(_version="unavailable")
+        self.api = _UnavailableDockerApi(reason)
         self.containers = _UnavailableDockerCollection(reason)
         self.images = _UnavailableDockerCollection(reason)
 
@@ -73,7 +95,96 @@ class _UnavailableDockerClient:
         return
 
 
+@dataclass(slots=True)
+class _BackoffEntry:
+    failures: int
+    retry_at: float
+    reason: str
+
+
+class _ConnectionBackoff:
+    """
+    Negative cache for failed Docker connections, shared by all adapters.
+
+    Adapters are thread-local; sharing the backoff state means an outage costs
+    one bounded probe per retry window for the whole process instead of one
+    blocking probe per call and per thread.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_seconds: float,
+        max_seconds: float,
+        probe_window_seconds: float,
+    ) -> None:
+        self._base_seconds = base_seconds
+        self._max_seconds = max_seconds
+        self._probe_window_seconds = probe_window_seconds
+        self._lock = Lock()
+        self._entries: dict[str, _BackoffEntry] = {}
+
+    def delay_for(self, failures: int) -> float:
+        """Exponential delay for the given number of consecutive failures."""
+        exponent = max(failures - 1, 0)
+        return min(self._base_seconds * float(2**exponent), self._max_seconds)
+
+    def try_acquire(self, key: str) -> str | None:
+        """
+        Return None if the caller may try to connect, else why to fail fast.
+
+        After the retry deadline the first caller claims the probe; others
+        keep failing fast until it reports success or failure (or the probe
+        window elapses, so a crashed probe cannot block reconnects forever).
+        """
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+            now = time.monotonic()
+            if now < entry.retry_at:
+                return f"{entry.reason} (retry in {entry.retry_at - now:.0f}s)"
+            entry.retry_at = now + self._probe_window_seconds
+            return None
+
+    def record_failure(self, key: str, reason: str) -> float:
+        """Register a failed attempt and return the delay before the next one."""
+        with self._lock:
+            entry = self._entries.setdefault(key, _BackoffEntry(0, 0.0, reason))
+            entry.failures += 1
+            entry.reason = reason
+            delay = self.delay_for(entry.failures)
+            entry.retry_at = time.monotonic() + delay
+            return delay
+
+    def record_success(self, key: str) -> None:
+        with self._lock:
+            self._entries.pop(key, None)
+
+    def reset(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+_CONNECTION_BACKOFF: Final[_ConnectionBackoff] = _ConnectionBackoff(
+    base_seconds=2.0,
+    max_seconds=60.0,
+    probe_window_seconds=30.0,
+)
+
+
+def reset_connection_backoff() -> None:
+    """Forget previous connection failures (tests/shutdown)."""
+    _CONNECTION_BACKOFF.reset()
+
+
 type DockerClientLike = DockerClient | _UnavailableDockerClient
+
+_CONNECTION_ERROR_TYPES: Final[tuple[type[BaseException], ...]] = (
+    DockerConnectionError,
+    RequestsConnectionError,
+    RequestsTimeout,
+)
 
 
 class DockerAdapter:
@@ -89,10 +200,13 @@ class DockerAdapter:
     """
 
     # Class constants for better maintainability
-    _DEFAULT_TIMEOUT: Final[int] = 30
+    # Interactive (Telegram) calls must not hang: keep the per-request HTTP
+    # timeout short. stop/restart add their own grace period on top of it.
+    _DEFAULT_TIMEOUT: Final[int] = 10
     _MIN_TIMEOUT: Final[int] = 5
     _MAX_TIMEOUT: Final[int] = 300
-    _CONNECTION_TEST_TIMEOUT: Final[float] = 5.0
+    # Connection probes (API negotiation + ping) use an even shorter timeout.
+    _CONNECTION_TEST_TIMEOUT: Final[int] = 5
     _CONNECTION_TEST_RETRIES: Final[int] = 3
     _CONNECTION_TEST_BACKOFF_SECONDS: Final[float] = 0.5
     _HEALTH_CHECK_INTERVAL: Final[float] = 30.0
@@ -364,7 +478,10 @@ class DockerAdapter:
                 return version
             except Exception as error:
                 last_error = error
-                if attempt >= self._CONNECTION_TEST_RETRIES - 1:
+                # A timed out daemon will not recover within the retry backoff.
+                if attempt >= self._CONNECTION_TEST_RETRIES - 1 or isinstance(
+                    error, RequestsTimeout
+                ):
                     break
 
                 backoff_seconds = self._CONNECTION_TEST_BACKOFF_SECONDS * (2**attempt)
@@ -387,162 +504,219 @@ class DockerAdapter:
         )
         return None
 
-    def _build_unavailable_client(self, reason: str) -> _UnavailableDockerClient:
-        """Build a fallback client for degraded non-strict mode."""
-        self._log.warning(
-            "docker.adapter.degraded.mode.warn",
-            reason=reason,
-            **self._base_context,
+    def _client_kwargs(self) -> dict[str, object]:
+        """Build DockerClient kwargs; the probe runs with a short timeout."""
+        return {
+            "base_url": self._docker_url,
+            "tls": self._create_tls_config(),
+            "version": "auto",  # Auto-negotiate API version (one GET /version)
+            "user_agent": f"pyTMBot/{getattr(settings, 'version', '1.0')}",
+            "timeout": min(
+                self._CONNECTION_TEST_TIMEOUT, self._timeout_config["timeout"]
+            ),
+        }
+
+    def _drop_client_after_transport_failure(self, error: BaseException | None) -> None:
+        """
+        Forget a client whose request timed out or lost the connection.
+
+        Recording the failure right away makes the next calls fail fast inside
+        the backoff window instead of paying another full timeout on a health
+        ping against the same hung daemon. Calls on the degraded client (no
+        cached client) are not counted again.
+        """
+        with self._lock:
+            client, self._client = self._client, None
+            self._last_health_check = None
+        if client is None:
+            return
+        self._close_quietly(client)
+        reason = (
+            sanitize_exception(error)
+            if isinstance(error, Exception)
+            else "transport error"
         )
-        return _UnavailableDockerClient(reason)
+        _CONNECTION_BACKOFF.record_failure(
+            self._docker_url, f"Request failed: {reason}"
+        )
+
+    def _close_quietly(self, client: object | None) -> None:
+        """Close a client that is no longer used; closing must never fail a call."""
+        close = getattr(client, "close", None)
+        if not callable(close):
+            return
+        try:
+            close()
+        except Exception as error:
+            self._log.trace(
+                "docker.adapter.closing.client.fail",
+                error=sanitize_exception(error),
+                **self._base_context,
+            )
+
+    def _client_creation_error(
+        self, error: Exception, context: dict[str, object]
+    ) -> DockerConnectionError:
+        self._connection_failures += 1
+        if isinstance(error, DockerException):
+            self._log.error(
+                "docker.adapter.client.creation.fail",
+                error=sanitize_exception(error),
+                failure_count=self._connection_failures,
+                **context,
+            )
+            return DockerConnectionError(f"Failed to create Docker client: {error}")
+        self._log.error(
+            "docker.adapter.unexpected.fail",
+            error=sanitize_exception(error),
+            error_type=type(error).__name__,
+            failure_count=self._connection_failures,
+            **context,
+        )
+        return DockerConnectionError(
+            f"Unexpected error creating Docker client: {error}"
+        )
 
     def _create_client(self) -> DockerClient:
-        """Create and configure Docker client with enhanced security and error handling."""
+        """Create, probe and configure a Docker client; close it if the probe fails."""
         context = self._get_context("client_creation")
+        client: DockerClient | None = None
 
         try:
-            tls_config = self._create_tls_config()
-
-            # Enhanced client configuration
-            client_kwargs = {
-                "base_url": self._docker_url,
-                "tls": tls_config,
-                "version": "auto",  # Auto-negotiate API version
-                "user_agent": f"pyTMBot/{getattr(settings, 'version', '1.0')}",
-                **self._timeout_config,
-            }
-
-            client = DockerClient(**client_kwargs)
-
-            # Test connection with timeout
+            client = DockerClient(**self._client_kwargs())
             docker_info = self._test_connection(client)
             if docker_info is None:
                 raise DockerException("Connection test failed")
-
-            # Reset failure counter on successful connection
-            self._connection_failures = 0
-            self._last_health_check = datetime.now()
-
-            self._log.debug(
-                "docker.adapter.connected.debug",
-                docker_version=(
-                    docker_info.get("ServerVersion")
-                    or docker_info.get("Version")
-                    or "unknown"
-                ),
-                api_version=getattr(client.api, "_version", "unknown"),
-                span_id=self._span_id,
-            )
-
-            return client
-
-        except DockerException as e:
-            self._connection_failures += 1
-            self._log.error(
-                "docker.adapter.client.creation.fail",
-                error=sanitize_exception(e),
-                failure_count=self._connection_failures,
-                **context,
-            )
-            raise DockerConnectionError(f"Failed to create Docker client: {e}") from e
-
+            # Probe passed: switch to the regular per-request timeout.
+            client.api.timeout = self._timeout_config["timeout"]
         except Exception as e:
-            self._connection_failures += 1
-            self._log.error(
-                "docker.adapter.unexpected.fail",
-                error=sanitize_exception(e),
-                error_type=type(e).__name__,
-                failure_count=self._connection_failures,
-                **context,
-            )
-            raise DockerConnectionError(
-                f"Unexpected error creating Docker client: {e}"
-            ) from e
+            self._close_quietly(client)
+            raise self._client_creation_error(e, context) from e
 
-    def _should_recreate_client(self) -> bool:
-        """Determine if client should be recreated based on health and age."""
-        if self._client is None:
-            return True
+        self._connection_failures = 0
+        self._last_health_check = datetime.now()
+        self._log.debug(
+            "docker.adapter.connected.debug",
+            docker_version=(
+                docker_info.get("ServerVersion")
+                or docker_info.get("Version")
+                or "unknown"
+            ),
+            api_version=getattr(client.api, "_version", "unknown"),
+            span_id=self._span_id,
+        )
+        return client
 
-        # Check if we need a health check
+    def _reuse_cached_client(self) -> DockerClient | None:
+        """
+        Return the cached client if it is healthy.
+
+        A failed health ping drops (and closes) the client, records the
+        failure in the shared backoff and fails fast instead of immediately
+        re-probing an unreachable daemon.
+        """
+        client = self._client
+        if client is None:
+            return None
+
         now = datetime.now()
         if (
-            self._last_health_check is None
-            or (now - self._last_health_check).total_seconds()
-            > self._HEALTH_CHECK_INTERVAL
+            self._last_health_check is not None
+            and (now - self._last_health_check).total_seconds()
+            <= self._HEALTH_CHECK_INTERVAL
         ):
-            # Quick health check
-            try:
-                self._client.ping()
-                self._last_health_check = now
-                return False
-            except Exception:
-                self._log.trace(
-                    "docker.adapter.health.check.fail",
-                    **self._base_context,
-                )
-                return True
+            return client
 
-        return False
+        try:
+            client.ping()
+        except Exception as error:
+            self._log.trace("docker.adapter.health.check.fail", **self._base_context)
+            self._client = None
+            self._close_quietly(client)
+            reason = f"Health check failed: {sanitize_exception(error)}"
+            _CONNECTION_BACKOFF.record_failure(self._docker_url, reason)
+            raise DockerConnectionError(f"Docker is unavailable: {reason}") from error
+
+        self._last_health_check = now
+        return client
+
+    def _connect_new_client(self) -> DockerClient:
+        """Replace the cached client with a freshly probed one."""
+        with self._lock:
+            old_client, self._client = self._client, None
+        self._close_quietly(old_client)
+
+        try:
+            client = self._create_client()
+        except DockerConnectionError as error:
+            delay = _CONNECTION_BACKOFF.record_failure(
+                self._docker_url, sanitize_exception(error)
+            )
+            self._log.warning(
+                "docker.adapter.degraded.mode.warn",
+                reason=sanitize_exception(error),
+                retry_in_seconds=delay,
+                **self._base_context,
+            )
+            raise
+
+        _CONNECTION_BACKOFF.record_success(self._docker_url)
+        with self._lock:
+            self._client = client
+        return client
+
+    def _acquire_client(self) -> DockerClient:
+        """Return a healthy client, or raise DockerConnectionError quickly."""
+        with self._lock:
+            cached = self._reuse_cached_client()
+        if cached is not None:
+            return cached
+
+        blocked_reason = _CONNECTION_BACKOFF.try_acquire(self._docker_url)
+        if blocked_reason is not None:
+            raise DockerConnectionError(f"Docker is unavailable: {blocked_reason}")
+
+        with self._create_lock:
+            return self._connect_new_client()
+
+    def _unavailable_or_raise(
+        self, error: DockerConnectionError, context: dict[str, object]
+    ) -> _UnavailableDockerClient:
+        if self._strict_docker_access:
+            self._log.error(
+                "docker.adapter.enter.context.fail",
+                error=sanitize_exception(error),
+                **context,
+            )
+            raise error
+        self._log.trace(
+            "docker.adapter.degraded.client.debug",
+            reason=sanitize_exception(error),
+            **context,
+        )
+        return _UnavailableDockerClient(sanitize_exception(error))
 
     def __enter__(self) -> DockerClientLike:
-        """Enter Docker context manager - create and return client with thread safety."""
+        """
+        Enter the Docker context and return a client.
+
+        While Docker is unavailable (inside the backoff window) this returns
+        immediately: a degraded client in non-strict mode, or raises
+        DockerConnectionError in strict mode.
+        """
         self._span_id = uuid4().hex[:8]
         context = self._get_context("context_enter")
 
+        if self._disabled_reason:
+            return _UnavailableDockerClient(self._disabled_reason)
+
         try:
-            with self._lock:
-                if self._disabled_reason and not self._strict_docker_access:
-                    if self._client is None:
-                        self._client = self._build_unavailable_client(
-                            self._disabled_reason
-                        )
-                    return self._client
+            client = self._acquire_client()
+        except DockerConnectionError as error:
+            return self._unavailable_or_raise(error, context)
 
-                if not self._should_recreate_client():
-                    if self._client is None:
-                        raise DockerConnectionError("Docker client is not initialized")
-                    self._log.trace("docker.adapter.context.entered.debug", **context)
-                    return self._client
-
-            # Slow path: create client outside the primary lock.
-            with self._create_lock:
-                with self._lock:
-                    if not self._should_recreate_client():
-                        if self._client is None:
-                            raise DockerConnectionError(
-                                "Docker client is not initialized"
-                            )
-                        self._log.trace(
-                            "docker.adapter.context.entered.debug", **context
-                        )
-                        return self._client
-
-                    old_client = self._client
-                    self._client = None
-
-                if old_client:
-                    with suppress(Exception):
-                        old_client.close()
-
-                created_client = self._create_client()
-
-                with self._lock:
-                    self._client = created_client
-                    self._log.trace("docker.adapter.context.entered.debug", **context)
-                    return self._client
-
-        except Exception as e:
-            if not self._strict_docker_access:
-                with self._lock:
-                    self._client = self._build_unavailable_client(sanitize_exception(e))
-                    return self._client
-            self._log.error(
-                "docker.adapter.enter.context.fail",
-                error=sanitize_exception(e),
-                **context,
-            )
-            raise DockerConnectionError(f"Docker client init failed: {e}") from e
+        self._log.trace("docker.adapter.context.entered.debug", **context)
+        return client
 
     def __exit__(
         self,
@@ -559,15 +733,15 @@ class DockerAdapter:
 
         # Log exceptions at appropriate level
         if exc_type:
-            if issubclass(exc_type, (DockerException, DockerConnectionError)):
+            if issubclass(exc_type, _CONNECTION_ERROR_TYPES):
+                self._drop_client_after_transport_failure(exc_val)
+            if issubclass(exc_type, (DockerException, *_CONNECTION_ERROR_TYPES)):
                 self._log.error(
                     "docker.adapter.context.exited.fail",
                     exception_type=exc_type.__name__,
                     exception_message=str(exc_val),
                     **context,
                 )
-                # Mark client for recreation on Docker errors
-                self._last_health_check = None
             else:
                 # Other exceptions - log at debug to reduce noise
                 self._log.trace(
@@ -602,8 +776,8 @@ class DockerAdapter:
                 if not info:
                     raise DockerException("Docker info returned empty")
 
-                # Test container listing (lightweight operation)
-                containers = client.containers.list(limit=1)
+                # Test container listing (sparse: no per-container inspect race)
+                containers = client.containers.list(limit=1, sparse=True)
 
                 execution_time = (datetime.now() - start_time).total_seconds()
 

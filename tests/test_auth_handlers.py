@@ -407,7 +407,10 @@ def test_twofa_create_referer_keyboard_and_reset(
         "keyboards",
         SimpleNamespace(
             build_referer_main_keyboard=lambda referer_uri: f"main:{referer_uri}",
-            build_referer_inline_keyboard=lambda referer_uri: f"inline:{referer_uri}",
+            build_referer_inline_keyboard=lambda referer_uri, label=None: (
+                f"inline:{referer_uri}|{label}"
+            ),
+            build_reply_keyboard=lambda: "main-menu",
         ),
     )
 
@@ -415,7 +418,18 @@ def test_twofa_create_referer_keyboard_and_reset(
     assert cast(str, twofa_module.__create_referer_keyboard(1)) == "main:/docker"
 
     session_stub.handler_type = "callback_query"
-    assert cast(str, twofa_module.__create_referer_keyboard(1)) == "inline:/docker"
+    assert cast(str, twofa_module.__create_referer_keyboard(1)) == "inline:/docker|None"
+
+    # A stored Stop press returns to the Manage screen, never to Stop itself.
+    session_stub.referer_uri = "__stop__:0123456789ab:1"
+    assert cast(str, twofa_module.__create_referer_keyboard(1)) == (
+        "inline:__manage__:0123456789ab:1|container actions"
+    )
+
+    # No pending action: confirm with the main menu instead of failing.
+    session_stub.referer_uri = None
+    assert cast(str, twofa_module.__create_referer_keyboard(1)) == "main-menu"
+    session_stub.referer_uri = "/docker"
 
     session_stub.handler_type = "unsupported"
     with pytest.raises(exceptions.HandlingException):

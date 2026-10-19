@@ -16,6 +16,7 @@ from telebot.types import (
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.handlers_util.callback_auth import parse_bound_user_id
 from pytmbot.handlers.handlers_util.utils import send_bot_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -41,6 +42,22 @@ def _get_user_name(query: Message | CallbackQuery) -> str:
     return user.first_name or user.username or "User"
 
 
+def _presser_owns_callback_message(query: CallbackQuery) -> bool:
+    """
+    Return True when the pressed message may be deleted on the presser's behalf.
+
+    A private chat only holds the presser's messages. In groups the message
+    must carry a button bound to the presser; unbound or foreign buttons never
+    lead to deleting another member's message.
+    """
+    message = query.message
+    if message is None or query.from_user is None:
+        return False
+    if getattr(message.chat, "type", None) == "private":
+        return True
+    return parse_bound_user_id(query.data) == query.from_user.id
+
+
 def _send_response(
     query: Message | CallbackQuery,
     bot: TeleBot,
@@ -63,7 +80,8 @@ def _send_response(
         callback_message = query.message
         if callback_message is None:
             raise ValueError("Callback query does not contain message")
-        bot.delete_message(callback_message.chat.id, callback_message.message_id)
+        if _presser_owns_callback_message(query):
+            bot.delete_message(callback_message.chat.id, callback_message.message_id)
         send_bot_message(
             bot,
             callback_message.chat.id,

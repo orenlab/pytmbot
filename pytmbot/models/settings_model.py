@@ -97,11 +97,24 @@ class DockerHostModel(BaseModel):
         host (List[str]): List of Docker host URLs or IP addresses.
         debug_docker_client (bool): Enable debug logging for Docker client.
         strict_access (bool): Fail fast when Docker is unavailable or misconfigured.
+        timeout (int): Per-request Docker API timeout in seconds. The adapter
+            accepts 5-300 and falls back to the default (or fails in strict
+            mode) for other values.
+        cert_path (str | None): TLS client certificate (https:// hosts only).
+        key_path (str | None): TLS client key (https:// hosts only).
+        ca_cert (bool | str): CA bundle path, True for system CAs, False to
+            disable server verification (https:// hosts only).
+        verify_hostname (bool): Verify the daemon's TLS hostname.
     """
 
     host: list[str] = Field(min_length=1)
     debug_docker_client: bool = False
     strict_access: bool = False
+    timeout: int = 10
+    cert_path: str | None = None
+    key_path: str | None = None
+    ca_cert: bool | str = True
+    verify_hostname: bool = True
 
 
 class InfluxDBModel(BaseModel):

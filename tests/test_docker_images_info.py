@@ -16,12 +16,17 @@ type _JsonValue = (
 )
 
 
+_IMAGE_ID = "sha256:" + "0123456789ab" + "c" * 52
+_IMAGE_SHORT_ID = _IMAGE_ID[:19]
+
+
 @dataclass
 class _FakeImage:
     short_id: str
     tags: list[str]
     attrs: _JsonValue
     _history: list[dict[str, _JsonValue]] = field(default_factory=list)
+    id: str = _IMAGE_ID
 
     def history(self) -> list[dict[str, _JsonValue]]:
         return self._history
@@ -129,7 +134,10 @@ def test_fetch_image_details_success(monkeypatch: pytest.MonkeyPatch) -> None:
             },
         )
     ]
-    adapter = SimpleNamespace(images=SimpleNamespace(list=lambda all=True: images))  # noqa: FBT002
+    adapter = SimpleNamespace(
+        api=SimpleNamespace(images=lambda all=False: [{"Id": _IMAGE_ID}]),  # noqa: FBT002
+        images=SimpleNamespace(get=lambda _image_id: images[0]),
+    )
 
     @contextmanager
     def _client_context() -> Iterator[SimpleNamespace]:
@@ -163,7 +171,8 @@ def test_fetch_image_details_wraps_connection_error(
         images_info_module, "docker_client_context", lambda: _FailingContext()
     )
 
-    with pytest.raises(ImageOperationError, match="Failed to connect"):
+    # Outages surface as DockerConnectionError (not as a generic image error).
+    with pytest.raises(DockerConnectionError):
         images_info_module.fetch_image_details()
 
 
@@ -197,7 +206,8 @@ def test_get_image_history_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
 
-    history = images_info_module.get_image_history("sha256:abc")
+    history = images_info_module.get_image_history(_IMAGE_SHORT_ID)
+    assert history is not None
     assert len(history) == 1
     assert history[0]["id"] == "sha256:layer"
     assert history[0]["created_by"] == "RUN apk add curl"
@@ -218,8 +228,7 @@ def test_get_image_history_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
 
-    with pytest.raises(ImageNotFound):
-        images_info_module.get_image_history("missing")
+    assert images_info_module.get_image_history("missing") is None
 
 
 def test_get_image_usage_success_and_failure(
@@ -227,33 +236,41 @@ def test_get_image_usage_success_and_failure(
 ) -> None:
     import pytmbot.adapters.docker.images_info as images_info_module
 
-    image = SimpleNamespace(id="sha256:img")
+    image = SimpleNamespace(id=_IMAGE_ID, attrs={"RepoTags": ["repo/app:1.0"]})
     containers = [
         SimpleNamespace(
             name="api",
             short_id="abc123",
             status="running",
-            image=SimpleNamespace(id="sha256:img"),
-            attrs={"State": {"Status": "running", "StartedAt": "2026-02-19T14:00:00Z"}},
+            attrs={
+                "Image": _IMAGE_ID,
+                "State": {"Status": "running", "StartedAt": "2026-02-19T14:00:00Z"},
+            },
         ),
         SimpleNamespace(
             name="worker",
             short_id="def456",
             status="exited",
-            image=SimpleNamespace(id="sha256:img"),
-            attrs={"State": {"Status": "exited", "StartedAt": "2026-02-19T13:00:00Z"}},
+            attrs={
+                "Image": _IMAGE_ID,
+                "State": {"Status": "exited", "StartedAt": "2026-02-19T13:00:00Z"},
+            },
         ),
         SimpleNamespace(
             name="other",
             short_id="zzz999",
             status="running",
-            image=SimpleNamespace(id="sha256:other"),
-            attrs={"State": {"Status": "running", "StartedAt": "2026-02-19T12:00:00Z"}},
+            attrs={
+                "Image": "sha256:other",
+                "State": {"Status": "running", "StartedAt": "2026-02-19T12:00:00Z"},
+            },
         ),
     ]
     adapter = SimpleNamespace(
         images=SimpleNamespace(get=lambda _image_id: image),
-        containers=SimpleNamespace(list=lambda all=True: containers),  # noqa: FBT002
+        containers=SimpleNamespace(
+            list=lambda all=True, ignore_removed=False: containers  # noqa: FBT002
+        ),
     )
 
     @contextmanager
@@ -262,7 +279,8 @@ def test_get_image_usage_success_and_failure(
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _client_context)
 
-    usage = images_info_module.get_image_usage("sha256:img")
+    usage = images_info_module.get_image_usage(_IMAGE_SHORT_ID)
+    assert usage is not None
     assert usage["containers_count"] == 2
     assert usage["running_count"] == 1
     assert usage["stopped_count"] == 1
@@ -290,7 +308,7 @@ def test_get_image_usage_success_and_failure(
     )
 
     with pytest.raises(ImageOperationError, match="Failed to get image usage"):
-        images_info_module.get_image_usage("sha256:img")
+        images_info_module.get_image_usage(_IMAGE_SHORT_ID)
 
 
 def test_images_info_helpers_cover_edge_cases() -> None:
@@ -433,12 +451,13 @@ def test_get_image_usage_handles_not_found_and_missing_image_id(
         yield adapter_not_found
 
     monkeypatch.setattr(images_info_module, "docker_client_context", _not_found_context)
-    with pytest.raises(ImageNotFound):
-        images_info_module.get_image_usage("missing")
+    assert images_info_module.get_image_usage("missing") is None
 
     adapter_missing_id = SimpleNamespace(
-        images=SimpleNamespace(get=lambda _image_id: SimpleNamespace(id="")),
-        containers=SimpleNamespace(list=lambda all=True: []),  # noqa: FBT002
+        images=SimpleNamespace(
+            get=lambda _image_id: SimpleNamespace(id="", attrs={"RepoTags": ["app:1"]})
+        ),
+        containers=SimpleNamespace(list=lambda all=True, ignore_removed=False: []),  # noqa: FBT002
     )
 
     @contextmanager
@@ -449,4 +468,4 @@ def test_get_image_usage_handles_not_found_and_missing_image_id(
         images_info_module, "docker_client_context", _missing_id_context
     )
     with pytest.raises(ImageOperationError, match="Image id is unavailable"):
-        images_info_module.get_image_usage("sha256:none")
+        images_info_module.get_image_usage("app:1")

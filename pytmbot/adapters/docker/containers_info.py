@@ -6,7 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import time
-from datetime import datetime
+from collections.abc import Iterable
 from threading import RLock
 from typing import Final
 
@@ -17,7 +17,10 @@ from docker.models.containers import Container
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
+    docker_unavailable_as_connection_error,
     get_container_safely,
+    parse_docker_timestamp,
+    validate_container_reference,
     with_operation_logging,
 )
 from pytmbot.exceptions import (
@@ -26,102 +29,19 @@ from pytmbot.exceptions import (
     ErrorContext,
 )
 from pytmbot.logs import Logger
-from pytmbot.utils import sanitize_exception, set_naturaltime
+from pytmbot.utils import as_object_dict, sanitize_exception, set_naturaltime
 
 logger = Logger()
 
 # Module-level constants
-CACHE_TTL: Final[int] = 60  # Cache TTL in seconds
 MAX_LOG_TAIL: Final[int] = 100  # Maximum log lines to fetch
 DOCKER_COUNTERS_CACHE_TTL: Final[float] = 30.0
+_MAX_SUMMARY_ITEMS: Final[int] = 5
+_COUNTED_STATES: Final[tuple[str, ...]] = ("running", "paused", "restarting", "created")
 _LOGS_DRIVER_NOT_READABLE_MARKER: Final[str] = (
     "configured logging driver does not support reading"
 )
 
-
-class ContainerInfoCache:
-    """Thread-safe cache for container information with TTL."""
-
-    __slots__ = (
-        "_cache",
-        "_lock",
-        "_ttl",
-        "_max_entries",
-        "_cleanup_interval_seconds",
-        "_last_cleanup_timestamp",
-    )
-
-    def __init__(self, ttl: int = CACHE_TTL):
-        self._cache: dict[str, tuple[dict[str, str], float]] = {}
-        self._lock = RLock()
-        self._ttl = ttl
-        self._max_entries = 100
-        self._cleanup_interval_seconds = 30.0
-        self._last_cleanup_timestamp = 0.0
-
-    def _cleanup_expired_entries(
-        self, current_time: float, *, force: bool = False
-    ) -> None:
-        """Cleanup expired entries with bounded cadence."""
-        should_cleanup = force or (
-            current_time - self._last_cleanup_timestamp
-            >= self._cleanup_interval_seconds
-        )
-        if not should_cleanup:
-            return
-
-        self._last_cleanup_timestamp = current_time
-        expired_keys = [
-            key
-            for key, (_value, timestamp) in self._cache.items()
-            if current_time - timestamp >= self._ttl
-        ]
-        for key in expired_keys:
-            self._cache.pop(key, None)
-
-    def get(self, key: str) -> dict[str, str] | None:
-        """Get cached value if not expired."""
-        with self._lock:
-            current_time = time.time()
-            self._cleanup_expired_entries(current_time)
-
-            if key in self._cache:
-                value, timestamp = self._cache[key]
-                if current_time - timestamp < self._ttl:
-                    return value
-                else:
-                    # Remove expired entry
-                    del self._cache[key]
-        return None
-
-    def set(self, key: str, value: dict[str, str]) -> None:
-        """Set cached value with current timestamp."""
-        with self._lock:
-            current_time = time.time()
-            self._cache[key] = (value, current_time)
-            self._cleanup_expired_entries(
-                current_time, force=len(self._cache) > self._max_entries
-            )
-
-            if len(self._cache) > self._max_entries:
-                oldest_key = min(
-                    self._cache, key=lambda cache_key: self._cache[cache_key][1]
-                )
-                self._cache.pop(oldest_key, None)
-
-    def clear(self) -> None:
-        """Clear all cached entries."""
-        with self._lock:
-            self._cache.clear()
-
-    def size(self) -> int:
-        """Get current cache size."""
-        with self._lock:
-            return len(self._cache)
-
-
-# Global cache instance
-_container_cache = ContainerInfoCache()
 _docker_counters_cache: dict[str, int] | None = None
 _docker_counters_cached_at: float = 0.0
 _docker_counters_lock = RLock()
@@ -156,182 +76,167 @@ def _store_docker_counters(counters: dict[str, int]) -> None:
         _docker_counters_cached_at = time.monotonic()
 
 
+def _container_short_id(container: object) -> str:
+    return (
+        str(getattr(container, "short_id", "") or "")
+        or str(getattr(container, "id", "") or "")[:12]
+    )
+
+
+def _format_created(attrs: dict[str, object]) -> str:
+    created_at = parse_docker_timestamp(attrs.get("Created"))
+    return created_at.strftime("%Y-%m-%d, %H:%M:%S") if created_at else "unknown"
+
+
+def _format_run_at(state_info: dict[str, object]) -> str:
+    started_at = parse_docker_timestamp(state_info.get("StartedAt"))
+    return set_naturaltime(started_at) if started_at else "N/A"
+
+
+def _resolve_status(state_info: dict[str, object], container: object) -> str:
+    status_value = state_info.get("Status")
+    if isinstance(status_value, str) and status_value:
+        return status_value
+    return str(getattr(container, "status", "N/A") or "N/A")
+
+
+def _summarize_networks(attrs: dict[str, object]) -> str:
+    network_settings = as_object_dict(attrs.get("NetworkSettings"))
+    names = sorted(
+        str(name) for name in as_object_dict(network_settings.get("Networks"))
+    )
+    return ", ".join(names[:_MAX_SUMMARY_ITEMS]) or "N/A"
+
+
+def _describe_port(container_port: str, bindings: object) -> str:
+    if not isinstance(bindings, list):
+        return container_port
+    hosts = [
+        f"{binding.get('HostIp') or '0.0.0.0'}:{binding.get('HostPort')}"
+        for binding in bindings
+        if isinstance(binding, dict) and binding.get("HostPort")
+    ]
+    return f"{'/'.join(hosts)}->{container_port}" if hosts else container_port
+
+
+def _summarize_ports(attrs: dict[str, object]) -> str:
+    network_settings = as_object_dict(attrs.get("NetworkSettings"))
+    ports = as_object_dict(network_settings.get("Ports"))
+    rendered = sorted(
+        _describe_port(str(container_port), bindings)
+        for container_port, bindings in ports.items()
+    )
+    return ", ".join(rendered[:_MAX_SUMMARY_ITEMS]) or "N/A"
+
+
+def _build_container_summary(container: object) -> dict[str, str]:
+    """Build the list/overview row for a container from its inspect attrs."""
+    attrs = as_object_dict(getattr(container, "attrs", {}))
+    state_info = as_object_dict(attrs.get("State"))
+    config = as_object_dict(attrs.get("Config"))
+    health = as_object_dict(state_info.get("Health"))
+    container_id = _container_short_id(container)
+    container_name = str(attrs.get("Name") or "").lstrip("/") or container_id[:12]
+    image_name = config.get("Image")
+
+    return {
+        "id": container_id,
+        "name": container_name,
+        "image": image_name if isinstance(image_name, str) else "N/A",
+        "created": _format_created(attrs),
+        "run_at": _format_run_at(state_info),
+        "status": _resolve_status(state_info, container),
+        "health": str(health.get("Status", "N/A")),
+        "exit_code": str(state_info.get("ExitCode", "N/A")),
+        "restart_count": str(attrs.get("RestartCount", 0)),
+        "networks": _summarize_networks(attrs),
+        "ports": _summarize_ports(attrs),
+    }
+
+
 @with_operation_logging("aggregate_container_details")
 def __aggregate_container_details(
     container_ref: str | Container,
     docker_client: DockerClient | None = None,
 ) -> dict[str, str]:
     """
-    Aggregates details of a Docker container into a dictionary with enhanced error handling.
+    Aggregate the details of a container for list/overview rendering.
 
-    Args:
-        container_ref: Container ID or container object.
-
-    Returns:
-        Dict containing container details for list/overview rendering.
+    Details are always built from fresh inspect data (no cross-call cache), so
+    the status shown right after a start/stop/restart is current.
 
     Raises:
-        ContainerNotFoundError: If container is not found.
-        Exception: For other container access errors.
+        ContainerNotFoundError: If a referenced container is not found.
     """
-    try:
-        if isinstance(container_ref, Container):
-            container_details = container_ref
-            container_id = (
-                getattr(container_details, "short_id", "")
-                or str(getattr(container_details, "id", ""))[:12]
-            )
-        else:
-            container_id = container_ref
-            container_details = get_container_safely(
-                container_id,
-                docker_client=docker_client,
-            )
+    if isinstance(container_ref, Container):
+        container: object = container_ref
+    else:
+        container = get_container_safely(container_ref, docker_client=docker_client)
 
-        context = build_container_context(
-            container_id=container_id,
+    details = _build_container_summary(container)
+    logger.debug(
+        "docker.containers.container.details.debug",
+        status=details["status"],
+        health=details["health"],
+        **build_container_context(
+            container_id=details["id"] or "unknown",
             action="container_details_aggregation",
-        )
+        ),
+    )
+    return details
 
-        # Check cache first
-        cached_details = _container_cache.get(f"details_{container_id}")
-        if cached_details is not None:
-            logger.debug("docker.containers.using.cached.debug", **context)
-            return cached_details
 
-        attrs_raw = getattr(container_details, "attrs", {})
-        attrs = attrs_raw if isinstance(attrs_raw, dict) else {}
-
-        # Safely parse created timestamp
-        created_str_value = attrs.get("Created", "")
-        created_str = created_str_value if isinstance(created_str_value, str) else ""
+def _collect_container_rows(
+    container_objects: list[Container],
+    adapter: DockerClient,
+    context: dict[str, str],
+) -> tuple[list[dict[str, str]], list[str]]:
+    container_details: list[dict[str, str]] = []
+    failed_containers: list[str] = []
+    for container in container_objects:
+        container_id = _container_short_id(container) or "unknown"
         try:
-            if created_str:
-                created_at = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-            else:
-                created_at = None
-        except (ValueError, AttributeError) as e:
-            logger.warning(
-                "docker.containers.parse.container.fail",
-                created_str=created_str,
-                error=str(e),
+            container_details.append(__aggregate_container_details(container, adapter))
+        except ContainerNotFoundError:
+            failed_containers.append(container_id)
+            logger.debug(
+                "docker.containers.container.not.debug",
+                container_id=container_id,
                 **context,
             )
-            created_at = None
-
-        # Safely get container state info
-        state_raw = attrs.get("State", {})
-        state_info = state_raw if isinstance(state_raw, dict) else {}
-        started_at_value = state_info.get("StartedAt", "")
-        started_at_str = started_at_value if isinstance(started_at_value, str) else ""
-
-        # Parse start time
-        run_at_display = "N/A"
-        if started_at_str and started_at_str != "0001-01-01T00:00:00Z":
-            try:
-                started_at = datetime.fromisoformat(
-                    started_at_str.replace("Z", "+00:00")
-                )
-                run_at_display = set_naturaltime(started_at)
-            except (ValueError, AttributeError) as e:
-                logger.debug(
-                    "docker.containers.parse.container.fail",
-                    started_at_str=started_at_str,
-                    error=str(e),
-                    **context,
-                )
-
-        # Get image information safely
-        config_raw = attrs.get("Config", {})
-        config = config_raw if isinstance(config_raw, dict) else {}
-        image_name_value = config.get("Image", "N/A")
-        image_name = image_name_value if isinstance(image_name_value, str) else "N/A"
-
-        # Extract container name (remove leading slash)
-        container_name_raw = attrs.get("Name", "")
-        container_name = (
-            container_name_raw.lstrip("/")
-            if isinstance(container_name_raw, str)
-            else ""
-        )
-        if not container_name:
-            container_name = container_id[:12]  # Fallback to short ID
-
-        health_raw = state_info.get("Health", {})
-        health = (
-            health_raw.get("Status", "N/A") if isinstance(health_raw, dict) else "N/A"
-        )
-        status_value = state_info.get("Status")
-        status = (
-            status_value
-            if isinstance(status_value, str) and status_value
-            else getattr(container_details, "status", "N/A")
-        )
-
-        details = {
-            "id": container_id,
-            "name": container_name.title(),
-            "image": image_name,
-            "created": (
-                created_at.strftime("%Y-%m-%d, %H:%M:%S") if created_at else "unknown"
-            ),
-            "run_at": run_at_display,
-            "status": status,
-            "health": health,
-            "exit_code": state_info.get("ExitCode"),
-            "restart_count": attrs.get("RestartCount", 0),
-        }
-
-        # Cache the details
-        _container_cache.set(f"details_{container_id}", details)
-
-        logger.debug(
-            "docker.containers.container.details.debug",
-            status=details["status"],
-            health=details.get("health", "N/A"),
-            **context,
-        )
-        return details
-
-    except ContainerNotFoundError:
-        context = build_container_context(
-            container_id=str(container_ref),
-            action="container_details_aggregation",
-        )
-        logger.warning("docker.containers.container.not.warn", **context)
-        raise
-
-    except Exception as e:
-        context = build_container_context(
-            container_id=str(container_ref),
-            action="container_details_aggregation",
-        )
-        logger.error(
-            "docker.containers.container.details.fail",
-            error=sanitize_exception(e),
-            error_type=type(e).__name__,
-            **context,
-        )
-        raise
+        except Exception as e:
+            failed_containers.append(container_id)
+            logger.error(
+                "docker.containers.container.details.fail",
+                container_id=container_id,
+                error=sanitize_exception(e),
+                error_type=type(e).__name__,
+                **context,
+            )
+    return container_details, failed_containers
 
 
 @with_operation_logging("retrieve_containers_stats")
 def retrieve_containers_stats() -> list[dict[str, str]]:
     """
-    Retrieve and return details of Docker containers with a single list roundtrip.
+    Retrieve details of all Docker containers with a single list roundtrip.
 
-    Returns:
-        List of container details dictionaries.
+    Containers removed between the list call and their inspect are skipped
+    (``ignore_removed``) instead of failing the whole listing.
 
     Raises:
+        DockerConnectionError: If Docker is unavailable.
         Exception: If container list fetching fails.
     """
     context = {"action": "containers_stats_retrieval"}
     start_time = time.time()
 
     try:
-        with docker_client_context() as adapter:
-            container_objects = adapter.containers.list(all=True)
+        with (
+            docker_unavailable_as_connection_error("container listing"),
+            docker_client_context() as adapter,
+        ):
+            container_objects = adapter.containers.list(all=True, ignore_removed=True)
             if not container_objects:
                 logger.info("docker.containers.no.found.info", **context)
                 return []
@@ -341,152 +246,110 @@ def retrieve_containers_stats() -> list[dict[str, str]]:
                 containers_count=len(container_objects),
                 **context,
             )
-
-            container_details: list[dict[str, str]] = []
-            failed_containers: list[str] = []
-            for container in container_objects:
-                container_id = (
-                    getattr(container, "short_id", "")
-                    or str(getattr(container, "id", ""))[:12]
-                    or "unknown"
-                )
-                try:
-                    details = __aggregate_container_details(container, adapter)
-                    container_details.append(details)
-                except ContainerNotFoundError:
-                    failed_containers.append(container_id)
-                    logger.debug(
-                        "docker.containers.container.not.debug",
-                        container_id=container_id,
-                        **context,
-                    )
-                except Exception as e:
-                    failed_containers.append(container_id)
-                    logger.error(
-                        "docker.containers.container.details.fail",
-                        container_id=container_id,
-                        error=sanitize_exception(e),
-                        error_type=type(e).__name__,
-                        **context,
-                    )
-
-        execution_time = time.time() - start_time
-
-        # Sort results by container name for consistent ordering
-        if len(container_details) > 1:
-            container_details.sort(key=lambda x: x.get("name", "").lower())
-
-        # Log comprehensive summary
-        logger.info(
-            "docker.containers.container.stats.ok",
-            successful_count=len(container_details),
-            failed_count=len(failed_containers),
-            timeout_count=0,
-            total_containers=len(container_objects),
-            execution_time=f"{execution_time:.2f}s",
-            **context,
-        )
-
-        if failed_containers:
-            logger.warning(
-                "docker.containers.some.fail",
-                failed_containers=failed_containers[:10],  # Limit log size
-                failed_count=len(failed_containers),
-                **context,
+            container_details, failed_containers = _collect_container_rows(
+                container_objects, adapter, context
             )
-
-        return container_details
-
     except Exception as e:
-        execution_time = time.time() - start_time
         logger.error(
             "docker.containers.container.stats.fail",
             error=sanitize_exception(e),
-            execution_time=f"{execution_time:.2f}s",
+            execution_time=f"{time.time() - start_time:.2f}s",
             **context,
         )
         raise
+
+    container_details.sort(key=lambda row: row.get("name", "").lower())
+    logger.info(
+        "docker.containers.container.stats.ok",
+        successful_count=len(container_details),
+        failed_count=len(failed_containers),
+        total_containers=len(container_objects),
+        execution_time=f"{time.time() - start_time:.2f}s",
+        **context,
+    )
+    if failed_containers:
+        logger.warning(
+            "docker.containers.some.fail",
+            failed_containers=failed_containers[:10],  # Limit log size
+            failed_count=len(failed_containers),
+            **context,
+        )
+    return container_details
+
+
+def _decode_logs(logs: object) -> str:
+    if isinstance(logs, (bytes, bytearray)):
+        log_content = logs.decode("utf-8", errors="replace")
+    else:
+        log_content = str(logs)
+
+    max_log_size = 10000  # 10KB limit
+    if len(log_content) > max_log_size:
+        log_content = (
+            f"[LOG TRUNCATED - showing last {max_log_size} chars]\n"
+            + log_content[-max_log_size:]
+        )
+    return log_content
+
+
+def _logs_unavailable_error(container_id: str) -> ContainerLogsUnavailableError:
+    return ContainerLogsUnavailableError(
+        ErrorContext(
+            message=f"Container logs unavailable for: {container_id}",
+            error_code="DOCKER_010",
+            metadata={
+                "container_id": container_id,
+                "reason": "logging_driver_not_readable",
+            },
+        )
+    )
 
 
 @with_operation_logging("fetch_container_logs")
 def fetch_container_logs(
     container_id: str, tail_lines: int = MAX_LOG_TAIL, include_timestamps: bool = True
-) -> str:
+) -> str | None:
     """
-    Fetches and returns the logs of a Docker container with enhanced options.
-
-    Args:
-        container_id: The ID of the container.
-        tail_lines: Number of log lines to fetch (default: 100, max: 1000).
-        include_timestamps: Whether to include timestamps in logs.
+    Fetch the logs of a Docker container (exact name or short/full ID).
 
     Returns:
-        Container logs as a string.
+        Container logs as a string, or None if the container does not exist.
 
     Raises:
-        ContainerNotFoundError: If the container cannot be found.
         ValueError: If tail_lines is invalid.
+        InvalidContainerReferenceError: If the reference is invalid.
+        ContainerLogsUnavailableError: If the logging driver cannot be read.
+        DockerConnectionError: If Docker is unavailable.
     """
-    # Validate input parameters
     if not isinstance(tail_lines, int) or tail_lines <= 0:
         raise ValueError("tail_lines must be a positive integer")
 
-    # Limit maximum log lines for performance and memory reasons
+    reference = validate_container_reference(container_id)
     tail_lines = min(tail_lines, 1000)
-
     context = build_container_context(
-        container_id=container_id,
+        container_id=reference,
         action="container_logs_fetch",
         tail_lines=tail_lines,
         include_timestamps=include_timestamps,
     )
-
     start_time = time.time()
 
     try:
-        with docker_client_context() as adapter:
-            container = get_container_safely(container_id, docker_client=adapter)
-
-            # Fetch logs with enhanced options
+        with (
+            docker_unavailable_as_connection_error("container logs fetch"),
+            docker_client_context() as adapter,
+        ):
+            container = get_container_safely(reference, docker_client=adapter)
             logs = container.logs(
                 tail=tail_lines,
                 stdout=True,
                 stderr=True,
                 timestamps=include_timestamps,
                 follow=False,  # Never follow in sync context
-                since=None,  # Could be parameterized in future
             )
-
-        # Decode logs with strict type narrowing
-        if isinstance(logs, (bytes, bytearray)):
-            log_content = logs.decode("utf-8", errors="replace")
-        else:
-            log_content = str(logs)
-
-        # Truncate if too large (safety measure)
-        max_log_size = 10000  # 10KB limit
-        if len(log_content) > max_log_size:
-            log_content = (
-                f"[LOG TRUNCATED - showing last {max_log_size} chars]\n"
-                + log_content[-max_log_size:]
-            )
-
-        execution_time = time.time() - start_time
-
-        logger.debug(
-            "docker.containers.container.logs.debug",
-            log_size=len(log_content),
-            actual_lines=len(log_content.splitlines()),
-            execution_time=f"{execution_time:.3f}s",
-            **context,
-        )
-
-        return log_content
-
     except ContainerNotFoundError:
         logger.warning("docker.containers.container.not.warn", **context)
-        raise
-
+        return None
     except APIError as error:
         if _is_logs_driver_not_readable_error(error):
             logger.info(
@@ -494,139 +357,138 @@ def fetch_container_logs(
                 reason="logging_driver_not_readable",
                 **context,
             )
-            raise ContainerLogsUnavailableError(
-                ErrorContext(
-                    message=f"Container logs unavailable for: {container_id}",
-                    error_code="DOCKER_010",
-                    metadata={
-                        "container_id": container_id,
-                        "reason": "logging_driver_not_readable",
-                    },
-                )
-            ) from error
+            raise _logs_unavailable_error(reference) from error
         raise
-
     except Exception as e:
-        execution_time = time.time() - start_time
         logger.error(
             "docker.containers.fetch.container.fail",
             error=sanitize_exception(e),
-            execution_time=f"{execution_time:.3f}s",
+            execution_time=f"{time.time() - start_time:.3f}s",
             **context,
         )
         raise
+
+    log_content = _decode_logs(logs)
+    logger.debug(
+        "docker.containers.container.logs.debug",
+        log_size=len(log_content),
+        actual_lines=len(log_content.splitlines()),
+        execution_time=f"{time.time() - start_time:.3f}s",
+        **context,
+    )
+    return log_content
+
+
+def summarize_container_statuses(statuses: Iterable[str]) -> dict[str, int]:
+    """
+    Count containers per lifecycle bucket.
+
+    ``stopped_containers`` counts only containers that are really stopped
+    (exited/dead/removing); paused, restarting and created containers are
+    reported separately.
+    """
+    counts = dict.fromkeys(_COUNTED_STATES, 0)
+    total = 0
+    for status in statuses:
+        total += 1
+        normalized = status.strip().lower()
+        if normalized in counts:
+            counts[normalized] += 1
+
+    return {
+        "containers_count": total,
+        "running_containers": counts["running"],
+        "paused_containers": counts["paused"],
+        "restarting_containers": counts["restarting"],
+        "created_containers": counts["created"],
+        "stopped_containers": total - sum(counts.values()),
+    }
 
 
 @with_operation_logging("fetch_docker_counters")
 def fetch_docker_counters(*, force_refresh: bool = False) -> dict[str, int]:
     """
-    Fetches Docker image and container counts with caching.
+    Fetch Docker image and container counts with caching.
 
-    Returns:
-        Dict with image and container counts.
+    Uses a sparse container listing and the image summary list, so counting
+    never inspects individual objects (no list/inspect race, two API calls).
 
     Raises:
+        DockerConnectionError: If Docker is unavailable.
         Exception: If Docker operations fail.
     """
     context = {"action": "docker_counters_fetch"}
     start_time = time.time()
 
+    if not force_refresh:
+        cached_counters = _get_cached_docker_counters()
+        if cached_counters is not None:
+            logger.debug("docker.containers.counters.cache.hit.debug", **context)
+            return cached_counters
+
     try:
-        if not force_refresh:
-            cached_counters = _get_cached_docker_counters()
-            if cached_counters is not None:
-                logger.debug("docker.containers.counters.cache.hit.debug", **context)
-                return cached_counters
-
-        with docker_client_context() as adapter:
-            # Use list comprehensions for better performance
-            images_count = len(
-                adapter.images.list(all=False)
-            )  # Only non-dangling images
-            containers = adapter.containers.list(all=True)
-            containers_count = len(containers)
-            running_containers = sum(
-                1
-                for container in containers
-                if getattr(container, "status", "") == "running"
-            )
-
-            counters = {
-                "images_count": images_count,
-                "containers_count": containers_count,
-                "running_containers": running_containers,
-                "stopped_containers": containers_count - running_containers,
-            }
-
-            execution_time = time.time() - start_time
-
-            logger.info(
-                "docker.containers.counters.fetch.info",
-                execution_time=f"{execution_time:.3f}s",
-                **counters,
-                **context,
-            )
-
-            _store_docker_counters(counters)
-            return counters
-
+        with (
+            docker_unavailable_as_connection_error("docker counters fetch"),
+            docker_client_context() as adapter,
+        ):
+            containers = adapter.containers.list(all=True, sparse=True)
+            images_count = len(adapter.api.images(quiet=True))
     except Exception as e:
-        execution_time = time.time() - start_time
         logger.error(
             "docker.containers.fetch.counters.fail",
             error=sanitize_exception(e),
-            execution_time=f"{execution_time:.3f}s",
+            execution_time=f"{time.time() - start_time:.3f}s",
             **context,
         )
         raise
+
+    counters = {
+        "images_count": images_count,
+        **summarize_container_statuses(
+            str(getattr(container, "status", "") or "") for container in containers
+        ),
+    }
+    logger.info(
+        "docker.containers.counters.fetch.info",
+        execution_time=f"{time.time() - start_time:.3f}s",
+        **counters,
+        **context,
+    )
+    _store_docker_counters(counters)
+    return counters
 
 
 @with_operation_logging("fetch_full_container_details")
 def fetch_full_container_details(container_id: str) -> Container | None:
     """
-    Retrieves and returns the actual Docker Container object for handler compatibility.
-
-    Args:
-        container_id (str): The ID of the container.
+    Return the Docker Container object for an exact name or short/full ID.
 
     Returns:
-        Container: The actual Docker Container object, or None if container not found.
+        The Container, or None if it does not exist (or the reference resolved
+        to a different container).
 
     Raises:
-        Exception: For unexpected errors during container retrieval.
+        InvalidContainerReferenceError: If the reference is invalid.
+        DockerConnectionError: If Docker is unavailable (never reported as None).
+        DockerOperationException: For other Docker API failures.
     """
+    reference = validate_container_reference(container_id)
     context = build_container_context(
-        container_id=container_id,
+        container_id=reference,
         action="full_container_details",
     )
-
     start_time = time.time()
 
     try:
-        # Return the actual Container object for compatibility with handlers
         with docker_client_context() as adapter:
-            container = get_container_safely(container_id, docker_client=adapter)
-
-        execution_time = time.time() - start_time
-
-        logger.debug(
-            "docker.containers.full.container.debug",
-            execution_time=f"{execution_time:.3f}s",
-            **context,
-        )
-        return container
-
+            container = get_container_safely(reference, docker_client=adapter)
     except ContainerNotFoundError:
         logger.debug("docker.containers.container.not.debug", **context)
         return None
 
-    except Exception as e:
-        execution_time = time.time() - start_time
-        logger.error(
-            "docker.containers.fetch.full.fail",
-            error=sanitize_exception(e),
-            execution_time=f"{execution_time:.3f}s",
-            **context,
-        )
-        # Return None for backward compatibility, but log the error
-        return None
+    logger.debug(
+        "docker.containers.full.container.debug",
+        execution_time=f"{time.time() - start_time:.3f}s",
+        **context,
+    )
+    return container

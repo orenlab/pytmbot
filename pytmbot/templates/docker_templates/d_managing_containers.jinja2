@@ -1,13 +1,23 @@
 {# templates/docker_templates/d_managing_containers.jinja2 — rich HTML #}
 <p><b>📦 Container actions</b></p>
 
+{% if notice %}
+<blockquote>{{ notice|e }}</blockquote>
+{% endif %}
 <table bordered striped compact>
 <tr><th align="left">Parameter</th><th align="left">Value</th></tr>
 <tr><td>Container</td><td><code>{{ container_name|e }}</code></td></tr>
+{% if container_id %}
+<tr><td>ID</td><td><code>{{ container_id|e }}</code></td></tr>
+{% endif %}
 <tr><td>State</td><td><code>{{ state|e }}</code></td></tr>
 </table>
 
-<p>⚠️ <b>Actions apply to the running container immediately.</b></p>
+{% if hint %}
+<p>⚠️ <b>{{ hint|e }}</b></p>
+{% else %}
+<p>⚠️ <b>Stop and Restart ask for confirmation; Start applies immediately.</b></p>
+{% endif %}
 
 <details>
 <summary>What each action does</summary>

@@ -21,8 +21,11 @@ from pytmbot.handlers.auth_processing.auth_processing import (
     handle_access_denied,
     handle_unauthorized_message,
 )
+from pytmbot.handlers.docker_handlers.callback_data import post_auth_return_callback
+from pytmbot.handlers.handlers_util.callback_auth import parse_bound_user_id
 from pytmbot.logs import BaseComponent, Logger
 from pytmbot.utils import mask_user_id, mask_username
+from pytmbot.utils.telegram_utils import callback_query_id
 
 logger = Logger()
 session_manager = get_session_manager()
@@ -30,6 +33,7 @@ session_manager = get_session_manager()
 # Constants
 MAX_USERNAME_LENGTH: Final[int] = 64
 MIN_USER_ID: Final[int] = 1
+FOREIGN_BUTTON_TEXT: Final[str] = "This button belongs to another user."
 
 # Type aliases - простые и понятные
 type TelegramQuery = Message | CallbackQuery
@@ -222,11 +226,43 @@ def _is_user_authorized(user_id: int) -> bool:
     return user_id in access_control.allowed_admins_ids
 
 
+def _is_foreign_callback(query: TelegramQuery) -> bool:
+    """Return True when a callback is bound to a user other than the presser."""
+    if not isinstance(query, CallbackQuery) or query.from_user is None:
+        return False
+    bound_user_id = parse_bound_user_id(query.data)
+    return bound_user_id is not None and bound_user_id != query.from_user.id
+
+
+def _reject_foreign_callback(query: TelegramQuery, bot: telebot.TeleBot) -> None:
+    """
+    Answer a press on someone else's button without touching their message.
+
+    Runs before the admin and 2FA checks, so another chat member can neither
+    delete the owner's message nor store the owner's action as their own.
+    """
+    if not isinstance(query, CallbackQuery):
+        return
+    with auth_component.log_context(
+        action="owner_check",
+        user_id=mask_user_id(query.from_user.id),
+    ) as log:
+        log.warning("bot.session.callback.owner.mismatch.deny")
+    bot.answer_callback_query(
+        callback_query_id=callback_query_id(query),
+        text=FOREIGN_BUTTON_TEXT,
+        show_alert=True,
+    )
+
+
 def _handle_unauthenticated_user(
     auth_context: AuthContext, query: TelegramQuery, bot: telebot.TeleBot
 ) -> None:
     """
     Handle unauthenticated user by setting referer data and redirecting.
+
+    State-changing callbacks are stored as the Manage screen of the same
+    container, so the post-2FA "Return to ..." button never repeats them.
 
     Args:
         auth_context: Authentication context
@@ -236,10 +272,13 @@ def _handle_unauthenticated_user(
     Returns:
         Result of handle_unauthorized_query
     """
+    referer = auth_context.referer_handler
+    if auth_context.handler_type == HandlerType.CALLBACK_QUERY:
+        referer = post_auth_return_callback(referer) or ""
     session_manager.set_referer_data(
         auth_context.user_id,
         auth_context.handler_type.value,
-        auth_context.referer_handler,
+        referer,
     )
     handle_unauthorized_query(query, bot)
 
@@ -249,6 +288,10 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
 ) -> Callable[[QueryT, telebot.TeleBot], ReturnT | None]:
     """
     Decorator that enforces two-factor authentication.
+
+    Callback payloads of decorated handlers must end with ``:<user_id>`` when
+    they are bound to a user; a press by anyone else is rejected with an alert
+    before any admin or 2FA check runs.
 
     Args:
         func: The function to be decorated
@@ -264,6 +307,11 @@ def two_factor_auth_required[QueryT: TelegramQuery, ReturnT](
     def wrapper(query: QueryT, bot: telebot.TeleBot) -> ReturnT | None:
         if not is_valid_query(query):
             raise TypeError("Query must be an instance of Message or CallbackQuery")
+
+        # Owner binding first: nothing below may act on someone else's button.
+        if _is_foreign_callback(query):
+            _reject_foreign_callback(query, bot)
+            return None
 
         # Create authentication context
         auth_context = create_auth_context(query)

@@ -62,6 +62,11 @@ Required.
 - `host`: required list of Docker daemon endpoints.
 - `debug_docker_client`: optional boolean, default `false`.
 - `strict_access`: optional boolean, default `false`.
+- `timeout`: optional integer, default `10`; per-request Docker API timeout in seconds (`5`-`300`).
+- `cert_path`, `key_path`: optional TLS client certificate and key, for `https://` hosts only.
+- `ca_cert`: optional, default `true` (system CAs); a CA bundle path, or `false` to disable server verification
+  (not recommended).
+- `verify_hostname`: optional boolean, default `true`; verify the daemon's TLS hostname.
 
 Behavior:
 

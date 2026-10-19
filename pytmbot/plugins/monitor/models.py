@@ -55,6 +55,8 @@ class MonitoringState:
     next_notification_reset_at: float = 0.0
     last_poll_time: float = 0.0
     docker_counters_last_updated: float = 0.0
+    docker_refresh_failures: int = 0
+    docker_next_retry_at: float = 0.0
     init_mode: bool = True
     sensors_available: bool = True
     return_cached_disk_usage: bool = False

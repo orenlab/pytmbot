@@ -5,18 +5,42 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import re
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Final
 
+from docker.client import DockerClient
 from docker.errors import APIError, ImageNotFound
 from docker.models.images import Image
 
 from pytmbot.adapters.docker.client import docker_client_context
-from pytmbot.adapters.docker.utils import with_operation_logging
+from pytmbot.adapters.docker.utils import (
+    MIN_CONTAINER_ID_PREFIX_LENGTH,
+    docker_unavailable_as_connection_error,
+    mask_command_args,
+    mask_environment_variables,
+    mask_secrets_in_text,
+    mask_url_credentials,
+    parse_docker_timestamp,
+    with_operation_logging,
+)
 from pytmbot.exceptions import DockerConnectionError, ImageOperationError
 from pytmbot.logs import Logger
-from pytmbot.utils import as_object_dict, set_naturalsize, set_naturaltime
+from pytmbot.utils import (
+    as_object_dict,
+    sanitize_exception,
+    set_naturalsize,
+    set_naturaltime,
+)
 
 logger = Logger()
+
+
+IMAGE_REFERENCE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]{0,511}$"
+)
+_HEX_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-f0-9]+$")
 
 
 def _safe_dict(value: object) -> dict[str, object]:
@@ -41,29 +65,16 @@ def _safe_labels(value: object) -> dict[str, str]:
         key = str(raw_key).strip()
         if not key:
             continue
-        labels[key] = str(raw_value)
+        labels[key] = mask_url_credentials(str(raw_value))
     return labels
 
 
 def _parse_created(created_raw: object) -> tuple[datetime | None, str]:
-    if not isinstance(created_raw, str) or not created_raw.strip():
+    """Parse image creation time as a timezone-aware UTC datetime."""
+    created_time = parse_docker_timestamp(created_raw)
+    if created_time is None:
         return None, "N/A"
-
-    created_clean = created_raw.strip().split(".")[0].rstrip("Z")
-    if not created_clean:
-        return None, "N/A"
-
-    try:
-        created_time = datetime.fromisoformat(created_clean)
-    except ValueError:
-        return None, "N/A"
-
-    created_at_utc = (
-        created_time.replace(tzinfo=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-        if created_time.tzinfo is None
-        else created_time.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    )
-    return created_time, created_at_utc
+    return created_time, created_time.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _safe_id(value: object, *, max_length: int = 24, default: str = "N/A") -> str:
@@ -92,17 +103,8 @@ def _safe_int(value: object, *, default: int = 0) -> int:
 
 
 def _format_iso_timestamp(raw: object) -> str:
-    if not isinstance(raw, str):
-        return "N/A"
-    value = raw.strip()
-    if not value or value.startswith("0001-01-01"):
-        return "N/A"
-    clean_value = value.replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(clean_value)
-    except ValueError:
-        return "N/A"
-    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    parsed = parse_docker_timestamp(raw)
+    return parsed.strftime("%Y-%m-%d %H:%M:%S UTC") if parsed else "N/A"
 
 
 def _format_healthcheck(config: dict[str, object]) -> str:
@@ -114,7 +116,7 @@ def _format_healthcheck(config: dict[str, object]) -> str:
     if not test:
         return "none"
 
-    parts = [f"test={' '.join(test)}"]
+    parts = [f"test={mask_secrets_in_text(' '.join(test))}"]
     interval = _safe_ns_duration(raw_health.get("Interval"))
     timeout = _safe_ns_duration(raw_health.get("Timeout"))
     start_period = _safe_ns_duration(raw_health.get("StartPeriod"))
@@ -204,13 +206,17 @@ def process_image_attrs(image: Image) -> dict[str, object]:
             "labels": labels,
             "label_count": len(labels),
             "exposed_ports": sorted(str(port) for port in exposed_ports_dict.keys()),
-            "env_variables": _safe_list_strings(
-                config.get("Env", container_config.get("Env"))
+            "env_variables": mask_environment_variables(
+                _safe_list_strings(config.get("Env", container_config.get("Env")))
             ),
-            "entrypoint": _safe_list_strings(
-                config.get("Entrypoint", container_config.get("Entrypoint"))
+            "entrypoint": mask_command_args(
+                _safe_list_strings(
+                    config.get("Entrypoint", container_config.get("Entrypoint"))
+                )
             ),
-            "cmd": _safe_list_strings(config.get("Cmd", container_config.get("Cmd"))),
+            "cmd": mask_command_args(
+                _safe_list_strings(config.get("Cmd", container_config.get("Cmd")))
+            ),
             "shell": _safe_list_strings(
                 config.get("Shell", container_config.get("Shell"))
             ),
@@ -247,131 +253,226 @@ def process_image_attrs(image: Image) -> dict[str, object]:
         }
 
 
+def list_images_tolerant(
+    adapter: DockerClient, *, include_intermediate: bool
+) -> list[Image]:
+    """List images, skipping images removed between the list and the inspect."""
+    images: list[Image] = []
+    for summary in adapter.api.images(all=include_intermediate):
+        image_id = summary.get("Id") if isinstance(summary, dict) else None
+        if not isinstance(image_id, str) or not image_id:
+            continue
+        try:
+            images.append(adapter.images.get(image_id))
+        except ImageNotFound:
+            logger.debug("docker.images.image.vanished.debug", image_id=image_id[:19])
+    return images
+
+
 @with_operation_logging("fetch_image_details")
 def fetch_image_details() -> list[dict[str, object]]:
     """
-    Fetches detailed information about Docker images.
-
-    Returns:
-        List of dictionaries containing image details.
+    Fetch detailed information about Docker images.
 
     Raises:
-        ImageOperationError: If the operation fails.
+        DockerConnectionError: If Docker is unavailable.
+        ImageOperationError: If the operation fails for another reason.
     """
     try:
-        with docker_client_context() as adapter:
-            images = adapter.images.list(all=True)
-            images_data = [process_image_attrs(image) for image in images]
-            return images_data
-
-    except DockerConnectionError as e:
-        raise ImageOperationError(f"Failed to connect to Docker daemon: {e}") from e
+        with (
+            docker_unavailable_as_connection_error("image listing"),
+            docker_client_context() as adapter,
+        ):
+            images = list_images_tolerant(adapter, include_intermediate=True)
+    except DockerConnectionError:
+        raise
     except APIError as e:
         raise ImageOperationError(f"Docker API error: {e}") from e
     except Exception as e:
         raise ImageOperationError(f"Unexpected error: {e}") from e
 
+    return [process_image_attrs(image) for image in images]
+
+
+def _validate_image_reference(image_id: object) -> str:
+    candidate = image_id.strip() if isinstance(image_id, str) else ""
+    if (
+        not candidate
+        or ".." in candidate
+        or "//" in candidate
+        or not IMAGE_REFERENCE_PATTERN.fullmatch(candidate)
+    ):
+        raise ImageOperationError("Invalid image reference")
+    return candidate
+
+
+def _image_names(image: object) -> set[str]:
+    attrs = as_object_dict(getattr(image, "attrs", {}))
+    return set(_safe_list_strings(attrs.get("RepoTags"))) | set(
+        _safe_list_strings(attrs.get("RepoDigests"))
+    )
+
+
+def _image_matches_reference(image: object, reference: str) -> bool:
+    """
+    Check that dockerd resolved ``reference`` to the intended image.
+
+    Accepts an exact tag/digest (``name`` means ``name:latest``) or an image ID
+    prefix of at least 12 hex characters (optionally ``sha256:``-prefixed).
+    """
+    hex_reference = reference.removeprefix("sha256:")
+    image_hex_id = str(getattr(image, "id", "") or "").removeprefix("sha256:")
+    if (
+        len(hex_reference) >= MIN_CONTAINER_ID_PREFIX_LENGTH
+        and _HEX_PATTERN.fullmatch(hex_reference)
+        and image_hex_id.startswith(hex_reference)
+    ):
+        return True
+
+    names = _image_names(image)
+    untagged = "@" not in reference and ":" not in reference.rsplit("/", 1)[-1]
+    return reference in names or (untagged and f"{reference}:latest" in names)
+
+
+def _get_verified_image(adapter: DockerClient, reference: str) -> Image | None:
+    try:
+        image = adapter.images.get(reference)
+    except ImageNotFound:
+        return None
+    if not _image_matches_reference(image, reference):
+        logger.warning(
+            "docker.images.image.reference.mismatch.warn",
+            reference=reference[:64],
+            resolved_id=str(getattr(image, "id", ""))[:19],
+        )
+        return None
+    return image
+
+
+def _run_image_lookup[T](
+    image_id: str,
+    operation: str,
+    handler: Callable[[DockerClient, Image], T],
+) -> T | None:
+    """Resolve and verify an image, then run ``handler``; None when not found."""
+    reference = _validate_image_reference(image_id)
+    try:
+        with (
+            docker_unavailable_as_connection_error(operation),
+            docker_client_context() as adapter,
+        ):
+            image = _get_verified_image(adapter, reference)
+            return None if image is None else handler(adapter, image)
+    except (DockerConnectionError, ImageOperationError):
+        raise
+    except ImageNotFound:
+        # Image removed while the operation was running.
+        return None
+    except Exception as e:
+        raise ImageOperationError(
+            f"Failed to {operation}: {sanitize_exception(e)}"
+        ) from e
+
+
+def _format_history_layer(layer: dict[str, object]) -> dict[str, object]:
+    created_raw = layer.get("Created")
+    created = (
+        datetime.fromtimestamp(created_raw, tz=UTC)
+        if isinstance(created_raw, (int, float)) and created_raw > 0
+        else None
+    )
+    return {
+        "id": str(layer.get("Id", "N/A"))[:12],
+        "created": set_naturaltime(created) if created else "N/A",
+        "created_by": mask_secrets_in_text(
+            str(layer.get("CreatedBy", "N/A")), mask_all_assignments=True
+        ),
+        "size": set_naturalsize(_safe_int(layer.get("Size"))),
+        "comment": layer.get("Comment", ""),
+        "tags": layer.get("Tags") or [],
+    }
+
+
+def _collect_image_history(
+    _adapter: DockerClient, image: Image
+) -> list[dict[str, object]]:
+    history = image.history()
+    return [
+        _format_history_layer(layer) for layer in history if isinstance(layer, dict)
+    ]
+
 
 @with_operation_logging("get_image_history")
-def get_image_history(image_id: str) -> list[dict[str, object]]:
+def get_image_history(image_id: str) -> list[dict[str, object]] | None:
     """
-    Fetches the history of a Docker image.
+    Fetch the history of a Docker image (short/full ID or exact tag).
 
-    Args:
-        image_id: ID of the Docker image
+    Build-step values (``ENV``/``ARG``/``KEY=VALUE``) and URL credentials in
+    ``created_by`` are masked.
 
     Returns:
-        List of dictionaries containing image layer history
+        History rows, or None if the image does not exist.
 
     Raises:
-        ImageOperationError: If the operation fails
-        ImageNotFound: If the image doesn't exist
+        DockerConnectionError: If Docker is unavailable.
+        ImageOperationError: If the reference is invalid or the operation fails.
     """
-    try:
-        with docker_client_context() as adapter:
-            image = adapter.images.get(image_id)
-            history = image.history()
+    return _run_image_lookup(image_id, "get image history", _collect_image_history)
 
-            return [
-                {
-                    "id": layer.get("Id", "N/A")[:12],
-                    "created": set_naturaltime(
-                        datetime.fromtimestamp(layer.get("Created", 0))
-                    ),
-                    "created_by": layer.get("CreatedBy", "N/A"),
-                    "size": set_naturalsize(layer.get("Size", 0)),
-                    "comment": layer.get("Comment", ""),
-                    "tags": layer.get("Tags", []),
-                }
-                for layer in history
-            ]
 
-    except ImageNotFound as error:
-        raise ImageNotFound(f"Image {image_id} not found") from error
-    except Exception as e:
-        raise ImageOperationError(f"Failed to get image history: {e}") from e
+def _container_image_id(container: object) -> str:
+    attrs = as_object_dict(getattr(container, "attrs", {}))
+    return str(attrs.get("Image") or "")
+
+
+def _build_usage_row(container: object) -> dict[str, str]:
+    attrs = as_object_dict(getattr(container, "attrs", {}))
+    state = as_object_dict(attrs.get("State"))
+    status = str(
+        state.get("Status", getattr(container, "status", "unknown")) or "unknown"
+    )
+    return {
+        "name": str(getattr(container, "name", "unknown") or "unknown"),
+        "id": str(getattr(container, "short_id", "N/A") or "N/A"),
+        "status": status,
+        "started_at": _format_iso_timestamp(state.get("StartedAt")),
+    }
+
+
+def _collect_image_usage(adapter: DockerClient, image: Image) -> dict[str, object]:
+    target_image_id = str(getattr(image, "id", "") or "")
+    if not target_image_id:
+        raise ImageOperationError("Image id is unavailable")
+
+    # Compare the container's image ID attribute instead of ``container.image``:
+    # the latter inspects the image and fails for force-removed images.
+    usage_rows = [
+        _build_usage_row(container)
+        for container in adapter.containers.list(all=True, ignore_removed=True)
+        if _container_image_id(container) == target_image_id
+    ]
+    usage_rows.sort(
+        key=lambda row: (0 if row["status"] == "running" else 1, row["name"])
+    )
+    running_count = sum(1 for row in usage_rows if row["status"] == "running")
+    return {
+        "containers": usage_rows,
+        "containers_count": len(usage_rows),
+        "running_count": running_count,
+        "stopped_count": len(usage_rows) - running_count,
+    }
 
 
 @with_operation_logging("get_image_usage")
-def get_image_usage(image_id: str) -> dict[str, object]:
+def get_image_usage(image_id: str) -> dict[str, object] | None:
     """
     Return containers currently using the target image.
 
-    Args:
-        image_id: Docker image id or reference
-
     Returns:
-        Dictionary with usage counters and container rows
+        Usage counters and container rows, or None if the image does not exist.
+
+    Raises:
+        DockerConnectionError: If Docker is unavailable.
+        ImageOperationError: If the reference is invalid or the operation fails.
     """
-    try:
-        with docker_client_context() as adapter:
-            image = adapter.images.get(image_id)
-            target_image_id = str(getattr(image, "id", "") or "")
-            if not target_image_id:
-                raise ImageOperationError("Image id is unavailable")
-
-            containers = adapter.containers.list(all=True)
-            usage_rows: list[dict[str, str]] = []
-            running_count = 0
-
-            for container in containers:
-                container_image = getattr(container, "image", None)
-                container_image_id = str(getattr(container_image, "id", "") or "")
-                if container_image_id != target_image_id:
-                    continue
-
-                attrs = getattr(container, "attrs", {})
-                state = attrs.get("State", {}) if isinstance(attrs, dict) else {}
-                status = str(
-                    state.get("Status", getattr(container, "status", "unknown"))
-                    or "unknown"
-                )
-                if status == "running":
-                    running_count += 1
-
-                usage_rows.append(
-                    {
-                        "name": str(getattr(container, "name", "unknown") or "unknown"),
-                        "id": str(getattr(container, "short_id", "N/A") or "N/A"),
-                        "status": status,
-                        "started_at": _format_iso_timestamp(state.get("StartedAt")),
-                    }
-                )
-
-            usage_rows.sort(
-                key=lambda row: (0 if row["status"] == "running" else 1, row["name"])
-            )
-            total = len(usage_rows)
-            stopped_count = total - running_count
-
-            return {
-                "containers": usage_rows,
-                "containers_count": total,
-                "running_count": running_count,
-                "stopped_count": stopped_count,
-            }
-
-    except ImageNotFound as error:
-        raise ImageNotFound(f"Image {image_id} not found") from error
-    except Exception as e:
-        raise ImageOperationError(f"Failed to get image usage: {e}") from e
+    return _run_image_lookup(image_id, "get image usage", _collect_image_usage)

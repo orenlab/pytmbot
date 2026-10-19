@@ -26,8 +26,11 @@ def test_set_naturalsize_and_naturaltime_return_strings() -> None:
     assert isinstance(set_naturaltime(datetime.now(UTC)), str)
 
 
-def test_split_string_into_octets_returns_lowercase_slice() -> None:
-    assert split_string_into_octets("__op__:PyTMBot:123", octet_index=1) == "pytmbot"
+def test_split_string_into_octets_preserves_case() -> None:
+    # Docker names are case-sensitive: lower-casing "DB" can address another
+    # container whose ID starts with "db".
+    assert split_string_into_octets("__op__:PyTMBot:123", octet_index=1) == "PyTMBot"
+    assert split_string_into_octets("__stop__:DB:1", octet_index=1) == "DB"
 
 
 def test_split_string_into_octets_raises_for_invalid_index() -> None:

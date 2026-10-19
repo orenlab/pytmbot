@@ -146,8 +146,17 @@ def test_get_container_safely_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     container = cast(Container, _ContainerStub())
 
     client = SimpleNamespace(containers=_ContainersAPI(container))
-    resolved = docker_utils.get_container_safely("cid1234", docker_client=client)
+    resolved = docker_utils.get_container_safely("test", docker_client=client)
     assert resolved is container
+    assert (
+        docker_utils.get_container_safely("1234567890ab", docker_client=client)
+        is container
+    )
+
+    # dockerd resolved the reference to a container that has neither this
+    # exact name nor this ID prefix: never act on it.
+    with pytest.raises(ContainerNotFoundError):
+        docker_utils.get_container_safely("cid1234", docker_client=client)
 
     with pytest.raises(ContainerNotFoundError):
         docker_utils.get_container_safely(
@@ -184,7 +193,7 @@ def test_get_container_safely_uses_context_manager(
         yield SimpleNamespace(containers=SimpleNamespace(get=lambda _cid: container))
 
     monkeypatch.setattr(docker_utils, "docker_client_context", _client_context)
-    resolved = docker_utils.get_container_safely("cid1234")
+    resolved = docker_utils.get_container_safely("1234567890ab")
     assert resolved is container
 
 

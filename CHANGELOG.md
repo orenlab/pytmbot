@@ -4,8 +4,33 @@
 
 Patch release focused on Docker hardening and dependency maintenance.
 
+### Security
+
+- Container actions could reach a different container: buttons carried a lowercased name, and Docker falls back to
+  ID-prefix lookup. Buttons now carry the short container ID, and every read and action verifies that Docker resolved
+  exactly the container that was shown.
+- Container and image details no longer reveal secrets: environment variables are shown as keys only, and passwords
+  in URLs and secret-looking command-line values are masked.
+- Image update checks query Docker Hub only for Docker Hub images; images from other registries are no longer matched
+  against look-alike Docker Hub repositories.
+- In group chats, another user can no longer delete your Docker messages or trigger your pending action through 2FA.
+
+### Fixed
+
+- A hung or unreachable Docker daemon no longer blocks the bot: after one timeout, calls fail fast and reconnect
+  automatically.
+- Image update checks run in the background with a 60-second limit; failed checks are listed separately instead of as
+  "Up to date", and version suggestions stay within the same tag family.
+- Container lists no longer fail when a container or image disappears mid-listing; statuses are fresh right after an
+  action; CPU usage is calculated correctly.
+- New container and image alerts in the Monitor plugin are no longer lost when the notification budget is exhausted.
+- Long and mixed-case container names work on all buttons.
+- 2FA lockouts last the full 10 minutes, pending codes are no longer dropped by the session cleanup, admins without a
+  Telegram username can use 2FA, and the post-2FA "Return" button no longer repeats Stop or Restart.
+
 ### Changed
 
+- Stop and Restart ask for confirmation, and a second press while an action is running is refused.
 - Docker image: the `# syntax` directive is now honoured, and no file in the image is writable by the `root` group or
   by everyone, so the image user's compatibility groups only matter for the Docker socket.
 - Startup and `--check-docker` log the Docker socket's group ID and the exact `--group-add` value when access is
@@ -15,6 +40,8 @@ Patch release focused on Docker hardening and dependency maintenance.
   a `:ro` socket mount does not restrict the Docker API.
 - Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.1, `pydantic` 2.14, `fastapi` 0.146, `aiohttp` 3.14.5), uv
   `0.13.1`, BuildKit `v0.34.0`, and `astral-sh/setup-uv` v10.3.0.
+- New optional `docker` settings: `timeout`, and `cert_path`, `key_path`, `ca_cert`, `verify_hostname` for a remote
+  `https://` daemon.
 
 ## [0.5.0] — 20260926
 

@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,17 +22,20 @@ from pytmbot.adapters.docker.containers_info import (
 from pytmbot.adapters.docker.utils import (
     get_container_memory_stats,
     get_container_stats_snapshot,
+    mask_command_args,
+    mask_environment_variables,
+    parse_docker_timestamp,
+    validate_container_reference,
 )
+from pytmbot.exceptions import InvalidContainerReferenceError
 from pytmbot.globals import get_emoji_converter
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
-from pytmbot.settings import CONTAINER_NAME_PATTERN, MAX_CONTAINER_NAME_LENGTH
 from pytmbot.utils import (
     as_object_dict,
     sanitize_logs,
     set_naturalsize,
     set_naturaltime,
-    split_string_into_octets,
     to_float,
     to_int,
 )
@@ -40,54 +44,29 @@ from pytmbot.utils.telegram_utils import callback_query_id
 logger = Logger()
 em = get_emoji_converter()
 
-_SENSITIVE_ENV_KEYWORDS: Final[frozenset[str]] = frozenset(
-    {
-        "password",
-        "secret",
-        "key",
-        "token",
-        "auth",
-        "credential",
-        "private",
-        "jwt",
-    }
-)
-_SENSITIVE_ENV_COMBINATIONS: Final[tuple[tuple[str, ...], ...]] = (
-    ("api", "key"),
-    ("database", "url"),
-    ("db", "password"),
-    ("ssl", "cert"),
-    ("ssl", "key"),
-)
+# Delay between the two stats samples used to compute CPU% when the daemon's
+# one-shot stats carry no previous CPU sample.
+CPU_SAMPLE_INTERVAL_SECONDS: Final[float] = 0.5
+MAX_DISPLAYED_ENV_VARS: Final[int] = 20
+MAX_ENV_VALUE_LENGTH: Final[int] = 100
+_STATUS_BADGES: Final[dict[str, str]] = {
+    "running": "🟢 Running",
+    "paused": "🟡 Paused",
+    "restarting": "🔄 Restarting",
+    "created": "⚪ Created",
+    "removing": "🟠 Removing",
+    "exited": "🔴 Stopped",
+    "dead": "🔴 Dead",
+}
 
 
 def validate_container_name(name: str) -> bool:
-    """Validate container name for callback-driven operations."""
-    if not name or not isinstance(name, str):
+    """Validate a container reference (exact name or ID) from callback data."""
+    try:
+        validate_container_reference(name)
+    except InvalidContainerReferenceError:
         return False
-
-    if len(name) > MAX_CONTAINER_NAME_LENGTH:
-        return False
-
-    if not CONTAINER_NAME_PATTERN.match(name):
-        return False
-
-    dangerous_patterns = [
-        "..",
-        "/",
-        "\\",
-        "$",
-        "`",
-        ";",
-        "|",
-        "&",
-        "\n",
-        "\r",
-        "\t",
-        "\0",
-    ]
-
-    return not any(pattern in name for pattern in dangerous_patterns)
+    return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +153,14 @@ def authorize_docker_callback_request(
     )
 
 
+def _callback_field(callback_data: str, index: int) -> str:
+    """Return a ``:``-separated callback field without changing its case."""
+    fields = callback_data.split(":")
+    if not 0 <= index < len(fields):
+        raise IndexError("Callback field index out of range")
+    return fields[index]
+
+
 def get_authorized_container_callback_context(
     call: CallbackQuery,
     bot: TeleBot,
@@ -188,8 +175,9 @@ def get_authorized_container_callback_context(
     Returns parsed context on success, otherwise sends user-facing callback alert and returns None.
     """
     callback_data = call.data or ""
-    container_name = split_string_into_octets(callback_data)
-    called_user_id = split_string_into_octets(callback_data, octet_index=2)
+    # Keep the reference case: Docker names are case-sensitive.
+    container_name = _callback_field(callback_data, 1)
+    called_user_id = _callback_field(callback_data, 2)
 
     if call.from_user is None:
         logger.warning(missing_user_event, callback_data=call.data)
@@ -269,18 +257,19 @@ def _extract_container_attrs(container_details: object) -> dict[str, object]:
 
 def get_container_full_details(container_name: str) -> object | None:
     """
-    Retrieve the full details of a container.
+    Retrieve the Docker container object by exact name or short/full ID.
 
-    Args:
-        container_name (str): The name of the container.
+    The reference is passed through unchanged (never lowercased) and the
+    adapter verifies that dockerd resolved it to the intended container.
 
     Returns:
-        object | None: Docker container object or None.
+        object | None: Docker container object, or None if not found.
+
+    Raises:
+        InvalidContainerReferenceError: If the reference is invalid.
+        DockerConnectionError: If Docker is unavailable.
     """
-    # Use a local variable to store the lowercased container name
-    lower_container_name = container_name.lower()
-    container_details = fetch_full_container_details(lower_container_name)
-    return container_details
+    return fetch_full_container_details(container_name)
 
 
 @lru_cache(maxsize=1)
@@ -317,64 +306,42 @@ def get_emojis() -> dict[str, str]:
     return {emoji_name: em.get_emoji(emoji_name) for emoji_name in emoji_names}
 
 
-def get_sanitized_logs(container_name: str, call: CallbackQuery, token: str) -> str:
+def get_sanitized_logs(
+    container_name: str, call: CallbackQuery, token: str
+) -> str | None:
     """
     Retrieve sanitized logs for a specific container.
 
-    Args:
-        container_name (str): The name of the container.
-        call (CallbackQuery): The callback query object.
-        token (str): The bot token.
-
     Returns:
-        str: Sanitized logs for the container.
+        Sanitized logs, or None if the container does not exist.
+
+    Raises:
+        DockerConnectionError: If Docker is unavailable.
     """
-    # Fetch raw logs for the container
     raw_logs = fetch_container_logs(container_name)
-    # Sanitize the logs for privacy
-    sanitized_logs = sanitize_logs(raw_logs, call, token)
-    return sanitized_logs
+    if raw_logs is None:
+        return None
+    return sanitize_logs(raw_logs, call, token)
+
+
+def _truncate_env_entry(entry: str) -> str:
+    key, separator, value = entry.partition("=")
+    if separator and len(value) > MAX_ENV_VALUE_LENGTH:
+        return f"{key}={value[: MAX_ENV_VALUE_LENGTH - 3]}..."
+    return entry
 
 
 def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     """
-    Filter out sensitive environment variables for display.
+    Show environment variables as keys only.
 
-    Args:
-        env_list: List of environment variables in "KEY=VALUE" format
-
-    Returns:
-        List[str]: Filtered environment variables
+    Keeps the ``KEY=VALUE`` shape but masks every value except a small
+    allowlist of harmless keys; URL credentials are masked everywhere.
     """
     if not env_list:
         return []
-
-    filtered_vars = []
-    for var in env_list:
-        var_name = var.split("=", 1)[0] if "=" in var else var
-
-        # Check if variable name matches any sensitive pattern
-        normalized_name = var_name.casefold()
-        is_sensitive = any(
-            keyword in normalized_name for keyword in _SENSITIVE_ENV_KEYWORDS
-        ) or any(
-            all(part in normalized_name for part in combination)
-            for combination in _SENSITIVE_ENV_COMBINATIONS
-        )
-
-        if is_sensitive:
-            filtered_vars.append(f"{var_name}=<HIDDEN>")
-        else:
-            # Limit value length for display
-            if "=" in var:
-                key, value = var.split("=", 1)
-                if len(value) > 100:
-                    value = value[:97] + "..."
-                filtered_vars.append(f"{key}={value}")
-            else:
-                filtered_vars.append(var)
-
-    return filtered_vars[:20]  # Limit to first 20 variables
+    masked = mask_environment_variables(env_list[:MAX_DISPLAYED_ENV_VARS])
+    return [_truncate_env_entry(entry) for entry in masked]
 
 
 def _format_container_timestamp(raw_value: object) -> str:
@@ -459,6 +426,42 @@ def _has_no_new_privileges(security_options: list[str]) -> bool:
     )
 
 
+def resolve_container_status(state: dict[str, object]) -> str:
+    """
+    Return the lifecycle status from ``State.Status``.
+
+    ``State.Running`` is also true for paused and restarting containers, so the
+    boolean flags are only a fallback for payloads without ``Status``.
+    """
+    status = str(state.get("Status") or "").strip().lower()
+    if status:
+        return status
+    for flag, flag_status in (
+        ("Paused", "paused"),
+        ("Restarting", "restarting"),
+        ("Running", "running"),
+    ):
+        if state.get(flag):
+            return flag_status
+    return "unknown"
+
+
+def split_image_reference(reference: str) -> tuple[str, str]:
+    """
+    Split ``[registry[:port]/]repository[:tag][@digest]`` into (name, tag).
+
+    The tag is the part after the last ``:`` of the last path component, so a
+    registry port is never mistaken for a tag.
+    """
+    name, _, digest = reference.strip().partition("@")
+    tag_separator = name.rfind(":")
+    if tag_separator > name.rfind("/"):
+        return name[:tag_separator], name[tag_separator + 1 :]
+    if digest:
+        return name, digest[:19]
+    return name or "unknown", "latest"
+
+
 def parse_container_basic_info(
     container_details: object, attrs: dict[str, object] | None = None
 ) -> dict[str, object]:
@@ -490,28 +493,14 @@ def parse_container_basic_info(
             ),
         }
 
-        running = bool(state.get("Running", False))
-        paused = bool(state.get("Paused", False))
-        restarting = bool(state.get("Restarting", False))
+        current_status = resolve_container_status(state)
+        image_name, image_tag = split_image_reference(
+            str(config.get("Image", "unknown"))
+        )
 
-        # Image info (safe to display)
-        image_info = str(config.get("Image", "unknown"))
-        image_parts = image_info.split(":")
-        image_name = image_parts[0] if image_parts else "unknown"
-        image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
-
-        # Calculate uptime
         started_at_raw = state.get("StartedAt", "")
-        uptime = "N/A"
-        if isinstance(started_at_raw, str) and started_at_raw:
-            try:
-                if started_at_raw != "0001-01-01T00:00:00Z":
-                    started_at_dt = datetime.fromisoformat(
-                        started_at_raw.replace("Z", "+00:00")
-                    )
-                    uptime = set_naturaltime(started_at_dt)
-            except ValueError:
-                uptime = "N/A"
+        started_at_dt = parse_docker_timestamp(started_at_raw)
+        uptime = set_naturaltime(started_at_dt) if started_at_dt else "N/A"
 
         return {
             "id": str(resolved_attrs.get("Id", ""))[:12],  # Short ID
@@ -519,18 +508,10 @@ def parse_container_basic_info(
             "image_name": image_name,
             "image_tag": image_tag,
             "status": state.get("Status", "unknown"),
-            "status_badge": (
-                "🟢 Running"
-                if running
-                else "🟡 Paused"
-                if paused
-                else "🔄 Restarting"
-                if restarting
-                else "🔴 Stopped"
-            ),
-            "running": running,
-            "paused": paused,
-            "restarting": restarting,
+            "status_badge": _STATUS_BADGES.get(current_status, "🔴 Stopped"),
+            "running": current_status == "running",
+            "paused": current_status == "paused",
+            "restarting": current_status == "restarting",
             "restart_count": state.get("RestartCount", 0),
             "exit_code": state.get("ExitCode", 0),
             "created": _format_container_timestamp(resolved_attrs.get("Created")),
@@ -729,8 +710,10 @@ def parse_container_environment(
             "environment_vars": safe_env_vars,
             "working_dir": working_dir,
             "user": user,
-            "command": " ".join(cmd) if cmd else "N/A",
-            "entrypoint": " ".join(entrypoint) if entrypoint else "N/A",
+            "command": " ".join(mask_command_args(cmd)) if cmd else "N/A",
+            "entrypoint": (
+                " ".join(mask_command_args(entrypoint)) if entrypoint else "N/A"
+            ),
             "env_count": len(env_vars),
         }
     except Exception:
@@ -790,105 +773,105 @@ def parse_container_runtime_info(
         return {}
 
 
+def _is_running(container_details: object) -> bool:
+    return str(getattr(container_details, "status", "")).lower() == "running"
+
+
+def has_cpu_baseline(container_stats: dict[str, object]) -> bool:
+    """Return True when the stats carry a previous CPU sample (``precpu_stats``)."""
+    precpu_stats = _as_dict(container_stats.get("precpu_stats", {}))
+    return _to_float(precpu_stats.get("system_cpu_usage", 0), 0.0) > 0
+
+
+def collect_container_runtime_stats(container_details: object) -> dict[str, object]:
+    """
+    Collect a runtime stats sample suitable for CPU% calculation.
+
+    One-shot stats have zeroed ``precpu_stats``; in that case a second sample is
+    taken and the first sample's ``cpu_stats`` becomes the baseline.
+    """
+    first_sample = get_container_stats_snapshot(container_details)
+    if not first_sample or has_cpu_baseline(first_sample):
+        return first_sample
+
+    time.sleep(CPU_SAMPLE_INTERVAL_SECONDS)
+    second_sample = get_container_stats_snapshot(container_details)
+    if not second_sample:
+        return first_sample
+    return {**second_sample, "precpu_stats": first_sample.get("cpu_stats", {})}
+
+
+def _resolve_memory_stats(
+    container_details: object, stats: dict[str, object]
+) -> dict[str, str | float]:
+    """Prefer the runtime memory sample, fall back to static/fast providers."""
+    runtime_memory_stats = parse_container_memory_stats(stats) if stats else {}
+    if runtime_memory_stats or not _is_running(container_details):
+        return runtime_memory_stats
+    try:
+        return normalize_memory_stats(get_container_memory_stats(container_details))
+    except Exception:
+        # Memory figures are optional enrichment of the details view.
+        logger.debug("bot.handler.handlers_util.docker.could_not.get.debug")
+        return {}
+
+
+def _format_memory_headroom(stats: dict[str, object]) -> str:
+    memory_snapshot = _as_dict(stats.get("memory_stats", {}))
+    usage = memory_snapshot.get("usage", 0)
+    limit = memory_snapshot.get("limit", 0)
+    if (
+        not isinstance(usage, (int, float))
+        or not isinstance(limit, (int, float))
+        or limit <= 0
+    ):
+        return "N/A"
+    remaining = max(int(limit - usage), 0)
+    remaining_percent = round((remaining / limit) * 100, 2)
+    return f"{set_naturalsize(remaining)} ({remaining_percent}%)"
+
+
 def get_comprehensive_container_details(
     container_name: str,
 ) -> dict[str, object] | None:
     """
-    Get comprehensive container details with enhanced parsing and security.
-
-    This function now handles both the improved data structure from containers_info
-    and maintains compatibility with existing handler expectations.
+    Get comprehensive container details for the container info view.
 
     Args:
-        container_name: Name of the container
+        container_name: Exact container name or short/full container ID.
 
     Returns:
-        Dict with all container details or None if container not found
+        Dict with all container details, or None if the container is not found.
+
+    Raises:
+        InvalidContainerReferenceError: If the reference is invalid.
+        DockerConnectionError: If Docker is unavailable (never reported as None).
     """
-    try:
-        # Get raw container details (this returns the actual Container object)
-        container_details = get_container_full_details(container_name)
-
-        if not container_details:
-            return None
-
-        attrs = _extract_container_attrs(container_details)
-
-        # Parse different aspects of container data
-        basic_info = parse_container_basic_info(container_details, attrs=attrs)
-        resources = parse_container_resources(container_details, attrs=attrs)
-        network_info = parse_container_network_info(container_details, attrs=attrs)
-        environment = parse_container_environment(container_details, attrs=attrs)
-        runtime_info = parse_container_runtime_info(container_details, attrs=attrs)
-
-        # Initialize runtime/stat fields
-        stats: dict[str, object] = {}
-        memory_stats: dict[str, str | float] = {}
-        is_running = (
-            hasattr(container_details, "status")
-            and str(container_details.status).lower() == "running"
-        )
-
-        # Handle stats for Container object
-        if hasattr(container_details, "stats") and is_running:
-            try:
-                # Request a single-shot runtime sample (faster than default stats mode)
-                stats = get_container_stats_snapshot(container_details)
-            except Exception:
-                logger.warning("bot.handler.handlers_util.docker.could_not.get.warn")
-                stats = {}
-
-        # Prefer runtime memory snapshot when available, fallback to static/fast providers.
-        runtime_memory_stats = parse_container_memory_stats(stats) if stats else {}
-        if runtime_memory_stats:
-            memory_stats = runtime_memory_stats
-        elif is_running:
-            try:
-                memory_stats = normalize_memory_stats(
-                    get_container_memory_stats(container_details)
-                )
-            except Exception:
-                logger.debug("bot.handler.handlers_util.docker.could_not.get.debug")
-
-        cpu_stats = parse_container_cpu_stats(stats) if stats else {}
-        network_stats = parse_container_network_stats(stats) if stats else {}
-        memory_headroom = "N/A"
-        if stats:
-            memory_snapshot = stats.get("memory_stats", {})
-            if isinstance(memory_snapshot, dict):
-                usage = memory_snapshot.get("usage", 0)
-                limit = memory_snapshot.get("limit", 0)
-                if (
-                    isinstance(usage, (int, float))
-                    and isinstance(limit, (int, float))
-                    and limit > 0
-                ):
-                    remaining = max(int(limit - usage), 0)
-                    remaining_percent = round((remaining / limit) * 100, 2)
-                    memory_headroom = (
-                        f"{set_naturalsize(remaining)} ({remaining_percent}%)"
-                    )
-        resources["memory_headroom"] = memory_headroom
-
-        # Combine all data
-        comprehensive_details = {
-            **basic_info,
-            "resources": resources,
-            "network": network_info,
-            "environment": environment,
-            "runtime": runtime_info,
-            "stats": {
-                "memory": memory_stats,
-                "cpu": cpu_stats,
-                "network": network_stats,
-            },
-        }
-
-        return comprehensive_details
-
-    except Exception:
-        logger.error("bot.handler.handlers_util.docker.getting.comprehensive.fail")
+    container_details = get_container_full_details(container_name)
+    if not container_details:
         return None
+
+    attrs = _extract_container_attrs(container_details)
+    stats = (
+        collect_container_runtime_stats(container_details)
+        if _is_running(container_details) and hasattr(container_details, "stats")
+        else {}
+    )
+    resources = parse_container_resources(container_details, attrs=attrs)
+    resources["memory_headroom"] = _format_memory_headroom(stats)
+
+    return {
+        **parse_container_basic_info(container_details, attrs=attrs),
+        "resources": resources,
+        "network": parse_container_network_info(container_details, attrs=attrs),
+        "environment": parse_container_environment(container_details, attrs=attrs),
+        "runtime": parse_container_runtime_info(container_details, attrs=attrs),
+        "stats": {
+            "memory": _resolve_memory_stats(container_details, stats),
+            "cpu": parse_container_cpu_stats(stats) if stats else {},
+            "network": parse_container_network_stats(stats) if stats else {},
+        },
+    }
 
 
 def normalize_memory_stats(
@@ -960,61 +943,64 @@ def parse_container_memory_stats(
         return {}
 
 
+def _online_cpu_count(cpu_stats: dict[str, object]) -> int:
+    """CPU count as the Docker CLI does: online_cpus, else len(percpu_usage)."""
+    online_cpus = _to_int(cpu_stats.get("online_cpus", 0), 0)
+    if online_cpus > 0:
+        return online_cpus
+    # percpu_usage is absent on cgroup v2.
+    percpu_usage = _as_dict(cpu_stats.get("cpu_usage", {})).get("percpu_usage")
+    if isinstance(percpu_usage, list) and percpu_usage:
+        return len(percpu_usage)
+    return 1
+
+
+def calculate_cpu_percent(
+    cpu_stats: dict[str, object], precpu_stats: dict[str, object]
+) -> float:
+    """
+    CPU% between two samples, normalized like ``docker stats``.
+
+    Returns 0.0 when there is no previous sample (one-shot stats report a
+    zeroed ``precpu_stats``; dividing absolute counters would yield the
+    since-boot average instead of the current load).
+    """
+    cpu_total = _to_float(_as_dict(cpu_stats.get("cpu_usage", {})).get("total_usage"))
+    precpu_total = _to_float(
+        _as_dict(precpu_stats.get("cpu_usage", {})).get("total_usage")
+    )
+    system_cpu = _to_float(cpu_stats.get("system_cpu_usage", 0), 0.0)
+    pre_system_cpu = _to_float(precpu_stats.get("system_cpu_usage", 0), 0.0)
+
+    system_delta = system_cpu - pre_system_cpu
+    cpu_delta = cpu_total - precpu_total
+    if pre_system_cpu <= 0 or system_delta <= 0 or cpu_delta <= 0:
+        return 0.0
+    return round(cpu_delta / system_delta * _online_cpu_count(cpu_stats) * 100.0, 2)
+
+
 def parse_container_cpu_stats(
     container_stats: dict[str, object],
 ) -> dict[str, int | float]:
     """
-    Parse the CPU statistics of a container with enhanced calculations.
+    Parse the CPU statistics of a container.
 
     Args:
-        container_stats: The dictionary containing CPU statistics of a container.
+        container_stats: Stats with ``cpu_stats`` and ``precpu_stats`` samples.
 
     Returns:
-        Dict: A dictionary with CPU usage statistics.
+        Dict: CPU usage percentage and throttling counters.
     """
-    try:
-        cpu_stats = _as_dict(container_stats.get("cpu_stats", {}))
-        precpu_stats = _as_dict(container_stats.get("precpu_stats", {}))
-
-        # Get throttling data
-        throttling_data = _as_dict(cpu_stats.get("throttling_data", {}))
-
-        # Calculate CPU percentage
-        cpu_usage = _as_dict(cpu_stats.get("cpu_usage", {}))
-        precpu_usage = _as_dict(precpu_stats.get("cpu_usage", {}))
-
-        cpu_total = _to_float(cpu_usage.get("total_usage", 0), 0.0)
-        precpu_total = _to_float(precpu_usage.get("total_usage", 0), 0.0)
-
-        system_cpu = _to_float(cpu_stats.get("system_cpu_usage", 0), 0.0)
-        pre_system_cpu = _to_float(precpu_stats.get("system_cpu_usage", 0), 0.0)
-
-        cpu_percent = 0.0
-        if system_cpu > pre_system_cpu and cpu_total > precpu_total:
-            cpu_delta = cpu_total - precpu_total
-            system_delta = system_cpu - pre_system_cpu
-            percpu_usage = cpu_usage.get("percpu_usage", [1])
-            num_cpus = len(percpu_usage) if isinstance(percpu_usage, list) else 1
-            if num_cpus < 1:
-                num_cpus = 1
-            cpu_percent = (cpu_delta / system_delta) * num_cpus * 100.0
-
-        return {
-            "periods": _to_int(throttling_data.get("periods", 0), 0),
-            "throttled_periods": _to_int(
-                throttling_data.get("throttled_periods", 0), 0
-            ),
-            "throttling_data": _to_int(throttling_data.get("throttled_time", 0), 0),
-            "cpu_percent": round(cpu_percent, 2),
-        }
-    except Exception:
-        logger.error("bot.handler.handlers_util.docker.parsing.cpu.fail")
-        return {
-            "periods": 0,
-            "throttled_periods": 0,
-            "throttling_data": 0,
-            "cpu_percent": 0.0,
-        }
+    cpu_stats = _as_dict(container_stats.get("cpu_stats", {}))
+    throttling_data = _as_dict(cpu_stats.get("throttling_data", {}))
+    return {
+        "periods": _to_int(throttling_data.get("periods", 0), 0),
+        "throttled_periods": _to_int(throttling_data.get("throttled_periods", 0), 0),
+        "throttling_data": _to_int(throttling_data.get("throttled_time", 0), 0),
+        "cpu_percent": calculate_cpu_percent(
+            cpu_stats, _as_dict(container_stats.get("precpu_stats", {}))
+        ),
+    }
 
 
 def parse_container_network_stats(

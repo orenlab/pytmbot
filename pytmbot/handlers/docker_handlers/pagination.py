@@ -10,6 +10,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from pytmbot.handlers.docker_handlers.callback_data import (
+    build_callback_data,
+    is_valid_container_ref,
+    parse_callback_user_id,
+)
 from pytmbot.utils.rich_html import measure_rich_html
 
 CONTAINER_FULL_INFO_CALLBACK_PREFIX = "__get_full__"
@@ -117,12 +122,17 @@ def build_container_full_info_callback_data(
     Supported format:
     - '{prefix}:{container_ref}:{user_id}'
     - '{prefix}:{container_ref}:{user_id}:{page}'
+
+    ``container_ref`` is the short container ID and is never case-folded.
+
+    Raises:
+        ValueError: If the reference is invalid or the payload is too long.
     """
-    safe_container_ref = container_ref.strip().lower()
+    if not is_valid_container_ref(container_ref):
+        raise ValueError("Invalid container reference")
     if page is None:
-        return f"{prefix}:{safe_container_ref}:{int(user_id)}"
-    safe_page = max(1, int(page))
-    return f"{prefix}:{safe_container_ref}:{int(user_id)}:{safe_page}"
+        return build_callback_data(prefix, container_ref, int(user_id))
+    return build_callback_data(prefix, container_ref, int(user_id), max(1, int(page)))
 
 
 def parse_container_full_info_callback_data(
@@ -143,13 +153,9 @@ def parse_container_full_info_callback_data(
     if parts[0] != prefix:
         return None
 
-    container_ref = parts[1].strip().lower()
-    if not container_ref:
-        return None
-
-    try:
-        user_id = int(parts[2])
-    except (TypeError, ValueError):
+    container_ref = parts[1]
+    user_id = parse_callback_user_id(parts[2])
+    if user_id is None or not is_valid_container_ref(container_ref):
         return None
 
     if len(parts) == 3:

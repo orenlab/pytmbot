@@ -6,6 +6,7 @@ also providing basic information about the status of local servers.
 """
 
 import re
+from typing import Final
 
 from telebot.types import CallbackQuery
 
@@ -14,69 +15,82 @@ type OptionalInt = int | None
 type OptionalBool = bool | None
 type SanitizedLogInput = str | bytes | int | float | bool | None
 
-# Compile regex pattern once for better performance
-_ANSI_ESCAPE_PATTERN = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+# Terminal escape sequences, compiled once. Order matters: string sequences
+# (OSC/DCS/SOS/PM/APC) are consumed whole before the generic two-byte forms.
+_TERMINAL_ESCAPE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"""
+    \x1B\][^\x07\x1B]*(?:\x07|\x1B\\)?      # OSC ... BEL | ST (window titles, links)
+    | \x1B[PX^_][^\x1B]*(?:\x1B\\)?         # DCS / SOS / PM / APC ... ST
+    | (?:\x1B\[|\x9B)[0-?]*[ -/]*[@-~]      # CSI (colors, cursor movement)
+    | \x1B[ -/]*[0-~]                       # nF / Fp / Fe / Fs escape sequences
+    | \x1B                                  # stray ESC
+    """,
+    re.VERBOSE,
+)
+# C0/C1 control characters except tab, line feed and carriage return.
+_CONTROL_CHARACTERS_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\x80-\x9F]"
+)
+# Telegram bot tokens look like "<bot id>:<35-char secret>".
+_MIN_TOKEN_SECRET_LENGTH: Final[int] = 20
+
+
+def strip_terminal_sequences(text: str) -> str:
+    """Remove terminal escape sequences and control characters from text."""
+    without_sequences = _TERMINAL_ESCAPE_PATTERN.sub("", text)
+    return _CONTROL_CHARACTERS_PATTERN.sub("", without_sequences)
+
+
+def _secret_values(token: str) -> set[str]:
+    """Collect secret fragments worth masking (the token and its secret half)."""
+    values = {token}
+    _, separator, token_secret = token.partition(":")
+    if separator and len(token_secret) >= _MIN_TOKEN_SECRET_LENGTH:
+        values.add(token_secret)
+    return {value for value in values if value}
 
 
 def sanitize_logs(
-    container_logs: SanitizedLogInput, callback_query: CallbackQuery, token: str
+    container_logs: SanitizedLogInput,
+    callback_query: CallbackQuery | None,
+    token: str,
 ) -> str:
     """
-    Sanitizes container logs by removing ANSI escape sequences
-    and masking sensitive user information.
+    Make container logs safe to show in Telegram.
+
+    Removes terminal escape sequences (CSI, OSC, DCS and other ESC forms) and
+    control characters, and masks the bot token (also when only its secret
+    half appears). Ordinary words are never masked: names of the user who
+    pressed the button are not secrets and masking them corrupted unrelated
+    log lines.
 
     Args:
         container_logs: Container logs (string or any object with __str__)
-        callback_query: Callback query with user information
+        callback_query: Kept for call-site compatibility; not used for masking
         token: Bot token to mask
 
     Returns:
         str: Sanitized logs
-
-    Raises:
-        AttributeError: If callback_query doesn't contain required attributes
     """
-    # Convert to string if not already a string
-    if not isinstance(container_logs, str):
-        container_logs = str(container_logs)
+    del callback_query
+    if container_logs is None:
+        return ""
+    if isinstance(container_logs, bytes):
+        text = container_logs.decode("utf-8", errors="replace")
+    else:
+        text = str(container_logs)
 
-    # Remove ANSI escape sequences
-    container_logs = _ANSI_ESCAPE_PATTERN.sub("", container_logs)
+    text = strip_terminal_sequences(text)
 
-    # Check for required attributes
-    if not (callback_query.from_user and callback_query.message):
-        return container_logs
+    secrets = {value for value in _secret_values(token) if value in text}
+    if not secrets:
+        return text
 
-    # Collect sensitive information for masking
-    sensitive_info = [
-        callback_query.from_user.username or "",
-        callback_query.from_user.first_name or "",
-        callback_query.from_user.last_name or "",
-        str(callback_query.message.from_user.id)
-        if callback_query.message.from_user
-        else "",
-        token,
-    ]
-
-    # Filter empty values for better efficiency
-    unique_sensitive_info = {
-        info for info in sensitive_info if info and info in container_logs
-    }
-    if not unique_sensitive_info:
-        return container_logs
-
-    # Replace all sensitive fragments in a single pass to avoid N string copies.
+    # Replace all secrets in a single pass, longest first, to avoid N copies.
     pattern = re.compile(
-        "|".join(
-            re.escape(value)
-            for value in sorted(unique_sensitive_info, key=len, reverse=True)
-        )
+        "|".join(re.escape(value) for value in sorted(secrets, key=len, reverse=True))
     )
-    container_logs = pattern.sub(
-        lambda match: "*" * len(match.group(0)), container_logs
-    )
-
-    return container_logs
+    return pattern.sub(lambda match: "*" * len(match.group(0)), text)
 
 
 def callback_query_id(callback_query: CallbackQuery) -> str:

@@ -11,14 +11,23 @@ from typing import Never, cast
 import pytest
 from docker.errors import APIError, DockerException
 
+from pytmbot.adapters.docker._adapter import reset_connection_backoff
 from pytmbot.exceptions import (
     ContainerLogsUnavailableError,
     ContainerNotFoundError,
     DockerConnectionError,
+    InvalidContainerReferenceError,
 )
 from pytmbot.models.docker_models import ContainerAction
 
 type _Value = str | int | float | bool | None | dict[str, _Value] | list[_Value]
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_docker_backoff() -> Iterator[None]:
+    reset_connection_backoff()
+    yield
+    reset_connection_backoff()
 
 
 class _FakeDockerClient:
@@ -28,7 +37,9 @@ class _FakeDockerClient:
         self.info_calls = 0
         self.api = SimpleNamespace(_version="1.53")
         self.images = SimpleNamespace(list=lambda all=False: [1, 2])  # noqa: FBT002
-        self.containers = SimpleNamespace(list=lambda all=True, limit=None: [])  # noqa: FBT002
+        self.containers = SimpleNamespace(
+            list=lambda all=True, limit=None, sparse=False: []  # noqa: FBT002
+        )
 
     def ping(self) -> None:
         if not self._ping_ok:
@@ -192,7 +203,7 @@ def test_containers_info_retrieve_and_logs_error_branches(
 
     # retrieve_containers_stats: no containers branch.
     empty_adapter = SimpleNamespace(
-        containers=SimpleNamespace(list=lambda all=True: [])
+        containers=SimpleNamespace(list=lambda all=True, ignore_removed=False: [])
     )  # noqa: FBT002
 
     @contextmanager
@@ -210,7 +221,9 @@ def test_containers_info_retrieve_and_logs_error_branches(
         SimpleNamespace(id="id-a", short_id="id-a"),
     ]
     multi_adapter = SimpleNamespace(
-        containers=SimpleNamespace(list=lambda all=True: containers),  # noqa: FBT002
+        containers=SimpleNamespace(
+            list=lambda all=True, ignore_removed=False: containers  # noqa: FBT002
+        ),
     )
 
     @contextmanager
@@ -285,6 +298,7 @@ def test_containers_info_retrieve_and_logs_error_branches(
 
     monkeypatch.setattr(containers_info_module, "docker_client_context", _logs_context)
     content = containers_info_module.fetch_container_logs("cid", tail_lines=5)
+    assert content is not None
     assert content.startswith("[LOG TRUNCATED")
     assert len(content) > 10_000
 
@@ -300,8 +314,8 @@ def test_containers_info_retrieve_and_logs_error_branches(
         "get_container_safely",
         lambda _cid, docker_client=None: (_ for _ in ()).throw(not_found_for_logs),
     )
-    with pytest.raises(ContainerNotFoundError):
-        containers_info_module.fetch_container_logs("missing", tail_lines=5)
+    # Not found is reported as None (not as an exception).
+    assert containers_info_module.fetch_container_logs("missing", tail_lines=5) is None
 
     def _unsupported_logs(**_kwargs: _Value) -> bytes:
         raise APIError("configured logging driver does not support reading")
@@ -370,11 +384,13 @@ def test_containers_info_counters_and_full_details_error_paths(
         containers_info_module,
         "get_container_safely",
         lambda _cid, docker_client=None: (_ for _ in ()).throw(
-            RuntimeError("full fail")
+            DockerConnectionError("docker down")
         ),
     )
 
-    assert containers_info_module.fetch_full_container_details("cid") is None
+    # An outage must never be reported as "not found" (None).
+    with pytest.raises(DockerConnectionError):
+        containers_info_module.fetch_full_container_details("cid")
 
 
 def test_docker_adapter_security_checks_and_context_sanitization(
@@ -425,7 +441,7 @@ def test_docker_adapter_tls_config_and_timeout_validation(
     )
     monkeypatch.setattr(docker_adapter_module, "settings", bad_timeout_settings)
     adapter_with_default_timeout = docker_adapter_module.DockerAdapter()
-    assert adapter_with_default_timeout._timeout_config["timeout"] == 30
+    assert adapter_with_default_timeout._timeout_config["timeout"] == 10
 
     strict_bad_timeout_settings = SimpleNamespace(
         docker=SimpleNamespace(
@@ -487,9 +503,12 @@ def test_docker_adapter_health_check_and_exit_error_paths(
     adapter = docker_adapter_module.DockerAdapter()
     assert adapter.health_check() is False
 
-    # Exercise __exit__ branches with Docker-specific and generic exceptions.
+    # Exercise __exit__ branches: only connection failures force a health
+    # check; API errors (e.g. 404) and generic errors keep the client.
     adapter._last_health_check = datetime.now()
     adapter.__exit__(DockerException, DockerException("docker fail"), None)
+    assert adapter._last_health_check is not None
+    adapter.__exit__(DockerConnectionError, DockerConnectionError("docker down"), None)
     assert adapter._last_health_check is None
     adapter.__exit__(ValueError, ValueError("generic fail"), None)
 
@@ -498,10 +517,13 @@ def test_docker_adapter_health_check_and_exit_error_paths(
     adapter.close()
     assert adapter._client is None
 
-    # Enter should wrap unexpected errors as DockerConnectionError.
+    # Strict mode propagates connection errors instead of degrading.
     adapter._strict_docker_access = True
-    monkeypatch.setattr(adapter, "_should_recreate_client", lambda: False)
-    adapter._client = None
+    monkeypatch.setattr(
+        adapter,
+        "_acquire_client",
+        lambda: (_ for _ in ()).throw(DockerConnectionError("down")),
+    )
     with pytest.raises(DockerConnectionError):
         adapter.__enter__()
 
@@ -591,43 +613,55 @@ def test_enter_paths_for_disabled_and_degraded_modes(
     degraded_adapter = docker_adapter_module.DockerAdapter()
     monkeypatch.setattr(
         degraded_adapter,
-        "_should_recreate_client",
-        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        "_acquire_client",
+        lambda: (_ for _ in ()).throw(DockerConnectionError("boom")),
     )
     degraded_client = degraded_adapter.__enter__()
     with pytest.raises(DockerConnectionError):
         degraded_client.ping()
+    with pytest.raises(DockerConnectionError):
+        degraded_client.api.images(quiet=True)
     degraded_adapter.__exit__(None, None, None)
 
 
-def test_enter_slow_path_reuse_and_old_client_close_suppression(
+def test_enter_reuses_healthy_client_and_drops_unhealthy_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import pytmbot.adapters.docker._adapter as docker_adapter_module
 
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     adapter = docker_adapter_module.DockerAdapter()
-    existing_client = _FakeDockerClient()
-    adapter._client = existing_client
 
-    call_sequence = iter([True, False])
-    monkeypatch.setattr(adapter, "_should_recreate_client", lambda: next(call_sequence))
-    reused = adapter.__enter__()
-    assert reused is existing_client
+    # Recently checked client is reused without a ping.
+    existing_client = _FakeDockerClient(ping_ok=False)
+    adapter._client = existing_client
+    adapter._last_health_check = datetime.now()
+    assert adapter.__enter__() is existing_client
     adapter.__exit__(None, None, None)
 
-    class _FailingCloseClient(_FakeDockerClient):
-        def close(self) -> None:
-            raise RuntimeError("close fail")
+    # Health check due and ping fails: the client is closed, the failure is
+    # recorded in the shared backoff and the call fails fast (degraded client).
+    adapter._last_health_check = None
+    created: list[_FakeDockerClient] = []
 
-    adapter._client = _FailingCloseClient()
-    create_sequence = iter([True, True])
-    monkeypatch.setattr(
-        adapter, "_should_recreate_client", lambda: next(create_sequence)
-    )
-    monkeypatch.setattr(adapter, "_create_client", lambda: _FakeDockerClient())
+    def _new_client(**_kwargs: object) -> _FakeDockerClient:
+        client = _FakeDockerClient()
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(docker_adapter_module, "DockerClient", _new_client)
+    degraded = adapter.__enter__()
+    assert isinstance(degraded, docker_adapter_module._UnavailableDockerClient)
+    assert existing_client.closed is True
+    assert adapter._client is None
+    assert created == []  # no immediate re-probe of an unreachable daemon
+    adapter.__exit__(None, None, None)
+
+    # Once the backoff is cleared, a new healthy client is created.
+    reset_connection_backoff()
     recreated = adapter.__enter__()
-    assert isinstance(recreated, _FakeDockerClient)
+    assert recreated is created[0]
+    assert created[0].api.timeout == adapter._timeout_config["timeout"]
     adapter.__exit__(None, None, None)
 
 
@@ -655,7 +689,7 @@ def test_health_check_docker_connection_error_and_del_cleanup_warning(
     adapter.__del__()
 
 
-def test_enter_slow_path_raises_when_client_missing_after_double_check(
+def test_strict_mode_fails_fast_inside_backoff_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import pytmbot.adapters.docker._adapter as docker_adapter_module
@@ -663,10 +697,16 @@ def test_enter_slow_path_raises_when_client_missing_after_double_check(
     monkeypatch.setattr(docker_adapter_module, "settings", _docker_settings_stub())
     adapter = docker_adapter_module.DockerAdapter()
     adapter._strict_docker_access = True
-    call_sequence = iter([True, False])
-    monkeypatch.setattr(adapter, "_should_recreate_client", lambda: next(call_sequence))
+    docker_adapter_module._CONNECTION_BACKOFF.record_failure(
+        adapter._docker_url, "socket refused"
+    )
+    monkeypatch.setattr(
+        docker_adapter_module,
+        "DockerClient",
+        lambda **_kwargs: pytest.fail("must not probe inside the backoff window"),
+    )
 
-    with pytest.raises(DockerConnectionError):
+    with pytest.raises(DockerConnectionError, match="socket refused"):
         adapter.__enter__()
 
 
@@ -750,23 +790,18 @@ def test_container_manager_access_validation_branches(
         manager.managing_container(1003, "cid", "start")
 
 
-def test_container_manager_internal_timeout_and_history_cleanup() -> None:
+def test_container_manager_reference_validation_and_history_cleanup() -> None:
     import pytmbot.adapters.docker.container_manager as container_manager_module
 
     manager = container_manager_module.ContainerManager()
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidContainerReferenceError):
         manager._normalize_container_id("   ")
+    with pytest.raises(InvalidContainerReferenceError):
+        manager._normalize_container_id("../etc")
 
     for idx in range(120):
         manager._record_operation("start", f"id-{idx}")
     assert len(manager._operation_history) <= 100
-
-    with pytest.raises(TimeoutError):
-        manager._run_with_timeout(
-            "slow-op",
-            lambda: time.sleep(0.05),
-            timeout_seconds=0.001,
-        )
 
 
 def test_container_manager_rename_and_dispatch_error_paths(

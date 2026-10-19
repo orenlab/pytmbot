@@ -40,6 +40,22 @@ def parse_callback_target_user(callback_data: str | None, prefix: str) -> int | 
         raise ValueError("Invalid callback user id") from exc
 
 
+def parse_bound_user_id(callback_data: str | None) -> int | None:
+    """
+    Return the id of the user an owner-bound callback payload belongs to.
+
+    Owner-bound payloads end with ``:<user_id>``; anything else (legacy or
+    unbound payloads) yields ``None``.
+    """
+    if not callback_data:
+        return None
+    _, separator, tail = callback_data.rpartition(":")
+    if not separator or not (tail.isascii() and tail.isdigit()):
+        return None
+    user_id = int(tail)
+    return user_id if user_id > 0 else None
+
+
 def authorize_callback_request(
     call: CallbackQuery,
     *,

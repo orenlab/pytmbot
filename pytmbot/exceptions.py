@@ -106,6 +106,22 @@ class ContainerLogsUnavailableError(ContainerException):
     """Raised when container logs cannot be read with current logging driver."""
 
 
+class InvalidContainerReferenceError(ContainerException):
+    """Raised when a container reference is not a valid Docker name or ID."""
+
+
+class ContainerActionInProgressError(ContainerException):
+    """Raised when another action on the same container is still running."""
+
+
+class ContainerStateConflictError(ContainerException):
+    """Raised when an action does not fit the container's current state."""
+
+    def __init__(self, context: ErrorContext | str, *, state: str = "") -> None:
+        super().__init__(context)
+        self.state = state
+
+
 class ImageException(DockerOperationException):
     """Base class for image related exceptions."""
 
