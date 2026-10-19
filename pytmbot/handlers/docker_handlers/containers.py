@@ -14,8 +14,9 @@ from telebot.types import InlineKeyboardMarkup, Message
 
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import retrieve_containers_stats
-from pytmbot.exceptions import ErrorContext
+from pytmbot.exceptions import DockerConnectionError, ErrorContext
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
+from pytmbot.handlers.docker_handlers.callback_data import container_short_id
 from pytmbot.handlers.docker_handlers.pagination import (
     build_container_full_info_callback_data,
     build_page_callback_data,
@@ -23,6 +24,7 @@ from pytmbot.handlers.docker_handlers.pagination import (
     fits_rich_message,
     paginate_items,
 )
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
@@ -57,6 +59,8 @@ def _get_container_data() -> list[dict[str, str]]:
     """Retrieve normalized container data for UI rendering."""
     try:
         data = retrieve_containers_stats()
+    except DockerConnectionError:
+        raise
     except Exception as e:
         raise exceptions.DockerOperationException(
             ErrorContext(
@@ -149,9 +153,11 @@ def _build_containers_keyboard(
 
     for container in page_items:
         container_name = str(container.get("name", "")).strip()
-        container_id = str(container.get("id", "")).strip().lower()
-        container_ref = container_id or container_name.lower()
-        if not container_ref:
+        # Buttons always carry the short container ID: the list shows display
+        # names (title-cased), which Docker would resolve case-sensitively.
+        container_ref = container_short_id(container.get("id"))
+        if container_ref is None:
+            logger.warning("bot.handler.docker.containers.missing.id.warn")
             continue
 
         keyboard_buttons.append(
@@ -237,6 +243,10 @@ def handle_containers(message: Message, bot: TeleBot) -> None:
             context,
             reply_markup=inline_keyboard,
         )
+
+    except DockerConnectionError:
+        logger.warning("bot.handler.docker.containers.docker.unavailable.warn")
+        send_docker_message(bot, message.chat.id, DOCKER_UNAVAILABLE_TEXT)
 
     except Exception as error:
         send_docker_message(

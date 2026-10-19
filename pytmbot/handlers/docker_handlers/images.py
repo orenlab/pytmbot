@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Mapping, Sequence
 from threading import RLock
@@ -21,14 +22,19 @@ from pytmbot.adapters.docker.images_info import (
     get_image_history,
     get_image_usage,
 )
-from pytmbot.exceptions import ErrorContext
+from pytmbot.exceptions import DockerConnectionError, ErrorContext
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
+from pytmbot.handlers.docker_handlers.callback_data import (
+    build_callback_data,
+    parse_callback_user_id,
+)
 from pytmbot.handlers.docker_handlers.pagination import (
     build_page_callback_data,
     build_page_footer,
     fits_rich_message,
     paginate_items,
 )
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
@@ -47,6 +53,8 @@ IMAGE_INFO_CALLBACK_PREFIX: Final[str] = "__image_info__"
 IMAGE_EXTRA_CALLBACK_PREFIX: Final[str] = "__image_extra__"
 IMAGES_DEFAULT_PAGE_SIZE: Final[int] = 2
 IMAGES_CACHE_TTL_SECONDS: Final[float] = 30.0
+IMAGE_REF_LENGTH: Final[int] = 12
+_IMAGE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{12,64}")
 
 MAX_LIST_FIELD_ITEMS: Final[int] = 6
 MAX_TEXT_FIELD_LENGTH: Final[int] = 120
@@ -322,13 +330,13 @@ def _prepare_images_for_listing(images: ImageList) -> ImageList:
     ]
 
 
-def _load_images_data() -> ImageList:
+def _load_images_data(*, force_refresh: bool = False) -> ImageList:
     """Load image list with short-lived cache to speed up pagination navigation."""
     global _images_cache
 
     now = time.time()
     with _images_cache_lock:
-        if _images_cache is not None:
+        if _images_cache is not None and not force_refresh:
             cached_images, cached_at = _images_cache
             if now - cached_at < IMAGES_CACHE_TTL_SECONDS:
                 return [dict(image) for image in cached_images]
@@ -406,53 +414,76 @@ def _render_paginated_images_text(
     return fallback, 1, 1, [], 0
 
 
-def build_image_info_callback_data(*, image_index: int, user_id: int, page: int) -> str:
+def image_short_ref(raw_image_id: object) -> str | None:
+    """Return the 12-hex short image ID used in callbacks, or None."""
+    value = str(raw_image_id).strip() if raw_image_id is not None else ""
+    hex_id = value.removeprefix("sha256:")
+    if _IMAGE_ID_PATTERN.fullmatch(hex_id) is None:
+        return None
+    return hex_id[:IMAGE_REF_LENGTH]
+
+
+def _parse_image_ref(raw_ref: str) -> str | None:
+    if len(raw_ref) != IMAGE_REF_LENGTH:
+        return None
+    return image_short_ref(raw_ref)
+
+
+def build_image_info_callback_data(*, image_ref: str, user_id: int, page: int) -> str:
     """Build callback payload for image details action."""
-    safe_index = max(0, int(image_index))
     safe_page = max(1, int(page))
-    return f"{IMAGE_INFO_CALLBACK_PREFIX}:{safe_index}:{int(user_id)}:{safe_page}"
+    return build_callback_data(
+        IMAGE_INFO_CALLBACK_PREFIX, image_ref, int(user_id), safe_page
+    )
+
+
+def _parse_user_and_page(raw_user_id: str, raw_page: str) -> tuple[int, int] | None:
+    user_id = parse_callback_user_id(raw_user_id)
+    try:
+        page = int(raw_page)
+    except ValueError:
+        return None
+    if user_id is None or page < 1:
+        return None
+    return user_id, page
 
 
 def parse_image_info_callback_data(
     callback_data: str,
-) -> tuple[int, int, int] | None:
-    """Parse callback payload for image details action."""
+) -> tuple[str, int, int] | None:
+    """Parse ``__image_info__:<image ref>:<user id>:<page>``.
+
+    Old position-based payloads (``__image_info__:<index>:...``) are rejected.
+    """
     parts = callback_data.split(":")
     if len(parts) != 4 or parts[0] != IMAGE_INFO_CALLBACK_PREFIX:
         return None
 
-    try:
-        image_index = int(parts[1])
-        user_id = int(parts[2])
-        page = int(parts[3])
-    except (TypeError, ValueError):
+    image_ref = _parse_image_ref(parts[1])
+    user_and_page = _parse_user_and_page(parts[2], parts[3])
+    if image_ref is None or user_and_page is None:
         return None
-
-    if image_index < 0 or page < 1:
-        return None
-
-    return image_index, user_id, page
+    return image_ref, *user_and_page
 
 
 def build_image_extra_callback_data(
     *,
     action: str,
-    image_index: int,
+    image_ref: str,
     user_id: int,
     page: int,
 ) -> str:
     safe_action = action.strip().lower()
-    safe_index = max(0, int(image_index))
     safe_page = max(1, int(page))
-    return (
-        f"{IMAGE_EXTRA_CALLBACK_PREFIX}:{safe_action}:{safe_index}:"
-        f"{int(user_id)}:{safe_page}"
+    return build_callback_data(
+        IMAGE_EXTRA_CALLBACK_PREFIX, safe_action, image_ref, int(user_id), safe_page
     )
 
 
 def parse_image_extra_callback_data(
     callback_data: str,
-) -> tuple[str, int, int, int] | None:
+) -> tuple[str, str, int, int] | None:
+    """Parse ``__image_extra__:<action>:<image ref>:<user id>:<page>``."""
     parts = callback_data.split(":")
     if len(parts) != 5 or parts[0] != IMAGE_EXTRA_CALLBACK_PREFIX:
         return None
@@ -461,17 +492,11 @@ def parse_image_extra_callback_data(
     if action not in {"history", "usage"}:
         return None
 
-    try:
-        image_index = int(parts[2])
-        user_id = int(parts[3])
-        page = int(parts[4])
-    except (TypeError, ValueError):
+    image_ref = _parse_image_ref(parts[2])
+    user_and_page = _parse_user_and_page(parts[3], parts[4])
+    if image_ref is None or user_and_page is None:
         return None
-
-    if image_index < 0 or page < 1:
-        return None
-
-    return action, image_index, user_id, page
+    return action, image_ref, *user_and_page
 
 
 def _make_image_details_button_label(
@@ -494,15 +519,18 @@ def _build_images_keyboard(
     keyboard_buttons = []
 
     for item_offset, image in enumerate(page_items):
-        image_index = start_index + item_offset
+        image_ref = image_short_ref(image.get("id"))
+        if image_ref is None:
+            logger.warning("bot.handler.docker.images.missing.id.warn")
+            continue
         keyboard_buttons.append(
             button_data(
                 text=_make_image_details_button_label(
                     image,
-                    image_position=image_index + 1,
+                    image_position=start_index + item_offset + 1,
                 ),
                 callback_data=build_image_info_callback_data(
-                    image_index=image_index,
+                    image_ref=image_ref,
                     user_id=user_id,
                     page=page,
                 ),
@@ -543,24 +571,24 @@ def _build_images_keyboard(
     return keyboards.build_inline_keyboard(keyboard_buttons)
 
 
-def _get_image_details_data(*, image_index: int) -> ImageData | None:
-    images = _load_images_data()
-    if image_index < 0 or image_index >= len(images):
-        return None
-
-    image = images[image_index]
-    if not isinstance(image, dict):
-        return None
-    return _compact_image_for_details(image)
+def _find_image(images: ImageList, image_ref: str) -> ImageData | None:
+    for image in images:
+        if isinstance(image, dict) and image_short_ref(image.get("id")) == image_ref:
+            return image
+    return None
 
 
-def _get_image_raw_data(*, image_index: int) -> ImageData | None:
-    images = _load_images_data()
-    if image_index < 0 or image_index >= len(images):
-        return None
+def _get_image_raw_data(*, image_ref: str) -> ImageData | None:
+    """Find an image by short ID; refresh the cached list once if needed."""
+    image = _find_image(_load_images_data(), image_ref)
+    if image is None:
+        image = _find_image(_load_images_data(force_refresh=True), image_ref)
+    return image
 
-    image = images[image_index]
-    return image if isinstance(image, dict) else None
+
+def _get_image_details_data(*, image_ref: str) -> ImageData | None:
+    image = _get_image_raw_data(image_ref=image_ref)
+    return None if image is None else _compact_image_for_details(image)
 
 
 def _render_image_details_text(image: ImageData) -> str:
@@ -575,7 +603,7 @@ def _render_image_details_text(image: ImageData) -> str:
 
 def _build_image_details_keyboard(
     *,
-    image_index: int,
+    image_ref: str,
     page: int,
     user_id: int,
 ) -> InlineKeyboardMarkup:
@@ -585,7 +613,7 @@ def _build_image_details_keyboard(
                 text="History",
                 callback_data=build_image_extra_callback_data(
                     action="history",
-                    image_index=image_index,
+                    image_ref=image_ref,
                     user_id=user_id,
                     page=page,
                 ),
@@ -594,7 +622,7 @@ def _build_image_details_keyboard(
                 text="Used by containers",
                 callback_data=build_image_extra_callback_data(
                     action="usage",
-                    image_index=image_index,
+                    image_ref=image_ref,
                     user_id=user_id,
                     page=page,
                 ),
@@ -617,11 +645,12 @@ def _build_image_details_keyboard(
 
 def render_image_details(
     *,
-    image_index: int,
+    image_ref: str,
     page: int,
     user_id: int,
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    image_data = _get_image_details_data(image_index=image_index)
+    """Render image details; None when the image no longer exists."""
+    image_data = _get_image_details_data(image_ref=image_ref)
     if image_data is None:
         return None
 
@@ -646,7 +675,7 @@ def render_image_details(
         )
 
     keyboard = _build_image_details_keyboard(
-        image_index=image_index,
+        image_ref=image_ref,
         page=page,
         user_id=user_id,
     )
@@ -742,7 +771,7 @@ def _render_image_usage_text(
 
 def _build_image_extra_keyboard(
     *,
-    image_index: int,
+    image_ref: str,
     page: int,
     user_id: int,
 ) -> InlineKeyboardMarkup:
@@ -751,7 +780,7 @@ def _build_image_extra_keyboard(
             button_data(
                 text=f"{em.get_emoji('BACK_arrow')} Image details",
                 callback_data=build_image_info_callback_data(
-                    image_index=image_index,
+                    image_ref=image_ref,
                     user_id=user_id,
                     page=page,
                 ),
@@ -768,35 +797,49 @@ def _build_image_extra_keyboard(
     )
 
 
-def render_image_extra_info(
-    *,
-    action: str,
-    image_index: int,
-    page: int,
-    user_id: int,
-) -> tuple[str, InlineKeyboardMarkup] | None:
-    image = _get_image_raw_data(image_index=image_index)
-    if image is None:
-        return None
-
-    image_name = str(image.get("name", "N/A"))
-    image_id = str(image.get("id", "N/A"))
-
+def _render_image_extra_text(
+    action: str, *, image_name: str, image_id: str
+) -> str | None:
+    """Render history or usage; None when the image no longer exists."""
     if action == "history":
         history = get_image_history(image_id)
-        text = _render_image_history_text(
+        if history is None:
+            return None
+        return _render_image_history_text(
             image_name=image_name,
             image_id=image_id,
             history=history,
         )
-    elif action == "usage":
+    if action == "usage":
         usage = get_image_usage(image_id)
-        text = _render_image_usage_text(
+        if usage is None:
+            return None
+        return _render_image_usage_text(
             image_name=image_name,
             image_id=image_id,
             usage=usage,
         )
-    else:
+    return None
+
+
+def render_image_extra_info(
+    *,
+    action: str,
+    image_ref: str,
+    page: int,
+    user_id: int,
+) -> tuple[str, InlineKeyboardMarkup] | None:
+    """Render image history/usage; None when the image no longer exists."""
+    image = _get_image_raw_data(image_ref=image_ref)
+    if image is None:
+        return None
+
+    text = _render_image_extra_text(
+        action,
+        image_name=str(image.get("name", "N/A")),
+        image_id=str(image.get("id", "N/A")),
+    )
+    if text is None:
         return None
 
     if not fits_rich_message(text):
@@ -806,7 +849,7 @@ def render_image_extra_info(
         )
 
     keyboard = _build_image_extra_keyboard(
-        image_index=image_index,
+        image_ref=image_ref,
         page=page,
         user_id=user_id,
     )
@@ -856,6 +899,11 @@ def handle_images(message: Message, bot: TeleBot) -> bool:
             reply_markup=inline_button,
         )
         return True
+
+    except DockerConnectionError:
+        logger.warning("bot.handler.docker.images.docker.unavailable.warn")
+        send_docker_message(bot, message.chat.id, DOCKER_UNAVAILABLE_TEXT)
+        return False
 
     except Exception as error:
         send_docker_message(

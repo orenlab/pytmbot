@@ -30,6 +30,10 @@ from pytmbot.globals import (
     settings,
     var_config,
 )
+from pytmbot.handlers.docker_handlers.callback_data import (
+    post_auth_return_callback,
+    post_auth_return_label,
+)
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
     send_main_message,
@@ -49,6 +53,10 @@ _TOTP_RATE_LIMIT_WINDOW_SECONDS = 60.0
 _TOTP_ATTEMPT_CACHE_COMPACT_THRESHOLD = 256
 _totp_attempt_times: dict[int, deque[float]] = {}
 _totp_attempt_lock = threading.RLock()
+TOTP_UNAVAILABLE_TEXT = (
+    "⚠️ 2FA can't be checked right now: the bot's 2FA settings are incomplete. "
+    "Ask the bot administrator to check the bot logs."
+)
 
 
 def _totp_rate_limit_threshold() -> int:
@@ -241,32 +249,57 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         if stop_if(should_stop, action):
             return None
 
-    username = from_user.username or ""
-    authenticator = TwoFactorAuthenticator(user_id, username)
-    if authenticator.verify_totp_code(totp_code):
-        bot.send_chat_action(message.chat.id, "typing")
-        session_manager.set_auth_state(
-            user_id, session_manager.state_fabric.AUTHENTICATED
-        )
-        session_manager.set_login_time(user_id)
-
-        keyboard = __create_referer_keyboard(user_id)
-
-        emojis = {
-            "bullseye": em.get_emoji("bullseye"),
-            "down-right_arrow": em.get_emoji("down-right_arrow"),
-            "saluting_face": em.get_emoji("saluting_face"),
-        }
-
-        response = Compiler.quick_render(
-            template_name="a_success.jinja2", emojis=emojis
-        )
-
-        bot.reply_to(message, text=response, reply_markup=keyboard)
+    is_valid_code = _verify_totp_code(message, bot, from_user, totp_code)
+    if is_valid_code is None:
+        return None
+    if is_valid_code:
+        _complete_authentication(message, bot, user_id)
     else:
         session_manager.increment_totp_attempts(user_id=user_id)
         logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
         bot.reply_to(message, "That 2FA code is invalid. Please try again.")
+    return None
+
+
+def _verify_totp_code(
+    message: Message, bot: TeleBot, user: User, totp_code: str
+) -> bool | None:
+    """
+    Verify a TOTP code for the user.
+
+    Users without a Telegram username are supported (the secret is derived
+    from their user id). Returns ``None`` after telling the user when 2FA
+    cannot be checked because of a configuration problem.
+    """
+    try:
+        authenticator = TwoFactorAuthenticator(user.id, user.username)
+        return authenticator.verify_totp_code(totp_code)
+    except exceptions.TOTPError as error:
+        logger.error(
+            "bot.handler.auth_processing.twofa_processing.totp.unavailable.fail",
+            error=error.sanitized_message(),
+        )
+        bot.reply_to(message, TOTP_UNAVAILABLE_TEXT)
+        return None
+
+
+def _complete_authentication(message: Message, bot: TeleBot, user_id: int) -> None:
+    """Mark the session authenticated and offer the pending screen, if any."""
+    bot.send_chat_action(message.chat.id, "typing")
+    session_manager.set_auth_state(user_id, session_manager.state_fabric.AUTHENTICATED)
+    session_manager.set_login_time(user_id)
+
+    keyboard = __create_referer_keyboard(user_id)
+
+    emojis = {
+        "bullseye": em.get_emoji("bullseye"),
+        "down-right_arrow": em.get_emoji("down-right_arrow"),
+        "saluting_face": em.get_emoji("saluting_face"),
+    }
+
+    response = Compiler.quick_render(template_name="a_success.jinja2", emojis=emojis)
+
+    bot.reply_to(message, text=response, reply_markup=keyboard)
 
 
 def _handle_rate_limited_totp_attempt(message: Message, bot: TeleBot) -> None:
@@ -421,6 +454,9 @@ def __create_referer_keyboard(
     """
     Creates a referer keyboard based on the user's handler type and referer URI.
 
+    Without a pending screen (2FA started from the menu, or the pending action
+    expired) the main menu is offered instead.
+
     Args:
         user_id (int): The ID of the user.
 
@@ -432,10 +468,12 @@ def __create_referer_keyboard(
 
     try:
         keyboard: ReplyKeyboardMarkup | InlineKeyboardMarkup
-        if handler_type == "message":
+        if not handler_type or not referer_uri:
+            keyboard = keyboards.build_reply_keyboard()
+        elif handler_type == "message":
             keyboard = keyboards.build_referer_main_keyboard(referer_uri)
         elif handler_type == "callback_query":
-            keyboard = keyboards.build_referer_inline_keyboard(referer_uri)
+            keyboard = _build_return_inline_keyboard(referer_uri)
         else:
             raise NotImplementedError(f"Unsupported handler type: {handler_type}")
 
@@ -451,3 +489,15 @@ def __create_referer_keyboard(
         ) from error
     finally:
         session_manager.reset_referer_data(user_id)
+
+
+def _build_return_inline_keyboard(
+    referer_uri: str,
+) -> ReplyKeyboardMarkup | InlineKeyboardMarkup:
+    """Offer the pending screen; state-changing actions map to their overview."""
+    return_callback = post_auth_return_callback(referer_uri)
+    if return_callback is None:
+        return keyboards.build_reply_keyboard()
+    return keyboards.build_referer_inline_keyboard(
+        return_callback, label=post_auth_return_label(return_callback)
+    )

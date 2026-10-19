@@ -10,11 +10,13 @@ from __future__ import annotations
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.exceptions import DockerConnectionError
 from pytmbot.handlers.docker_handlers.containers import (
     CONTAINERS_PAGE_CALLBACK_PREFIX,
     get_list_of_containers_again,
 )
 from pytmbot.handlers.docker_handlers.pagination import parse_page_callback_data
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_required_callback_data,
@@ -93,10 +95,14 @@ def handle_back_to_containers(call: CallbackQuery, bot: TeleBot) -> None:
         )
         return None
 
-    context, inline_keyboard = get_list_of_containers_again(
-        page=page,
-        user_id=target_user_id,
-    )
+    try:
+        context, inline_keyboard = get_list_of_containers_again(
+            page=page,
+            user_id=target_user_id,
+        )
+    except DockerConnectionError:
+        show_handler_info(call=call, text=DOCKER_UNAVAILABLE_TEXT, bot=bot)
+        return None
 
     logger.debug(
         "bot.handler.docker.back.updated.list.debug",

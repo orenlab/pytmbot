@@ -231,11 +231,18 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
         page=2,
         total_pages=3,
         user_id=7,
-        page_items=[{"name": "repo/app:1.0"}],
+        page_items=[
+            {"name": "repo/app:1.0", "id": "sha256:0123456789ab"},
+            {"name": "no-id-image"},
+        ],
         start_index=4,
     )
-    callbacks = [item["callback_data"] for item in cast(_InlineButtons, keyboard)]
-    assert "__image_info__:4:7:2" in callbacks
+    buttons = cast(_InlineButtons, keyboard)
+    callbacks = [item["callback_data"] for item in buttons]
+    # Images are referenced by short image ID, not by list position.
+    assert "__image_info__:0123456789ab:7:2" in callbacks
+    assert buttons[0]["text"] == "📦 #5 repo/app:1.0"
+    assert not any("no-id-image" in item["text"] for item in buttons)
     assert "__images_page__:1:7" in callbacks
     assert "__images_page__:3:7" in callbacks
     assert "__check_updates__:7" in callbacks
@@ -319,38 +326,51 @@ def test_build_keyboard_render_page_and_handle(monkeypatch: pytest.MonkeyPatch) 
 def test_image_info_callback_helpers_and_details_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    image_ref = "0123456789ab"
     callback_data = images_module.build_image_info_callback_data(
-        image_index=4,
+        image_ref=image_ref,
         user_id=11,
         page=2,
     )
-    assert callback_data == "__image_info__:4:11:2"
-    assert images_module.parse_image_info_callback_data(callback_data) == (4, 11, 2)
+    assert callback_data == f"__image_info__:{image_ref}:11:2"
+    assert images_module.parse_image_info_callback_data(callback_data) == (
+        image_ref,
+        11,
+        2,
+    )
     assert images_module.parse_image_info_callback_data("bad") is None
+    # Old position-based buttons are rejected instead of opening another image.
+    assert images_module.parse_image_info_callback_data("__image_info__:4:11:2") is None
     extra_callback = images_module.build_image_extra_callback_data(
         action="history",
-        image_index=4,
+        image_ref=image_ref,
         user_id=11,
         page=2,
     )
-    assert extra_callback == "__image_extra__:history:4:11:2"
+    assert extra_callback == f"__image_extra__:history:{image_ref}:11:2"
     assert images_module.parse_image_extra_callback_data(extra_callback) == (
         "history",
-        4,
+        image_ref,
         11,
         2,
     )
     assert (
-        images_module.parse_image_extra_callback_data("__image_extra__:bad:4:11:2")
+        images_module.parse_image_extra_callback_data(
+            f"__image_extra__:bad:{image_ref}:11:2"
+        )
+        is None
+    )
+    assert (
+        images_module.parse_image_extra_callback_data("__image_extra__:history:4:11:2")
         is None
     )
 
     monkeypatch.setattr(
         images_module,
         "_load_images_data",
-        lambda: [
+        lambda force_refresh=False: [
             {
-                "id": "sha256:abc",
+                "id": "sha256:0123456789ab",
                 "name": "repo/app:1.0",
                 "tags": ["repo/app:1.0"],
                 "repo_digests": ["repo/app@sha256:abc"],
@@ -408,17 +428,20 @@ def test_image_info_callback_helpers_and_details_render(
         type("_Em", (), {"get_emoji": staticmethod(lambda key: "⬅️")})(),
     )
 
-    rendered = images_module.render_image_details(image_index=0, page=2, user_id=11)
+    rendered = images_module.render_image_details(
+        image_ref=image_ref, page=2, user_id=11
+    )
     details_callbacks = _assert_rendered_text_and_get_callbacks(
         rendered,
         expected_text="d_image_full_info.jinja2",
     )
-    assert "__image_extra__:history:0:11:2" in details_callbacks
-    assert "__image_extra__:usage:0:11:2" in details_callbacks
+    assert f"__image_extra__:history:{image_ref}:11:2" in details_callbacks
+    assert f"__image_extra__:usage:{image_ref}:11:2" in details_callbacks
     assert "__images_page__:2:11" in details_callbacks
 
     assert (
-        images_module.render_image_details(image_index=99, page=2, user_id=11) is None
+        images_module.render_image_details(image_ref="ffffffffffff", page=2, user_id=11)
+        is None
     )
 
     monkeypatch.setattr(
@@ -454,7 +477,7 @@ def test_image_info_callback_helpers_and_details_render(
 
     history_rendered = images_module.render_image_extra_info(
         action="history",
-        image_index=0,
+        image_ref=image_ref,
         page=2,
         user_id=11,
     )
@@ -462,12 +485,12 @@ def test_image_info_callback_helpers_and_details_render(
         history_rendered,
         expected_text="d_image_history_info.jinja2",
     )
-    assert "__image_info__:0:11:2" in history_callbacks
+    assert f"__image_info__:{image_ref}:11:2" in history_callbacks
     assert "__images_page__:2:11" in history_callbacks
 
     usage_rendered = images_module.render_image_extra_info(
         action="usage",
-        image_index=0,
+        image_ref=image_ref,
         page=2,
         user_id=11,
     )

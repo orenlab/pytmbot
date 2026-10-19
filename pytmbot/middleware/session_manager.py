@@ -11,7 +11,7 @@ import itertools
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import ClassVar, Final
 from weakref import WeakValueDictionary
@@ -49,12 +49,38 @@ class _UserSession:
     login_time: datetime | None = None
     referer_uri: str | None = None
     handler_type: str | None = None
+    updated_at: datetime = field(default_factory=datetime.now)
 
-    def is_expired(self, timeout_minutes: int) -> bool:
-        """Check if session is expired."""
-        if not self.login_time:
+    def is_login_expired(
+        self, timeout_minutes: int, now: datetime | None = None
+    ) -> bool:
+        """Check whether the authenticated login is missing or too old."""
+        if self.login_time is None:
             return True
-        return datetime.now() > self.login_time + timedelta(minutes=timeout_minutes)
+        current_time = now or datetime.now()
+        return current_time > self.login_time + timedelta(minutes=timeout_minutes)
+
+    def is_expired(
+        self,
+        *,
+        session_timeout: int,
+        pending_timeout: int,
+        now: datetime | None = None,
+    ) -> bool:
+        """
+        Check whether the whole session record can be discarded.
+
+        - authenticated: expires ``session_timeout`` minutes after login;
+        - blocked: kept until the block (and its attempt counter) runs out;
+        - processing/unauthenticated: a pending 2FA code entry or pending
+          action expires ``pending_timeout`` minutes after the last update.
+        """
+        current_time = now or datetime.now()
+        if self.auth_state == _StateFabric.AUTHENTICATED:
+            return self.is_login_expired(session_timeout, current_time)
+        if self.auth_state == _StateFabric.BLOCKED:
+            return self.blocked_time is None or current_time > self.blocked_time
+        return current_time > self.updated_at + timedelta(minutes=pending_timeout)
 
     def is_blocked_now(self) -> bool:
         """Check if user is currently blocked."""
@@ -73,6 +99,7 @@ class SessionManager(BaseComponent):
         "state_fabric",
         "cleanup_interval",
         "session_timeout",
+        "pending_timeout",
         "max_totp_attempts",
         "block_duration",
         "_user_sessions",
@@ -91,6 +118,7 @@ class SessionManager(BaseComponent):
     # Default configuration
     _DEFAULT_CLEANUP_INTERVAL: Final[int] = 600  # seconds
     _DEFAULT_SESSION_TIMEOUT: Final[int] = 10  # minutes
+    _DEFAULT_PENDING_TIMEOUT: Final[int] = 10  # minutes (2FA code entry)
     _DEFAULT_MAX_TOTP_ATTEMPTS: Final[int] = 5
     _DEFAULT_BLOCK_DURATION: Final[int] = 10  # minutes
     _MAX_SESSIONS: Final[int] = 10_000
@@ -98,6 +126,7 @@ class SessionManager(BaseComponent):
     state_fabric: _StateFabric
     cleanup_interval: int
     session_timeout: int
+    pending_timeout: int
     max_totp_attempts: int
     block_duration: int
 
@@ -122,6 +151,7 @@ class SessionManager(BaseComponent):
         *,
         cleanup_interval: int | None = None,
         session_timeout: int | None = None,
+        pending_timeout: int | None = None,
         max_totp_attempts: int | None = None,
         block_duration: int | None = None,
     ) -> None:
@@ -143,6 +173,11 @@ class SessionManager(BaseComponent):
             session_timeout
             if session_timeout is not None
             else self._DEFAULT_SESSION_TIMEOUT
+        )
+        self.pending_timeout = (
+            pending_timeout
+            if pending_timeout is not None
+            else self._DEFAULT_PENDING_TIMEOUT
         )
         self.max_totp_attempts = (
             max_totp_attempts
@@ -234,12 +269,7 @@ class SessionManager(BaseComponent):
 
         evicted = 0
 
-        expired_users = [
-            uid
-            for uid, session in self._user_sessions.items()
-            if session.is_expired(self.session_timeout)
-        ]
-        for uid in expired_users:
+        for uid in self._expired_user_ids_locked():
             del self._user_sessions[uid]
             evicted += 1
 
@@ -266,6 +296,19 @@ class SessionManager(BaseComponent):
 
         return evicted
 
+    def _expired_user_ids_locked(self) -> list[int]:
+        """Return ids of discardable sessions; ``self._lock`` must be held."""
+        now = datetime.now()
+        return [
+            uid
+            for uid, session in self._user_sessions.items()
+            if session.is_expired(
+                session_timeout=self.session_timeout,
+                pending_timeout=self.pending_timeout,
+                now=now,
+            )
+        ]
+
     @contextmanager
     def session_context(self, user_id: int) -> Generator[_UserSession, None, None]:
         """Context manager for safe session access."""
@@ -284,6 +327,7 @@ class SessionManager(BaseComponent):
         with self.session_context(user_id) as session:
             old_state = session.auth_state
             session.auth_state = state
+            session.updated_at = datetime.now()
 
             with self.log_context(user_id=user_id, action="set_auth_state") as log:
                 log.info(
@@ -365,8 +409,12 @@ class SessionManager(BaseComponent):
             return False
 
         session.blocked_time = None
+        # A finished lockout starts a fresh attempt budget; otherwise the next
+        # code would immediately trigger another full-length block.
+        session.totp_attempts = 0
         if session.auth_state == self.state_fabric.BLOCKED:
             session.auth_state = self.state_fabric.UNAUTHENTICATED
+            session.updated_at = datetime.now()
         return True
 
     def get_blocked_time(self, user_id: int) -> datetime | None:
@@ -405,7 +453,7 @@ class SessionManager(BaseComponent):
             if not is_blocked:
                 self._auto_unblock_if_due(user_id, session)
 
-            is_expired = session.is_expired(self.session_timeout)
+            is_expired = session.is_login_expired(self.session_timeout)
             is_auth = (
                 session.auth_state == self.state_fabric.AUTHENTICATED
                 and not is_blocked
@@ -433,6 +481,7 @@ class SessionManager(BaseComponent):
         with self.session_context(user_id) as session:
             session.referer_uri = referer_uri
             session.handler_type = handler_type
+            session.updated_at = datetime.now()
 
             with self.log_context(user_id=user_id, action="set_referer_data") as log:
                 log.debug(
@@ -464,11 +513,7 @@ class SessionManager(BaseComponent):
     def clear_expired_sessions(self) -> None:
         """Clear all expired sessions."""
         with self._lock:
-            expired_users = [
-                user_id
-                for user_id, session in self._user_sessions.items()
-                if session.is_expired(self.session_timeout)
-            ]
+            expired_users = self._expired_user_ids_locked()
 
             if expired_users:
                 for user_id in expired_users:
@@ -494,11 +539,7 @@ class SessionManager(BaseComponent):
         health checks between cleanup-thread runs.
         """
         with self._lock:
-            expired_users = [
-                uid
-                for uid, s in self._user_sessions.items()
-                if s.is_expired(self.session_timeout)
-            ]
+            expired_users = self._expired_user_ids_locked()
             for uid in expired_users:
                 del self._user_sessions[uid]
 

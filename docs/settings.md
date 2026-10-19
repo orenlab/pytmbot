@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current repository sample value: `0.5.0`.
+- Current repository sample value: `0.5.1`.
 - Supported values are defined in `get_compatibility_matrix()` inside `pytmbot/models/settings_model.py`.
 - Legacy configs without this field are auto-migrated.
 
@@ -62,6 +62,12 @@ Required.
 - `host`: required list of Docker daemon endpoints.
 - `debug_docker_client`: optional boolean, default `false`.
 - `strict_access`: optional boolean, default `false`.
+- `timeout`: optional integer, default `10`; per-request Docker API timeout in seconds; values outside `5`-`300` are
+  clamped to that range.
+- `cert_path`, `key_path`: optional TLS client certificate and key, for `https://` hosts only.
+- `ca_cert`: optional, default `true` (system CAs); a CA bundle path, or `false` to disable server verification
+  (not recommended).
+- `verify_hostname`: optional boolean, default `true`; verify the daemon's TLS hostname.
 
 Behavior:
 
@@ -131,7 +137,7 @@ Optional. Required when the `monitor` plugin is enabled.
 ## Minimal Required Configuration
 
 ```yaml
-config_version: "0.5.0"
+config_version: "0.5.1"
 
 bot_token:
   prod_token:

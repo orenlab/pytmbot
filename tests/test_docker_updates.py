@@ -12,6 +12,7 @@ from typing import Never, cast
 import pytest
 from aiohttp import ClientError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import RequestInfo
+from docker.errors import ImageNotFound
 from multidict import CIMultiDict, CIMultiDictProxy
 from packaging import version
 from packaging.version import InvalidVersion
@@ -20,8 +21,10 @@ from yarl import URL
 import pytmbot.adapters.docker.updates as updates_module
 from pytmbot.adapters.docker.updates import (
     MAX_TAGS_PER_REPO,
+    CheckFailure,
     DockerImageUpdater,
     EnhancedTagInfo,
+    RegistryCheckError,
     TagAnalyzer,
     TagType,
     UpdaterResponse,
@@ -118,19 +121,6 @@ def test_tag_analyzer_extended_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         assert semver_custom.tag_type == TagType.CUSTOM
         assert numeric_custom.tag_type == TagType.CUSTOM
 
-    with monkeypatch.context() as local_patch:
-        local_patch.setattr(
-            TagAnalyzer,
-            "SEMVER_PATTERN",
-            SimpleNamespace(
-                match=lambda _value: (_ for _ in ()).throw(RuntimeError("boom"))
-            ),
-        )
-        invalid = analyzer.analyze_tag(
-            TagInfo(name="v1.0.0", created_at="2026-01-01T00:00:00Z", digest=None)
-        )
-        assert invalid.tag_type == TagType.INVALID
-
 
 def test_normalize_and_dict_conversion_edges(monkeypatch: pytest.MonkeyPatch) -> None:
     assert normalize_created_at(5_000_000_000) is None
@@ -150,16 +140,22 @@ def test_rate_limiter_and_cache_helpers(monkeypatch: pytest.MonkeyPatch) -> None
     limiter = updates_module.RateLimitHandler()
     clock = [1000.0]
     monkeypatch.setattr("pytmbot.adapters.docker.updates.time.time", lambda: clock[0])
+    assert limiter.retry_after() is None
     limiter.handle_rate_limit()
-    assert limiter.should_skip_request() is True
+    assert limiter.retry_after() == updates_module.RATE_LIMIT_BACKOFF
     limiter.handle_success()
     clock[0] = updates_module.RATE_LIMIT_BACKOFF + 1001
-    assert limiter.should_skip_request() is False
+    assert limiter.retry_after() is None
 
-    limiter._consecutive_limits = 6  # noqa: SLF001
-    limiter._last_rate_limit = 1000.0  # noqa: SLF001
-    clock[0] = 1200.0
-    assert limiter.should_skip_request() is True
+    # Retry-After from Docker Hub wins over the default backoff.
+    limiter.handle_rate_limit(42)
+    assert limiter.retry_after() == 42
+
+    # Repeated limits without Retry-After back off twice as long.
+    limiter._consecutive_limits = 5  # noqa: SLF001
+    clock[0] = 10_000.0
+    limiter.handle_rate_limit()
+    assert limiter.retry_after() == updates_module.RATE_LIMIT_BACKOFF * 2
 
     updater = DockerImageUpdater()
     now = 2000.0
@@ -199,41 +195,58 @@ def test_updater_initialize_local_images_and_digest_paths(
     image_no_tags = SimpleNamespace(tags=[], attrs={})
     image_bad = SimpleNamespace(tags=["bad"], attrs={"Created": "bad"})
 
+    images_by_id = {"v": image_valid, "n": image_no_tags, "b": image_bad}
+
+    def _get_image(image_id: str) -> SimpleNamespace:
+        if image_id not in images_by_id:
+            raise ImageNotFound("removed while listing")
+        return images_by_id[image_id]
+
     @contextmanager
     def _client_context() -> Iterator[SimpleNamespace]:
+        # "gone" disappears between the list and the inspect and must be skipped.
         yield SimpleNamespace(
-            images=SimpleNamespace(
-                list=lambda all=False: [image_valid, image_no_tags, image_bad]
-            )
-        )  # noqa: FBT002
+            api=SimpleNamespace(
+                images=lambda all=False: [
+                    {"Id": image_id} for image_id in ("v", "gone", "n", "b")
+                ]
+            ),
+            images=SimpleNamespace(get=_get_image),
+        )
 
     monkeypatch.setattr(updates_module, "docker_client_context", _client_context)
     original_process_image_tags = updates_module._process_local_image_tags
-    monkeypatch.setattr(
-        updates_module,
-        "_process_local_image_tags",
-        lambda image, digest, local, *, log, parse_tag: (
-            (_ for _ in ()).throw(RuntimeError("tag fail"))
-            if image is image_bad
-            else original_process_image_tags(
-                image, digest, local, log=log, parse_tag=parse_tag
-            )
-        ),
-    )
+
+    def _process_or_fail(
+        image: SimpleNamespace,
+        local: dict[str, list[dict[str, str | None]]],
+        *,
+        log: object,
+    ) -> None:
+        if image is image_bad:
+            raise RuntimeError("tag fail")
+        original_process_image_tags(image, local, log=log)
+
+    monkeypatch.setattr(updates_module, "_process_local_image_tags", _process_or_fail)
     parsed = updater._get_local_images()
-    assert "repo/app" in parsed
+    assert parsed == {
+        "repo/app": [
+            {
+                "tag": "1.0",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "digest": "sha256:" + "a" * 64,
+            }
+        ]
+    }
 
     assert (
-        updates_module._extract_image_digest(
-            SimpleNamespace(attrs={"RepoDigests": ["bad-format"]}),
-            log=updater._log,
+        updates_module._repo_digests_by_name(
+            SimpleNamespace(attrs={"RepoDigests": ["bad-format", 7]})
         )
-        is None
+        == {}
     )
     bad_digest_image = SimpleNamespace(attrs=cast(dict[str, str], None))
-    assert (
-        updates_module._extract_image_digest(bad_digest_image, log=updater._log) is None
-    )
+    assert updates_module._repo_digests_by_name(bad_digest_image) == {}
 
 
 def test_process_tags_parse_and_bridge_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -243,18 +256,16 @@ def test_process_tags_parse_and_bridge_helpers(monkeypatch: pytest.MonkeyPatch) 
         tags=["repo/app:1.0", " ", cast(str, None), "too/" + "x" * 300 + ":1.0"],
         attrs={"Created": "2026-01-01T00:00:00Z"},
     )
-    updates_module._process_local_image_tags(
-        image,
-        "sha256:" + "a" * 64,
-        local,
-        log=updater._log,
-        parse_tag=updates_module._parse_image_tag,
-    )
-    assert "repo/app" in local
+    updates_module._process_local_image_tags(image, local, log=updater._log)
+    assert list(local) == ["repo/app"]
+    # Without a RepoDigest the tag was never pulled: it is a local image.
+    assert local["repo/app"][0]["digest"] is None
 
     with pytest.raises(ValueError):
-        updates_module._parse_image_tag("repo/:")
-    assert updates_module._parse_image_tag("docker.io/library/nginx:1.2") == (
+        updates_module.parse_image_reference("repo/:")
+    reference = updates_module.parse_image_reference("docker.io/library/nginx:1.2")
+    assert (reference.repository, reference.path, reference.tag) == (
+        "docker.io/library/nginx",
         "library/nginx",
         "1.2",
     )
@@ -319,7 +330,9 @@ def test_sync_bridge_stop_and_sync_runner_paths(
     ) -> SimpleNamespace:
         coro.close()
         return SimpleNamespace(
-            result=lambda: UpdaterResponse(status=UpdaterStatus.SUCCESS, message="ok")
+            result=lambda timeout: UpdaterResponse(
+                status=UpdaterStatus.SUCCESS, message="ok"
+            )
         )
 
     monkeypatch.setattr(
@@ -374,24 +387,39 @@ def test_tag_analyzer_classifies_core_formats() -> None:
     )
 
 
-def test_build_repository_urls_handles_namespaced_and_library() -> None:
-    assert updates_module._build_repository_urls("orenlab/pytmbot") == [
+def _hub_url(reference: str) -> str | None:
+    return updates_module._docker_hub_tags_url(
+        updates_module.parse_image_reference(reference)
+    )
+
+
+def test_docker_hub_url_uses_one_endpoint_with_paging() -> None:
+    assert _hub_url("orenlab/pytmbot") == (
         "https://registry.hub.docker.com/v2/repositories/orenlab/pytmbot/tags/"
-    ]
-    assert updates_module._build_repository_urls("nginx") == [
-        "https://registry.hub.docker.com/v2/repositories/nginx/tags/",
-        "https://registry.hub.docker.com/v2/repositories/library/nginx/tags/",
-    ]
+        "?page_size=100&ordering=last_updated"
+    )
+    # Single names go straight to the official library namespace.
+    assert _hub_url("nginx") == (
+        "https://registry.hub.docker.com/v2/repositories/library/nginx/tags/"
+        "?page_size=100&ordering=last_updated"
+    )
 
 
-def test_parse_tag_handles_registry_prefix_and_default_latest() -> None:
-    assert updates_module._parse_image_tag("docker.io/library/nginx:1.27") == (
+def test_parse_image_reference_handles_registry_prefix_and_default_latest() -> None:
+    reference = updates_module.parse_image_reference("docker.io/library/nginx:1.27")
+    assert (reference.registry, reference.path, reference.tag) == (
+        "docker.io",
         "library/nginx",
         "1.27",
     )
-    assert updates_module._parse_image_tag("redis") == ("redis", "latest")
+    redis = updates_module.parse_image_reference("redis")
+    assert (redis.repository, redis.canonical_name, redis.tag) == (
+        "redis",
+        "docker.io/library/redis",
+        "latest",
+    )
     with pytest.raises(ValueError):
-        updates_module._parse_image_tag("")
+        updates_module.parse_image_reference("")
 
 
 def test_compare_versions_and_digest_equality() -> None:
@@ -472,7 +500,7 @@ def test_find_compatible_updates_respects_digest_and_semver_major() -> None:
 def test_updater_to_json_and_cache_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     updater = DockerImageUpdater()
 
-    async def _failing_check_updates() -> UpdaterResponse:
+    async def _failing_check_updates(_deadline: float) -> UpdaterResponse:
         raise RuntimeError("failed")
 
     monkeypatch.setattr(
@@ -686,7 +714,7 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
     analyzed = updater.analyzer.analyze_tag(
         TagInfo(name="latest", created_at="2026-02-01T00:00:00Z", digest="sha256:a")
     )
-    updater._cache.entries["repo/app"] = ([analyzed], time.time())
+    updater._cache.entries["docker.io/repo/app"] = ([analyzed], time.time())
 
     async def _run_from_cache() -> list[EnhancedTagInfo]:
         async with ClientSession() as session:
@@ -700,7 +728,7 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
 
     async def _always_404(
         _session: ClientSession, _url: str, _repo: str
-    ) -> list[EnhancedTagInfo] | None:
+    ) -> list[EnhancedTagInfo]:
         raise _make_client_response_error(404, "not found")
 
     monkeypatch.setattr(updater, "_fetch_tags_from_url", _always_404)
@@ -709,10 +737,11 @@ def test_fetch_remote_tags_cache_and_404(monkeypatch: pytest.MonkeyPatch) -> Non
         async with ClientSession() as session:
             return await updater._fetch_remote_tags(session, "missing")
 
-    missing = asyncio.run(_run_missing())
-    assert missing == []
-    assert "missing" in updater._cache.entries
-    assert updater._cache.entries["missing"][0] == []
+    with pytest.raises(RegistryCheckError) as missing:
+        asyncio.run(_run_missing())
+    assert missing.value.reason == CheckFailure.NOT_FOUND
+    # Failed lookups are never cached.
+    assert updater._cache.entries == {}
 
 
 def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -762,19 +791,20 @@ def test_check_updates_status_transitions(monkeypatch: pytest.MonkeyPatch) -> No
     assert success.repositories_processed == 1
     assert success.repositories_failed == 0
     assert isinstance(success.data, dict)
-    assert success.data["repo/ok"]["updates"]
+    assert success.data["repo/ok:v1.0.0"]["updates"]
 
     updater.local_images = {"repo/rate": [local_tag]}
 
     async def _fetch_rate_limited(
         _session: ClientSession, _repo: str
     ) -> list[EnhancedTagInfo]:
-        raise _make_client_response_error(429, "rate limited")
+        raise RegistryCheckError(CheckFailure.RATE_LIMITED, retry_after=30)
 
     monkeypatch.setattr(updater, "_fetch_remote_tags", _fetch_rate_limited)
     rate_limited = asyncio.run(updater._check_updates())
     assert rate_limited.status == UpdaterStatus.RATE_LIMITED
     assert rate_limited.repositories_failed == 1
+    assert rate_limited.metadata["retry_after"] == 30
 
     updater.local_images = {"repo/ok": [local_tag], "repo/fail": [local_tag]}
 
@@ -868,27 +898,10 @@ def test_updater_init_get_local_images_and_process_tags_error_paths(
     with pytest.raises(RuntimeError, match="docker client down"):
         updater._get_local_images()
 
-    # _process_image_tags warning branches.
-    image = SimpleNamespace(
-        tags=["repo/app:1.0", "repo/app:2.0"], attrs={"Created": "bad"}
-    )
+    # Invalid tags are skipped with a warning.
+    image = SimpleNamespace(tags=["repo/app:", "repo/app:bad tag"], attrs={})
     local: dict[str, list[dict[str, str | None]]] = {}
-    with monkeypatch.context() as local_patch:
-        call = {"n": 0}
-
-        def _parse_tag(_tag: str) -> tuple[str, str]:
-            call["n"] += 1
-            if call["n"] == 1:
-                raise ValueError("bad tag")
-            raise RuntimeError("unexpected parse fail")
-
-        updates_module._process_local_image_tags(
-            image,
-            None,
-            local,
-            log=updater._log,
-            parse_tag=_parse_tag,
-        )
+    updates_module._process_local_image_tags(image, local, log=updater._log)
     assert local == {}
 
 
@@ -901,8 +914,14 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
         async with ClientSession() as session:
             return await updater._fetch_remote_tags(session, repo)
 
-    monkeypatch.setattr(updater.rate_limiter, "should_skip_request", lambda: True)
-    assert asyncio.run(_run_repo("repo/app")) == []
+    def _failure(repo: str) -> RegistryCheckError:
+        with pytest.raises(RegistryCheckError) as error:
+            asyncio.run(_run_repo(repo))
+        return error.value
+
+    monkeypatch.setattr(updater.rate_limiter, "retry_after", lambda: 120)
+    skipped = _failure("repo/app")
+    assert (skipped.reason, skipped.retry_after) == (CheckFailure.RATE_LIMITED, 120)
 
     # Successful non-empty fetch path.
     analyzed = updater.analyzer.analyze_tag(
@@ -911,41 +930,44 @@ def test_fetch_remote_and_fetch_tags_extra_branches(
 
     async def _fetch_success(
         _session: ClientSession, _url: str, _repo: str
-    ) -> list[EnhancedTagInfo] | None:
+    ) -> list[EnhancedTagInfo]:
         return [analyzed]
 
-    monkeypatch.setattr(updater.rate_limiter, "should_skip_request", lambda: False)
+    monkeypatch.setattr(updater.rate_limiter, "retry_after", lambda: None)
     monkeypatch.setattr(updater, "_fetch_tags_from_url", _fetch_success)
 
     successful = asyncio.run(_run_repo("repo/app"))
     assert len(successful) == 1
 
-    # 429 path and generic warning branch.
-    async def _fetch_rate_limit(
-        _session: ClientSession, _url: str, _repo: str
-    ) -> list[EnhancedTagInfo] | None:
-        raise _make_client_response_error(429, "rate limited")
-
-    updater._cache.entries.clear()
-    monkeypatch.setattr(updater, "_fetch_tags_from_url", _fetch_rate_limit)
-    with pytest.raises(ClientResponseError):
-        asyncio.run(_run_repo("repo/rate"))
-
-    errors = iter(
-        [
-            _make_client_response_error(500, "server"),
-            RuntimeError("generic fetch fail"),
-        ]
-    )
+    errors: list[BaseException] = [
+        _make_client_response_error(403, "forbidden"),
+        _make_client_response_error(503, "unavailable"),
+        _make_client_response_error(200, "not json"),
+        TimeoutError(),
+        ClientError("network"),
+        ValueError("bad payload"),
+    ]
 
     async def _fetch_errors(
         _session: ClientSession, _url: str, _repo: str
-    ) -> list[EnhancedTagInfo] | None:
-        error = next(errors)
-        raise error
+    ) -> list[EnhancedTagInfo]:
+        raise errors.pop(0)
 
     monkeypatch.setattr(updater, "_fetch_tags_from_url", _fetch_errors)
-    assert asyncio.run(_run_repo("repo/errors")) == []
+    failures = [_failure("repo/errors") for _ in range(6)]
+    assert [(f.reason, f.status_code) for f in failures] == [
+        (CheckFailure.ACCESS_DENIED, 403),
+        (CheckFailure.REGISTRY_ERROR, 503),
+        (CheckFailure.INVALID_RESPONSE, None),
+        (CheckFailure.TIMEOUT, None),
+        (CheckFailure.NETWORK_ERROR, None),
+        (CheckFailure.INVALID_RESPONSE, None),
+    ]
+    assert "docker.io/repo/errors" not in updater._cache.entries
+
+    # Images outside Docker Hub never reach the network.
+    assert _failure("ghcr.io/acme/app").reason == CheckFailure.UNSUPPORTED_REGISTRY
+    assert _failure("repo/").reason == CheckFailure.UNSUPPORTED_REGISTRY
 
 
 def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -981,7 +1003,7 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr("pytmbot.adapters.docker.updates.ClientSession.get", _get_empty)
 
-    async def _run_empty() -> list[EnhancedTagInfo] | None:
+    async def _run_empty() -> list[EnhancedTagInfo]:
         async with ClientSession() as session:
             return await updater._fetch_tags_from_url(
                 session,
@@ -1009,13 +1031,15 @@ def test_fetch_tags_retry_and_entry_branches(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(
         "pytmbot.adapters.docker.updates.ClientSession.get", _get_payload
     )
-    with monkeypatch.context() as local_patch:
-        local_patch.setattr(
-            updater.analyzer,
-            "analyze_tag",
-            lambda _tag: (_ for _ in ()).throw(RuntimeError("entry boom")),
-        )
-        assert asyncio.run(_run_empty()) == []
+    parsed = asyncio.run(_run_empty())
+    assert [(tag.name, tag.digest) for tag in parsed] == [("latest", None)]
+
+    monkeypatch.setattr(
+        "pytmbot.adapters.docker.updates.ClientSession.get",
+        lambda self, _url, timeout: _Response({"detail": []}),
+    )
+    with pytest.raises(ValueError, match="no tag list"):
+        asyncio.run(_run_empty())
 
     class _ErrorResponse:
         async def __aenter__(self) -> _ErrorResponse:
@@ -1129,30 +1153,13 @@ def test_compare_find_and_check_updates_edge_paths(
         digests_equal=updates_module._tag_digests_equal,
     )
 
-    with monkeypatch.context() as local_patch:
-        local_patch.setattr(
-            updates_module,
-            "UpdateInfo",
-            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("build fail")),
-        )
-        assert (
-            updates_module._find_compatible_tag_updates(
-                date_local,
-                [date_remote],
-                log=updater._log,
-                compare_versions=updates_module._compare_enhanced_tags,
-                digests_equal=updates_module._tag_digests_equal,
-            )
-            == []
-        )
-
     updater.local_images = {}
     validation = asyncio.run(updater._check_updates())
     assert validation.status == UpdaterStatus.VALIDATION_ERROR
 
     # All failed branch (repositories_failed > 0 and processed == 0).
     updater.local_images = {
-        "repo/missing": [{"tag": "latest", "created_at": "", "digest": None}]
+        "repo/missing": [{"tag": "latest", "created_at": "", "digest": "sha256:a"}]
     }
 
     class _NoopClientSession:
@@ -1175,34 +1182,20 @@ def test_compare_find_and_check_updates_edge_paths(
         lambda **_kwargs: SimpleNamespace(),
     )
     monkeypatch.setattr(updates_module, "ClientSession", _NoopClientSession)
-    monkeypatch.setattr(
-        updater,
-        "_fetch_remote_tags",
-        lambda _session, _repo: (_ for _ in ()).throw(
-            _make_client_response_error(404, "missing")
-        ),
-    )
+
+    async def _fetch_missing(
+        _session: ClientSession, _repo: str
+    ) -> list[EnhancedTagInfo]:
+        raise RegistryCheckError(CheckFailure.NOT_FOUND, status_code=404)
+
+    monkeypatch.setattr(updater, "_fetch_remote_tags", _fetch_missing)
     all_failed = asyncio.run(updater._check_updates())
     assert all_failed.status == UpdaterStatus.ERROR
+    assert isinstance(all_failed.data, dict)
+    assert all_failed.data["repo/missing:latest"]["error"] == "not found"
 
-    # gather exception branch.
-    updater.local_images = {
-        "repo/fail": [{"tag": "latest", "created_at": "", "digest": None}]
-    }
-
-    async def _gather_fail(
-        *_args: Coroutine[None, None, UpdaterResponse], **_kwargs: bool
-    ) -> list[UpdaterResponse]:
-        for arg in _args:
-            if asyncio.iscoroutine(arg):
-                arg.close()
-        raise RuntimeError("gather failed")
-
-    monkeypatch.setattr("pytmbot.adapters.docker.updates.asyncio.gather", _gather_fail)
-    gather_failed = asyncio.run(updater._check_updates())
-    assert gather_failed.status == UpdaterStatus.ERROR
-
-    # outer exception branch.
+    # Unexpected errors outside a repository task reach the sync caller,
+    # which logs them and reports an ERROR response.
     class _FailingSession:
         def __init__(self, **_kwargs: str | float | bool | int) -> None:
             return
@@ -1219,5 +1212,8 @@ def test_compare_find_and_check_updates_edge_paths(
             return None
 
     monkeypatch.setattr(updates_module, "ClientSession", _FailingSession)
-    outer_failed = asyncio.run(updater._check_updates())
-    assert outer_failed.status == UpdaterStatus.ERROR
+    with pytest.raises(RuntimeError, match="session failure"):
+        asyncio.run(updater._check_updates())
+    outer_failed = updater.to_dict()
+    assert outer_failed["status"] == UpdaterStatus.ERROR.name
+    assert "session failure" in str(outer_failed["message"])

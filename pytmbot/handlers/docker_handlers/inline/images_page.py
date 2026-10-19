@@ -10,11 +10,13 @@ from __future__ import annotations
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.exceptions import DockerConnectionError, DockerOperationException
 from pytmbot.handlers.docker_handlers.images import (
     IMAGES_PAGE_CALLBACK_PREFIX,
     render_images_page,
 )
 from pytmbot.handlers.docker_handlers.pagination import parse_page_callback_data
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
     get_required_callback_data,
@@ -69,7 +71,15 @@ def handle_images_page(call: CallbackQuery, bot: TeleBot) -> None:
         )
         return None
 
-    context, inline_keyboard = render_images_page(page=page, user_id=target_user_id)
+    try:
+        context, inline_keyboard = render_images_page(page=page, user_id=target_user_id)
+    except DockerConnectionError:
+        show_handler_info(call=call, text=DOCKER_UNAVAILABLE_TEXT, bot=bot)
+        return None
+    except DockerOperationException:
+        logger.warning("bot.handler.docker.images_page.render.fail")
+        show_handler_info(call=call, text="Couldn't load images right now.", bot=bot)
+        return None
 
     edit_callback_message_text(
         call=call,

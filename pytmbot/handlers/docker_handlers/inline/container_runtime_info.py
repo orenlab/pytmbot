@@ -7,17 +7,36 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
-import html
 from dataclasses import dataclass
 from typing import Final
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardMarkup
 
+from pytmbot.adapters.docker.containers_info import fetch_full_container_details
+from pytmbot.exceptions import (
+    DockerConnectionError,
+    DockerOperationException,
+    InvalidContainerReferenceError,
+)
 from pytmbot.globals import ButtonDataType, get_keyboards
+from pytmbot.handlers.docker_handlers.callback_data import (
+    CONTAINER_EXTRA_CALLBACK_PREFIX,
+    container_short_id,
+    is_valid_container_ref,
+    parse_callback_user_id,
+)
+from pytmbot.handlers.docker_handlers.pagination import (
+    build_container_full_info_callback_data,
+)
+from pytmbot.handlers.docker_handlers.user_messages import (
+    CONTAINER_NOT_FOUND_TEXT,
+    DOCKER_REQUEST_FAILED_TEXT,
+    DOCKER_UNAVAILABLE_TEXT,
+    INVALID_CONTAINER_REF_TEXT,
+)
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
-    get_container_full_details,
     get_emojis,
     parse_container_runtime_info,
     show_handler_info,
@@ -34,7 +53,8 @@ logger = Logger()
 button_data = ButtonDataType
 keyboards = get_keyboards()
 
-CONTAINER_EXTRA_CALLBACK_PREFIX: Final[str] = "__container_extra__"
+__all__ = ["CONTAINER_EXTRA_CALLBACK_PREFIX", "handle_container_extra_info"]
+
 CONTAINER_EXTRA_ACTION_VOLUMES: Final[str] = "volumes"
 CONTAINER_EXTRA_ACTION_NETWORKS: Final[str] = "networks"
 CONTAINER_EXTRA_ACTION_RUNTIME: Final[str] = "runtime"
@@ -45,14 +65,18 @@ _MAX_ALIAS_ITEMS: Final[int] = 8
 @dataclass(frozen=True, slots=True)
 class ParsedContainerExtraCallback:
     action: str
-    container_name: str
+    container_ref: str
     user_id: int
 
 
 def parse_container_extra_callback_data(
     callback_data: str | None,
 ) -> ParsedContainerExtraCallback:
-    """Parse callback payload in format '__container_extra__:<action>:<name>:<user_id>'."""
+    """Parse callback payload in format '__container_extra__:<action>:<ref>:<user_id>'.
+
+    ``<ref>`` is the short container ID (names from older buttons are accepted
+    as-is and resolved exactly; they are never case-folded).
+    """
     if callback_data is None:
         raise ValueError("Missing callback payload")
 
@@ -68,33 +92,33 @@ def parse_container_extra_callback_data(
     ):
         raise ValueError("Unsupported container extra action")
 
-    container_name = parts[2].strip().lower()
-    if not container_name:
-        raise ValueError("Missing container name")
+    container_ref = parts[2]
+    if not is_valid_container_ref(container_ref):
+        raise ValueError("Invalid container reference")
 
-    try:
-        user_id = int(parts[3])
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Invalid callback user id") from exc
-    if user_id <= 0:
+    user_id = parse_callback_user_id(parts[3])
+    if user_id is None:
         raise ValueError("Invalid callback user id")
 
     return ParsedContainerExtraCallback(
         action=action,
-        container_name=container_name,
+        container_ref=container_ref,
         user_id=user_id,
     )
 
 
 def _safe_text(value: object, default: str = "N/A") -> str:
-    """Normalize arbitrary value for safe text rendering."""
+    """Normalize arbitrary value to one line of plain text.
+
+    HTML escaping is left to the templates (autoescape plus ``|e``); escaping
+    here as well showed users ``&amp;`` instead of ``&``.
+    """
     if value is None:
         return default
     text = str(value).strip()
     if not text:
         return default
-    sanitized = text.replace("\n", " ").replace("\r", " ")
-    return html.escape(sanitized, quote=True)
+    return text.replace("\n", " ").replace("\r", " ")
 
 
 def _safe_bool(value: object) -> str:
@@ -394,6 +418,7 @@ def _extract_runtime_context(attrs: dict[str, object]) -> dict[str, object]:
 
 def _build_back_keyboard(
     container_name: str,
+    container_ref: str,
     user_id: int,
     emojis: dict[str, str],
 ) -> InlineKeyboardMarkup:
@@ -401,9 +426,87 @@ def _build_back_keyboard(
         [
             button_data(
                 text=f"{emojis.get('BACK_arrow', '⬅️')} {container_name}",
-                callback_data=f"__get_full__:{container_name}:{user_id}",
+                callback_data=build_container_full_info_callback_data(
+                    container_ref=container_ref, user_id=user_id
+                ),
             )
         ]
+    )
+
+
+def _container_display_name(attrs: dict[str, object], fallback: str) -> str:
+    """Return the container name as Docker reports it (without the slash)."""
+    name = str(attrs.get("Name") or "").lstrip("/").strip()
+    return name or fallback
+
+
+def _load_container_details(
+    call: CallbackQuery, bot: TeleBot, container_ref: str
+) -> object | None:
+    """Fetch container details or tell the user why they are unavailable."""
+    if not validate_container_name(container_ref):
+        show_handler_info(call, text=INVALID_CONTAINER_REF_TEXT, bot=bot)
+        return None
+    try:
+        container_details: object | None = fetch_full_container_details(container_ref)
+    except DockerConnectionError:
+        logger.warning(
+            "bot.handler.docker.container_runtime_info.docker.unavailable.warn"
+        )
+        show_handler_info(call, text=DOCKER_UNAVAILABLE_TEXT, bot=bot)
+        return None
+    except InvalidContainerReferenceError:
+        show_handler_info(call, text=INVALID_CONTAINER_REF_TEXT, bot=bot)
+        return None
+    except DockerOperationException:
+        show_handler_info(call, text=DOCKER_REQUEST_FAILED_TEXT, bot=bot)
+        return None
+    if container_details is None:
+        show_handler_info(call, text=CONTAINER_NOT_FOUND_TEXT, bot=bot)
+        return None
+    if call.message is None:
+        show_handler_info(
+            call,
+            text="This container details message can no longer be updated.",
+            bot=bot,
+        )
+        return None
+    return container_details
+
+
+def _render_extra_view(
+    action: str,
+    common_context: dict[str, object],
+    attrs: dict[str, object],
+    emojis: dict[str, str],
+) -> str:
+    if action == CONTAINER_EXTRA_ACTION_VOLUMES:
+        return Compiler.quick_render(
+            template_name="d_container_volumes_info.jinja2",
+            luggage_emoji=emojis.get("luggage", "🧳"),
+            backpack_emoji=emojis.get("backpack", "🎒"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            **_extract_volume_context(attrs),
+            **common_context,
+        )
+    if action == CONTAINER_EXTRA_ACTION_NETWORKS:
+        return Compiler.quick_render(
+            template_name="d_container_networks_info.jinja2",
+            globe_emoji=emojis.get("globe_with_meridians", "🌐"),
+            chart_emoji=emojis.get("chart_increasing", "📈"),
+            network_emoji=emojis.get("globe_with_meridians", "🌐"),
+            gear_emoji=emojis.get("gear", "⚙️"),
+            **_extract_network_context(attrs),
+            **common_context,
+        )
+    return Compiler.quick_render(
+        template_name="d_container_runtime_info.jinja2",
+        stethoscope_emoji=emojis.get("stethoscope", "🩺"),
+        gear_emoji=emojis.get("gear", "⚙️"),
+        chart_emoji=emojis.get("chart_increasing", "📈"),
+        shield_emoji=emojis.get("shield", "🛡️"),
+        **_extract_runtime_context(attrs),
+        **common_context,
     )
 
 
@@ -425,78 +528,29 @@ def handle_container_extra_info(call: CallbackQuery, bot: TeleBot) -> None:
         show_handler_info(call, text=f"Container details: {deny_reason}", bot=bot)
         return None
 
-    container_name_valid = validate_container_name(parsed.container_name)
-    container_details = (
-        get_container_full_details(parsed.container_name)
-        if container_name_valid
-        else None
-    )
-    validation_errors = (
-        (not container_name_valid, "This container reference is invalid."),
-        (
-            container_name_valid and container_details is None,
-            f"{parsed.container_name}: Container not found",
-        ),
-        (
-            call.message is None,
-            "This container details message can no longer be updated.",
-        ),
-    )
-    for failed, error_text in validation_errors:
-        if failed:
-            show_handler_info(call, text=error_text, bot=bot)
-            return None
-
+    container_details = _load_container_details(call, bot, parsed.container_ref)
     if container_details is None:
         return None
 
     attrs = _extract_container_attrs(container_details)
+    container_name = _container_display_name(attrs, parsed.container_ref)
+    container_ref = container_short_id(attrs.get("Id")) or parsed.container_ref
     emojis = get_emojis()
-    common_context = {
+    common_context: dict[str, object] = {
         "thought_balloon": emojis.get("thought_balloon", "💭"),
         "package_emoji": emojis.get("package", "📦"),
         "banjo": emojis.get("banjo", "🪕"),
-        "container_name": parsed.container_name,
+        "container_name": container_name,
     }
-
-    if parsed.action == CONTAINER_EXTRA_ACTION_VOLUMES:
-        rendered = Compiler.quick_render(
-            template_name="d_container_volumes_info.jinja2",
-            luggage_emoji=emojis.get("luggage", "🧳"),
-            backpack_emoji=emojis.get("backpack", "🎒"),
-            chart_emoji=emojis.get("chart_increasing", "📈"),
-            **_extract_volume_context(attrs),
-            **common_context,
-        )
-    elif parsed.action == CONTAINER_EXTRA_ACTION_NETWORKS:
-        network_context = _extract_network_context(attrs)
-        rendered = Compiler.quick_render(
-            template_name="d_container_networks_info.jinja2",
-            globe_emoji=emojis.get("globe_with_meridians", "🌐"),
-            chart_emoji=emojis.get("chart_increasing", "📈"),
-            network_emoji=emojis.get("globe_with_meridians", "🌐"),
-            gear_emoji=emojis.get("gear", "⚙️"),
-            **network_context,
-            **common_context,
-        )
-    else:
-        runtime_context = _extract_runtime_context(attrs)
-        rendered = Compiler.quick_render(
-            template_name="d_container_runtime_info.jinja2",
-            stethoscope_emoji=emojis.get("stethoscope", "🩺"),
-            gear_emoji=emojis.get("gear", "⚙️"),
-            chart_emoji=emojis.get("chart_increasing", "📈"),
-            shield_emoji=emojis.get("shield", "🛡️"),
-            **runtime_context,
-            **common_context,
-        )
+    rendered = _render_extra_view(parsed.action, common_context, attrs, emojis)
 
     edit_callback_message_text(
         call=call,
         bot=bot,
         rich_message=build_rich_html_message(rendered),
         reply_markup=_build_back_keyboard(
-            container_name=parsed.container_name,
+            container_name=container_name,
+            container_ref=container_ref,
             user_id=parsed.user_id,
             emojis=emojis,
         ),

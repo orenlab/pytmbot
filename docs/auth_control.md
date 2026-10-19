@@ -59,7 +59,8 @@ Default timing:
 Implementation notes:
 
 - `SessionManager` is a named singleton with weak-reference instance storage.
-- Expired sessions are removed by a background cleanup thread.
+- Expired sessions are removed by a background cleanup thread: authenticated sessions by login time, pending
+  (`processing`) sessions after `10` minutes without activity, and blocked sessions only once the block has ended.
 - Session statistics are exposed to the health subsystem.
 
 ## Two-Factor Authentication
@@ -71,6 +72,13 @@ Current behavior:
 - Sensitive handlers use `two_factor_auth_required` from `pytmbot/middleware/session_wrapper.py`.
 - TOTP codes are 6-digit codes with a 30-second interval.
 - QR codes are generated from the per-user TOTP secret.
+- The secret is derived from the user ID, the Telegram username, and the configured salt. Users without a username
+  get a secret derived from the user ID and salt only. Adding or removing a username changes the secret, so the user
+  must scan the QR code again (`/qrcode`).
+- In group chats, buttons are bound to the user who opened the screen; a press by anyone else is answered with
+  "This button belongs to another user." before any 2FA check and never deletes the owner's message.
+- After a successful code, the "Return" button opens the screen the user was on; for container actions it opens the
+  container's Manage screen and never repeats Start/Stop/Restart.
 - Successful verification transitions the user session to `authenticated`.
 - Replayed or invalid codes are rejected by `pytmbot/utils/totp.py`.
 - Replay state is persisted in the runtime state directory when it is writable.

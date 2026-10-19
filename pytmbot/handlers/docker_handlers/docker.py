@@ -10,8 +10,9 @@ from telebot.types import Message
 
 from pytmbot import exceptions
 from pytmbot.adapters.docker.containers_info import fetch_docker_counters
-from pytmbot.exceptions import ErrorContext
+from pytmbot.exceptions import DockerConnectionError, ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
@@ -44,6 +45,10 @@ def handle_docker(message: Message, bot: TeleBot) -> None:
             bot_answer,
             reply_markup=reply_keyboard,
         )
+
+    except DockerConnectionError:
+        logger.warning("bot.handler.docker.docker.unavailable.warn")
+        send_docker_message(bot, message.chat.id, DOCKER_UNAVAILABLE_TEXT)
 
     except Exception as error:
         send_docker_message(

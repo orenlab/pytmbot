@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from types import ModuleType, TracebackType
-from typing import Literal, cast
+from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
 from telebot import TeleBot
@@ -12,6 +12,7 @@ from telebot.types import CallbackQuery
 import pytmbot.handlers.docker_handlers.inline.container_info as container_info_module
 import pytmbot.handlers.docker_handlers.inline.container_runtime_info as runtime_info_module
 import pytmbot.handlers.docker_handlers.inline.manage as manage_module
+from pytmbot.handlers.docker_handlers.user_messages import CONTAINER_NOT_FOUND_TEXT
 from pytmbot.handlers.handlers_util.docker import validate_container_name
 from pytmbot.parsers.compiler import Compiler
 from tests._inline_edit_helpers import (
@@ -100,32 +101,22 @@ def _prepare_handler_context(
     return handler, bot, shown
 
 
+_CONTAINER_ID = "1a2b3c4d5e6f"
+
+
 @dataclass
 class _ManageAuthContext:
-    container_name: str = "api"
+    container_name: str = _CONTAINER_ID
     user_id: int = 11
 
 
-class _DockerContext:
-    def __enter__(self) -> str:
-        return "adapter"
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> Literal[False]:
-        del exc_type, exc, tb
-        return False
+def _fake_container(state: str, *, name: str = "api") -> SimpleNamespace:
+    return SimpleNamespace(id=_CONTAINER_ID + "0" * 52, name=name, status=state)
 
 
 def _patch_manage_view_render_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        manage_module, "docker_client_context", lambda: _DockerContext()
-    )
     monkeypatch.setattr(
         manage_module,
         "button_data",
@@ -152,7 +143,7 @@ def _patch_manage_view_render_dependencies(
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda *args, **kwargs: "manage-ui",
+        lambda *args, **kwargs: "<p>manage-ui</p>",
     )
 
 
@@ -171,8 +162,8 @@ def _patch_manage_container_state(
 ) -> None:
     monkeypatch.setattr(
         manage_module,
-        "get_container_state",
-        lambda container_name, docker_client: state,
+        "fetch_full_container_details",
+        lambda container_ref: _fake_container(state),
     )
 
 
@@ -248,7 +239,7 @@ def test_handle_container_full_info_paths(monkeypatch: pytest.MonkeyPatch) -> No
         container_info_module, "get_comprehensive_container_details", lambda name: {}
     )
     handler(cast(CallbackQuery, _Call(data="ok")), cast(TeleBot, bot))
-    assert shown[-1] == "api: Container not found"
+    assert shown[-1] == CONTAINER_NOT_FOUND_TEXT
 
     class _Access:
         allowed_admins_ids = [11]
@@ -353,8 +344,14 @@ def test_parse_container_extra_callback_data() -> None:
         "__container_extra__:volumes:api:11"
     )
     assert parsed.action == "volumes"
-    assert parsed.container_name == "api"
+    assert parsed.container_ref == "api"
     assert parsed.user_id == 11
+
+    # References keep their case: Docker resolves names case-sensitively.
+    mixed_case = runtime_info_module.parse_container_extra_callback_data(
+        "__container_extra__:volumes:MyApp:11"
+    )
+    assert mixed_case.container_ref == "MyApp"
 
     with pytest.raises(ValueError):
         runtime_info_module.parse_container_extra_callback_data(None)
@@ -409,13 +406,13 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
         invalid_text="This container reference is invalid.",
     )
     monkeypatch.setattr(
-        runtime_info_module, "get_container_full_details", lambda name: None
+        runtime_info_module, "fetch_full_container_details", lambda name: None
     )
     handler(
         cast(CallbackQuery, _Call(data="__container_extra__:volumes:api:11")),
         cast(TeleBot, bot),
     )
-    assert shown[-1] == "api: Container not found"
+    assert shown[-1] == CONTAINER_NOT_FOUND_TEXT
 
     @dataclass
     class _Container:
@@ -447,7 +444,7 @@ def test_handle_container_extra_info_paths(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr(
         runtime_info_module,
-        "get_container_full_details",
+        "fetch_full_container_details",
         lambda name: _Container(attrs=container_attrs),
     )
     monkeypatch.setattr(
@@ -591,13 +588,17 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_manage_authorization_context(monkeypatch)
     _patch_manage_view_render_dependencies(monkeypatch)
     _patch_manage_container_state(monkeypatch, state="running")
-    handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
+    data = f"__manage__:{_CONTAINER_ID}:11"
+    handler(cast(CallbackQuery, _Call(data=data)), cast(TeleBot, bot))
     running_callbacks = cast(
         list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
     )
     running_values = [item["callback_data"] for item in running_callbacks]
-    assert any(value.startswith("__stop__") for value in running_values)
-    assert any(value.startswith("__restart__") for value in running_values)
+    assert running_values == [
+        f"__stop__:{_CONTAINER_ID}:11",
+        f"__restart__:{_CONTAINER_ID}:11",
+        f"__get_full__:{_CONTAINER_ID}:11",
+    ]
     running_styles = {
         item["callback_data"].split(":", 1)[0]: item["style"]
         for item in running_callbacks
@@ -607,7 +608,7 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert running_styles["__get_full__"] is None
 
     _patch_manage_container_state(monkeypatch, state="exited")
-    handler(cast(CallbackQuery, _Call(data="__manage__:api:11")), cast(TeleBot, bot))
+    handler(cast(CallbackQuery, _Call(data=data)), cast(TeleBot, bot))
     stopped_callbacks = cast(
         list[dict[str, str]], bot.edited_messages[-1]["reply_markup"]
     )
@@ -616,7 +617,7 @@ def test_handle_manage_container_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     assert stopped_callbacks[0]["style"] == "success"
 
     handler(
-        cast(CallbackQuery, _Call(data="__manage__:api:11", message=None)),
+        cast(CallbackQuery, _Call(data=data, message=None)),
         cast(TeleBot, bot),
     )
     assert shown[-1] == "This container management message can no longer be updated."
@@ -706,7 +707,7 @@ def test_handle_container_extra_info_ignores_not_modified(
     )
     monkeypatch.setattr(
         runtime_info_module,
-        "get_container_full_details",
+        "fetch_full_container_details",
         lambda name: {"name": "api", "state": "running"},
     )
     monkeypatch.setattr(

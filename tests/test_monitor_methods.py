@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import SimpleNamespace, TracebackType
 from typing import Literal, cast
@@ -463,15 +464,21 @@ def test_process_docker_metrics_and_detect_changes(
     monitor.state.init_mode = True
     container_notifs: list[_PayloadDict] = []
     image_notifs: list[_PayloadDict] = []
+
+    def _recorder(
+        sink: list[_PayloadDict],
+    ) -> Callable[[SystemMonitorPlugin, _PayloadDict], bool]:
+        def _record(_self: SystemMonitorPlugin, details: _PayloadDict) -> bool:
+            sink.append(details)
+            return True
+
+        return _record
+
     monkeypatch.setattr(
-        SystemMonitorPlugin,
-        "_send_container_notification",
-        lambda self, details: container_notifs.append(details),
+        SystemMonitorPlugin, "_send_container_notification", _recorder(container_notifs)
     )
     monkeypatch.setattr(
-        SystemMonitorPlugin,
-        "_send_image_notification",
-        lambda self, details: image_notifs.append(details),
+        SystemMonitorPlugin, "_send_image_notification", _recorder(image_notifs)
     )
     monitor._detect_docker_changes(
         {"containers_count": 1, "images_count": 1},
@@ -570,10 +577,16 @@ def test_alert_formatting_and_notifications(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     messages: list[str] = []
+
+    def _capture_notification(
+        self: SystemMonitorPlugin, text: str, *, count_towards_budget: bool = True
+    ) -> bool:
+        del self, count_towards_budget
+        messages.append(text)
+        return True
+
     monkeypatch.setattr(
-        SystemMonitorPlugin,
-        "_send_notification",
-        lambda self, text: messages.append(text),
+        SystemMonitorPlugin, "_send_notification", _capture_notification
     )
     monkeypatch.setattr(
         monitor_methods_module, "set_naturalsize", lambda value: "2 MiB"
@@ -657,7 +670,8 @@ def test_monitor_cycle_and_stop_monitoring(monkeypatch: pytest.MonkeyPatch) -> N
         "pytmbot.plugins.monitor.methods.time.sleep", lambda seconds: None
     )
     monitor._monitor_system()
-    assert called == ["adjust", "docker", "record", "alerts"]
+    # Resource alerts are evaluated before the (possibly slow) Docker refresh.
+    assert called == ["adjust", "alerts", "docker", "record"]
 
     monitor.state.is_active = True
     monkeypatch.setattr(
@@ -786,3 +800,147 @@ def test_start_monitoring_happy_path_and_failure(
     ):
         failing_monitor.start_monitoring()
     assert failing_monitor.state.is_active is False
+
+
+def _container_row(container_id: str) -> _PayloadDict:
+    return {
+        "id": container_id,
+        "name": container_id,
+        "image": "repo:tag",
+        "status": "running",
+        "networks": "bridge, backend",
+        "ports": "0.0.0.0:8080->80/tcp",
+    }
+
+
+def test_security_alerts_bypass_exhausted_notification_budget() -> None:
+    monitor, bot = _build_monitor(max_notifications=1)
+    monitor.state.init_mode = False
+    monitor.state.notification_count = 1  # resource-alert budget exhausted
+
+    monitor._detect_docker_changes({}, [_container_row("c-new")], [])
+
+    assert len(bot.sent_messages) == 1
+    text = str(bot.sent_messages[0]["text"])
+    assert "New Docker Container" in text
+    assert "bridge, backend" in text and "0.0.0.0:8080-&gt;80/tcp" in text
+    assert monitor._known_container_ids == {"c-new"}
+    assert monitor.state.notification_count == 1
+
+
+def test_failed_security_alert_is_retried_on_next_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor, bot = _build_monitor()
+    monitor.state.init_mode = False
+    send_results = iter([False, True])
+    attempts: list[str] = []
+
+    def _send(
+        self: SystemMonitorPlugin, text: str, *, count_towards_budget: bool = True
+    ) -> bool:
+        del self, count_towards_budget
+        attempts.append(text)
+        return next(send_results)
+
+    monkeypatch.setattr(SystemMonitorPlugin, "_send_notification", _send)
+
+    monitor._detect_docker_changes({}, [_container_row("c-1")], [])
+    assert monitor._known_container_ids == set()
+    monitor._detect_docker_changes({}, [_container_row("c-1")], [])
+    assert monitor._known_container_ids == {"c-1"}
+    assert len(attempts) == 2
+    assert bot.sent_messages == []
+
+
+def test_security_alerts_are_queued_beyond_per_refresh_cap() -> None:
+    monitor, bot = _build_monitor()
+    monitor.state.init_mode = False
+    rows = [_container_row(f"c-{index:02d}") for index in range(12)]
+
+    monitor._detect_docker_changes({}, rows, [])
+    assert len(bot.sent_messages) == SystemMonitorPlugin.MAX_SECURITY_ALERTS_PER_REFRESH
+    monitor._detect_docker_changes({}, rows, [])
+    assert len(bot.sent_messages) == 12
+    assert len(monitor._known_container_ids) == 12
+
+
+def test_known_ids_forget_removed_items() -> None:
+    monitor, _bot = _build_monitor()
+    monitor._detect_docker_changes(
+        {}, [_container_row("c-1"), _container_row("c-2")], [{"id": "i-1"}]
+    )
+    assert monitor.state.init_mode is False
+    monitor._detect_docker_changes({}, [_container_row("c-2")], [])
+    assert monitor._known_container_ids == {"c-2"}
+    assert monitor._known_image_ids == set()
+
+
+def test_image_alert_shows_real_size() -> None:
+    monitor, bot = _build_monitor()
+    monitor.state.init_mode = False
+    monitor._detect_docker_changes(
+        {}, [], [{"id": "sha256:abc", "tags": ["app:1"], "size": "12.0 MiB"}]
+    )
+    text = str(bot.sent_messages[0]["text"])
+    assert "12.0 MiB" in text
+    assert "0 Bytes" not in text
+    assert SystemMonitorPlugin._format_image_size(2048) == "2.0 KiB"
+    assert SystemMonitorPlugin._format_image_size(None) == "unknown"
+
+
+def test_docker_refresh_backs_off_after_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor, _bot = _build_monitor()
+    monitor.docker_counters_update_interval = 300
+    clock = [1000.0]
+    calls: list[str] = []
+    healthy = [False]
+
+    def _containers() -> list[_PayloadDict]:
+        calls.append("containers")
+        if not healthy[0]:
+            raise RuntimeError("docker unavailable")
+        return [_container_row("c-1")]
+
+    monkeypatch.setattr("pytmbot.plugins.monitor.methods.time.time", lambda: clock[0])
+    monkeypatch.setattr(
+        monitor_methods_module, "retrieve_containers_stats", _containers
+    )
+    monkeypatch.setattr(monitor_methods_module, "fetch_image_details", lambda: [])
+
+    metrics: dict[str, object] = {}
+    monitor._process_docker_metrics(metrics)
+    assert monitor.state.docker_next_retry_at == 1030.0
+    clock[0] += 5  # next monitor cycle: no Docker call inside the window
+    monitor._process_docker_metrics(metrics)
+    assert calls == ["containers"]
+
+    clock[0] = 1030.0
+    monitor._process_docker_metrics(metrics)
+    assert monitor.state.docker_next_retry_at == 1090.0  # doubled
+    assert len(calls) == 2
+
+    healthy[0] = True
+    clock[0] = 1090.0
+    monitor._process_docker_metrics(metrics)
+    assert monitor.state.docker_refresh_failures == 0
+    assert monitor.state.docker_next_retry_at == 0.0
+    assert metrics["docker_containers_count"] == 1
+
+    monitor.state.docker_refresh_failures = 20
+    assert monitor._schedule_docker_retry(0.0) == 300.0  # capped at the interval
+
+
+def test_send_notification_reports_delivery(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor, bot = _build_monitor(max_notifications=1)
+    assert monitor._send_notification("a") is True
+    assert monitor._send_notification("b") is False  # budget exhausted
+    assert monitor._send_notification("c", count_towards_budget=False) is True
+
+    def _broken_send(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("telegram down")
+
+    monkeypatch.setattr(bot, "send_message", _broken_send)
+    assert monitor._send_notification("d", count_towards_budget=False) is False

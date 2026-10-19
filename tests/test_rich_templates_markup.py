@@ -621,8 +621,11 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
             "briefcase": _EMOJI,
             "anxious_face_with_sweat": _EMOJI,
         },
-        "state": "running",
+        "state": "exited",
         "container_name": "web",
+        "container_id": "1a2b3c4d5e6f",
+        "notice": "✅ web stopped. Current state: exited.",
+        "hint": None,
     },
     "d_updates.jinja2": {
         "updates": {
@@ -703,6 +706,13 @@ RICH_EMPTY_STATE_CASES: dict[str, dict[str, object]] = {
     },
     "b_users_info.jinja2": {"context": {"users": []}},
     "d_containers.jinja2": {**_CONTAINER_EMOJIS, "context": []},
+    "d_managing_containers.jinja2": {
+        "state": "dead",
+        "container_name": "web",
+        "container_id": "1a2b3c4d5e6f",
+        "notice": None,
+        "hint": "This container is dead and can't be started.",
+    },
     "d_images.jinja2": {"context": {"emojis": _IMAGE_EMOJIS, "images": []}},
     "d_updates.jinja2": {"updates": {}, "no_updates": ["redis", "postgres"]},
     "plugin_monitor_metric.jinja2": {
@@ -808,3 +818,14 @@ def test_rich_templates_escape_dynamic_values() -> None:
 
     logs = _render("d_logs.jinja2", RICH_RENDER_CASES["d_logs.jinja2"])
     assert "&lt;html&gt; &amp; more" in logs
+
+    manage = _render(
+        "d_managing_containers.jinja2",
+        {
+            **RICH_RENDER_CASES["d_managing_containers.jinja2"],
+            "container_name": "R&D <web>",
+            "notice": "R&D <web> stopped.",
+        },
+    )
+    assert "R&amp;D &lt;web&gt; stopped." in manage
+    assert "&amp;amp;" not in manage

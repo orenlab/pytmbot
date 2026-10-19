@@ -93,8 +93,10 @@ The bot also exposes callback-driven flows that are not slash commands:
 
 - container list pagination and detail screens
 - container logs, runtime info, volumes, and networks
-- container actions (start, stop, restart)
-- image list pagination, metadata screens, and image update checks
+- container actions (start, stop, restart); Stop and Restart ask for confirmation, and a second press while an
+  action is running is refused
+- image list pagination, metadata screens, and image update checks (run in the background with a 60-second limit;
+  only Docker Hub images are checked, other registries and locally built images are listed as not checked)
 - bot update guide after `/check_bot_updates`
 - active sessions from `Uptime`
 - quick-view refresh
@@ -118,6 +120,9 @@ The bot also exposes callback-driven flows that are not slash commands:
 - Every inline button press is acknowledged, so the client spinner never hangs; failures show a short "Something went wrong. Please try again." toast.
 - Only the latest "Use the menu below to continue." follow-up is kept per chat; older copies are deleted.
 - Unrecognized text from an allowed user in a private chat gets a short hint pointing back to the menu instead of silence; a mistyped code during 2FA gets the 2FA hint instead.
+- Container and image details show environment variables as keys only (values masked, except harmless keys such as
+  `PATH`, `TZ`, `LANG`); passwords in URLs and secret-looking command-line values are masked as well.
+- Container buttons reference containers by their 12-character short ID, so names are never guessed or case-folded.
 - Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
 
 ## Related Docs

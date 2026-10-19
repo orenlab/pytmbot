@@ -269,46 +269,91 @@ def _build_monitor_context() -> dict[str, object]:
     }
 
 
+def _docker_attention_label(stopped: int, restarting: int) -> str:
+    if stopped and restarting:
+        return "stopped or restarting"
+    return "restarting" if restarting else "stopped"
+
+
+def _docker_idle_summary(paused: int, created: int) -> str:
+    parts = [
+        f"{count} {label}"
+        for count, label in ((paused, "paused"), (created, "created"))
+        if count
+    ]
+    return ", ".join(parts)
+
+
+def _docker_level_and_trend(
+    *, total: int, running: int, stopped: int, restarting: int, idle_summary: str
+) -> tuple[str, str]:
+    """
+    Classify Docker health.
+
+    Only stopped (exited/dead) and restarting containers need attention;
+    paused and created containers are intentional states and never make the
+    level critical.
+    """
+    if total == 0:
+        return "healthy", "No containers deployed"
+
+    attention = stopped + restarting
+    if attention == 0:
+        if idle_summary:
+            return "healthy", f"All active containers are running ({idle_summary})"
+        return "healthy", "All containers are running"
+
+    label = _docker_attention_label(stopped, restarting)
+    active_ratio = running / max(running + attention, 1) * 100.0
+    if active_ratio >= 80.0:
+        return "elevated", f"Mostly healthy, but has {label} workloads"
+    return "critical", f"Many containers are currently {label}"
+
+
+def _docker_context_from_counters(
+    counters: dict[str, int], cpu_count: int
+) -> dict[str, object]:
+    containers_total = int(counters.get("containers_count", 0))
+    running_containers = int(counters.get("running_containers", 0))
+    stopped_containers = int(counters.get("stopped_containers", 0))
+    paused_containers = int(counters.get("paused_containers", 0))
+    restarting_containers = int(counters.get("restarting_containers", 0))
+    created_containers = int(counters.get("created_containers", 0))
+
+    level, trend_text = _docker_level_and_trend(
+        total=containers_total,
+        running=running_containers,
+        stopped=stopped_containers,
+        restarting=restarting_containers,
+        idle_summary=_docker_idle_summary(paused_containers, created_containers),
+    )
+    running_ratio = (
+        round((running_containers / containers_total) * 100.0, 1)
+        if containers_total > 0
+        else 0.0
+    )
+    return {
+        "available": True,
+        "level": level,
+        "badge": _LEVEL_BADGE[level],
+        "status_label": _LEVEL_LABEL[level],
+        "containers_total": containers_total,
+        "running_containers": running_containers,
+        "stopped_containers": stopped_containers,
+        "paused_containers": paused_containers,
+        "restarting_containers": restarting_containers,
+        "created_containers": created_containers,
+        "images_count": int(counters.get("images_count", 0)),
+        "running_ratio": running_ratio,
+        "containers_per_core": round(running_containers / max(cpu_count, 1), 2),
+        "trend_text": trend_text,
+    }
+
+
 def _build_docker_context(cpu_count: int) -> dict[str, object]:
     try:
         counters = fetch_docker_counters()
-        containers_total = int(counters.get("containers_count", 0))
-        running_containers = int(counters.get("running_containers", 0))
-        stopped_containers = int(counters.get("stopped_containers", 0))
-        images_count = int(counters.get("images_count", 0))
-        running_ratio = (
-            round((running_containers / containers_total) * 100.0, 1)
-            if containers_total > 0
-            else 0.0
-        )
-        containers_per_core = round(running_containers / max(cpu_count, 1), 2)
-
-        if containers_total == 0:
-            level = "healthy"
-            trend_text = "No containers deployed"
-        elif stopped_containers == 0:
-            level = "healthy"
-            trend_text = "All containers are running"
-        elif running_ratio >= 80.0:
-            level = "elevated"
-            trend_text = "Mostly healthy, but has stopped workloads"
-        else:
-            level = "critical"
-            trend_text = "Many containers are currently stopped"
-
-        return {
-            "available": True,
-            "level": level,
-            "badge": _LEVEL_BADGE[level],
-            "status_label": _LEVEL_LABEL[level],
-            "containers_total": containers_total,
-            "running_containers": running_containers,
-            "stopped_containers": stopped_containers,
-            "images_count": images_count,
-            "running_ratio": running_ratio,
-            "containers_per_core": containers_per_core,
-            "trend_text": trend_text,
-        }
+        return _docker_context_from_counters(counters, cpu_count)
     except Exception as error:
         logger.warning("bot.handler.server.health.docker.fail", error=str(error))
         return {

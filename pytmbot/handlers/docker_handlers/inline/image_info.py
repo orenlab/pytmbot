@@ -22,16 +22,16 @@ from pytmbot.logs import Logger
 logger = Logger()
 
 
-def _extract_target_user_id(parsed: tuple[int, int, int]) -> int:
+def _extract_target_user_id(parsed: tuple[str, int, int]) -> int:
     return parsed[1]
 
 
 def _render_from_parsed(
-    parsed: tuple[int, int, int],
+    parsed: tuple[str, int, int],
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    image_index, target_user_id, page = parsed
+    image_ref, target_user_id, page = parsed
     return render_image_details(
-        image_index=image_index,
+        image_ref=image_ref,
         page=page,
         user_id=target_user_id,
     )

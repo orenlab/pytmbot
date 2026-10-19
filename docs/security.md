@@ -21,12 +21,17 @@ See also: [auth_control.md](auth_control.md).
 ## Docker Runtime Security
 
 - Official container runs as non-root user `pytmbot` (`UID/GID 1001`).
-- Docker socket access is handled via group membership/GID alignment in `entrypoint.sh`.
+- Docker socket access requires the socket's group (`group_add`); `entrypoint.sh` only reports the socket's group ID
+  and the exact fix. See [docker.md](docker.md#docker-socket-access) for least-privilege mode and a filtering socket
+  proxy.
+- Container actions verify that Docker resolved the exact container that was shown (exact name or a 12+ character ID
+  prefix) and are serialized per container.
+- Environment variables, URL credentials, and secret-looking command-line values are masked in Docker views.
 - Recommended runtime hardening:
   - read-only root filesystem
   - `no-new-privileges`
   - dropped Linux capabilities
-  - read-only bind mount for `/var/run/docker.sock`
+  - a filtering socket proxy instead of the raw socket (a `:ro` socket mount does not restrict the API)
 
 ## Webhook Security
 
@@ -57,7 +62,7 @@ See also: [auth_control.md](auth_control.md).
 
 ## Operational Baseline
 
-- Use `orenlab/pytmbot:0.5.0` for exact-release reproducibility.
+- Use `orenlab/pytmbot:0.5.1` for exact-release reproducibility.
 - Use `orenlab/pytmbot:0.5` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
 - Development builds from `feat/*` / `fix/*` publish as `edge-*`; do not treat them as production tags.
 - Run periodic vulnerability scans for container image and host.

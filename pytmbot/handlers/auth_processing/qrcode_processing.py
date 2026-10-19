@@ -25,6 +25,10 @@ from pytmbot.utils.totp import TwoFactorAuthenticator
 logger = Logger()
 em = get_emoji_converter()
 keyboards = get_keyboards()
+QR_UNAVAILABLE_TEXT = (
+    "⚠️ Couldn't create the QR code: the bot's 2FA settings are incomplete. "
+    "Ask the bot administrator to check the bot logs."
+)
 QR_DELETED_NAVIGATION_TEXT = (
     "🧹 QR code message was deleted for security.\n"
     "Use the button below to return to the main menu."
@@ -78,9 +82,22 @@ def handle_qr_code_message(
         return None
 
     user_id = message.from_user.id
-    username = message.from_user.username or ""
     keyboard = keyboards.build_reply_keyboard(keyboard_type="auth_processing_keyboard")
-    authenticator = TwoFactorAuthenticator(user_id, username)
+    try:
+        # Users without a Telegram username get an id-derived secret.
+        authenticator = TwoFactorAuthenticator(user_id, message.from_user.username)
+    except exceptions.TOTPError as error:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.totp.unavailable.fail",
+            error=error.sanitized_message(),
+        )
+        send_bot_message(
+            bot,
+            message.chat.id,
+            text=QR_UNAVAILABLE_TEXT,
+            reply_markup=keyboard,
+        )
+        return None
 
     try:
         # Send typing indicator for better UX

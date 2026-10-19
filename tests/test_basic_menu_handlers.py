@@ -367,14 +367,14 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(
         containers_module,
         "_get_container_data",
-        lambda: [{"name": "app", "id": "abc"}],
+        lambda: [{"name": "app", "id": "0123456789ab"}],
     )
     monkeypatch.setattr(
         containers_module,
         "_render_paginated_container_text",
         lambda container_data, page, initial_page_size=containers_module.CONTAINERS_DEFAULT_PAGE_SIZE: (
             "page-text",
-            [{"name": "app", "id": "abc"}],
+            [{"name": "app", "id": "0123456789ab"}],
             1,
             1,
         ),
@@ -427,7 +427,10 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
         )(),
     )
     keyboard_buttons = containers_module._build_containers_keyboard(
-        [{"name": "app", "id": "abc"}],
+        [
+            {"name": "App", "id": "0123456789ab"},
+            {"name": "Name-Only", "id": ""},
+        ],
         page=2,
         total_pages=3,
         user_id=5,
@@ -438,7 +441,9 @@ def test_containers_render_and_handler_paths(monkeypatch: pytest.MonkeyPatch) ->
         for item in keyboard_buttons
         if isinstance(item, dict) and "callback_data" in item
     ]
-    assert any(str(callback).startswith("__get_full__") for callback in callbacks)
+    # Buttons carry the short container ID, never the (title-cased) name.
+    assert "__get_full__:0123456789ab:5:2" in callbacks
+    assert not any("name-only" in callback.lower() for callback in callbacks)
 
     sent_payloads: list[_PayloadDict] = []
 

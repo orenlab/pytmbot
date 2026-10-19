@@ -12,7 +12,7 @@ from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from ipaddress import ip_network
-from typing import ClassVar
+from typing import ClassVar, Final
 
 from packaging import version
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -33,7 +33,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.5.0"
+        return "0.5.1"
 
 
 class ConfigVersionError(Exception):
@@ -89,6 +89,10 @@ class AccessControlModel(BaseModel):
         return self
 
 
+# Accepted Docker API request timeout, in seconds (matches the adapter).
+DOCKER_TIMEOUT_RANGE: Final[tuple[int, int]] = (5, 300)
+
+
 class DockerHostModel(BaseModel):
     """
     Model to store Docker host information.
@@ -97,11 +101,39 @@ class DockerHostModel(BaseModel):
         host (List[str]): List of Docker host URLs or IP addresses.
         debug_docker_client (bool): Enable debug logging for Docker client.
         strict_access (bool): Fail fast when Docker is unavailable or misconfigured.
+        timeout (int): Per-request Docker API timeout in seconds. The adapter
+            accepts 5-300 and falls back to the default (or fails in strict
+            mode) for other values.
+        cert_path (str | None): TLS client certificate (https:// hosts only).
+        key_path (str | None): TLS client key (https:// hosts only).
+        ca_cert (bool | str): CA bundle path, True for system CAs, False to
+            disable server verification (https:// hosts only).
+        verify_hostname (bool): Verify the daemon's TLS hostname.
     """
 
     host: list[str] = Field(min_length=1)
     debug_docker_client: bool = False
     strict_access: bool = False
+    timeout: int = 10
+    cert_path: str | None = None
+    key_path: str | None = None
+    ca_cert: bool | str = True
+    verify_hostname: bool = True
+
+    @field_validator("timeout")
+    @classmethod
+    # codeclone: ignore[dead-code]
+    def clamp_timeout(cls, value: int) -> int:
+        """Keep the request timeout within 5-300 s instead of rejecting the config."""
+        clamped = min(max(value, DOCKER_TIMEOUT_RANGE[0]), DOCKER_TIMEOUT_RANGE[1])
+        if clamped != value:
+            warnings.warn(
+                f"docker.timeout={value} is outside {DOCKER_TIMEOUT_RANGE[0]}-"
+                f"{DOCKER_TIMEOUT_RANGE[1]} seconds; using {clamped}",
+                UserWarning,
+                stacklevel=2,
+            )
+        return clamped
 
 
 class InfluxDBModel(BaseModel):
@@ -322,6 +354,11 @@ def get_compatibility_matrix() -> dict[str, dict[str, str]]:
             "min_app": "0.5.0",
             "max_app": "0.5.0",
             "description": "Stable release with Telegram rich messages and dependency refresh",
+        },
+        "0.5.1": {
+            "min_app": "0.5.1",
+            "max_app": "0.5.1",
+            "description": "Patch release with Docker hardening and dependency refresh",
         },
     }
 

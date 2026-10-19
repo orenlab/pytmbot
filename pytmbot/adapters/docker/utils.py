@@ -7,11 +7,13 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from functools import wraps
 from pathlib import Path
@@ -21,6 +23,8 @@ from typing import Final, ParamSpec, TypeVar
 from docker.client import DockerClient
 from docker.errors import NotFound
 from docker.models.containers import Container
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.exceptions import (
@@ -28,6 +32,7 @@ from pytmbot.exceptions import (
     DockerConnectionError,
     DockerOperationException,
     ErrorContext,
+    InvalidContainerReferenceError,
 )
 from pytmbot.globals import settings
 from pytmbot.logs import Logger
@@ -46,6 +51,82 @@ type MemoryStats = dict[str, str]
 # Module constants
 STATE_CACHE_TTL: Final[float] = 2.0
 STATE_CACHE_MAX_SIZE: Final[int] = 100
+
+# Central container reference contract shared by handlers and adapter calls.
+CONTAINER_REFERENCE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$"
+)
+# Shortest ID prefix accepted when dockerd resolves a reference by ID prefix.
+# Shorter references must match the container name exactly, so a stale or
+# hex-looking name never silently targets an unrelated container.
+MIN_CONTAINER_ID_PREFIX_LENGTH: Final[int] = 12
+
+SECRET_MASK: Final[str] = "\u2022\u2022\u2022\u2022"
+_SAFE_ENV_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "PATH",
+        "TZ",
+        "LANG",
+        "LANGUAGE",
+        "HOME",
+        "HOSTNAME",
+        "TERM",
+        "SHELL",
+        "USER",
+        "PUID",
+        "PGID",
+        "UID",
+        "GID",
+        "UMASK",
+        "NODE_ENV",
+        "ENV",
+        "ENVIRONMENT",
+        "PYTHONUNBUFFERED",
+        "PYTHONDONTWRITEBYTECODE",
+        "JAVA_HOME",
+        "GOPATH",
+        "VIRTUAL_ENV",
+    }
+)
+_SAFE_ENV_KEY_PREFIXES: Final[tuple[str, ...]] = ("LC_",)
+_SECRET_NAME_MARKERS: Final[tuple[str, ...]] = (
+    "pass",
+    "password",
+    "passwd",
+    "pwd",
+    "secret",
+    "token",
+    "key",
+    "auth",
+    "credential",
+    "dsn",
+    "apikey",
+    "api-key",
+    "requirepass",
+)
+_URL_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?P<prefix>\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@'\"]*):(?P<secret>[^\s@/'\"]+)@"
+)
+# HTTP header credentials, e.g. ``curl -H "Authorization: Bearer x"`` in a
+# command line or healthcheck.
+_HEADER_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?P<name>\b(?:Proxy-)?Authorization|\bCookie|\bX-[A-Za-z0-9-]*"
+    r"(?:Key|Token|Auth|Secret|Password)[A-Za-z0-9-]*)\s*:\s*(?P<value>[^\"'\r\n]+)",
+    re.IGNORECASE,
+)
+_FLAG_VALUE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?<![\w-])(?P<flag>--?[A-Za-z][\w.-]*)(?P<sep>=|[ \t]+)"
+    r"(?P<value>\"[^\"]*\"|'[^']*'|(?!-)[^\s;&|\"']+)"
+)
+_ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?<![\w.-])(?P<key>[A-Za-z_][A-Za-z0-9_.]*)="
+    r"(?P<value>\"[^\"]*\"|'[^']*'|[^\s;&|]*)"
+)
+_LEGACY_BUILD_ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"\b(?P<keyword>ENV|ARG)(?P<gap1>[ \t]+)(?P<key>[A-Za-z_][A-Za-z0-9_]*)"
+    r"(?P<gap2>[ \t]+)(?P<value>[^=\s][^\n]*)"
+)
+_TIMESTAMP_FRACTION_PATTERN: Final[re.Pattern[str]] = re.compile(r"(\.\d{6})\d+")
 
 
 class ContainerState(StrEnum):
@@ -448,106 +529,193 @@ def _log_operation_failure(
     logger.error("docker.utils.fail", **context)
 
 
+def validate_container_reference(reference: object) -> str:
+    """
+    Validate a container reference (exact name or ID/ID prefix).
+
+    The reference is never case-folded: Docker names are case-sensitive and a
+    lowercased name can resolve to a different container by ID prefix.
+
+    Raises:
+        InvalidContainerReferenceError: If the reference is not a valid name/ID.
+    """
+    candidate = reference.strip() if isinstance(reference, str) else ""
+    if (
+        not candidate
+        or ".." in candidate
+        or not CONTAINER_REFERENCE_PATTERN.fullmatch(candidate)
+    ):
+        raise InvalidContainerReferenceError(
+            ErrorContext(
+                message="Invalid container reference",
+                error_code="DOCKER_011",
+                metadata={"reference_length": len(str(reference))},
+            )
+        )
+    return candidate
+
+
+def container_matches_reference(container: object, reference: str) -> bool:
+    """
+    Check that dockerd resolved ``reference`` to the intended container.
+
+    dockerd resolves a reference by full ID, then exact name, then unique ID
+    prefix. Only an exact name or a sufficiently long ID prefix is accepted.
+    """
+    name = str(getattr(container, "name", "") or "").lstrip("/")
+    if name == reference:
+        return True
+    container_id = str(getattr(container, "id", "") or "")
+    return len(reference) >= MIN_CONTAINER_ID_PREFIX_LENGTH and (
+        container_id.startswith(reference)
+    )
+
+
+def is_docker_unavailable_error(error: BaseException) -> bool:
+    """Return True when an error means Docker is unreachable or timed out."""
+    return isinstance(
+        error, (DockerConnectionError, RequestsConnectionError, RequestsTimeout)
+    )
+
+
+@contextmanager
+def docker_unavailable_as_connection_error(operation: str) -> Iterator[None]:
+    """Translate transport failures (refused socket, timeouts) to DockerConnectionError."""
+    try:
+        yield
+    except (RequestsConnectionError, RequestsTimeout) as error:
+        raise DockerConnectionError(
+            ErrorContext(
+                message=f"Docker is unavailable during {operation}",
+                error_code="DOCKER_012",
+                metadata={"error": sanitize_exception(error)},
+            )
+        ) from error
+
+
+def invalidate_container_state_cache() -> None:
+    """Drop cached container states (call after lifecycle actions)."""
+    _state_cache.clear()
+
+
 @with_operation_logging("get_container_state", slow_threshold=0.5)
 def get_container_state(
     container_id: str, docker_client: DockerClient | None = None
 ) -> str | None:
     """
-    Retrieves the status of a Docker container with caching and enhanced error handling.
-
-    Args:
-        container_id: The ID of the container.
+    Return the current status of a container (short-lived cache).
 
     Returns:
-        Container status string or None if not found.
+        Container status string, or None if the container does not exist.
 
     Raises:
-        ValueError: If container_id is invalid
+        InvalidContainerReferenceError: If the reference is invalid.
+        DockerConnectionError: If Docker is unavailable.
+        DockerOperationException: For other Docker API failures.
     """
-    if not container_id or not isinstance(container_id, str):
-        raise ValueError("container_id must be a non-empty string")
-
-    container_id = container_id.strip()
-
-    # Check cache first
-    if cached_state := _state_cache.get(container_id):
+    reference = validate_container_reference(container_id)
+    if cached_state := _state_cache.get(reference):
         return cached_state
 
     context = build_container_context(
-        container_id=container_id, action="container_state_check"
+        container_id=reference, action="container_state_check"
     )
-
     try:
-        container = get_container_safely(container_id, docker_client=docker_client)
-        status_raw = container.status
-        status = status_raw if isinstance(status_raw, str) else str(status_raw)
-
-        # Cache the result
-        _state_cache.set(container_id, status)
-
-        logger.debug("docker.utils.container.state.debug", status=status, **context)
-        return status
-
+        container = get_container_safely(reference, docker_client=docker_client)
     except ContainerNotFoundError:
         logger.debug("docker.utils.container.not.debug", **context)
         return None
 
-    except Exception as e:
+    status_raw = container.status
+    status = status_raw if isinstance(status_raw, str) else str(status_raw)
+    _state_cache.set(reference, status)
+    logger.debug("docker.utils.container.state.debug", status=status, **context)
+    return status
+
+
+def _container_not_found_error(
+    reference: str, execution_time: float, *, reason: str
+) -> ContainerNotFoundError:
+    return ContainerNotFoundError(
+        ErrorContext(
+            message=f"Container not found: {reference}",
+            error_code="DOCKER_001",
+            metadata={
+                "container_id": reference,
+                "search_time": execution_time,
+                "reason": reason,
+            },
+        )
+    )
+
+
+def _lookup_container(reference: str, docker_client: DockerClient | None) -> Container:
+    if docker_client is not None:
+        return docker_client.containers.get(reference)
+    with docker_client_context() as adapter:
+        return adapter.containers.get(reference)
+
+
+def _translate_lookup_error(
+    error: Exception, reference: str, execution_time: float, context: LogContext
+) -> DockerConnectionError | DockerOperationException:
+    if is_docker_unavailable_error(error):
         logger.error(
-            "docker.utils.get.container.fail",
-            error=sanitize_exception(e),
-            error_type=type(e).__name__,
+            "docker.utils.container.connection.fail",
+            execution_time=f"{execution_time:.3f}s",
             **context,
         )
-        return None
+        return DockerConnectionError(
+            ErrorContext(
+                message="Docker is unavailable while resolving container",
+                error_code="DOCKER_012",
+                metadata={"container_id": reference},
+            )
+        )
+    logger.error(
+        "docker.utils.container.retrieval.fail",
+        error=sanitize_exception(error),
+        error_type=type(error).__name__,
+        execution_time=f"{execution_time:.3f}s",
+        **context,
+    )
+    return DockerOperationException(
+        ErrorContext(
+            message=f"Failed to retrieve container: {reference}",
+            error_code="DOCKER_002",
+            metadata={
+                "container_id": reference,
+                "exception": sanitize_exception(error),
+                "execution_time": execution_time,
+            },
+        )
+    )
 
 
 def get_container_safely(
     container_id: str, docker_client: DockerClient | None = None
 ) -> Container:
     """
-    Safely retrieves a container by ID with uniform error handling and validation.
-
-    Args:
-        container_id: Container ID
-
-    Returns:
-        Container: Container object
+    Resolve a container by exact name or ID and verify the resolved target.
 
     Raises:
-        ValueError: If container_id is invalid
-        ContainerNotFoundError: If container is not found
-        DockerOperationException: For other Docker errors
+        InvalidContainerReferenceError: If the reference is invalid.
+        ContainerNotFoundError: If no container matches, or dockerd resolved the
+            reference to a different container than the one that was named.
+        DockerConnectionError: If Docker is unavailable or timed out.
+        DockerOperationException: For other Docker errors.
     """
-    if not container_id or not isinstance(container_id, str):
-        raise ValueError("container_id must be a non-empty string")
-
-    container_id = container_id.strip()
-    context = {
+    reference = validate_container_reference(container_id)
+    context: LogContext = {
         "action": "container_retrieval",
-        "container_id": container_id,
-        "container_id_length": len(container_id),
+        "container_id": reference,
+        "container_id_length": len(reference),
         "client_source": "shared" if docker_client is not None else "new",
     }
     start_time = time.time()
 
     try:
-        if docker_client is not None:
-            container = docker_client.containers.get(container_id)
-        else:
-            with docker_client_context() as adapter:
-                container = adapter.containers.get(container_id)
-
-        execution_time = time.time() - start_time
-        logger.debug(
-            "docker.utils.container.fetch.ok",
-            execution_time=f"{execution_time:.3f}s",
-            container_name=getattr(container, "name", "unknown"),
-            container_status=getattr(container, "status", "unknown"),
-            **context,
-        )
-        return container
-
+        container = _lookup_container(reference, docker_client)
     except NotFound as error:
         execution_time = time.time() - start_time
         logger.warning(
@@ -555,41 +723,155 @@ def get_container_safely(
             execution_time=f"{execution_time:.3f}s",
             **context,
         )
-        raise ContainerNotFoundError(
-            ErrorContext(
-                message=f"Container not found: {container_id}",
-                error_code="DOCKER_001",
-                metadata={"container_id": container_id, "search_time": execution_time},
-            )
+        raise _container_not_found_error(
+            reference, execution_time, reason="no_such_container"
         ) from error
     except DockerConnectionError:
-        execution_time = time.time() - start_time
         logger.error(
             "docker.utils.container.connection.fail",
-            execution_time=f"{execution_time:.3f}s",
+            execution_time=f"{time.time() - start_time:.3f}s",
             **context,
         )
         raise
-    except Exception as e:
-        execution_time = time.time() - start_time
-        logger.error(
-            "docker.utils.container.retrieval.fail",
-            error=sanitize_exception(e),
-            error_type=type(e).__name__,
+    except Exception as error:
+        raise _translate_lookup_error(
+            error, reference, time.time() - start_time, context
+        ) from error
+
+    execution_time = time.time() - start_time
+    if not container_matches_reference(container, reference):
+        logger.warning(
+            "docker.utils.container.reference.mismatch.warn",
+            resolved_id=str(getattr(container, "id", ""))[:12],
             execution_time=f"{execution_time:.3f}s",
             **context,
         )
-        raise DockerOperationException(
-            ErrorContext(
-                message=f"Failed to retrieve container: {container_id}",
-                error_code="DOCKER_002",
-                metadata={
-                    "container_id": container_id,
-                    "exception": str(e),
-                    "execution_time": execution_time,
-                },
-            )
-        ) from e
+        raise _container_not_found_error(
+            reference, execution_time, reason="resolved_to_other_container"
+        )
+
+    logger.debug(
+        "docker.utils.container.fetch.ok",
+        execution_time=f"{execution_time:.3f}s",
+        container_name=getattr(container, "name", "unknown"),
+        container_status=getattr(container, "status", "unknown"),
+        **context,
+    )
+    return container
+
+
+def parse_docker_timestamp(value: object) -> datetime | None:
+    """Parse a Docker RFC3339 timestamp into a timezone-aware UTC datetime."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or text.startswith("0001-01-01"):
+        return None
+    if text.endswith(("Z", "z")):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(_TIMESTAMP_FRACTION_PATTERN.sub(r"\1", text))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def is_safe_env_key(key: str) -> bool:
+    """Return True for environment keys whose values are safe to display."""
+    return key in _SAFE_ENV_KEYS or key.startswith(_SAFE_ENV_KEY_PREFIXES)
+
+
+def looks_like_secret_name(name: str) -> bool:
+    """Return True when a flag/variable name suggests it carries a secret."""
+    normalized = name.strip().lstrip("-").casefold()
+    return any(marker in normalized for marker in _SECRET_NAME_MARKERS)
+
+
+def mask_url_credentials(text: str) -> str:
+    """Mask URL passwords: ``scheme://user:pass@`` -> ``scheme://user:****@``."""
+    return _URL_CREDENTIALS_PATTERN.sub(rf"\g<prefix>:{SECRET_MASK}@", text)
+
+
+def mask_environment_variables(env_list: Sequence[object]) -> list[str]:
+    """
+    Show environment variables as keys only.
+
+    Keeps the ``KEY=VALUE`` shape, but replaces every value with the mask
+    except for a small allowlist of clearly harmless keys.
+    """
+    masked: list[str] = []
+    for item in env_list:
+        key, separator, value = str(item).partition("=")
+        if not separator or not value:
+            masked.append(str(item))
+        elif is_safe_env_key(key):
+            masked.append(f"{key}={mask_url_credentials(value)}")
+        else:
+            masked.append(f"{key}={SECRET_MASK}")
+    return masked
+
+
+def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> str:
+    """
+    Mask secrets inside a command line or build step.
+
+    Masks values after secret-looking flags (``--password x``, ``--token=x``),
+    ``KEY=VALUE`` assignments with secret-looking keys (every non-allowlisted
+    key when ``mask_all_assignments`` is set), legacy ``ENV KEY value`` build
+    steps (with ``mask_all_assignments``), HTTP header credentials and URL
+    credentials.
+    """
+
+    def _mask_flag(match: re.Match[str]) -> str:
+        if not looks_like_secret_name(match.group("flag")):
+            return match.group(0)
+        return f"{match.group('flag')}{match.group('sep')}{SECRET_MASK}"
+
+    def _mask_assignment(match: re.Match[str]) -> str:
+        key = match.group("key")
+        should_mask = mask_all_assignments or looks_like_secret_name(key)
+        if not match.group("value") or is_safe_env_key(key) or not should_mask:
+            return match.group(0)
+        return f"{key}={SECRET_MASK}"
+
+    def _mask_legacy(match: re.Match[str]) -> str:
+        if is_safe_env_key(match.group("key")):
+            return match.group(0)
+        prefix = match.group(0)[: match.start("value") - match.start(0)]
+        return f"{prefix}{SECRET_MASK}"
+
+    masked = _HEADER_CREDENTIALS_PATTERN.sub(rf"\g<name>: {SECRET_MASK}", text)
+    masked = _FLAG_VALUE_PATTERN.sub(_mask_flag, masked)
+    masked = _ASSIGNMENT_PATTERN.sub(_mask_assignment, masked)
+    if mask_all_assignments:
+        masked = _LEGACY_BUILD_ASSIGNMENT_PATTERN.sub(_mask_legacy, masked)
+    return mask_url_credentials(masked)
+
+
+def _is_secret_flag_awaiting_value(argument: str) -> bool:
+    return (
+        argument.startswith("-")
+        and "=" not in argument
+        and not any(char.isspace() for char in argument)
+        and looks_like_secret_name(argument)
+    )
+
+
+def mask_command_args(arguments: Sequence[object]) -> list[str]:
+    """Mask secrets in an argv list (Cmd/Entrypoint), including ``--flag value``."""
+    masked: list[str] = []
+    mask_next = False
+    for raw_argument in arguments:
+        argument = str(raw_argument)
+        if mask_next and not argument.startswith("-"):
+            masked.append(SECRET_MASK)
+            mask_next = False
+            continue
+        mask_next = _is_secret_flag_awaiting_value(argument)
+        masked.append(mask_secrets_in_text(argument))
+    return masked
 
 
 def get_container_memory_stats(container: Container) -> MemoryStats:

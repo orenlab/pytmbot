@@ -58,6 +58,8 @@ services:
     environment:
       TZ: UTC
       PYTMBOT_STATE_DIR: /run/pytmbot
+    group_add:
+      - "${DOCKER_GID:-1001}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/pytmbot/pytmbot.yaml:/opt/app/pytmbot.yaml:ro
@@ -70,6 +72,13 @@ services:
     tmpfs:
       - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
     command: [ "--log-level", "INFO" ]
+```
+
+To grant access to the Docker socket, set `DOCKER_GID` once, next to the compose file (without it, `group_add`
+falls back to the bot's own group `1001` and changes nothing):
+
+```bash
+echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" > .env
 ```
 
 ```bash

@@ -7,6 +7,7 @@ from typing import cast
 import pyotp
 import pytest
 
+import pytmbot.utils.totp as totp_module
 from pytmbot.exceptions import QRCodeError, TOTPError
 from pytmbot.utils.totp import TwoFactorAuthenticator
 
@@ -34,7 +35,7 @@ def test_totp_authenticator_rejects_invalid_inputs() -> None:
     with pytest.raises(TOTPError):
         TwoFactorAuthenticator(user_id=0, username="den")
     with pytest.raises(TOTPError):
-        TwoFactorAuthenticator(user_id=1, username=" ")
+        TwoFactorAuthenticator(user_id=1, username=cast(str, 123))
 
 
 def test_totp_secret_generation_is_deterministic_per_instance() -> None:
@@ -152,3 +153,55 @@ def test_totp_verify_and_backup_codes_error_paths(
     )
     with pytest.raises(TOTPError):
         auth.verify_totp_code("123456")
+
+
+# Secrets derived by the pre-0.5.1 code (username-based derivation). Existing
+# authenticator enrollments depend on these staying byte-for-byte identical.
+_LEGACY_SECRET_ALICE = (
+    "YEXYTNKIMINIVPARVNSSPP7VRFLOMPTMJKTJUWEYSI5L7IMRIA4GBJGIE4GGEL34SKIRPZXXQ33AS"
+    "TXH6FVB2EFSRO2TVU6IDKIN6EA="
+)
+_LEGACY_SECRET_SAMPLE_CONFIG = (
+    "7645O3E42ICZOUXOXRJV3BQ5B32TU6S3A7JU6MDBBFETWWWOEITUQH2YKMLHCYEGXZOTWKEDAAK57"
+    "WV2QENPVGF62JCZU2GM74B6JQA="
+)
+
+
+def test_totp_secret_for_users_with_username_is_unchanged() -> None:
+    assert (
+        totp_module._derive_totp_secret(
+            user_id=123456789,
+            username="Alice_Admin",
+            secret_key_material="fixed-salt|1111:FAKE-TOKEN",
+            hash_digest_size=64,
+        )
+        == _LEGACY_SECRET_ALICE
+    )
+    # Same through the public class with the sample configuration.
+    auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+    assert auth._generate_secret() == _LEGACY_SECRET_SAMPLE_CONFIG
+    assert (
+        TwoFactorAuthenticator(
+            user_id=123456789, username=" test_user "
+        )._generate_secret()
+        == _LEGACY_SECRET_SAMPLE_CONFIG
+    )
+
+
+def test_totp_supports_users_without_username() -> None:
+    no_username = TwoFactorAuthenticator(user_id=123456789, username=None)
+    empty_username = TwoFactorAuthenticator(user_id=123456789, username="")
+    with_username = TwoFactorAuthenticator(user_id=123456789, username="test_user")
+
+    secret = no_username._generate_secret()
+    assert secret == empty_username._generate_secret()
+    assert secret != with_username._generate_secret()
+    # Different users without usernames get different secrets.
+    assert secret != TwoFactorAuthenticator(user_id=987654321)._generate_secret()
+
+    totp = pyotp.TOTP(
+        secret, digits=no_username.TOTP_DIGITS, interval=no_username.TOTP_INTERVAL
+    )
+    assert no_username.verify_totp_code(totp.now()) is True
+    assert "pyTMbot%20TOTP:123456789" in no_username._generate_totp_auth_uri()
+    assert no_username.generate_totp_qr_code().startswith(b"\x89PNG")

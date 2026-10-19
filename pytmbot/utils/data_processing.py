@@ -37,6 +37,12 @@ def set_naturaltime(timestamp: datetime) -> str:
 def split_string_into_octets(
     input_string: str, delimiter: str = ":", octet_index: int = 1
 ) -> str:
+    """
+    Return one delimiter-separated segment of ``input_string`` unchanged.
+
+    The segment is never case-folded: Docker resolves container names
+    case-sensitively, so a lower-cased name can address another container.
+    """
     if not input_string:
         raise ValueError("input_string cannot be empty")
     if not delimiter:
@@ -44,4 +50,4 @@ def split_string_into_octets(
     octets = input_string.split(delimiter)
     if not (0 <= octet_index < len(octets)):
         raise IndexError("Octet index out of range")
-    return octets[octet_index].lower()
+    return octets[octet_index]

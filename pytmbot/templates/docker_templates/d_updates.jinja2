@@ -1,5 +1,9 @@
 {# templates/docker_templates/d_updates.jinja2 — rich HTML #}
+{% macro created(value) %}{% if value %}{{ value | format_timestamp | e }}{% else %}Unknown{% endif %}{% endmacro %}
 <p><b>🖼️ Image updates</b></p>
+{% if notice is defined and notice %}
+<p><i>{{ notice|e }}</i></p>
+{% endif %}
 
 {% if updates is defined and updates %}
 <p><b>Updates available</b></p>
@@ -7,12 +11,12 @@
 <p><b><code>{{ repo|e }}</code></b></p>
 <table bordered striped compact>
 <tr><th align="left">Tag</th><th align="left">Created</th></tr>
-<tr><td>{{ info.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ info.created_at_local | default("Unknown") | format_timestamp | e }}</td></tr>
-{% if info.updates is defined and info.updates %}
-{% for update in info.updates %}
-<tr><td><b>{{ update.newer_tag | default("Unknown") | e }}</b></td><td>{{ update.created_at_remote | default("Unknown") | format_timestamp | e }}</td></tr>
+{% for group in (info.groups if info.groups is defined else [info]) %}
+<tr><td>{{ group.current_tag | default("Unknown") | e }} <i>(current)</i></td><td>{{ created(group.created_at_local) }}</td></tr>
+{% for update in group.updates | default([]) %}
+<tr><td><b>{{ update.newer_tag | default("Unknown") | e }}</b>{% if update.newer_tag == group.current_tag %}<i> (new image)</i>{% endif %}</td><td>{{ created(update.created_at_remote) }}</td></tr>
 {% endfor %}
-{% endif %}
+{% endfor %}
 </table>
 {% endfor %}
 {% endif %}
@@ -26,4 +30,19 @@
 </ul>
 {% endif %}
 
+{% if failed is defined and failed %}
+<p><b>Couldn't check</b></p>
+<ul>
+{% for item in failed %}
+<li><code>{{ item.name|e }}</code> — {{ item.reason|e }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+{% if updates is defined and updates %}
 <p><i>Pull a newer tag on the host and recreate the container to apply an update.</i></p>
+{% endif %}
+{% if checked_at is defined and checked_at %}
+
+<footer>Checked {{ checked_at|e }}</footer>
+{% endif %}

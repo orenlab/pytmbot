@@ -12,12 +12,12 @@ from telebot.types import CallbackQuery
 import pytmbot.handlers.docker_handlers.inline.logs as logs_module
 import pytmbot.handlers.server_handlers.inline.common as inline_common_module
 from pytmbot.exceptions import ContainerLogsUnavailableError, ErrorContext
+from pytmbot.handlers.docker_handlers.callback_data import LOGS_CALLBACK_PREFIX
 from pytmbot.handlers.docker_handlers.inline.logs import (
     LOGS_ACTION_FILE,
     LOGS_ACTION_NAV,
     LOGS_ACTION_OPEN,
     LOGS_ACTION_REFRESH,
-    LOGS_CALLBACK_PREFIX,
     LOGS_EMPTY_MESSAGE,
     LOGS_FILE_AUTO_DELETE_DELAY_SECONDS,
     LOGS_FILE_DELETION_NOTICE,
@@ -102,9 +102,15 @@ def _make_dummy_bot() -> SimpleNamespace:
     )
 
 
+_SESSION_ID = "0123456789ab"
+_OTHER_SESSION_ID = "ba9876543210"
+_CONTAINER_REF = "1a2b3c4d5e6f"
+
+
 def _make_session(
     *,
-    session_id: str = "sess-1",
+    session_id: str = _SESSION_ID,
+    container_ref: str = _CONTAINER_REF,
     container_name: str = "container",
     user_id: int = 333,
     raw_logs: str = "line1\nline2",
@@ -112,6 +118,7 @@ def _make_session(
 ) -> LogsSession:
     return LogsSession(
         session_id=session_id,
+        container_ref=container_ref,
         container_name=container_name,
         user_id=user_id,
         raw_logs=raw_logs,
@@ -215,7 +222,14 @@ def test_logs_session_store_create_get_and_expire(
         "pytmbot.handlers.docker_handlers.inline.logs.time.time_ns", lambda: 99
     )
 
-    created = store.create("web", 1, "logs", ["logs"])
+    created = store.create(
+        container_ref=_CONTAINER_REF,
+        container_name="web",
+        user_id=1,
+        raw_logs="logs",
+        chunks=["logs"],
+    )
+    assert created.container_ref == _CONTAINER_REF
     loaded = store.get(created.session_id)
     assert loaded is not None
     assert loaded.session_id == created.session_id
@@ -242,7 +256,13 @@ def test_logs_session_store_create_handles_id_collision(
         "pytmbot.handlers.docker_handlers.inline.logs.time.time", lambda: 1.0
     )
 
-    session = store.create("web", 1, "abc", ["abc"])
+    session = store.create(
+        container_ref=_CONTAINER_REF,
+        container_name="web",
+        user_id=1,
+        raw_logs="abc",
+        chunks=["abc"],
+    )
     assert session.session_id == "new-id"
 
 
@@ -250,32 +270,37 @@ def test_logs_session_store_create_handles_id_collision(
     ("data", "expected"),
     [
         (
-            "__get_logs__:nginx:100",
+            "__get_logs__:Nginx:100",
             ParsedLogsCallback(
-                action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100
+                action=LOGS_ACTION_OPEN, container_ref="Nginx", user_id=100
             ),
         ),
         (
-            "__get_logs__:open:nginx:100",
+            f"__get_logs__:open:{_CONTAINER_REF}:100",
             ParsedLogsCallback(
-                action=LOGS_ACTION_OPEN, container_name="nginx", user_id=100
+                action=LOGS_ACTION_OPEN, container_ref=_CONTAINER_REF, user_id=100
             ),
         ),
         (
-            "__get_logs__:nav:sess:2:100",
+            f"__get_logs__:nav:{_SESSION_ID}:2:100",
             ParsedLogsCallback(
-                action=LOGS_ACTION_NAV, session_id="sess", page_index=2, user_id=100
+                action=LOGS_ACTION_NAV,
+                session_id=_SESSION_ID,
+                page_index=2,
+                user_id=100,
             ),
         ),
         (
-            "__get_logs__:refresh:sess:100",
+            f"__get_logs__:refresh:{_SESSION_ID}:100",
             ParsedLogsCallback(
-                action=LOGS_ACTION_REFRESH, session_id="sess", user_id=100
+                action=LOGS_ACTION_REFRESH, session_id=_SESSION_ID, user_id=100
             ),
         ),
         (
-            "__get_logs__:file:sess:100",
-            ParsedLogsCallback(action=LOGS_ACTION_FILE, session_id="sess", user_id=100),
+            f"__get_logs__:file:{_SESSION_ID}:100",
+            ParsedLogsCallback(
+                action=LOGS_ACTION_FILE, session_id=_SESSION_ID, user_id=100
+            ),
         ),
     ],
 )
@@ -291,8 +316,13 @@ def test_parse_logs_callback_data_valid(
         "bad",
         "__get_logs__",
         "__get_logs__:open",
-        "__get_logs__:nav:sess:not-int:100",
+        f"__get_logs__:nav:{_SESSION_ID}:not-int:100",
         "__get_logs__:open:nginx:not-int",
+        "__get_logs__:open:nginx:0",
+        "__get_logs__:open:../etc:100",
+        "__get_logs__:open:-web:100",
+        "__get_logs__:nav:sess:2:100",
+        "__get_logs__:refresh:ABCDEF012345:100",
     ],
 )
 def test_parse_logs_callback_data_invalid(data: str) -> None:
@@ -455,18 +485,22 @@ def test_build_logs_keyboard_contains_navigation_and_actions(
         "em",
         SimpleNamespace(get_emoji=lambda key: {"BACK_arrow": "⬅️", "house": "🏠"}[key]),
     )
-    session = _make_session(session_id="sid-1", container_name="api", user_id=77)
+    session = _make_session(container_name="api", user_id=77)
 
     buttons_obj = logs_module._build_logs_keyboard(
         session=session, current_page=1, total_pages=3
     )
     buttons = cast(list[dict[str, str]], buttons_obj)
     callbacks = [button["callback_data"] for button in buttons]
-    assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:0:77" in callbacks
-    assert f"{LOGS_CALLBACK_PREFIX}:nav:sid-1:2:77" in callbacks
-    assert "back_to_containers" in callbacks
+    assert f"{LOGS_CALLBACK_PREFIX}:nav:{_SESSION_ID}:0:77" in callbacks
+    assert f"{LOGS_CALLBACK_PREFIX}:nav:{_SESSION_ID}:2:77" in callbacks
+    # Navigation is bound to the session owner and to the short container ID.
+    assert "__containers_page__:1:77" in callbacks
+    assert "back_to_containers" not in callbacks
+    assert f"__get_full__:{_CONTAINER_REF}:77" in callbacks
     assert any(
-        button["text"] == "As file" and ":file:sid-1:77" in button["callback_data"]
+        button["text"] == "As file"
+        and f":file:{_SESSION_ID}:77" in button["callback_data"]
         for button in buttons
     )
 
@@ -705,6 +739,13 @@ def test_open_logs_session_handles_unsupported_logging_driver(
     shown: list[str] = []
     monkeypatch.setattr(
         logs_module,
+        "fetch_full_container_details",
+        lambda container_ref: SimpleNamespace(
+            id=_CONTAINER_REF + "0" * 52, name="amnezia-dns"
+        ),
+    )
+    monkeypatch.setattr(
+        logs_module,
         "get_sanitized_logs",
         lambda container_name, call, token: (_ for _ in ()).throw(
             ContainerLogsUnavailableError(
@@ -725,7 +766,7 @@ def test_open_logs_session_handles_unsupported_logging_driver(
     logs_module._open_logs_session(
         call=cast(CallbackQuery, _DummyCall()),
         bot=cast(TeleBot, _make_dummy_bot()),
-        container_name="amnezia-dns",
+        container_ref=_CONTAINER_REF,
         user_id=333,
         emojis={},
     )
@@ -751,8 +792,8 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     monkeypatch.setattr(
         logs_module,
         "_open_logs_session",
-        lambda call, bot, container_name, user_id, emojis: events.opened.append(
-            container_name
+        lambda call, bot, container_ref, user_id, emojis: events.opened.append(
+            container_ref
         ),
     )
     monkeypatch.setattr(
@@ -766,14 +807,16 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
         lambda call, bot, session: events.sent_as_file.append(session.session_id),
     )
 
-    old_session = _make_session(session_id="s1", container_name="api", user_id=333)
+    old_session = _make_session(container_name="api", user_id=333)
     refreshed_session = _make_session(
-        session_id="s2", container_name="api", user_id=333
+        session_id=_OTHER_SESSION_ID, container_name="api", user_id=333
     )
     monkeypatch.setattr(
         logs_module,
         "_get_session_or_show_error",
-        lambda call, session_id, bot: old_session if session_id == "s1" else None,
+        lambda call, session_id, bot: (
+            old_session if session_id == _SESSION_ID else None
+        ),
     )
     monkeypatch.setattr(
         logs_module,
@@ -787,29 +830,32 @@ def test_handle_get_logs_routes_open_nav_refresh_and_file(
     )
 
     def _create_session(
+        *,
+        container_ref: str,
         container_name: str,
         user_id: int,
         raw_logs: str,
         chunks: list[str],
     ) -> LogsSession:
         del raw_logs, chunks
-        events.created_sessions.append((container_name, user_id))
+        events.created_sessions.append((container_ref, container_name, user_id))
         return refreshed_session
 
     monkeypatch.setattr(logs_module._logs_sessions, "create", _create_session)
 
     bot = _make_dummy_bot()
     raw_handler = _raw_handle_get_logs()
-    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:open:api:333")
-    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:nav:s1:2:333")
-    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")
-    _dispatch_logs_callback(raw_handler, bot, f"{LOGS_CALLBACK_PREFIX}:file:s1:333")
+    prefix = LOGS_CALLBACK_PREFIX
+    _dispatch_logs_callback(raw_handler, bot, f"{prefix}:open:{_CONTAINER_REF}:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{prefix}:nav:{_SESSION_ID}:2:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{prefix}:refresh:{_SESSION_ID}:333")
+    _dispatch_logs_callback(raw_handler, bot, f"{prefix}:file:{_SESSION_ID}:333")
 
-    assert events.opened == ["api"]
+    assert events.opened == [_CONTAINER_REF]
     assert 2 in events.edited and 0 in events.edited
-    assert events.sent_as_file == ["s1"]
-    assert events.removed_sessions == ["s1"]
-    assert events.created_sessions == [("api", 333)]
+    assert events.sent_as_file == [_SESSION_ID]
+    assert events.removed_sessions == [_SESSION_ID]
+    assert events.created_sessions == [(_CONTAINER_REF, "api", 333)]
 
 
 def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
@@ -819,12 +865,14 @@ def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
 
     shown: list[str] = []
     removed_sessions: list[str] = []
-    old_session = _make_session(session_id="s1", container_name="api", user_id=333)
+    old_session = _make_session(container_name="api", user_id=333)
 
     monkeypatch.setattr(
         logs_module,
         "_get_session_or_show_error",
-        lambda call, session_id, bot: old_session if session_id == "s1" else None,
+        lambda call, session_id, bot: (
+            old_session if session_id == _SESSION_ID else None
+        ),
     )
     monkeypatch.setattr(
         logs_module,
@@ -852,7 +900,10 @@ def test_handle_get_logs_refresh_handles_unsupported_logging_driver(
 
     raw_handler = _raw_handle_get_logs()
     raw_handler(
-        cast(CallbackQuery, _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:refresh:s1:333")),
+        cast(
+            CallbackQuery,
+            _DummyCall(data=f"{LOGS_CALLBACK_PREFIX}:refresh:{_SESSION_ID}:333"),
+        ),
         cast(TeleBot, _make_dummy_bot()),
     )
 

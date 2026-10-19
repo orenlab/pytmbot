@@ -6,55 +6,78 @@ also providing basic information about the status of local servers.
 """
 
 import asyncio
-import json
+import math
 import re
 import time
 from collections.abc import Callable, Coroutine, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum, auto
-from threading import Event, RLock, Thread, current_thread
+from email.utils import parsedate_to_datetime
+from enum import Enum, StrEnum, auto
+from threading import Event, Lock, RLock, Thread, current_thread
 from typing import Any, Final
 
 import aiohttp
-from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
-from dateutil.parser import ParserError, isoparse
+from aiohttp import (
+    ClientConnectionError,
+    ClientError,
+    ClientResponseError,
+    ClientSession,
+    ClientTimeout,
+)
+from dateutil.parser import isoparse
 from packaging import version
 from packaging.version import InvalidVersion
 
 from pytmbot.adapters.docker.client import docker_client_context
+from pytmbot.adapters.docker.images_info import list_images_tolerant
 from pytmbot.logs import BaseComponent
 from pytmbot.models.docker_models import TagInfo, UpdateInfo
 from pytmbot.utils import sanitize_exception
 
 # Type Aliases
-type LocalImageInfo = dict[str, list[dict[str, str | None]]]
-type UpdateResult = dict[str, dict[str, list[dict[str, object]]]]
-type TagAnalyzerFn = Callable[[TagInfo, str], EnhancedTagInfo | None]
+type LocalTagEntry = dict[str, str | None]
+type LocalImageInfo = dict[str, list[LocalTagEntry]]
+type ReferenceResult = dict[str, object]
+type CheckResults = dict[str, ReferenceResult]
+type RemoteTagsFetcher = Callable[
+    [ClientSession, str], Coroutine[object, object, list[EnhancedTagInfo]]
+]
+type RepositoryChecker = Callable[
+    [ClientSession, str, list[LocalTagEntry]], Coroutine[object, object, CheckResults]
+]
 
 # Module constants for better maintainability
-DEFAULT_TIMEOUT: Final[int] = 15
+DEFAULT_TIMEOUT: Final[int] = 10  # per registry request, connection setup included
+CONNECT_TIMEOUT: Final[int] = 5
 MAX_TIMEOUT: Final[int] = 60
-MAX_RETRIES: Final[int] = 3  # Only for transient errors (5xx, timeouts, network issues)
-RATE_LIMIT_BACKOFF: Final[int] = 300  # 5 minutes
+CHECK_DEADLINE: Final[float] = 60.0  # overall budget of one update check
+BRIDGE_GRACE_SECONDS: Final[float] = 5.0
+MAX_ATTEMPTS: Final[int] = 2  # one retry for timeouts and transient registry errors
+RETRY_DELAY: Final[float] = 1.0
+RATE_LIMIT_BACKOFF: Final[int] = 300  # 5 minutes when Docker Hub gives no Retry-After
+MAX_RATE_LIMIT_BACKOFF: Final[int] = 6 * 3600  # longest Docker Hub limit window
 CACHE_TTL: Final[int] = 3600  # 1 hour
 MAX_CONCURRENT_REPOS: Final[int] = 5
 MAX_TAGS_PER_REPO: Final[int] = 100
 MAX_UPDATES_PER_REPO: Final[int] = 10
-_DIGEST_PATTERN: Final[re.Pattern[str]] = re.compile(r"^sha256:[a-f0-9]{64}$")
-
-# HTTP status codes that should NOT be retried (client errors)
-NON_RETRYABLE_STATUS_CODES: Final[set[int]] = {
-    400,  # Bad Request - malformed request
-    401,  # Unauthorized - authentication required
-    403,  # Forbidden - access denied
-    404,  # Not Found - repository doesn't exist
-    405,  # Method Not Allowed
-    406,  # Not Acceptable
-    410,  # Gone - resource permanently removed
-    422,  # Unprocessable Entity - validation failed
-}
+DOCKER_HUB_REGISTRY: Final[str] = "docker.io"
+_DOCKER_HUB_ALIASES: Final[frozenset[str]] = frozenset(
+    {"docker.io", "index.docker.io", "registry-1.docker.io"}
+)
+_DOCKER_HUB_TAGS_URL: Final[str] = (
+    "https://registry.hub.docker.com/v2/repositories/{path}/tags/"
+    "?page_size={page_size}&ordering=last_updated"
+)
+_USER_AGENT: Final[str] = "pyTMBot/1.0"
+_DIGEST_PATTERN: Final[re.Pattern[str]] = re.compile(r"sha256:[a-f0-9]{64}")
+_TAG_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"[\w][\w.-]{0,127}", re.ASCII)
+_REPOSITORY_COMPONENT_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"[a-z0-9]+(?:(?:\.|_|__|-+)[a-z0-9]+)*"
+)
+_RETRY_AFTER_SECONDS_PATTERN: Final[re.Pattern[str]] = re.compile(r"\d{1,10}", re.ASCII)
+_MIN_TIMESTAMP: Final[datetime] = datetime.min.replace(tzinfo=UTC)
 
 
 class UpdaterStatus(Enum):
@@ -94,6 +117,120 @@ class UpdaterResponse:
         }
 
 
+class CheckFailure(StrEnum):
+    """Why a local image could not be checked; values are shown to users."""
+
+    TIMEOUT = "timeout"
+    RATE_LIMITED = "rate limited"
+    NOT_FOUND = "not found"
+    TAG_NOT_FOUND = "tag not found"
+    NO_TAGS = "no tags found"
+    ACCESS_DENIED = "access denied"
+    REGISTRY_ERROR = "registry error"
+    NETWORK_ERROR = "network error"
+    INVALID_RESPONSE = "unexpected registry response"
+    UNSUPPORTED_REGISTRY = "registry not supported"
+    LOCAL_IMAGE = "local image"
+    INTERNAL_ERROR = "internal error"
+
+
+# Images that are never sent to Docker Hub; they are skipped, not failed.
+_SKIPPED_FAILURES: Final[frozenset[str]] = frozenset(
+    {CheckFailure.UNSUPPORTED_REGISTRY.name, CheckFailure.LOCAL_IMAGE.name}
+)
+_STATUS_FAILURES: Final[dict[int, CheckFailure]] = {
+    401: CheckFailure.ACCESS_DENIED,
+    403: CheckFailure.ACCESS_DENIED,
+    404: CheckFailure.NOT_FOUND,
+}
+
+
+class RegistryCheckError(Exception):
+    """A repository could not be checked against Docker Hub."""
+
+    def __init__(
+        self,
+        reason: CheckFailure,
+        *,
+        retry_after: int | None = None,
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(reason.value)
+        self.reason = reason
+        self.retry_after = retry_after
+        self.status_code = status_code
+
+
+@dataclass(frozen=True, slots=True)
+class ImageReference:
+    """Image reference split into registry, repository path and tag."""
+
+    repository: str  # as written locally, without tag or digest
+    registry: str  # "docker.io" for Docker Hub
+    path: str  # repository path inside the registry, e.g. "library/nginx"
+    tag: str
+
+    @property
+    def is_docker_hub(self) -> bool:
+        return self.registry == DOCKER_HUB_REGISTRY
+
+    @property
+    def canonical_name(self) -> str:
+        return f"{self.registry}/{self.path}"
+
+
+def _split_reference_tag(name: str) -> tuple[str, str]:
+    repository, separator, tag = name.rpartition(":")
+    if not separator or "/" in tag:
+        # No tag, or the colon belongs to a registry port ("localhost:5000/app").
+        return name, "latest"
+    if not repository or not _TAG_NAME_PATTERN.fullmatch(tag):
+        raise ValueError(f"Invalid tag in image reference: {name}")
+    return repository, tag
+
+
+def _split_registry(repository: str) -> tuple[str, str]:
+    first, separator, rest = repository.partition("/")
+    if separator and ("." in first or ":" in first or first == "localhost"):
+        return first.lower(), rest
+    return DOCKER_HUB_REGISTRY, repository
+
+
+def parse_image_reference(reference: str) -> ImageReference:
+    """
+    Parse ``[registry/]path[:tag][@digest]`` the way the Docker CLI does.
+
+    The first component names a registry only when it contains a dot or a colon
+    or equals ``localhost``. Everything else lives on Docker Hub, where single
+    names belong to the ``library`` namespace.
+    """
+    name = reference.strip().split("@", 1)[0]
+    if not name:
+        raise ValueError("Image reference cannot be empty")
+
+    repository, tag = _split_reference_tag(name)
+    registry, path = _split_registry(repository)
+    if registry in _DOCKER_HUB_ALIASES:
+        registry = DOCKER_HUB_REGISTRY
+        if "/" not in path:
+            path = f"library/{path}"
+    if not path or not all(path.split("/")):
+        raise ValueError(f"Invalid image reference: {reference}")
+    return ImageReference(repository=repository, registry=registry, path=path, tag=tag)
+
+
+def _docker_hub_tags_url(reference: ImageReference) -> str | None:
+    """Return the Docker Hub tags endpoint, or None for any other registry."""
+    if not reference.is_docker_hub:
+        return None
+    components = reference.path.split("/")
+    if len(components) != 2 or not all(
+        _REPOSITORY_COMPONENT_PATTERN.fullmatch(component) for component in components
+    ):
+        return None
+    return _DOCKER_HUB_TAGS_URL.format(path=reference.path, page_size=MAX_TAGS_PER_REPO)
+
+
 class TagType(Enum):
     """Enhanced tag type classification."""
 
@@ -117,6 +254,17 @@ class TagType(Enum):
         }.get(self, 0)
 
 
+def _timestamp_sort_key(value: str | None) -> datetime:
+    """Parse a timestamp into an aware datetime; unknown values sort first."""
+    if not value:
+        return _MIN_TIMESTAMP
+    try:
+        parsed = isoparse(value)
+    except (ValueError, OverflowError):
+        return _MIN_TIMESTAMP
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
 @dataclass(frozen=True, slots=True)
 class EnhancedTagInfo:
     """Enhanced tag information with validation and comparison support."""
@@ -126,6 +274,8 @@ class EnhancedTagInfo:
     version_info: version.Version | None = None
     date_info: datetime | None = None
     parse_error: str | None = None
+    # Release line: only tags of the same family are compared with each other.
+    family: str = ""
 
     @property
     def name(self) -> str:
@@ -149,38 +299,46 @@ class EnhancedTagInfo:
         if not isinstance(other, EnhancedTagInfo):
             return NotImplemented
 
-        # Compare by type priority first
         if self.tag_type.priority != other.tag_type.priority:
             return self.tag_type.priority < other.tag_type.priority
 
-        # Same type comparison
         if self.tag_type == TagType.SEMVER and self.version_info and other.version_info:
             return self.version_info < other.version_info
-        elif self.tag_type == TagType.DATE and self.date_info and other.date_info:
+        if self.tag_type == TagType.DATE and self.date_info and other.date_info:
             return self.date_info < other.date_info
-        else:
-            # Fall back to creation time comparison
-            try:
-                left_date = isoparse(self.created_at)
-                right_date = isoparse(other.created_at)
-                if isinstance(left_date, datetime) and isinstance(right_date, datetime):
-                    return left_date < right_date
-                return self.name < other.name
-            except (ParserError, ValueError):
-                return self.name < other.name
+
+        left_date = _timestamp_sort_key(self.created_at)
+        right_date = _timestamp_sort_key(other.created_at)
+        if left_date != right_date:
+            return left_date < right_date
+        return self.name < other.name
 
 
-_TAG_SEMVER_PATTERN = re.compile(
-    r"^v?(\d+\.\d+\.\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
-)
 _TAG_DATE_PATTERN = re.compile(
-    r"^(\d{4})[-_.]?(\d{2})[-_.]?(\d{2})(?:[-_.]?(\d{2})[-_.]?(\d{2})[-_.]?(\d{2}))?$"
+    r"^(\d{4})[-_]?(\d{2})[-_]?(\d{2})(?:[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2}))?$"
 )
+_TAG_VERSION_PATTERN = re.compile(
+    r"^(?P<prefix>v|(?:release|rel|r)[-_.]?v?)?"
+    r"(?P<numbers>\d+(?:\.\d+)*)"
+    r"(?P<suffix>(?:[-_.]?[a-z]|[-_])[a-z0-9_.-]*)?$",
+    re.IGNORECASE,
+)
+_TAG_PRERELEASE_PATTERN = re.compile(
+    r"(?<![a-z])(?P<label>alpha|beta|preview|pre|rc|dev|a|b)[-_.]?(?P<number>\d+)?(?![a-z])",
+    re.IGNORECASE,
+)
+_PRERELEASE_SEGMENTS: Final[dict[str, str]] = {
+    "alpha": "a",
+    "a": "a",
+    "beta": "b",
+    "b": "b",
+    "pre": "rc",
+    "preview": "rc",
+    "rc": "rc",
+    "dev": ".dev",
+}
+_REPEATED_SEPARATORS_PATTERN = re.compile(r"[-_.]{2,}")
 _TAG_SHA_PATTERN = re.compile(r"^[0-9a-f]{7,64}$")
-_TAG_NUMERIC_PATTERN = re.compile(r"^\d+(\.\d+)*$")
-_TAG_RELEASE_PATTERN = re.compile(
-    r"^(release|rel|r)[-_.]?v?(\d+(?:\.\d+)*)$", re.IGNORECASE
-)
 _LATEST_TAG_NAMES: Final[frozenset[str]] = frozenset(
     {"latest", "current", "stable", "main", "master"}
 )
@@ -204,55 +362,42 @@ def _custom_tag_result(
     )
 
 
-def _parse_version_tag(
-    tag_info: TagInfo,
-    raw_version: str,
-    *,
-    parse_error_prefix: str | None = None,
-) -> EnhancedTagInfo | None:
+def _split_prerelease(suffix: str) -> tuple[str, str]:
+    """Split a tag suffix into a PEP 440 pre-release segment and the variant."""
+    prerelease = _TAG_PRERELEASE_PATTERN.search(suffix)
+    if prerelease is None:
+        variant = suffix
+        segment = ""
+    else:
+        variant = suffix[: prerelease.start()] + suffix[prerelease.end() :]
+        label = _PRERELEASE_SEGMENTS[prerelease.group("label").lower()]
+        segment = f"{label}{prerelease.group('number') or 0}"
+    variant = _REPEATED_SEPARATORS_PATTERN.sub("-", variant).strip("-_.")
+    return segment, variant
+
+
+def _analyze_version_tag(tag_info: TagInfo, tag_name: str) -> EnhancedTagInfo | None:
+    """Classify numeric tags such as ``16``, ``1.25-alpine`` or ``v2.0.0-rc1``."""
+    version_match = _TAG_VERSION_PATTERN.match(tag_name)
+    if version_match is None:
+        return None
+
+    numbers = version_match.group("numbers")
+    prerelease, variant = _split_prerelease(
+        (version_match.group("suffix") or "").lower()
+    )
     try:
-        parsed_version = version.parse(raw_version)
+        parsed_version = version.parse(f"{numbers}{prerelease}")
     except InvalidVersion as error:
-        if parse_error_prefix is None:
-            return None
-        return _custom_tag_result(
-            tag_info, parse_error=f"{parse_error_prefix}: {error}"
-        )
+        return _custom_tag_result(tag_info, parse_error=f"Invalid version: {error}")
+
+    prefix = (version_match.group("prefix") or "").lower()
     return EnhancedTagInfo(
         tag_info=tag_info,
         tag_type=TagType.SEMVER,
         version_info=parsed_version,
+        family=f"{prefix}|{numbers.count('.') + 1}|{variant}",
     )
-
-
-def _analyze_semver_tag(
-    tag_info: TagInfo, tag_name: str, pattern: re.Pattern[str]
-) -> EnhancedTagInfo | None:
-    semver_match = pattern.match(tag_name)
-    if semver_match is None:
-        return None
-    return _parse_version_tag(
-        tag_info,
-        semver_match.group(1),
-        parse_error_prefix="Invalid semver",
-    )
-
-
-def _analyze_release_tag(
-    tag_info: TagInfo, tag_name: str, pattern: re.Pattern[str]
-) -> EnhancedTagInfo | None:
-    release_match = pattern.match(tag_name)
-    if release_match is None:
-        return None
-    return _parse_version_tag(tag_info, release_match.group(2))
-
-
-def _analyze_numeric_tag(
-    tag_info: TagInfo, tag_name: str, pattern: re.Pattern[str]
-) -> EnhancedTagInfo | None:
-    if pattern.match(tag_name) is None:
-        return None
-    return _parse_version_tag(tag_info, tag_name)
 
 
 def _build_tag_date_info(date_groups: tuple[str | None, ...]) -> datetime:
@@ -280,10 +425,9 @@ def _build_tag_date_info(date_groups: tuple[str | None, ...]) -> datetime:
     return datetime(year, month, day, tzinfo=UTC)
 
 
-def _analyze_date_tag(
-    tag_info: TagInfo, tag_name: str, pattern: re.Pattern[str]
-) -> EnhancedTagInfo | None:
-    date_match = pattern.match(tag_name)
+def _analyze_date_tag(tag_info: TagInfo, tag_name: str) -> EnhancedTagInfo | None:
+    """Classify date tags such as ``20240115`` or ``2024-01-15``."""
+    date_match = _TAG_DATE_PATTERN.match(tag_name)
     if date_match is None:
         return None
 
@@ -296,18 +440,15 @@ def _analyze_date_tag(
         tag_info=tag_info,
         tag_type=TagType.DATE,
         date_info=date_info,
+        family=re.sub(r"\d", "9", tag_name),
     )
 
 
 class TagAnalyzer:
-    """Facade for tag analysis using module-level analyzers."""
+    """Classify Docker tags so only comparable tags are compared."""
 
-    SEMVER_PATTERN = _TAG_SEMVER_PATTERN
-    DATE_PATTERN = _TAG_DATE_PATTERN
-    SHA_PATTERN = _TAG_SHA_PATTERN
-    NUMERIC_PATTERN = _TAG_NUMERIC_PATTERN
-    RELEASE_PATTERN = _TAG_RELEASE_PATTERN
     LATEST_TAG_NAMES = _LATEST_TAG_NAMES
+    SHA_PATTERN = _TAG_SHA_PATTERN
 
     @classmethod
     def analyze_tag(cls, tag_info: TagInfo) -> EnhancedTagInfo:
@@ -319,34 +460,18 @@ class TagAnalyzer:
         if not tag_name:
             return _invalid_tag_result(tag_info, "Empty tag name")
 
-        tag_lower = tag_name.lower()
+        if tag_name.lower() in cls.LATEST_TAG_NAMES:
+            return EnhancedTagInfo(tag_info, TagType.LATEST)
 
-        try:
-            if tag_lower in cls.LATEST_TAG_NAMES:
-                return EnhancedTagInfo(tag_info, TagType.LATEST)
+        # Dates and numbers first: "20240115" is a date, not a short SHA.
+        for analyzer in (_analyze_date_tag, _analyze_version_tag):
+            analyzed = analyzer(tag_info, tag_name)
+            if analyzed is not None:
+                return analyzed
 
-            if cls.SHA_PATTERN.match(tag_lower):
-                return EnhancedTagInfo(tag_info, TagType.SHA)
-
-            analyzers: tuple[TagAnalyzerFn, ...] = (
-                lambda info, name: _analyze_semver_tag(info, name, cls.SEMVER_PATTERN),
-                lambda info, name: _analyze_release_tag(
-                    info, name, cls.RELEASE_PATTERN
-                ),
-                lambda info, name: _analyze_numeric_tag(
-                    info, name, cls.NUMERIC_PATTERN
-                ),
-                lambda info, name: _analyze_date_tag(info, name, cls.DATE_PATTERN),
-            )
-            for analyzer in analyzers:
-                analyzed = analyzer(tag_info, tag_name)
-                if analyzed is not None:
-                    return analyzed
-
-            return _custom_tag_result(tag_info)
-
-        except Exception as error:
-            return _invalid_tag_result(tag_info, f"Analysis error: {error}")
+        if cls.SHA_PATTERN.match(tag_name.lower()):
+            return EnhancedTagInfo(tag_info, TagType.SHA)
+        return _custom_tag_result(tag_info)
 
 
 def normalize_created_at(created: object) -> str | None:
@@ -365,7 +490,7 @@ def normalize_created_at(created: object) -> str | None:
                     if isinstance(parsed_date, datetime):
                         return parsed_date.isoformat()
                     return str(parsed_date)
-                except (ParserError, ValueError):
+                except ValueError:
                     return created  # Return as-is if can't parse
             return None
         return None
@@ -402,133 +527,94 @@ def dict_to_tag_info(info: Mapping[str, object]) -> TagInfo:
     )
 
 
-def _extract_image_digest(image: object, *, log: Any) -> str | None:
-    """Extract a validated SHA256 digest from image metadata when present."""
-    try:
-        image_attrs_raw = getattr(image, "attrs", None)
-        image_attrs = image_attrs_raw if isinstance(image_attrs_raw, dict) else {}
-        repo_digests = image_attrs.get("RepoDigests", [])
-        if not repo_digests or not isinstance(repo_digests, list):
-            return None
-
-        for digest_entry in repo_digests:
-            if isinstance(digest_entry, str) and "@sha256:" in digest_entry:
-                parts = digest_entry.split("@", 1)
-                if len(parts) == 2 and parts[1].startswith("sha256:"):
-                    digest = parts[1]
-                    if _DIGEST_PATTERN.match(digest):
-                        return digest
-
-        return None
-    except Exception:
-        log.debug("docker.updates.could.not.debug")
-        return None
+def _image_attrs(image: object) -> dict[str, object]:
+    image_attrs = getattr(image, "attrs", None)
+    return image_attrs if isinstance(image_attrs, dict) else {}
 
 
-def _parse_image_tag(tag: str) -> tuple[str, str]:
-    """Parse repository and version from a Docker image tag."""
-    if not tag or not isinstance(tag, str):
-        raise ValueError("Tag must be a non-empty string")
+def _repo_digests_by_name(image: object) -> dict[str, str]:
+    """Map each repository an image was pulled from to the digest Docker recorded."""
+    repo_digests = _image_attrs(image).get("RepoDigests")
+    if not isinstance(repo_digests, list):
+        return {}
 
-    normalized_tag = tag.strip()
-    if not normalized_tag:
-        raise ValueError("Tag cannot be empty after stripping")
-
-    if normalized_tag.count("/") >= 2:
-        parts = normalized_tag.split("/")
-        repo_tag = "/".join(parts[-2:]) if len(parts) >= 3 else normalized_tag
-    else:
-        repo_tag = normalized_tag
-
-    if ":" in repo_tag:
-        repo, version_name = repo_tag.rsplit(":", 1)
-        if not repo or not version_name:
-            raise ValueError(f"Invalid tag format: {tag}")
-        return repo, version_name
-
-    return repo_tag, "latest"
+    digests: dict[str, str] = {}
+    for entry in repo_digests:
+        if not isinstance(entry, str):
+            continue
+        name, _, digest = entry.partition("@")
+        if not _DIGEST_PATTERN.fullmatch(digest):
+            continue
+        with suppress(ValueError):
+            digests.setdefault(parse_image_reference(name).canonical_name, digest)
+    return digests
 
 
 def _process_local_image_tags(
     image: object,
-    digest: str | None,
     local_images: LocalImageInfo,
     *,
     log: Any,
-    parse_tag: Callable[[str], tuple[str, str]],
 ) -> None:
-    """Append validated image tags to the local image catalog."""
-    image_attrs_raw = getattr(image, "attrs", None)
-    image_attrs = image_attrs_raw if isinstance(image_attrs_raw, dict) else {}
-    created_at = normalize_created_at(image_attrs.get("Created"))
+    """Add every valid tag of ``image`` with the digest pulled for its repository."""
+    created_at = normalize_created_at(_image_attrs(image).get("Created"))
+    digests = _repo_digests_by_name(image)
 
-    image_tags_raw = getattr(image, "tags", ())
-    image_tags = image_tags_raw if isinstance(image_tags_raw, list) else []
-    for tag in image_tags:
+    image_tags = getattr(image, "tags", None)
+    for tag in image_tags if isinstance(image_tags, list) else []:
+        if not isinstance(tag, str) or not tag.strip():
+            continue
         try:
-            if not isinstance(tag, str) or not tag.strip():
-                continue
-
-            repo, tag_version = parse_tag(tag.strip())
-            if not repo or len(repo) > 255:
-                continue
-
-            local_images.setdefault(repo, []).append(
-                {
-                    "tag": tag_version,
-                    "created_at": created_at,
-                    "digest": digest,
-                }
-            )
+            reference = parse_image_reference(tag)
         except ValueError:
             log.warning("docker.updates.invalid.tag.warn")
-        except Exception:
-            log.warning("docker.updates.processing.tag.fail")
+            continue
+        if len(reference.repository) > 255:
+            continue
+
+        local_images.setdefault(reference.repository, []).append(
+            {
+                "tag": reference.tag,
+                "created_at": created_at,
+                # None means the tag was never pulled from this repository.
+                "digest": digests.get(reference.canonical_name),
+            }
+        )
 
 
-def _build_repository_urls(repo: str) -> list[str]:
-    """Build Docker Hub repository endpoints for a repository name."""
-    normalized_repo = repo.strip().strip("/")
-    if "/" in normalized_repo:
-        return [
-            f"https://registry.hub.docker.com/v2/repositories/{normalized_repo}/tags/"
-        ]
-
-    return [
-        f"https://registry.hub.docker.com/v2/repositories/{normalized_repo}/tags/",
-        f"https://registry.hub.docker.com/v2/repositories/library/{normalized_repo}/tags/",
-    ]
+def _is_newer_version(
+    local_version: version.Version | None, remote_version: version.Version | None
+) -> bool:
+    if local_version is None or remote_version is None:
+        return False
+    if remote_version.is_prerelease and not local_version.is_prerelease:
+        return False
+    return (
+        remote_version.major == local_version.major and remote_version > local_version
+    )
 
 
 def _compare_enhanced_tags(
     local_tag: EnhancedTagInfo,
     remote_tag: EnhancedTagInfo,
 ) -> bool:
-    """Compare two analyzed tags and determine whether remote is newer."""
-    if local_tag.tag_type != remote_tag.tag_type:
+    """Return True when ``remote_tag`` is a newer release on the same release line."""
+    if (
+        local_tag.tag_type != remote_tag.tag_type
+        or local_tag.family != remote_tag.family
+    ):
         return False
 
-    try:
-        if local_tag.tag_type == TagType.SEMVER:
-            if remote_tag.version_info is None or local_tag.version_info is None:
-                return False
-            return remote_tag.version_info > local_tag.version_info
-
-        if local_tag.tag_type == TagType.DATE:
-            if remote_tag.date_info is None or local_tag.date_info is None:
-                return False
-            return remote_tag.date_info > local_tag.date_info
-
-        try:
-            local_time = isoparse(local_tag.created_at)
-            remote_time = isoparse(remote_tag.created_at)
-            if isinstance(local_time, datetime) and isinstance(remote_time, datetime):
-                return remote_time > local_time
-            return False
-        except (ParserError, ValueError):
-            return False
-    except Exception:
-        return False
+    if local_tag.tag_type == TagType.SEMVER:
+        return _is_newer_version(local_tag.version_info, remote_tag.version_info)
+    if local_tag.tag_type == TagType.DATE:
+        return (
+            local_tag.date_info is not None
+            and remote_tag.date_info is not None
+            and remote_tag.date_info > local_tag.date_info
+        )
+    # latest, SHA and custom tags only update through a new digest.
+    return False
 
 
 def _tag_digests_equal(local_tag: EnhancedTagInfo, remote_tag: EnhancedTagInfo) -> bool:
@@ -546,7 +632,7 @@ def _find_compatible_tag_updates(
     compare_versions: Callable[[EnhancedTagInfo, EnhancedTagInfo], bool],
     digests_equal: Callable[[EnhancedTagInfo, EnhancedTagInfo], bool],
 ) -> list[UpdateInfo]:
-    """Find compatible remote updates for a local tag."""
+    """Find newer remote tags for a local tag, newest first, without duplicates."""
     with log.context(
         action="find_updates",
         tag=local_tag.name,
@@ -555,74 +641,72 @@ def _find_compatible_tag_updates(
         if not local_tag.is_valid:
             return []
 
-        compatible_tags: list[EnhancedTagInfo] = []
+        candidates: dict[str, EnhancedTagInfo] = {}
         for remote_tag in remote_tags:
-            if not remote_tag.is_valid:
+            if not remote_tag.is_valid or remote_tag.name in candidates:
                 continue
-
-            if local_tag.name == remote_tag.name:
-                if digests_equal(local_tag, remote_tag):
-                    continue
-                if local_tag.digest and remote_tag.digest:
-                    compatible_tags.append(remote_tag)
-                continue
-
-            if (
-                local_tag.tag_type == TagType.SEMVER
-                and remote_tag.tag_type == TagType.SEMVER
-            ):
-                if (
-                    local_tag.version_info
-                    and remote_tag.version_info
-                    and local_tag.version_info.major == remote_tag.version_info.major
-                    and compare_versions(local_tag, remote_tag)
-                ):
-                    compatible_tags.append(remote_tag)
-            elif local_tag.tag_type == remote_tag.tag_type and compare_versions(
-                local_tag, remote_tag
-            ):
-                compatible_tags.append(remote_tag)
-
-        compatible_tags.sort(reverse=True)
-        updates: list[UpdateInfo] = []
-        for tag in compatible_tags[:MAX_UPDATES_PER_REPO]:
-            try:
-                updates.append(
-                    UpdateInfo(
-                        current_tag=local_tag.name,
-                        newer_tag=tag.name,
-                        created_at_local=local_tag.created_at,
-                        created_at_remote=tag.created_at,
-                        current_digest=local_tag.digest or "",
-                    )
+            if remote_tag.name == local_tag.name:
+                is_update = bool(local_tag.digest and remote_tag.digest) and (
+                    not digests_equal(local_tag, remote_tag)
                 )
-            except Exception:
-                log.warning("docker.updates.create.update.fail")
-                continue
+            else:
+                is_update = compare_versions(local_tag, remote_tag)
+            if is_update:
+                candidates[remote_tag.name] = remote_tag
 
-        return updates
+        newest_first = sorted(candidates.values(), reverse=True)
+        return [
+            UpdateInfo(
+                current_tag=local_tag.name,
+                newer_tag=tag.name,
+                created_at_local=local_tag.created_at,
+                created_at_remote=tag.created_at,
+                current_digest=local_tag.digest or "",
+            )
+            for tag in newest_first[:MAX_UPDATES_PER_REPO]
+        ]
+
+
+def parse_retry_after(value: str | None, *, now: datetime | None = None) -> int | None:
+    """Parse a ``Retry-After`` header given as delay-seconds or as an HTTP-date."""
+    if value is None:
+        return None
+    text = value.strip()
+    if _RETRY_AFTER_SECONDS_PATTERN.fullmatch(text):
+        return int(text)
+    try:
+        retry_at = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=UTC)
+    delay = (retry_at - (now or datetime.now(UTC))).total_seconds()
+    return max(0, math.ceil(delay))
 
 
 class RateLimitHandler:
-    """Handle Docker Hub rate limiting with intelligent backoff."""
+    """Remember Docker Hub rate limits so later lookups wait instead of retrying."""
 
     def __init__(self) -> None:
-        self._last_rate_limit: float = 0.0
+        self._blocked_until: float = 0.0
         self._consecutive_limits: int = 0
         self._lock = RLock()
 
-    def should_skip_request(self) -> bool:
-        """Check if we should skip requests due to rate limiting."""
+    def retry_after(self) -> int | None:
+        """Seconds until requests may resume, or None when not rate limited."""
         with self._lock:
-            if self._consecutive_limits > 5:  # Too many consecutive limits
-                return time.time() - self._last_rate_limit < RATE_LIMIT_BACKOFF * 2
-            return time.time() - self._last_rate_limit < RATE_LIMIT_BACKOFF
+            remaining = self._blocked_until - time.time()
+        return math.ceil(remaining) if remaining > 0 else None
 
     def handle_rate_limit(self, retry_after: int | None = None) -> None:
-        """Record rate limit event."""
+        """Record a rate limit; honour Retry-After when Docker Hub sent one."""
         with self._lock:
-            self._last_rate_limit = time.time()
             self._consecutive_limits += 1
+            if retry_after is None:
+                multiplier = 2 if self._consecutive_limits > 5 else 1
+                retry_after = RATE_LIMIT_BACKOFF * multiplier
+            backoff = min(max(retry_after, 1), MAX_RATE_LIMIT_BACKOFF)
+            self._blocked_until = max(self._blocked_until, time.time() + backoff)
 
     def handle_success(self) -> None:
         """Record successful request."""
@@ -723,6 +807,46 @@ class _UpdaterSyncBridge:
             thread.join(timeout=2.0)
 
 
+def _request_timeout(timeout: int) -> ClientTimeout:
+    return ClientTimeout(total=timeout, connect=min(CONNECT_TIMEOUT, timeout))
+
+
+def _tag_info_from_entry(entry: object) -> TagInfo | None:
+    """Build TagInfo from one Docker Hub result, dropping malformed entries."""
+    if not isinstance(entry, dict):
+        return None
+    name = entry.get("name")
+    if not isinstance(name, str) or not _TAG_NAME_PATTERN.fullmatch(name):
+        return None
+    pushed_at = entry.get("tag_last_pushed") or entry.get("last_updated")
+    digest = entry.get("digest")
+    return TagInfo(
+        name=name,
+        created_at=pushed_at if isinstance(pushed_at, str) else "",
+        digest=digest
+        if isinstance(digest, str) and _DIGEST_PATTERN.fullmatch(digest)
+        else None,
+    )
+
+
+def _parse_tag_results(
+    payload: object, *, analyzer: TagAnalyzer
+) -> list[EnhancedTagInfo]:
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list):
+        raise ValueError("Docker Hub response has no tag list")
+
+    tags_info: list[EnhancedTagInfo] = []
+    for entry in results[:MAX_TAGS_PER_REPO]:
+        tag_info = _tag_info_from_entry(entry)
+        if tag_info is None:
+            continue
+        enhanced_tag = analyzer.analyze_tag(tag_info)
+        if enhanced_tag.is_valid:
+            tags_info.append(enhanced_tag)
+    return tags_info
+
+
 async def _fetch_tags_from_registry_url(
     session: ClientSession,
     url: str,
@@ -731,186 +855,415 @@ async def _fetch_tags_from_registry_url(
     analyzer: TagAnalyzer,
     stats: dict[str, int],
     log: Any,
-) -> list[EnhancedTagInfo] | None:
-    """Fetch tags from a specific registry URL with retry handling."""
-    for attempt in range(MAX_RETRIES):
+) -> list[EnhancedTagInfo]:
+    """Fetch one page of tags; retry once on timeouts and transient errors."""
+    attempt = 1
+    while True:
+        stats["api_calls"] += 1
         try:
-            stats["api_calls"] += 1
-
-            async with session.get(url, timeout=ClientTimeout(timeout)) as response:
+            async with session.get(url, timeout=_request_timeout(timeout)) as response:
                 response.raise_for_status()
-                data = await response.json()
-
-                results = data.get("results", [])
-                if not results:
-                    return []
-
-                if len(results) > MAX_TAGS_PER_REPO:
-                    log.warning("docker.updates.too.many.warn")
-                    results = results[:MAX_TAGS_PER_REPO]
-
-                tags_info = []
-                for entry in results:
-                    try:
-                        if not isinstance(entry, dict):
-                            continue
-
-                        tag_info = TagInfo(
-                            name=entry.get("name", ""),
-                            created_at=entry.get("tag_last_pushed", ""),
-                            digest=entry.get("digest"),
-                        )
-
-                        enhanced_tag = analyzer.analyze_tag(tag_info)
-                        if enhanced_tag.is_valid:
-                            tags_info.append(enhanced_tag)
-
-                    except Exception:
-                        log.debug("docker.updates.tag.entry.fail")
-                        continue
-
-                log.debug("docker.updates.fetch.valid.debug")
-                return tags_info
-
+                payload = await response.json()
+            return _parse_tag_results(payload, analyzer=analyzer)
         except ClientResponseError as error:
-            if 400 <= error.status < 500:
-                if error.status == 403:
-                    log.warning("docker.updates.access.forbidden.warn")
-                elif error.status == 429:
-                    log.warning("docker.updates.rate.limited.warn")
-                else:
-                    log.warning("docker.updates.client.fail")
+            if error.status < 500 or attempt >= MAX_ATTEMPTS:
+                raise
+        except (TimeoutError, ClientConnectionError):
+            if attempt >= MAX_ATTEMPTS:
                 raise
 
-            if error.status >= 500:
-                if attempt < MAX_RETRIES - 1:
-                    wait_time = 2**attempt
-                    log.debug("docker.updates.server.fail")
-                    await asyncio.sleep(wait_time)
-                else:
-                    raise
-            else:
-                raise
+        log.debug("docker.updates.fetch.retry.debug", attempt=attempt)
+        attempt += 1
+        await asyncio.sleep(RETRY_DELAY)
 
-        except TimeoutError:
-            if attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt
-                log.debug("docker.updates.timeout.retry.debug")
-                await asyncio.sleep(wait_time)
-            else:
-                raise
 
-        except (ClientError, json.JSONDecodeError):
-            if attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt
-                log.debug("docker.updates.network.parsing.fail")
-                await asyncio.sleep(wait_time)
-            else:
-                raise
+def _response_failure(
+    error: ClientResponseError,
+    *,
+    rate_limiter: RateLimitHandler,
+    stats: dict[str, int],
+    log: Any,
+) -> RegistryCheckError:
+    """Classify an HTTP error response from Docker Hub."""
+    if error.status == 429:
+        stats["rate_limits"] += 1
+        headers = error.headers
+        rate_limiter.handle_rate_limit(
+            parse_retry_after(headers.get("Retry-After") if headers else None)
+        )
+        retry_after = rate_limiter.retry_after()
+        log.warning("docker.updates.rate.limited.warn", retry_after=retry_after)
+        return RegistryCheckError(
+            CheckFailure.RATE_LIMITED, retry_after=retry_after, status_code=429
+        )
 
-        except Exception:
-            log.warning("docker.updates.unexpected.fail")
-            raise
+    stats["errors"] += 1
+    log.warning("docker.updates.http.fail", status_code=error.status)
+    if error.status < 400:
+        # aiohttp reports a non-JSON body on a successful response this way.
+        return RegistryCheckError(CheckFailure.INVALID_RESPONSE)
+    reason = _STATUS_FAILURES.get(error.status, CheckFailure.REGISTRY_ERROR)
+    return RegistryCheckError(reason, status_code=error.status)
 
-    return None
+
+async def _fetch_classified_tags(
+    session: ClientSession,
+    url: str,
+    repo: str,
+    *,
+    rate_limiter: RateLimitHandler,
+    stats: dict[str, int],
+    log: Any,
+    fetch_tags_from_url: Callable[
+        [ClientSession, str, str], Coroutine[object, object, list[EnhancedTagInfo]]
+    ],
+) -> list[EnhancedTagInfo]:
+    """Fetch tags and turn every expected failure into a RegistryCheckError."""
+    try:
+        return await fetch_tags_from_url(session, url, repo)
+    except ClientResponseError as error:
+        raise _response_failure(
+            error, rate_limiter=rate_limiter, stats=stats, log=log
+        ) from error
+    except TimeoutError as error:
+        stats["errors"] += 1
+        log.warning("docker.updates.fetch.timeout.warn")
+        raise RegistryCheckError(CheckFailure.TIMEOUT) from error
+    except ClientError as error:
+        stats["errors"] += 1
+        log.warning("docker.updates.fetch.fail", error=sanitize_exception(error))
+        raise RegistryCheckError(CheckFailure.NETWORK_ERROR) from error
+    except ValueError as error:
+        stats["errors"] += 1
+        log.warning(
+            "docker.updates.fetch.invalid.warn", error=sanitize_exception(error)
+        )
+        raise RegistryCheckError(CheckFailure.INVALID_RESPONSE) from error
 
 
 async def _fetch_remote_tags_for_repository(
     session: ClientSession,
     repo: str,
     *,
-    timeout: int,
     cache: _UpdaterTagCache,
     rate_limiter: RateLimitHandler,
     stats: dict[str, int],
     log: Any,
     fetch_tags_from_url: Callable[
-        [ClientSession, str, str],
-        Coroutine[object, object, list[EnhancedTagInfo] | None],
+        [ClientSession, str, str], Coroutine[object, object, list[EnhancedTagInfo]]
     ],
 ) -> list[EnhancedTagInfo]:
-    """Fetch remote tags with cache and rate-limit handling."""
-    if rate_limiter.should_skip_request():
-        log.warning("docker.updates.skipping.due.warn")
-        return []
+    """Fetch Docker Hub tags for a local repository, using cache and rate limits."""
+    try:
+        reference = parse_image_reference(repo)
+    except ValueError as error:
+        raise RegistryCheckError(CheckFailure.UNSUPPORTED_REGISTRY) from error
+    url = _docker_hub_tags_url(reference)
+    if url is None:
+        raise RegistryCheckError(CheckFailure.UNSUPPORTED_REGISTRY)
 
-    current_time = time.time()
-    cached_tags = cache.get_valid(repo, current_time)
+    cached_tags = cache.get_valid(reference.canonical_name, time.time())
     if cached_tags is not None:
         stats["cache_hits"] += 1
-        log.debug("docker.updates.using.cached.debug")
         return cached_tags
 
+    retry_after = rate_limiter.retry_after()
+    if retry_after is not None:
+        log.debug("docker.updates.skipping.due.debug", retry_after=retry_after)
+        raise RegistryCheckError(CheckFailure.RATE_LIMITED, retry_after=retry_after)
+
     stats["cache_misses"] += 1
-    base_urls = _build_repository_urls(repo)
+    with log.context(action="fetch_remote_tags", repository=reference.canonical_name):
+        tags_info = await _fetch_classified_tags(
+            session,
+            url,
+            repo,
+            rate_limiter=rate_limiter,
+            stats=stats,
+            log=log,
+            fetch_tags_from_url=fetch_tags_from_url,
+        )
+    rate_limiter.handle_success()
+    if not tags_info:
+        raise RegistryCheckError(CheckFailure.NO_TAGS)
 
-    tags_info: list[EnhancedTagInfo] = []
-    last_error: Exception | None = None
+    # Only successful, non-empty lookups are cached; failures are retried next time.
+    cache.set(reference.canonical_name, tags_info, time.time())
+    return tags_info
 
-    for url in base_urls:
-        url_parts = (
-            url.split("/repositories/")[1].split("/tags/")[0]
-            if "/repositories/" in url
-            else repo
+
+def _failure_text(reason: CheckFailure, status_code: int | None) -> str:
+    if reason == CheckFailure.REGISTRY_ERROR and status_code is not None:
+        return f"{reason.value} (HTTP {status_code})"
+    return reason.value
+
+
+def _reference_result(
+    repository: str, tag_entry: LocalTagEntry, updates: list[UpdateInfo]
+) -> ReferenceResult:
+    return {
+        "repository": repository,
+        "tag": tag_entry.get("tag") or "latest",
+        "created_at": tag_entry.get("created_at") or "",
+        "updates": [update.model_dump() for update in updates],
+    }
+
+
+def _failure_results(
+    repository: str,
+    local_tags: Sequence[LocalTagEntry],
+    reason: CheckFailure,
+    *,
+    retry_after: int | None = None,
+    status_code: int | None = None,
+) -> CheckResults:
+    results: CheckResults = {}
+    for tag_entry in local_tags:
+        result = _reference_result(repository, tag_entry, [])
+        result["error"] = _failure_text(reason, status_code)
+        result["reason"] = reason.name
+        if retry_after is not None:
+            result["retry_after"] = retry_after
+        results[f"{repository}:{result['tag']}"] = result
+    return results
+
+
+def _split_checkable_tags(
+    repository: str, local_tags: Sequence[LocalTagEntry]
+) -> tuple[CheckResults, list[LocalTagEntry]]:
+    """Resolve images Docker Hub cannot answer for; return the ones to look up."""
+    try:
+        reference: ImageReference | None = parse_image_reference(repository)
+    except ValueError:
+        reference = None
+    if reference is None or _docker_hub_tags_url(reference) is None:
+        return (
+            _failure_results(repository, local_tags, CheckFailure.UNSUPPORTED_REGISTRY),
+            [],
         )
 
-        with log.context(
-            action="fetch_remote_tags", repository=repo, url_repo=url_parts
-        ):
-            try:
-                result = await fetch_tags_from_url(session, url, repo)
-                if result:
-                    tags_info = result
-                    rate_limiter.handle_success()
-                    log.debug("docker.updates.fetch.tags.ok")
-                    break
+    pulled = [tag for tag in local_tags if tag.get("digest")]
+    built_locally = [tag for tag in local_tags if not tag.get("digest")]
+    return (
+        _failure_results(repository, built_locally, CheckFailure.LOCAL_IMAGE),
+        pulled,
+    )
 
-            except ClientResponseError as error:
-                last_error = error
-                if error.status == 429:
-                    stats["rate_limits"] += 1
-                    headers = error.headers
-                    retry_after = int(
-                        headers.get("Retry-After", "3600") if headers else "3600"
-                    )
-                    rate_limiter.handle_rate_limit(retry_after)
-                    log.warning("docker.updates.rate.limited.warn")
-                    raise
-                if error.status == 404:
-                    log.debug("docker.updates.repository.not.debug")
-                    continue
 
-                log.warning("docker.updates.http.fail")
-                continue
+def _local_tag_result(
+    repository: str,
+    tag_entry: LocalTagEntry,
+    remote_tags: list[EnhancedTagInfo],
+    *,
+    analyzer: TagAnalyzer,
+    log: Any,
+) -> CheckResults:
+    local_tag = analyzer.analyze_tag(dict_to_tag_info(tag_entry))
+    updates = _find_compatible_tag_updates(
+        local_tag,
+        remote_tags,
+        log=log,
+        compare_versions=_compare_enhanced_tags,
+        digests_equal=_tag_digests_equal,
+    )
+    if not updates and all(tag.name != local_tag.name for tag in remote_tags):
+        # Without the tag itself on Docker Hub there is nothing to compare with.
+        return _failure_results(repository, [tag_entry], CheckFailure.TAG_NOT_FOUND)
+    result = _reference_result(repository, tag_entry, updates)
+    return {f"{repository}:{result['tag']}": result}
 
-            except Exception as error:
-                last_error = error
-                stats["errors"] += 1
-                log.warning("docker.updates.fetch.fail")
-                continue
 
-    if tags_info or last_error:
-        cache.set(repo, tags_info, time.time())
+async def _check_repository(
+    session: ClientSession,
+    repository: str,
+    local_tags: list[LocalTagEntry],
+    *,
+    fetch_remote_tags: RemoteTagsFetcher,
+    analyzer: TagAnalyzer,
+    log: Any,
+) -> CheckResults:
+    """Look up one Docker Hub repository and compare every pulled local tag."""
+    try:
+        remote_tags = await fetch_remote_tags(session, repository)
+    except RegistryCheckError as error:
+        return _failure_results(
+            repository,
+            local_tags,
+            error.reason,
+            retry_after=error.retry_after,
+            status_code=error.status_code,
+        )
 
-    if not tags_info and last_error:
-        log.warning("docker.updates.fetch.tags.fail")
+    results: CheckResults = {}
+    for tag_entry in local_tags:
+        results.update(
+            _local_tag_result(
+                repository, tag_entry, remote_tags, analyzer=analyzer, log=log
+            )
+        )
+    return results
 
-    return tags_info
+
+def _collect_task_results(
+    task: "asyncio.Future[CheckResults]",
+    repository: str,
+    local_tags: list[LocalTagEntry],
+    *,
+    log: Any,
+) -> CheckResults:
+    if task.cancelled():
+        return _failure_results(repository, local_tags, CheckFailure.TIMEOUT)
+    error = task.exception()
+    if error is None:
+        return task.result()
+    if not isinstance(error, Exception):
+        raise error
+    log.error(
+        "docker.updates.repository.processing.fail",
+        repository=repository,
+        error=sanitize_exception(error),
+    )
+    return _failure_results(repository, local_tags, CheckFailure.INTERNAL_ERROR)
+
+
+async def _check_repositories(
+    session: ClientSession,
+    pending: dict[str, list[LocalTagEntry]],
+    *,
+    deadline: float,
+    check_repository: RepositoryChecker,
+    log: Any,
+) -> tuple[CheckResults, bool]:
+    """Check repositories concurrently; cancel whatever outlives ``deadline``."""
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REPOS)
+
+    async def _limited(
+        repository: str, local_tags: list[LocalTagEntry]
+    ) -> CheckResults:
+        async with semaphore:
+            return await check_repository(session, repository, local_tags)
+
+    tasks = {
+        asyncio.ensure_future(_limited(repository, local_tags)): repository
+        for repository, local_tags in pending.items()
+    }
+    _, unfinished = await asyncio.wait(tasks, timeout=max(deadline, 0.0))
+    for task in unfinished:
+        task.cancel()
+    if unfinished:
+        log.warning("docker.updates.deadline.exceeded.warn", pending=len(unfinished))
+        await asyncio.wait(unfinished)
+
+    results: CheckResults = {}
+    for task, repository in tasks.items():
+        results.update(
+            _collect_task_results(task, repository, pending[repository], log=log)
+        )
+    return results, bool(unfinished)
+
+
+def _open_registry_session(timeout: int) -> ClientSession:
+    connector = aiohttp.TCPConnector(
+        limit=MAX_CONCURRENT_REPOS,
+        # Never make a request wait for a pooled connection: aiohttp counts
+        # that wait against the request timeout.
+        limit_per_host=MAX_CONCURRENT_REPOS,
+        ttl_dns_cache=300,
+        use_dns_cache=True,
+    )
+    return ClientSession(
+        timeout=_request_timeout(timeout),
+        connector=connector,
+        headers={"User-Agent": _USER_AGENT},
+    )
+
+
+def _summarize_results(
+    results: CheckResults,
+) -> tuple[UpdaterStatus, str, int, int, list[str]]:
+    """Derive status, message and counters from per-image results."""
+    processed = sum(1 for result in results.values() if not result.get("error"))
+    failed_reasons = {
+        label: str(result.get("reason"))
+        for label, result in results.items()
+        if result.get("error") and result.get("reason") not in _SKIPPED_FAILURES
+    }
+    rate_limited = [
+        label
+        for label, reason in failed_reasons.items()
+        if reason == CheckFailure.RATE_LIMITED.name
+    ]
+    failed = len(failed_reasons)
+
+    if not failed:
+        return (
+            UpdaterStatus.SUCCESS,
+            "Successfully checked for updates",
+            processed,
+            0,
+            [],
+        )
+    if processed:
+        message = f"Checked {processed} images, {failed} could not be checked"
+        return UpdaterStatus.PARTIAL_SUCCESS, message, processed, failed, rate_limited
+    if len(rate_limited) == failed:
+        message = f"Rate limited for {failed} images"
+        return UpdaterStatus.RATE_LIMITED, message, processed, failed, rate_limited
+    return (
+        UpdaterStatus.ERROR,
+        "No image could be checked",
+        processed,
+        failed,
+        rate_limited,
+    )
+
+
+def _build_response(
+    results: CheckResults,
+    *,
+    deadline_exceeded: bool,
+    stats: dict[str, int],
+    cache: _UpdaterTagCache,
+    execution_time: float,
+) -> UpdaterResponse:
+    status, message, processed, failed, rate_limited = _summarize_results(results)
+    retry_after = max(
+        (
+            value
+            for result in results.values()
+            if isinstance(value := result.get("retry_after"), int)
+        ),
+        default=None,
+    )
+    return UpdaterResponse(
+        status=status,
+        message=message,
+        data=results,
+        metadata={
+            "stats": stats.copy(),
+            "rate_limited_repos": rate_limited,
+            "retry_after": retry_after,
+            "deadline_exceeded": deadline_exceeded,
+            "cache_size": len(cache.entries),
+        },
+        execution_time=execution_time,
+        repositories_processed=processed,
+        repositories_failed=failed,
+    )
 
 
 async def _check_updates_async(
     local_images: LocalImageInfo,
     *,
+    deadline: float,
     timeout: int,
     cache: _UpdaterTagCache,
     analyzer: TagAnalyzer,
     stats: dict[str, int],
     log: Any,
-    fetch_remote_tags: Callable[
-        [ClientSession, str], Coroutine[object, object, list[EnhancedTagInfo]]
-    ],
+    fetch_remote_tags: RemoteTagsFetcher,
 ) -> UpdaterResponse:
-    """Check updates for all local repositories."""
+    """Check updates for all local images within ``deadline`` seconds."""
     start_time = time.time()
 
     with log.context(action="check_updates"):
@@ -921,181 +1274,55 @@ async def _check_updates_async(
                 execution_time=time.time() - start_time,
             )
 
-        try:
-            connector = aiohttp.TCPConnector(
-                limit=MAX_CONCURRENT_REPOS,
-                limit_per_host=2,
-                ttl_dns_cache=300,
-                use_dns_cache=True,
-            )
+        results: CheckResults = {}
+        pending: dict[str, list[LocalTagEntry]] = {}
+        for repository, local_tags in local_images.items():
+            skipped, checkable = _split_checkable_tags(repository, local_tags)
+            results.update(skipped)
+            if checkable:
+                pending[repository] = checkable
 
-            timeout_config = ClientTimeout(total=timeout)
+        deadline_exceeded = False
+        if pending:
 
-            async with ClientSession(
-                timeout=timeout_config,
-                connector=connector,
-                headers={"User-Agent": "pyTMBot/1.0"},
-            ) as session:
-                updates = {}
-                repositories_processed = 0
-                repositories_failed = 0
-                rate_limited_repos: list[str] = []
-                semaphore = asyncio.Semaphore(MAX_CONCURRENT_REPOS)
+            async def _check(
+                session: ClientSession, repository: str, tags: list[LocalTagEntry]
+            ) -> CheckResults:
+                return await _check_repository(
+                    session,
+                    repository,
+                    tags,
+                    fetch_remote_tags=fetch_remote_tags,
+                    analyzer=analyzer,
+                    log=log,
+                )
 
-                async def process_repo(
-                    repo: str, local_tags: Sequence[dict[str, str | None]]
-                ) -> tuple[str, dict[str, object]]:
-                    async with semaphore:
-                        try:
-                            remote_tags = await fetch_remote_tags(session, repo)
+            async with _open_registry_session(timeout) as session:
+                checked, deadline_exceeded = await _check_repositories(
+                    session,
+                    pending,
+                    deadline=deadline,
+                    check_repository=_check,
+                    log=log,
+                )
+            results.update(checked)
 
-                            if not remote_tags:
-                                return repo, {
-                                    "updates": [],
-                                    "error": "No remote tags found",
-                                }
-
-                            repo_updates = []
-                            for tag_dict in local_tags:
-                                try:
-                                    local_tag = analyzer.analyze_tag(
-                                        dict_to_tag_info(tag_dict)
-                                    )
-                                    if local_tag.is_valid:
-                                        updates_found = _find_compatible_tag_updates(
-                                            local_tag,
-                                            remote_tags,
-                                            log=log,
-                                            compare_versions=_compare_enhanced_tags,
-                                            digests_equal=_tag_digests_equal,
-                                        )
-                                        repo_updates.extend(updates_found)
-                                except Exception:
-                                    log.warning("docker.updates.processing.local.fail")
-                                    continue
-
-                            repo_updates.sort(
-                                key=lambda update: (
-                                    isoparse(update.created_at_remote)
-                                    if update.created_at_remote
-                                    else datetime.min
-                                ),
-                                reverse=True,
-                            )
-
-                            limited_updates = repo_updates[:MAX_UPDATES_PER_REPO]
-                            return repo, {
-                                "updates": [
-                                    update.model_dump() for update in limited_updates
-                                ],
-                                "total_found": len(repo_updates),
-                                "remote_tags_count": len(remote_tags),
-                            }
-
-                        except ClientResponseError as error:
-                            if error.status == 429:
-                                rate_limited_repos.append(repo)
-                                return repo, {
-                                    "updates": [],
-                                    "error": "Rate limited",
-                                    "status_code": 429,
-                                }
-                            if error.status == 404:
-                                return repo, {
-                                    "updates": [],
-                                    "error": "Repository not found",
-                                    "status_code": 404,
-                                }
-                            if error.status == 403:
-                                return repo, {
-                                    "updates": [],
-                                    "error": "Access forbidden",
-                                    "status_code": 403,
-                                }
-                            return repo, {
-                                "updates": [],
-                                "error": f"HTTP {error.status}: {error.message}",
-                                "status_code": error.status,
-                            }
-                        except Exception as error:
-                            return repo, {
-                                "updates": [],
-                                "error": f"Processing failed: {sanitize_exception(error)}",
-                            }
-
-                tasks: list[
-                    Coroutine[object, object, tuple[str, dict[str, object]]]
-                ] = [
-                    process_repo(repo, local_tags)
-                    for repo, local_tags in local_images.items()
-                ]
-
-                try:
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                    for result in results:
-                        if isinstance(result, BaseException):
-                            repositories_failed += 1
-                            log.error("docker.updates.repository.processing.fail")
-                            continue
-
-                        repo, repo_data = result
-                        updates[repo] = repo_data
-
-                        if repo_data.get("error"):
-                            repositories_failed += 1
-                        else:
-                            repositories_processed += 1
-
-                except Exception as error:
-                    log.error("docker.updates.parallel.processing.fail")
-                    return UpdaterResponse(
-                        status=UpdaterStatus.ERROR,
-                        message=f"Failed during parallel processing: {error}",
-                        execution_time=time.time() - start_time,
-                    )
-
-        except Exception as error:
-            log.error("docker.updates.update.check.fail")
-            return UpdaterResponse(
-                status=UpdaterStatus.ERROR,
-                message=f"Error checking for updates: {error}",
-                execution_time=time.time() - start_time,
-            )
-
-        execution_time = time.time() - start_time
-        if rate_limited_repos:
-            status = UpdaterStatus.RATE_LIMITED
-            message = f"Rate limited for {len(rate_limited_repos)} repositories"
-        elif repositories_failed > 0 and repositories_processed == 0:
-            status = UpdaterStatus.ERROR
-            message = "All repositories failed to process"
-        elif repositories_failed > 0:
-            status = UpdaterStatus.PARTIAL_SUCCESS
-            message = f"Processed {repositories_processed} repositories, {repositories_failed} failed"
-        else:
-            status = UpdaterStatus.SUCCESS
-            message = "Successfully checked for updates"
-
-        return UpdaterResponse(
-            status=status,
-            message=message,
-            data=updates,
-            metadata={
-                "stats": stats.copy(),
-                "rate_limited_repos": rate_limited_repos,
-                "cache_size": len(cache.entries),
-            },
-            execution_time=execution_time,
-            repositories_processed=repositories_processed,
-            repositories_failed=repositories_failed,
+        return _build_response(
+            results,
+            deadline_exceeded=deadline_exceeded,
+            stats=stats,
+            cache=cache,
+            execution_time=time.time() - start_time,
         )
 
 
 class DockerImageUpdater(BaseComponent):
     """
-    Enhanced Docker image updater with comprehensive error handling,
-    rate limiting, and performance optimizations.
+    Compare local Docker Hub images with the tags published on Docker Hub.
+
+    Images from other registries and images that were never pulled are reported
+    as not checked. Lookups are cached, honour Docker Hub rate limits and are
+    bounded by an overall deadline.
     """
 
     def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
@@ -1162,7 +1389,8 @@ class DockerImageUpdater(BaseComponent):
 
         try:
             with docker_client_context() as adapter:
-                images = adapter.images.list(all=False)
+                # Skip images removed between the list and the inspect.
+                images = list_images_tolerant(adapter, include_intermediate=False)
                 self._log.debug("docker.updates.found.local.debug")
 
                 for image in images:
@@ -1172,14 +1400,7 @@ class DockerImageUpdater(BaseComponent):
                             self._log.debug("docker.updates.skipping.image.debug")
                             continue
 
-                        digest = _extract_image_digest(image, log=self._log)
-                        _process_local_image_tags(
-                            image,
-                            digest,
-                            local_images,
-                            log=self._log,
-                            parse_tag=_parse_image_tag,
-                        )
+                        _process_local_image_tags(image, local_images, log=self._log)
                         processed_count += 1
 
                     except Exception as e:
@@ -1206,11 +1427,10 @@ class DockerImageUpdater(BaseComponent):
     async def _fetch_remote_tags(
         self, session: ClientSession, repo: str
     ) -> list[EnhancedTagInfo]:
-        """Enhanced remote tag fetching with comprehensive error handling."""
+        """Fetch Docker Hub tags for a local repository."""
         return await _fetch_remote_tags_for_repository(
             session,
             repo,
-            timeout=self._timeout,
             cache=self._cache,
             rate_limiter=self.rate_limiter,
             stats=self._stats,
@@ -1220,7 +1440,7 @@ class DockerImageUpdater(BaseComponent):
 
     async def _fetch_tags_from_url(
         self, session: ClientSession, url: str, _repo: str
-    ) -> list[EnhancedTagInfo] | None:
+    ) -> list[EnhancedTagInfo]:
         """Fetch tags from specific URL with intelligent retry logic."""
         return await _fetch_tags_from_registry_url(
             session,
@@ -1231,10 +1451,11 @@ class DockerImageUpdater(BaseComponent):
             log=self._log,
         )
 
-    async def _check_updates(self) -> UpdaterResponse:
-        """Enhanced update checking with comprehensive error handling."""
+    async def _check_updates(self, deadline: float = CHECK_DEADLINE) -> UpdaterResponse:
+        """Check the current local images against Docker Hub."""
         return await _check_updates_async(
             self.local_images,
+            deadline=deadline,
             timeout=self._timeout,
             cache=self._cache,
             analyzer=self.analyzer,
@@ -1243,19 +1464,41 @@ class DockerImageUpdater(BaseComponent):
             fetch_remote_tags=self._fetch_remote_tags,
         )
 
+    def check_updates(self, deadline: float = CHECK_DEADLINE) -> UpdaterResponse:
+        """
+        Refresh local images and check them against Docker Hub.
+
+        Blocks the calling thread for at most about ``deadline`` seconds, so run
+        it off the Telegram worker threads. Failures are returned as responses.
+        """
+        started = time.monotonic()
+        try:
+            self.initialize()
+        except Exception:  # initialize() already logged the Docker failure
+            return UpdaterResponse(
+                status=UpdaterStatus.DOCKER_ERROR,
+                message="Couldn't read local images from Docker",
+                execution_time=time.monotonic() - started,
+            )
+        return self._run_check_safely(deadline - (time.monotonic() - started))
+
+    def _run_check_safely(self, deadline: float) -> UpdaterResponse:
+        try:
+            return self._run_check_updates_sync(deadline)
+        except Exception as e:
+            self._log.error(
+                "docker.updates.update.check.fail", error=sanitize_exception(e)
+            )
+            return UpdaterResponse(
+                status=UpdaterStatus.ERROR,
+                message=f"Failed to check for updates: {sanitize_exception(e)}",
+                execution_time=0.0,
+            )
+
     def to_dict(self) -> dict[str, object]:
         """Run update check and return dictionary response."""
         with self._log.context(action="to_dict"):
-            try:
-                result = self._run_check_updates_sync()
-                return result.to_dict()
-            except Exception as e:
-                error_response = UpdaterResponse(
-                    status=UpdaterStatus.ERROR,
-                    message=f"Failed to generate response: {sanitize_exception(e)}",
-                    execution_time=0.0,
-                )
-                return error_response.to_dict()
+            return self._run_check_safely(CHECK_DEADLINE).to_dict()
 
     def get_stats(self) -> dict[str, object]:
         """Get comprehensive statistics about the updater."""
@@ -1298,11 +1541,38 @@ class DockerImageUpdater(BaseComponent):
         except Exception:
             pass  # Suppress exceptions during cleanup
 
-    def _run_check_updates_sync(self) -> UpdaterResponse:
-        """Run async updates check from sync context via persistent bridge loop."""
+    def _run_check_updates_sync(
+        self, deadline: float = CHECK_DEADLINE
+    ) -> UpdaterResponse:
+        """Run the async check on the bridge loop, giving up after the deadline."""
         self._ensure_sync_bridge()
         loop = self._sync_bridge.loop
         if loop is None:
             raise RuntimeError("Docker updates sync bridge is unavailable")
-        future = asyncio.run_coroutine_threadsafe(self._check_updates(), loop)
-        return future.result()
+        future = asyncio.run_coroutine_threadsafe(self._check_updates(deadline), loop)
+        try:
+            return future.result(timeout=max(deadline, 0.0) + BRIDGE_GRACE_SECONDS)
+        except TimeoutError:
+            if future.done():
+                raise
+            future.cancel()
+            self._log.warning("docker.updates.deadline.exceeded.warn")
+            return UpdaterResponse(
+                status=UpdaterStatus.ERROR,
+                message="Update check timed out",
+                metadata={"deadline_exceeded": True},
+                execution_time=max(deadline, 0.0) + BRIDGE_GRACE_SECONDS,
+            )
+
+
+_shared_updater: DockerImageUpdater | None = None
+_shared_updater_lock = Lock()
+
+
+def get_image_updater() -> DockerImageUpdater:
+    """Return the process-wide updater so cache and rate-limit state persist."""
+    global _shared_updater
+    with _shared_updater_lock:
+        if _shared_updater is None:
+            _shared_updater = DockerImageUpdater()
+        return _shared_updater

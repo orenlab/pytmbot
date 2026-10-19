@@ -103,9 +103,8 @@ def _patch_auth_with_answer(
     def _fake_auth(
         call: CallbackQuery, bot: TeleBot, **_kwargs: _PayloadValue
     ) -> tuple[bool, int | None]:
-        callback_query_id = int(call.id) if str(call.id).isdigit() else 0
         bot.answer_callback_query(
-            callback_query_id=callback_query_id,
+            callback_query_id=str(call.id),
             text=text,
             show_alert=True,
         )

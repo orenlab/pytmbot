@@ -6,22 +6,31 @@ also providing basic information about the status of local servers.
 """
 
 import time
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeoutError
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from threading import RLock
+from threading import Lock, RLock
 from typing import Final, NoReturn
 
-from docker.errors import DockerException
+from docker.errors import NotFound
 from docker.models.containers import Container
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     build_container_context,
+    docker_unavailable_as_connection_error,
     get_container_safely,
+    invalidate_container_state_cache,
     sanitize_kwargs_for_logging,
+    validate_container_reference,
+)
+from pytmbot.exceptions import (
+    ContainerActionInProgressError,
+    ContainerException,
+    ContainerStateConflictError,
+    ErrorContext,
 )
 from pytmbot.globals import get_session_manager, settings
 from pytmbot.logs import Logger
@@ -35,39 +44,236 @@ from pytmbot.utils import is_new_name_valid, sanitize_exception
 logger = Logger()
 session_manager = get_session_manager()
 
+MIN_OPERATION_INTERVAL_SECONDS: Final[float] = 1.0
+RATE_LIMIT_CACHE_TTL_SECONDS: Final[float] = 300.0
+MAX_RATE_LIMITED_USERS: Final[int] = 2048
+DEFAULT_SESSION_MAX_AGE_SECONDS: Final[int] = 3600
+DEFAULT_STOP_TIMEOUT_SECONDS: Final[int] = 10
+
+
+class _UserRateLimiter:
+    """Minimum interval between container actions per user, across all actions."""
+
+    def __init__(
+        self, *, min_interval: float, stale_after: float, max_users: int
+    ) -> None:
+        self._min_interval = min_interval
+        self._stale_after = stale_after
+        self._max_users = max_users
+        self._last_operation: dict[int, float] = {}
+        self._lock = RLock()
+
+    @property
+    def min_interval(self) -> float:
+        return self._min_interval
+
+    def _evict(self, now: float) -> None:
+        if len(self._last_operation) <= self._max_users:
+            return
+        stale_threshold = now - self._stale_after
+        for user_id, last_seen in list(self._last_operation.items()):
+            if last_seen < stale_threshold:
+                self._last_operation.pop(user_id, None)
+        while len(self._last_operation) > self._max_users:
+            oldest = min(self._last_operation, key=self._last_operation.__getitem__)
+            self._last_operation.pop(oldest, None)
+
+    def register(self, user_id: int) -> float | None:
+        """Record an operation; return seconds since the last one if too soon."""
+        with self._lock:
+            now = time.time()
+            self._evict(now)
+            elapsed = now - self._last_operation.get(user_id, 0.0)
+            if elapsed < self._min_interval:
+                return elapsed
+            self._last_operation[user_id] = now
+            return None
+
+
+class _InFlightActions:
+    """Non-blocking per-container lock for lifecycle/rename actions."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._active: set[str] = set()
+
+    @contextmanager
+    def hold(self, container_key: str, operation: str) -> Iterator[None]:
+        with self._lock:
+            if container_key in self._active:
+                raise ContainerActionInProgressError(
+                    ErrorContext(
+                        message="Another action on this container is in progress",
+                        error_code="DOCKER_014",
+                        metadata={
+                            "container_id": container_key[:12],
+                            "operation": operation,
+                        },
+                    )
+                )
+            self._active.add(container_key)
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._active.discard(container_key)
+
+
+# Shared by every ContainerManager instance in the process.
+_rate_limiter = _UserRateLimiter(
+    min_interval=MIN_OPERATION_INTERVAL_SECONDS,
+    stale_after=RATE_LIMIT_CACHE_TTL_SECONDS,
+    max_users=MAX_RATE_LIMITED_USERS,
+)
+_in_flight_actions = _InFlightActions()
+
+
+@dataclass(frozen=True, slots=True)
+class _LifecycleSpec:
+    """Static description of a start/stop/restart operation."""
+
+    operation: str
+    start_event: str
+    success_event: str
+    fail_event: str
+    expected_statuses: frozenset[str]
+    conflict_statuses: frozenset[str]
+    tolerate_removal: bool = False
+
+
+# Start is rejected while the container already runs (paused/restarting
+# containers are running from Docker's point of view). Stop is rejected unless
+# the container runs. Restart is allowed for stopped containers (Docker starts
+# them). A stopped ``--rm`` container disappears: that is a successful stop.
+_START_SPEC: Final[_LifecycleSpec] = _LifecycleSpec(
+    operation="start",
+    start_event="docker.containers.container.start",
+    success_event="docker.containers.container.start.ok",
+    fail_event="docker.containers.container.start.fail",
+    expected_statuses=frozenset({"running", "restarting"}),
+    conflict_statuses=frozenset({"running", "restarting", "paused", "removing"}),
+)
+_STOP_SPEC: Final[_LifecycleSpec] = _LifecycleSpec(
+    operation="stop",
+    start_event="docker.containers.container.stop",
+    success_event="docker.containers.container.stop.ok",
+    fail_event="docker.containers.container.stop.fail",
+    expected_statuses=frozenset({"exited", "dead", "removing"}),
+    conflict_statuses=frozenset({"created", "exited", "dead", "removing"}),
+    tolerate_removal=True,
+)
+_RESTART_SPEC: Final[_LifecycleSpec] = _LifecycleSpec(
+    operation="restart",
+    start_event="docker.containers.restarting.container.start",
+    success_event="docker.containers.container.restarted.start",
+    fail_event="docker.containers.container.restart.fail",
+    expected_statuses=frozenset({"running", "restarting"}),
+    conflict_statuses=frozenset({"removing"}),
+)
+
+
+def _deny_access(
+    *,
+    log_method: Callable[..., object],
+    event_name: str,
+    message: str,
+    context: dict[str, object],
+    **details: object,
+) -> NoReturn:
+    """Log an access denial once and raise a consistent permission error."""
+    log_method(event_name, **context, **details)
+    raise PermissionError(message)
+
+
+def _log_action_failure(
+    event_name: str, error: Exception, started_at: float, context: dict[str, object]
+) -> None:
+    """Log a failed action; expected outcomes (conflict, not found...) as warnings."""
+    log_method = (
+        logger.warning if isinstance(error, ContainerException) else logger.error
+    )
+    log_method(
+        event_name,
+        error=sanitize_exception(error),
+        error_type=type(error).__name__,
+        execution_time=f"{time.time() - started_at:.2f}s",
+        **context,
+    )
+
+
+def _check_rate_limit(user_id: int, context: dict[str, object]) -> None:
+    elapsed = _rate_limiter.register(user_id)
+    if elapsed is None:
+        return
+    _deny_access(
+        log_method=logger.warning,
+        event_name="docker.containers.rate.limit.warn",
+        message=(
+            "Rate limit exceeded. "
+            f"Wait {_rate_limiter.min_interval}s between operations"
+        ),
+        context=context,
+        time_since_last=f"{elapsed:.2f}s",
+        min_interval=_rate_limiter.min_interval,
+    )
+
+
+def _session_created_at(user_id: int) -> float | None:
+    session_info_getter = getattr(session_manager, "get_session_info", None)
+    if not callable(session_info_getter):
+        return None
+    session_info = session_info_getter(user_id)
+    if not isinstance(session_info, dict) or not session_info:
+        return None
+    created_at_raw = session_info.get("created_at", 0)
+    return float(created_at_raw) if isinstance(created_at_raw, (int, float)) else 0.0
+
+
+def _check_authorization(user_id: int, context: dict[str, object]) -> None:
+    if user_id not in settings.access_control.allowed_admins_ids:
+        _deny_access(
+            log_method=logger.critical,
+            event_name="docker.containers.unauthorized.container.deny",
+            message=f"User {user_id} not authorized to manage containers",
+            context=context,
+        )
+
+    if not session_manager.is_authenticated(user_id):
+        _deny_access(
+            log_method=logger.critical,
+            event_name="docker.containers.unauthorized.container.deny",
+            message=f"User {user_id} session invalid or expired",
+            context=context,
+        )
+
+    created_at = _session_created_at(user_id)
+    if created_at is None:
+        return
+    session_age = time.time() - created_at
+    max_session_age = getattr(
+        settings.access_control, "max_session_age", DEFAULT_SESSION_MAX_AGE_SECONDS
+    )
+    if session_age > max_session_age:
+        _deny_access(
+            log_method=logger.warning,
+            event_name="docker.containers.session.too.warn",
+            message="Session expired. Please re-authenticate",
+            context=context,
+            session_age=f"{session_age:.1f}s",
+            max_age=f"{max_session_age}s",
+        )
+
 
 def validate_access(
     func: Callable[..., DockerResponse],
 ) -> Callable[..., DockerResponse]:
     """
-    Decorator for validating user access to container operations with enhanced security.
+    Validate user access to container operations.
 
-    Improvements:
-    - Rate limiting per user
-    - Enhanced authorization logging
-    - Input validation
-    - Session validation
+    - Container reference validation (exact name or ID)
+    - Rate limiting per user, shared by all container actions
+    - Admin, session and session-age checks
     """
-    # Rate limiting storage (user_id -> last_operation_time)
-    _rate_limits: dict[int, float] = {}
-    _lock = RLock()
-
-    # Rate limiting configuration
-    min_operation_interval: Final[float] = 1.0  # Minimum seconds between operations
-    rate_limit_cache_ttl_seconds: Final[float] = 300.0
-    max_rate_limited_users: Final[int] = 2048
-
-    def deny_access(
-        *,
-        log_method: Callable[..., object],
-        event_name: str,
-        message: str,
-        context: dict[str, object],
-        **details: object,
-    ) -> NoReturn:
-        """Log an access denial once and raise a consistent permission error."""
-        log_method(event_name, **context, **details)
-        raise PermissionError(message)
 
     @wraps(func)
     def wrapper(
@@ -77,12 +283,10 @@ def validate_access(
         *args: object,
         **kwargs: object,
     ) -> DockerResponse:
-        # Input validation
         if not isinstance(user_id, int) or user_id <= 0:
             raise ValueError("Invalid user_id: must be a positive integer")
 
         container_ref = ContainerManager._normalize_container_id(container_id)
-
         context = build_container_context(
             container_id=container_ref,
             action="access_validation",
@@ -90,92 +294,9 @@ def validate_access(
             operation=func.__name__,
         )
 
-        # Rate limiting check
-        with _lock:
-            current_time = time.time()
-            stale_threshold = current_time - rate_limit_cache_ttl_seconds
-            if len(_rate_limits) > max_rate_limited_users:
-                stale_user_ids = [
-                    tracked_user_id
-                    for tracked_user_id, last_seen in _rate_limits.items()
-                    if last_seen < stale_threshold
-                ]
-                for stale_user_id in stale_user_ids:
-                    _rate_limits.pop(stale_user_id, None)
-
-                while len(_rate_limits) > max_rate_limited_users:
-                    oldest_user = min(
-                        _rate_limits,
-                        key=lambda tracked_user: _rate_limits[tracked_user],
-                    )
-                    _rate_limits.pop(oldest_user, None)
-
-            last_operation = _rate_limits.get(user_id, 0)
-
-            if current_time - last_operation < min_operation_interval:
-                deny_access(
-                    log_method=logger.warning,
-                    event_name="docker.containers.rate.limit.warn",
-                    message=(
-                        "Rate limit exceeded. "
-                        f"Wait {min_operation_interval}s between operations"
-                    ),
-                    context=context,
-                    time_since_last=f"{current_time - last_operation:.2f}s",
-                    min_interval=min_operation_interval,
-                )
-
-            _rate_limits[user_id] = current_time
-
+        _check_rate_limit(user_id, context)
         try:
-            # Check if user is in allowed admins
-            if user_id not in settings.access_control.allowed_admins_ids:
-                deny_access(
-                    log_method=logger.critical,
-                    event_name="docker.containers.unauthorized.container.deny",
-                    message=f"User {user_id} not authorized to manage containers",
-                    context=context,
-                )
-
-            # Check session authentication with timeout validation
-            if not session_manager.is_authenticated(user_id):
-                deny_access(
-                    log_method=logger.critical,
-                    event_name="docker.containers.unauthorized.container.deny",
-                    message=f"User {user_id} session invalid or expired",
-                    context=context,
-                )
-
-            # Additional security: check if session is recent enough
-            session_info: dict[str, object] = {}
-            session_info_getter = getattr(session_manager, "get_session_info", None)
-            if callable(session_info_getter):
-                session_info_raw = session_info_getter(user_id)
-                if isinstance(session_info_raw, dict):
-                    session_info = session_info_raw
-
-            if session_info:
-                created_at_raw = session_info.get("created_at", 0)
-                created_at = (
-                    float(created_at_raw)
-                    if isinstance(created_at_raw, (int, float))
-                    else 0.0
-                )
-                session_age = time.time() - created_at
-                max_session_age = getattr(
-                    settings.access_control, "max_session_age", 3600
-                )  # 1 hour default
-
-                if session_age > max_session_age:
-                    deny_access(
-                        log_method=logger.warning,
-                        event_name="docker.containers.session.too.warn",
-                        message="Session expired. Please re-authenticate",
-                        context=context,
-                        session_age=f"{session_age:.1f}s",
-                        max_age=f"{max_session_age}s",
-                    )
-
+            _check_authorization(user_id, context)
         except (PermissionError, AttributeError, TypeError, ValueError) as e:
             logger.error(
                 "docker.containers.authorization.check.fail",
@@ -185,7 +306,6 @@ def validate_access(
             )
             raise
 
-        # Log successful authorization at debug level to avoid noise
         logger.debug("docker.containers.container.access.debug", **context)
         return func(self, user_id, container_ref, *args, **kwargs)
 
@@ -194,32 +314,25 @@ def validate_access(
 
 class ContainerManager:
     """
-    Securely manages Docker containers with strict access control, rate limiting, and comprehensive logging.
+    Manage Docker containers with strict access control and safe targeting.
 
-    Improvements:
-    - Thread safety for concurrent operations
-    - Operation timeout management
-    - Enhanced error handling and recovery
-    - Performance monitoring
-    - Container state validation
+    - The container is resolved by exact name or ID and the resolved target is
+      verified before any action (never acts on a different container).
+    - One action at a time per container (non-blocking in-flight lock).
+    - Start/stop are rejected with ContainerStateConflictError when they do not
+      fit the current state.
+    - Operations are bounded by the Docker client's HTTP timeout (stop/restart
+      add their own grace period), not by a background thread.
     """
 
     def __init__(self) -> None:
         self._lock = RLock()  # Thread safety
-        self._operation_history: dict[
-            str, datetime
-        ] = {}  # Track operations for monitoring
-        self._max_operation_timeout: Final[float] = (
-            30.0  # Max time for container operations
-        )
+        self._operation_history: dict[str, datetime] = {}
 
     @staticmethod
     def _normalize_container_id(container_id: ContainerId) -> str:
-        """Normalize container identifier to a non-empty string."""
-        container_ref = str(container_id).strip()
-        if not container_ref:
-            raise ValueError("Invalid container_id: must be a non-empty string")
-        return container_ref
+        """Validate a container reference (raises InvalidContainerReferenceError)."""
+        return validate_container_reference(str(container_id))
 
     def _record_operation(self, operation: str, container_id: ContainerId) -> None:
         """Record operation for monitoring and debugging."""
@@ -235,303 +348,269 @@ class ContainerManager:
                 for key, _ in oldest_keys:
                     del self._operation_history[key]
 
-    def _run_with_timeout(
-        self,
-        operation_name: str,
-        operation: Callable[[], None],
-        timeout_seconds: float | None = None,
-    ) -> None:
-        """Execute an operation with a strict timeout guard."""
-        timeout = timeout_seconds or self._max_operation_timeout
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(operation)
-            try:
-                future.result(timeout=timeout)
-            except FutureTimeoutError as error:
-                future.cancel()
-                raise TimeoutError(
-                    f"Container operation '{operation_name}' exceeded {timeout:.1f}s"
-                ) from error
-
     @staticmethod
     def _validate_container_state_for_operation(
-        container: Container, operation: str
+        container: Container, spec: _LifecycleSpec
     ) -> None:
-        """Validate that container is in appropriate state for the operation."""
+        """Reject actions that do not fit the container's current state."""
+        current_status = str(getattr(container, "status", "") or "").lower()
+        if current_status not in spec.conflict_statuses:
+            return
+        raise ContainerStateConflictError(
+            ErrorContext(
+                message=f"Cannot {spec.operation} container in state '{current_status}'",
+                error_code="DOCKER_013",
+                metadata={"operation": spec.operation, "state": current_status},
+            ),
+            state=current_status,
+        )
+
+    @staticmethod
+    def _perform_and_verify(
+        container: Container,
+        spec: _LifecycleSpec,
+        execute_operation: Callable[[Container], None],
+        context: dict[str, object],
+    ) -> str:
+        """Run the operation, then confirm the resulting state."""
         try:
-            current_status = container.status.lower()
+            execute_operation(container)
+            container.reload()
+        except NotFound:
+            if not spec.tolerate_removal:
+                raise
+            return "removed"
 
-            # Define valid states for each operation
-            valid_states = {
-                "start": ["exited", "stopped", "created"],
-                "stop": ["running", "restarting"],
-                "restart": ["running", "exited", "stopped"],
-                "rename": [
-                    "exited",
-                    "stopped",
-                    "created",
-                    "running",
-                ],  # Can rename in any state
-            }
+        current_status = str(container.status).lower()
+        if current_status in spec.expected_statuses:
+            return current_status
 
-            if operation in valid_states:
-                if current_status not in valid_states[operation]:
-                    raise ValueError(
-                        f"Cannot {operation} container in state '{current_status}'. "
-                        f"Valid states: {valid_states[operation]}"
-                    )
-
-        except (AttributeError, TypeError, ValueError) as e:
-            logger.warning(
-                "docker.containers.container.state.fail",
-                container_id=getattr(container, "id", "unknown"),
-                error=sanitize_exception(e),
-            )
-            # Don't raise - let the actual operation handle the error
+        logger.error(
+            spec.fail_event,
+            expected_status="/".join(sorted(spec.expected_statuses)),
+            actual_status=current_status,
+            **context,
+        )
+        raise RuntimeError(
+            f"{spec.operation.capitalize()} operation failed, "
+            f"current status: {current_status}"
+        )
 
     def _execute_lifecycle_operation(
         self,
         *,
         user_id: int,
         container_id: ContainerId,
-        operation: str,
-        context_action: str,
-        start_event: str,
-        success_event: str,
-        fail_event: str,
-        expected_statuses: set[str],
-        expected_status_description: str,
+        spec: _LifecycleSpec,
         execute_operation: Callable[[Container], None],
     ) -> DockerResponse:
         """Execute shared lifecycle operation flow for start/stop/restart."""
         container_ref = self._normalize_container_id(container_id)
         context = build_container_context(
             container_id=container_ref,
-            action=context_action,
+            action=f"container_{spec.operation}",
             user_id=user_id,
         )
         start_time = time.time()
 
         try:
-            with docker_client_context() as adapter:
+            with (
+                docker_unavailable_as_connection_error(f"container {spec.operation}"),
+                docker_client_context() as adapter,
+            ):
                 container = get_container_safely(container_ref, docker_client=adapter)
-
-                self._validate_container_state_for_operation(container, operation)
-                self._record_operation(operation, container_ref)
-                logger.info(start_event, **context)
-
-                execute_operation(container)
-
-                container.reload()
-                current_status = container.status.lower()
-                if current_status not in expected_statuses:
-                    logger.error(
-                        fail_event,
-                        expected_status=expected_status_description,
-                        actual_status=container.status,
-                        **context,
+                with _in_flight_actions.hold(str(container.id), spec.operation):
+                    self._validate_container_state_for_operation(container, spec)
+                    self._record_operation(spec.operation, container_ref)
+                    logger.info(spec.start_event, **context)
+                    final_status = self._perform_and_verify(
+                        container, spec, execute_operation, context
                     )
-                    raise RuntimeError(
-                        f"{operation.capitalize()} operation failed, "
-                        f"current status: {container.status}"
-                    )
-
-                execution_time = time.time() - start_time
-
-            logger.info(
-                success_event,
-                execution_time=f"{execution_time:.2f}s",
-                final_status=container.status,
-                **context,
-            )
-            return None
-
-        except (
-            DockerException,
-            OSError,
-            RuntimeError,
-            TimeoutError,
-            TypeError,
-            ValueError,
-        ) as e:
-            execution_time = time.time() - start_time
-            logger.error(
-                fail_event,
-                error=sanitize_exception(e),
-                execution_time=f"{execution_time:.2f}s",
-                **context,
-            )
+        except Exception as e:
+            _log_action_failure(spec.fail_event, e, start_time, context)
             raise
+        finally:
+            invalidate_container_state_cache()
+
+        logger.info(
+            spec.success_event,
+            execution_time=f"{time.time() - start_time:.2f}s",
+            final_status=final_status,
+            **context,
+        )
+        return None
 
     @validate_access
     def _start_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
-        """Starts a Docker container with enhanced validation and monitoring."""
-        start_timeout = float(
-            getattr(settings.docker, "start_timeout", self._max_operation_timeout)
-        )
+        """Start a stopped container."""
         return self._execute_lifecycle_operation(
             user_id=user_id,
             container_id=container_id,
-            operation="start",
-            context_action="container_start",
-            start_event="docker.containers.container.start",
-            success_event="docker.containers.container.start.ok",
-            fail_event="docker.containers.container.start.fail",
-            expected_statuses={"running", "restarting"},
-            expected_status_description="running/restarting",
-            execute_operation=lambda container: self._run_with_timeout(
-                "start",
-                container.start,
-                start_timeout,
-            ),
+            spec=_START_SPEC,
+            execute_operation=lambda container: container.start(),
         )
 
     @validate_access
     def _stop_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
-        """Stops a Docker container with graceful shutdown and timeout handling."""
-        timeout = getattr(settings.docker, "stop_timeout", 10)
-        operation_timeout = max(float(timeout) + 5.0, self._max_operation_timeout)
+        """Stop a running container (graceful timeout, then SIGKILL)."""
+        timeout = getattr(settings.docker, "stop_timeout", DEFAULT_STOP_TIMEOUT_SECONDS)
         return self._execute_lifecycle_operation(
             user_id=user_id,
             container_id=container_id,
-            operation="stop",
-            context_action="container_stop",
-            start_event="docker.containers.container.stop",
-            success_event="docker.containers.container.stop.ok",
-            fail_event="docker.containers.container.stop.fail",
-            expected_statuses={"exited", "stopped"},
-            expected_status_description="exited/stopped",
-            execute_operation=lambda container: self._run_with_timeout(
-                "stop",
-                lambda: container.stop(timeout=timeout),
-                operation_timeout,
-            ),
+            spec=_STOP_SPEC,
+            execute_operation=lambda container: container.stop(timeout=timeout),
         )
 
     @validate_access
     def _restart_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
-        """Restarts a Docker container with enhanced monitoring."""
-        timeout = getattr(settings.docker, "restart_timeout", 10)
-        operation_timeout = max(float(timeout) + 5.0, self._max_operation_timeout)
+        """Restart a container (a stopped container is started)."""
+        timeout = getattr(
+            settings.docker, "restart_timeout", DEFAULT_STOP_TIMEOUT_SECONDS
+        )
         return self._execute_lifecycle_operation(
             user_id=user_id,
             container_id=container_id,
-            operation="restart",
-            context_action="container_restart",
-            start_event="docker.containers.restarting.container.start",
-            success_event="docker.containers.container.restarted.start",
-            fail_event="docker.containers.container.restart.fail",
-            expected_statuses={"running", "restarting"},
-            expected_status_description="running/restarting",
-            execute_operation=lambda container: self._run_with_timeout(
-                "restart",
-                lambda: container.restart(timeout=timeout),
-                operation_timeout,
-            ),
+            spec=_RESTART_SPEC,
+            execute_operation=lambda container: container.restart(timeout=timeout),
         )
+
+    @staticmethod
+    def _validate_new_name(new_container_name: object) -> str:
+        if not new_container_name or not isinstance(new_container_name, str):
+            raise ValueError("New container name must be a non-empty string")
+
+        new_name = new_container_name.strip()
+        if len(new_name) > 64:  # Docker limit
+            raise ValueError("Container name too long (max 64 characters)")
+        if len(new_name) < 1:
+            raise ValueError("Container name too short (min 1 character)")
+        return new_name
+
+    def _apply_rename(
+        self,
+        container: Container,
+        container_ref: str,
+        new_name: str,
+        context: dict[str, object],
+    ) -> str | None:
+        """Rename and verify; return the old name, or None when unchanged."""
+        old_name = str(container.name)
+        if old_name == new_name:
+            logger.info("docker.containers.container.name.info", **context)
+            return None
+
+        self._record_operation("rename", container_ref)
+        logger.info(
+            "docker.containers.renaming.container.info", old_name=old_name, **context
+        )
+        container.rename(new_name)
+        container.reload()
+        if container.name != new_name:
+            logger.error(
+                "docker.containers.container.rename.fail",
+                expected_name=new_name,
+                actual_name=container.name,
+                **context,
+            )
+            raise RuntimeError(
+                f"Rename operation failed: name is still '{container.name}'"
+            )
+        return old_name
 
     @validate_access
     def _rename_container(
         self, user_id: int, container_id: ContainerId, new_container_name: str
     ) -> DockerResponse:
-        """Renames a Docker container with comprehensive validation."""
+        """Rename a container after validating the new name."""
         container_ref = self._normalize_container_id(container_id)
-        # Enhanced name validation
-        if not new_container_name or not isinstance(new_container_name, str):
-            raise ValueError("New container name must be a non-empty string")
-
-        # Trim whitespace and validate length
-        new_container_name = new_container_name.strip()
-        if len(new_container_name) > 64:  # Docker limit
-            raise ValueError("Container name too long (max 64 characters)")
-
-        if len(new_container_name) < 1:
-            raise ValueError("Container name too short (min 1 character)")
-
+        new_name = self._validate_new_name(new_container_name)
         context = build_container_context(
             container_id=container_ref,
             action="container_rename",
             user_id=user_id,
-            new_name=new_container_name,
+            new_name=new_name,
         )
-
         start_time = time.time()
 
         try:
-            # Validate new name format
-            if not is_new_name_valid(new_container_name):
+            if not is_new_name_valid(new_name):
                 logger.warning(
                     "docker.containers.invalid.container.warn",
                     validation_error="name_format_invalid",
                     **context,
                 )
-                raise ValueError(f"Invalid container name format: {new_container_name}")
+                raise ValueError(f"Invalid container name format: {new_name}")
 
-            with docker_client_context() as adapter:
+            with (
+                docker_unavailable_as_connection_error("container rename"),
+                docker_client_context() as adapter,
+            ):
                 container = get_container_safely(container_ref, docker_client=adapter)
-                old_name = container.name
-
-                # Check if name is actually different
-                if old_name == new_container_name:
-                    logger.info("docker.containers.container.name.info", **context)
-                    return None  # No operation needed
-
-                # Record operation
-                self._record_operation("rename", container_ref)
-
-                logger.info(
-                    "docker.containers.renaming.container.info",
-                    old_name=old_name,
-                    **context,
-                )
-
-                container.rename(new_container_name)
-
-                execution_time = time.time() - start_time
-
-                # Verify the rename succeeded
-                container.reload()
-                if container.name != new_container_name:
-                    logger.error(
-                        "docker.containers.container.rename.fail",
-                        expected_name=new_container_name,
-                        actual_name=container.name,
-                        **context,
+                with _in_flight_actions.hold(str(container.id), "rename"):
+                    old_name = self._apply_rename(
+                        container, container_ref, new_name, context
                     )
-                    raise RuntimeError(
-                        f"Rename operation failed: name is still '{container.name}'"
-                    )
+        except Exception as e:
+            _log_action_failure(
+                "docker.containers.container.rename.fail", e, start_time, context
+            )
+            raise
+        finally:
+            invalidate_container_state_cache()
 
+        if old_name is not None:
             logger.info(
                 "docker.containers.container.renamed.ok",
                 old_name=old_name,
-                execution_time=f"{execution_time:.2f}s",
+                execution_time=f"{time.time() - start_time:.2f}s",
                 **context,
             )
-            return None
+        return None
 
-        except (
-            DockerException,
-            OSError,
-            RuntimeError,
-            TimeoutError,
-            TypeError,
-            ValueError,
-        ) as e:
-            execution_time = time.time() - start_time
-            logger.error(
-                "docker.containers.container.rename.fail",
+    @staticmethod
+    def _parse_action(action: str, context: dict[str, object]) -> ContainerAction:
+        try:
+            return ContainerAction.from_str(action)
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                "docker.containers.invalid.container.warn",
                 error=sanitize_exception(e),
-                execution_time=f"{execution_time:.2f}s",
+                available_actions=[item.value for item in ContainerAction],
                 **context,
             )
-            raise
+            raise ValueError(f"Invalid action: {action}") from e
+
+    def _dispatch_action(
+        self,
+        user_id: int,
+        container_ref: str,
+        container_action: ContainerAction,
+        kwargs: dict[str, object],
+    ) -> DockerResponse:
+        if container_action == ContainerAction.RENAME:
+            new_container_name_raw = kwargs.get("new_container_name")
+            new_container_name = (
+                new_container_name_raw
+                if isinstance(new_container_name_raw, str)
+                else ""
+            )
+            return self._rename_container(user_id, container_ref, new_container_name)
+
+        operations: dict[str, Callable[[int, str], DockerResponse]] = {
+            ContainerAction.START: self._start_container,
+            ContainerAction.STOP: self._stop_container,
+            ContainerAction.RESTART: self._restart_container,
+        }
+        operation = operations.get(container_action)
+        if operation is None:
+            raise ValueError(f"Invalid action: {container_action}")
+        return operation(user_id, container_ref)
 
     def managing_container(
         self,
@@ -540,18 +619,26 @@ class ContainerManager:
         action: str,
         **kwargs: object,
     ) -> DockerResponse:
-        """Manages container operations with comprehensive validation and monitoring."""
-        # Input validation
+        """
+        Run a container action and return normally on success.
+
+        Raises:
+            ValueError: Invalid action/user id or rename input.
+            InvalidContainerReferenceError: Invalid container reference.
+            ContainerNotFoundError: No such container, or the reference resolved
+                to a different container.
+            ContainerActionInProgressError: Another action on the container runs.
+            ContainerStateConflictError: Start on a running container or stop on
+                a container that does not run.
+            DockerConnectionError: Docker is unavailable or timed out.
+            PermissionError: Authorization, session or rate-limit failures.
+        """
         if not isinstance(action, str) or not action.strip():
             raise ValueError("Action must be a non-empty string")
 
         action = action.strip().lower()
-
         container_ref = self._normalize_container_id(container_id)
-
-        # Sanitize kwargs for logging - remove sensitive data
         safe_kwargs = sanitize_kwargs_for_logging(kwargs)
-
         context = build_container_context(
             container_id=container_ref,
             action="container_management",
@@ -559,72 +646,29 @@ class ContainerManager:
             operation=action,
             params=safe_kwargs if safe_kwargs else None,
         )
-
+        container_action = self._parse_action(action, context)
         operation_start = time.time()
+        logger.info("docker.containers.container.management.info", **context)
 
         try:
-            container_action = ContainerAction.from_str(action)
-
-            logger.info("docker.containers.container.management.info", **context)
-
-            # Execute the action with timeout monitoring
-            if container_action == ContainerAction.START:
-                result = self._start_container(user_id, container_ref)
-            elif container_action == ContainerAction.STOP:
-                result = self._stop_container(user_id, container_ref)
-            elif container_action == ContainerAction.RESTART:
-                result = self._restart_container(user_id, container_ref)
-            elif container_action == ContainerAction.RENAME:
-                new_container_name_raw = kwargs.get("new_container_name")
-                new_container_name = (
-                    new_container_name_raw
-                    if isinstance(new_container_name_raw, str)
-                    else ""
-                )
-                result = self._rename_container(
-                    user_id,
-                    container_ref,
-                    new_container_name,
-                )
-            else:
-                raise ValueError(f"Unsupported action: {action}")
-
-            execution_time = time.time() - operation_start
-
-            logger.info(
-                "docker.containers.container.management.ok",
-                total_execution_time=f"{execution_time:.2f}s",
-                **context,
+            result = self._dispatch_action(
+                user_id, container_ref, container_action, kwargs
             )
-            return result
-
-        except (ValueError, KeyError) as e:
-            execution_time = time.time() - operation_start
-            logger.warning(
-                "docker.containers.invalid.container.warn",
-                error=sanitize_exception(e),
-                available_actions=[action.value for action in ContainerAction],
-                execution_time=f"{execution_time:.2f}s",
-                **context,
-            )
-            raise ValueError(f"Invalid action: {action}") from e
-
         except PermissionError:
-            # Already logged in validator, just re-raise
+            # Already logged by the access validator.
             raise
-
-        except (
-            DockerException,
-            OSError,
-            RuntimeError,
-            TimeoutError,
-            TypeError,
-        ) as e:
-            execution_time = time.time() - operation_start
-            logger.error(
+        except Exception as e:
+            _log_action_failure(
                 "docker.containers.container.management.fail",
-                error=sanitize_exception(e),
-                execution_time=f"{execution_time:.2f}s",
-                **context,
+                e,
+                operation_start,
+                context,
             )
             raise
+
+        logger.info(
+            "docker.containers.container.management.ok",
+            total_execution_time=f"{time.time() - operation_start:.2f}s",
+            **context,
+        )
+        return result
