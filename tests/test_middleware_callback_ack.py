@@ -49,7 +49,7 @@ def test_skips_callbacks_already_answered_by_handler() -> None:
     middleware = _middleware(bot)
 
     # Handlers call the (now tracked) bot method, positionally or by keyword.
-    cast(TeleBot, bot).answer_callback_query("cb-1", text="Done")  # type: ignore[arg-type]
+    cast(TeleBot, bot).answer_callback_query("cb-1", text="Done")
     bot.answer_callback_query(callback_query_id="cb-2", text="Done", show_alert=True)
     middleware.post_process(SimpleNamespace(id="cb-1"), {}, None)
     middleware.post_process(SimpleNamespace(id="cb-2"), {}, None)

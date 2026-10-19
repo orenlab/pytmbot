@@ -6,7 +6,6 @@ also providing basic information about the status of local servers.
 """
 
 import re
-from typing import cast
 
 from telebot.types import CallbackQuery
 
@@ -80,12 +79,6 @@ def sanitize_logs(
     return container_logs
 
 
-def callback_query_id(callback_query: CallbackQuery) -> int:
-    """
-    Return the callback query id typed for ``TeleBot.answer_callback_query``.
-
-    Telegram callback query ids are strings and ``CallbackQuery.id`` is typed as
-    ``str``, while pyTelegramBotAPI annotates ``answer_callback_query`` with
-    ``callback_query_id: int``. The value is passed through unchanged.
-    """
-    return cast(int, callback_query.id)
+def callback_query_id(callback_query: CallbackQuery) -> str:
+    """Return the callback query id passed to ``TeleBot.answer_callback_query``."""
+    return str(callback_query.id)

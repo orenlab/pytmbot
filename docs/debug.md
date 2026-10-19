@@ -9,6 +9,7 @@ For the Docker image:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   orenlab/pytmbot:stable \
   --mode prod --log-level DEBUG
@@ -46,6 +47,7 @@ Docker image diagnostic entrypoint:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   orenlab/pytmbot:stable \
   --health_check
@@ -56,6 +58,7 @@ Docker access validation:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   orenlab/pytmbot:stable \
   --check-docker
 ```

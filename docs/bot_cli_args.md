@@ -85,6 +85,7 @@ docker run -d \
   --name pytmbot \
   -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   orenlab/pytmbot:stable --mode prod --plugins monitor outline
 ```
 
@@ -99,6 +100,7 @@ Check Docker access inside the image:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   orenlab/pytmbot:stable --check-docker
 ```
 

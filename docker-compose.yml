@@ -10,6 +10,11 @@ services:
       # Writable state (TOTP replay protection) on the read-only root filesystem
       PYTMBOT_STATE_DIR: /run/pytmbot
 
+    # Docker socket group: put DOCKER_GID=$(stat -c %g /var/run/docker.sock) into .env next to this file.
+    # Without it, 1001 (the bot's own group) is added and nothing changes.
+    group_add:
+      - "${DOCKER_GID:-1001}"
+
     # Volumes
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

@@ -95,57 +95,25 @@ handle_exit() {
     exit 0
 }
 
-# Function to fix Docker group GID at runtime
-fix_docker_group_runtime() {
-    if [ -S /var/run/docker.sock ]; then
-        # Get Docker socket GID
-        if stat -c %g /var/run/docker.sock >/dev/null 2>&1; then
-            DOCKER_SOCKET_GID=$(stat -c %g /var/run/docker.sock)
-        elif stat -f %g /var/run/docker.sock >/dev/null 2>&1; then
-            DOCKER_SOCKET_GID=$(stat -f %g /var/run/docker.sock)
-        else
-            log "WARNING" "entrypoint" "Cannot determine Docker socket GID" "{}"
-            return 1
-        fi
-
-        # Get current container docker group GID
-        CURRENT_DOCKER_GID=$(getent group docker | cut -d: -f3 2>/dev/null || echo "")
-
-        log "INFO" "entrypoint" "Docker socket analysis" "{\"socket_gid\": $DOCKER_SOCKET_GID, \"container_gid\": \"$CURRENT_DOCKER_GID\"}"
-
-        # If user already belongs to the socket group (for example, root:gid=0), no remapping is needed.
-        SOCKET_GROUP_NAME=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1 2>/dev/null || echo "")
-        if [ -n "$SOCKET_GROUP_NAME" ] && id -nG | tr ' ' '\n' | grep -Fxq "$SOCKET_GROUP_NAME"; then
-            log "INFO" "entrypoint" "User already has Docker socket group access" "{\"group\": \"$SOCKET_GROUP_NAME\", \"gid\": $DOCKER_SOCKET_GID}"
-            return 0
-        fi
-
-        # If GIDs don't match, we need to adjust
-        if [ "$DOCKER_SOCKET_GID" != "$CURRENT_DOCKER_GID" ]; then
-            log "INFO" "entrypoint" "Adjusting Docker group GID for socket access" "{\"from\": \"$CURRENT_DOCKER_GID\", \"to\": $DOCKER_SOCKET_GID}"
-
-            # Check if we can modify groups (running as root during startup)
-            if [ "$(id -u)" -eq 0 ]; then
-                # We're running as root, can modify groups
-                if getent group "$DOCKER_SOCKET_GID" >/dev/null 2>&1; then
-                    # Target GID exists, add user to that group
-                    EXISTING_GROUP=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1)
-                    log "INFO" "entrypoint" "Adding user to existing group" "{\"group\": \"$EXISTING_GROUP\", \"gid\": $DOCKER_SOCKET_GID}"
-                    addgroup pytmbot "$EXISTING_GROUP" 2>/dev/null || true
-                else
-                    # Change docker group GID
-                    log "INFO" "entrypoint" "Changing docker group GID" "{\"new_gid\": $DOCKER_SOCKET_GID}"
-                    groupmod -g "$DOCKER_SOCKET_GID" docker 2>/dev/null || true
-                fi
-            else
-                # Running as non-root, just inform about the issue
-                log "WARNING" "entrypoint" "Cannot modify groups (not running as root)" "{\"suggestion\": \"Use --group-add $DOCKER_SOCKET_GID or rebuild with correct GID\"}"
-            fi
-        else
-            log "INFO" "entrypoint" "Docker group GID matches socket GID" "{\"gid\": $DOCKER_SOCKET_GID}"
-        fi
-    else
+# Explain how the Docker socket group relates to this process (diagnostics only, never changes groups)
+report_docker_socket_group() {
+    if [ ! -S /var/run/docker.sock ]; then
         log "INFO" "entrypoint" "Docker socket not mounted" "{\"path\": \"/var/run/docker.sock\"}"
+        return 0
+    fi
+
+    DOCKER_SOCKET_GID=$(stat -c %g /var/run/docker.sock 2>/dev/null || echo "")
+    case "$DOCKER_SOCKET_GID" in
+        ''|*[!0-9]*)
+            log "WARNING" "entrypoint" "Cannot determine Docker socket GID" "{}"
+            return 0
+            ;;
+    esac
+
+    if id -G | tr ' ' '\n' | grep -Fxq "$DOCKER_SOCKET_GID"; then
+        log "INFO" "entrypoint" "Docker socket group is granted to this process" "{\"socket_gid\": $DOCKER_SOCKET_GID}"
+    else
+        log "WARNING" "entrypoint" "Docker socket group is not granted to this process" "{\"socket_gid\": $DOCKER_SOCKET_GID, \"fix\": \"docker run --group-add $DOCKER_SOCKET_GID (compose: group_add)\"}"
     fi
 }
 
@@ -153,10 +121,10 @@ fix_docker_group_runtime() {
 check_docker_access() {
     if [ -S /var/run/docker.sock ]; then
         if [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
-            log "INFO" "entrypoint" "Docker socket access OK" "{\"user\": \"$(id -un)\", \"groups\": \"$(groups)\"}"
+            log "INFO" "entrypoint" "Docker socket access OK" "{\"user\": \"$(id -un 2>/dev/null || id -u)\", \"groups\": \"$(groups 2>/dev/null)\"}"
             return 0
         else
-            log "WARNING" "entrypoint" "Docker socket access denied" "{\"user\": \"$(id -un)\", \"groups\": \"$(groups)\", \"socket_perms\": \"$(ls -la /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
+            log "WARNING" "entrypoint" "Docker socket access denied" "{\"user\": \"$(id -un 2>/dev/null || id -u)\", \"groups\": \"$(groups 2>/dev/null)\", \"socket_perms\": \"$(ls -la /var/run/docker.sock 2>/dev/null || echo 'unknown')\"}"
             return 1
         fi
     else
@@ -362,7 +330,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --check-docker)
-            fix_docker_group_runtime
+            report_docker_socket_group
             check_docker_access
             exit 0
             ;;
@@ -382,14 +350,14 @@ else
 fi
 
 log "INFO" "entrypoint" "Starting pyTMBot from entrypoint... ›››››››› 🚀🚀🚀" "{}"
-log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups)\"}"
+log "INFO" "entrypoint" "User information" "{\"user\": \"$(id -un 2>/dev/null || id -u)\", \"uid\": $(id -u), \"gid\": $(id -g), \"groups\": \"$(groups 2>/dev/null)\"}"
 log "INFO" "entrypoint" "Configuration" "{\"python\": \"$PYTHON_PATH\", \"mode\": \"$MODE\", \"log_level\": \"$LOG_LEVEL\", \"log_format\": \"$EFFECTIVE_LOG_FORMAT\", \"colorize_logs\": \"$COLORIZE_LOGS\", \"debug\": \"$DEBUG\", \"plugins\": \"$PLUGINS\", \"webhook\": \"$WEBHOOK\", \"socket_host\": \"$SOCKET_HOST\", \"strict_docker_access\": \"$STRICT_DOCKER_ACCESS\"}"
 
 # Check dependencies
 check_dependencies
 
-# Fix Docker group if needed and check access
-fix_docker_group_runtime
+# Report Docker socket group and check access
+report_docker_socket_group
 if ! check_docker_access; then
     case "$STRICT_DOCKER_ACCESS" in
         true|True|TRUE|1|yes|YES|on|ON)

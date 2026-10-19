@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 ########################################################################################################################
 #                                                                                                                      #
 #                                               pyTMBot - Dockerfile                                                   #
@@ -6,10 +7,8 @@
 #                                                                                                                      #
 ########################################################################################################################
 
-# syntax=docker/dockerfile:1.7
-
 ARG UBUNTU_IMAGE=26.04
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.19
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.1
 ARG COMPILE_BYTECODE=1
 
 ########################################################################################################################
@@ -93,6 +92,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/*
 
 # Create runtime user and groups with stable UID/GID and docker-socket compatibility.
+# The supplementary groups (root, gid 1000, docker) keep the socket reachable where it is owned by one of them, for
+# example rootless Docker and Docker Desktop (root:root). Running with `--user 1001:1001 --group-add <socket gid>`
+# drops them; see docs/docker.md. Root-group write access is removed at the end, so the group only matters for the socket.
 RUN groupadd --gid 1001 pytmbot && \
     useradd --uid 1001 --gid 1001 --create-home --home-dir /home/pytmbot --shell /usr/sbin/nologin pytmbot && \
     if ! getent group docker >/dev/null; then groupadd docker; fi && \
@@ -129,8 +131,9 @@ COPY --link --chown=pytmbot:pytmbot --chmod=755 ./entrypoint.sh ./entrypoint.sh
 # Copy app sources from builder to keep dependency layers cache-friendly.
 COPY --link --from=builder --chown=1001:1001 /build/pytmbot ./pytmbot
 
-# Basic runtime validation.
-RUN python3 --version && test -x ./entrypoint.sh
+# Basic runtime validation; drop world and root-group write access left on non-sticky paths (incl. copied layers).
+RUN python3 --version && test -x ./entrypoint.sh && \
+    find / -xdev \( -perm -o+w -o -group 0 -perm -g+w \) ! -perm -1000 ! -type l -exec chmod go-w {} +
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
     CMD ["./entrypoint.sh", "--health_check"]

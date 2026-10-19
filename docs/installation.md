@@ -48,6 +48,7 @@ docker run -d \
   --restart on-failure \
   -v "$(pwd)/pytmbot.yaml:/opt/app/pytmbot.yaml:ro" \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --group-add "$(stat -c %g /var/run/docker.sock)" \
   orenlab/pytmbot:stable --mode prod
 ```
 
@@ -77,10 +78,19 @@ services:
     image: orenlab/pytmbot:stable
     container_name: pytmbot
     restart: on-failure
+    group_add:
+      - "${DOCKER_GID:-1001}"
     volumes:
       - ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command: --mode prod
+```
+
+To grant access to the Docker socket, set `DOCKER_GID` once, next to the compose file (without it, `group_add`
+falls back to the bot's own group `1001` and changes nothing):
+
+```bash
+echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" > .env
 ```
 
 ## Optional Features

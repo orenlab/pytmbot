@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1] — Unreleased
+
+Patch release focused on Docker hardening and dependency maintenance.
+
+### Changed
+
+- Docker image: the `# syntax` directive is now honoured, and no file in the image is writable by the `root` group or
+  by everyone, so the image user's compatibility groups only matter for the Docker socket.
+- Startup and `--check-docker` log the Docker socket's group ID and the exact `--group-add` value when access is
+  missing, instead of attempting to change groups.
+- Documentation: Docker socket access (`group_add` with an optional `DOCKER_GID`, least-privilege
+  `--user 1001:1001`, a tested socket-proxy setup that allows only the API calls the bot uses), and a correction:
+  a `:ro` socket mount does not restrict the Docker API.
+- Bumped dependencies (incl. `pyTelegramBotAPI` 4.37.1, `pydantic` 2.14, `fastapi` 0.146, `aiohttp` 3.14.5), uv
+  `0.13.1`, BuildKit `v0.34.0`, and `astral-sh/setup-uv` v10.3.0.
+
 ## [0.5.0] — 20260926
 
 Feature release: structured bot screens move to Telegram Rich Messages; dependencies, Docker images, and CI are
