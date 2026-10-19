@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.1] — Unreleased
+## [0.5.1] — 20261019
 
 Patch release focused on Docker hardening and dependency maintenance.
 

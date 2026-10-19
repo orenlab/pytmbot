@@ -64,7 +64,7 @@ The rebuild publishes:
 
 The rebuild does not publish:
 
-- `0.5.0`
+- `0.5.1`
 
 ## What Weekly Rebuilds Refresh
 
