@@ -70,7 +70,7 @@ services:
       - ALL
     pid: host
     tmpfs:
-      - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
+      - /run/pytmbot:noexec,nosuid,nodev,size=10m,mode=0700,uid=1001,gid=1001
     command: [ "--log-level", "INFO" ]
 ```
 

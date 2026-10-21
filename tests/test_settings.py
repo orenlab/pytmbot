@@ -11,6 +11,7 @@ import pytmbot.settings as settings_module
 from pytmbot.settings import (
     _get_config_file_path,
     _get_var_config,
+    config_file_exists,
     get_default_auth_keyboard,
     get_default_back_keyboard,
     get_default_bot_commands,
@@ -41,6 +42,17 @@ def test_get_config_file_path_points_to_project_yaml() -> None:
     config_path = _get_config_file_path()
     assert isinstance(config_path, Path)
     assert config_path == Path(os.environ["PYTMBOT_CONFIG_PATH"]).resolve()
+
+
+def test_config_file_exists_does_not_load_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "pytmbot.yaml"
+    monkeypatch.setenv("PYTMBOT_CONFIG_PATH", str(config_path))
+    assert config_file_exists() is False
+
+    config_path.write_text("not: [valid", encoding="utf-8")
+    assert config_file_exists() is True
 
 
 def test_load_settings_from_yaml_reads_current_project_config() -> None:

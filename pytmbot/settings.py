@@ -39,6 +39,11 @@ def _get_config_file_path() -> Path:
     return Path(__file__).parent.parent / "pytmbot.yaml"
 
 
+def config_file_exists() -> bool:
+    """Return whether the settings YAML file exists, without loading it."""
+    return _get_config_file_path().is_file()
+
+
 @cache
 def load_settings_from_yaml() -> SettingsModel:
     """
