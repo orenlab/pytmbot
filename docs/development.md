@@ -10,7 +10,8 @@ Source of truth:
 
 ## Local Setup
 
-Install dependencies with `uv`:
+Install dependencies with `uv` 0.13.4 or later (`required-version` in `pyproject.toml`; older uv trusts a
+distrusted CA root):
 
 ```bash
 uv sync --all-extras --dev
