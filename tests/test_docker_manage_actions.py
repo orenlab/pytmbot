@@ -31,6 +31,7 @@ from pytmbot.handlers.docker_handlers.user_messages import (
     DOCKER_UNAVAILABLE_TEXT,
     INVALID_CONTAINER_REF_TEXT,
 )
+from pytmbot.models.settings_model import DockerHostModel
 from tests._telebot_objects import PayloadDict, telegram_object_from_payload
 
 _ADMIN = 123456789  # allowed admin in pytmbot.yaml.sample
@@ -263,6 +264,49 @@ def test_start_runs_without_confirmation(docker: _FakeDocker) -> None:
     bot = _press(f"__start__:{_CONTAINER_ID}:{_ADMIN}")
     assert docker.actions == [(_ADMIN, _CONTAINER_ID, "start")]
     assert "web started. Current state: running." in _html(bot.edits()[-1])
+
+
+@pytest.mark.parametrize(
+    ("data", "state", "expected_hint"),
+    [
+        (
+            f"__stop_confirm__:{_CONTAINER_ID}:{_ADMIN}",
+            "running",
+            "Docker waits up to 90 s for a graceful stop, then kills the container. "
+            "The result will appear here.",
+        ),
+        (
+            f"__restart_confirm__:{_CONTAINER_ID}:{_ADMIN}",
+            "running",
+            "Docker waits up to 25 s for a graceful stop, then kills the container. "
+            "The result will appear here.",
+        ),
+        (
+            f"__start__:{_CONTAINER_ID}:{_ADMIN}",
+            "exited",
+            "<p><i>The result will appear here.</i></p>",
+        ),
+    ],
+)
+def test_progress_view_states_the_configured_grace_period(
+    docker: _FakeDocker,
+    monkeypatch: pytest.MonkeyPatch,
+    data: str,
+    state: str,
+    expected_hint: str,
+) -> None:
+    docker_settings = DockerHostModel(
+        host=["unix:///var/run/docker.sock"], stop_timeout=90, restart_timeout=25
+    )
+    monkeypatch.setattr(
+        action_module, "settings", SimpleNamespace(docker=docker_settings)
+    )
+    docker.states[_CONTAINER_ID] = state
+
+    progress = _html(_press(data).edits()[0])
+
+    assert expected_hint in progress
+    assert "minute" not in progress
 
 
 @pytest.mark.parametrize(

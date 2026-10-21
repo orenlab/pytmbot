@@ -24,6 +24,7 @@ from pytmbot.exceptions import (
     DockerOperationException,
     InvalidContainerReferenceError,
 )
+from pytmbot.models.settings_model import DockerHostModel
 from tests._docker_sdk_fakes import (
     FakeDockerApi,
     api_calls,
@@ -63,7 +64,7 @@ def _allow_admin(monkeypatch: pytest.MonkeyPatch, user_id: int) -> None:
         "settings",
         SimpleNamespace(
             access_control=SimpleNamespace(allowed_admins_ids=[user_id]),
-            docker=SimpleNamespace(),
+            docker=DockerHostModel(host=["unix:///var/run/docker.sock"]),
         ),
     )
     monkeypatch.setattr(

@@ -8,10 +8,37 @@ also providing basic information about the status of local servers.
 import ipaddress
 from collections import deque
 from threading import RLock
+from typing import Final
 
 from pytmbot.logs import Logger
 
 logger = Logger()
+
+type IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+type IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+# Shortest prefix accepted for an additional Telegram range, per IP version.
+# Telegram's own ranges are /20-/24 (IPv4) and /32-/48 (IPv6); a wider network
+# would let unrelated hosts pass the Telegram source check.
+MIN_ADDITIONAL_RANGE_PREFIX: Final[dict[int, int]] = {4: 16, 6: 32}
+
+
+def parse_ip_address(value: str) -> IPAddress:
+    """
+    Parse an IP address; an IPv4-mapped IPv6 one (``::ffff:a.b.c.d``) becomes IPv4.
+
+    Raises:
+        ValueError: If ``value`` is not an IP address.
+    """
+    address = ipaddress.ip_address(value)
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
+
+
+def is_additional_range_too_wide(network: IPNetwork) -> bool:
+    """Return True when an additional Telegram range is wider than allowed."""
+    return network.prefixlen < MIN_ADDITIONAL_RANGE_PREFIX[network.version]
 
 
 class TelegramIPValidator:
@@ -41,6 +68,7 @@ class TelegramIPValidator:
             ipaddress.ip_network("2a0a:f280::/32"),
         ]
 
+        # Both caches hold canonical addresses (IPv4-mapped IPv6 unwrapped).
         self.validated_ips: set[str] = set()
         self._validated_ip_order: deque[str] = deque()
         self.rejected_ips: set[str] = set()
@@ -61,6 +89,15 @@ class TelegramIPValidator:
                 logger.warning(
                     "bot.models.telegram_models.additional.range.invalid.warn",
                     ip_range=candidate,
+                )
+                continue
+
+            # The settings model rejects these; never widen the allowlist anyway.
+            if is_additional_range_too_wide(network):
+                logger.warning(
+                    "bot.models.telegram_models.additional.range.too.wide.warn",
+                    ip_range=candidate,
+                    min_prefix=MIN_ADDITIONAL_RANGE_PREFIX[network.version],
                 )
                 continue
 
@@ -96,27 +133,28 @@ class TelegramIPValidator:
             self._rejected_ip_order.append(ip_str)
 
     def is_telegram_ip(self, ip_str: str) -> bool:
-        with self._cache_lock:
-            if ip_str in self.validated_ips:
-                return True
-            if ip_str in self.rejected_ips:
-                return False
-
         try:
-            ip = ipaddress.ip_address(ip_str)
-            ranges = (
-                self.ipv4_ranges
-                if isinstance(ip, ipaddress.IPv4Address)
-                else self.ipv6_ranges
-            )
-
-            for network in ranges:
-                if ip in network:
-                    self._remember_validated_ip(ip_str)
-                    return True
-            self._remember_rejected_ip(ip_str)
-            return False
-
+            ip = parse_ip_address(ip_str)
         except ValueError:
             logger.error("bot.models.telegram_models.invalid.ip.fail")
             return False
+
+        # Cache by canonical form: every spelling of an address shares one entry.
+        canonical_ip = str(ip)
+        with self._cache_lock:
+            if canonical_ip in self.validated_ips:
+                return True
+            if canonical_ip in self.rejected_ips:
+                return False
+
+        ranges = (
+            self.ipv4_ranges
+            if isinstance(ip, ipaddress.IPv4Address)
+            else self.ipv6_ranges
+        )
+        for network in ranges:
+            if ip in network:
+                self._remember_validated_ip(canonical_ip)
+                return True
+        self._remember_rejected_ip(canonical_ip)
+        return False

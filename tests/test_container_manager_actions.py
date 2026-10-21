@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
+from docker.api.client import APIClient
 from docker.errors import APIError
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
@@ -16,6 +19,7 @@ from pytmbot.exceptions import (
     ContainerStateConflictError,
     DockerConnectionError,
 )
+from pytmbot.settings import load_settings_from_yaml
 from tests._docker_sdk_fakes import (
     FakeDockerApi,
     api_calls,
@@ -236,3 +240,58 @@ def test_rate_limiter_evicts_oldest_users(monkeypatch: pytest.MonkeyPatch) -> No
     for user_id in (1, 2, 3, 4):
         assert limiter.register(user_id) is None
     assert limiter.register(4) == pytest.approx(0.5)
+
+
+def test_configured_grace_periods_reach_docker(
+    fake_api: FakeDockerApi,
+    manager: container_manager_module.ContainerManager,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sample_path = Path(__file__).resolve().parents[1] / "pytmbot.yaml.sample"
+    config = yaml.safe_load(sample_path.read_text(encoding="utf-8"))
+    config["docker"].update(stop_timeout=120, restart_timeout=45)
+    config_path = tmp_path / "pytmbot.yaml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    monkeypatch.setenv("PYTMBOT_CONFIG_PATH", str(config_path))
+    load_settings_from_yaml.cache_clear()
+    try:
+        docker_settings = load_settings_from_yaml().docker
+    finally:
+        load_settings_from_yaml.cache_clear()
+    monkeypatch.setattr(
+        container_manager_module,
+        "settings",
+        SimpleNamespace(
+            access_control=SimpleNamespace(allowed_admins_ids=[ADMIN_ID]),
+            docker=docker_settings,
+        ),
+    )
+
+    manager.managing_container(ADMIN_ID, "web", action="stop")
+    manager.managing_container(ADMIN_ID, "web", action="restart")
+
+    assert api_calls(fake_api, "stop") == [(RUNNING_ID, 120)]
+    assert api_calls(fake_api, "restart") == [(RUNNING_ID, 45)]
+
+
+@pytest.mark.parametrize("operation", ["stop", "restart"])
+def test_docker_sdk_adds_grace_period_to_request_timeout(
+    monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    # The adapter sets api.timeout to docker.timeout; docker-py must extend the
+    # stop/restart request by the grace period so a long grace is not cut short.
+    api = APIClient(base_url="tcp://127.0.0.1:2375", version="1.43", timeout=10)
+    posted: list[dict[str, object]] = []
+
+    def _post(url: str, **kwargs: object) -> SimpleNamespace:
+        del url
+        posted.append(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(api, "_post", _post)
+    monkeypatch.setattr(api, "_raise_for_status", lambda _response: None)
+
+    getattr(api, operation)(RUNNING_ID, timeout=300)
+
+    assert posted == [{"params": {"t": 300}, "timeout": 310}]

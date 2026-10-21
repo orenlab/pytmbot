@@ -5,6 +5,7 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+import hmac
 import ipaddress
 import json
 import os
@@ -12,7 +13,7 @@ import tempfile
 import threading
 from collections import deque
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
 from time import time
 from typing import Annotated, Final
@@ -30,7 +31,11 @@ from pytmbot.globals import __version__ as app_version
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.models.settings_model import WebhookConfig as SettingsWebhookConfig
-from pytmbot.models.telegram_models import TelegramIPValidator
+from pytmbot.models.telegram_models import (
+    IPAddress,
+    TelegramIPValidator,
+    parse_ip_address,
+)
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils import (
     generate_secret_token,
@@ -70,6 +75,18 @@ def _first_secret(values: list[SecretStr] | None) -> str | None:
         return None
     secret_value = values[0].get_secret_value().strip()
     return secret_value or None
+
+
+def _secret_token_matches(provided: str | None, expected: str) -> bool:
+    """Compare the secret header in constant time; never raise on odd input."""
+    if provided is None:
+        return False
+    # Bytes, because compare_digest rejects non-ASCII str; surrogatepass keeps
+    # the encoding lossless and exception-free for any str.
+    return hmac.compare_digest(
+        provided.encode("utf-8", "surrogatepass"),
+        expected.encode("utf-8", "surrogatepass"),
+    )
 
 
 def _normalize_ssl_path(path: str | None) -> str | None:
@@ -732,19 +749,41 @@ class WebhookServer(BaseComponent):
             networks.append(ipaddress.ip_network(source, strict=False))
         return networks
 
+    def _is_trusted_address(self, address: IPAddress) -> bool:
+        """Check a parsed (IPv4-unmapped) address against trusted proxies."""
+        return any(address in network for network in self.trusted_proxy_networks)
+
     def _is_trusted_proxy(self, source_ip: str) -> bool:
         """Validate source IP against configured trusted proxies."""
         try:
-            ip_obj = ipaddress.ip_address(source_ip)
+            address = parse_ip_address(source_ip)
         except ValueError:
             return False
-        return any(ip_obj in network for network in self.trusted_proxy_networks)
+        return self._is_trusted_address(address)
+
+    @staticmethod
+    def _parse_forwarded_hop(hop: str) -> IPAddress:
+        """Parse one X-Forwarded-For element; a malformed one is a 400."""
+        try:
+            return parse_ip_address(hop)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400, detail="Invalid client IP in forwarded header"
+            ) from error
 
     def _resolve_client_ip(
         self, request: Request, x_forwarded_for: str | None
     ) -> tuple[str, str]:
         """
         Resolve real client IP safely.
+
+        Behind trusted proxies, X-Forwarded-For is read from the right: each
+        proxy appends the address it received the request from, so only the
+        elements added by trusted proxies can be believed. Trusted proxies are
+        skipped and the first untrusted address is the client; if every element
+        is trusted, the leftmost one is. Elements left of the client are
+        client-controlled and ignored (never parsed). IPv4-mapped IPv6
+        addresses are reported as IPv4.
 
         Returns:
             Tuple of (peer_ip, resolved_client_ip)
@@ -755,6 +794,9 @@ class WebhookServer(BaseComponent):
             )
 
         peer_ip = request.client.host
+        # A non-IP peer (unix socket, test client) is kept as is and denied later.
+        with suppress(ValueError):
+            peer_ip = str(parse_ip_address(peer_ip))
 
         if not x_forwarded_for:
             return peer_ip, peer_ip
@@ -784,15 +826,14 @@ class WebhookServer(BaseComponent):
                 status_code=400, detail="Malformed X-Forwarded-For header"
             )
 
-        client_ip = forwarded_chain[0]
-        try:
-            _ = ipaddress.ip_address(client_ip)
-        except ValueError as error:
-            raise HTTPException(
-                status_code=400, detail="Invalid client IP in forwarded header"
-            ) from error
+        leftmost_hop, *proxied_hops = forwarded_chain
+        for hop in reversed(proxied_hops):
+            hop_address = self._parse_forwarded_hop(hop)
+            if not self._is_trusted_address(hop_address):
+                return peer_ip, str(hop_address)
 
-        return peer_ip, client_ip
+        # Every hop to the right is a trusted proxy: the leftmost is the client.
+        return peer_ip, str(self._parse_forwarded_hop(leftmost_hop))
 
     def _get_update_error_context(self, update: UpdateModel) -> dict[str, int | str]:
         """Return minimal and safe update context for error logs."""
@@ -890,7 +931,9 @@ class WebhookServer(BaseComponent):
                             )
 
                         # Token verification
-                        if x_telegram_bot_api_secret_token != expected_secret:
+                        if not _secret_token_matches(
+                            x_telegram_bot_api_secret_token, expected_secret
+                        ):
                             _log.warning("bot.webhook.invalid.secret.warn")
                             raise HTTPException(
                                 status_code=403, detail="Invalid secret token"

@@ -82,6 +82,12 @@ docker:
   # Docker API request timeout in seconds, 5-300 (OPTIONAL, default 10)
   # timeout: 10
 
+  # Seconds Docker waits for a graceful stop before killing the container,
+  # for Stop and Restart from the bot, 1-300 (OPTIONAL, default 10 each)
+  # Raise them for databases or other services that need time to shut down cleanly.
+  # stop_timeout: 10
+  # restart_timeout: 10
+
   # TLS for a remote https:// Docker daemon (OPTIONAL; ignored for unix:// sockets)
   # cert_path: '/certs/cert.pem'   # client certificate
   # key_path: '/certs/key.pem'     # client key
@@ -115,13 +121,17 @@ webhook_config:
 
   # Trusted reverse proxy IPs/CIDRs (OPTIONAL)
   # Configure this only when webhook traffic goes through a trusted proxy/load balancer.
-  # If unset/null, forwarded headers are ignored and direct client IP is used.
+  # List every proxy hop that adds to X-Forwarded-For; the client is the rightmost
+  # untrusted address in that header. 0.0.0.0/0 and ::/0 are rejected.
+  # If unset/null, requests with X-Forwarded-For are refused (403) and the
+  # connecting address is used.
   trusted_proxy_ips: null
     # - '127.0.0.1/32'
     # - '10.0.0.0/8'
 
   # Additional trusted Telegram IP ranges/CIDRs (OPTIONAL)
   # Use only if your deployment requires custom Telegram source ranges
+  # Ranges wider than /16 (IPv4) or /32 (IPv6) are rejected.
   additional_telegram_ip_ranges: null
     # - '149.154.160.0/20'
 
