@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.2] — 20261021
+
+Security patch release for the eMudhra CA incident.
+
+### Security
+
+- The Docker image no longer trusts the `emSign ECC Root CA - G3` root, whose intermediate CA keys were compromised
+  (USN-8944-1, GHSA-6q48-6c7w-9gw2, GHSA-hq85-5cpj-mr62). With that root, an on-path attacker could intercept the
+  bot's connections to Docker Hub and InfluxDB (system trust store) and to Telegram and GitHub (certifi):
+  - `ca-certificates` `20260816ubuntu0.26.04.1` in the runtime image. The build fails on an older package and never
+    reuses a cached layer with the old trust store.
+  - `certifi` 2026.10.19.
+  - uv 0.13.4 for the image build; `pyproject.toml` now requires uv 0.13.4 or later.
+- Image builds run a certificate trust check (`scripts/ca_trust_gate.py`). The build fails if uv, the system trust
+  store, certifi or any other CA bundle in the image still trusts the root, or if TLS verification is disabled.
+
+### Changed
+
+- Bumped dependencies: `fastapi` 0.156.4, `pydantic-settings` 2.16.1, `cachetools` 7.2.4.
+- Added `0.5.2` to the `config_version` compatibility matrix.
+
 ## [0.5.1] — 20261019
 
 Patch release focused on Docker hardening and dependency maintenance.
