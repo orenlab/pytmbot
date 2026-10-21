@@ -418,11 +418,11 @@ def test_shutdown_bot_silently_and_cleanup_paths(
     launcher = main_module.BotLauncher()
     calls: list[str] = []
 
-    bot_ok = SimpleNamespace(
-        stop_polling=lambda: calls.append("stop"),
-        remove_webhook=lambda: calls.append("remove"),
+    bot_ok = SimpleNamespace(remove_webhook=lambda: calls.append("remove"))
+    # The core's stop_polling_loop() also ends its polling loop (not only TeleBot).
+    launcher.bot = SimpleNamespace(
+        bot=bot_ok, stop_polling_loop=lambda: calls.append("stop")
     )
-    launcher.bot = SimpleNamespace(bot=bot_ok)
     launcher._session_manager = SimpleNamespace(
         shutdown=lambda: calls.append("session")
     )
@@ -430,10 +430,8 @@ def test_shutdown_bot_silently_and_cleanup_paths(
     assert calls == ["stop", "remove", "session"]
 
     launcher.bot = SimpleNamespace(
-        bot=SimpleNamespace(
-            stop_polling=lambda: (_ for _ in ()).throw(RuntimeError("stop failed")),
-            remove_webhook=lambda: None,
-        )
+        bot=SimpleNamespace(remove_webhook=lambda: None),
+        stop_polling_loop=lambda: (_ for _ in ()).throw(RuntimeError("stop failed")),
     )
     launcher._shutdown_bot_silently(silent=True)
     launcher._shutdown_bot_silently(silent=False)

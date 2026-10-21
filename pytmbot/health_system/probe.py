@@ -32,8 +32,8 @@ def run_probe(path: Path | None = None) -> int:
 def exit_probe(code: int) -> NoReturn:
     """Terminate the probe process with ``code``.
 
-    With inspect mode on (any non-empty ``PYTHONINSPECT``, including the image's
-    ``PYTHONINSPECT=0``) CPython prints a ``SystemExit`` traceback and exits with 1
+    With inspect mode on (any non-empty ``PYTHONINSPECT``, even ``0``, which images
+    up to 0.5.2 set) CPython prints a ``SystemExit`` traceback and exits with 1
     instead of ``code``, so leave through ``os._exit`` after flushing the output.
     """
     if sys.flags.inspect:

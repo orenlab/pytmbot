@@ -118,7 +118,7 @@ def test_health_check_runs_the_real_probe_against_the_snapshot(
     env = {
         "PYTHONPATH": str(REPO_ROOT),
         "PYTMBOT_STATE_DIR": str(state_dir),
-        # As in the Docker image: enables inspect mode, which used to print a
+        # As in images up to 0.5.2: enables inspect mode, which used to print a
         # SystemExit traceback and turn exit code 2 into 1.
         "PYTHONINSPECT": "0",
     }

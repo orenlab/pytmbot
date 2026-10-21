@@ -36,21 +36,19 @@ docker logs -f pytmbot
 
 ## Health Diagnostics
 
-Application-level health status:
+Application-level health status (reads the snapshot written by a running bot; exit code 0 healthy, 1 unhealthy or
+stale, 2 no snapshot yet):
 
 ```bash
 uv run python pytmbot/main.py --health_check
 ```
 
-Docker image diagnostic entrypoint:
+Health of a running container (a one-off `docker run ... --health_check` has no running bot and reports "no health
+data"):
 
 ```bash
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  --group-add "$(stat -c %g /var/run/docker.sock)" \
-  -v /path/to/pytmbot.yaml:/opt/app/pytmbot.yaml:ro \
-  orenlab/pytmbot:stable \
-  --health_check
+docker inspect --format '{{json .State.Health}}' pytmbot
+docker exec pytmbot ./entrypoint.sh --health_check
 ```
 
 Docker access validation:

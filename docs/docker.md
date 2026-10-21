@@ -44,7 +44,8 @@ Supported image architectures:
 - user/group id: `1001:1001`
 - working directory: `/opt/app`
 - default timezone env: `TZ=UTC`
-- built-in Docker `HEALTHCHECK` calls `./entrypoint.sh --health_check`
+- built-in Docker `HEALTHCHECK` calls `./entrypoint.sh --health_check`, which judges the health snapshot the running bot
+  writes to its state directory (see [Health](health.md))
 - development images (`edge-*`) track unreleased branch work; production fleets should use the `0.5` stable tags
 
 ## Required And Optional Mounts
@@ -172,7 +173,7 @@ Current runtime-relevant environment variables:
 
 ## Runtime State
 
-Runtime state is used for TOTP replay protection and persisted webhook rate-limit bans.
+Runtime state is used for the container health snapshot, TOTP replay protection and persisted webhook rate-limit bans.
 
 State path resolution:
 
@@ -181,7 +182,10 @@ State path resolution:
 - otherwise `~/.local/state/pytmbot`
 
 When using a read-only root filesystem, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume, for example
-`/run/pytmbot`.
+`/run/pytmbot`. Without a writable state directory the healthcheck has no data and reports the container unhealthy.
+
+A tmpfs is wiped when the container stops. That is fine: after a restart without saved TOTP replay state, codes issued
+before the restart are refused, so wait for the next code (up to a minute).
 
 ## Minimal Run
 

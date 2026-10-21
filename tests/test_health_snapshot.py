@@ -387,7 +387,7 @@ def _run_probe_process(
         **os.environ,
         "PYTHONPATH": str(REPO_ROOT),
         "PYTMBOT_STATE_DIR": str(state_dir),
-        # The Docker image sets PYTHONINSPECT=0, which enables inspect mode.
+        # Images up to 0.5.2 set PYTHONINSPECT=0, which enables inspect mode.
         "PYTHONINSPECT": "0",
     }
     return subprocess.run(

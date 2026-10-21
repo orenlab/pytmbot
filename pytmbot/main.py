@@ -15,7 +15,7 @@ import signal
 import sys
 import threading
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from types import FrameType
@@ -98,8 +98,8 @@ class BotLauncher(logs.BaseComponent):
 
         try:
             if self.bot and hasattr(self.bot, "bot") and self.bot.bot:
-                stop_polling: Callable[[], object] = self.bot.bot.stop_polling
-                stop_polling()
+                # Ends the polling loop too, so it does not restart polling.
+                self.bot.stop_polling_loop()
                 self.bot.bot.remove_webhook()
             self._session_manager.shutdown()
             reset_docker_client_context()

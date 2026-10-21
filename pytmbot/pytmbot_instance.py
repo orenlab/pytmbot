@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import ssl
+import threading
 import time
 import uuid
 from collections.abc import Callable, Generator
@@ -170,6 +171,8 @@ class PyTMBot(BaseComponent):
         "_shutdown_timeout_occurred",
         "_rate_limit_consecutive",
         "_rate_limit_open_until",
+        "_polling_stop_requested",
+        "_polling_active",
     )
 
     def __init__(self) -> None:
@@ -183,6 +186,10 @@ class PyTMBot(BaseComponent):
         self._shutdown_timeout_occurred = False
         self._rate_limit_consecutive = 0
         self._rate_limit_open_until: datetime | None = None
+        # Set only on shutdown: ends the polling loop instead of restarting polling.
+        self._polling_stop_requested = threading.Event()
+        # True while TeleBot.polling() runs (TeleBot has no public polling flag).
+        self._polling_active = False
 
         # Initialize session
         self._session = BotSession.create(
@@ -473,8 +480,7 @@ class PyTMBot(BaseComponent):
 
         # Check polling state for non-webhook mode
         if self._session and not self._session.webhook_enabled:
-            polling_active = getattr(self.bot, "polling", False)
-            if not polling_active and self._state == BotState.RUNNING:
+            if not self._polling_active and self._state == BotState.RUNNING:
                 return False
 
         return True
@@ -914,8 +920,23 @@ class PyTMBot(BaseComponent):
             log.critical("bot.core.unexpected.polling.fail")
         raise error
 
+    def stop_polling_loop(self) -> None:
+        """End the polling loop for shutdown (it would restart polling otherwise)."""
+        self._polling_stop_requested.set()
+        self._safe_stop_polling()
+
     def _start_polling_loop(self, bot_instance: TeleBot) -> None:
-        """Start polling loop with exponential backoff on errors."""
+        """
+        Poll Telegram until shutdown, restarting after errors with backoff.
+
+        ``TeleBot.infinity_polling()`` is not used: once ``stop_polling()`` has
+        been called it returns at once without polling, so an error while
+        (re)starting left the bot deaf while it re-requested updates in a tight
+        loop. ``TeleBot.polling()`` re-arms itself on every call, retries
+        Telegram errors internally (``non_stop``) and returns only after
+        ``stop_polling()``. Pending updates are skipped once by TeleBot itself
+        (``skip_pending=True`` at creation).
+        """
         current_sleep_time = DEFAULT_BASE_SLEEP_TIME
         consecutive_errors = 0
 
@@ -927,44 +948,38 @@ class PyTMBot(BaseComponent):
             log.info("bot.core.polling.loop.start")
 
         with self._polling_safety_context():
-            while True:
+            while not self._polling_stop_requested.is_set():
                 try:
-                    bot_instance.infinity_polling(
-                        skip_pending=True,
+                    self._polling_active = True
+                    bot_instance.polling(
+                        non_stop=True,
                         timeout=var_config.bot_polling_timeout,
                         long_polling_timeout=var_config.bot_long_polling_timeout,
                     )
-
-                    # Reset backoff on successful polling
-                    if consecutive_errors > 0:
-                        with self.log_context(
-                            previous_errors=consecutive_errors,
-                            session_id=self._session.session_id
-                            if self._session
-                            else "unknown",
-                        ) as log:
-                            log.info("bot.core.polling.connection.ok")
-
-                    current_sleep_time = DEFAULT_BASE_SLEEP_TIME
-                    consecutive_errors = 0
-                    self._reset_rate_limit_circuit()
-
                 except Exception as error:
-                    try:
-                        self._safe_stop_polling()
-                        time.sleep(current_sleep_time)
-                    except Exception as stop_err:
-                        with self.log_context(
-                            error=sanitize_exception(stop_err),
-                            session_id=self._session.session_id
-                            if self._session
-                            else "unknown",
-                        ) as log:
-                            log.warning("bot.core.stop.polling.fail")
-
+                    # Raised while starting (e.g. no network yet); polling is not
+                    # running, so there is nothing to stop: back off and retry.
                     consecutive_errors, current_sleep_time = self._handle_polling_error(
                         error, consecutive_errors, current_sleep_time
                     )
+                    continue
+                finally:
+                    self._polling_active = False
+
+                # polling() ran until stop_polling(); start over with a fresh backoff.
+                current_sleep_time = DEFAULT_BASE_SLEEP_TIME
+                consecutive_errors = 0
+                self._reset_rate_limit_circuit()
+
+                if self._polling_stop_requested.is_set():
+                    break
+                # stop_polling() without shutdown (e.g. conflict handling): resume.
+                with self.log_context(
+                    retry_delay=DEFAULT_BASE_SLEEP_TIME,
+                    session_id=self._session.session_id if self._session else "unknown",
+                ) as log:
+                    log.warning("bot.core.polling.stopped.resume.warn")
+                self._polling_stop_requested.wait(DEFAULT_BASE_SLEEP_TIME)
 
     def get_bot_session_statistics(self) -> dict[str, object]:
         """Get comprehensive session statistics."""
@@ -994,7 +1009,7 @@ class PyTMBot(BaseComponent):
             stats.update(
                 {
                     "bot_healthy": self.is_healthy(),
-                    "polling_active": getattr(self.bot, "polling", False),
+                    "polling_active": self._polling_active,
                 }
             )
 

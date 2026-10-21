@@ -125,7 +125,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=random \
     PYTHONOPTIMIZE=1 \
-    PYTHONINSPECT=0 \
     TZ=UTC
 
 # Copy virtual environment produced by uv from the builder image.
