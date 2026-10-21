@@ -35,7 +35,7 @@ def _reset_totp_replay_registry(
     monkeypatch.setattr(TwoFactorAuthenticator, "_used_totp_codes", {})
     monkeypatch.setattr(TwoFactorAuthenticator, "_backup_code_hashes", {})
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_state_loaded", False)
-    monkeypatch.setattr(TwoFactorAuthenticator, "_PROCESS_STARTED_AT", 0.0)
+    monkeypatch.setattr(totp_module, "_process_started_at", lambda: 0.0)
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_floor_step", None)
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_persist_failed", False)
 
@@ -50,7 +50,7 @@ def _restart_process(monkeypatch: pytest.MonkeyPatch, *, started_at: float) -> N
     monkeypatch.setattr(TwoFactorAuthenticator, "_used_totp_codes", {})
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_state_loaded", False)
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_persist_failed", False)
-    monkeypatch.setattr(TwoFactorAuthenticator, "_PROCESS_STARTED_AT", started_at)
+    monkeypatch.setattr(totp_module, "_process_started_at", lambda: started_at)
 
 
 class _LogRecorder:
@@ -334,9 +334,8 @@ def test_untrusted_replay_state_file_sets_the_restart_barrier(
     state_file = TwoFactorAuthenticator._REPLAY_STATE_FILE
     state_file.parent.mkdir(parents=True)
     state_file.write_bytes(content)
-    monkeypatch.setattr(
-        TwoFactorAuthenticator, "_PROCESS_STARTED_AT", float(_STEP * _INTERVAL + 20)
-    )
+    started_at = float(_STEP * _INTERVAL + 20)
+    monkeypatch.setattr(totp_module, "_process_started_at", lambda: started_at)
     auth, totp = _authenticator()
 
     _freeze_clock(monkeypatch, _STEP * _INTERVAL + 25)

@@ -545,7 +545,8 @@ def test_snapshot_write_failures_are_logged_once_and_never_stop_monitoring(
     try:
         assert _wait_until(lambda: len(writer.calls) >= 3)
         thread = monitor._thread
-        assert thread is not None and thread.is_alive()
+        assert thread is not None
+        assert thread.is_alive()
     finally:
         monitor.stop_monitoring()
 

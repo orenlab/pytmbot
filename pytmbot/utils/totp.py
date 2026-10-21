@@ -22,6 +22,7 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import ClassVar, Final
 
+import psutil
 import pyotp
 import qrcode
 from qrcode.image.pure import PyPNGImage
@@ -116,6 +117,29 @@ def _resolve_matching_step(
     return None
 
 
+def _parse_replay_markers(markers: object, *, min_step: int) -> set[tuple[str, int]]:
+    """Valid ``[code, step]`` markers that are still inside the replay window."""
+    if not isinstance(markers, list):
+        return set()
+    return {
+        (marker[0], marker[1])
+        for marker in markers
+        if isinstance(marker, list)
+        and len(marker) == 2
+        and isinstance(marker[0], str)
+        and isinstance(marker[1], int)
+        and marker[1] >= min_step
+    }
+
+
+def _process_started_at() -> float:
+    """When this process started (wall clock); now, if the OS cannot tell."""
+    try:
+        return float(psutil.Process().create_time())
+    except (psutil.Error, OSError):
+        return time.time()
+
+
 def _read_replay_state_locked(
     auth_cls: type[TwoFactorAuthenticator], *, min_step: int
 ) -> bool:
@@ -135,27 +159,10 @@ def _read_replay_state_locked(
 
     loaded_entries: dict[int, set[tuple[str, int]]] = {}
     for raw_user_id, markers in replay_state.items():
-        if not (
-            isinstance(raw_user_id, str)
-            and raw_user_id.isdigit()
-            and isinstance(markers, list)
-        ):
+        if not (isinstance(raw_user_id, str) and raw_user_id.isdigit()):
             continue
-
-        user_id = int(raw_user_id)
-        user_markers: set[tuple[str, int]] = set()
-        for marker in markers:
-            if (
-                isinstance(marker, list)
-                and len(marker) == 2
-                and isinstance(marker[0], str)
-                and isinstance(marker[1], int)
-                and marker[1] >= min_step
-            ):
-                user_markers.add((marker[0], marker[1]))
-
-        if user_markers:
-            loaded_entries[user_id] = user_markers
+        if user_markers := _parse_replay_markers(markers, min_step=min_step):
+            loaded_entries[int(raw_user_id)] = user_markers
 
     if loaded_entries:
         auth_cls._used_totp_codes.update(loaded_entries)
@@ -182,7 +189,7 @@ def _load_replay_state_locked(auth: TwoFactorAuthenticator, *, min_step: int) ->
 
     # +1 covers the clock-skew window: before the restart, codes of the step
     # after the current one were accepted too.
-    floor_step = int(auth_cls._PROCESS_STARTED_AT // auth_cls.TOTP_INTERVAL) + 1
+    floor_step = int(_process_started_at() // auth_cls.TOTP_INTERVAL) + 1
     auth_cls._replay_floor_step = floor_step
     with auth.log_context(action="load_replay_state", floor_step=floor_step) as log:
         log.info("bot.utils.totp.replay.state.barrier.info")
@@ -331,7 +338,6 @@ class TwoFactorAuthenticator(BaseComponent):
     _replay_state_loaded: ClassVar[bool] = False
     # Restart barrier: without a trusted replay state file, steps up to
     # _replay_floor_step (derived from the process start) are rejected.
-    _PROCESS_STARTED_AT: ClassVar[float] = time.time()
     _replay_floor_step: ClassVar[int | None] = None
     # True from a failed state write until the next successful one.
     _replay_persist_failed: ClassVar[bool] = False

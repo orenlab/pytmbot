@@ -102,7 +102,7 @@ def session(
     monkeypatch.setattr(TwoFactorAuthenticator, "_used_totp_codes", {})
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_state_loaded", False)
     # The process started long ago: no restart barrier unless a test sets one.
-    monkeypatch.setattr(TwoFactorAuthenticator, "_PROCESS_STARTED_AT", 0.0)
+    monkeypatch.setattr(totp_module, "_process_started_at", lambda: 0.0)
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_floor_step", None)
     monkeypatch.setattr(TwoFactorAuthenticator, "_replay_persist_failed", False)
     monkeypatch.setattr(twofa_module, "_totp_attempt_times", {})
@@ -182,7 +182,7 @@ def test_code_issued_before_restart_is_not_a_failed_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The bot just started and its state directory was wiped (tmpfs).
-    monkeypatch.setattr(TwoFactorAuthenticator, "_PROCESS_STARTED_AT", time())
+    monkeypatch.setattr(totp_module, "_process_started_at", lambda: time())
     session.set_auth_state(_ADMIN, session.state_fabric.PROCESSING)
     bot = _Bot()
 

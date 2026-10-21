@@ -706,8 +706,9 @@ def test_webhook_reset_gives_up_on_shutdown_and_fatal_errors(
             {"error_code": 401, "description": "Unauthorized"},
         )
 
+    revoked_bot = SimpleNamespace(remove_webhook=_unauthorized)
     with pytest.raises(ApiTelegramException):
-        launcher._reset_webhook(SimpleNamespace(remove_webhook=_unauthorized))
+        launcher._reset_webhook(revoked_bot)
 
 
 def test_run_exits_non_zero_after_a_failure_stop(

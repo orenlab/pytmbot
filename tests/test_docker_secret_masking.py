@@ -804,7 +804,8 @@ def test_cmd_keeps_its_own_program_masks_after_an_entrypoint(
 
 
 # Text that image and container authors control must not stall the bot.
-_ADVERSARIAL_SIZE = 64 * 1024
+_ADVERSARIAL_SMALL = 8 * 1024
+_ADVERSARIAL_LARGE = 4 * _ADVERSARIAL_SMALL
 _ADVERSARIAL_UNITS = (
     "X-",
     ".-a",
@@ -850,12 +851,22 @@ _MASKING_ENTRY_POINTS: dict[str, Callable[[str], object]] = {
 }
 
 
+def _masking_seconds(mask: Callable[[str], object], unit: str, size: int) -> float:
+    text = (unit * (size // len(unit) + 1))[:size]
+    started = time.perf_counter()
+    mask(text)
+    return time.perf_counter() - started
+
+
 @pytest.mark.parametrize("entry_point", sorted(_MASKING_ENTRY_POINTS))
-def test_masking_stays_fast_on_adversarial_input(entry_point: str) -> None:
+def test_masking_stays_linear_on_adversarial_input(entry_point: str) -> None:
+    # Compare growth, not wall time, so slow CI runners and coverage tracing
+    # do not matter: 4x more input costs ~4x for linear work, ~16x for quadratic.
     mask = _MASKING_ENTRY_POINTS[entry_point]
     for unit in _ADVERSARIAL_UNITS:
-        text = (unit * (_ADVERSARIAL_SIZE // len(unit) + 1))[:_ADVERSARIAL_SIZE]
-        started = time.perf_counter()
-        mask(text)
-        elapsed = time.perf_counter() - started
-        assert elapsed < 1.0, f"{entry_point} took {elapsed:.2f}s on {unit!r}"
+        small = _masking_seconds(mask, unit, _ADVERSARIAL_SMALL)
+        large = _masking_seconds(mask, unit, _ADVERSARIAL_LARGE)
+        assert large < max(8 * small, 0.05), (
+            f"{entry_point} on {unit!r}: {small:.3f}s -> {large:.3f}s"
+        )
+        assert large < 10.0, f"{entry_point} took {large:.2f}s on {unit!r}"

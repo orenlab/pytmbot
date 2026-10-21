@@ -114,7 +114,7 @@ _URL_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
 # command line or healthcheck. ``X-`` headers count when their name carries a
 # secret marker; the value runs to the next quote or line break.
 _HEADER_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"\b(?P<name>(?:Proxy-)?Authorization|Cookie|X-[A-Za-z0-9-]{1,64}+)\s*+:\s*+",
+    r"\b(?P<name>(?:Proxy-)?Authorization|Cookie|X-[a-z0-9-]{1,64}+)\s*+:\s*+",
     re.IGNORECASE,
 )
 _HEADER_VALUE_END_PATTERN: Final[re.Pattern[str]] = re.compile(r"[\"'\r\n]")
@@ -897,7 +897,7 @@ def _is_secret_flag_awaiting_value(argument: str) -> bool:
 
 
 # Program-aware masking: some programs take secrets through options whose
-# names carry no marker (``mysqld -ps3cret``, ``curl -u user:s3cret``). The
+# names carry no marker (``mysqld -p<password>``, ``curl -u user:<password>``). The
 # rules apply to argv lists and to every simple command of a shell string.
 
 
@@ -1063,7 +1063,7 @@ _QUOTED_TEXT_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 _HEALTHCHECK_EXEC: Final[str] = "CMD"
 _HEALTHCHECK_SHELL: Final[str] = "CMD-SHELL"
-_ENV_ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_ENV_ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z_]\w*=", re.ASCII)
 _SHORT_OPTION_CLUSTER_PATTERN: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9]+")
 # ``>``, ``2>>``, ``2>&1``, ``&>file``, ``<<<``: the target may be glued.
 _REDIRECTION_PATTERN: Final[re.Pattern[str]] = re.compile(r"\d*(?:&>>?|[<>]{1,3}[&|]?)")
@@ -1071,7 +1071,7 @@ _REDIRECTION_PATTERN: Final[re.Pattern[str]] = re.compile(r"\d*(?:&>>?|[<>]{1,3}
 _BUILD_STEP_PREFIX_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?:RUN\s+)?(?:--\S+\s+)*(?:\|\d+\s+)?"
 )
-# Exec-form arrays in image history: ``CMD ["mysqld" "-ps3cret"]``.
+# Exec-form arrays in image history: ``CMD ["mysqld" "-p<password>"]``.
 _JSON_ARGV_PATTERN: Final[re.Pattern[str]] = re.compile(
     r'\[\s*+"(?:[^"\\]|\\.)*+"(?:[\s,]*+"(?:[^"\\]|\\.)*+")*+\s*+\]'
 )
@@ -1325,22 +1325,40 @@ class _ShellScanner:
         if char == '"':
             self._contexts.append(_DOUBLE_QUOTED)
             self._add(index, "")
-        elif char == "\\":
+            return index + 1
+        if char == "\\":
             self._add(index, text[index + 1 : index + 2])
             return index + 2
-        elif char == "#" and self._word_start is None:
+        if char == "#" and self._word_start is None:
             comment_end = text.find("\n", index)
             return len(text) if comment_end < 0 else comment_end
-        elif text.startswith(_SUBSTITUTION, index):
+        nested = self._step_substitution(index)
+        if nested is not None:
+            return nested
+        self._step_plain(index)
+        return index + 1
+
+    def _step_substitution(self, index: int) -> int | None:
+        """Open or close ``$(...)`` and backticks; None for any other character."""
+        char = self._text[index]
+        if self._text.startswith(_SUBSTITUTION, index):
             self._open(index, _SUBSTITUTION)
             return index + 2
-        elif char == _BACKTICK and self._contexts[-1:] == [_BACKTICK]:
+        if char == _BACKTICK:
+            if self._contexts[-1:] == [_BACKTICK]:
+                self._close(index)
+            else:
+                self._open(index, _BACKTICK)
+            return index + 1
+        if char == ")" and self._contexts[-1:] == [_SUBSTITUTION]:
             self._close(index)
-        elif char == _BACKTICK:
-            self._open(index, _BACKTICK)
-        elif char == ")" and self._contexts[-1:] == [_SUBSTITUTION]:
-            self._close(index)
-        elif self._is_separator(index):
+            return index + 1
+        return None
+
+    def _step_plain(self, index: int) -> None:
+        """Separators, redirections, whitespace and word characters."""
+        char = self._text[index]
+        if self._is_separator(index):
             self._end_command(index)
         elif self._starts_glued_redirection(index):
             self._end_word(index)
@@ -1349,7 +1367,6 @@ class _ShellScanner:
             self._end_word(index)
         else:
             self._add(index, char)
-        return index + 1
 
     def _step_double_quoted(self, index: int) -> int:
         text, char = self._text, self._text[index]
@@ -1561,7 +1578,7 @@ def mask_build_step(text: str) -> str:
     Mask secrets in an image history step (``created_by``).
 
     Adds the program rules for ``RUN`` commands and exec-form arrays
-    (``CMD ["mysqld" "-ps3cret"]``) to ``mask_all_assignments`` masking.
+    (``CMD ["mysqld" "-p<password>"]``) to ``mask_all_assignments`` masking.
     """
     prefix_match = _BUILD_STEP_PREFIX_PATTERN.match(text)
     prefix = prefix_match.group(0) if prefix_match else ""
@@ -1579,7 +1596,7 @@ def mask_entrypoint_and_cmd(
 
     Cmd is masked on its own first, because entrypoint scripts usually
     ``exec "$@"`` it; the joined line then adds what only the Entrypoint
-    explains (``mysqld`` + ``-ps3cret``). Masking an already masked argument
+    explains (``mysqld`` + ``-p<password>``). Masking an already masked argument
     keeps it as it is.
     """
     entrypoint_items = [str(item) for item in entrypoint]
@@ -1624,7 +1641,7 @@ def mask_free_text(text: str) -> str:
     """
     Mask secrets in free text from Docker (``State.Error``, probe output).
 
-    Quoted command lines, as in ``exec: "mysqladmin -pS3cret ping": not
+    Quoted command lines, as in ``exec: "mysqladmin -p<password> ping": not
     found``, get the program rules; then the generic masking applies.
     """
 

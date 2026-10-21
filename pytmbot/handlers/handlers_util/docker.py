@@ -397,9 +397,9 @@ def executable_only(arguments: object) -> list[str]:
     A Cmd that only passes arguments to the Entrypoint has no executable of
     its own and is shown as ``hidden``.
     """
-    items = [str(item) for item in arguments] if isinstance(arguments, list) else []
-    if not items:
+    if not isinstance(arguments, list) or not arguments:
         return []
+    items = [str(item) for item in arguments]
     return [command_executable(items) or COMMAND_ARGUMENTS_HIDDEN_TEXT]
 
 

@@ -759,10 +759,9 @@ def test_unauthorized_in_group_wraps_send_errors() -> None:
         raise RuntimeError("chat not found")
 
     bot.send_message = _fail
+    group_message = cast(Message, _group_message())
     with pytest.raises(exceptions.AuthError) as exc_info:
-        auth_module.handle_unauthorized_message(
-            cast(Message, _group_message()), cast(TeleBot, bot)
-        )
+        auth_module.handle_unauthorized_message(group_message, cast(TeleBot, bot))
     assert exc_info.value.context.error_code == "AUTH_001"
 
 

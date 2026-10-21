@@ -147,8 +147,9 @@ def _resolved_client(server: WebhookServer, peer: str, forwarded: str | None) ->
 
 
 def _resolve_status(server: WebhookServer, peer: str, forwarded: str) -> int:
+    request = _build_request(peer)
     with pytest.raises(HTTPException) as error_info:
-        server._resolve_client_ip(_build_request(peer), forwarded)
+        server._resolve_client_ip(request, forwarded)
     return error_info.value.status_code
 
 
@@ -171,8 +172,9 @@ def test_spoofed_leftmost_forwarded_entry_is_not_the_client() -> None:
     assert _resolved_client(server, "10.0.0.5", spoofed) == "203.0.113.7"
 
     check_ip = _telegram_ip_dependency(server)
+    spoofed_request = _build_request("10.0.0.5", spoofed)
     with pytest.raises(HTTPException) as denied:
-        check_ip(request=_build_request("10.0.0.5", spoofed))
+        check_ip(request=spoofed_request)
     assert denied.value.status_code == 403
 
     genuine = f"203.0.113.7, {_TELEGRAM_IP}"
@@ -185,8 +187,9 @@ def test_separate_forwarded_header_lines_are_read_in_order() -> None:
     server = _server_behind("10.0.0.0/8")
     check_ip = _telegram_ip_dependency(server)
 
+    forged_first_line = _build_request("10.0.0.5", _TELEGRAM_IP, "203.0.113.7")
     with pytest.raises(HTTPException) as denied:
-        check_ip(request=_build_request("10.0.0.5", _TELEGRAM_IP, "203.0.113.7"))
+        check_ip(request=forged_first_line)
     assert denied.value.status_code == 403
 
     assert check_ip(
