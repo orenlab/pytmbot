@@ -39,7 +39,8 @@ Supported image architectures:
 
 ## Runtime Defaults
 
-- base image: Ubuntu (`26.04` in the current `Dockerfile`)
+- base image: Ubuntu (`26.04` in the current `Dockerfile`), without the base image's `pebble` service manager; `tini`
+  runs the bot
 - container user: `pytmbot`
 - user/group id: `1001:1001`
 - working directory: `/opt/app`

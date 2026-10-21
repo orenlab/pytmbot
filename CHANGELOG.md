@@ -13,6 +13,8 @@ Patch release with security and reliability fixes.
 - A TOTP code can no longer be reused after a restart that lost the replay state.
 - Webhook behind a proxy: the client address is read from the right of `X-Forwarded-For`, so a forged entry no longer
   passes as Telegram. Too-wide Telegram ranges and `0.0.0.0/0` trusted proxies are rejected.
+- The Docker image no longer ships the base image's unused `pebble` binary, so image scanners stop reporting the Go
+  standard library vulnerabilities bundled in it.
 
 ### Fixed
 
