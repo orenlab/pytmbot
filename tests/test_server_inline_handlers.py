@@ -355,15 +355,20 @@ def test_handle_process_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Compiler,
         "quick_render",
-        lambda template_name, context, **emojis: (
-            f"<p>rows:{len(context['process_rows'])}:{context['process_rows'][0]['name']}</p>"
+        lambda template_name, context, scope_notes, **emojis: (
+            f"<p>rows:{len(context['process_rows'])}:{context['process_rows'][0]['name']}"
+            f":{scope_notes['processes']}</p>"
         ),
     )
-    monkeypatch.setattr(top_process_module, "running_in_docker", True)
+    monkeypatch.setattr(
+        top_process_module,
+        "get_metric_scope_notes",
+        lambda: {"processes": "Processes: whole host"},
+    )
     _invoke(handler, bot, data="__process_info__:17")
     edited = bot.edited_messages[-1]
     rich_message = cast(InputRichMessage, edited["rich_message"])
-    assert rich_message.html == "<p>rows:2:super-long-…</p>"
+    assert rich_message.html == "<p>rows:2:super-long-…:Processes: whole host</p>"
     assert "parse_mode" not in edited
     assert_reply_markup_has_callbacks(
         edited.get("reply_markup"),

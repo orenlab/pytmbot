@@ -11,7 +11,11 @@ import pytest
 from telebot.types import InputRichMessage
 
 from pytmbot.utils.cli import parse_cli_args
-from pytmbot.utils.environment import get_environment_state, is_running_in_docker
+from pytmbot.utils.environment import (
+    get_docker_metric_scopes,
+    get_environment_state,
+    is_running_in_docker,
+)
 from pytmbot.utils.rich_html import find_rich_html_issues
 
 
@@ -36,10 +40,12 @@ def stable_process_state(
     monkeypatch.setattr(handlers_utils_module, "_nav_sync_messages", OrderedDict())
     parse_cli_args.cache_clear()
     is_running_in_docker.cache_clear()
+    get_docker_metric_scopes.cache_clear()
     get_environment_state.cache_clear()
     yield
     parse_cli_args.cache_clear()
     is_running_in_docker.cache_clear()
+    get_docker_metric_scopes.cache_clear()
     get_environment_state.cache_clear()
 
 

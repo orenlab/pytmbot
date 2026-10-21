@@ -26,7 +26,15 @@ See also: [auth_control.md](auth_control.md).
   proxy.
 - Container actions verify that Docker resolved the exact container that was shown (exact name or a 12+ character ID
   prefix) and are serialized per container.
-- Environment variables, URL credentials, and secret-looking command-line values are masked in Docker views.
+- Docker views mask environment variable values (except harmless keys such as `PATH` and `TZ`), URL and HTTP header
+  credentials, values of secret-looking flags and `KEY=VALUE` pairs, and the password options of common tools
+  (`mysql -p`, `curl -u user:password`, `redis-cli -a`, `sshpass -p`, `htpasswd -b`, ...), also inside `sh -c`
+  scripts, image history, healthcheck output and container errors. Masking is best effort: it cannot recognize every
+  secret.
+- Command arguments (container and image Entrypoint, Cmd, Shell, healthcheck test and image history steps) are shown
+  only to an admin (`allowed_admins_ids`) in a private chat with the bot, like 2FA codes. Other users, and everyone in a
+  group, see just the executable (a Cmd after an Entrypoint is hidden entirely) and the instruction of each history
+  step (`RUN`, `COPY`, ...).
 - Recommended runtime hardening:
   - read-only root filesystem
   - `no-new-privileges`
@@ -57,12 +65,14 @@ See also: [auth_control.md](auth_control.md).
 - Store secrets only in `pytmbot.yaml`.
 - Restrict config permissions (recommended `600`).
 - Mount config as read-only in container deployments.
-- For read-only containers, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume.
+- Read-only containers keep runtime state in a private `/dev/shm/pytmbot-<uid>` directory unless `PYTMBOT_STATE_DIR`
+  points to a writable private tmpfs or volume; with `ipc: host` or a shared IPC namespace, set `PYTMBOT_STATE_DIR`
+  (see [Docker: Runtime State](docker.md#runtime-state)).
 - Expose webhook mode only behind a trusted reverse proxy with TLS.
 
 ## Operational Baseline
 
-- Use `orenlab/pytmbot:0.5.2` for exact-release reproducibility.
+- Use `orenlab/pytmbot:0.5.3` for exact-release reproducibility.
 - Use `orenlab/pytmbot:0.5` or `orenlab/pytmbot:stable` for the supported stable line with weekly base-image refreshes.
 - Development builds from `feat/*` / `fix/*` publish as `edge-*`; do not treat them as production tags.
 - Run periodic vulnerability scans for container image and host.

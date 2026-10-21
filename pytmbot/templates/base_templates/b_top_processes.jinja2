@@ -22,8 +22,8 @@
 <p>No process data available.</p>
 {% endif %}
 
-{% if context.running_in_docker %}
-<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% if scope_notes %}
+<p><i>{{ scope_notes.processes }}</i></p>
 {% endif %}
 
 <footer>Updated {{ context.timestamp|e }}</footer>

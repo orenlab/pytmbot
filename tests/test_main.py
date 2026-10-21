@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from pytmbot.exceptions import InitializationError
+from pytmbot.health_system.snapshot import HealthSnapshotWriter
+from pytmbot.utils.cli import parse_cli_args
+from pytmbot.utils.state_paths import StateRoot, StateRootSource
 from tests._main_module_loader import load_main_module
 
 
@@ -56,6 +62,53 @@ def test_validate_environment_raises_for_old_python(
         launcher.validate_environment()
 
 
+@pytest.mark.parametrize(
+    ("state_root", "expected"),
+    [
+        (
+            StateRoot(Path("/state"), StateRootSource.RUNTIME_FALLBACK),
+            [("info", "bot.launcher.state.dir.fallback.info")],
+        ),
+        (
+            StateRoot(Path("/state"), StateRootSource.STATE_DIR_ENV, writable=False),
+            [("error", "bot.launcher.state.dir.unwritable.fail")],
+        ),
+        (
+            StateRoot(Path("/state"), StateRootSource.DEFAULT, writable=False),
+            [("error", "bot.launcher.state.dir.unwritable.fail")],
+        ),
+        (StateRoot(Path("/state"), StateRootSource.DEFAULT), []),
+        (StateRoot(Path("/state"), StateRootSource.STATE_DIR_ENV), []),
+    ],
+)
+def test_validate_environment_reports_state_root(
+    monkeypatch: pytest.MonkeyPatch,
+    state_root: StateRoot,
+    expected: list[tuple[str, str]],
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    monkeypatch.setattr(main_module, "resolve_state_root", lambda: state_root)
+    records: list[tuple[str, str]] = []
+    contexts: list[dict[str, object]] = []
+
+    @contextmanager
+    def capture_log_context(**context: object) -> Iterator[SimpleNamespace]:
+        contexts.append(context)
+        yield SimpleNamespace(
+            debug=lambda _message: None,
+            info=lambda message: records.append(("info", message)),
+            error=lambda message: records.append(("error", message)),
+        )
+
+    monkeypatch.setattr(launcher, "log_context", capture_log_context)
+
+    launcher.validate_environment()
+
+    assert records == expected
+    assert {"state_dir": "/state", "source": state_root.source.value} in contexts
+
+
 def test_start_bot_polling_sets_shutdown_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -68,27 +121,67 @@ def test_start_bot_polling_sets_shutdown_on_failure(
     assert launcher.shutdown_requested.is_set() is True
 
 
-@pytest.mark.parametrize(
-    ("health_result", "expected_exit_code"),
-    [(True, 0), (False, 1), (None, 2)],
-)
-def test_check_health_exit_codes(
+@pytest.mark.parametrize("probe_exit_code", [0, 1, 2])
+def test_check_health_exits_with_snapshot_probe_code(
     monkeypatch: pytest.MonkeyPatch,
-    health_result: bool | None,
-    expected_exit_code: int,
+    probe_exit_code: int,
 ) -> None:
     main_module = _load_main_module(monkeypatch)
+    monkeypatch.setattr(main_module, "run_probe", lambda: probe_exit_code)
 
-    class _FakeHealthStatus:
-        def __init__(self, result: bool | None) -> None:
-            self.last_health_check_result = result
-
-    monkeypatch.setattr(
-        main_module, "HealthStatus", lambda: _FakeHealthStatus(health_result)
-    )
     with pytest.raises(SystemExit) as exc_info:
         main_module.check_health()
-    assert exc_info.value.code == expected_exit_code
+    assert exc_info.value.code == probe_exit_code
+
+
+def test_check_health_reads_snapshot_not_in_process_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    monkeypatch.setenv("PYTMBOT_STATE_DIR", str(tmp_path))
+
+    with pytest.raises(SystemExit) as exc_info:
+        main_module.check_health()
+
+    assert exc_info.value.code == 2
+    assert "no health snapshot" in capsys.readouterr().err
+
+
+def test_setup_health_system_wires_run_mode_and_snapshot_writer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    monkeypatch.setenv("PYTMBOT_STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["pytmbot-main-test", "--webhook", "true"])
+    monkeypatch.setattr(main_module, "args", None)
+    parse_cli_args.cache_clear()
+    captured: dict[str, object] = {}
+
+    def _fake_create_health_manager(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(monitor=SimpleNamespace(checker_count=0))
+
+    class _HealthStatusStub:
+        def set_manager(self, _manager: SimpleNamespace) -> None:
+            return
+
+    monkeypatch.setattr(
+        main_module, "create_health_manager", _fake_create_health_manager
+    )
+    # Keep the fake manager out of the process-wide HealthStatus singleton.
+    monkeypatch.setattr(main_module, "HealthStatus", _HealthStatusStub)
+    launcher = main_module.BotLauncher()
+    launcher.bot = SimpleNamespace(bot=SimpleNamespace())
+
+    launcher.setup_health_system()
+
+    assert captured["webhook_mode"] is True
+    writer = captured["snapshot_writer"]
+    assert isinstance(writer, HealthSnapshotWriter)
+    assert writer.path == tmp_path / "health.json"
 
 
 def test_module_entrypoint_invokes_main(monkeypatch: pytest.MonkeyPatch) -> None:

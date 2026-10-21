@@ -33,6 +33,7 @@ from pytmbot.handlers.server_handlers.inline.common import (
 from pytmbot.keyboards.keyboards import NAV_MAIN
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
@@ -275,6 +276,7 @@ def handle_quick_view(message: Message, bot: TeleBot) -> None:
             template_name="b_quick_view.jinja2",
             context=context,
             updated_at=screen_updated_at(),
+            scope_notes=get_metric_scope_notes(),
             **emojis,
         )
 

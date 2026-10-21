@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.5.3] — 20261021
+
+Patch release with security and reliability fixes.
+
+### Security
+
+- Passwords in container and image commands are masked for short options and shell scripts too (`mysqld -ps3cret`,
+  `curl -u user:pass`, `redis-cli -a`, `sh -c '…'`), as are healthcheck output and `State.Error`. Command arguments and
+  image build steps are shown only to admins in a private chat with the bot.
+- 2FA codes and the QR code are handled only in a private chat; groups get an **Open private chat** link.
+- A TOTP code can no longer be reused after a restart that lost the replay state.
+- Webhook behind a proxy: the client address is read from the right of `X-Forwarded-For`, so a forged entry no longer
+  passes as Telegram. Too-wide Telegram ranges and `0.0.0.0/0` trusted proxies are rejected.
+- The Docker image no longer ships the base image's unused `pebble` binary, so image scanners stop reporting the Go
+  standard library vulnerabilities bundled in it.
+
+### Fixed
+
+- The container healthcheck reports the bot's real health (it could never fail before).
+- A read-only container without `PYTMBOT_STATE_DIR` keeps its runtime state (health snapshot, 2FA replay protection,
+  webhook bans) in a private `/dev/shm/pytmbot-<uid>` directory, so the healthcheck works without extra settings (not
+  with `ipc: host`). An unwritable `PYTMBOT_STATE_DIR` is reported at startup and never replaced.
+- Polling recovers after a network error at start-up instead of stopping for good, and a bot that stops because of
+  an error exits with a non-zero status, so `restart: on-failure` restarts it.
+- Exit codes are kept: the image no longer sets `PYTHONINSPECT=0`.
+- `docker.stop_timeout` and `docker.restart_timeout` (new, 1–300 s) are applied; a successful 2FA code resets failed
+  attempts; `::ffff:`-mapped Telegram addresses are accepted.
+
+### Changed
+
+- Server screens say whose numbers they show in Docker (host or container).
+
 ## [0.5.2] — 20261021
 
 Security patch release for the eMudhra CA incident.

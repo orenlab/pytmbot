@@ -15,6 +15,7 @@ import pytmbot.handlers.server_handlers.load_average as load_average_module
 import pytmbot.handlers.server_handlers.memory as memory_module
 import pytmbot.handlers.server_handlers.network as network_module
 import pytmbot.handlers.server_handlers.process as process_module
+import pytmbot.handlers.server_handlers.quickview as quickview_module
 import pytmbot.handlers.server_handlers.sensors as sensors_module
 import pytmbot.handlers.server_handlers.uptime as uptime_module
 from pytmbot.exceptions import HandlingException
@@ -481,6 +482,74 @@ def test_handle_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(HandlingException) as exc_info:
         _invoke_handler(cpu_module.handle_cpu, message, bot)
     assert exc_info.value.context.error_code == "HAND_CPU_001"
+
+
+_SCOPE_NOTE_MESSAGE_CASES: tuple[
+    tuple[ModuleType, str, str, str, _PayloadValue], ...
+] = (
+    (cpu_module, "handle_cpu", "b_cpu.jinja2", "", None),
+    (filesystem_module, "handle_file_system", "b_fs.jinja2", "get_disk_usage", []),
+    (memory_module, "handle_memory", "b_memory.jinja2", "get_memory", {"percent": 1}),
+    (network_module, "handle_network", "b_net_io.jinja2", "get_net_io_counters", []),
+    (
+        process_module,
+        "handle_process",
+        "b_process.jinja2",
+        "get_process_counts",
+        {"running": 1},
+    ),
+    (quickview_module, "handle_quick_view", "b_quick_view.jinja2", "", None),
+)
+
+
+@pytest.mark.parametrize(
+    ("module", "handler_name", "template_name", "adapter_method", "payload"),
+    _SCOPE_NOTE_MESSAGE_CASES,
+)
+def test_metric_screens_pass_scope_notes(
+    monkeypatch: pytest.MonkeyPatch,
+    module: ModuleType,
+    handler_name: str,
+    template_name: str,
+    adapter_method: str,
+    payload: _PayloadValue,
+) -> None:
+    bot, _actions, messages = build_bot_capture(monkeypatch, include_reply_markup=True)
+    if adapter_method:
+        monkeypatch.setattr(
+            module,
+            "psutil_adapter",
+            type("A", (), {adapter_method: lambda self: payload})(),
+        )
+    monkeypatch.setattr(
+        cpu_module, "_build_cpu_overview_context", lambda: {"cpu_percent": 1.0}
+    )
+    monkeypatch.setattr(quickview_module, "_collect_metrics", lambda: {"uptime": "1d"})
+    monkeypatch.setattr(
+        module,
+        "button_data",
+        lambda text, callback_data: {"text": text, "callback_data": callback_data},
+    )
+    monkeypatch.setattr(
+        module,
+        "keyboards",
+        type("K", (), {"build_inline_keyboard": lambda self, data: {"inline": data}})(),
+    )
+    scope_notes = {"cpu": "CPU: whole host"}
+    monkeypatch.setattr(module, "get_metric_scope_notes", lambda: scope_notes)
+    renders: list[dict[str, object]] = []
+
+    def _capture_render(**kwargs: object) -> str:
+        renders.append(kwargs)
+        return "<p>ok</p>"
+
+    monkeypatch.setattr(Compiler, "quick_render", _capture_render)
+
+    _invoke_handler(getattr(module, handler_name), _build_message(16), bot)
+
+    assert _latest_content_message(messages)["text"] == "<p>ok</p>"
+    assert renders[-1]["template_name"] == template_name
+    assert renders[-1]["scope_notes"] is scope_notes
 
 
 def test_handle_health_summary_paths(monkeypatch: pytest.MonkeyPatch) -> None:

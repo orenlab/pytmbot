@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current repository sample value: `0.5.2`.
+- Current repository sample value: `0.5.3`.
 - Supported values are defined in `get_compatibility_matrix()` inside `pytmbot/models/settings_model.py`.
 - Legacy configs without this field are auto-migrated.
 
@@ -64,6 +64,10 @@ Required.
 - `strict_access`: optional boolean, default `false`.
 - `timeout`: optional integer, default `10`; per-request Docker API timeout in seconds; values outside `5`-`300` are
   clamped to that range.
+- `stop_timeout`, `restart_timeout`: optional integers, default `10` each; seconds Docker waits for a graceful stop
+  before killing the container, for Stop and Restart from the bot. Values outside `1`-`300` are clamped to that range.
+  They override the container's own `--stop-timeout`. The Docker request for these actions may take `timeout` plus
+  this grace period, so a socket proxy between the bot and Docker must not close it sooner.
 - `cert_path`, `key_path`: optional TLS client certificate and key, for `https://` hosts only.
 - `ca_cert`: optional, default `true` (system CAs); a CA bundle path, or `false` to disable server verification
   (not recommended).
@@ -83,12 +87,16 @@ Optional. Required only when running with `--webhook true`.
 - `local_port`: local listening port for the embedded FastAPI / Uvicorn server.
 - `cert`: optional certificate path for in-process TLS.
 - `cert_key`: optional private key path for in-process TLS.
-- `trusted_proxy_ips`: optional list of trusted reverse-proxy IPs or CIDRs.
+- `trusted_proxy_ips`: optional list of trusted reverse-proxy IPs or CIDRs; list every proxy hop that adds to
+  `X-Forwarded-For` (see [webhook.md](webhook.md#client-address-resolution)).
 - `additional_telegram_ip_ranges`: optional list of extra Telegram source ranges.
 
 Validation:
 
 - `trusted_proxy_ips` and `additional_telegram_ip_ranges` must be valid IPs / CIDRs.
+- `trusted_proxy_ips` cannot contain `0.0.0.0/0` or `::/0`: trusting every peer would let any sender choose the
+  client address.
+- `additional_telegram_ip_ranges` entries must be `/16` or narrower for IPv4 and `/32` or narrower for IPv6.
 
 Runtime notes:
 
@@ -137,7 +145,7 @@ Optional. Required when the `monitor` plugin is enabled.
 ## Minimal Required Configuration
 
 ```yaml
-config_version: "0.5.2"
+config_version: "0.5.3"
 
 bot_token:
   prod_token:

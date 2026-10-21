@@ -6,11 +6,15 @@ also providing basic information about the status of local servers.
 """
 
 from telebot import TeleBot
-from telebot.types import Message
+from telebot.types import Message, ReplyKeyboardMarkup
 
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.auth_processing.auth_processing import (
+    is_private_chat,
+    send_private_chat_notice,
+)
 from pytmbot.handlers.handlers_util.utils import send_bot_message, send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -33,6 +37,17 @@ QR_DELETED_NAVIGATION_TEXT = (
     "🧹 QR code message was deleted for security.\n"
     "Use the button below to return to the main menu."
 )
+QR_DELETION_BUSY_TEXT = (
+    "⏳ Too many messages are waiting for auto-deletion. Please try again in a minute."
+)
+QR_NOT_SCHEDULED_TEXT = (
+    "⚠️ Couldn't schedule the QR code for auto-deletion, so I removed it. "
+    "Please try again in a minute."
+)
+QR_NOT_REMOVED_TEXT = (
+    "⚠️ Couldn't schedule the QR code for auto-deletion or remove it. "
+    "Delete the QR code message yourself right after scanning it."
+)
 
 
 def _qr_deletion_callback(
@@ -50,6 +65,161 @@ def _qr_deletion_callback(
         logger.warning("bot.handler.auth_processing.qrcode_processing.delete.qr.fail")
 
 
+def _schedule_qr_deletion(
+    bot: TeleBot,
+    *,
+    chat_id: int,
+    message_id: int,
+    user_id: int,
+    delay_seconds: int,
+) -> bool:
+    """Schedule the auto-deletion of a QR message; return True when scheduled."""
+    try:
+        deletion_result = deletion_manager.schedule_deletion(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            user_id=user_id,
+            delay_seconds=delay_seconds,
+            callback=create_post_delete_navigation_callback(
+                _qr_deletion_callback,
+                bot=bot,
+                chat_id=chat_id,
+                navigation_text=QR_DELETED_NAVIGATION_TEXT,
+            ),
+        )
+    except Exception as error:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.schedule.deletion.fail",
+            error=str(error),
+        )
+        return False
+
+    if deletion_result.status != DeletionStatus.SCHEDULED:
+        # LIMIT_EXCEEDED (another deletion took the last slot) or a failure.
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.unexpected.deletion.fail",
+            status=deletion_result.status.name,
+        )
+        return False
+
+    logger.info("bot.handler.auth_processing.qrcode_processing.qr.code.info")
+    return True
+
+
+def _withdraw_qr_message(bot: TeleBot, chat_id: int, message_id: int) -> bool:
+    """Delete a QR message whose auto-deletion is not scheduled; True if deleted."""
+    try:
+        bot.delete_message(chat_id, message_id)
+    except Exception as error:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.withdraw.qr.fail",
+            error=str(error),
+        )
+        return False
+    return True
+
+
+def _send_short_lived_error(
+    bot: TeleBot,
+    chat_id: int,
+    *,
+    text: str,
+    keyboard: ReplyKeyboardMarkup,
+    user_id: int,
+) -> None:
+    """Send an error about the QR code and delete it after a short delay."""
+    error_message = send_bot_message(bot, chat_id, text=text, reply_markup=keyboard)
+    try:
+        deletion_manager.schedule_deletion(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=error_message.message_id,
+            user_id=user_id,
+            delay_seconds=15,  # Delete error messages faster
+            callback=create_post_delete_navigation_callback(
+                _qr_deletion_callback,
+                bot=bot,
+                chat_id=chat_id,
+                navigation_text=QR_DELETED_NAVIGATION_TEXT,
+            ),
+        )
+    except Exception:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.schedule.deletion.fail"
+        )
+
+
+def _report_qr_generation_failure(
+    bot: TeleBot, message: Message, *, keyboard: ReplyKeyboardMarkup, user_id: int
+) -> None:
+    """Tell the user the QR code could not be generated."""
+    response = Compiler.quick_render(
+        template_name="b_none.jinja2",
+        context="Couldn't generate a QR code right now. Please try again.",
+        thought_balloon=em.get_emoji("thought_balloon"),
+        anxious_face_with_sweat=em.get_emoji("anxious_face_with_sweat"),
+    )
+    _send_short_lived_error(
+        bot, message.chat.id, text=response, keyboard=keyboard, user_id=user_id
+    )
+    logger.error(
+        "bot.handler.auth_processing.qrcode_processing.generate.qr.fail",
+        extra={"user_id": user_id, "chat_id": message.chat.id},
+    )
+
+
+def _deliver_qr_code(
+    bot: TeleBot,
+    message: Message,
+    *,
+    qr_code: bytes,
+    keyboard: ReplyKeyboardMarkup,
+    user_id: int,
+    auto_delete_delay: int,
+) -> Message | None:
+    """
+    Send the QR code and make sure it does not stay in the chat.
+
+    Returns the sent message while it is in the chat (deletion scheduled, or
+    removing it failed), None once it has been withdrawn.
+    """
+    sent_message = bot.send_photo(
+        message.chat.id,
+        photo=qr_code,
+        reply_markup=keyboard,
+        caption=f"🔐 The QR code is ready. Click on the image and scan it in your 2FA app. "
+        f"This message will be automatically deleted in {auto_delete_delay} seconds for security.",
+        protect_content=True,
+        has_spoiler=True,
+        show_caption_above_media=True,
+    )
+    if _schedule_qr_deletion(
+        bot,
+        chat_id=message.chat.id,
+        message_id=sent_message.message_id,
+        user_id=user_id,
+        delay_seconds=auto_delete_delay,
+    ):
+        return sent_message
+
+    # Never leave the QR code (it holds the 2FA secret) in the chat.
+    if _withdraw_qr_message(bot, message.chat.id, sent_message.message_id):
+        send_bot_message(
+            bot, message.chat.id, text=QR_NOT_SCHEDULED_TEXT, reply_markup=keyboard
+        )
+        return None
+    # Never claim the QR code is gone while it is still in the chat.
+    send_bot_message(
+        bot,
+        message.chat.id,
+        text=QR_NOT_REMOVED_TEXT,
+        reply_markup=keyboard,
+        reply_to_message_id=sent_message.message_id,
+    )
+    return sent_message
+
+
 @logger.session_decorator
 def handle_qr_code_message(
     message: Message, bot: TeleBot, auto_delete_delay: int = 60
@@ -65,12 +235,15 @@ def handle_qr_code_message(
         auto_delete_delay (int): Delay in seconds before auto-deletion (default: 60)
 
     Returns:
-        Message | None: The message object sent to the user, or None if the QR code generation fails.
+        Message | None: The message object sent to the user, or None if no QR
+        code was left in the chat.
 
     Security Considerations:
+        - QR codes are sent only in a private chat; groups get a link to it
         - QR code messages are auto-deleted to protect sensitive TOTP information
         - Messages are sent with content protection and spoiler tags
-        - Graceful handling when deletion limits are exceeded
+        - A QR code is never left without scheduled deletion: it is refused when
+          the deletion limit is reached and removed when scheduling fails
         - All operations are logged for security monitoring
     """
     if message.from_user is None:
@@ -79,6 +252,10 @@ def handle_qr_code_message(
             message.chat.id,
             "⚠️ Cannot identify user for QR generation.",
         )
+        return None
+
+    if not is_private_chat(message.chat):
+        send_private_chat_notice(bot, message)
         return None
 
     user_id = message.from_user.id
@@ -99,146 +276,44 @@ def handle_qr_code_message(
         )
         return None
 
+    if not deletion_manager.can_schedule(user_id):
+        logger.warning(
+            "bot.handler.auth_processing.qrcode_processing.deletion.limit.warn"
+        )
+        send_bot_message(
+            bot,
+            message.chat.id,
+            text=QR_DELETION_BUSY_TEXT,
+            reply_markup=keyboard,
+        )
+        return None
+
     try:
         # Send typing indicator for better UX
         bot.send_chat_action(message.chat.id, "upload_photo")
 
         qr_code = authenticator.generate_totp_qr_code()
-
         if qr_code:
-            # Send QR code with security features
-            sent_message = bot.send_photo(
-                message.chat.id,
-                photo=qr_code,
-                reply_markup=keyboard,
-                caption=f"🔐 The QR code is ready. Click on the image and scan it in your 2FA app. "
-                f"This message will be automatically deleted in {auto_delete_delay} seconds for security.",
-                protect_content=True,
-                has_spoiler=True,
-                show_caption_above_media=True,
-            )
-
-            # Schedule automatic deletion for security protection
-            deletion_result = deletion_manager.schedule_deletion(
-                bot=bot,
-                chat_id=message.chat.id,
-                message_id=sent_message.message_id,
-                user_id=user_id,
-                delay_seconds=auto_delete_delay,
-                callback=create_post_delete_navigation_callback(
-                    _qr_deletion_callback,
-                    bot=bot,
-                    chat_id=message.chat.id,
-                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
-                ),
-            )
-
-            # Handle different deletion scheduling outcomes
-            if deletion_result.status == DeletionStatus.LIMIT_EXCEEDED:
-                # Inform user about exceeded deletion limit
-                warning_msg = (
-                    "⚠️ <b>Security Notice:</b> Too many pending auto-deletions. "
-                    "This QR code will not be automatically deleted.\n\n"
-                    "<i>Please manually delete this message immediately after scanning for security!</i>"
-                )
-
-                send_bot_message(
-                    bot,
-                    message.chat.id,
-                    text=warning_msg,
-                    parse_mode="HTML",
-                    reply_markup=keyboard,
-                    reply_to_message_id=sent_message.message_id,
-                )
-
-                logger.warning(
-                    "bot.handler.auth_processing.qrcode_processing.qr.code.warn"
-                )
-
-            elif deletion_result.status == DeletionStatus.SCHEDULED:
-                logger.info(
-                    "bot.handler.auth_processing.qrcode_processing.qr.code.info"
-                )
-
-            else:
-                # Fallback for any other unexpected status
-                logger.error(
-                    "bot.handler.auth_processing.qrcode_processing.unexpected.deletion.fail"
-                )
-
-            return sent_message
-
-        else:
-            # Handle QR code generation failure
-            emojis = {
-                "thought_balloon": em.get_emoji("thought_balloon"),
-                "anxious_face_with_sweat": em.get_emoji("anxious_face_with_sweat"),
-            }
-
-            response = Compiler.quick_render(
-                template_name="b_none.jinja2",
-                context="Couldn't generate a QR code right now. Please try again.",
-                **emojis,
-            )
-
-            error_message = send_bot_message(
+            return _deliver_qr_code(
                 bot,
-                message.chat.id,
-                text=response,
-                reply_markup=keyboard,
-            )
-
-            # Schedule deletion of error message as well (shorter delay)
-            deletion_manager.schedule_deletion(
-                bot=bot,
-                chat_id=message.chat.id,
-                message_id=error_message.message_id,
+                message,
+                qr_code=qr_code,
+                keyboard=keyboard,
                 user_id=user_id,
-                delay_seconds=15,  # Delete error messages faster
-                callback=create_post_delete_navigation_callback(
-                    _qr_deletion_callback,
-                    bot=bot,
-                    chat_id=message.chat.id,
-                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
-                ),
+                auto_delete_delay=auto_delete_delay,
             )
-
-            logger.error(
-                "bot.handler.auth_processing.qrcode_processing.generate.qr.fail",
-                extra={"user_id": user_id, "chat_id": message.chat.id},
-            )
-
-            return None
+        _report_qr_generation_failure(bot, message, keyboard=keyboard, user_id=user_id)
+        return None
 
     except Exception as error:
         # Send user-friendly error message
-        error_msg = "⚠️ Couldn't create the QR code right now. Please try again."
-        error_message = send_bot_message(
+        _send_short_lived_error(
             bot,
             message.chat.id,
-            text=error_msg,
-            reply_markup=keyboard,
+            text="⚠️ Couldn't create the QR code right now. Please try again.",
+            keyboard=keyboard,
+            user_id=user_id,
         )
-
-        # Schedule deletion of error message
-        try:
-            deletion_manager.schedule_deletion(
-                bot=bot,
-                chat_id=message.chat.id,
-                message_id=error_message.message_id,
-                user_id=user_id,
-                delay_seconds=15,
-                callback=create_post_delete_navigation_callback(
-                    _qr_deletion_callback,
-                    bot=bot,
-                    chat_id=message.chat.id,
-                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
-                ),
-            )
-        except Exception:
-            logger.error(
-                "bot.handler.auth_processing.qrcode_processing.schedule.deletion.fail"
-            )
 
         # Log detailed error information and raise custom exception
         error_context = ErrorContext(

@@ -48,7 +48,6 @@ MIN_OPERATION_INTERVAL_SECONDS: Final[float] = 1.0
 RATE_LIMIT_CACHE_TTL_SECONDS: Final[float] = 300.0
 MAX_RATE_LIMITED_USERS: Final[int] = 2048
 DEFAULT_SESSION_MAX_AGE_SECONDS: Final[int] = 3600
-DEFAULT_STOP_TIMEOUT_SECONDS: Final[int] = 10
 
 
 class _UserRateLimiter:
@@ -456,8 +455,8 @@ class ContainerManager:
     def _stop_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
-        """Stop a running container (graceful timeout, then SIGKILL)."""
-        timeout = getattr(settings.docker, "stop_timeout", DEFAULT_STOP_TIMEOUT_SECONDS)
+        """Stop a running container (``docker.stop_timeout`` grace, then SIGKILL)."""
+        timeout = settings.docker.stop_timeout
         return self._execute_lifecycle_operation(
             user_id=user_id,
             container_id=container_id,
@@ -469,10 +468,8 @@ class ContainerManager:
     def _restart_container(
         self, user_id: int, container_id: ContainerId
     ) -> DockerResponse:
-        """Restart a container (a stopped container is started)."""
-        timeout = getattr(
-            settings.docker, "restart_timeout", DEFAULT_STOP_TIMEOUT_SECONDS
-        )
+        """Restart a container (``docker.restart_timeout`` grace; a stopped one starts)."""
+        timeout = settings.docker.restart_timeout
         return self._execute_lifecycle_operation(
             user_id=user_id,
             container_id=container_id,

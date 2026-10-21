@@ -452,6 +452,7 @@ def test_get_bot_session_statistics_includes_runtime_state(
     bot = instance_module.PyTMBot()
     dummy = _make_dummy_telebot(polling=True)
     bot.bot = cast(TeleBot, dummy)
+    bot._polling_active = True
 
     monkeypatch.setattr(instance_module.PyTMBot, "is_healthy", lambda self: True)
     monkeypatch.setattr(
@@ -591,7 +592,10 @@ def test_is_healthy_state_checks() -> None:
     bot._session = instance_module.BotSession.create(mode="dev", webhook_enabled=False)
     assert bot.is_healthy() is False
 
+    # TeleBot.polling is a method (always truthy); the loop's own flag counts.
     dummy.polling = True
+    assert bot.is_healthy() is False
+    bot._polling_active = True
     assert bot.is_healthy() is True
 
     bot._state = instance_module.BotState.ERROR
@@ -868,3 +872,89 @@ def test_fallback_handler_is_registered_after_plugins(
     assert callback is fallback_module.handle_unrecognized_message
     assert kwargs["func"] is fallback_module.is_unrecognized_private_text
     assert kwargs["content_types"] == ["text"]
+
+
+class _PollingTeleBot:
+    """TeleBot stand-in: scripted ``polling()`` outcomes and recorded stops."""
+
+    def __init__(self, outcomes: list[Exception | None], loop: instance_module.PyTMBot):
+        self.outcomes = outcomes
+        self.loop = loop
+        self.polling_calls = 0
+        self.active_during_polling: list[bool] = []
+        self.stop_calls = 0
+
+    def polling(self, **_kwargs: _PayloadValue) -> None:
+        self.polling_calls += 1
+        self.active_during_polling.append(self.loop._polling_active)
+        outcome = self.outcomes.pop(0) if self.outcomes else None
+        if not self.outcomes and outcome is None:
+            # Last scripted run: behave like shutdown arriving while polling.
+            self.loop.stop_polling_loop()
+        if outcome is not None:
+            raise outcome
+
+    def stop_polling(self) -> None:
+        self.stop_calls += 1
+
+
+def _polling_loop_bot(
+    monkeypatch: pytest.MonkeyPatch, outcomes: list[Exception | None]
+) -> tuple[instance_module.PyTMBot, _PollingTeleBot, list[float]]:
+    bot = instance_module.PyTMBot()
+    fake = _PollingTeleBot(outcomes, bot)
+    bot.bot = cast(TeleBot, fake)
+    sleeps: list[float] = []
+    monkeypatch.setattr("pytmbot.pytmbot_instance.time.sleep", sleeps.append)
+    monkeypatch.setattr(
+        bot._polling_stop_requested, "wait", lambda timeout=None: sleeps.append(timeout)
+    )
+    return bot, fake, sleeps
+
+
+def test_polling_loop_recovers_after_start_error_without_stopping_telebot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A network error while starting used to call stop_polling(); infinity_polling()
+    # then never polled again and re-requested updates in a tight loop.
+    bot, fake, sleeps = _polling_loop_bot(
+        monkeypatch, [requests.exceptions.ConnectionError("no network yet"), None]
+    )
+
+    bot._start_polling_loop(cast(TeleBot, fake))
+
+    assert fake.polling_calls == 2
+    assert fake.active_during_polling == [True, True]
+    assert bot._polling_active is False
+    assert sleeps == [instance_module.DEFAULT_BASE_SLEEP_TIME]  # one backoff
+    # Only shutdown and the safety context stop TeleBot, never the error path.
+    assert fake.stop_calls == 2
+
+
+def test_polling_loop_resumes_after_stop_without_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def stopped_by_conflict_handling(**_kwargs: _PayloadValue) -> None:
+        fake.polling_calls += 1
+        if fake.polling_calls == 2:
+            bot.stop_polling_loop()
+
+    bot, fake, sleeps = _polling_loop_bot(monkeypatch, [])
+    monkeypatch.setattr(fake, "polling", stopped_by_conflict_handling)
+
+    bot._start_polling_loop(cast(TeleBot, fake))
+
+    # First return (stop without shutdown) resumes after a pause; shutdown ends it.
+    assert fake.polling_calls == 2
+    assert sleeps == [instance_module.DEFAULT_BASE_SLEEP_TIME]
+
+
+def test_polling_loop_ends_at_once_after_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot, fake, _sleeps = _polling_loop_bot(monkeypatch, [None])
+    bot.stop_polling_loop()
+
+    bot._start_polling_loop(cast(TeleBot, fake))
+
+    assert fake.polling_calls == 0

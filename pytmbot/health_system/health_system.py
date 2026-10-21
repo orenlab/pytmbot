@@ -11,9 +11,11 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
+from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Final, Protocol, override, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, override, runtime_checkable
 from weakref import ReferenceType, ref
 
 import telebot
@@ -21,6 +23,15 @@ from telebot.apihelper import ApiTelegramException
 
 from pytmbot.logs import BaseComponent
 from pytmbot.utils import to_float
+
+if TYPE_CHECKING:
+    from pytmbot.health_system.snapshot import HealthSnapshotWriter
+
+# ``TeleBot`` has no public polling flag: ``TeleBot.polling`` is a method (always
+# truthy) and the polling worker thread is a local of ``__threaded_polling``. The
+# event set by ``stop_polling()`` is the reliable signal: while it is set,
+# ``infinity_polling()`` returns at once and the bot no longer receives updates.
+_TELEBOT_STOP_POLLING_ATTR: Final[str] = "_TeleBot__stop_polling"
 
 RESOURCE_MEMORY_CRITICAL_THRESHOLD: Final[float] = 90.0
 RESOURCE_MEMORY_UNHEALTHY_THRESHOLD: Final[float] = 80.0
@@ -68,6 +79,10 @@ class SystemHealth:
     check_duration_ms: float = 0.0
 
     @property
+    def is_operational(self) -> bool:
+        return self.overall >= HealthLevel.DEGRADED
+
+    @property
     def operational_count(self) -> int:
         return sum(1 for r in self.components.values() if r.is_operational)
 
@@ -106,7 +121,9 @@ class ProcessHealthAdapter(Protocol):
 
 
 class _HealthCheckerRegistry(Protocol):
-    def add_checker(self, checker: HealthChecker) -> None: ...
+    def add_checker(
+        self, checker: HealthChecker, *, optional: bool = False
+    ) -> None: ...
 
 
 @runtime_checkable
@@ -283,7 +300,7 @@ class TelegramApiChecker(BaseHealthChecker):
 
 
 class PollingChecker(BaseHealthChecker):
-    """Polling state checker."""
+    """Long-polling state checker; only meaningful when the bot runs in polling mode."""
 
     __slots__ = ("_bot_ref",)
 
@@ -311,28 +328,18 @@ class PollingChecker(BaseHealthChecker):
             )
 
         start_time = time.perf_counter()
-
-        polling_active = bool(getattr(bot, "polling", False))
-        polling_thread = getattr(bot, "polling_thread", None)
-        polling_thread_alive: bool | None = None
-        if polling_thread is not None:
-            is_alive = getattr(polling_thread, "is_alive", None)
-            if callable(is_alive):
-                polling_thread_alive = bool(is_alive())
-
+        stop_event = getattr(bot, _TELEBOT_STOP_POLLING_ATTR, None)
         latency = (time.perf_counter() - start_time) * 1000
 
-        if not polling_active:
+        if not isinstance(stop_event, threading.Event):
+            level = HealthLevel.DEGRADED
+            details: dict[str, object] = {"error": "polling_state_unavailable"}
+        elif stop_event.is_set():
             level = HealthLevel.UNHEALTHY
-            details: dict[str, object] = {"polling_active": False}
-        elif polling_thread_alive is False:
-            level = HealthLevel.CRITICAL
-            details = {"polling_active": True, "polling_thread_alive": False}
+            details = {"polling_active": False}
         else:
             level = HealthLevel.HEALTHY
             details = {"polling_active": True}
-            if polling_thread_alive:
-                details["polling_thread_alive"] = True
 
         return HealthResult(
             level=level, component=self.name, latency_ms=latency, details=details
@@ -498,6 +505,7 @@ class HealthMonitor(BaseComponent):
 
     __slots__ = (
         "_checkers",
+        "_optional",
         "_history",
         "_max_history",
         "_state_lock",
@@ -509,11 +517,18 @@ class HealthMonitor(BaseComponent):
         "_stop_event",
         "_monitor_failures",
         "_max_monitor_failures",
+        "_snapshot_writer",
+        "_snapshot_write_failing",
     )
 
-    def __init__(self, max_history: int = 15) -> None:
+    def __init__(
+        self,
+        max_history: int = 15,
+        snapshot_writer: HealthSnapshotWriter | None = None,
+    ) -> None:
         super().__init__("health_monitor")
         self._checkers: dict[str, HealthChecker] = {}
+        self._optional: set[str] = set()
         self._history: deque[SystemHealth] = deque(maxlen=max_history)
         self._max_history = max_history
         self._state_lock = threading.RLock()
@@ -525,13 +540,36 @@ class HealthMonitor(BaseComponent):
         self._stop_event = threading.Event()
         self._monitor_failures = 0
         self._max_monitor_failures = 3
+        # Only touched by the monitor thread.
+        self._snapshot_writer = snapshot_writer
+        self._snapshot_write_failing = False
 
-    def _publish_monitor_failure(self, error: Exception) -> None:
+    @staticmethod
+    def _aggregate_level(
+        components: Mapping[str, HealthResult], optional: AbstractSet[str]
+    ) -> HealthLevel:
+        """Overall level: the worst required component.
+
+        Optional components can lower the overall level to ``DEGRADED`` at most, so
+        e.g. blocked sessions or memory pressure never make the bot unhealthy, while
+        a Telegram API outage or a stopped polling loop always does.
+        """
+        if not components:
+            return HealthLevel.OFFLINE
+        return min(
+            max(result.level, HealthLevel.DEGRADED)
+            if name in optional
+            else result.level
+            for name, result in components.items()
+        )
+
+    def _publish_monitor_failure(self, error: Exception) -> SystemHealth:
         """Publish internal monitor failure as health degradation signal."""
         now = time.time()
         with self._state_lock:
             latest_snapshot = self._latest
             consecutive_failures = self._monitor_failures
+            optional = frozenset(self._optional)
         components = dict(latest_snapshot.components) if latest_snapshot else {}
         components["health_monitor"] = HealthResult(
             level=HealthLevel.CRITICAL,
@@ -546,7 +584,7 @@ class HealthMonitor(BaseComponent):
         )
 
         health = SystemHealth(
-            overall=min(result.level for result in components.values()),
+            overall=self._aggregate_level(components, optional),
             components=components,
             timestamp=now,
             check_duration_ms=0.0,
@@ -554,14 +592,23 @@ class HealthMonitor(BaseComponent):
         with self._state_lock:
             self._latest = health
             self._history.append(health)
+        return health
 
-    def add_checker(self, checker: HealthChecker) -> None:
-        """Add health checker."""
+    def add_checker(self, checker: HealthChecker, *, optional: bool = False) -> None:
+        """Add health checker.
+
+        A failing optional checker degrades the overall level but never makes the
+        bot unhealthy (see ``_aggregate_level``).
+        """
         with self._state_lock:
             self._checkers[checker.name] = checker
             self._intervals[checker.name] = checker.interval_seconds
+            if optional:
+                self._optional.add(checker.name)
+            else:
+                self._optional.discard(checker.name)
 
-        with self.log_context(checker=checker.name) as log:
+        with self.log_context(checker=checker.name, optional=optional) as log:
             log.trace("bot.health.added.checker.debug")
 
     def check_all(self) -> SystemHealth:
@@ -571,28 +618,36 @@ class HealthMonitor(BaseComponent):
         with self._state_lock:
             checkers_snapshot = list(self._checkers.items())
             intervals_snapshot = dict(self._intervals)
+            optional_snapshot = frozenset(self._optional)
             latest_snapshot = self._latest
 
-        # Determine which components need checking
+        # Start with previous results of registered checkers only, which drops the
+        # synthetic "health_monitor" failure entry once a cycle succeeds again.
+        previous = latest_snapshot.components if latest_snapshot else {}
+        components = {
+            name: previous[name] for name, _ in checkers_snapshot if name in previous
+        }
+
+        # Determine which components need checking: due ones, plus failing ones on
+        # every cycle so a recovery is noticed without waiting a full interval.
         to_check = []
         for name, checker in checkers_snapshot:
             interval = intervals_snapshot.get(name, checker.interval_seconds)
-            last_check = 0.0
-
-            if latest_snapshot and name in latest_snapshot.components:
-                last_check = latest_snapshot.components[name].timestamp
-
-            if (current_time - last_check) >= interval:
+            last_result = components.get(name)
+            if (
+                last_result is None
+                or not last_result.is_operational
+                or (current_time - last_result.timestamp) >= interval
+            ):
                 to_check.append((name, checker))
 
         # Use cached results if no checks needed
-        if not to_check and latest_snapshot:
+        if (
+            not to_check
+            and latest_snapshot is not None
+            and components.keys() == previous.keys()
+        ):
             return latest_snapshot
-
-        # Start with previous results
-        components = {}
-        if latest_snapshot:
-            components.update(latest_snapshot.components)
 
         # Update checked components
         for name, checker in to_check:
@@ -606,22 +661,10 @@ class HealthMonitor(BaseComponent):
                     details={"error": "check_failed", "exception": str(e)},
                 )
 
-        # Calculate overall health
-        if not components:
-            overall = HealthLevel.OFFLINE
-        else:
-            levels = [r.level for r in components.values()]
-            overall = min(levels)
-
-            # Don't let one bad component drag everything down
-            healthy_count = sum(1 for level in levels if level >= HealthLevel.DEGRADED)
-            if overall == HealthLevel.UNHEALTHY and healthy_count >= len(levels) * 0.7:
-                overall = HealthLevel.DEGRADED
-
         duration = (time.perf_counter() - start_time) * 1000
 
         health = SystemHealth(
-            overall=overall,
+            overall=self._aggregate_level(components, optional_snapshot),
             components=components,
             timestamp=current_time,
             check_duration_ms=duration,
@@ -667,8 +710,43 @@ class HealthMonitor(BaseComponent):
         if thread and thread.is_alive():
             thread.join(timeout=5.0)
 
+        if self._snapshot_writer is not None:
+            # A stopped bot must not leave a snapshot that still looks fresh.
+            self._snapshot_writer.remove()
+
         with self.log_context() as log:
             log.info("bot.health.monitoring.stop")
+
+    def _publish_snapshot(self, health: SystemHealth, interval_seconds: float) -> None:
+        """Publish ``health`` for the container probe; never interrupts monitoring."""
+        writer = self._snapshot_writer
+        if writer is None or self._stop_event.is_set():
+            return
+
+        try:
+            writer.write(
+                overall=str(health.overall),
+                healthy=health.is_operational,
+                components={
+                    name: str(result.level)
+                    for name, result in health.components.items()
+                },
+                interval_seconds=interval_seconds,
+            )
+        except Exception as error:
+            first_failure = not self._snapshot_write_failing
+            self._snapshot_write_failing = True
+            with self.log_context(path=str(writer.path), error=str(error)) as log:
+                if first_failure:
+                    log.error("bot.health.snapshot.write.fail")
+                else:
+                    log.debug("bot.health.snapshot.write.retry.debug")
+            return
+
+        if self._snapshot_write_failing:
+            self._snapshot_write_failing = False
+            with self.log_context(path=str(writer.path)) as log:
+                log.info("bot.health.snapshot.write.recovered")
 
     def _monitor_loop(self) -> None:
         """Main monitoring loop."""
@@ -742,11 +820,13 @@ class HealthMonitor(BaseComponent):
                     self._monitor_failures += 1
                     failures = self._monitor_failures
                     interval = self._base_interval
-                self._publish_monitor_failure(e)
+                health = self._publish_monitor_failure(e)
                 with self.log_context(error=str(e)) as log:
                     log.error("bot.health.monitoring.fail")
                     if failures >= self._max_monitor_failures:
                         log.critical("bot.health.monitoring.degraded.fail")
+
+            self._publish_snapshot(health, base_interval)
 
             # Sleep with early exit
             self._stop_event.wait(timeout=interval)
@@ -771,7 +851,7 @@ class HealthMonitor(BaseComponent):
         """Quick health check."""
         with self._state_lock:
             latest = self._latest
-        return latest is not None and latest.overall >= HealthLevel.DEGRADED
+        return latest is not None and latest.is_operational
 
     def get_summary(self) -> dict[str, object]:
         """Get health summary for logging."""
@@ -803,13 +883,17 @@ class HealthManager:
 
     __slots__ = ("_monitor", "_started")
 
-    def __init__(self, max_history: int = 15):
-        self._monitor = HealthMonitor(max_history)
+    def __init__(
+        self,
+        max_history: int = 15,
+        snapshot_writer: HealthSnapshotWriter | None = None,
+    ):
+        self._monitor = HealthMonitor(max_history, snapshot_writer)
         self._started = False
 
-    def add_checker(self, checker: HealthChecker) -> None:
+    def add_checker(self, checker: HealthChecker, *, optional: bool = False) -> None:
         """Add health checker."""
-        self._monitor.add_checker(checker)
+        self._monitor.add_checker(checker, optional=optional)
 
     def start(self, base_interval: float = 120.0) -> None:
         """Start health monitoring."""
@@ -856,22 +940,30 @@ def _configure_health_checks(
     bot: telebot.TeleBot,
     session_manager: SessionStatsProvider | None = None,
     psutil_adapter: ProcessHealthAdapter | None = None,
+    *,
+    webhook_mode: bool = False,
 ) -> None:
-    """Register core health checkers for monitor/manager factories."""
+    """Register the health checkers that fit the bot's run mode.
+
+    Required: the Telegram API and, in polling mode, the polling loop. In webhook
+    mode Telegram pushes updates to the webhook server, so there is no polling loop
+    to check. Sessions, process resources and the template parser are optional.
+    """
     bot_ref = ref(bot)
     target.add_checker(TelegramApiChecker(bot_ref))
-    target.add_checker(PollingChecker(bot_ref))
+    if not webhook_mode:
+        target.add_checker(PollingChecker(bot_ref))
 
     if session_manager:
-        target.add_checker(SessionChecker(session_manager))
+        target.add_checker(SessionChecker(session_manager), optional=True)
 
     if psutil_adapter:
-        target.add_checker(SystemResourceChecker(psutil_adapter))
+        target.add_checker(SystemResourceChecker(psutil_adapter), optional=True)
 
     try:
         from pytmbot.parsers.health_checker import TemplateParserChecker
 
-        target.add_checker(TemplateParserChecker())
+        target.add_checker(TemplateParserChecker(), optional=True)
     except ImportError:
         pass  # Parser не доступен
 
@@ -880,10 +972,19 @@ def create_health_manager(
     bot: telebot.TeleBot,
     session_manager: SessionStatsProvider | None = None,
     psutil_adapter: ProcessHealthAdapter | None = None,
+    *,
+    webhook_mode: bool = False,
+    snapshot_writer: HealthSnapshotWriter | None = None,
 ) -> HealthManager:
-    """Create configured health manager."""
-    manager = HealthManager()
-    _configure_health_checks(manager, bot, session_manager, psutil_adapter)
+    """Create configured health manager.
+
+    With a ``snapshot_writer`` the monitor publishes every cycle for the container
+    health probe (see ``pytmbot.health_system.snapshot``).
+    """
+    manager = HealthManager(snapshot_writer=snapshot_writer)
+    _configure_health_checks(
+        manager, bot, session_manager, psutil_adapter, webhook_mode=webhook_mode
+    )
     return manager
 
 

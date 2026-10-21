@@ -11,14 +11,26 @@ import warnings
 from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
-from ipaddress import ip_network
 from typing import ClassVar, Final
 
 from packaging import version
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings
 
 from pytmbot import logs
+from pytmbot.models.telegram_models import (
+    MIN_ADDITIONAL_RANGE_PREFIX,
+    IPNetwork,
+    is_additional_range_too_wide,
+    parse_ip_network,
+)
 
 
 @cache
@@ -33,7 +45,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.5.2"
+        return "0.5.3"
 
 
 class ConfigVersionError(Exception):
@@ -91,6 +103,22 @@ class AccessControlModel(BaseModel):
 
 # Accepted Docker API request timeout, in seconds (matches the adapter).
 DOCKER_TIMEOUT_RANGE: Final[tuple[int, int]] = (5, 300)
+# Accepted stop/restart grace period before Docker kills the container, in seconds.
+DOCKER_STOP_TIMEOUT_RANGE: Final[tuple[int, int]] = (1, 300)
+
+
+def _clamp_seconds(field_name: str, value: int, bounds: tuple[int, int]) -> int:
+    """Clamp a duration into ``bounds`` and warn instead of rejecting the config."""
+    low, high = bounds
+    clamped = min(max(value, low), high)
+    if clamped != value:
+        warnings.warn(
+            f"docker.{field_name}={value} is outside {low}-{high} seconds; "
+            f"using {clamped}",
+            UserWarning,
+            stacklevel=3,
+        )
+    return clamped
 
 
 class DockerHostModel(BaseModel):
@@ -104,6 +132,10 @@ class DockerHostModel(BaseModel):
         timeout (int): Per-request Docker API timeout in seconds. The adapter
             accepts 5-300 and falls back to the default (or fails in strict
             mode) for other values.
+        stop_timeout (int): Seconds Docker waits for a graceful stop before
+            killing the container on Stop (1-300). The Docker client adds it to
+            the request timeout of that call.
+        restart_timeout (int): The same grace period for Restart (1-300).
         cert_path (str | None): TLS client certificate (https:// hosts only).
         key_path (str | None): TLS client key (https:// hosts only).
         ca_cert (bool | str): CA bundle path, True for system CAs, False to
@@ -115,6 +147,8 @@ class DockerHostModel(BaseModel):
     debug_docker_client: bool = False
     strict_access: bool = False
     timeout: int = 10
+    stop_timeout: int = 10
+    restart_timeout: int = 10
     cert_path: str | None = None
     key_path: str | None = None
     ca_cert: bool | str = True
@@ -125,15 +159,14 @@ class DockerHostModel(BaseModel):
     # codeclone: ignore[dead-code]
     def clamp_timeout(cls, value: int) -> int:
         """Keep the request timeout within 5-300 s instead of rejecting the config."""
-        clamped = min(max(value, DOCKER_TIMEOUT_RANGE[0]), DOCKER_TIMEOUT_RANGE[1])
-        if clamped != value:
-            warnings.warn(
-                f"docker.timeout={value} is outside {DOCKER_TIMEOUT_RANGE[0]}-"
-                f"{DOCKER_TIMEOUT_RANGE[1]} seconds; using {clamped}",
-                UserWarning,
-                stacklevel=2,
-            )
-        return clamped
+        return _clamp_seconds("timeout", value, DOCKER_TIMEOUT_RANGE)
+
+    @field_validator("stop_timeout", "restart_timeout")
+    @classmethod
+    # codeclone: ignore[dead-code]
+    def clamp_stop_timeout(cls, value: int, info: ValidationInfo) -> int:
+        """Keep the stop/restart grace period within 1-300 s, like ``timeout``."""
+        return _clamp_seconds(str(info.field_name), value, DOCKER_STOP_TIMEOUT_RANGE)
 
 
 class InfluxDBModel(BaseModel):
@@ -211,6 +244,25 @@ class PluginsConfig(BaseModel):
     outline: OutlineVPN | None = None
 
 
+def _parse_ip_networks(
+    field_name: str, values: list[str]
+) -> list[tuple[str, IPNetwork]]:
+    """Strip and parse IP/CIDR values; reject empty and invalid entries."""
+    networks: list[tuple[str, IPNetwork]] = []
+    for raw_value in values:
+        candidate = raw_value.strip()
+        if not candidate:
+            raise ValueError(f"{field_name} cannot contain empty values")
+        try:
+            network = parse_ip_network(candidate)
+        except ValueError as error:
+            raise ValueError(
+                f"Invalid {field_name} IP/CIDR value: '{candidate}'"
+            ) from error
+        networks.append((candidate, network))
+    return networks
+
+
 class WebhookConfig(BaseModel):
     """
     Model to configure webhook settings for the bot.
@@ -224,30 +276,43 @@ class WebhookConfig(BaseModel):
     trusted_proxy_ips: list[str] | None = Field(default=None, min_length=1)
     additional_telegram_ip_ranges: list[str] | None = Field(default=None, min_length=1)
 
-    @field_validator("trusted_proxy_ips", "additional_telegram_ip_ranges")
+    @field_validator("trusted_proxy_ips")
     @classmethod
     def validate_trusted_proxy_ips(  # codeclone: ignore[dead-code]
         cls, value: list[str] | None
     ) -> list[str] | None:
-        """Validate trusted proxy IPs/CIDRs format."""
+        """Validate trusted proxy IPs/CIDRs; a proxy range never covers everyone."""
         if value is None:
             return None
 
-        normalized: list[str] = []
-        for raw_ip in value:
-            candidate = raw_ip.strip()
-            if not candidate:
-                raise ValueError("trusted_proxy_ips cannot contain empty values")
-
-            try:
-                _ = ip_network(candidate, strict=False)
-            except ValueError as error:
+        networks = _parse_ip_networks("trusted_proxy_ips", value)
+        for candidate, network in networks:
+            # Trusting every peer would make X-Forwarded-For fully client-controlled.
+            if network.prefixlen == 0:
                 raise ValueError(
-                    f"Invalid trusted proxy IP/CIDR value: '{candidate}'"
-                ) from error
-            normalized.append(candidate)
+                    f"trusted_proxy_ips value '{candidate}' trusts every address; "
+                    "list only your reverse proxies"
+                )
+        return [candidate for candidate, _ in networks]
 
-        return normalized
+    @field_validator("additional_telegram_ip_ranges")
+    @classmethod
+    def validate_additional_telegram_ip_ranges(  # codeclone: ignore[dead-code]
+        cls, value: list[str] | None
+    ) -> list[str] | None:
+        """Validate extra Telegram ranges; reject ranges wider than /16 or /32."""
+        if value is None:
+            return None
+
+        networks = _parse_ip_networks("additional_telegram_ip_ranges", value)
+        for candidate, network in networks:
+            if is_additional_range_too_wide(network):
+                min_prefix = MIN_ADDITIONAL_RANGE_PREFIX[network.version]
+                raise ValueError(
+                    f"additional_telegram_ip_ranges value '{candidate}' is too wide: "
+                    f"IPv{network.version} ranges must be /{min_prefix} or narrower"
+                )
+        return [candidate for candidate, _ in networks]
 
 
 class ConfigMigrator(logs.BaseComponent):
@@ -364,6 +429,11 @@ def get_compatibility_matrix() -> dict[str, dict[str, str]]:
             "min_app": "0.5.2",
             "max_app": "0.5.2",
             "description": "Security patch release for the eMudhra CA incident",
+        },
+        "0.5.3": {
+            "min_app": "0.5.3",
+            "max_app": "0.5.3",
+            "description": "Patch release with security and reliability fixes",
         },
     }
 

@@ -5,12 +5,18 @@ pyTMBot - A simple Telegram bot to handle Docker containers and images,
 also providing basic information about the status of local servers.
 """
 
+from typing import Final
+
 from telebot import TeleBot
 from telebot.types import (
     CallbackQuery,
+    Chat,
+    InaccessibleMessage,
+    InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
     ReplyKeyboardMarkup,
+    ReplyParameters,
 )
 
 from pytmbot import exceptions
@@ -24,6 +30,64 @@ from pytmbot.parsers.compiler import Compiler
 logger = Logger()
 em = get_emoji_converter()
 keyboards = get_keyboards()
+
+# ``/start 2fa`` opens the 2FA screen in the private chat.
+PRIVATE_CHAT_START_PAYLOAD: Final[str] = "2fa"
+PRIVATE_CHAT_BUTTON_TEXT: Final[str] = "Open private chat"
+
+
+def is_private_chat(chat: Chat | None) -> bool:
+    """Return True for the user's one-to-one chat with the bot."""
+    return getattr(chat, "type", None) == "private"
+
+
+def _private_chat_link(bot: TeleBot) -> str | None:
+    """Return the deep link to the private chat, or None if it is unknown."""
+    try:
+        # telebot caches get_me(), so this is one API call per process.
+        username = bot.user.username
+    except Exception as error:
+        logger.warning(
+            "bot.handler.auth_processing.auth_processing.bot.username.fail",
+            error=str(error),
+        )
+        return None
+    if not username:
+        return None
+    return f"https://t.me/{username}?start={PRIVATE_CHAT_START_PAYLOAD}"
+
+
+def send_private_chat_notice(
+    bot: TeleBot, message: Message | InaccessibleMessage
+) -> None:
+    """
+    Ask the user to confirm 2FA in a private chat with the bot.
+
+    2FA codes and the QR code (it holds the long-lived secret) are never
+    handled in groups. The notice holds no secrets; it replies to ``message``
+    when that is still possible and links to the private chat when the bot
+    username is known.
+    """
+    link = _private_chat_link(bot)
+    keyboard: InlineKeyboardMarkup | None = None
+    if link is not None:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton(text=PRIVATE_CHAT_BUTTON_TEXT, url=link))
+
+    response = Compiler.quick_render(
+        template_name="a_private_chat_required.jinja2",
+        has_link=keyboard is not None,
+    )
+    send_bot_message(
+        bot,
+        message.chat.id,
+        text=response,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+        reply_parameters=ReplyParameters(
+            message_id=message.message_id, allow_sending_without_reply=True
+        ),
+    )
 
 
 def _get_user_name(query: Message | CallbackQuery) -> str:
@@ -150,9 +214,22 @@ def _handle_auth_message(
         ) from error
 
 
+def _query_message(
+    query: Message | CallbackQuery,
+) -> Message | InaccessibleMessage | None:
+    """Return the message itself, or the pressed message of a callback."""
+    if isinstance(query, CallbackQuery):
+        return query.message
+    return query
+
+
 def handle_unauthorized_message(query: Message | CallbackQuery, bot: TeleBot) -> None:
     """
     Handles unauthorized messages received by the bot.
+
+    In a group only a link to the private chat is posted: the pressed message
+    stays and no 2FA keyboard is shown there. The pending action is already
+    stored, so the post-2FA "Return" button works in the private chat.
 
     Args:
         query (Union[Message, CallbackQuery]): The message or callback query received by the bot.
@@ -164,6 +241,20 @@ def handle_unauthorized_message(query: Message | CallbackQuery, bot: TeleBot) ->
     Returns:
         None
     """
+    message = _query_message(query)
+    if message is not None and not is_private_chat(message.chat):
+        try:
+            send_private_chat_notice(bot, message)
+        except Exception as error:
+            raise exceptions.AuthError(
+                ErrorContext(
+                    message="Failed handling unauthorized message",
+                    error_code="AUTH_001",
+                    metadata={"exception": str(error)},
+                )
+            ) from error
+        return
+
     emojis = {
         "thought_balloon": em.get_emoji("thought_balloon"),
         "desktop_computer": em.get_emoji("desktop_computer"),

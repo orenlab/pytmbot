@@ -19,6 +19,9 @@
 {% if context.hidden_layers_count > 0 %}
 <p><i>... and {{ context.hidden_layers_count|e }} more layers</i></p>
 {% endif %}
+{% if context.command_arguments_note %}
+<p><i>{{ context.command_arguments_note|e }}</i></p>
+{% endif %}
 {% else %}
 <p><code>No history available</code></p>
 {% endif %}

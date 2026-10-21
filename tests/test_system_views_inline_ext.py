@@ -224,6 +224,53 @@ def test_system_views_handlers_route_via_shared_edit(
     assert edit_calls[-1]["text"]
 
 
+_SCOPE_NOTE_TEMPLATES: dict[str, str] = {
+    "handle_cpu_info": "b_cpu.jinja2",
+    "handle_network_overview": "b_net_io.jinja2",
+    "handle_network_interfaces": "b_net_interfaces.jinja2",
+    "handle_network_connections": "b_net_connections.jinja2",
+    "handle_filesystem_overview": "b_fs.jinja2",
+    "handle_disk_io": "b_disk_io.jinja2",
+    "handle_quickview_overview": "b_quick_view.jinja2",
+    "handle_quickview_memory": "b_memory.jinja2",
+    "handle_quickview_cpu": "b_cpu.jinja2",
+    "handle_quickview_disk": "b_fs.jinja2",
+}
+
+
+@pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)
+def test_system_views_pass_scope_notes_to_metric_screens(
+    monkeypatch: pytest.MonkeyPatch,
+    handler_obj: _RawHandlerInput,
+    _error_code: str,
+    _as_rich: bool,
+) -> None:
+    _patch_common_success(monkeypatch)
+    monkeypatch.setattr(system_views_module, "_edit_message", lambda *a, **k: None)
+    scope_notes = {"cpu": "CPU: whole host"}
+    monkeypatch.setattr(
+        system_views_module, "get_metric_scope_notes", lambda: scope_notes
+    )
+    renders: list[_PayloadDict] = []
+
+    def _capture_render(**kwargs: _PayloadValue) -> str:
+        renders.append(kwargs)
+        return "<p>ok</p>"
+
+    monkeypatch.setattr(Compiler, "quick_render", _capture_render)
+
+    handler = _raw_handler(handler_obj)
+    handler(cast(CallbackQuery, _Call()), cast(TeleBot, _Bot()))
+
+    handler_name = _raw_handler(handler_obj).__name__
+    expected_template = _SCOPE_NOTE_TEMPLATES.get(handler_name)
+    if expected_template is None:
+        assert all("scope_notes" not in render for render in renders)
+    else:
+        assert renders[-1]["template_name"] == expected_template
+        assert renders[-1]["scope_notes"] is scope_notes
+
+
 @pytest.mark.parametrize(("handler_obj", "_error_code", "_as_rich"), _HANDLER_CASES)
 def test_system_views_handlers_return_without_edit_when_not_allowed(
     monkeypatch: pytest.MonkeyPatch,

@@ -458,6 +458,17 @@ class _MessageDeletionManager(BaseComponent):
 
         return count
 
+    def can_schedule(self, user_id: _UserID) -> bool:
+        """
+        Return True when the user is below the pending-deletion limit.
+
+        Lets callers refuse before sending a sensitive message; scheduling can
+        still be refused if other deletions are scheduled in the meantime.
+        """
+        with self._deletion_lock:
+            pending = len(self._user_pending_deletions.get(user_id, ()))
+            return pending < self._max_pending_per_user
+
     def __repr__(self) -> str:
         """Return a string representation of the manager."""
         with self._deletion_lock:

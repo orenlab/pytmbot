@@ -11,11 +11,7 @@ from telebot.types import CallbackQuery, InlineKeyboardMarkup
 from pytmbot import exceptions
 from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.exceptions import ErrorContext
-from pytmbot.globals import (
-    get_emoji_converter,
-    get_psutil_adapter,
-    is_docker_environment,
-)
+from pytmbot.globals import get_emoji_converter, get_psutil_adapter
 from pytmbot.handlers.handlers_util.rich_messages import (
     build_rich_html_message,
     screen_updated_at,
@@ -37,11 +33,11 @@ from pytmbot.handlers.server_handlers.process import (
 )
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 em = get_emoji_converter()
 psutil_adapter = get_psutil_adapter()
-running_in_docker = is_docker_environment()
 
 _PROCESS_INFO_INVALID_PAYLOAD_TEXT = (
     "This button is no longer valid. Please open Process again."
@@ -151,12 +147,14 @@ def handle_process_info(call: CallbackQuery, bot: TeleBot) -> None:
 
         context = {
             "process_rows": format_process_rows(processes_data),
-            "running_in_docker": running_in_docker,
             "timestamp": screen_updated_at(),
         }
 
         bot_answer = Compiler.quick_render(
-            template_name="b_top_processes.jinja2", context=context, **emojis
+            template_name="b_top_processes.jinja2",
+            context=context,
+            scope_notes=get_metric_scope_notes(),
+            **emojis,
         )
 
         edit_callback_message_text(

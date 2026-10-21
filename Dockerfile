@@ -85,6 +85,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 # build cache holding an older trust store is not reused.
 ARG CA_CERTIFICATES_MIN_VERSION=20260816ubuntu0.26.04.1
 
+# The ubuntu image is a rock that ships Canonical's pebble service manager: a static Go binary outside dpkg, so apt
+# never updates it and scanners report its bundled Go standard library. The bot runs under tini, so pebble is removed.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eux && \
@@ -97,6 +99,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         passwd && \
     dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge "$CA_CERTIFICATES_MIN_VERSION" && \
     rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* && \
+    rm -rf /usr/bin/pebble /var/lib/pebble && \
     rm -rf /var/lib/apt/lists/*
 
 # Create runtime user and groups with stable UID/GID and docker-socket compatibility.
@@ -125,7 +128,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=random \
     PYTHONOPTIMIZE=1 \
-    PYTHONINSPECT=0 \
     TZ=UTC
 
 # Copy virtual environment produced by uv from the builder image.

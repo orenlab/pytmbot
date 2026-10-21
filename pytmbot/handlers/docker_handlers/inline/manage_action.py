@@ -34,7 +34,12 @@ from pytmbot.exceptions import (
     DockerOperationException,
     InvalidContainerReferenceError,
 )
-from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
+from pytmbot.globals import (
+    ButtonDataType,
+    get_emoji_converter,
+    get_keyboards,
+    settings,
+)
 from pytmbot.handlers.docker_handlers.callback_data import (
     CONFIRM_RESTART_CALLBACK_PREFIX,
     CONFIRM_STOP_CALLBACK_PREFIX,
@@ -92,6 +97,8 @@ class _ActionSpec:
     past: str
     confirm_prefix: str | None = None
     warning: str = ""
+    # Configured seconds Docker waits for a graceful stop before killing.
+    grace_seconds: Callable[[], int] | None = None
 
 
 _START = _ActionSpec(action="start", title="Start", progress="Starting", past="started")
@@ -102,6 +109,7 @@ _STOP = _ActionSpec(
     past="stopped",
     confirm_prefix=CONFIRM_STOP_CALLBACK_PREFIX,
     warning="Its services stay unavailable until the container is started again.",
+    grace_seconds=lambda: settings.docker.stop_timeout,
 )
 _RESTART = _ActionSpec(
     action="restart",
@@ -110,6 +118,7 @@ _RESTART = _ActionSpec(
     past="restarted",
     confirm_prefix=CONFIRM_RESTART_CALLBACK_PREFIX,
     warning="Its services are briefly unavailable while it restarts.",
+    grace_seconds=lambda: settings.docker.restart_timeout,
 )
 # prefix -> (action, needs confirmation)
 _REQUESTS: Final[dict[str, tuple[_ActionSpec, bool]]] = {
@@ -253,12 +262,22 @@ def _start_action(
         call,
         bot,
         f"<p><b>⏳ {spec.progress} {escape(container.name)}…</b></p>"
-        "<p><i>This can take up to a minute. The result will appear here.</i></p>",
+        f"<p><i>{_progress_hint(spec)}</i></p>",
         # Never a dead end: Refresh reopens Manage with the current state.
         reply_markup=_progress_keyboard(container, user_id),
     )
     _run_in_background(
         lambda: _run_action_and_report(call, bot, spec, container, user_id)
+    )
+
+
+def _progress_hint(spec: _ActionSpec) -> str:
+    """Say how long the action may take, from the configured grace period."""
+    if spec.grace_seconds is None:
+        return "The result will appear here."
+    return (
+        f"Docker waits up to {spec.grace_seconds()} s for a graceful stop, "
+        "then kills the container. The result will appear here."
     )
 
 

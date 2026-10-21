@@ -32,3 +32,6 @@
 {% endfor %}
 
 <p><i>Totals since the last boot, all interfaces combined.</i></p>
+{% if scope_notes %}
+<p><i>{{ scope_notes.network }}</i></p>
+{% endif %}

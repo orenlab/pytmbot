@@ -17,7 +17,6 @@ from pytmbot.globals import (
     get_emoji_converter,
     get_keyboards,
     get_psutil_adapter,
-    is_docker_environment,
 )
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
@@ -30,13 +29,13 @@ from pytmbot.handlers.server_handlers.inline.common import (
 from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
 em = get_emoji_converter()
 keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
-running_in_docker = is_docker_environment()
 
 CPU_INFO_PREFIX = "__cpu_info__"
 CPU_PER_CORE_PREFIX = "__cpu_per_core__"
@@ -118,7 +117,7 @@ def handle_cpu(message: Message, bot: TeleBot) -> None:
         cpu_message = Compiler.quick_render(
             template_name="b_cpu.jinja2",
             context=cpu_context,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             desktop_computer=em.get_emoji("desktop_computer"),
             warning=em.get_emoji("warning"),

@@ -17,6 +17,7 @@ from pytmbot.handlers.docker_handlers.images import (
 from pytmbot.handlers.docker_handlers.inline.image_callback import (
     handle_image_details_callback,
 )
+from pytmbot.handlers.handlers_util.docker import CommandArgumentsView
 from pytmbot.logs import Logger
 
 logger = Logger()
@@ -27,13 +28,14 @@ def _extract_target_user_id(parsed: tuple[str, int, int]) -> int:
 
 
 def _render_from_parsed(
-    parsed: tuple[str, int, int],
+    parsed: tuple[str, int, int], arguments_view: CommandArgumentsView
 ) -> tuple[str, InlineKeyboardMarkup] | None:
     image_ref, target_user_id, page = parsed
     return render_image_details(
         image_ref=image_ref,
         page=page,
         user_id=target_user_id,
+        arguments_view=arguments_view,
     )
 
 

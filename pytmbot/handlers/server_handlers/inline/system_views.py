@@ -19,7 +19,6 @@ from pytmbot.globals import (
     get_emoji_converter,
     get_keyboards,
     get_psutil_adapter,
-    is_docker_environment,
 )
 from pytmbot.handlers.handlers_util.rich_messages import (
     build_rich_html_message,
@@ -71,13 +70,13 @@ from pytmbot.handlers.server_handlers.uptime import (
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import set_naturaltime
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
 em = get_emoji_converter()
 keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
-running_in_docker = is_docker_environment()
 
 INVALID_SECTION_BUTTON_TEXT = (
     "This button is no longer valid. Please open this section again."
@@ -236,7 +235,7 @@ def handle_cpu_info(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_cpu.jinja2",
             context=cpu_context,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             desktop_computer=em.get_emoji("desktop_computer"),
             warning=em.get_emoji("warning"),
@@ -351,6 +350,7 @@ def handle_network_overview(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_net_io.jinja2",
             context=network_statistics,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             globe_showing_europe_africa=em.get_emoji("globe_showing_Europe-Africa"),
             hugging_face=em.get_emoji("smiling_face_with_open_hands"),
@@ -401,6 +401,7 @@ def handle_network_interfaces(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_net_interfaces.jinja2",
             context={"interfaces": rows},
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
         )
         _edit_message(call, bot, text=text, reply_markup=keyboard)
@@ -435,6 +436,7 @@ def handle_network_connections(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_net_connections.jinja2",
             context=summary,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
         )
         _edit_message(call, bot, text=text, reply_markup=keyboard)
@@ -469,7 +471,7 @@ def handle_filesystem_overview(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_fs.jinja2",
             context=disk_usage,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             floppy_disk=em.get_emoji("floppy_disk"),
             minus=em.get_emoji("minus"),
@@ -507,6 +509,7 @@ def handle_disk_io(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_disk_io.jinja2",
             context={"disks": disk_io},
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
         )
         _edit_message(call, bot, text=text, reply_markup=keyboard)
@@ -676,6 +679,7 @@ def handle_quickview_overview(call: CallbackQuery, bot: TeleBot) -> None:
             template_name="b_quick_view.jinja2",
             context=context,
             updated_at=screen_updated_at(),
+            scope_notes=get_metric_scope_notes(),
             computer=em.get_emoji("desktop_computer"),
             chart=em.get_emoji("bar_chart"),
             memory=em.get_emoji("brain"),
@@ -719,6 +723,7 @@ def handle_quickview_memory(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_memory.jinja2",
             context=memory,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             abacus=em.get_emoji("abacus"),
         )
@@ -802,7 +807,7 @@ def handle_quickview_cpu(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_cpu.jinja2",
             context=cpu_context,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             desktop_computer=em.get_emoji("desktop_computer"),
             warning=em.get_emoji("warning"),
@@ -844,7 +849,7 @@ def handle_quickview_disk(call: CallbackQuery, bot: TeleBot) -> None:
         text = Compiler.quick_render(
             template_name="b_fs.jinja2",
             context=disk_usage,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             floppy_disk=em.get_emoji("floppy_disk"),
             minus=em.get_emoji("minus"),
