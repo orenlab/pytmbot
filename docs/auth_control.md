@@ -77,11 +77,24 @@ Current behavior:
   must scan the QR code again (`/qrcode`).
 - In group chats, buttons are bound to the user who opened the screen; a press by anyone else is answered with
   "This button belongs to another user." before any 2FA check and never deletes the owner's message.
+- 2FA happens only in a private chat with the bot. The QR code (`/qrcode`, "Get 2FA QR code") and code entry
+  ("Enter 2FA code", the code itself) are never handled in a group. A protected action in a group posts a short
+  notice with an "Open private chat" button (`https://t.me/<bot>?start=2fa`) instead of the 2FA keyboard; the notice
+  holds no codes. A code sent to a group during 2FA is deleted when the bot has the right to, is not checked, and does
+  not count as an attempt.
+- `/start 2fa` in the private chat opens the 2FA screen for an admin, or says that 2FA is already confirmed. The 2FA
+  session is per user, so after confirming in private the user repeats the action in the group.
 - After a successful code, the "Return" button opens the screen the user was on; for container actions it opens the
   container's Manage screen and never repeats Start/Stop/Restart.
-- Successful verification transitions the user session to `authenticated`.
-- Replayed or invalid codes are rejected by `pytmbot/utils/totp.py`.
-- Replay state is persisted in the runtime state directory when it is writable.
+- Successful verification transitions the user session to `authenticated` and resets the failed-attempt counter.
+- QR code messages are deleted automatically after 60 seconds. If too many messages are already waiting for
+  auto-deletion, the QR code is not sent; if its deletion cannot be scheduled, it is removed right away.
+- Replayed or invalid codes are rejected by `pytmbot/utils/totp.py` and count as failed attempts.
+- Replay state is persisted in the runtime state directory when it is writable. If writing fails, the error is logged
+  and the outdated state file is removed.
+- Restart barrier: when the replay state cannot be loaded at startup (for example, the state directory is on tmpfs and
+  was wiped), codes that were valid before the process started are rejected. After a restart the user may need to wait
+  for the next code (up to about a minute); this rejection does not count as a failed attempt.
 
 ## What Is Protected
 

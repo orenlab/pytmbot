@@ -8,6 +8,7 @@ also providing basic information about the status of local servers.
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import io
 import json
@@ -17,6 +18,7 @@ import tempfile
 import threading
 import time
 from datetime import UTC, datetime
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import ClassVar, Final
 
@@ -28,6 +30,18 @@ from pytmbot.exceptions import ErrorContext, QRCodeError, TOTPError
 from pytmbot.globals import settings
 from pytmbot.logs import BaseComponent
 from pytmbot.utils.state_paths import ensure_private_directory, get_state_root_path
+
+
+class TOTPVerificationResult(StrEnum):
+    """Outcome of checking a TOTP code."""
+
+    VALID = auto()
+    INVALID = auto()
+    # The code was already used; counts as a failed attempt.
+    REPLAYED = auto()
+    # The code may have been used before a restart that lost the replay state.
+    # The user only has to wait for the next code; not a failed attempt.
+    ISSUED_BEFORE_RESTART = auto()
 
 
 def _build_secret_key_material() -> str:
@@ -102,25 +116,22 @@ def _resolve_matching_step(
     return None
 
 
-def _load_replay_state_locked(
+def _read_replay_state_locked(
     auth_cls: type[TwoFactorAuthenticator], *, min_step: int
-) -> None:
-    if auth_cls._replay_state_loaded:
-        return
-    auth_cls._replay_state_loaded = True
-
+) -> bool:
+    """Load persisted replay markers; return True when the state file is trusted."""
     state_file = auth_cls._REPLAY_STATE_FILE
     try:
         payload_raw = state_file.read_text(encoding="utf-8")
         payload = json.loads(payload_raw)
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return
+    except (OSError, ValueError):
+        return False
 
     if not isinstance(payload, dict):
-        return
+        return False
     replay_state = payload.get("replay")
     if not isinstance(replay_state, dict):
-        return
+        return False
 
     loaded_entries: dict[int, set[tuple[str, int]]] = {}
     for raw_user_id, markers in replay_state.items():
@@ -148,18 +159,86 @@ def _load_replay_state_locked(
 
     if loaded_entries:
         auth_cls._used_totp_codes.update(loaded_entries)
+    return True
+
+
+def _load_replay_state_locked(auth: TwoFactorAuthenticator, *, min_step: int) -> None:
+    """
+    Load the replay state once per process and set the restart barrier.
+
+    Without a trusted state file (missing, e.g. wiped tmpfs, unreadable or
+    corrupt) a code accepted shortly before a restart could be accepted again.
+    Every step that was still valid when this process started is rejected
+    instead; the user waits for the next code, at most about a minute.
+    """
+    auth_cls = type(auth)
+    if auth_cls._replay_state_loaded:
+        return
+    auth_cls._replay_state_loaded = True
+
+    if _read_replay_state_locked(auth_cls, min_step=min_step):
+        auth_cls._replay_floor_step = None
+        return
+
+    # +1 covers the clock-skew window: before the restart, codes of the step
+    # after the current one were accepted too.
+    floor_step = int(auth_cls._PROCESS_STARTED_AT // auth_cls.TOTP_INTERVAL) + 1
+    auth_cls._replay_floor_step = floor_step
+    with auth.log_context(action="load_replay_state", floor_step=floor_step) as log:
+        log.info("bot.utils.totp.replay.state.barrier.info")
+
+
+def _write_replay_state(state_file: Path, payload: dict[str, object]) -> None:
+    """Atomically replace the replay state file; raise OSError on failure."""
+    parent_dir = ensure_private_directory(state_file.parent)
+    file_descriptor, temp_path = tempfile.mkstemp(
+        prefix=".totp_replay_",
+        suffix=".json",
+        dir=str(parent_dir),
+        text=True,
+    )
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as temp_file:
+            json.dump(payload, temp_file, separators=(",", ":"), sort_keys=True)
+        os.chmod(temp_path, 0o600)
+        os.replace(temp_path, state_file)
+    except OSError:
+        with contextlib.suppress(OSError):
+            os.unlink(temp_path)
+        raise
+
+
+def _handle_replay_persist_failure(
+    auth: TwoFactorAuthenticator, error: OSError
+) -> None:
+    """
+    Remove the outdated state file and report the first failure in a row.
+
+    An outdated file would be trusted after a restart and miss the codes used
+    since; without it the restart barrier rejects them instead.
+    """
+    auth_cls = type(auth)
+    try:
+        auth_cls._REPLAY_STATE_FILE.unlink(missing_ok=True)
+        stale_state_removed = True
+    except OSError:
+        stale_state_removed = False
+
+    if auth_cls._replay_persist_failed:
+        return
+    auth_cls._replay_persist_failed = True
+    with auth.log_context(
+        action="persist_replay_state",
+        error=str(error),
+        stale_state_removed=stale_state_removed,
+    ) as log:
+        log.error("bot.utils.totp.replay.state.persist.fail")
 
 
 def _persist_replay_state_locked(
-    auth_cls: type[TwoFactorAuthenticator], *, min_step: int
+    auth: TwoFactorAuthenticator, *, min_step: int
 ) -> None:
-    state_file = auth_cls._REPLAY_STATE_FILE
-    parent_dir = state_file.parent
-    try:
-        ensure_private_directory(parent_dir)
-    except OSError:
-        return
-
+    auth_cls = type(auth)
     pruned_entries: dict[int, set[tuple[str, int]]] = {}
     for user_id, markers in auth_cls._used_totp_codes.items():
         active_markers = {
@@ -174,31 +253,23 @@ def _persist_replay_state_locked(
 
     auth_cls._used_totp_codes = pruned_entries
 
-    payload = {
+    payload: dict[str, object] = {
         "replay": {
             str(user_id): [[code, step] for code, step in sorted(markers)]
             for user_id, markers in pruned_entries.items()
         }
     }
 
-    temp_path: str | None = None
     try:
-        file_descriptor, temp_path = tempfile.mkstemp(
-            prefix=".totp_replay_",
-            suffix=".json",
-            dir=str(parent_dir),
-            text=True,
-        )
-        with os.fdopen(file_descriptor, "w", encoding="utf-8") as temp_file:
-            json.dump(payload, temp_file, separators=(",", ":"), sort_keys=True)
-        os.chmod(temp_path, 0o600)
-        os.replace(temp_path, state_file)
-    except OSError:
-        if temp_path is not None:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
+        _write_replay_state(auth_cls._REPLAY_STATE_FILE, payload)
+    except OSError as error:
+        _handle_replay_persist_failure(auth, error)
+        return
+
+    if auth_cls._replay_persist_failed:
+        auth_cls._replay_persist_failed = False
+        with auth.log_context(action="persist_replay_state") as log:
+            log.info("bot.utils.totp.replay.state.persist.recovered.ok")
 
 
 def _register_code_usage(
@@ -207,12 +278,16 @@ def _register_code_usage(
     code: str,
     matched_step: int,
     current_step: int,
-) -> bool:
+) -> TOTPVerificationResult:
     min_step = current_step - auth._REPLAY_WINDOW_STEPS
     code_marker = (code, matched_step)
 
     with auth._used_totp_codes_lock:
-        _load_replay_state_locked(type(auth), min_step=min_step)
+        _load_replay_state_locked(auth, min_step=min_step)
+        floor_step = auth._replay_floor_step
+        if floor_step is not None and matched_step <= floor_step:
+            return TOTPVerificationResult.ISSUED_BEFORE_RESTART
+
         user_entries = {
             marker
             for marker in auth._used_totp_codes.get(auth.user_id, set())
@@ -220,16 +295,16 @@ def _register_code_usage(
         }
         if code_marker in user_entries:
             auth._used_totp_codes[auth.user_id] = user_entries
-            _persist_replay_state_locked(type(auth), min_step=min_step)
-            return False
+            _persist_replay_state_locked(auth, min_step=min_step)
+            return TOTPVerificationResult.REPLAYED
 
         user_entries.add(code_marker)
         if len(user_entries) > auth._MAX_TRACKED_CODES_PER_USER:
             sorted_entries = sorted(user_entries, key=lambda marker: marker[1])
             user_entries = set(sorted_entries[-auth._MAX_TRACKED_CODES_PER_USER :])
         auth._used_totp_codes[auth.user_id] = user_entries
-        _persist_replay_state_locked(type(auth), min_step=min_step)
-        return True
+        _persist_replay_state_locked(auth, min_step=min_step)
+        return TOTPVerificationResult.VALID
 
 
 class TwoFactorAuthenticator(BaseComponent):
@@ -254,6 +329,12 @@ class TwoFactorAuthenticator(BaseComponent):
     _backup_code_hashes: ClassVar[dict[int, set[str]]] = {}
     _used_totp_codes_lock: ClassVar[threading.RLock] = threading.RLock()
     _replay_state_loaded: ClassVar[bool] = False
+    # Restart barrier: without a trusted replay state file, steps up to
+    # _replay_floor_step (derived from the process start) are rejected.
+    _PROCESS_STARTED_AT: ClassVar[float] = time.time()
+    _replay_floor_step: ClassVar[int | None] = None
+    # True from a failed state write until the next successful one.
+    _replay_persist_failed: ClassVar[bool] = False
 
     __slots__ = (
         "user_id",
@@ -414,19 +495,34 @@ class TwoFactorAuthenticator(BaseComponent):
         Raises:
             TOTPError: If verification process fails critically
         """
+        return self.check_totp_code(code) is TOTPVerificationResult.VALID
+
+    def check_totp_code(self, code: str) -> TOTPVerificationResult:
+        """Check the TOTP code for the user and tell why it was rejected.
+
+        Args:
+            code: The TOTP code to be checked
+
+        Returns:
+            TOTPVerificationResult: ``VALID`` when the code is accepted (it is
+            then registered as used); otherwise the reason for the rejection
+
+        Raises:
+            TOTPError: If verification process fails critically
+        """
         with self.log_context(
             user_id=self.user_id, username=self.username, operation="totp_verification"
         ) as log:
             # Input validation
             if not isinstance(code, str):
                 log.debug("bot.utils.totp.invalid.code.debug")
-                return False
+                return TOTPVerificationResult.INVALID
 
             # Clean and validate code format
             cleaned_code = code.strip()
             if not self.TOTP_CODE_PATTERN.match(cleaned_code):
                 log.debug("bot.utils.totp.invalid.code.debug")
-                return False
+                return TOTPVerificationResult.INVALID
 
             try:
                 totp = pyotp.TOTP(
@@ -450,19 +546,21 @@ class TwoFactorAuthenticator(BaseComponent):
                         "bot.utils.totp.verification.fail",
                         code_length=len(cleaned_code),
                     )
-                    return False
+                    return TOTPVerificationResult.INVALID
 
-                if not _register_code_usage(
+                result = _register_code_usage(
                     self,
                     code=cleaned_code,
                     matched_step=matched_step,
                     current_step=current_step,
-                ):
+                )
+                if result is TOTPVerificationResult.REPLAYED:
                     log.warning("bot.utils.totp.verification.replay.fail")
-                    return False
-
-                log.info("bot.utils.totp.verification.ok")
-                return True
+                elif result is TOTPVerificationResult.ISSUED_BEFORE_RESTART:
+                    log.warning("bot.utils.totp.verification.before.restart.warn")
+                else:
+                    log.info("bot.utils.totp.verification.ok")
+                return result
 
             except Exception as e:
                 log.error("bot.utils.totp.critical.verification.fail")

@@ -11,6 +11,10 @@ from telebot.types import Message
 from pytmbot import exceptions
 from pytmbot.exceptions import ErrorContext
 from pytmbot.globals import get_emoji_converter, get_keyboards
+from pytmbot.handlers.auth_processing.auth_processing import (
+    is_private_chat,
+    send_private_chat_notice,
+)
 from pytmbot.handlers.handlers_util.utils import send_bot_message, send_main_message
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
@@ -33,6 +37,13 @@ QR_DELETED_NAVIGATION_TEXT = (
     "🧹 QR code message was deleted for security.\n"
     "Use the button below to return to the main menu."
 )
+QR_DELETION_BUSY_TEXT = (
+    "⏳ Too many messages are waiting for auto-deletion. Please try again in a minute."
+)
+QR_NOT_SCHEDULED_TEXT = (
+    "⚠️ Couldn't schedule the QR code for auto-deletion, so I removed it. "
+    "Please try again in a minute."
+)
 
 
 def _qr_deletion_callback(
@@ -50,6 +61,59 @@ def _qr_deletion_callback(
         logger.warning("bot.handler.auth_processing.qrcode_processing.delete.qr.fail")
 
 
+def _schedule_qr_deletion(
+    bot: TeleBot,
+    *,
+    chat_id: int,
+    message_id: int,
+    user_id: int,
+    delay_seconds: int,
+) -> bool:
+    """Schedule the auto-deletion of a QR message; return True when scheduled."""
+    try:
+        deletion_result = deletion_manager.schedule_deletion(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            user_id=user_id,
+            delay_seconds=delay_seconds,
+            callback=create_post_delete_navigation_callback(
+                _qr_deletion_callback,
+                bot=bot,
+                chat_id=chat_id,
+                navigation_text=QR_DELETED_NAVIGATION_TEXT,
+            ),
+        )
+    except Exception as error:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.schedule.deletion.fail",
+            error=str(error),
+        )
+        return False
+
+    if deletion_result.status != DeletionStatus.SCHEDULED:
+        # LIMIT_EXCEEDED (another deletion took the last slot) or a failure.
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.unexpected.deletion.fail",
+            status=deletion_result.status.name,
+        )
+        return False
+
+    logger.info("bot.handler.auth_processing.qrcode_processing.qr.code.info")
+    return True
+
+
+def _withdraw_qr_message(bot: TeleBot, chat_id: int, message_id: int) -> None:
+    """Delete a QR message right away because its auto-deletion is not scheduled."""
+    try:
+        bot.delete_message(chat_id, message_id)
+    except Exception as error:
+        logger.error(
+            "bot.handler.auth_processing.qrcode_processing.withdraw.qr.fail",
+            error=str(error),
+        )
+
+
 @logger.session_decorator
 def handle_qr_code_message(
     message: Message, bot: TeleBot, auto_delete_delay: int = 60
@@ -65,12 +129,15 @@ def handle_qr_code_message(
         auto_delete_delay (int): Delay in seconds before auto-deletion (default: 60)
 
     Returns:
-        Message | None: The message object sent to the user, or None if the QR code generation fails.
+        Message | None: The message object sent to the user, or None if no QR
+        code was left in the chat.
 
     Security Considerations:
+        - QR codes are sent only in a private chat; groups get a link to it
         - QR code messages are auto-deleted to protect sensitive TOTP information
         - Messages are sent with content protection and spoiler tags
-        - Graceful handling when deletion limits are exceeded
+        - A QR code is never left without scheduled deletion: it is refused when
+          the deletion limit is reached and removed when scheduling fails
         - All operations are logged for security monitoring
     """
     if message.from_user is None:
@@ -79,6 +146,10 @@ def handle_qr_code_message(
             message.chat.id,
             "⚠️ Cannot identify user for QR generation.",
         )
+        return None
+
+    if not is_private_chat(message.chat):
+        send_private_chat_notice(bot, message)
         return None
 
     user_id = message.from_user.id
@@ -95,6 +166,18 @@ def handle_qr_code_message(
             bot,
             message.chat.id,
             text=QR_UNAVAILABLE_TEXT,
+            reply_markup=keyboard,
+        )
+        return None
+
+    if not deletion_manager.can_schedule(user_id):
+        logger.warning(
+            "bot.handler.auth_processing.qrcode_processing.deletion.limit.warn"
+        )
+        send_bot_message(
+            bot,
+            message.chat.id,
+            text=QR_DELETION_BUSY_TEXT,
             reply_markup=keyboard,
         )
         return None
@@ -118,55 +201,24 @@ def handle_qr_code_message(
                 show_caption_above_media=True,
             )
 
-            # Schedule automatic deletion for security protection
-            deletion_result = deletion_manager.schedule_deletion(
-                bot=bot,
+            if _schedule_qr_deletion(
+                bot,
                 chat_id=message.chat.id,
                 message_id=sent_message.message_id,
                 user_id=user_id,
                 delay_seconds=auto_delete_delay,
-                callback=create_post_delete_navigation_callback(
-                    _qr_deletion_callback,
-                    bot=bot,
-                    chat_id=message.chat.id,
-                    navigation_text=QR_DELETED_NAVIGATION_TEXT,
-                ),
+            ):
+                return sent_message
+
+            # Never leave the QR code (it holds the 2FA secret) in the chat.
+            _withdraw_qr_message(bot, message.chat.id, sent_message.message_id)
+            send_bot_message(
+                bot,
+                message.chat.id,
+                text=QR_NOT_SCHEDULED_TEXT,
+                reply_markup=keyboard,
             )
-
-            # Handle different deletion scheduling outcomes
-            if deletion_result.status == DeletionStatus.LIMIT_EXCEEDED:
-                # Inform user about exceeded deletion limit
-                warning_msg = (
-                    "⚠️ <b>Security Notice:</b> Too many pending auto-deletions. "
-                    "This QR code will not be automatically deleted.\n\n"
-                    "<i>Please manually delete this message immediately after scanning for security!</i>"
-                )
-
-                send_bot_message(
-                    bot,
-                    message.chat.id,
-                    text=warning_msg,
-                    parse_mode="HTML",
-                    reply_markup=keyboard,
-                    reply_to_message_id=sent_message.message_id,
-                )
-
-                logger.warning(
-                    "bot.handler.auth_processing.qrcode_processing.qr.code.warn"
-                )
-
-            elif deletion_result.status == DeletionStatus.SCHEDULED:
-                logger.info(
-                    "bot.handler.auth_processing.qrcode_processing.qr.code.info"
-                )
-
-            else:
-                # Fallback for any other unexpected status
-                logger.error(
-                    "bot.handler.auth_processing.qrcode_processing.unexpected.deletion.fail"
-                )
-
-            return sent_message
+            return None
 
         else:
             # Handle QR code generation failure

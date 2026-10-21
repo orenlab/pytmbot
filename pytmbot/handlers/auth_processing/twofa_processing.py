@@ -14,7 +14,6 @@ from typing import cast
 
 from telebot import TeleBot
 from telebot.types import (
-    ForceReply,
     InlineKeyboardMarkup,
     Message,
     ReplyKeyboardMarkup,
@@ -30,6 +29,10 @@ from pytmbot.globals import (
     settings,
     var_config,
 )
+from pytmbot.handlers.auth_processing.auth_processing import (
+    is_private_chat,
+    send_private_chat_notice,
+)
 from pytmbot.handlers.docker_handlers.callback_data import (
     post_auth_return_callback,
     post_auth_return_label,
@@ -42,7 +45,7 @@ from pytmbot.handlers.handlers_util.utils import (
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.utils import is_valid_totp_code
-from pytmbot.utils.totp import TwoFactorAuthenticator
+from pytmbot.utils.totp import TOTPVerificationResult, TwoFactorAuthenticator
 
 logger = Logger()
 em = get_emoji_converter()
@@ -56,6 +59,10 @@ _totp_attempt_lock = threading.RLock()
 TOTP_UNAVAILABLE_TEXT = (
     "⚠️ 2FA can't be checked right now: the bot's 2FA settings are incomplete. "
     "Ask the bot administrator to check the bot logs."
+)
+TOTP_ISSUED_BEFORE_RESTART_TEXT = (
+    "⏳ The bot restarted moments ago. For security, codes issued before the "
+    "restart aren't accepted. Wait for the next code in your app (up to a minute)."
 )
 
 
@@ -155,6 +162,10 @@ def handle_twofa_message(message: Message, bot: TeleBot) -> None:
         return
     user_id = message.from_user.id
     try:
+        if not is_private_chat(message.chat):
+            send_private_chat_notice(bot, message)
+            return
+
         if session_manager.is_blocked(user_id):
             _handle_blocked_user(message, bot)
             return
@@ -221,6 +232,12 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     ):
         return
 
+    if stop_if(
+        not is_private_chat(message.chat),
+        lambda: _reject_code_outside_private_chat(message, bot),
+    ):
+        return
+
     totp_code: str = _extract_totp_code(message.text)
 
     if stop_if(
@@ -249,11 +266,18 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
         if stop_if(should_stop, action):
             return None
 
-    is_valid_code = _verify_totp_code(message, bot, from_user, totp_code)
-    if is_valid_code is None:
+    verification = _verify_totp_code(message, bot, from_user, totp_code)
+    if verification is None:
         return None
-    if is_valid_code:
+    if verification is TOTPVerificationResult.VALID:
         _complete_authentication(message, bot, user_id)
+    elif verification is TOTPVerificationResult.ISSUED_BEFORE_RESTART:
+        # Not the user's mistake: no failed attempt is counted.
+        logger.warning(
+            "bot.handler.auth_processing.twofa_processing.totp.before.restart.warn",
+            user_id=user_id,
+        )
+        bot.reply_to(message, TOTP_ISSUED_BEFORE_RESTART_TEXT)
     else:
         session_manager.increment_totp_attempts(user_id=user_id)
         logger.error("bot.handler.auth_processing.twofa_processing.invalid.totp.fail")
@@ -261,9 +285,30 @@ def handle_totp_code_verification(message: Message, bot: TeleBot) -> None:
     return None
 
 
+def _reject_code_outside_private_chat(message: Message, bot: TeleBot) -> None:
+    """
+    Remove a 2FA code sent to a group and point the user to the private chat.
+
+    The code is not checked and does not count as an attempt.
+    """
+    logger.warning(
+        "bot.handler.auth_processing.twofa_processing.group.code.deny",
+        user_id=message.from_user.id if message.from_user else None,
+    )
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as error:
+        # The bot may lack the right to delete members' messages.
+        logger.warning(
+            "bot.handler.auth_processing.twofa_processing.group.code.delete.fail",
+            error=str(error),
+        )
+    send_private_chat_notice(bot, message)
+
+
 def _verify_totp_code(
     message: Message, bot: TeleBot, user: User, totp_code: str
-) -> bool | None:
+) -> TOTPVerificationResult | None:
     """
     Verify a TOTP code for the user.
 
@@ -273,7 +318,7 @@ def _verify_totp_code(
     """
     try:
         authenticator = TwoFactorAuthenticator(user.id, user.username)
-        return authenticator.verify_totp_code(totp_code)
+        return authenticator.check_totp_code(totp_code)
     except exceptions.TOTPError as error:
         logger.error(
             "bot.handler.auth_processing.twofa_processing.totp.unavailable.fail",
@@ -288,6 +333,8 @@ def _complete_authentication(message: Message, bot: TeleBot, user_id: int) -> No
     bot.send_chat_action(message.chat.id, "typing")
     session_manager.set_auth_state(user_id, session_manager.state_fabric.AUTHENTICATED)
     session_manager.set_login_time(user_id)
+    # Earlier mistakes must not carry over into the next 2FA prompt.
+    session_manager.reset_totp_attempts(user_id)
 
     keyboard = __create_referer_keyboard(user_id)
 
@@ -338,7 +385,7 @@ def _handle_blocked_user(message: Message, bot: TeleBot) -> None:
 
 def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     """
-    Sends a message to the user with a TOTP code.
+    Asks the user for a TOTP code (private chats only).
 
     Parameters:
         message (Message): The message object received from the user.
@@ -357,14 +404,6 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
     username = message.from_user.username if message.from_user else None
     name = first_name or username or "User"
 
-    if message.chat.type in {"group", "supergroup"}:
-        # In group chats with privacy mode, ForceReply guarantees plain code delivery.
-        reply_markup: ForceReply | ReplyKeyboardMarkup = ForceReply(selective=True)
-        reply_to_message_id: int | None = message.message_id
-    else:
-        reply_markup = keyboards.build_reply_keyboard(keyboard_type="back_keyboard")
-        reply_to_message_id = None
-
     response = Compiler.quick_render(
         template_name="a_send_totp_code.jinja2", name=name, **emojis
     )
@@ -373,9 +412,8 @@ def _send_totp_code_message(message: Message, bot: TeleBot) -> None:
         bot=bot,
         chat_id=message.chat.id,
         text=response,
-        reply_markup=reply_markup,
+        reply_markup=keyboards.build_reply_keyboard(keyboard_type="back_keyboard"),
         parse_mode="HTML",
-        reply_to_message_id=reply_to_message_id,
     )
 
 

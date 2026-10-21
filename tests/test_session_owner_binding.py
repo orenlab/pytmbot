@@ -141,9 +141,10 @@ def test_owner_without_session_gets_2fa_prompt_and_manage_return_target(
     executed = _run(_make_call(data, presser=_ADMIN_A), bot)
 
     assert executed == []
-    # The owner's own message may be replaced by the 2FA prompt.
-    assert bot.deleted == [(_GROUP_CHAT, 4242)]
+    # In a group the pressed message stays; 2FA continues in the private chat.
+    assert bot.deleted == []
     assert bot.sent and bot.sent[0]["chat_id"] == _GROUP_CHAT
+    assert "private chat" in str(bot.sent[0]["text"])
     # A state-changing action is never stored as the post-2FA return target.
     assert session.referers[_ADMIN_A] == (
         "callback_query",
@@ -155,7 +156,7 @@ def test_unbound_button_in_group_is_never_deleted(session: _Session) -> None:
     bot = _Bot()
     _run(_make_call("back_to_containers", presser=_ADMIN_A), bot)
     assert bot.deleted == []
-    assert bot.sent  # the 2FA prompt is still sent
+    assert bot.sent  # the private-chat notice is still sent
     assert session.referers[_ADMIN_A] == ("callback_query", "back_to_containers")
 
 
