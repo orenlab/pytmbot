@@ -28,6 +28,8 @@ from pytmbot.adapters.docker.client import reset_docker_client_context
 from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.exceptions import ErrorContext, InitializationError, ShutdownError
 from pytmbot.health_system import HealthManager, HealthStatus, create_health_manager
+from pytmbot.health_system.probe import exit_probe, run_probe
+from pytmbot.health_system.snapshot import HealthSnapshotWriter
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args
 
@@ -174,6 +176,9 @@ class BotLauncher(logs.BaseComponent):
                 bot=bot_component.bot,
                 session_manager=self._session_manager,
                 psutil_adapter=self._psutil_adapter,
+                webhook_mode=self._normalize_bool_flag(_get_args().webhook),
+                # Read by the container HEALTHCHECK (`--health_check`).
+                snapshot_writer=HealthSnapshotWriter(),
             )
 
             # Update legacy singleton for compatibility
@@ -764,19 +769,13 @@ class BotLauncher(logs.BaseComponent):
 
 
 def check_health() -> NoReturn:
-    """Check bot health status and exit with appropriate code."""
-    health_status = HealthStatus()
-    result = health_status.last_health_check_result
+    """Exit with the verdict on the health snapshot published by the running bot.
 
-    match result:
-        case True:
-            sys.exit(0)
-        case False:
-            sys.exit(1)
-        case None:
-            sys.exit(2)
-
-    raise AssertionError("unreachable")
+    Exit codes: 0 healthy, 1 unhealthy, 2 unknown (no snapshot yet). This process
+    never starts the bot. The container HEALTHCHECK runs the same probe as
+    ``python -m pytmbot.health_system.probe``, which skips this module's imports.
+    """
+    exit_probe(run_probe())
 
 
 def main() -> None:

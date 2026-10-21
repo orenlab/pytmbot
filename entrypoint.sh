@@ -185,9 +185,9 @@ check_dependencies() {
     log "DEBUG" "entrypoint" "Dependencies check completed" "{\"python_path\": \"$PYTHON_PATH\", \"main_script\": \"$MAIN_SCRIPT\"}"
 }
 
-# Enhanced health check function
+# Container health check: judge the health snapshot published by the running bot
 health_check() {
-    log "INFO" "entrypoint" "Performing comprehensive health check" "{}"
+    log "INFO" "entrypoint" "Performing health check" "{}"
 
     if [ ! -f "$MAIN_SCRIPT" ]; then
         log "ERROR" "entrypoint" "Health check failed: Main script not found" "{\"script\": \"$MAIN_SCRIPT\"}"
@@ -201,47 +201,27 @@ health_check() {
 
     check_docker_access || log "WARNING" "entrypoint" "Docker access not available during health check" "{}"
 
+    # The probe only reads the health snapshot the running bot writes to its state directory
+    # (PYTMBOT_STATE_DIR) and prints the reason of a failure to stderr.
+    _health_probe="pytmbot.health_system.probe"
     _python_health_rc=0
-    if ! $PYTHON_PATH "$MAIN_SCRIPT" --health_check; then
-        _python_health_rc=$?
-    fi
+    "$PYTHON_PATH" -m "$_health_probe" || _python_health_rc=$?
 
     case "$_python_health_rc" in
         0)
-            log "INFO" "entrypoint" "Health check passed" "{\"source\": \"main.py\", \"code\": 0}"
+            log "INFO" "entrypoint" "Health check passed" "{\"source\": \"$_health_probe\", \"code\": 0}"
             return 0
             ;;
         1)
-            log "ERROR" "entrypoint" "Health check failed: app reported unhealthy" "{\"source\": \"main.py\", \"code\": 1}"
+            log "ERROR" "entrypoint" "Health check failed: bot is unhealthy or its health snapshot is stale" "{\"source\": \"$_health_probe\", \"code\": 1}"
             return 1
             ;;
         2)
-            # main.py returns 2 when health manager is unavailable in this short-lived process.
-            # Fall back to runtime process liveness for container health checks.
-            _bot_pid=""
-            for _proc in /proc/[0-9]*; do
-                [ -r "$_proc/cmdline" ] || continue
-                _pid="${_proc##*/}"
-                [ "$_pid" = "$$" ] && continue
-                _cmdline=$(tr '\0' ' ' < "$_proc/cmdline" 2>/dev/null || true)
-                case "$_cmdline" in
-                    *"$MAIN_SCRIPT"*)
-                        _bot_pid="$_pid"
-                        break
-                        ;;
-                esac
-            done
-
-            if [ -n "$_bot_pid" ]; then
-                log "WARNING" "entrypoint" "Health manager unavailable, fallback to process check passed" "{\"source\": \"main.py\", \"code\": 2, \"pid\": $_bot_pid}"
-                return 0
-            fi
-
-            log "ERROR" "entrypoint" "Health check unknown and bot process not found" "{\"source\": \"main.py\", \"code\": 2}"
+            log "ERROR" "entrypoint" "Health check failed: no health data yet (bot still starting or not running) or the state directory is not writable" "{\"source\": \"$_health_probe\", \"code\": 2}"
             return 1
             ;;
         *)
-            log "ERROR" "entrypoint" "Unexpected health check exit code" "{\"source\": \"main.py\", \"code\": $_python_health_rc}"
+            log "ERROR" "entrypoint" "Unexpected health check exit code" "{\"source\": \"$_health_probe\", \"code\": $_python_health_rc}"
             return 1
             ;;
     esac
