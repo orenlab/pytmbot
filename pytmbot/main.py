@@ -33,6 +33,7 @@ from pytmbot.health_system.probe import exit_probe, run_probe
 from pytmbot.health_system.snapshot import HealthSnapshotWriter
 from pytmbot.middleware.session_manager import SessionManager
 from pytmbot.utils import parse_cli_args, sanitize_exception
+from pytmbot.utils.state_paths import StateRootSource, resolve_state_root
 
 args: argparse.Namespace | None = None
 
@@ -576,6 +577,12 @@ class BotLauncher(logs.BaseComponent):
                 system=platform.system(),
             ) as log:
                 log.debug("bot.launcher.environment.validation.ok")
+
+            state_root = resolve_state_root()
+            if state_root.source is StateRootSource.RUNTIME_FALLBACK:
+                # Read-only root filesystem without PYTMBOT_STATE_DIR.
+                with self.log_context(state_dir=os.fspath(state_root.path)) as log:
+                    log.info("bot.launcher.state.dir.fallback.info")
 
         except Exception as e:
             raise InitializationError(

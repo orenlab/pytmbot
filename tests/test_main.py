@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -10,6 +12,7 @@ import pytest
 from pytmbot.exceptions import InitializationError
 from pytmbot.health_system.snapshot import HealthSnapshotWriter
 from pytmbot.utils.cli import parse_cli_args
+from pytmbot.utils.state_paths import StateRoot, StateRootSource
 from tests._main_module_loader import load_main_module
 
 
@@ -57,6 +60,42 @@ def test_validate_environment_raises_for_old_python(
     monkeypatch.setattr(main_module.sys, "version_info", (3, 9, 0))
     with pytest.raises(InitializationError):
         launcher.validate_environment()
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            StateRootSource.RUNTIME_FALLBACK,
+            [("bot.launcher.state.dir.fallback.info", {"state_dir": "/dev/shm/x"})],
+        ),
+        (StateRootSource.DEFAULT, []),
+    ],
+)
+def test_validate_environment_reports_runtime_state_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    source: StateRootSource,
+    expected: list[tuple[str, dict[str, object]]],
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    monkeypatch.setattr(
+        main_module, "resolve_state_root", lambda: StateRoot(Path("/dev/shm/x"), source)
+    )
+    infos: list[tuple[str, dict[str, object]]] = []
+
+    @contextmanager
+    def capture_log_context(**context: object) -> Iterator[SimpleNamespace]:
+        yield SimpleNamespace(
+            debug=lambda _message: None,
+            info=lambda message: infos.append((message, context)),
+        )
+
+    monkeypatch.setattr(launcher, "log_context", capture_log_context)
+
+    launcher.validate_environment()
+
+    assert infos == expected
 
 
 def test_start_bot_polling_sets_shutdown_on_failure(

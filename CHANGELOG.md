@@ -19,6 +19,8 @@ Patch release with security and reliability fixes.
 ### Fixed
 
 - The container healthcheck reports the bot's real health (it could never fail before).
+- A read-only container without `PYTMBOT_STATE_DIR` keeps its runtime state (health snapshot, 2FA replay protection,
+  webhook bans) in a private `/dev/shm/pytmbot-<uid>` directory, so the healthcheck works without extra settings.
 - Polling recovers after a network error at start-up instead of stopping for good, and a bot that stops because of
   an error exits with a non-zero status, so `restart: on-failure` restarts it.
 - Exit codes are kept: the image no longer sets `PYTHONINSPECT=0`.

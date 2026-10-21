@@ -119,7 +119,8 @@ Runtime state directory resolution:
 
 - `PYTMBOT_STATE_DIR` when set
 - otherwise `$XDG_STATE_HOME/pytmbot` when `XDG_STATE_HOME` is set
-- otherwise `~/.local/state/pytmbot`
+- otherwise `~/.local/state/pytmbot`, or `/dev/shm/pytmbot-<uid>` when that cannot be written (read-only root
+  filesystem)
 
 ## Credential Rotation
 

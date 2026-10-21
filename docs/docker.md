@@ -169,7 +169,7 @@ Current runtime-relevant environment variables:
 | `TZ`                   | `UTC`                    | Container timezone                                                 |
 | `STRICT_DOCKER_ACCESS` | `False`                  | Fails startup when Docker access is unavailable if set truthy      |
 | `PYTMBOT_CONFIG_PATH`  | unset                    | Overrides the config path when needed                              |
-| `PYTMBOT_STATE_DIR`    | `~/.local/state/pytmbot` | Overrides runtime state path                                       |
+| `PYTMBOT_STATE_DIR`    | `~/.local/state/pytmbot` | Overrides runtime state path (see Runtime State)                   |
 | `XDG_STATE_HOME`       | unset                    | Base directory for runtime state when `PYTMBOT_STATE_DIR` is unset |
 
 ## Runtime State
@@ -181,9 +181,13 @@ State path resolution:
 - `PYTMBOT_STATE_DIR` when set
 - otherwise `$XDG_STATE_HOME/pytmbot` when `XDG_STATE_HOME` is set
 - otherwise `~/.local/state/pytmbot`
+- when that cannot be written (a read-only root filesystem without `PYTMBOT_STATE_DIR`), `/dev/shm/pytmbot-<uid>`, a
+  private directory on the tmpfs that Docker mounts in every container; startup logs
+  `bot.launcher.state.dir.fallback.info`
 
-When using a read-only root filesystem, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume, for example
-`/run/pytmbot`. Without a writable state directory the healthcheck has no data and reports the container unhealthy.
+A read-only container therefore works without extra settings. To choose the location, set `PYTMBOT_STATE_DIR` to a
+writable private tmpfs or volume, for example `/run/pytmbot` as in the official Compose file. A directory set this way
+is used as is: if it is not writable, the healthcheck has no data and reports the container unhealthy.
 
 A tmpfs is wiped when the container stops. That is fine: after a restart without saved TOTP replay state, codes issued
 before the restart are refused, so wait for the next code (up to a minute).
