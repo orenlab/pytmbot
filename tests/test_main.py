@@ -67,7 +67,7 @@ def test_validate_environment_raises_for_old_python(
     [
         (
             StateRootSource.RUNTIME_FALLBACK,
-            [("bot.launcher.state.dir.fallback.info", {"state_dir": "/dev/shm/x"})],
+            [("bot.launcher.state.dir.fallback.info", {"state_dir": "/state"})],
         ),
         (StateRootSource.DEFAULT, []),
     ],
@@ -80,7 +80,7 @@ def test_validate_environment_reports_runtime_state_fallback(
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
     monkeypatch.setattr(
-        main_module, "resolve_state_root", lambda: StateRoot(Path("/dev/shm/x"), source)
+        main_module, "resolve_state_root", lambda: StateRoot(Path("/state"), source)
     )
     infos: list[tuple[str, dict[str, object]]] = []
 

@@ -18,7 +18,7 @@ _APP_STATE_DIR = "pytmbot"
 # Writable in every Docker container, a read-only root filesystem included. Only a real
 # directory owned by the bot user and closed to others is used there (_is_usable_fallback,
 # ensure_private_directory), so another user of the shared directory cannot plant it.
-_RUNTIME_FALLBACK_BASE = Path("/dev/shm")  # NOSONAR
+_RUNTIME_FALLBACK_BASE = Path("/dev/shm")  # NOSONAR  # nosec B108
 _PRIVATE_DIRECTORY_MODE = 0o700
 
 
