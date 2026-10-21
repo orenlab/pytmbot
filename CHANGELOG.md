@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `--check-docker` exits with `1` unless the Docker API answers a ping, made with the Docker settings from
+  `pytmbot.yaml` when it is mounted (the default socket otherwise); it used to check only the socket file permissions.
+
+### Changed
+
+- The official Compose file and the docs give the `/run/pytmbot` tmpfs `mode=0700`; without it Docker creates the
+  tmpfs with mode `1777` until the bot first writes there.
+
 ## [0.5.3] — 20261021
 
 Patch release with security and reliability fixes.
