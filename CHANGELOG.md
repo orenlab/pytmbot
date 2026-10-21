@@ -2,7 +2,7 @@
 
 ## [0.5.3] — 20261021
 
-Patch release: security and reliability fixes from an audit of 0.5.2.
+Patch release with security and reliability fixes.
 
 ### Security
 
