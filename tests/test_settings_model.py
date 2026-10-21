@@ -291,3 +291,9 @@ def test_sample_config_documents_real_docker_timeout_fields() -> None:
 
     docker = SettingsModel.model_validate(yaml.safe_load(sample_text)).docker
     assert docker.model_fields_set >= {"timeout", "stop_timeout", "restart_timeout"}
+
+
+def test_ipv4_mapped_catch_all_trusted_proxy_is_rejected() -> None:
+    # ::ffff:0.0.0.0/96 is 0.0.0.0/0 once unmapped.
+    with pytest.raises(ValidationError):
+        build_webhook_config(trusted_proxy_ips=["::ffff:0.0.0.0/96"])

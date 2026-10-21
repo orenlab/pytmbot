@@ -1011,8 +1011,10 @@ def test_qr_code_removal_failure_does_not_raise(
     bot.delete_message = _network_error
     raw_qr = _raw_qr_handler(qrcode_module.handle_qr_code_message)
     message = _Msg(from_user=_User(id=11), chat=_Chat(id=1))
-    assert raw_qr(cast(Message, message), cast(TeleBot, bot), 60) is None
-    assert bot.sent_messages[-1]["text"] == qrcode_module.QR_NOT_SCHEDULED_TEXT
+    # The QR code is still in the chat: say so instead of "I removed it".
+    assert raw_qr(cast(Message, message), cast(TeleBot, bot), 60) is not None
+    assert bot.sent_messages[-1]["text"] == qrcode_module.QR_NOT_REMOVED_TEXT
+    assert bot.sent_messages[-1]["reply_to_message_id"] == 123
 
 
 def test_deletion_manager_can_schedule_reflects_the_pending_limit(

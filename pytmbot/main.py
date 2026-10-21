@@ -22,6 +22,7 @@ from types import FrameType
 from typing import TYPE_CHECKING, Final, NoReturn
 
 from humanize import naturaltime
+from telebot.apihelper import ApiTelegramException
 
 from pytmbot import logs
 from pytmbot.adapters.docker.client import reset_docker_client_context
@@ -31,7 +32,7 @@ from pytmbot.health_system import HealthManager, HealthStatus, create_health_man
 from pytmbot.health_system.probe import exit_probe, run_probe
 from pytmbot.health_system.snapshot import HealthSnapshotWriter
 from pytmbot.middleware.session_manager import SessionManager
-from pytmbot.utils import parse_cli_args
+from pytmbot.utils import parse_cli_args, sanitize_exception
 
 args: argparse.Namespace | None = None
 
@@ -59,6 +60,10 @@ class BotLauncher(logs.BaseComponent):
     HEALTH_LOG_INTERVAL: Final[int] = 60  # Log health every 60 seconds
     POLLING_RESTART_MAX_ATTEMPTS: Final[int] = 3
     POLLING_RESTART_BACKOFF_SECONDS: Final[int] = 2
+    WEBHOOK_RESET_RETRY_SECONDS: Final[float] = 5.0
+    WEBHOOK_RESET_MAX_RETRY_SECONDS: Final[float] = 60.0
+    # Telegram rejects the bot itself (bad or revoked token): retrying cannot help.
+    FATAL_TELEGRAM_ERROR_CODES: Final[frozenset[int]] = frozenset({401, 403, 404})
     INITIAL_HEALTH_WAIT_TIMEOUT_SECONDS: Final[float] = 0.5
 
     def __init__(self) -> None:
@@ -76,6 +81,9 @@ class BotLauncher(logs.BaseComponent):
         self._psutil_adapter = PsutilAdapter()
         self._session_manager = SessionManager()
         self._bot_fully_started = False
+        # Non-zero when the bot stops because it failed, so that
+        # `restart: on-failure` restarts the container.
+        self._exit_code = 0
 
         # Professional health system
         self._health_manager: HealthManager | None = None
@@ -640,6 +648,7 @@ class BotLauncher(logs.BaseComponent):
                                 restart_attempts=polling_restart_attempts
                             ) as log:
                                 log.error("bot.launcher.polling.restart.exceeded.fail")
+                            self._exit_code = 1
                             self.shutdown_requested.set()
                             break
 
@@ -684,7 +693,8 @@ class BotLauncher(logs.BaseComponent):
             ) as log:
                 log.info("bot.launcher.start")
 
-            bot_instance.remove_webhook()
+            if not self._reset_webhook(bot_instance):
+                return  # shutdown requested while Telegram was unreachable
             if webhook_enabled:
                 try:
                     bot_component._start_webhook_server()
@@ -707,7 +717,35 @@ class BotLauncher(logs.BaseComponent):
         except Exception as error:
             with self.log_context(error=str(error)) as log:
                 log.error("bot.launcher.polling.fail")
+            self._exit_code = 1
             self.shutdown_requested.set()
+
+    def _reset_webhook(self, bot_instance: TeleBot) -> bool:
+        """
+        Remove the webhook before polling or serving, retrying while Telegram is unreachable.
+
+        Returns False when shutdown was requested before it succeeded. Errors that a
+        retry cannot fix (bad or revoked token) are raised.
+        """
+        delay = self.WEBHOOK_RESET_RETRY_SECONDS
+        while not self.shutdown_requested.is_set():
+            try:
+                bot_instance.remove_webhook()
+                return True
+            except ApiTelegramException as error:
+                if error.error_code in self.FATAL_TELEGRAM_ERROR_CODES:
+                    raise
+                failure: Exception = error
+            except Exception as error:
+                failure = error
+            with self.log_context(
+                error=sanitize_exception(failure), retry_delay=delay
+            ) as log:
+                log.warning("bot.launcher.webhook.reset.retry.warn")
+            if self.shutdown_requested.wait(delay):
+                break
+            delay = min(delay * 2, self.WEBHOOK_RESET_MAX_RETRY_SECONDS)
+        return False
 
     def _handle_keyboard_interrupt(self) -> None:
         """Handle keyboard interrupt gracefully."""
@@ -761,6 +799,8 @@ class BotLauncher(logs.BaseComponent):
             # Main execution
             self.run_main_loop()
             self.shutdown()
+            if self._exit_code:
+                sys.exit(self._exit_code)
 
         except KeyboardInterrupt:
             self._handle_keyboard_interrupt()

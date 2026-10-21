@@ -5,8 +5,11 @@ import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
+import requests
+from telebot.apihelper import ApiTelegramException
 
 from pytmbot.exceptions import ShutdownError
 from tests._main_module_loader import load_main_module
@@ -316,6 +319,8 @@ def test_start_bot_polling_paths_and_failure(monkeypatch: pytest.MonkeyPatch) ->
     launcher.bot = None
     launcher._start_bot_polling(bot_instance)
     assert launcher.shutdown_requested.is_set() is True
+    # A failed polling start must end the process with a non-zero status.
+    assert launcher._exit_code == 1
 
 
 def test_start_bot_polling_skips_fallback_when_shutdown_requested(
@@ -409,6 +414,7 @@ def test_run_main_loop_restarts_polling_and_stops_after_limit(
 
     assert launcher.shutdown_requested.is_set() is True
     assert calls["polling"] == launcher.POLLING_RESTART_MAX_ATTEMPTS + 1
+    assert launcher._exit_code == 1  # restarted by `restart: on-failure`
 
 
 def test_shutdown_bot_silently_and_cleanup_paths(
@@ -645,3 +651,75 @@ def test_keyboard_interrupt_fatal_error_and_main_entrypoints(
     )
     main_module.main()
     assert called == {"health": 1, "run": 1}
+
+
+def test_webhook_reset_is_retried_while_telegram_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A network outage at start-up used to end the bot (and exit 0).
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    waits: list[float] = []
+    monkeypatch.setattr(
+        launcher.shutdown_requested, "wait", lambda timeout=None: waits.append(timeout)
+    )
+    attempts = {"count": 0}
+
+    def _remove_webhook() -> None:
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise requests.exceptions.ConnectionError("no network yet")
+
+    assert launcher._reset_webhook(SimpleNamespace(remove_webhook=_remove_webhook))
+    assert attempts["count"] == 3
+    assert waits == [5.0, 10.0]
+
+
+def test_webhook_reset_gives_up_on_shutdown_and_fatal_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+
+    def _unreachable() -> None:
+        raise requests.exceptions.ConnectionError("no network")
+
+    monkeypatch.setattr(launcher.shutdown_requested, "wait", lambda timeout=None: True)
+    assert (
+        launcher._reset_webhook(SimpleNamespace(remove_webhook=_unreachable)) is False
+    )
+
+    def _unauthorized() -> None:
+        # telebot's constructor is untyped.
+        make_error = cast(Callable[..., ApiTelegramException], ApiTelegramException)
+        raise make_error(
+            "removeWebhook",
+            SimpleNamespace(status_code=401, text="Unauthorized"),
+            {"error_code": 401, "description": "Unauthorized"},
+        )
+
+    with pytest.raises(ApiTelegramException):
+        launcher._reset_webhook(SimpleNamespace(remove_webhook=_unauthorized))
+
+
+def test_run_exits_non_zero_after_a_failure_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_module = _load_main_module(monkeypatch)
+    launcher = main_module.BotLauncher()
+    monkeypatch.setattr(launcher, "_register_cleanup", lambda: None)
+    monkeypatch.setattr(launcher, "_setup_signal_handlers", lambda: None)
+    monkeypatch.setattr(launcher, "validate_environment", lambda: None)
+    monkeypatch.setattr(launcher, "shutdown", lambda: None)
+
+    def _failed_main_loop() -> None:
+        launcher._exit_code = 1
+
+    monkeypatch.setattr(launcher, "run_main_loop", _failed_main_loop)
+    with pytest.raises(SystemExit) as stopped:
+        launcher.run()
+    assert stopped.value.code == 1
+
+    launcher._exit_code = 0
+    monkeypatch.setattr(launcher, "run_main_loop", lambda: None)
+    launcher.run()  # a clean stop returns normally (exit status 0)

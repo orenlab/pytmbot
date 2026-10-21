@@ -122,7 +122,7 @@ def test_webhook_verify_telegram_dependency_paths(
         lambda _ip: False,
     )
     with pytest.raises(HTTPException) as denied:
-        dependency_call(request=request, x_forwarded_for=None)
+        dependency_call(request=request)
     assert denied.value.status_code == 403
 
     monkeypatch.setattr(
@@ -130,7 +130,7 @@ def test_webhook_verify_telegram_dependency_paths(
         "is_telegram_ip",
         lambda _ip: True,
     )
-    assert dependency_call(request=request, x_forwarded_for=None) == "149.154.167.220"
+    assert dependency_call(request=request) == "149.154.167.220"
 
 
 @pytest.mark.parametrize(

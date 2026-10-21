@@ -35,12 +35,12 @@ class _FakeBot(TeleBot):
         return
 
 
-def _build_request(host: str) -> Request:
+def _build_request(host: str, *forwarded_lines: str) -> Request:
     scope: Scope = {
         "type": "http",
         "method": "POST",
         "path": "/",
-        "headers": [],
+        "headers": [(b"x-forwarded-for", line.encode()) for line in forwarded_lines],
         "client": (host, 12345),
         "scheme": "http",
         "query_string": b"",
@@ -172,13 +172,34 @@ def test_spoofed_leftmost_forwarded_entry_is_not_the_client() -> None:
 
     check_ip = _telegram_ip_dependency(server)
     with pytest.raises(HTTPException) as denied:
-        check_ip(request=_build_request("10.0.0.5"), x_forwarded_for=spoofed)
+        check_ip(request=_build_request("10.0.0.5", spoofed))
     assert denied.value.status_code == 403
 
     genuine = f"203.0.113.7, {_TELEGRAM_IP}"
-    assert check_ip(request=_build_request("10.0.0.5"), x_forwarded_for=genuine) == (
-        _TELEGRAM_IP
-    )
+    assert check_ip(request=_build_request("10.0.0.5", genuine)) == _TELEGRAM_IP
+
+
+def test_separate_forwarded_header_lines_are_read_in_order() -> None:
+    # HAProxy `option forwardfor` adds its own header line; the client's forged
+    # first line must not decide the client address.
+    server = _server_behind("10.0.0.0/8")
+    check_ip = _telegram_ip_dependency(server)
+
+    with pytest.raises(HTTPException) as denied:
+        check_ip(request=_build_request("10.0.0.5", _TELEGRAM_IP, "203.0.113.7"))
+    assert denied.value.status_code == 403
+
+    assert check_ip(
+        request=_build_request("10.0.0.5", "203.0.113.7", _TELEGRAM_IP)
+    ) == (_TELEGRAM_IP)
+
+
+def test_ipv4_mapped_trusted_proxy_range_still_matches() -> None:
+    # Peers are compared in IPv4 form, so mapped ranges must be unmapped too.
+    server = _server_behind("::ffff:10.0.0.0/104")
+
+    assert _resolved_client(server, "::ffff:10.0.0.5", _TELEGRAM_IP) == _TELEGRAM_IP
+    assert _resolved_client(server, "10.0.0.5", _TELEGRAM_IP) == _TELEGRAM_IP
 
 
 def test_multi_hop_chain_skips_every_trusted_proxy() -> None:

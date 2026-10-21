@@ -106,3 +106,10 @@ def test_telegram_ip_validator_skips_too_wide_additional_ranges(
 )
 def test_additional_range_width_limit(network: str, too_wide: bool) -> None:
     assert is_additional_range_too_wide(ip_network(network)) is too_wide
+
+
+def test_ipv4_mapped_additional_range_matches_ipv4_addresses() -> None:
+    validator = TelegramIPValidator(["::ffff:203.0.113.0/120"])
+
+    assert validator.is_telegram_ip("203.0.113.9") is True
+    assert validator.is_telegram_ip("::ffff:203.0.113.9") is True

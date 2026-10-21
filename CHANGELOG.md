@@ -17,7 +17,8 @@ Patch release: security and reliability fixes from an audit of 0.5.2.
 ### Fixed
 
 - The container healthcheck reports the bot's real health (it could never fail before).
-- Polling recovers after a network error at start-up instead of stopping for good.
+- Polling recovers after a network error at start-up instead of stopping for good, and a bot that stops because of
+  an error exits with a non-zero status, so `restart: on-failure` restarts it.
 - Exit codes are kept: the image no longer sets `PYTHONINSPECT=0`.
 - `docker.stop_timeout` and `docker.restart_timeout` (new, 1–300 s) are applied; a successful 2FA code resets failed
   attempts; `::ffff:`-mapped Telegram addresses are accepted.

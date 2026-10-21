@@ -35,6 +35,7 @@ from pytmbot.models.telegram_models import (
     IPAddress,
     TelegramIPValidator,
     parse_ip_address,
+    parse_ip_network,
 )
 from pytmbot.models.updates_model import UpdateModel
 from pytmbot.utils import (
@@ -743,11 +744,8 @@ class WebhookServer(BaseComponent):
     def _parse_proxy_networks(
         proxy_sources: list[str],
     ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-        """Parse trusted proxy CIDR/IP list into network objects."""
-        networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
-        for source in proxy_sources:
-            networks.append(ipaddress.ip_network(source, strict=False))
-        return networks
+        """Parse trusted proxy CIDR/IP list (IPv4-mapped ranges as IPv4)."""
+        return [parse_ip_network(source) for source in proxy_sources]
 
     def _is_trusted_address(self, address: IPAddress) -> bool:
         """Check a parsed (IPv4-unmapped) address against trusted proxies."""
@@ -873,10 +871,12 @@ class WebhookServer(BaseComponent):
                         status_code=404, content={"detail": "Not found"}
                     )
 
-            def verify_telegram_ip(
-                request: Request,
-                x_forwarded_for: Annotated[str | None, Header()] = None,
-            ) -> str:
+            def verify_telegram_ip(request: Request) -> str:
+                # A proxy may add its own X-Forwarded-For line instead of appending
+                # to the client's; read every line in order (the first one is
+                # client-controlled).
+                forwarded_lines = request.headers.getlist("x-forwarded-for")
+                x_forwarded_for = ", ".join(forwarded_lines) or None
                 peer_ip, client_ip = self._resolve_client_ip(request, x_forwarded_for)
                 masked_client_ip = mask_ip_address(client_ip)
                 masked_peer_ip = mask_ip_address(peer_ip)

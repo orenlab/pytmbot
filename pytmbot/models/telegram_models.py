@@ -36,6 +36,35 @@ def parse_ip_address(value: str) -> IPAddress:
     return address
 
 
+_IPV4_MAPPED_NETWORK: Final[ipaddress.IPv6Network] = ipaddress.IPv6Network(
+    "::ffff:0:0/96"
+)
+
+
+def parse_ip_network(value: str) -> IPNetwork:
+    """
+    Parse an IP/CIDR value; an IPv4-mapped IPv6 network becomes IPv4.
+
+    Addresses are compared in IPv4 form (see ``parse_ip_address``), so a range
+    written as ``::ffff:10.0.0.0/104`` must become ``10.0.0.0/8`` to match.
+
+    Raises:
+        ValueError: If ``value`` is not an IP address or network.
+    """
+    network = ipaddress.ip_network(value, strict=False)
+    if (
+        isinstance(network, ipaddress.IPv6Network)
+        and network.prefixlen >= _IPV4_MAPPED_NETWORK.prefixlen
+        and network.subnet_of(_IPV4_MAPPED_NETWORK)
+    ):
+        mapped = network.network_address.ipv4_mapped
+        if mapped is not None:
+            return ipaddress.IPv4Network(
+                (mapped, network.prefixlen - _IPV4_MAPPED_NETWORK.prefixlen)
+            )
+    return network
+
+
 def is_additional_range_too_wide(network: IPNetwork) -> bool:
     """Return True when an additional Telegram range is wider than allowed."""
     return network.prefixlen < MIN_ADDITIONAL_RANGE_PREFIX[network.version]
@@ -84,7 +113,7 @@ class TelegramIPValidator:
             if not candidate:
                 continue
             try:
-                network = ipaddress.ip_network(candidate, strict=False)
+                network = parse_ip_network(candidate)
             except ValueError:
                 logger.warning(
                     "bot.models.telegram_models.additional.range.invalid.warn",

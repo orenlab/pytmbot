@@ -44,6 +44,10 @@ QR_NOT_SCHEDULED_TEXT = (
     "⚠️ Couldn't schedule the QR code for auto-deletion, so I removed it. "
     "Please try again in a minute."
 )
+QR_NOT_REMOVED_TEXT = (
+    "⚠️ Couldn't schedule the QR code for auto-deletion or remove it. "
+    "Delete the QR code message yourself right after scanning it."
+)
 
 
 def _qr_deletion_callback(
@@ -103,8 +107,8 @@ def _schedule_qr_deletion(
     return True
 
 
-def _withdraw_qr_message(bot: TeleBot, chat_id: int, message_id: int) -> None:
-    """Delete a QR message right away because its auto-deletion is not scheduled."""
+def _withdraw_qr_message(bot: TeleBot, chat_id: int, message_id: int) -> bool:
+    """Delete a QR message whose auto-deletion is not scheduled; True if deleted."""
     try:
         bot.delete_message(chat_id, message_id)
     except Exception as error:
@@ -112,6 +116,8 @@ def _withdraw_qr_message(bot: TeleBot, chat_id: int, message_id: int) -> None:
             "bot.handler.auth_processing.qrcode_processing.withdraw.qr.fail",
             error=str(error),
         )
+        return False
+    return True
 
 
 @logger.session_decorator
@@ -211,14 +217,23 @@ def handle_qr_code_message(
                 return sent_message
 
             # Never leave the QR code (it holds the 2FA secret) in the chat.
-            _withdraw_qr_message(bot, message.chat.id, sent_message.message_id)
+            if _withdraw_qr_message(bot, message.chat.id, sent_message.message_id):
+                send_bot_message(
+                    bot,
+                    message.chat.id,
+                    text=QR_NOT_SCHEDULED_TEXT,
+                    reply_markup=keyboard,
+                )
+                return None
+            # Never claim the QR code is gone while it is still in the chat.
             send_bot_message(
                 bot,
                 message.chat.id,
-                text=QR_NOT_SCHEDULED_TEXT,
+                text=QR_NOT_REMOVED_TEXT,
                 reply_markup=keyboard,
+                reply_to_message_id=sent_message.message_id,
             )
-            return None
+            return sent_message
 
         else:
             # Handle QR code generation failure

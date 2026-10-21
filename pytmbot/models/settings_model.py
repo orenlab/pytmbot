@@ -11,7 +11,6 @@ import warnings
 from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
-from ipaddress import ip_network
 from typing import ClassVar, Final
 
 from packaging import version
@@ -30,6 +29,7 @@ from pytmbot.models.telegram_models import (
     MIN_ADDITIONAL_RANGE_PREFIX,
     IPNetwork,
     is_additional_range_too_wide,
+    parse_ip_network,
 )
 
 
@@ -254,7 +254,7 @@ def _parse_ip_networks(
         if not candidate:
             raise ValueError(f"{field_name} cannot contain empty values")
         try:
-            network = ip_network(candidate, strict=False)
+            network = parse_ip_network(candidate)
         except ValueError as error:
             raise ValueError(
                 f"Invalid {field_name} IP/CIDR value: '{candidate}'"
