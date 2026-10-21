@@ -220,6 +220,71 @@ falls back to the bot's own group `1001` and changes nothing):
 echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" > .env
 ```
 
+## What the Numbers Mean in Docker
+
+Inside a container, the bot reads the container's view of `/proc` and `/sys`. Some kernel counters are not
+namespaced and always describe the whole host; others describe only the container. When the bot runs in Docker, the
+CPU, Memory, Processes, File system, Disk I/O, Network and Quick view screens end with a one-line note saying whose
+numbers they show (for example "Disks: only filesystems mounted into this container."). Outside Docker there are no
+notes: everything is the host.
+
+| Screen                                       | Read from                      | Official Compose (`pid: host`)         | Without `pid: host` | With `network_mode: host` |
+|----------------------------------------------|--------------------------------|----------------------------------------|---------------------|---------------------------|
+| CPU, load average, uptime                    | `/proc/stat`, `/proc/loadavg`  | Host                                   | Host                | Host                      |
+| Memory and swap                              | `/proc/meminfo`                | Host                                   | Host                | Host                      |
+| Processes, top 10, Monitor alert lists       | `/proc/<pid>`                  | Host                                   | This container only | As set by `pid`           |
+| File system                                  | container mount table, statvfs | Filesystems mounted into the container | Same                | Same                      |
+| Disk I/O                                     | `/proc/diskstats`              | Host block devices                     | Host                | Host                      |
+| Network traffic, interfaces, connections     | `/proc/net`, interface ioctls  | This container                         | This container      | Host                      |
+| Sensors                                      | `/sys/class/hwmon`             | Host hardware                          | Host hardware       | Host hardware             |
+
+Notes:
+
+- CPU and memory ignore the container's limits (`cpus`, `mem_limit`): a container capped at 256 MB still shows the
+  host's total RAM and the host's CPU usage
+- the File system screen lists only the filesystems visible in the container, usually the host filesystem behind
+  Docker-managed files such as `/etc/hosts` plus your bind mounts; sizes are those of the backing host filesystem, but
+  host partitions that are not mounted into the container are missing and mount points are container paths
+- the Monitor plugin uses the same sources: CPU, memory and temperature alerts use host numbers, disk alerts cover only
+  filesystems mounted into the container, and CPU/memory alerts add a scope line when their process list may not cover
+  the whole host
+
+How the bot tells the scope (no extra privileges needed; the result is logged at startup as `Metric scopes`):
+
+- processes: PID 2 is the kernel thread `kthreadd` only in the host PID namespace; if PID 1 shares the bot's mount
+  table, it is the container's own init. Anything else (for example `/proc` mounted with `hidepid`, or Docker nested in
+  an LXC container) is reported as "could not tell" instead of guessing
+- network: compared with the host's init process, which is visible only with `pid: host`; without it the note reads
+  "this container's interfaces, unless network_mode: host"
+
+### Host Disk Numbers
+
+Disk usage is reported for the whole filesystem that contains a mount point, so an empty directory is enough. Create
+one on each host filesystem you want to watch and bind-mount it read-only:
+
+```bash
+sudo mkdir -p /srv/pytmbot-probe   # keep it empty
+```
+
+```yaml
+    volumes:
+      - /srv/pytmbot-probe:/host/srv:ro
+```
+
+The File system screen and the Monitor plugin's disk alerts then include that filesystem (device, size, used, free).
+Trade-off: a mounted directory exposes its contents to the bot, so keep probe directories empty. Avoid mounting the host
+root (`/:/host:ro`): it makes the whole host file tree readable to the bot, and `:ro` does not prevent reads.
+
+### Host Network and Processes
+
+- `network_mode: host` makes the Network screens show the host's interfaces, traffic and connections. Trade-off: the
+  bot shares the host network stack, so it can reach services bound to the host's `127.0.0.1`, any port it opens is
+  opened on the host, and Compose `networks:` (including the socket proxy setup above) cannot be combined with it
+- `pid: host` (set in the official `docker-compose.yml`) makes Processes show host processes. Trade-off: the bot can
+  read the name, owner and command line of every host process, and command lines sometimes carry secrets; with
+  `cap_drop: ALL` it cannot signal or trace other users' processes. Without it, Processes and alert process lists
+  cover only the bot's container
+
 ## Webhook Deployment Notes
 
 - enable with `--webhook true` or bare `--webhook` in the container entrypoint

@@ -15,7 +15,6 @@ from pytmbot.globals import (
     get_emoji_converter,
     get_keyboards,
     get_psutil_adapter,
-    is_docker_environment,
 )
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_bot_message
 from pytmbot.handlers.handlers_util.utils import (
@@ -28,13 +27,13 @@ from pytmbot.handlers.server_handlers.inline.common import (
 from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
 em = get_emoji_converter()
 keyboards = get_keyboards()
 psutil_adapter = get_psutil_adapter()
-running_in_docker = is_docker_environment()
 
 DISK_IO_PREFIX = "__disk_io__"
 FILESYSTEM_OVERVIEW_PREFIX = "__filesystem_overview__"
@@ -75,7 +74,7 @@ def handle_file_system(message: Message, bot: TeleBot) -> None:
         bot_answer = Compiler.quick_render(
             template_name="b_fs.jinja2",
             context=disk_usage,
-            running_in_docker=running_in_docker,
+            scope_notes=get_metric_scope_notes(),
             **emojis,
         )
         user_id = message.from_user.id if message.from_user is not None else None

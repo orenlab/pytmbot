@@ -17,3 +17,7 @@
 <tr><td>Cached</td><td align="right">{{ context.cached|e }}</td></tr>
 <tr><td>Shared</td><td align="right">{{ context.shared|e }}</td></tr>
 </table>
+
+{% if scope_notes %}
+<p><i>{{ scope_notes.memory }}</i></p>
+{% endif %}

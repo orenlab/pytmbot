@@ -31,6 +31,7 @@ from pytmbot.plugins.monitor.utils import (
 )
 from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.utils import is_running_in_docker, set_naturalsize
+from pytmbot.utils.environment import describe_metric_scopes, get_docker_metric_scopes
 
 logger = Logger()
 
@@ -768,7 +769,17 @@ class SystemMonitorPlugin(PluginCore):
             f"Current Usage: {usage:.1f}%\n\n"
             f"<b>{escape(resource_heading)}:</b>\n"
             f"{process_info}"
+            f"{self._process_scope_hint()}"
         )
+
+    @staticmethod
+    def _process_scope_hint() -> str:
+        """Flag a process list that may not cover the whole host (Docker only)."""
+        scopes = get_docker_metric_scopes()
+        if scopes is None or scopes["processes"] == "host":
+            return ""
+        note = describe_metric_scopes(scopes)["processes"]
+        return f"\n<i>{escape(note, quote=False)}</i>"
 
     @staticmethod
     def _format_temperature_alert(

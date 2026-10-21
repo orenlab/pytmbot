@@ -19,3 +19,7 @@
 {% else %}
 <p>No active connection status data available.</p>
 {% endif %}
+
+{% if scope_notes %}
+<p><i>{{ scope_notes.network }}</i></p>
+{% endif %}

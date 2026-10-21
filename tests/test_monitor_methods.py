@@ -26,6 +26,7 @@ from pytmbot.plugins.monitor.models import (
     ResourceThresholds,
 )
 from pytmbot.plugins.monitor.utils import SystemMetrics
+from pytmbot.utils.environment import MetricScope, MetricScopes
 
 type _PayloadScalar = str | int | float | bool | None
 type _PayloadValue = _PayloadScalar | list["_PayloadValue"] | dict[str, "_PayloadValue"]
@@ -540,6 +541,56 @@ def test_record_metrics_writes_sanitized_data(monkeypatch: pytest.MonkeyPatch) -
 
     monitor.influxdb_client = _InfluxStub(write_result=False)
     monitor._record_metrics({"cpu": 20.0})
+
+
+def _docker_scopes(processes: MetricScope) -> MetricScopes:
+    return {
+        "cpu": "host",
+        "memory": "host",
+        "processes": processes,
+        "disks": "container",
+        "disk_io": "host",
+        "network": "unknown",
+    }
+
+
+@pytest.mark.parametrize(
+    ("scopes", "expected_hint"),
+    [
+        (None, None),
+        (_docker_scopes("host"), None),
+        (
+            _docker_scopes("container"),
+            "<i>Processes: this container only (no pid: host).</i>",
+        ),
+        (
+            _docker_scopes("unknown"),
+            "<i>Processes: could not tell whether these are the host's or this "
+            "container's.</i>",
+        ),
+    ],
+)
+def test_resource_alerts_flag_partial_process_lists(
+    monkeypatch: pytest.MonkeyPatch,
+    scopes: MetricScopes | None,
+    expected_hint: str | None,
+) -> None:
+    monitor, _bot = _build_monitor()
+    monkeypatch.setattr(SystemMonitorPlugin, "_get_top_processes", lambda self: [])
+    monkeypatch.setattr(
+        monitor_methods_module, "get_docker_metric_scopes", lambda: scopes
+    )
+
+    for text in (
+        monitor._format_cpu_alert("ev-1", 95.0),
+        monitor._format_memory_alert("ev-2", 88.0),
+    ):
+        last_line = text.splitlines()[-1]
+        if expected_hint is None:
+            assert "<i>" not in text
+            assert last_line == "  • N/A"
+        else:
+            assert last_line == expected_hint
 
 
 def test_alert_formatting_and_notifications(monkeypatch: pytest.MonkeyPatch) -> None:

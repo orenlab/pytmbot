@@ -27,6 +27,7 @@ from pytmbot.handlers.server_handlers.inline.common import (
 from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
@@ -81,7 +82,10 @@ def handle_network(message: Message, bot: TeleBot) -> None:
             return None
 
         message_text = Compiler.quick_render(
-            template_name="b_net_io.jinja2", context=network_statistics, **emojis
+            template_name="b_net_io.jinja2",
+            context=network_statistics,
+            scope_notes=get_metric_scope_notes(),
+            **emojis,
         )
         user_id = message.from_user.id if message.from_user is not None else None
         keyboard = _build_network_keyboard(user_id)

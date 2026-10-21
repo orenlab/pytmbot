@@ -12,6 +12,7 @@
 <tr><td>Free</td><td>{{ value['free']|e }}</td></tr>
 </table>
 {% endfor %}
-{% if running_in_docker %}
-<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+
+{% if scope_notes %}
+<p><i>{{ scope_notes.disks }}</i></p>
 {% endif %}

@@ -14,9 +14,11 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from markupsafe import escape
 
 from pytmbot.parsers.compiler import Compiler
 from pytmbot.parsers.filters import format_bytes
+from pytmbot.utils.environment import describe_metric_scopes
 from pytmbot.utils.rich_html import find_rich_html_issues
 
 TEMPLATES_ROOT = Path(__file__).resolve().parents[1] / "pytmbot" / "templates"
@@ -35,6 +37,31 @@ CLASSIC_TEMPLATES = frozenset(
 )
 
 _EMOJI = "🔹"
+
+# Scope notes as the official Compose file (pid: host, bridge network) gets them.
+_DOCKER_SCOPE_NOTES = describe_metric_scopes(
+    {
+        "cpu": "host",
+        "memory": "host",
+        "processes": "host",
+        "disks": "container",
+        "disk_io": "host",
+        "network": "container",
+    }
+)
+# Screens that say whose numbers they show when the bot runs in Docker.
+SCOPE_NOTE_KEYS: dict[str, tuple[str, ...]] = {
+    "b_cpu.jinja2": ("cpu",),
+    "b_disk_io.jinja2": ("disk_io",),
+    "b_fs.jinja2": ("disks",),
+    "b_memory.jinja2": ("memory",),
+    "b_net_connections.jinja2": ("network",),
+    "b_net_interfaces.jinja2": ("network",),
+    "b_net_io.jinja2": ("network",),
+    "b_process.jinja2": ("processes",),
+    "b_quick_view.jinja2": ("cpu_memory", "processes"),
+    "b_top_processes.jinja2": ("processes",),
+}
 
 _CONTAINER_EMOJIS = dict.fromkeys(
     (
@@ -360,7 +387,7 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
             "min_freq_mhz": 800.0,
             "max_freq_mhz": 3600.0,
         },
-        "running_in_docker": True,
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_cpu_per_core.jinja2": {
         "context": {
@@ -393,7 +420,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                     "write_time_ms": 34,
                 }
             ]
-        }
+        },
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_fans.jinja2": {
         "context": {"fans": [{"sensor_name": "nct6775", "label": "fan1", "rpm": 1200}]}
@@ -410,7 +438,7 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                 "free": "60 GB",
             }
         ],
-        "running_in_docker": True,
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_getmyid.jinja2": {
         "user_id": 101,
@@ -441,7 +469,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
             "inactive": "1 GB",
             "cached": "1 GB",
             "shared": "100 MB",
-        }
+        },
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_net_connections.jinja2": {
         "context": {
@@ -449,7 +478,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
             "tcp": 8,
             "udp": 2,
             "statuses": {"ESTABLISHED": 6, "LISTEN": 4},
-        }
+        },
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_net_interfaces.jinja2": {
         "context": {
@@ -462,7 +492,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                     "ip_address": "10.0.0.2",
                 }
             ]
-        }
+        },
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_net_io.jinja2": {
         "context": [
@@ -476,7 +507,8 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                 "drop_out": 0,
                 "drop_in": 1,
             }
-        ]
+        ],
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_notice.jinja2": {
         "icon": "🔄",
@@ -490,7 +522,7 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
     },
     "b_process.jinja2": {
         "context": {"running": 2, "sleeping": 200, "total": 202},
-        "running_in_docker": True,
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_quick_view.jinja2": {
         "context": {
@@ -504,6 +536,7 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
             "docker": {"containers_count": 4, "images_count": 9},
         },
         "updated_at": "2026-09-26 12:40:56 UTC",
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_sensors.jinja2": {"context": [{"sensor_name": "cpu", "sensor_value": 55.0}]},
     "b_server.jinja2": {"first_name": "Den"},
@@ -518,9 +551,9 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
                     "memory_percent": 0.2,
                 }
             ],
-            "running_in_docker": True,
             "timestamp": "2026-09-26 10:00:00",
-        }
+        },
+        "scope_notes": _DOCKER_SCOPE_NOTES,
     },
     "b_uptime.jinja2": {"context": "3 days, 4:05:06"},
     "b_users_info.jinja2": {
@@ -809,6 +842,25 @@ def test_rich_template_renders_valid_design(template_name: str) -> None:
 def test_rich_template_empty_states_render_valid_design(template_name: str) -> None:
     html = _render(template_name, RICH_EMPTY_STATE_CASES[template_name])
     _assert_rich_design(template_name, html)
+
+
+@pytest.mark.parametrize("template_name", sorted(SCOPE_NOTE_KEYS))
+def test_scope_notes_show_only_in_docker(template_name: str) -> None:
+    case = RICH_RENDER_CASES[template_name]
+    expected = {_DOCKER_SCOPE_NOTES[key] for key in SCOPE_NOTE_KEYS[template_name]}
+
+    in_docker = _render(template_name, case)
+    _assert_rich_design(template_name, in_docker)
+    for note in set(_DOCKER_SCOPE_NOTES.values()):
+        assert (escape(note) in in_docker) is (note in expected), note
+    assert "Limited resource information" not in in_docker
+
+    without_notes = {key: value for key, value in case.items() if key != "scope_notes"}
+    for outside_case in (without_notes, {**without_notes, "scope_notes": {}}):
+        outside = _render(template_name, outside_case)
+        _assert_rich_design(template_name, outside)
+        for note in _DOCKER_SCOPE_NOTES.values():
+            assert escape(note) not in outside, note
 
 
 def test_rich_templates_escape_dynamic_values() -> None:

@@ -36,6 +36,9 @@
 <tr><td>Idle</td><td align="right">{{ value_or_na(system.processes.idle if system.processes else none) }}</td></tr>
 <tr><td>Total</td><td align="right">{{ value_or_na(system.processes.total if system.processes else none) }}</td></tr>
 </table>
+{% if scope_notes %}
+<p><i>{{ scope_notes.cpu_memory }} {{ scope_notes.processes }}</i></p>
+{% endif %}
 {% else %}
 <p>⚠️ <i>System metrics are unavailable right now.</i></p>
 {% endif %}

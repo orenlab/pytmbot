@@ -20,6 +20,6 @@
 <p><i>CPU frequency data is not available.</i></p>
 {% endif %}
 
-{% if running_in_docker %}
-<p>{{ warning }} <i>Limited resource information available in Docker environment</i></p>
+{% if scope_notes %}
+<p><i>{{ scope_notes.cpu }}</i></p>
 {% endif %}

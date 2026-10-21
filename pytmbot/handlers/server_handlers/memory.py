@@ -24,6 +24,7 @@ from pytmbot.handlers.handlers_util.utils import (
 from pytmbot.keyboards.keyboards import NAV_SERVER
 from pytmbot.logs import Logger
 from pytmbot.parsers.compiler import Compiler
+from pytmbot.utils.environment import get_metric_scope_notes
 
 logger = Logger()
 button_data = ButtonDataType
@@ -67,6 +68,7 @@ def handle_memory(message: Message, bot: TeleBot) -> None:
         bot_answer = Compiler.quick_render(
             template_name="b_memory.jinja2",
             context=memory_info,
+            scope_notes=get_metric_scope_notes(),
             thought_balloon=em.get_emoji("thought_balloon"),
             abacus=em.get_emoji("abacus"),
         )
