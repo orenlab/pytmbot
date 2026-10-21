@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.5.3] — 20261021
+
+Patch release: security and reliability fixes from an audit of 0.5.2.
+
+### Security
+
+- Passwords in container and image commands are masked for short options and shell scripts too (`mysqld -ps3cret`,
+  `curl -u user:pass`, `redis-cli -a`, `sh -c '…'`), as are healthcheck output and `State.Error`. Command arguments are
+  shown to admins only.
+- 2FA codes and the QR code are handled only in a private chat; groups get an **Open private chat** link.
+- A TOTP code can no longer be reused after a restart that lost the replay state.
+- Webhook behind a proxy: the client address is read from the right of `X-Forwarded-For`, so a forged entry no longer
+  passes as Telegram. Too-wide Telegram ranges and `0.0.0.0/0` trusted proxies are rejected.
+
+### Fixed
+
+- The container healthcheck reports the bot's real health (it could never fail before).
+- Polling recovers after a network error at start-up instead of stopping for good.
+- Exit codes are kept: the image no longer sets `PYTHONINSPECT=0`.
+- `docker.stop_timeout` and `docker.restart_timeout` (new, 1–300 s) are applied; a successful 2FA code resets failed
+  attempts; `::ffff:`-mapped Telegram addresses are accepted.
+
+### Changed
+
+- Server screens say whose numbers they show in Docker (host or container).
+
 ## [0.5.2] — 20261021
 
 Security patch release for the eMudhra CA incident.
