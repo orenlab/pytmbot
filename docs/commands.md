@@ -87,6 +87,9 @@ TOTP verification accepts a six-digit code:
 
 Sensitive flows request 2FA only when the action is marked as requiring it.
 
+Codes and the QR code are accepted only in a private chat with the bot. In a group, the bot replies
+with an **Open private chat** link (`/start 2fa`); confirm there, then repeat the action in the group.
+
 ## Inline Flows
 
 The bot also exposes callback-driven flows that are not slash commands:
