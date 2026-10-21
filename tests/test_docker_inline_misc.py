@@ -327,8 +327,8 @@ def test_handle_image_info_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         parse_valid=lambda _data: ("0123456789ab", 11, 2),
         valid_callback_data="__image_info__:0123456789ab:11:2",
         render_attr="render_image_details",
-        render_none=lambda image_ref, page, user_id: None,
-        render_success=lambda image_ref, page, user_id: (
+        render_none=lambda image_ref, page, user_id, arguments_view: None,
+        render_success=lambda image_ref, page, user_id, arguments_view: (
             "<p>image-details</p>",
             "kbd",
         ),
@@ -348,8 +348,8 @@ def test_handle_image_extra_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         parse_valid=lambda _data: ("history", "0123456789ab", 11, 2),
         valid_callback_data="__image_extra__:history:0123456789ab:11:2",
         render_attr="render_image_extra_info",
-        render_none=lambda action, image_ref, page, user_id: None,
-        render_success=lambda action, image_ref, page, user_id: (
+        render_none=lambda action, image_ref, page, user_id, arguments_view: None,
+        render_success=lambda action, image_ref, page, user_id, arguments_view: (
             "<p>image-extra</p>",
             "kbd",
         ),

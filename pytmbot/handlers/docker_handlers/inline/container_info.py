@@ -40,8 +40,9 @@ from pytmbot.handlers.docker_handlers.user_messages import (
     INVALID_CONTAINER_REF_TEXT,
 )
 from pytmbot.handlers.handlers_util.docker import (
+    CommandArgumentsView,
     authorize_docker_callback_request,
-    can_view_command_arguments,
+    command_arguments_view,
     get_comprehensive_container_details,
     get_emojis,
     hide_command_arguments,
@@ -125,9 +126,9 @@ def _render_details(
     container_details: dict[str, object],
     emojis: dict[str, str],
     *,
-    show_command_arguments: bool,
+    arguments_view: CommandArgumentsView,
 ) -> str:
-    if not show_command_arguments:
+    if not arguments_view.visible:
         container_details = hide_command_arguments(container_details)
     return Compiler.quick_render(
         template_name="d_containers_full_info.jinja2",
@@ -140,7 +141,7 @@ def _render_details(
         gear_emoji=emojis.get("gear", "⚙️"),
         env_emoji=emojis.get("herb", "🌿"),
         banjo=emojis.get("banjo", "🪕"),
-        command_arguments_visible=show_command_arguments,
+        command_arguments_note=arguments_view.note,
         # Spread all container details
         **container_details,
     )
@@ -201,7 +202,7 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         context = _render_details(
             container_details,
             emojis,
-            show_command_arguments=can_view_command_arguments(call.from_user.id),
+            arguments_view=command_arguments_view(call),
         )
 
         keyboard_buttons: list[ButtonData] = []

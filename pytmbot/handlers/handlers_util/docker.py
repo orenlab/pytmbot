@@ -25,12 +25,13 @@ from pytmbot.adapters.docker.utils import (
     get_container_stats_snapshot,
     mask_entrypoint_and_cmd,
     mask_environment_variables,
-    mask_secrets_in_text,
+    mask_free_text,
     parse_docker_timestamp,
     validate_container_reference,
 )
 from pytmbot.exceptions import InvalidContainerReferenceError
 from pytmbot.globals import get_emoji_converter, settings
+from pytmbot.handlers.auth_processing.auth_processing import is_private_chat
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
 from pytmbot.utils import (
@@ -53,6 +54,11 @@ MAX_DISPLAYED_ENV_VARS: Final[int] = 20
 MAX_ENV_VALUE_LENGTH: Final[int] = 100
 # Shown instead of a Cmd that only holds arguments (no executable of its own).
 COMMAND_ARGUMENTS_HIDDEN_TEXT: Final[str] = "hidden"
+COMMAND_ARGUMENTS_MASKED_NOTE: Final[str] = "Values that look like secrets are masked."
+COMMAND_ARGUMENTS_ADMINS_ONLY_NOTE: Final[str] = "Arguments are visible to admins only."
+COMMAND_ARGUMENTS_PRIVATE_CHAT_NOTE: Final[str] = (
+    "Arguments are shown to admins in a private chat with the bot."
+)
 _STATUS_BADGES: Final[dict[str, str]] = {
     "running": "🟢 Running",
     "paused": "🟡 Paused",
@@ -348,15 +354,40 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     return [_truncate_env_entry(entry) for entry in masked]
 
 
-def can_view_command_arguments(user_id: int) -> bool:
-    """
-    Return True when ``user_id`` may see command arguments (masked).
+@dataclass(frozen=True, slots=True)
+class CommandArgumentsView:
+    """Whether a Docker view shows command arguments, and the note saying so."""
 
-    Arguments can hold secrets that masking does not recognize, so only admins
-    see them; 2FA is not required. Pass the id of the verified viewer
-    (``call.from_user``), never one taken from callback data.
+    visible: bool
+    note: str
+
+
+# The view for anyone who may not see arguments in a private chat.
+WITHOUT_COMMAND_ARGUMENTS: Final[CommandArgumentsView] = CommandArgumentsView(
+    visible=False, note=COMMAND_ARGUMENTS_ADMINS_ONLY_NOTE
+)
+
+
+def command_arguments_view(call: CallbackQuery) -> CommandArgumentsView:
     """
-    return user_id in settings.access_control.allowed_admins_ids
+    Decide whether the view opened by ``call`` shows command arguments.
+
+    Arguments can hold secrets that masking does not recognize, so they are
+    shown (masked) only to an admin in a private chat with the bot; 2FA is not
+    required. In a group every member would read them, admins included. The
+    admin is the verified presser (``call.from_user``), never a user id taken
+    from callback data; the chat is the one of the message being edited.
+    """
+    if not is_private_chat(getattr(call.message, "chat", None)):
+        return CommandArgumentsView(
+            visible=False, note=COMMAND_ARGUMENTS_PRIVATE_CHAT_NOTE
+        )
+    if (
+        call.from_user is None
+        or call.from_user.id not in settings.access_control.allowed_admins_ids
+    ):
+        return WITHOUT_COMMAND_ARGUMENTS
+    return CommandArgumentsView(visible=True, note=COMMAND_ARGUMENTS_MASKED_NOTE)
 
 
 def executable_only(arguments: object) -> list[str]:
@@ -370,6 +401,22 @@ def executable_only(arguments: object) -> list[str]:
     if not items:
         return []
     return [command_executable(items) or COMMAND_ARGUMENTS_HIDDEN_TEXT]
+
+
+def command_line_executables(
+    entrypoint: object, cmd: object
+) -> tuple[list[str], list[str]]:
+    """
+    Reduce masked Entrypoint and Cmd to their executables.
+
+    With an Entrypoint, Cmd holds only its arguments and is hidden entirely;
+    without one, Cmd keeps its executable.
+    """
+    entrypoint_view = executable_only(entrypoint)
+    cmd_view = executable_only(cmd)
+    if entrypoint_view and cmd_view:
+        cmd_view = [COMMAND_ARGUMENTS_HIDDEN_TEXT]
+    return entrypoint_view, cmd_view
 
 
 def hide_command_arguments(container_details: dict[str, object]) -> dict[str, object]:
@@ -440,7 +487,7 @@ def _extract_health_summary(state: dict[str, object]) -> dict[str, object]:
         if isinstance(last_record, dict):
             health_last_checked_at = _format_container_timestamp(last_record.get("End"))
             # Probe output can echo credentials (``password=...``).
-            output = mask_secrets_in_text(str(last_record.get("Output", ""))).strip()
+            output = mask_free_text(str(last_record.get("Output", ""))).strip()
             if output:
                 first_line = output.splitlines()[0]
                 health_last_log = _truncate_text(first_line)
@@ -455,7 +502,7 @@ def _extract_health_summary(state: dict[str, object]) -> dict[str, object]:
 
 def _format_state_error(state: dict[str, object]) -> str:
     """``State.Error`` (often a failed exec with its command line), masked."""
-    return _truncate_text(mask_secrets_in_text(str(state.get("Error") or "none")))
+    return _truncate_text(mask_free_text(str(state.get("Error") or "none")))
 
 
 def _format_health_badge(status: object) -> str:
@@ -751,6 +798,9 @@ def parse_container_environment(
         entrypoint_obj = config.get("Entrypoint", [])
         entrypoint = entrypoint_obj if isinstance(entrypoint_obj, list) else []
         masked_entrypoint, masked_cmd = mask_entrypoint_and_cmd(entrypoint, cmd)
+        entrypoint_view, cmd_view = command_line_executables(
+            masked_entrypoint, masked_cmd
+        )
 
         return {
             "environment_vars": safe_env_vars,
@@ -758,10 +808,8 @@ def parse_container_environment(
             "user": user,
             "command": " ".join(masked_cmd) or "N/A",
             "entrypoint": " ".join(masked_entrypoint) or "N/A",
-            "command_executable": " ".join(executable_only(masked_cmd)) or "N/A",
-            "entrypoint_executable": (
-                " ".join(executable_only(masked_entrypoint)) or "N/A"
-            ),
+            "command_executable": " ".join(cmd_view) or "N/A",
+            "entrypoint_executable": " ".join(entrypoint_view) or "N/A",
             "env_count": len(env_vars),
         }
     except Exception:

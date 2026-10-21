@@ -22,6 +22,7 @@ from pytmbot.adapters.docker.images_info import (
     get_image_history,
     get_image_usage,
 )
+from pytmbot.adapters.docker.utils import build_step_instruction
 from pytmbot.exceptions import DockerConnectionError, ErrorContext
 from pytmbot.globals import ButtonDataType, get_emoji_converter, get_keyboards
 from pytmbot.handlers.docker_handlers.callback_data import (
@@ -36,7 +37,10 @@ from pytmbot.handlers.docker_handlers.pagination import (
 )
 from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
 from pytmbot.handlers.handlers_util.docker import (
-    can_view_command_arguments,
+    COMMAND_ARGUMENTS_HIDDEN_TEXT,
+    WITHOUT_COMMAND_ARGUMENTS,
+    CommandArgumentsView,
+    command_line_executables,
     executable_only,
 )
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
@@ -591,35 +595,38 @@ def _get_image_raw_data(*, image_ref: str) -> ImageData | None:
 
 
 def _without_command_arguments(image: ImageData) -> ImageData:
-    """Image data for viewers who are not admins: executables only."""
+    """Image data without command arguments: executables only."""
+    entrypoint, cmd = command_line_executables(
+        image.get("entrypoint"), image.get("cmd")
+    )
     return {
         **image,
-        "entrypoint": executable_only(image.get("entrypoint")),
-        "cmd": executable_only(image.get("cmd")),
+        "entrypoint": entrypoint,
+        "cmd": cmd,
         "shell": executable_only(image.get("shell")),
         "healthcheck": image.get("healthcheck_without_arguments", "none"),
     }
 
 
 def _get_image_details_data(
-    *, image_ref: str, show_command_arguments: bool
+    *, image_ref: str, arguments_view: CommandArgumentsView
 ) -> ImageData | None:
     image = _get_image_raw_data(image_ref=image_ref)
     if image is None:
         return None
-    if not show_command_arguments:
+    if not arguments_view.visible:
         image = _without_command_arguments(image)
     return _compact_image_for_details(image)
 
 
 def _render_image_details_text(
-    image: ImageData, *, show_command_arguments: bool
+    image: ImageData, *, arguments_view: CommandArgumentsView
 ) -> str:
     return Compiler.quick_render(
         template_name="d_image_full_info.jinja2",
         context={
             "image": image,
-            "command_arguments_visible": show_command_arguments,
+            "command_arguments_note": arguments_view.note,
             "emojis": _get_images_emojis(),
         },
     )
@@ -672,21 +679,21 @@ def render_image_details(
     image_ref: str,
     page: int,
     user_id: int,
+    arguments_view: CommandArgumentsView = WITHOUT_COMMAND_ARGUMENTS,
 ) -> tuple[str, InlineKeyboardMarkup] | None:
     """
     Render image details; None when the image no longer exists.
 
-    ``user_id`` is the verified viewer: command arguments are shown to admins
-    only (see ``can_view_command_arguments``).
+    Command arguments are shown only when ``arguments_view`` allows it (see
+    ``command_arguments_view``).
     """
-    show_arguments = can_view_command_arguments(user_id)
     image_data = _get_image_details_data(
-        image_ref=image_ref, show_command_arguments=show_arguments
+        image_ref=image_ref, arguments_view=arguments_view
     )
     if image_data is None:
         return None
 
-    text = _render_image_details_text(image_data, show_command_arguments=show_arguments)
+    text = _render_image_details_text(image_data, arguments_view=arguments_view)
     if not fits_rich_message(text):
         fallback_image = _compact_image(
             image_data,
@@ -697,9 +704,7 @@ def render_image_details(
             max_label_key_length=MAX_LABEL_KEY_LENGTH,
             max_label_value_length=MAX_LABEL_VALUE_LENGTH,
         )
-        text = _render_image_details_text(
-            fallback_image, show_command_arguments=show_arguments
-        )
+        text = _render_image_details_text(fallback_image, arguments_view=arguments_view)
 
     if not fits_rich_message(text):
         text = (
@@ -716,8 +721,17 @@ def render_image_details(
     return text, keyboard
 
 
+def _history_step_text(row: HistoryEntry, *, show_arguments: bool) -> object:
+    """The masked build step, or only its instruction (``RUN``, ``COPY``)."""
+    created_by = row.get("created_by", "N/A")
+    if show_arguments:
+        return created_by
+    instruction = build_step_instruction(str(created_by))
+    return instruction or COMMAND_ARGUMENTS_HIDDEN_TEXT
+
+
 def _compact_image_history_entries(
-    history: list[HistoryEntry],
+    history: list[HistoryEntry], *, show_arguments: bool
 ) -> tuple[list[dict[str, str]], int]:
     compact_rows: list[dict[str, str]] = []
     for row in history[:DETAIL_MAX_HISTORY_ITEMS]:
@@ -726,7 +740,7 @@ def _compact_image_history_entries(
                 "id": _truncate_text(row.get("id", "N/A"), max_length=24),
                 "created": _truncate_text(row.get("created", "N/A"), max_length=48),
                 "created_by": _truncate_text(
-                    row.get("created_by", "N/A"),
+                    _history_step_text(row, show_arguments=show_arguments),
                     max_length=180,
                 ),
                 "size": _truncate_text(row.get("size", "N/A"), max_length=48),
@@ -743,8 +757,11 @@ def _render_image_history_text(
     image_name: str,
     image_id: str,
     history: list[HistoryEntry],
+    arguments_view: CommandArgumentsView,
 ) -> str:
-    rows, hidden_count = _compact_image_history_entries(history)
+    rows, hidden_count = _compact_image_history_entries(
+        history, show_arguments=arguments_view.visible
+    )
     return Compiler.quick_render(
         template_name="d_image_history_info.jinja2",
         context={
@@ -753,6 +770,7 @@ def _render_image_history_text(
             "layers": rows,
             "layers_count": len(history),
             "hidden_layers_count": hidden_count,
+            "command_arguments_note": arguments_view.note,
             "emojis": _get_images_emojis(),
         },
     )
@@ -832,7 +850,11 @@ def _build_image_extra_keyboard(
 
 
 def _render_image_extra_text(
-    action: str, *, image_name: str, image_id: str
+    action: str,
+    *,
+    image_name: str,
+    image_id: str,
+    arguments_view: CommandArgumentsView,
 ) -> str | None:
     """Render history or usage; None when the image no longer exists."""
     if action == "history":
@@ -843,6 +865,7 @@ def _render_image_extra_text(
             image_name=image_name,
             image_id=image_id,
             history=history,
+            arguments_view=arguments_view,
         )
     if action == "usage":
         usage = get_image_usage(image_id)
@@ -862,8 +885,13 @@ def render_image_extra_info(
     image_ref: str,
     page: int,
     user_id: int,
+    arguments_view: CommandArgumentsView = WITHOUT_COMMAND_ARGUMENTS,
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    """Render image history/usage; None when the image no longer exists."""
+    """
+    Render image history/usage; None when the image no longer exists.
+
+    History steps keep their arguments only when ``arguments_view`` allows it.
+    """
     image = _get_image_raw_data(image_ref=image_ref)
     if image is None:
         return None
@@ -872,6 +900,7 @@ def render_image_extra_info(
         action,
         image_name=str(image.get("name", "N/A")),
         image_id=str(image.get("id", "N/A")),
+        arguments_view=arguments_view,
     )
     if text is None:
         return None

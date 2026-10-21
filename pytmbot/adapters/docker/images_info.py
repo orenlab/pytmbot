@@ -23,8 +23,8 @@ from pytmbot.adapters.docker.utils import (
     mask_command_args,
     mask_entrypoint_and_cmd,
     mask_environment_variables,
+    mask_free_text,
     mask_healthcheck_test,
-    mask_secrets_in_text,
     mask_url_credentials,
     parse_docker_timestamp,
     with_operation_logging,
@@ -221,7 +221,7 @@ def process_image_attrs(image: Image) -> dict[str, object]:
             "created_at": created_at_utc,
             "author": attrs.get("Author", "N/A"),
             "docker_version": attrs.get("DockerVersion", "N/A"),
-            "comment": mask_secrets_in_text(str(attrs.get("Comment") or "N/A")),
+            "comment": mask_free_text(str(attrs.get("Comment") or "N/A")),
             "parent_id": parent_id,
             "rootfs_type": rootfs.get("Type", "N/A"),
             "layers_count": len(rootfs_layers),
@@ -406,7 +406,7 @@ def _format_history_layer(layer: dict[str, object]) -> dict[str, object]:
         "created": set_naturaltime(created) if created else "N/A",
         "created_by": mask_build_step(str(layer.get("CreatedBy", "N/A"))),
         "size": set_naturalsize(_safe_int(layer.get("Size"))),
-        "comment": mask_secrets_in_text(str(layer.get("Comment") or "")),
+        "comment": mask_free_text(str(layer.get("Comment") or "")),
         "tags": layer.get("Tags") or [],
     }
 

@@ -104,19 +104,30 @@ _SECRET_NAME_MARKERS: Final[tuple[str, ...]] = (
     "api-key",
     "requirepass",
 )
+# The masking patterns run on text that image and container authors control:
+# bounded and possessive quantifiers keep every one of them linear.
 _URL_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"(?P<prefix>\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@'\"]*):(?P<secret>[^\s@/'\"]+)@"
+    r"(?P<prefix>\b[a-zA-Z][a-zA-Z0-9+.-]{0,31}+://[^\s:/@'\"]*+)"
+    r":(?P<secret>[^\s@/'\"]++)@"
 )
 # HTTP header credentials, e.g. ``curl -H "Authorization: Bearer x"`` in a
-# command line or healthcheck.
-_HEADER_CREDENTIALS_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"(?P<name>\b(?:Proxy-)?Authorization|\bCookie|\bX-[A-Za-z0-9-]*"
-    r"(?:Key|Token|Auth|Secret|Password)[A-Za-z0-9-]*)\s*:\s*(?P<value>[^\"'\r\n]+)",
+# command line or healthcheck. ``X-`` headers count when their name carries a
+# secret marker; the value runs to the next quote or line break.
+_HEADER_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"\b(?P<name>(?:Proxy-)?Authorization|Cookie|X-[A-Za-z0-9-]{1,64}+)\s*+:\s*+",
     re.IGNORECASE,
 )
+_HEADER_VALUE_END_PATTERN: Final[re.Pattern[str]] = re.compile(r"[\"'\r\n]")
+_SECRET_HEADER_MARKERS: Final[tuple[str, ...]] = (
+    "key",
+    "token",
+    "auth",
+    "secret",
+    "password",
+)
 _FLAG_VALUE_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"(?<![\w-])(?P<flag>--?[A-Za-z][\w.-]*)(?P<sep>=|[ \t]+)"
-    r"(?P<value>\"[^\"]*\"|'[^']*'|(?!-)[^\s;&|\"']+)"
+    r"(?<![\w-])(?P<flag>--?[A-Za-z][\w.-]{0,127}+)(?P<sep>=|[ \t]++)"
+    r"(?P<value>\"[^\"]*+\"|'[^']*+'|(?!-)[^\s;&|\"']++)"
 )
 _ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?<![\w.-])(?P<key>[A-Za-z_][A-Za-z0-9_.]*)="
@@ -813,6 +824,32 @@ def mask_environment_variables(env_list: Sequence[object]) -> list[str]:
     return masked
 
 
+def _is_secret_header(name: str) -> bool:
+    normalized = name.casefold()
+    if not normalized.startswith("x-"):
+        return True  # Authorization, Proxy-Authorization, Cookie
+    return any(marker in normalized for marker in _SECRET_HEADER_MARKERS)
+
+
+def _mask_header_credentials(text: str) -> str:
+    """Mask header values: ``Authorization: Bearer x`` -> ``Authorization: ****``."""
+    parts: list[str] = []
+    position = 0
+    for match in _HEADER_NAME_PATTERN.finditer(text):
+        # Names inside an already masked value belong to that value.
+        if match.start() < position or not _is_secret_header(match.group("name")):
+            continue
+        value_end = _HEADER_VALUE_END_PATTERN.search(text, match.end())
+        end = value_end.start() if value_end else len(text)
+        if end == match.end():
+            continue
+        parts.extend((text[position : match.start()], match.group("name")))
+        parts.append(f": {SECRET_MASK}")
+        position = end
+    parts.append(text[position:])
+    return "".join(parts)
+
+
 def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> str:
     """
     Mask secrets inside a command line or build step.
@@ -842,7 +879,7 @@ def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> st
         prefix = match.group(0)[: match.start("value") - match.start(0)]
         return f"{prefix}{SECRET_MASK}"
 
-    masked = _HEADER_CREDENTIALS_PATTERN.sub(rf"\g<name>: {SECRET_MASK}", text)
+    masked = _mask_header_credentials(text)
     masked = _FLAG_VALUE_PATTERN.sub(_mask_flag, masked)
     masked = _ASSIGNMENT_PATTERN.sub(_mask_assignment, masked)
     if mask_all_assignments:
@@ -910,6 +947,14 @@ class _Word:
     start: int
     end: int
     value: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellScan:
+    """Commands of a shell string; ``unscanned_from`` follows an unclosed quote."""
+
+    commands: list[list[_Word]]
+    unscanned_from: int | None = None
 
 
 type _Edit = tuple[int, int, str]
@@ -990,6 +1035,32 @@ _COMMAND_WRAPPERS: Final[dict[str, _CommandWrapper]] = {
         frozenset({"-p", "-f", "-d", "-P"}), secret_options=_SHORT_P_PASSWORD
     ),
 }
+_DOCKERFILE_INSTRUCTIONS: Final[frozenset[str]] = frozenset(
+    {
+        "ADD",
+        "ARG",
+        "CMD",
+        "COPY",
+        "ENTRYPOINT",
+        "ENV",
+        "EXPOSE",
+        "HEALTHCHECK",
+        "LABEL",
+        "MAINTAINER",
+        "ONBUILD",
+        "RUN",
+        "SHELL",
+        "STOPSIGNAL",
+        "USER",
+        "VOLUME",
+        "WORKDIR",
+    }
+)
+_LEGACY_NOP_MARKER: Final[str] = "#(nop)"
+# Quoted command lines in free text, e.g. ``exec: "mysqld -px": not found``.
+_QUOTED_TEXT_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"\"[^\"\n]{1,4096}+\"|'[^'\n]{1,4096}+'"
+)
 _HEALTHCHECK_EXEC: Final[str] = "CMD"
 _HEALTHCHECK_SHELL: Final[str] = "CMD-SHELL"
 _ENV_ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -1002,7 +1073,7 @@ _BUILD_STEP_PREFIX_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 # Exec-form arrays in image history: ``CMD ["mysqld" "-ps3cret"]``.
 _JSON_ARGV_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r'\[\s*"(?:[^"\\]|\\.)*"(?:[\s,]*"(?:[^"\\]|\\.)*")*\s*\]'
+    r'\[\s*+"(?:[^"\\]|\\.)*+"(?:[\s,]*+"(?:[^"\\]|\\.)*+")*+\s*+\]'
 )
 _JSON_ARGV_ITEM_PATTERN: Final[re.Pattern[str]] = re.compile(r'"((?:[^"\\]|\\.)*)"')
 # Shell scanner contexts and the characters ``\`` escapes inside ``"..."``.
@@ -1010,6 +1081,14 @@ _DOUBLE_QUOTED: Final[str] = '"'
 _SUBSTITUTION: Final[str] = "$("
 _BACKTICK: Final[str] = "`"
 _DOUBLE_QUOTE_ESCAPES: Final[frozenset[str]] = frozenset({"$", "`", '"', "\\", "\n"})
+# Quote-unaware fallback after an unclosed quote (``echo it's; mysql -p x``).
+_FALLBACK_SEPARATOR_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"&&|\|\||\$\(|[;|&\n()`]"
+)
+_WORD_PATTERN: Final[re.Pattern[str]] = re.compile(r"\S+")
+_DROP_QUOTES: Final[dict[int, int | None]] = str.maketrans("", "", "'\"")
+# ``sh -c 'sh -c "..."'``: nested quoted scripts that are scanned again.
+_MAX_NESTED_SCRIPTS: Final[int] = 8
 
 
 def _program_name(word: str) -> str:
@@ -1086,16 +1165,19 @@ def _option_masks(
     options: Sequence[_SecretOption],
     *,
     shell: bool,
+    stop: int | None = None,
 ) -> dict[int, _ValueMask]:
+    """Masks for the secret options among ``words[program + 1 : stop]``."""
     masks: dict[int, _ValueMask] = {}
+    end = len(words) if stop is None else min(stop, len(words))
     index = program + 1
-    while options and index < len(words):
+    while options and index < end:
         match = _match_secret_option(words[index], options)
         if match is not None:
             option, keep = match
             if keep is not None:
                 masks[index] = _ValueMask(keep, option.credentials)
-            elif _is_detached_value(words, index + 1, shell=shell):
+            elif index + 1 < end and _is_detached_value(words, index + 1, shell=shell):
                 index += 1
                 masks[index] = _ValueMask(0, option.credentials)
         index += 1
@@ -1130,15 +1212,15 @@ def _htpasswd_masks(
     return {arguments[-1]: _ValueMask()}
 
 
-def _plan_command(words: Sequence[str], *, shell: bool) -> _CommandPlan:
+def _plan_command(words: Sequence[str], *, shell: bool, start: int = 0) -> _CommandPlan:
     """
-    Decide which words of one simple command hold secrets.
+    Decide which words of the simple command ``words[start:]`` hold secrets.
 
     The program is the first word after ``KEY=VALUE`` assignments and wrappers
     (``exec``, ``env``, ``sudo``, ``gosu USER``, ``tini --``, ...).
     """
     masks: dict[int, _ValueMask] = {}
-    index = 0
+    index = start
     while index < len(words):
         wrapper = _COMMAND_WRAPPERS.get(_program_name(words[index]))
         if _ENV_ASSIGNMENT_PATTERN.match(words[index]):
@@ -1146,7 +1228,7 @@ def _plan_command(words: Sequence[str], *, shell: bool) -> _CommandPlan:
         elif wrapper is not None:
             end = _skip_wrapper(words, index + 1, wrapper)
             options = wrapper.secret_options
-            masks |= _option_masks(words[:end], index, options, shell=shell)
+            masks |= _option_masks(words, index, options, shell=shell, stop=end)
             index = end
         else:
             return _plan_program(words, index, masks, shell=shell)
@@ -1212,12 +1294,18 @@ class _ShellScanner:
     def __init__(self, text: str) -> None:
         self._text = text
         self._commands: list[list[_Word]] = [[]]
+        self._command_start = 0
         self._contexts: list[str] = []
         self._word_start: int | None = None
         self._value: list[str] = []
 
-    def scan(self) -> list[list[_Word]] | None:
-        """Return the commands, or None when a quote is never closed."""
+    def scan(self) -> _ShellScan:
+        """
+        Return the commands of the text.
+
+        A quote that is never closed stops the scan: the commands finished
+        before the one holding it are returned with the offset of the rest.
+        """
         index = 0
         while 0 <= index < len(self._text):
             if self._contexts[-1:] == [_DOUBLE_QUOTED]:
@@ -1225,9 +1313,10 @@ class _ShellScanner:
             else:
                 index = self._step_code(index)
         if index < 0 or _DOUBLE_QUOTED in self._contexts:
-            return None
+            finished = [words for words in self._commands[:-1] if words]
+            return _ShellScan(finished, unscanned_from=self._command_start)
         self._end_word(len(self._text))
-        return [words for words in self._commands if words]
+        return _ShellScan([words for words in self._commands if words])
 
     def _step_code(self, index: int) -> int:
         text, char = self._text, self._text[index]
@@ -1298,10 +1387,11 @@ class _ShellScanner:
 
     def _starts_glued_redirection(self, index: int) -> bool:
         """True for ``>`` in ``-px>out``: it ends ``-px`` (but not ``2>`` or ``>>``)."""
-        if self._word_start is None:
+        start = self._word_start
+        if start is None or self._text[index - 1] in "<>&":
             return False
-        word = self._text[self._word_start : index]
-        if word.isdigit() or word[-1] in "<>&":
+        # A short number is a file descriptor: ``2>err``.
+        if index - start <= 2 and self._text[start:index].isdigit():
             return False
         return self._text[index] in "<>" or self._text.startswith("&>", index)
 
@@ -1320,6 +1410,7 @@ class _ShellScanner:
     def _end_command(self, index: int) -> None:
         self._end_word(index)
         self._commands.append([])
+        self._command_start = index
 
     def _open(self, index: int, context: str) -> None:
         self._end_command(index)
@@ -1330,44 +1421,66 @@ class _ShellScanner:
         self._contexts.pop()
 
 
-def _shell_edits(text: str) -> list[_Edit]:
-    """Edits that mask program secrets in every simple command of ``text``."""
-    commands = _ShellScanner(text).scan()
-    if commands is None:
-        # Unbalanced quotes: leave the text to the generic masking.
-        return []
-    return [edit for words in commands for edit in _command_edits(text, words)]
-
-
-def _command_edits(text: str, words: Sequence[_Word]) -> list[_Edit]:
-    values = [word.value for word in words]
-    plan = _plan_command(values, shell=True)
-    edits: list[_Edit] = []
-    for index, mask in plan.masks.items():
-        word = words[index]
-        raw = text[word.start : word.end]
-        edits.append((word.start, word.end, _mask_word(raw, values[index], mask)))
-    if plan.script is not None:
-        edits.extend(_script_edits(text, words[plan.script :]))
-    return edits
-
-
-def _script_edits(text: str, words: Sequence[_Word]) -> list[_Edit]:
+def _unquoted_commands(text: str, start: int) -> list[list[_Word]]:
     """
-    Edits for the script of ``sh -c``.
+    Split ``text[start:]`` into commands without honoring quotes.
+
+    The fallback after an unclosed quote: commands end at operators, words at
+    whitespace, and quote characters are dropped from the values.
+    """
+    commands: list[list[_Word]] = []
+    position = start
+    for separator in [*_FALLBACK_SEPARATOR_PATTERN.finditer(text, start), None]:
+        end = separator.start() if separator else len(text)
+        words = [
+            _Word(word.start(), word.end(), word.group().translate(_DROP_QUOTES))
+            for word in _WORD_PATTERN.finditer(text, position, end)
+        ]
+        if words:
+            commands.append(words)
+        position = separator.end() if separator else end
+    return commands
+
+
+def _shell_edits(text: str, depth: int = 0) -> list[_Edit]:
+    """Edits that mask program secrets in every simple command of ``text``."""
+    scan = _ShellScanner(text).scan()
+    commands = scan.commands
+    if scan.unscanned_from is not None:
+        commands = [*commands, *_unquoted_commands(text, scan.unscanned_from)]
+    return [edit for words in commands for edit in _command_edits(text, words, depth)]
+
+
+def _command_edits(text: str, words: Sequence[_Word], depth: int) -> list[_Edit]:
+    """
+    Edits for one simple command, following the script of ``sh -c``.
 
     A quoted script is scanned as a shell string of its own; an unquoted one
     (``/bin/sh -c mysqld -p x`` in image history) is the rest of the command.
     """
-    script = words[0]
-    raw = text[script.start : script.end]
-    if not _enclosing_quote(raw):
-        return _command_edits(text, words)
-    offset = script.start + 1
-    return [
-        (start + offset, end + offset, replacement)
-        for start, end, replacement in _shell_edits(raw[1:-1])
-    ]
+    values = [word.value for word in words]
+    edits: list[_Edit] = []
+    start = 0
+    while True:
+        plan = _plan_command(values, shell=True, start=start)
+        for index, mask in plan.masks.items():
+            word = words[index]
+            raw = text[word.start : word.end]
+            edits.append((word.start, word.end, _mask_word(raw, values[index], mask)))
+        if plan.script is None:
+            return edits
+        script = words[plan.script]
+        raw = text[script.start : script.end]
+        if not _enclosing_quote(raw):
+            start = plan.script  # always past ``start``: the loop ends
+            continue
+        if depth < _MAX_NESTED_SCRIPTS:
+            offset = script.start + 1
+            edits.extend(
+                (begin + offset, end + offset, replacement)
+                for begin, end, replacement in _shell_edits(raw[1:-1], depth + 1)
+            )
+        return edits
 
 
 def _apply_edits(text: str, edits: Sequence[_Edit]) -> str:
@@ -1464,22 +1577,14 @@ def mask_entrypoint_and_cmd(
     """
     Mask Entrypoint and Cmd as the one command line Docker runs.
 
-    Cmd extends Entrypoint (``mysqld`` + ``-ps3cret``). Cmd is also masked on
-    its own, because entrypoint scripts usually ``exec "$@"`` their arguments.
+    Cmd is masked on its own first, because entrypoint scripts usually
+    ``exec "$@"`` it; the joined line then adds what only the Entrypoint
+    explains (``mysqld`` + ``-ps3cret``). Masking an already masked argument
+    keeps it as it is.
     """
     entrypoint_items = [str(item) for item in entrypoint]
-    cmd_items = [str(item) for item in cmd]
-    combined = mask_command_args([*entrypoint_items, *cmd_items])
-    masked_entrypoint = combined[: len(entrypoint_items)]
-    joined_cmd = combined[len(entrypoint_items) :]
-    if not entrypoint_items:
-        return masked_entrypoint, joined_cmd
-    own_cmd = mask_command_args(cmd_items)
-    masked_cmd = [
-        joined if joined != original else own
-        for original, joined, own in zip(cmd_items, joined_cmd, own_cmd, strict=True)
-    ]
-    return masked_entrypoint, masked_cmd
+    combined = mask_command_args([*entrypoint_items, *mask_command_args(cmd)])
+    return combined[: len(entrypoint_items)], combined[len(entrypoint_items) :]
 
 
 def command_executable(arguments: Sequence[str]) -> str | None:
@@ -1491,11 +1596,43 @@ def command_executable(arguments: Sequence[str]) -> str | None:
     a Cmd that only passes arguments to the Entrypoint.
     """
     words = arguments[0].split() if arguments else []
-    while words and _ENV_ASSIGNMENT_PATTERN.match(words[0]):
-        words.pop(0)
-    if not words or words[0].startswith("-"):
+    program = next(
+        (word for word in words if not _ENV_ASSIGNMENT_PATTERN.match(word)), None
+    )
+    if program is None or program.startswith("-"):
         return None
-    return words[0]
+    return program
+
+
+def build_step_instruction(text: str) -> str | None:
+    """
+    Return the Dockerfile instruction of an image history step (``RUN``, ``COPY``).
+
+    The legacy builder writes ``/bin/sh -c #(nop)  CMD [...]`` for metadata
+    steps and ``/bin/sh -c <command>`` for ``RUN``. None when unrecognizable.
+    """
+    _, nop_marker, metadata = text.partition(_LEGACY_NOP_MARKER)
+    words = (metadata if nop_marker else text).split(maxsplit=1)
+    first = words[0] if words else ""
+    if first in _DOCKERFILE_INSTRUCTIONS:
+        return first
+    is_shell = first.startswith("|") or _program_name(first) in _SHELL_PROGRAMS
+    return "RUN" if is_shell and not nop_marker else None
+
+
+def mask_free_text(text: str) -> str:
+    """
+    Mask secrets in free text from Docker (``State.Error``, probe output).
+
+    Quoted command lines, as in ``exec: "mysqladmin -pS3cret ping": not
+    found``, get the program rules; then the generic masking applies.
+    """
+
+    def _mask_quoted(match: re.Match[str]) -> str:
+        quoted = match.group(0)
+        return f"{quoted[0]}{_mask_shell_programs(quoted[1:-1])}{quoted[-1]}"
+
+    return mask_secrets_in_text(_QUOTED_TEXT_PATTERN.sub(_mask_quoted, text))
 
 
 def get_container_memory_stats(container: Container) -> MemoryStats:

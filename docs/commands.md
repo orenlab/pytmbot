@@ -125,7 +125,8 @@ The bot also exposes callback-driven flows that are not slash commands:
 - Unrecognized text from an allowed user in a private chat gets a short hint pointing back to the menu instead of silence; a mistyped code during 2FA gets the 2FA hint instead.
 - Container and image details show environment variables as keys only (values masked, except harmless keys such as
   `PATH`, `TZ`, `LANG`); passwords in URLs and secret-looking command-line values are masked as well. Command
-  arguments are shown to admins only; other allowed users see just the executable (for example `mysqld`).
+  arguments are shown only to admins in a private chat with the bot; other users, and groups, see just the executable
+  (for example `mysqld`) and the instruction of each image history step.
 - Container buttons reference containers by their 12-character short ID, so names are never guessed or case-folded.
 - Ephemeral messages removed by auto-delete (for example `/getmyid`, QR setup, exported Docker logs) send a short follow-up that restores the appropriate menu keyboard.
 

@@ -31,8 +31,10 @@ See also: [auth_control.md](auth_control.md).
   (`mysql -p`, `curl -u user:password`, `redis-cli -a`, `sshpass -p`, `htpasswd -b`, ...), also inside `sh -c`
   scripts, image history, healthcheck output and container errors. Masking is best effort: it cannot recognize every
   secret.
-- Command arguments (container and image Entrypoint, Cmd, Shell and healthcheck test) are shown to admins
-  (`allowed_admins_ids`) only; other allowed users see just the executable.
+- Command arguments (container and image Entrypoint, Cmd, Shell, healthcheck test and image history steps) are shown
+  only to an admin (`allowed_admins_ids`) in a private chat with the bot, like 2FA codes. Other users, and everyone in a
+  group, see just the executable (a Cmd after an Entrypoint is hidden entirely) and the instruction of each history
+  step (`RUN`, `COPY`, ...).
 - Recommended runtime hardening:
   - read-only root filesystem
   - `no-new-privileges`

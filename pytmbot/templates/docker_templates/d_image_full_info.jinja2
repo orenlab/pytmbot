@@ -35,7 +35,9 @@
 <tr><td>Shell</td><td>{{ context.image.shell | map('e') | join(" ") if context.image.shell else "none" }}</td></tr>
 <tr><td>Healthcheck</td><td>{{ context.image.healthcheck|e }}</td></tr>
 </table>
-<p><i>{% if context.command_arguments_visible %}Values that look like secrets are masked.{% else %}Arguments are visible to admins only.{% endif %}</i></p>
+{% if context.command_arguments_note %}
+<p><i>{{ context.command_arguments_note|e }}</i></p>
+{% endif %}
 
 <p><b>Network and storage</b></p>
 <table bordered striped compact>

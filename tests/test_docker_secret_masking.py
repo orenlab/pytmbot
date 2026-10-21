@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
 
 import pytmbot.adapters.docker.images_info as images_info_module
+import pytmbot.handlers.docker_handlers.images as images_module
 import pytmbot.handlers.handlers_util.docker as handlers_docker
 from pytmbot.adapters.docker.utils import (
     SECRET_MASK,
+    build_step_instruction,
     command_executable,
     mask_build_step,
     mask_command_args,
     mask_entrypoint_and_cmd,
     mask_environment_variables,
+    mask_free_text,
     mask_healthcheck_test,
     mask_secrets_in_text,
     mask_shell_command,
@@ -444,16 +449,31 @@ def test_shell_commands_keep_their_formatting(text: str, expected: str) -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        # Unbalanced quotes: program rules are skipped, generic masking stays.
-        ("mysql -p'unclosed s3cret", "mysql -p'unclosed s3cret"),
+        # An unclosed quote: the rest is split without honoring quotes.
+        ("mysql -p'unclosed s3cret", f"mysql -p{M} s3cret"),
         ("don't mysql --password s3cret", f"don't mysql --password {M}"),
-        ('echo "unclosed $(mysql -ps3cret', 'echo "unclosed $(mysql -ps3cret'),
+        ('echo "unclosed $(mysql -ps3cret', f'echo "unclosed $(mysql -p{M}'),
+        ("echo it's; mysql -ps3cret", f"echo it's; mysql -p{M}"),
+        (
+            "mysql -pone; echo it's && redis-cli -a two",
+            f"mysql -p{M}; echo it's && redis-cli -a {M}",
+        ),
+        (
+            "cat <<EOF > /etc/motd\nit's ready\nEOF\nmysqladmin -p s3cret ping",
+            f"cat <<EOF > /etc/motd\nit's ready\nEOF\nmysqladmin -p {M} ping",
+        ),
+        ('sh -c "mysql -ps3cret', f'sh -c "mysql -p{M}'),
     ],
 )
-def test_unbalanced_quotes_fall_back_to_generic_masking(
-    text: str, expected: str
-) -> None:
+def test_unclosed_quotes_keep_the_program_rules(text: str, expected: str) -> None:
     assert mask_shell_command(text) == expected
+
+
+def test_unclosed_quotes_in_image_history_keep_the_program_rules() -> None:
+    step = "RUN /bin/sh -c echo it's && mysql -uroot -ps3cret # buildkit"
+    assert mask_build_step(step) == (
+        f"RUN /bin/sh -c echo it's && mysql -uroot -p{M} # buildkit"
+    )
 
 
 @pytest.mark.parametrize(
@@ -567,6 +587,59 @@ def test_health_output_and_state_error_are_masked() -> None:
     assert runtime["state_error"] == basic["state_error"] == expected_error
 
 
+def test_quoted_commands_in_errors_and_probe_output_get_program_rules() -> None:
+    error = 'exec: "mysqladmin -uroot -pS3cretPw ping": executable file not found'
+    attrs: dict[str, object] = {
+        "State": {
+            "Status": "created",
+            "Error": error,
+            "Health": {
+                "Status": "unhealthy",
+                "Log": [{"Output": "sh: 'redis-cli -a S3cretPw ping' failed"}],
+            },
+        }
+    }
+    runtime = handlers_docker.parse_container_runtime_info(SimpleNamespace(), attrs)
+    basic = handlers_docker.parse_container_basic_info(SimpleNamespace(), attrs)
+
+    expected_error = f'exec: "mysqladmin -uroot -p{M} ping": executable file not found'
+    assert runtime["state_error"] == basic["state_error"] == expected_error
+    assert runtime["health_last_log"] == f"sh: 'redis-cli -a {M} ping' failed"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            'exec: "mysqladmin -uroot -pS3cretPw ping": not found',
+            f'exec: "mysqladmin -uroot -p{M} ping": not found',
+        ),
+        ("can't connect: password=x", f"can't connect: password={M}"),
+        ('error: "curl -u a:b http://x"', f'error: "curl -u a:{M} http://x"'),
+        ("plain text without commands", "plain text without commands"),
+    ],
+)
+def test_mask_free_text(text: str, expected: str) -> None:
+    assert mask_free_text(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("step", "expected"),
+    [
+        ('CMD ["app" "--api" "sk-abcdef"]', "CMD"),
+        ("RUN |1 TOKEN=x /bin/sh -c make # buildkit", "RUN"),
+        ("COPY file:abc in /app ", "COPY"),
+        ('/bin/sh -c #(nop)  ENTRYPOINT ["/start"]', "ENTRYPOINT"),
+        ("/bin/sh -c apt-get install -y curl", "RUN"),
+        ("|2 A=1 B=2 /bin/sh -c make", "RUN"),
+        ("bazel build //app:image", None),
+        ("", None),
+    ],
+)
+def test_build_step_instruction(step: str, expected: str | None) -> None:
+    assert build_step_instruction(step) == expected
+
+
 def test_container_environment_keeps_executables_for_non_admin_views() -> None:
     attrs: dict[str, object] = {
         "Config": {
@@ -580,11 +653,57 @@ def test_container_environment_keeps_executables_for_non_admin_views() -> None:
     assert environment["entrypoint"] == "docker-entrypoint.sh"
     assert environment["command"] == f"mysqld -p{M}"
 
+    # With an Entrypoint, Cmd only holds its arguments.
     hidden = handlers_docker.hide_command_arguments({"environment": environment})
     assert hidden["environment"] == {
         **environment,
         "entrypoint": "docker-entrypoint.sh",
-        "command": "mysqld",
+        "command": "hidden",
+    }
+
+
+@pytest.mark.parametrize(
+    ("entrypoint", "cmd", "expected"),
+    [
+        (
+            ["docker-entrypoint.sh"],
+            ["mysqld", "-ps3cret"],
+            (["docker-entrypoint.sh"], ["hidden"]),
+        ),
+        (
+            ["/app/server", "--license-file"],
+            ["ghp_AbC123"],
+            (["/app/server"], ["hidden"]),
+        ),
+        ([], ["mysqld", "-ps3cret"], ([], ["mysqld"])),
+        ([], ["--requirepass", "x"], ([], ["hidden"])),
+        (["redis-server"], [], (["redis-server"], [])),
+        ([], [], ([], [])),
+    ],
+)
+def test_command_line_executables(
+    entrypoint: list[str],
+    cmd: list[str],
+    expected: tuple[list[str], list[str]],
+) -> None:
+    assert handlers_docker.command_line_executables(entrypoint, cmd) == expected
+
+
+def test_image_view_without_arguments_hides_cmd_after_an_entrypoint() -> None:
+    image: dict[str, object] = {
+        "entrypoint": ["/app/server", "--license-file"],
+        "cmd": ["ghp_AbC123"],
+        "shell": ["/bin/sh", "-c"],
+        "healthcheck": "test=CMD curl -u a:b",
+        "healthcheck_without_arguments": "test=CMD curl",
+    }
+    view = images_module._without_command_arguments(image)  # noqa: SLF001
+    assert {key: view[key] for key in image if key in view} == {
+        "entrypoint": ["/app/server"],
+        "cmd": ["hidden"],
+        "shell": ["/bin/sh"],
+        "healthcheck": "test=CMD curl",
+        "healthcheck_without_arguments": "test=CMD curl",
     }
 
 
@@ -650,3 +769,93 @@ def test_image_history_masks_program_secrets(monkeypatch: pytest.MonkeyPatch) ->
         f"RUN /bin/sh -c mysql -uroot -p{M} < /init.sql # buildkit"
     )
     assert history[0]["comment"] == f"token={M}"
+
+
+@pytest.mark.parametrize(
+    ("cmd", "expected"),
+    [
+        (
+            ["sh", "-c", "mysql -ps3cret --token=abc"],
+            ["sh", "-c", f"mysql -p{M} --token={M}"],
+        ),
+        (
+            ["sh", "-c", "curl -u u:s3cret http://x/?token=x"],
+            ["sh", "-c", f"curl -u u:{M} http://x/?token={M}"],
+        ),
+        (
+            ["sh", "-c", "redis-cli -a s3cret; echo PASSWORD=x"],
+            ["sh", "-c", f"redis-cli -a {M}; echo PASSWORD={M}"],
+        ),
+    ],
+)
+def test_cmd_keeps_its_own_program_masks_after_an_entrypoint(
+    cmd: list[str], expected: list[str]
+) -> None:
+    entrypoint = ["/entrypoint.sh"]
+    assert mask_entrypoint_and_cmd(entrypoint, cmd) == (entrypoint, expected)
+
+    config: dict[str, object] = {"Config": {"Entrypoint": entrypoint, "Cmd": cmd}}
+    environment = handlers_docker.parse_container_environment(
+        SimpleNamespace(), attrs=config
+    )
+    image = SimpleNamespace(short_id=IMAGE_ID[:19], tags=["app:1"], attrs=config)
+    assert environment["command"] == " ".join(expected)
+    assert images_info_module.process_image_attrs(image)["cmd"] == expected
+
+
+# Text that image and container authors control must not stall the bot.
+_ADVERSARIAL_SIZE = 64 * 1024
+_ADVERSARIAL_UNITS = (
+    "X-",
+    ".-a",
+    "-a",
+    "a.",
+    "a-",
+    "a=",
+    "://",
+    "x://a:",
+    "Authorization:",
+    "sh -c ",
+    "env ",
+    "A=1 ",
+    "a\n",
+    "|1 ",
+    "<",
+    '"',
+    "'",
+    "`",
+    "$(",
+    '["a" ',
+    "ENV a ",
+    "\\",
+)
+_MASKING_ENTRY_POINTS: dict[str, Callable[[str], object]] = {
+    "mask_secrets_in_text": lambda text: mask_secrets_in_text(
+        text, mask_all_assignments=True
+    ),
+    "mask_url_credentials": mask_url_credentials,
+    "mask_environment_variables": lambda text: mask_environment_variables(
+        [f"PATH={text}", f"URL={text}"]
+    ),
+    "mask_command_args": lambda text: mask_command_args([text, *text.split()]),
+    "mask_shell_command": mask_shell_command,
+    "mask_build_step": mask_build_step,
+    "mask_healthcheck_test": lambda text: mask_healthcheck_test(["CMD-SHELL", text]),
+    "mask_entrypoint_and_cmd": lambda text: mask_entrypoint_and_cmd(
+        text.split()[:1], [text]
+    ),
+    "mask_free_text": mask_free_text,
+    "command_executable": lambda text: command_executable([text]),
+    "build_step_instruction": build_step_instruction,
+}
+
+
+@pytest.mark.parametrize("entry_point", sorted(_MASKING_ENTRY_POINTS))
+def test_masking_stays_fast_on_adversarial_input(entry_point: str) -> None:
+    mask = _MASKING_ENTRY_POINTS[entry_point]
+    for unit in _ADVERSARIAL_UNITS:
+        text = (unit * (_ADVERSARIAL_SIZE // len(unit) + 1))[:_ADVERSARIAL_SIZE]
+        started = time.perf_counter()
+        mask(text)
+        elapsed = time.perf_counter() - started
+        assert elapsed < 1.0, f"{entry_point} took {elapsed:.2f}s on {unit!r}"
