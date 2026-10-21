@@ -7,8 +7,8 @@ Patch release with security and reliability fixes.
 ### Security
 
 - Passwords in container and image commands are masked for short options and shell scripts too (`mysqld -ps3cret`,
-  `curl -u user:pass`, `redis-cli -a`, `sh -c '…'`), as are healthcheck output and `State.Error`. Command arguments are
-  shown to admins only.
+  `curl -u user:pass`, `redis-cli -a`, `sh -c '…'`), as are healthcheck output and `State.Error`. Command arguments and
+  image build steps are shown only to admins in a private chat with the bot.
 - 2FA codes and the QR code are handled only in a private chat; groups get an **Open private chat** link.
 - A TOTP code can no longer be reused after a restart that lost the replay state.
 - Webhook behind a proxy: the client address is read from the right of `X-Forwarded-For`, so a forged entry no longer
