@@ -110,9 +110,9 @@ def test_totp_verification_accepts_valid_code_and_rejects_invalid() -> None:
         interval=auth.TOTP_INTERVAL,
     )
     valid_code = totp.now()
-    assert auth.verify_totp_code(valid_code) is True
-    assert auth.verify_totp_code("12a456") is False
-    assert auth.verify_totp_code("12345") is False
+    assert auth.check_totp_code(valid_code) is TOTPVerificationResult.VALID
+    assert auth.check_totp_code("12a456") is TOTPVerificationResult.INVALID
+    assert auth.check_totp_code("12345") is TOTPVerificationResult.INVALID
 
 
 def test_generate_qr_code_returns_png_bytes() -> None:
@@ -137,7 +137,7 @@ def test_totp_replay_state_persists_between_instances(
         interval=auth_one.TOTP_INTERVAL,
     )
     valid_code = totp.now()
-    assert auth_one.verify_totp_code(valid_code) is True
+    assert auth_one.check_totp_code(valid_code) is TOTPVerificationResult.VALID
 
     # Simulate process restart: in-memory state cleared, file remains.
     with TwoFactorAuthenticator._used_totp_codes_lock:
@@ -145,7 +145,7 @@ def test_totp_replay_state_persists_between_instances(
         TwoFactorAuthenticator._replay_state_loaded = False
 
     auth_two = TwoFactorAuthenticator(user_id=123456789, username="test_user")
-    assert auth_two.verify_totp_code(valid_code) is False
+    assert auth_two.check_totp_code(valid_code) is TOTPVerificationResult.REPLAYED
 
 
 def test_totp_secret_generation_and_uri_failures(
@@ -197,7 +197,7 @@ def test_totp_verify_and_backup_codes_error_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     auth = TwoFactorAuthenticator(user_id=123456789, username="test_user")
-    assert auth.verify_totp_code(cast(str, 123456)) is False
+    assert auth.check_totp_code(cast(str, 123456)) is TOTPVerificationResult.INVALID
 
     class _BrokenTOTP:
         def verify(self, _code: str, *_args: str, **_kwargs: str) -> bool:
@@ -208,7 +208,7 @@ def test_totp_verify_and_backup_codes_error_paths(
         lambda *_args, **_kwargs: _BrokenTOTP(),
     )
     with pytest.raises(TOTPError):
-        auth.verify_totp_code("123456")
+        auth.check_totp_code("123456")
 
 
 # Secrets derived by the pre-0.5.1 code (username-based derivation). Existing
@@ -258,7 +258,7 @@ def test_totp_supports_users_without_username() -> None:
     totp = pyotp.TOTP(
         secret, digits=no_username.TOTP_DIGITS, interval=no_username.TOTP_INTERVAL
     )
-    assert no_username.verify_totp_code(totp.now()) is True
+    assert no_username.check_totp_code(totp.now()) is TOTPVerificationResult.VALID
     assert "pyTMbot%20TOTP:123456789" in no_username._generate_totp_auth_uri()
     assert no_username.generate_totp_qr_code().startswith(b"\x89PNG")
 
@@ -286,7 +286,7 @@ def test_restart_barrier_rejects_codes_when_replay_state_is_not_persisted(
     _restart_process(monkeypatch, started_at=_STEP * _INTERVAL + 20)
     _freeze_clock(monkeypatch, _STEP * _INTERVAL + 25)
     assert auth.check_totp_code(code) is (TOTPVerificationResult.ISSUED_BEFORE_RESTART)
-    assert auth.verify_totp_code(code) is False
+    assert auth.check_totp_code(code) is not TOTPVerificationResult.VALID
 
     # Codes of the next step were accepted before the restart too (clock skew).
     next_code = totp.at((_STEP + 1) * _INTERVAL)

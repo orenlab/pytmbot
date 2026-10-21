@@ -346,15 +346,23 @@ def test_start_bot_polling_skips_fallback_when_shutdown_requested(
     assert calls["polling"] == 0
 
 
+def _stub_run_setup(monkeypatch: pytest.MonkeyPatch, launcher: object) -> None:
+    """Skip the process setup and shutdown steps around ``BotLauncher.run``."""
+    for name in (
+        "_register_cleanup",
+        "_setup_signal_handlers",
+        "validate_environment",
+        "shutdown",
+    ):
+        monkeypatch.setattr(launcher, name, lambda: None)
+
+
 def test_run_success_and_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
 
-    monkeypatch.setattr(launcher, "_register_cleanup", lambda: None)
-    monkeypatch.setattr(launcher, "_setup_signal_handlers", lambda: None)
-    monkeypatch.setattr(launcher, "validate_environment", lambda: None)
+    _stub_run_setup(monkeypatch, launcher)
     monkeypatch.setattr(launcher, "run_main_loop", lambda: None)
-    monkeypatch.setattr(launcher, "shutdown", lambda: None)
     launcher.run()
 
     launcher2 = main_module.BotLauncher()
@@ -707,10 +715,7 @@ def test_run_exits_non_zero_after_a_failure_stop(
 ) -> None:
     main_module = _load_main_module(monkeypatch)
     launcher = main_module.BotLauncher()
-    monkeypatch.setattr(launcher, "_register_cleanup", lambda: None)
-    monkeypatch.setattr(launcher, "_setup_signal_handlers", lambda: None)
-    monkeypatch.setattr(launcher, "validate_environment", lambda: None)
-    monkeypatch.setattr(launcher, "shutdown", lambda: None)
+    _stub_run_setup(monkeypatch, launcher)
 
     def _failed_main_loop() -> None:
         launcher._exit_code = 1

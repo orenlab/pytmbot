@@ -483,20 +483,6 @@ class TwoFactorAuthenticator(BaseComponent):
                     )
                 ) from e
 
-    def verify_totp_code(self, code: str) -> bool:
-        """Verify the TOTP code for the user.
-
-        Args:
-            code: The TOTP code to be verified
-
-        Returns:
-            bool: True if the TOTP code is verified, False otherwise
-
-        Raises:
-            TOTPError: If verification process fails critically
-        """
-        return self.check_totp_code(code) is TOTPVerificationResult.VALID
-
     def check_totp_code(self, code: str) -> TOTPVerificationResult:
         """Check the TOTP code for the user and tell why it was rejected.
 

@@ -207,6 +207,16 @@ def _make_session_manager_stub() -> SimpleNamespace:
     return session_manager
 
 
+def _processing_session(
+    monkeypatch: pytest.MonkeyPatch, *, user_id: int
+) -> SimpleNamespace:
+    """Session stub with ``user_id`` waiting for a 2FA code, installed in 2FA."""
+    session_stub = _make_session_manager_stub()
+    session_stub.auth_states[user_id] = session_stub.state_fabric.PROCESSING
+    monkeypatch.setattr(twofa_module, "session_manager", session_stub)
+    return session_stub
+
+
 def _raw_session_handler(handler: _SessionRawInput) -> _MessageHandler:
     raw = getattr(handler, "__wrapped__", handler)
     return cast(_MessageHandler, raw)
@@ -783,10 +793,7 @@ def test_enter_2fa_code_in_group_points_to_private_chat(
 def test_totp_code_in_group_is_removed_and_not_counted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session_stub = _make_session_manager_stub()
-    processing = session_stub.state_fabric.PROCESSING
-    session_stub.auth_states[55] = processing
-    monkeypatch.setattr(twofa_module, "session_manager", session_stub)
+    session_stub = _processing_session(monkeypatch, user_id=55)
 
     class _UnexpectedAuthenticator:
         def __init__(self, user_id: int, username: str | None) -> None:
@@ -806,7 +813,7 @@ def test_totp_code_in_group_is_removed_and_not_counted(
     assert bot.deleted == [(_GROUP_CHAT_ID, 40)]
     _assert_private_chat_notice(bot.sent_messages[-1], reply_to=40)
     assert session_stub.attempts == {}
-    assert session_stub.auth_states[55] == processing
+    assert session_stub.auth_states[55] == session_stub.state_fabric.PROCESSING
     assert bot.replies == []
 
     # Without the right to delete members' messages the notice still goes out.
@@ -857,10 +864,7 @@ def test_totp_rejections_count_only_the_users_mistakes(
     expected_attempts: int,
     expected_reply: str,
 ) -> None:
-    session_stub = _make_session_manager_stub()
-    processing = session_stub.state_fabric.PROCESSING
-    session_stub.auth_states[55] = processing
-    monkeypatch.setattr(twofa_module, "session_manager", session_stub)
+    session_stub = _processing_session(monkeypatch, user_id=55)
     monkeypatch.setattr(twofa_module, "_totp_attempt_times", {})
 
     class _Authenticator:
@@ -882,7 +886,7 @@ def test_totp_rejections_count_only_the_users_mistakes(
 
     assert session_stub.attempts.get(55, 0) == expected_attempts
     assert bot.replies[-1]["text"] == expected_reply
-    assert session_stub.auth_states[55] == processing
+    assert session_stub.auth_states[55] == session_stub.state_fabric.PROCESSING
 
 
 def _install_qr_stubs(
