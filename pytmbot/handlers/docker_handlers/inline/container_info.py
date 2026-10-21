@@ -41,8 +41,10 @@ from pytmbot.handlers.docker_handlers.user_messages import (
 )
 from pytmbot.handlers.handlers_util.docker import (
     authorize_docker_callback_request,
+    can_view_command_arguments,
     get_comprehensive_container_details,
     get_emojis,
+    hide_command_arguments,
     show_handler_info,
     validate_container_name,
 )
@@ -120,8 +122,13 @@ def _build_admin_buttons(
 
 
 def _render_details(
-    container_details: dict[str, object], emojis: dict[str, str]
+    container_details: dict[str, object],
+    emojis: dict[str, str],
+    *,
+    show_command_arguments: bool,
 ) -> str:
+    if not show_command_arguments:
+        container_details = hide_command_arguments(container_details)
     return Compiler.quick_render(
         template_name="d_containers_full_info.jinja2",
         # Basic template emojis
@@ -133,6 +140,7 @@ def _render_details(
         gear_emoji=emojis.get("gear", "⚙️"),
         env_emoji=emojis.get("herb", "🌿"),
         banjo=emojis.get("banjo", "🪕"),
+        command_arguments_visible=show_command_arguments,
         # Spread all container details
         **container_details,
     )
@@ -190,7 +198,11 @@ def handle_containers_full_info(call: CallbackQuery, bot: TeleBot) -> None:
         button_ref = container_short_id(container_details.get("id")) or container_ref
 
         emojis = get_emojis()
-        context = _render_details(container_details, emojis)
+        context = _render_details(
+            container_details,
+            emojis,
+            show_command_arguments=can_view_command_arguments(call.from_user.id),
+        )
 
         keyboard_buttons: list[ButtonData] = []
 

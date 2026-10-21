@@ -35,6 +35,10 @@ from pytmbot.handlers.docker_handlers.pagination import (
     paginate_items,
 )
 from pytmbot.handlers.docker_handlers.user_messages import DOCKER_UNAVAILABLE_TEXT
+from pytmbot.handlers.handlers_util.docker import (
+    can_view_command_arguments,
+    executable_only,
+)
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_docker_message
 from pytmbot.handlers.handlers_util.utils import (
     HANDLER_COMMAND_ERROR_MESSAGE,
@@ -586,16 +590,36 @@ def _get_image_raw_data(*, image_ref: str) -> ImageData | None:
     return image
 
 
-def _get_image_details_data(*, image_ref: str) -> ImageData | None:
+def _without_command_arguments(image: ImageData) -> ImageData:
+    """Image data for viewers who are not admins: executables only."""
+    return {
+        **image,
+        "entrypoint": executable_only(image.get("entrypoint")),
+        "cmd": executable_only(image.get("cmd")),
+        "shell": executable_only(image.get("shell")),
+        "healthcheck": image.get("healthcheck_without_arguments", "none"),
+    }
+
+
+def _get_image_details_data(
+    *, image_ref: str, show_command_arguments: bool
+) -> ImageData | None:
     image = _get_image_raw_data(image_ref=image_ref)
-    return None if image is None else _compact_image_for_details(image)
+    if image is None:
+        return None
+    if not show_command_arguments:
+        image = _without_command_arguments(image)
+    return _compact_image_for_details(image)
 
 
-def _render_image_details_text(image: ImageData) -> str:
+def _render_image_details_text(
+    image: ImageData, *, show_command_arguments: bool
+) -> str:
     return Compiler.quick_render(
         template_name="d_image_full_info.jinja2",
         context={
             "image": image,
+            "command_arguments_visible": show_command_arguments,
             "emojis": _get_images_emojis(),
         },
     )
@@ -649,12 +673,20 @@ def render_image_details(
     page: int,
     user_id: int,
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    """Render image details; None when the image no longer exists."""
-    image_data = _get_image_details_data(image_ref=image_ref)
+    """
+    Render image details; None when the image no longer exists.
+
+    ``user_id`` is the verified viewer: command arguments are shown to admins
+    only (see ``can_view_command_arguments``).
+    """
+    show_arguments = can_view_command_arguments(user_id)
+    image_data = _get_image_details_data(
+        image_ref=image_ref, show_command_arguments=show_arguments
+    )
     if image_data is None:
         return None
 
-    text = _render_image_details_text(image_data)
+    text = _render_image_details_text(image_data, show_command_arguments=show_arguments)
     if not fits_rich_message(text):
         fallback_image = _compact_image(
             image_data,
@@ -665,7 +697,9 @@ def render_image_details(
             max_label_key_length=MAX_LABEL_KEY_LENGTH,
             max_label_value_length=MAX_LABEL_VALUE_LENGTH,
         )
-        text = _render_image_details_text(fallback_image)
+        text = _render_image_details_text(
+            fallback_image, show_command_arguments=show_arguments
+        )
 
     if not fits_rich_message(text):
         text = (

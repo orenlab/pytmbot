@@ -17,9 +17,13 @@ from docker.models.images import Image
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.utils import (
     MIN_CONTAINER_ID_PREFIX_LENGTH,
+    command_executable,
     docker_unavailable_as_connection_error,
+    mask_build_step,
     mask_command_args,
+    mask_entrypoint_and_cmd,
     mask_environment_variables,
+    mask_healthcheck_test,
     mask_secrets_in_text,
     mask_url_credentials,
     parse_docker_timestamp,
@@ -41,6 +45,7 @@ IMAGE_REFERENCE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]{0,511}$"
 )
 _HEX_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-f0-9]+$")
+_HEALTHCHECK_KINDS: Final[frozenset[str]] = frozenset({"CMD", "CMD-SHELL"})
 
 
 def _safe_dict(value: object) -> dict[str, object]:
@@ -107,7 +112,19 @@ def _format_iso_timestamp(raw: object) -> str:
     return parsed.strftime("%Y-%m-%d %H:%M:%S UTC") if parsed else "N/A"
 
 
-def _format_healthcheck(config: dict[str, object]) -> str:
+def _healthcheck_test_text(test: list[str], *, show_arguments: bool) -> str:
+    """The masked test, or only its kind and executable (``CMD-SHELL curl``)."""
+    masked = mask_healthcheck_test(test)
+    if show_arguments:
+        return " ".join(masked)
+    kind = masked[:1] if masked[0] in _HEALTHCHECK_KINDS else []
+    executable = command_executable(masked[len(kind) :])
+    return " ".join([*kind, executable] if executable else kind)
+
+
+def _format_healthcheck(
+    config: dict[str, object], *, show_arguments: bool = True
+) -> str:
     raw_health = _safe_dict(config.get("Healthcheck"))
     if not raw_health:
         return "none"
@@ -116,7 +133,7 @@ def _format_healthcheck(config: dict[str, object]) -> str:
     if not test:
         return "none"
 
-    parts = [f"test={mask_secrets_in_text(' '.join(test))}"]
+    parts = [f"test={_healthcheck_test_text(test, show_arguments=show_arguments)}"]
     interval = _safe_ns_duration(raw_health.get("Interval"))
     timeout = _safe_ns_duration(raw_health.get("Timeout"))
     start_period = _safe_ns_duration(raw_health.get("StartPeriod"))
@@ -176,7 +193,12 @@ def process_image_attrs(image: Image) -> dict[str, object]:
         parent_id = _safe_id(attrs.get("Parent"))
         repo_digests = _safe_list_strings(attrs.get("RepoDigests"))
 
-        healthcheck = _format_healthcheck(config)
+        entrypoint, cmd = mask_entrypoint_and_cmd(
+            _safe_list_strings(
+                config.get("Entrypoint", container_config.get("Entrypoint"))
+            ),
+            _safe_list_strings(config.get("Cmd", container_config.get("Cmd"))),
+        )
         size_bytes = _safe_int(attrs.get("Size"))
         virtual_size_bytes = _safe_int(attrs.get("VirtualSize"), default=size_bytes)
         shared_size_bytes = _safe_int(attrs.get("SharedSize"), default=-1)
@@ -199,7 +221,7 @@ def process_image_attrs(image: Image) -> dict[str, object]:
             "created_at": created_at_utc,
             "author": attrs.get("Author", "N/A"),
             "docker_version": attrs.get("DockerVersion", "N/A"),
-            "comment": attrs.get("Comment", "N/A"),
+            "comment": mask_secrets_in_text(str(attrs.get("Comment") or "N/A")),
             "parent_id": parent_id,
             "rootfs_type": rootfs.get("Type", "N/A"),
             "layers_count": len(rootfs_layers),
@@ -209,16 +231,10 @@ def process_image_attrs(image: Image) -> dict[str, object]:
             "env_variables": mask_environment_variables(
                 _safe_list_strings(config.get("Env", container_config.get("Env")))
             ),
-            "entrypoint": mask_command_args(
-                _safe_list_strings(
-                    config.get("Entrypoint", container_config.get("Entrypoint"))
-                )
-            ),
-            "cmd": mask_command_args(
-                _safe_list_strings(config.get("Cmd", container_config.get("Cmd")))
-            ),
-            "shell": _safe_list_strings(
-                config.get("Shell", container_config.get("Shell"))
+            "entrypoint": entrypoint,
+            "cmd": cmd,
+            "shell": mask_command_args(
+                _safe_list_strings(config.get("Shell", container_config.get("Shell")))
             ),
             "volumes": sorted(
                 str(volume)
@@ -239,7 +255,11 @@ def process_image_attrs(image: Image) -> dict[str, object]:
                 )
                 or "SIGTERM"
             ),
-            "healthcheck": healthcheck,
+            "healthcheck": _format_healthcheck(config),
+            # Non-admin view: the test's kind and executable, no arguments.
+            "healthcheck_without_arguments": _format_healthcheck(
+                config, show_arguments=False
+            ),
         }
     except (AttributeError, KeyError, TypeError, ValueError) as e:
         logger.error(
@@ -384,11 +404,9 @@ def _format_history_layer(layer: dict[str, object]) -> dict[str, object]:
     return {
         "id": str(layer.get("Id", "N/A"))[:12],
         "created": set_naturaltime(created) if created else "N/A",
-        "created_by": mask_secrets_in_text(
-            str(layer.get("CreatedBy", "N/A")), mask_all_assignments=True
-        ),
+        "created_by": mask_build_step(str(layer.get("CreatedBy", "N/A"))),
         "size": set_naturalsize(_safe_int(layer.get("Size"))),
-        "comment": layer.get("Comment", ""),
+        "comment": mask_secrets_in_text(str(layer.get("Comment") or "")),
         "tags": layer.get("Tags") or [],
     }
 

@@ -20,15 +20,17 @@ from pytmbot.adapters.docker.containers_info import (
     fetch_full_container_details,
 )
 from pytmbot.adapters.docker.utils import (
+    command_executable,
     get_container_memory_stats,
     get_container_stats_snapshot,
-    mask_command_args,
+    mask_entrypoint_and_cmd,
     mask_environment_variables,
+    mask_secrets_in_text,
     parse_docker_timestamp,
     validate_container_reference,
 )
 from pytmbot.exceptions import InvalidContainerReferenceError
-from pytmbot.globals import get_emoji_converter
+from pytmbot.globals import get_emoji_converter, settings
 from pytmbot.handlers.handlers_util.callback_auth import authorize_callback_request
 from pytmbot.logs import Logger
 from pytmbot.utils import (
@@ -49,6 +51,8 @@ em = get_emoji_converter()
 CPU_SAMPLE_INTERVAL_SECONDS: Final[float] = 0.5
 MAX_DISPLAYED_ENV_VARS: Final[int] = 20
 MAX_ENV_VALUE_LENGTH: Final[int] = 100
+# Shown instead of a Cmd that only holds arguments (no executable of its own).
+COMMAND_ARGUMENTS_HIDDEN_TEXT: Final[str] = "hidden"
 _STATUS_BADGES: Final[dict[str, str]] = {
     "running": "🟢 Running",
     "paused": "🟡 Paused",
@@ -344,6 +348,45 @@ def sanitize_environment_variables(env_list: list[str]) -> list[str]:
     return [_truncate_env_entry(entry) for entry in masked]
 
 
+def can_view_command_arguments(user_id: int) -> bool:
+    """
+    Return True when ``user_id`` may see command arguments (masked).
+
+    Arguments can hold secrets that masking does not recognize, so only admins
+    see them; 2FA is not required. Pass the id of the verified viewer
+    (``call.from_user``), never one taken from callback data.
+    """
+    return user_id in settings.access_control.allowed_admins_ids
+
+
+def executable_only(arguments: object) -> list[str]:
+    """
+    Reduce a masked argv (Cmd, Entrypoint, Shell) to its executable.
+
+    A Cmd that only passes arguments to the Entrypoint has no executable of
+    its own and is shown as ``hidden``.
+    """
+    items = [str(item) for item in arguments] if isinstance(arguments, list) else []
+    if not items:
+        return []
+    return [command_executable(items) or COMMAND_ARGUMENTS_HIDDEN_TEXT]
+
+
+def hide_command_arguments(container_details: dict[str, object]) -> dict[str, object]:
+    """Return container details with Entrypoint and Cmd reduced to executables."""
+    environment = container_details.get("environment")
+    if not isinstance(environment, dict):
+        return container_details
+    return {
+        **container_details,
+        "environment": {
+            **environment,
+            "entrypoint": environment.get("entrypoint_executable", "N/A"),
+            "command": environment.get("command_executable", "N/A"),
+        },
+    }
+
+
 def _format_container_timestamp(raw_value: object) -> str:
     """Render ISO timestamp from Docker attrs to stable UTC string."""
     if not isinstance(raw_value, str):
@@ -396,7 +439,8 @@ def _extract_health_summary(state: dict[str, object]) -> dict[str, object]:
         last_record = health_log[-1]
         if isinstance(last_record, dict):
             health_last_checked_at = _format_container_timestamp(last_record.get("End"))
-            output = str(last_record.get("Output", "")).strip()
+            # Probe output can echo credentials (``password=...``).
+            output = mask_secrets_in_text(str(last_record.get("Output", ""))).strip()
             if output:
                 first_line = output.splitlines()[0]
                 health_last_log = _truncate_text(first_line)
@@ -407,6 +451,11 @@ def _extract_health_summary(state: dict[str, object]) -> dict[str, object]:
         "health_last_checked_at": health_last_checked_at,
         "health_last_log": health_last_log,
     }
+
+
+def _format_state_error(state: dict[str, object]) -> str:
+    """``State.Error`` (often a failed exec with its command line), masked."""
+    return _truncate_text(mask_secrets_in_text(str(state.get("Error") or "none")))
 
 
 def _format_health_badge(status: object) -> str:
@@ -520,7 +569,7 @@ def parse_container_basic_info(
             "pid": state.get("Pid") or "N/A",
             "oom_killed": bool(state.get("OOMKilled", False)),
             "dead": bool(state.get("Dead", False)),
-            "state_error": _truncate_text(state.get("Error", "none") or "none"),
+            "state_error": _format_state_error(state),
             "uptime": uptime,
             **health_summary_public,
         }
@@ -696,23 +745,22 @@ def parse_container_environment(
         # User
         user = str(config.get("User", "root"))
 
-        # Command and args (safe to display)
+        # Command and args, masked; the executables serve non-admin views.
         cmd_obj = config.get("Cmd", [])
-        cmd = [str(item) for item in cmd_obj] if isinstance(cmd_obj, list) else []
+        cmd = cmd_obj if isinstance(cmd_obj, list) else []
         entrypoint_obj = config.get("Entrypoint", [])
-        entrypoint = (
-            [str(item) for item in entrypoint_obj]
-            if isinstance(entrypoint_obj, list)
-            else []
-        )
+        entrypoint = entrypoint_obj if isinstance(entrypoint_obj, list) else []
+        masked_entrypoint, masked_cmd = mask_entrypoint_and_cmd(entrypoint, cmd)
 
         return {
             "environment_vars": safe_env_vars,
             "working_dir": working_dir,
             "user": user,
-            "command": " ".join(mask_command_args(cmd)) if cmd else "N/A",
-            "entrypoint": (
-                " ".join(mask_command_args(entrypoint)) if entrypoint else "N/A"
+            "command": " ".join(masked_cmd) or "N/A",
+            "entrypoint": " ".join(masked_entrypoint) or "N/A",
+            "command_executable": " ".join(executable_only(masked_cmd)) or "N/A",
+            "entrypoint_executable": (
+                " ".join(executable_only(masked_entrypoint)) or "N/A"
             ),
             "env_count": len(env_vars),
         }
@@ -752,7 +800,7 @@ def parse_container_runtime_info(
             "finished_at": _format_container_timestamp(state.get("FinishedAt")),
             "pid": state.get("Pid") or "N/A",
             "exit_code": state.get("ExitCode", "N/A"),
-            "state_error": _truncate_text(state.get("Error", "none") or "none"),
+            "state_error": _format_state_error(state),
             "oom_killed": bool(state.get("OOMKilled", False)),
             "dead": bool(state.get("Dead", False)),
             "privileged": bool(host_config.get("Privileged", False)),

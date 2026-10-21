@@ -26,7 +26,13 @@ See also: [auth_control.md](auth_control.md).
   proxy.
 - Container actions verify that Docker resolved the exact container that was shown (exact name or a 12+ character ID
   prefix) and are serialized per container.
-- Environment variables, URL credentials, and secret-looking command-line values are masked in Docker views.
+- Docker views mask environment variable values (except harmless keys such as `PATH` and `TZ`), URL and HTTP header
+  credentials, values of secret-looking flags and `KEY=VALUE` pairs, and the password options of common tools
+  (`mysql -p`, `curl -u user:password`, `redis-cli -a`, `sshpass -p`, `htpasswd -b`, ...), also inside `sh -c`
+  scripts, image history, healthcheck output and container errors. Masking is best effort: it cannot recognize every
+  secret.
+- Command arguments (container and image Entrypoint, Cmd, Shell and healthcheck test) are shown to admins
+  (`allowed_admins_ids`) only; other allowed users see just the executable.
 - Recommended runtime hardening:
   - read-only root filesystem
   - `no-new-privileges`

@@ -83,10 +83,13 @@
 {% if environment.entrypoint != 'N/A' %}{{ kv_row('Entrypoint', environment.entrypoint) }}{% endif %}
 {% if environment.command != 'N/A' %}{{ kv_row('Command', environment.command) }}{% endif %}
 </table>
+{% if environment.entrypoint != 'N/A' or environment.command != 'N/A' %}
+<p><i>{% if command_arguments_visible %}Values that look like secrets are masked.{% else %}Arguments are visible to admins only.{% endif %}</i></p>
+{% endif %}
 
 <p><b>Environment* ({{ environment.env_count|e }} vars)</b></p>
 <pre><code>{% if environment.environment_vars %}{% for var in environment.environment_vars %}{{ var|e }}
 {% endfor %}{% else %}No environment variables{% endif %}</code></pre>
-<p><i>*Sensitive data is hidden</i></p>
+<p><i>*Values are hidden, except for harmless ones like PATH and TZ.</i></p>
 
 <p><i>Use the buttons below for logs, runtime details, networks, volumes and actions.</i></p>

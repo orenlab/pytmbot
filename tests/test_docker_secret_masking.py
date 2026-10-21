@@ -10,9 +10,14 @@ import pytmbot.adapters.docker.images_info as images_info_module
 import pytmbot.handlers.handlers_util.docker as handlers_docker
 from pytmbot.adapters.docker.utils import (
     SECRET_MASK,
+    command_executable,
+    mask_build_step,
     mask_command_args,
+    mask_entrypoint_and_cmd,
     mask_environment_variables,
+    mask_healthcheck_test,
     mask_secrets_in_text,
+    mask_shell_command,
     mask_url_credentials,
 )
 from tests._docker_sdk_fakes import (
@@ -249,3 +254,399 @@ def test_header_argument_in_argv_is_masked() -> None:
         "-H",
         "Proxy-Authorization: ••••",
     ]
+
+
+# --- program-aware masking: short options without secret-looking names --------
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["mysqld", "-p", "s3cret"], ["mysqld", "-p", M]),
+        (["mysqld", "-ps3cret"], ["mysqld", f"-p{M}"]),
+        (["mysqld", "-psecret"], ["mysqld", f"-p{M}"]),
+        (["/usr/sbin/mysqld", "-ps3cret"], ["/usr/sbin/mysqld", f"-p{M}"]),
+        (["mariadb-admin", "ping", "-ps3cret"], ["mariadb-admin", "ping", f"-p{M}"]),
+        # ``-p`` alone prompts for the password; the next word is an option.
+        (
+            ["mysqldump", "-p", "--all-databases"],
+            ["mysqldump", "-p", "--all-databases"],
+        ),
+        # A detached MySQL value is a database name: masked on purpose.
+        (["mysql", "-p", "appdb"], ["mysql", "-p", M]),
+        (
+            ["curl", "-u", "user:s3cret", "http://db"],
+            ["curl", "-u", f"user:{M}", "http://db"],
+        ),
+        (["curl", "-uuser:s3cret"], ["curl", f"-uuser:{M}"]),
+        (["curl", "--user=user:s3cret"], ["curl", f"--user=user:{M}"]),
+        (["curl", "-fsSu", "user:s3cret"], ["curl", "-fsSu", f"user:{M}"]),
+        (
+            ["curl", "--proxy-user", "p:s3cret", "-U", "q:s3cret"],
+            ["curl", "--proxy-user", f"p:{M}", "-U", f"q:{M}"],
+        ),
+        # Without ``:`` curl prompts for the password: nothing to hide.
+        (["curl", "-u", "user", "http://db"], ["curl", "-u", "user", "http://db"]),
+        (["redis-cli", "-a", "s3cret", "ping"], ["redis-cli", "-a", M, "ping"]),
+        (["redis-cli", "-as3cret"], ["redis-cli", f"-a{M}"]),
+        (
+            ["sshpass", "-p", "s3cret", "ssh", "-p", "22", "host"],
+            ["sshpass", "-p", M, "ssh", "-p", "22", "host"],
+        ),
+        (["sshpass", "-ps3cret", "ssh", "host"], ["sshpass", f"-p{M}", "ssh", "host"]),
+        (
+            ["mongosh", "-u", "root", "-p", "s3cret"],
+            ["mongosh", "-u", "root", "-p", M],
+        ),
+        (["mongodump", "-ps3cret"], ["mongodump", f"-p{M}"]),
+        (
+            ["mosquitto_pub", "-u", "bot", "-P", "s3cret", "-t", "x"],
+            ["mosquitto_pub", "-u", "bot", "-P", M, "-t", "x"],
+        ),
+        (["openssl", "enc", "-k", "s3cret"], ["openssl", "enc", "-k", M]),
+        (
+            ["htpasswd", "-bc", "/etc/htpasswd", "admin", "s3cret"],
+            ["htpasswd", "-bc", "/etc/htpasswd", "admin", M],
+        ),
+        (
+            ["htpasswd", "-B", "-C", "10", "-b", "/etc/htpasswd", "admin", "s3cret"],
+            ["htpasswd", "-B", "-C", "10", "-b", "/etc/htpasswd", "admin", M],
+        ),
+    ],
+)
+def test_program_secret_options_are_masked(
+    args: list[str], expected: list[str]
+) -> None:
+    assert mask_command_args(args) == expected
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        ["exec"],
+        ["tini", "--"],
+        ["tini", "-s", "-g", "--"],
+        ["dumb-init", "--single-child"],
+        ["gosu", "mysql"],
+        ["su-exec", "mysql:mysql"],
+        ["env", "-i", "TZ=UTC", "LANG=C"],
+        ["sudo", "-u", "mysql", "-E"],
+        ["nice", "-n", "10", "nohup", "time", "-p"],
+        ["command", "-p"],
+        ["/usr/bin/env", "MYSQL_HOST=db", "exec"],
+    ],
+)
+def test_program_is_found_behind_wrappers_and_assignments(prefix: list[str]) -> None:
+    assert mask_command_args([*prefix, "mysqld", "-ps3cret"]) == [
+        *prefix,
+        "mysqld",
+        f"-p{M}",
+    ]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["docker", "run", "-p", "80:80", "-u", "1000:1000", "nginx"],
+        ["ssh", "-p", "22", "host"],
+        ["nc", "-l", "-p", "8080"],
+        ["psql", "-h", "db", "-p", "5432", "-U", "app"],
+        ["redis-cli", "-h", "cache", "-p", "6379", "ping"],
+        ["mysql", "-h", "db", "-P", "3306", "-u", "root"],
+        ["mosquitto_sub", "-p", "1883", "-t", "x"],
+        ["openssl", "rand", "-hex", "16"],
+        ["htpasswd", "-c", "/etc/htpasswd", "admin"],
+        ["curl", "-fsSL", "http://x"],
+        ["sh", "-c", "docker run -p 80:80 -u 1000:1000 nginx"],
+    ],
+)
+def test_ports_and_users_of_other_programs_stay_visible(args: list[str]) -> None:
+    assert mask_command_args(args) == args
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (
+            ["sh", "-c", "mysqld -ps3cret && curl -u user:s3cret http://db"],
+            ["sh", "-c", f"mysqld -p{M} && curl -u user:{M} http://db"],
+        ),
+        (["sh", "-c", "mysql -p s3cret"], ["sh", "-c", f"mysql -p {M}"]),
+        (
+            ["/bin/bash", "-o", "pipefail", "-ec", "exec mysqld -p's3cret'"],
+            ["/bin/bash", "-o", "pipefail", "-ec", f"exec mysqld -p'{M}'"],
+        ),
+        (
+            ["tini", "--", "sh", "-c", "redis-cli -as3cret"],
+            ["tini", "--", "sh", "-c", f"redis-cli -a{M}"],
+        ),
+        (["sh", "-c", "--", "mysql -ps3cret"], ["sh", "-c", "--", f"mysql -p{M}"]),
+    ],
+)
+def test_shell_scripts_in_argv_are_masked(args: list[str], expected: list[str]) -> None:
+    assert mask_command_args(args) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("mysqld -p s3cret", f"mysqld -p {M}"),
+        (
+            "sh -c 'mysqld -ps3cret && curl -u user:s3cret http://db'",
+            f"sh -c 'mysqld -p{M} && curl -u user:{M} http://db'",
+        ),
+        ('bash -c "mysql -p s3cret"', f'bash -c "mysql -p {M}"'),
+        (
+            "MYSQL_HOST=db exec gosu mysql mysqld -ps3cret; echo done",
+            f"MYSQL_HOST=db exec gosu mysql mysqld -p{M}; echo done",
+        ),
+        (
+            'mysql -uroot -p"s3cret" -e "SELECT 1; SELECT 2"',
+            f'mysql -uroot -p"{M}" -e "SELECT 1; SELECT 2"',
+        ),
+        (
+            "curl -fsS -u 'user:s3cret' http://x || exit 1",
+            f"curl -fsS -u 'user:{M}' http://x || exit 1",
+        ),
+        (
+            '[ "$(redis-cli -a s3cret ping)" = PONG ]',
+            f'[ "$(redis-cli -a {M} ping)" = PONG ]',
+        ),
+        (
+            "echo `mysql -ps3cret -e 'select 1'`",
+            f"echo `mysql -p{M} -e 'select 1'`",
+        ),
+        (
+            "htpasswd -Bbn admin s3cret > /etc/nginx/.htpasswd",
+            f"htpasswd -Bbn admin {M} > /etc/nginx/.htpasswd",
+        ),
+        (
+            "mysqladmin ping -ps3cret>/dev/null 2>&1 &",
+            f"mysqladmin ping -p{M}>/dev/null 2>&1 &",
+        ),
+        ("mysqladmin ping -p 2>/dev/null", "mysqladmin ping -p 2>/dev/null"),
+        ("ssh -p 22 host # mysql -ps3cret", "ssh -p 22 host # mysql -ps3cret"),
+        ("nginx -g 'daemon off;'", "nginx -g 'daemon off;'"),
+        ("x=$(mysql -ps3cret -N)", f"x=$(mysql -p{M} -N)"),
+        ("mysql -p\\ s3cret", f"mysql -p{M}"),
+        # Quotes inside the option itself are dropped rather than parsed.
+        ('mysql -"p"s3cret', f"mysql -p{M}"),
+        (
+            'echo "say \\"hi\\" `mysql -ps3cret`"',
+            f'echo "say \\"hi\\" `mysql -p{M}`"',
+        ),
+    ],
+)
+def test_shell_commands_keep_their_formatting(text: str, expected: str) -> None:
+    assert mask_shell_command(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # Unbalanced quotes: program rules are skipped, generic masking stays.
+        ("mysql -p'unclosed s3cret", "mysql -p'unclosed s3cret"),
+        ("don't mysql --password s3cret", f"don't mysql --password {M}"),
+        ('echo "unclosed $(mysql -ps3cret', 'echo "unclosed $(mysql -ps3cret'),
+    ],
+)
+def test_unbalanced_quotes_fall_back_to_generic_masking(
+    text: str, expected: str
+) -> None:
+    assert mask_shell_command(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("step", "expected"),
+    [
+        (
+            "RUN |1 DB_PASS=x /bin/sh -c mysql -uroot -ps3cret # buildkit",
+            f"RUN |1 DB_PASS={M} /bin/sh -c mysql -uroot -p{M} # buildkit",
+        ),
+        (
+            "/bin/sh -c curl -u admin:s3cret http://x && mysqladmin -p s3cret ping",
+            f"/bin/sh -c curl -u admin:{M} http://x && mysqladmin -p {M} ping",
+        ),
+        (
+            "RUN --network=none /bin/sh -c mysql -ps3cret",
+            f"RUN --network=none /bin/sh -c mysql -p{M}",
+        ),
+        ('CMD ["mysqld" "-ps3cret"]', f'CMD ["mysqld" "-p{M}"]'),
+        (
+            '/bin/sh -c #(nop)  CMD ["mysqld", "-ps3cret"]',
+            f'/bin/sh -c #(nop)  CMD ["mysqld", "-p{M}"]',
+        ),
+        (
+            'HEALTHCHECK &{["CMD-SHELL" "mysqladmin ping -ps3cret"] "10s" "5s"}',
+            f'HEALTHCHECK &{{["CMD-SHELL" "mysqladmin ping -p{M}"] "10s" "5s"}}',
+        ),
+        ("ENV TZ Europe/Berlin", "ENV TZ Europe/Berlin"),
+    ],
+)
+def test_image_history_steps_are_masked(step: str, expected: str) -> None:
+    assert mask_build_step(step) == expected
+
+
+@pytest.mark.parametrize(
+    ("test", "expected"),
+    [
+        (
+            ["CMD", "mysqladmin", "ping", "-ps3cret"],
+            ["CMD", "mysqladmin", "ping", f"-p{M}"],
+        ),
+        (
+            ["CMD-SHELL", "redis-cli -a s3cret ping | grep PONG"],
+            ["CMD-SHELL", f"redis-cli -a {M} ping | grep PONG"],
+        ),
+        (["NONE"], ["NONE"]),
+    ],
+)
+def test_healthcheck_tests_are_masked(test: list[str], expected: list[str]) -> None:
+    assert mask_healthcheck_test(test) == expected
+
+
+@pytest.mark.parametrize(
+    ("entrypoint", "cmd", "expected"),
+    [
+        # Cmd extends the Entrypoint program ...
+        (["mysqld"], ["-ps3cret"], (["mysqld"], [f"-p{M}"])),
+        (["redis-cli", "-a"], ["s3cret", "ping"], (["redis-cli", "-a"], [M, "ping"])),
+        # ... and entrypoint scripts run Cmd as a command of its own.
+        (
+            ["docker-entrypoint.sh"],
+            ["mysqld", "-ps3cret"],
+            (["docker-entrypoint.sh"], ["mysqld", f"-p{M}"]),
+        ),
+        ([], ["curl", "-u", "a:s3cret"], ([], ["curl", "-u", f"a:{M}"])),
+    ],
+)
+def test_entrypoint_and_cmd_are_masked_as_one_command_line(
+    entrypoint: list[str],
+    cmd: list[str],
+    expected: tuple[list[str], list[str]],
+) -> None:
+    assert mask_entrypoint_and_cmd(entrypoint, cmd) == expected
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (["mysqld", f"-p{M}"], "mysqld"),
+        (
+            ["/usr/local/bin/docker-entrypoint.sh"],
+            "/usr/local/bin/docker-entrypoint.sh",
+        ),
+        (["TZ=UTC curl -f http://localhost/health"], "curl"),
+        (["mysqld -ps3cret"], "mysqld"),
+        (["--requirepass", M], None),
+        ([], None),
+    ],
+)
+def test_command_executable(arguments: list[str], expected: str | None) -> None:
+    assert command_executable(arguments) == expected
+
+
+def test_health_output_and_state_error_are_masked() -> None:
+    attrs: dict[str, object] = {
+        "State": {
+            "Status": "exited",
+            "Error": 'exec: "mysqld --password=s3cret": not found',
+            "Health": {
+                "Status": "unhealthy",
+                "Log": [
+                    {"End": "2026-10-19T00:00:00Z", "Output": "password=s3cret\nmore"}
+                ],
+            },
+        }
+    }
+    runtime = handlers_docker.parse_container_runtime_info(SimpleNamespace(), attrs)
+    basic = handlers_docker.parse_container_basic_info(SimpleNamespace(), attrs)
+
+    assert runtime["health_last_log"] == f"password={M}"
+    expected_error = f'exec: "mysqld --password={M}": not found'
+    assert runtime["state_error"] == basic["state_error"] == expected_error
+
+
+def test_container_environment_keeps_executables_for_non_admin_views() -> None:
+    attrs: dict[str, object] = {
+        "Config": {
+            "Entrypoint": ["docker-entrypoint.sh"],
+            "Cmd": ["mysqld", "-ps3cret"],
+        }
+    }
+    environment = handlers_docker.parse_container_environment(
+        SimpleNamespace(), attrs=attrs
+    )
+    assert environment["entrypoint"] == "docker-entrypoint.sh"
+    assert environment["command"] == f"mysqld -p{M}"
+
+    hidden = handlers_docker.hide_command_arguments({"environment": environment})
+    assert hidden["environment"] == {
+        **environment,
+        "entrypoint": "docker-entrypoint.sh",
+        "command": "mysqld",
+    }
+
+
+def test_cmd_holding_only_arguments_is_hidden_from_non_admins() -> None:
+    attrs: dict[str, object] = {
+        "Config": {"Entrypoint": ["redis-server"], "Cmd": ["--requirepass", "x"]}
+    }
+    environment = handlers_docker.parse_container_environment(
+        SimpleNamespace(), attrs=attrs
+    )
+    assert environment["command_executable"] == "hidden"
+    assert environment["entrypoint_executable"] == "redis-server"
+    assert handlers_docker.hide_command_arguments({"name": "x"}) == {"name": "x"}
+
+
+def test_image_details_keep_executables_for_non_admin_views() -> None:
+    image = SimpleNamespace(
+        short_id=IMAGE_ID[:19],
+        tags=["db:1"],
+        attrs={
+            "RepoTags": ["db:1"],
+            "Comment": "built with --password s3cret",
+            "Config": {
+                "Entrypoint": ["docker-entrypoint.sh"],
+                "Cmd": ["mysqld", "-ps3cret"],
+                "Shell": ["/bin/bash", "-o", "pipefail", "-c"],
+                "Healthcheck": {
+                    "Test": ["CMD-SHELL", "mysqladmin ping -ps3cret"],
+                    "Interval": 10_000_000_000,
+                },
+            },
+        },
+    )
+    details = images_info_module.process_image_attrs(image)
+    assert details["cmd"] == ["mysqld", f"-p{M}"]
+    assert details["shell"] == ["/bin/bash", "-o", "pipefail", "-c"]
+    assert details["comment"] == f"built with --password {M}"
+    assert details["healthcheck"] == (
+        f"test=CMD-SHELL mysqladmin ping -p{M}; interval=10.0s"
+    )
+    assert details["healthcheck_without_arguments"] == (
+        "test=CMD-SHELL mysqladmin; interval=10.0s"
+    )
+
+
+def test_image_history_masks_program_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = FakeDockerApi([], images=[make_image_attrs(IMAGE_ID, ["app:1"])])
+    api.history_db[IMAGE_ID] = [
+        {
+            "Id": IMAGE_ID,
+            "Created": 1_760_000_000,
+            "CreatedBy": "RUN /bin/sh -c mysql -uroot -ps3cret < /init.sql # buildkit",
+            "Size": 10,
+            "Comment": "token=s3cret",
+            "Tags": None,
+        }
+    ]
+    install_client(monkeypatch, [images_info_module], make_client(api))
+
+    history = images_info_module.get_image_history(IMAGE_ID[:19])
+    assert history is not None
+    assert history[0]["created_by"] == (
+        f"RUN /bin/sh -c mysql -uroot -p{M} < /init.sql # buildkit"
+    )
+    assert history[0]["comment"] == f"token={M}"

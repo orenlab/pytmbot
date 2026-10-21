@@ -27,14 +27,14 @@ def _extract_target_user_id(parsed: tuple[str, str, int, int]) -> int:
 
 
 def _render_from_parsed(
-    parsed: tuple[str, str, int, int],
+    parsed: tuple[str, str, int, int], viewer_id: int
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    action, image_ref, target_user_id, page = parsed
+    action, image_ref, _target_user_id, page = parsed
     return render_image_extra_info(
         action=action,
         image_ref=image_ref,
         page=page,
-        user_id=target_user_id,
+        user_id=viewer_id,
     )
 
 

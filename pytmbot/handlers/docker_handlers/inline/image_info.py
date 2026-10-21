@@ -27,13 +27,15 @@ def _extract_target_user_id(parsed: tuple[str, int, int]) -> int:
 
 
 def _render_from_parsed(
-    parsed: tuple[str, int, int],
+    parsed: tuple[str, int, int], viewer_id: int
 ) -> tuple[str, InlineKeyboardMarkup] | None:
-    image_ref, target_user_id, page = parsed
+    # The viewer id comes from ``call.from_user``; authorization already
+    # matched it with the user id in the callback data.
+    image_ref, _target_user_id, page = parsed
     return render_image_details(
         image_ref=image_ref,
         page=page,
-        user_id=target_user_id,
+        user_id=viewer_id,
     )
 
 
