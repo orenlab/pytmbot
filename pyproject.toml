@@ -76,6 +76,8 @@ dev = [
 pytmbot = "pytmbot.main:main"
 
 [tool.uv]
+# uv < 0.13.4 trusts the distrusted emSign root (GHSA-hq85-5cpj-mr62).
+required-version = ">=0.13.4"
 
 [tool.uv.build-backend]
 module-name = ["pytmbot"]

@@ -8,7 +8,7 @@
 ########################################################################################################################
 
 ARG UBUNTU_IMAGE=26.04
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.1
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.4
 ARG COMPILE_BYTECODE=1
 
 ########################################################################################################################
@@ -46,6 +46,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 COPY --from=uv_bin /uv /usr/local/bin/uv
 
+# Refuse a uv that trusts the distrusted emSign root, e.g. from an old UV_IMAGE build arg (GHSA-hq85-5cpj-mr62).
+RUN --mount=type=bind,source=scripts/ca_trust_gate.py,target=/tmp/ca_trust_gate.py \
+    python3 -I -B /tmp/ca_trust_gate.py build
+
 ENV UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy
@@ -77,6 +81,9 @@ RUN set -eux && \
 FROM ubuntu:${UBUNTU_IMAGE} AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
+# First ca-certificates without the distrusted emSign root (USN-8944-1). Changing it re-runs the apt layer below, so a
+# build cache holding an older trust store is not reused.
+ARG CA_CERTIFICATES_MIN_VERSION=20260816ubuntu0.26.04.1
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -88,6 +95,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         tini \
         tzdata \
         passwd && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge "$CA_CERTIFICATES_MIN_VERSION" && \
     rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* && \
     rm -rf /var/lib/apt/lists/*
 
@@ -130,6 +138,10 @@ RUN ln -sf /opt/venv/bin/python3 /usr/local/bin/python3 && \
 COPY --link --chown=pytmbot:pytmbot --chmod=755 ./entrypoint.sh ./entrypoint.sh
 # Copy app sources from builder to keep dependency layers cache-friendly.
 COPY --link --from=builder --chown=1001:1001 /build/pytmbot ./pytmbot
+
+# Fail the build if any trust store in the image still trusts the distrusted emSign root (eMudhra incident).
+RUN --mount=type=bind,source=scripts/ca_trust_gate.py,target=/tmp/ca_trust_gate.py \
+    python3 -I -B /tmp/ca_trust_gate.py runtime
 
 # Basic runtime validation; drop world and root-group write access left on non-sticky paths (incl. copied layers).
 RUN python3 --version && test -x ./entrypoint.sh && \
