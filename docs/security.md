@@ -66,7 +66,8 @@ See also: [auth_control.md](auth_control.md).
 - Restrict config permissions (recommended `600`).
 - Mount config as read-only in container deployments.
 - Read-only containers keep runtime state in a private `/dev/shm/pytmbot-<uid>` directory unless `PYTMBOT_STATE_DIR`
-  points to a writable private tmpfs or volume.
+  points to a writable private tmpfs or volume; with `ipc: host` or a shared IPC namespace, set `PYTMBOT_STATE_DIR`
+  (see [Docker: Runtime State](docker.md#runtime-state)).
 - Expose webhook mode only behind a trusted reverse proxy with TLS.
 
 ## Operational Baseline

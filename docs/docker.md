@@ -174,23 +174,39 @@ Current runtime-relevant environment variables:
 
 ## Runtime State
 
-Runtime state is used for the container health snapshot, TOTP replay protection and persisted webhook rate-limit bans.
+The runtime state directory holds only data that may be lost on restart; the bot token and settings never go there:
+
+| File                                             | Content                                       | Size                     |
+|--------------------------------------------------|-----------------------------------------------|--------------------------|
+| `health.json`                                    | health snapshot for the healthcheck           | under 1 KiB              |
+| `totp_replay_state.json`                         | 2FA codes already used in the last ~2 minutes | up to 64 codes per admin |
+| `webhook_ratelimit/<port>/main.json`, `404.json` | banned client IPs, webhook mode only          | at most 5120 entries     |
+
+Together this stays well under 1 MiB. Files are written atomically with mode `0600` in directories with mode `0700`.
 
 State path resolution:
 
 - `PYTMBOT_STATE_DIR` when set
 - otherwise `$XDG_STATE_HOME/pytmbot` when `XDG_STATE_HOME` is set
 - otherwise `~/.local/state/pytmbot`
-- when that cannot be written (a read-only root filesystem without `PYTMBOT_STATE_DIR`), `/dev/shm/pytmbot-<uid>`, a
-  private directory on the tmpfs that Docker mounts in every container; startup logs
-  `bot.launcher.state.dir.fallback.info`
+- when that cannot be written (a read-only root filesystem without `PYTMBOT_STATE_DIR`), `/dev/shm/pytmbot-<uid>`;
+  startup logs `bot.launcher.state.dir.fallback.info`
 
-A read-only container therefore works without extra settings. To choose the location, set `PYTMBOT_STATE_DIR` to a
-writable private tmpfs or volume, for example `/run/pytmbot` as in the official Compose file. A directory set this way
-is used as is: if it is not writable, the healthcheck has no data and reports the container unhealthy.
+A read-only container therefore works without extra settings. The `/dev/shm` fallback is used only when it is safe:
 
-A tmpfs is wiped when the container stops. That is fine: after a restart without saved TOTP replay state, codes issued
-before the restart are refused, so wait for the next code (up to a minute).
+- `/dev/shm` belongs to the container's own IPC namespace. With `ipc: host`, or outside a container, it is shared with
+  the host and the fallback is off. Containers that share an IPC namespace (`ipc: container:<name>`, a Kubernetes pod)
+  also share `/dev/shm`; set `PYTMBOT_STATE_DIR` there.
+- The directory is created with mode `0700`. An existing one is used only if it is a real directory (not a symlink),
+  owned by the bot user and closed to others; otherwise the fallback is off.
+
+To choose the location, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume, for example `/run/pytmbot` as in
+the official Compose file. A directory set this way is never replaced by the fallback: if it is not writable, startup
+logs `bot.launcher.state.dir.unwritable.fail`, and the healthcheck has no data and reports the container unhealthy.
+
+A tmpfs, `/dev/shm` included, is wiped when the container stops and counts towards the container's memory. That is
+fine: after a restart without saved TOTP replay state, codes issued before the restart are refused, so wait for the
+next code (up to a minute), and webhook bans start over.
 
 ## Minimal Run
 

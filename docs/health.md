@@ -99,7 +99,8 @@ After every monitor cycle, and when the monitor loop fails, the bot writes `heal
 - `PYTMBOT_STATE_DIR` when set (the official Compose file uses a tmpfs at `/run/pytmbot`)
 - otherwise `$XDG_STATE_HOME/pytmbot`
 - otherwise `~/.local/state/pytmbot`, or `/dev/shm/pytmbot-<uid>` when that cannot be written (for example a read-only
-  root filesystem); the bot and the health check resolve the same path
+  root filesystem; see [Docker: Runtime State](docker.md#runtime-state) for when the fallback is used); the bot and the
+  health check resolve the same path
 
 The file is replaced atomically (temporary file in the same directory, then rename) with mode `0600`; the directory is
 created with mode `0700`. It holds the schema version, the bot's PID and process start time, the overall level, the
@@ -108,7 +109,8 @@ monitor interval plus `60` seconds, i.e. `300` seconds by default). A clean shut
 
 The state directory must be writable by the bot user. If it is not, the bot logs `bot.health.snapshot.write.fail` once
 (repeated failures are logged at debug level) and keeps running, but the container is reported unhealthy. A directory
-set with `PYTMBOT_STATE_DIR` or `XDG_STATE_HOME` is used as is, without the `/dev/shm` fallback.
+set with `PYTMBOT_STATE_DIR` or `XDG_STATE_HOME` is used as is, without the `/dev/shm` fallback; when it is not writable,
+startup also logs `bot.launcher.state.dir.unwritable.fail`.
 
 ## Container Health Check
 

@@ -15,6 +15,7 @@ from collections import deque
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
+from pathlib import Path
 from time import time
 from typing import Annotated, Final
 
@@ -44,7 +45,7 @@ from pytmbot.utils import (
     mask_token_in_message,
     mask_webhook_path,
 )
-from pytmbot.utils.state_paths import get_state_root_path
+from pytmbot.utils.state_paths import ensure_private_directory, get_state_root_path
 
 RATELIMIT_EXCEEDED_MESSAGE = "Rate limit exceeded"
 BAN_TTL_SECONDS = 3600
@@ -154,10 +155,8 @@ class RateLimit(BaseComponent):
             return None
 
         state_path = os.path.abspath(state_file)
-        state_dir = os.path.dirname(state_path)
         try:
-            os.makedirs(state_dir, mode=0o700, exist_ok=True)
-            os.chmod(state_dir, 0o700)
+            ensure_private_directory(Path(state_path).parent)
             return state_path
         except OSError as error:
             with self.log_context(

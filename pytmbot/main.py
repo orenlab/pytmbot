@@ -578,11 +578,7 @@ class BotLauncher(logs.BaseComponent):
             ) as log:
                 log.debug("bot.launcher.environment.validation.ok")
 
-            state_root = resolve_state_root()
-            if state_root.source is StateRootSource.RUNTIME_FALLBACK:
-                # Read-only root filesystem without PYTMBOT_STATE_DIR.
-                with self.log_context(state_dir=os.fspath(state_root.path)) as log:
-                    log.info("bot.launcher.state.dir.fallback.info")
+            self._report_state_root()
 
         except Exception as e:
             raise InitializationError(
@@ -592,6 +588,19 @@ class BotLauncher(logs.BaseComponent):
                     metadata={"error": str(e), "type": type(e).__name__},
                 )
             ) from e
+
+    def _report_state_root(self) -> None:
+        """Log where runtime state goes when that is not the usual writable place."""
+        state_root = resolve_state_root()
+        with self.log_context(
+            state_dir=os.fspath(state_root.path), source=state_root.source.value
+        ) as log:
+            if not state_root.writable:
+                # The health check then reports the container unhealthy.
+                log.error("bot.launcher.state.dir.unwritable.fail")
+            elif state_root.source is StateRootSource.RUNTIME_FALLBACK:
+                # Read-only root filesystem without PYTMBOT_STATE_DIR.
+                log.info("bot.launcher.state.dir.fallback.info")
 
     def _register_signal_handler(self, sig: signal.Signals) -> None:
         """Register handler for a single signal."""
