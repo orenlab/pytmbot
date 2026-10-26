@@ -23,7 +23,11 @@ from pytmbot.adapters.psutil.adapter import PsutilAdapter
 from pytmbot.adapters.psutil.adapter_types import TopProcess
 from pytmbot.db.influxdb_interface import InfluxDBConfig, InfluxDBInterface
 from pytmbot.logs import Logger
-from pytmbot.plugins.monitor.models import MonitoringState, ResourceThresholds
+from pytmbot.plugins.monitor.models import (
+    EventData,
+    MonitoringState,
+    ResourceThresholds,
+)
 from pytmbot.plugins.monitor.utils import (
     EventTracker,
     SystemInfo,
@@ -328,10 +332,38 @@ class SystemMonitorPlugin(PluginCore):
         if event is not None and event["notified"]:
             return
 
-        if self._send_notification(message_formatter(event_id, *message_args)):
-            if event is not None:
-                event["notified"] = True
-                event["last_notification"] = time.time()
+        retrying = event is not None and event["failed_attempts"] > 0
+        delivered = self._send_notification(
+            message_formatter(event_id, *message_args), log_failure=not retrying
+        )
+        if event is not None:
+            self._record_alert_delivery(event, delivered=delivered)
+
+    @staticmethod
+    def _record_alert_delivery(event: EventData, *, delivered: bool) -> None:
+        """Log when an alert's delivery breaks and when it recovers, once each."""
+        trace = {"event_id": event["id"], "event_type": event["type"]}
+        if not delivered:
+            event["failed_attempts"] += 1
+            if event["failed_attempts"] == 1:
+                logger.warning(
+                    "bot.plugins.monitor.methods.alert.delivery.pending.warn",
+                    extra=trace,
+                )
+            return
+
+        now = time.time()
+        if event["failed_attempts"]:
+            logger.info(
+                "bot.plugins.monitor.methods.alert.delivery.restored.info",
+                extra={
+                    **trace,
+                    "failed_attempts": event["failed_attempts"],
+                    "delay": round(now - event["start_time"], 1),
+                },
+            )
+        event["notified"] = True
+        event["last_notification"] = now
 
     def _resolve_event_and_notify(self, event_type: str, label: str) -> None:
         """Resolve all active events for type and send resolution notifications."""
@@ -341,7 +373,16 @@ class SystemMonitorPlugin(PluginCore):
                 continue
             duration = EventTracker.resolve_event(self.state, event_id)
             # No recovery message for an alert the operator never received.
-            if duration and event["notified"]:
+            if not event["notified"]:
+                logger.info(
+                    "bot.plugins.monitor.methods.alert.delivery.dropped.info",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "failed_attempts": event["failed_attempts"],
+                    },
+                )
+            elif duration:
                 self._send_resolution_notification(label, duration)
             event_ids_to_remove.append(event_id)
 
@@ -635,9 +676,17 @@ class SystemMonitorPlugin(PluginCore):
         return numeric_fields
 
     def _send_notification(
-        self, message: str, *, count_towards_budget: bool = True
+        self,
+        message: str,
+        *,
+        count_towards_budget: bool = True,
+        log_failure: bool = True,
     ) -> bool:
-        """Send a notification; return True only if Telegram accepted it."""
+        """
+        Send a notification; return True only if Telegram accepted it.
+
+        ``log_failure=False`` keeps repeated failures of one alert at debug level.
+        """
         current_time = time.time()
         if count_towards_budget:
             self._maybe_reset_notification_budget(current_time)
@@ -670,7 +719,13 @@ class SystemMonitorPlugin(PluginCore):
             return True
 
         except Exception as e:
-            logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
+            if log_failure:
+                logger.error("bot.plugins.monitor.methods.send.notification.fail", e)
+            else:
+                logger.debug(
+                    "bot.plugins.monitor.methods.send.notification.retry.debug",
+                    extra={"error": str(e)},
+                )
             return False
 
     def _resolve_notification_reset_window_seconds(self) -> int:

@@ -14,7 +14,9 @@ Patch release with alert delivery, secret masking and Docker check fixes.
 
 - A CPU, memory, disk or temperature alert that Telegram did not accept (network error, exhausted notification budget)
   is sent again on the next check instead of being dropped until the value returns to normal. A "has normalized"
-  message is sent only for an alert that was delivered.
+  message is sent only for an alert that was delivered. The log shows when delivery of an alert broke and when it
+  recovered (or the value normalized first), once each, with the event ID; the repeated attempts in between are
+  logged at debug level.
 - `--check-docker` exits with `1` unless the Docker API answers a ping, made with the Docker settings from
   `pytmbot.yaml` when it is mounted (the default socket otherwise); it used to check only the socket file permissions.
 
