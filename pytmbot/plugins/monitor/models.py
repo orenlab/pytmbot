@@ -20,6 +20,8 @@ class EventData(TypedDict):
     type: str
     details: dict[str, object]
     resolved: bool
+    # True once Telegram accepted the alert; only delivered alerts get a recovery.
+    notified: bool
 
 
 class ResourceMetrics(TypedDict):

@@ -240,6 +240,7 @@ class EventTracker:
             "type": event_type,
             "details": details,
             "resolved": False,
+            "notified": False,
         }
         logger.info(
             "bot.plugins.monitor.utils.event.create.info",

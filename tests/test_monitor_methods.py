@@ -294,6 +294,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "details": {},
             "start_time": 1.0,
             "last_notification": 1.0,
+            "notified": True,
         },
         "resolved": {
             "id": "resolved",
@@ -302,6 +303,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "details": {},
             "start_time": 1.0,
             "last_notification": 1.0,
+            "notified": True,
         },
     }
 
@@ -309,11 +311,13 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
     assert monitor._find_active_event_id("memory_usage") is None
 
     notifications: list[str] = []
-    monkeypatch.setattr(
-        SystemMonitorPlugin,
-        "_send_notification",
-        lambda self, text: notifications.append(text),
-    )
+
+    def _send(self: SystemMonitorPlugin, text: str) -> bool:
+        del self
+        notifications.append(text)
+        return True
+
+    monkeypatch.setattr(SystemMonitorPlugin, "_send_notification", _send)
     monitor._create_or_notify_event(
         "cpu_usage", {"usage": 90.0}, lambda event_id: f"event:{event_id}"
     )
@@ -336,6 +340,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "details": {},
             "start_time": 1.0,
             "last_notification": 1.0,
+            "notified": True,
         },
         "cpu-e2": {
             "id": "cpu-e2",
@@ -344,6 +349,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "details": {},
             "start_time": 1.0,
             "last_notification": 1.0,
+            "notified": True,
         },
         "mem-e1": {
             "id": "mem-e1",
@@ -352,6 +358,7 @@ def test_event_helpers_create_find_and_resolve(monkeypatch: pytest.MonkeyPatch) 
             "details": {},
             "start_time": 1.0,
             "last_notification": 1.0,
+            "notified": True,
         },
     }
     monitor._active_event_ids = {}
@@ -862,6 +869,64 @@ def _container_row(container_id: str) -> _PayloadDict:
         "networks": "bridge, backend",
         "ports": "0.0.0.0:8080->80/tcp",
     }
+
+
+def test_undelivered_resource_alert_is_retried_and_not_recovered() -> None:
+    monitor, bot = _build_monitor(max_notifications=5)
+    telegram_up = [False]
+    delivered = bot.send_message
+
+    def _send(chat_id: int, text: str, parse_mode: str | None = None) -> None:
+        if not telegram_up[0]:
+            raise ConnectionError("telegram unavailable")
+        delivered(chat_id, text, parse_mode)
+
+    monitor.bot = cast(TeleBot, SimpleNamespace(send_message=_send))
+
+    monitor._check_cpu_alert(95.0)
+    event_id = monitor._find_active_event_id("cpu_usage")
+    assert event_id is not None
+    assert monitor.state.active_events[event_id]["notified"] is False
+
+    telegram_up[0] = True
+    monitor._check_cpu_alert(97.0)
+    assert len(bot.sent_messages) == 1
+    assert "High CPU Usage Alert" in str(bot.sent_messages[0]["text"])
+    assert f"Event ID: {event_id}" in str(bot.sent_messages[0]["text"])
+
+    monitor._check_cpu_alert(98.0)  # delivered: no repeat
+    assert len(bot.sent_messages) == 1
+
+    monitor._check_cpu_alert(10.0)
+    assert "has normalized" in str(bot.sent_messages[-1]["text"])
+
+
+def test_resource_alert_waits_for_notification_budget_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor, bot = _build_monitor(max_notifications=1, reset_window_seconds=60)
+    clock = [1000.0]
+    monkeypatch.setattr("pytmbot.plugins.monitor.methods.time.time", lambda: clock[0])
+
+    monitor._check_cpu_alert(95.0)
+    monitor._check_memory_alert(95.0)  # budget exhausted: not delivered
+    assert len(bot.sent_messages) == 1
+
+    clock[0] += 61
+    monitor._check_memory_alert(96.0)
+    assert len(bot.sent_messages) == 2
+    assert "High Memory Usage Alert" in str(bot.sent_messages[-1]["text"])
+
+
+def test_no_recovery_for_an_alert_that_was_never_delivered() -> None:
+    monitor, bot = _build_monitor(max_notifications=1)
+    monitor.state.notification_count = 1  # budget exhausted
+
+    monitor._check_disk_alerts({"/": 95.0})
+    monitor._check_disk_alerts({"/": 10.0})
+
+    assert bot.sent_messages == []
+    assert monitor._find_active_event_id("disk_/") is None
 
 
 def test_security_alerts_bypass_exhausted_notification_budget() -> None:

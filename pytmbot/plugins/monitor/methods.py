@@ -314,14 +314,24 @@ class SystemMonitorPlugin(PluginCore):
         message_formatter: Callable[..., str],
         *message_args: object,
     ) -> None:
-        """Create event if absent and send alert notification."""
+        """
+        Create event if absent and send alert notification.
+
+        The alert is retried on every cycle until Telegram accepts it, so a
+        failed send or an exhausted notification budget never silences it.
+        """
         event_id = self._find_active_event_id(event_type)
-        if event_id:
+        if event_id is None:
+            event_id = EventTracker.create_event(self.state, event_type, details)
+            self._active_event_ids[event_type] = event_id
+        event = self.state.active_events.get(event_id)
+        if event is not None and event["notified"]:
             return
 
-        event_id = EventTracker.create_event(self.state, event_type, details)
-        self._active_event_ids[event_type] = event_id
-        self._send_notification(message_formatter(event_id, *message_args))
+        if self._send_notification(message_formatter(event_id, *message_args)):
+            if event is not None:
+                event["notified"] = True
+                event["last_notification"] = time.time()
 
     def _resolve_event_and_notify(self, event_type: str, label: str) -> None:
         """Resolve all active events for type and send resolution notifications."""
@@ -330,7 +340,8 @@ class SystemMonitorPlugin(PluginCore):
             if event["type"] != event_type or event["resolved"]:
                 continue
             duration = EventTracker.resolve_event(self.state, event_id)
-            if duration:
+            # No recovery message for an alert the operator never received.
+            if duration and event["notified"]:
                 self._send_resolution_notification(label, duration)
             event_ids_to_remove.append(event_id)
 
