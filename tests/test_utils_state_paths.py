@@ -190,6 +190,9 @@ def test_fallback_symlink_is_not_trusted(
     _assert_no_fallback(unwritable_home)
 
 
+@pytest.mark.skipif(
+    not os.path.exists("/proc/self/ns/ipc"), reason="needs Linux IPC namespaces"
+)
 def test_ipc_namespace_check_recognises_the_host_namespace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
