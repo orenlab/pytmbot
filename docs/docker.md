@@ -20,7 +20,7 @@ Published image:
 
 Stable public tags:
 
-- `0.5.3` for an exact release image
+- `0.5.4` for an exact release image
 - `0.5` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`
@@ -76,7 +76,7 @@ How access is granted:
   sockets owned by one of these groups (for example rootless Docker or Docker Desktop, where the socket appears as
   `root:root`) work without `group_add`
 - `--check-docker` (and every startup) logs the socket's group ID and the exact `--group-add` value when access is
-  missing
+  missing; `--check-docker` then pings the Docker API and exits with `0` only if it answered
 - mounting the socket with `:ro` does not limit the API: a read-only bind mount still allows connecting to the socket
 
 Least-privilege user: run with `--user 1001:1001 --group-add <gid>` (Compose: `user: "1001:1001"` plus `group_add`).
@@ -126,7 +126,7 @@ services:
     environment:
       PYTMBOT_STATE_DIR: /run/pytmbot
     tmpfs:
-      - /run/pytmbot:noexec,nosuid,nodev,size=10m,uid=1001,gid=1001
+      - /run/pytmbot:noexec,nosuid,nodev,size=10m,mode=0700,uid=1001,gid=1001
     volumes:
       - ./pytmbot.yaml:/opt/app/pytmbot.yaml:ro
     networks: [docker-proxy, default]
@@ -201,8 +201,10 @@ A read-only container therefore works without extra settings. The `/dev/shm` fal
   owned by the bot user and closed to others; otherwise the fallback is off.
 
 To choose the location, set `PYTMBOT_STATE_DIR` to a writable private tmpfs or volume, for example `/run/pytmbot` as in
-the official Compose file. A directory set this way is never replaced by the fallback: if it is not writable, startup
-logs `bot.launcher.state.dir.unwritable.fail`, and the healthcheck has no data and reports the container unhealthy.
+the official Compose file. Give a tmpfs `mode=0700` and the bot's `uid`/`gid`: without `mode`, Docker creates it with
+mode `1777` (the bot closes it to `0700` only when it first writes there). A directory set this way is never replaced
+by the fallback: if it is not writable, startup logs `bot.launcher.state.dir.unwritable.fail`, and the healthcheck has
+no data and reports the container unhealthy.
 
 A tmpfs, `/dev/shm` included, is wiped when the container stops and counts towards the container's memory. That is
 fine: after a restart without saved TOTP replay state, codes issued before the restart are refused, so wait for the

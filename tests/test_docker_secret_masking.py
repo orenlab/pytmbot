@@ -129,6 +129,11 @@ def test_mask_url_credentials(text: str, expected: str) -> None:
             ["sh", "-c", f"mysqld --password {M} --user mysql"],
         ),
         (["nginx", "-g", "daemon off;"], ["nginx", "-g", "daemon off;"]),
+        # A value may start with ``-``: glued with ``=`` or as the next word.
+        (["mysql", "--password=-s3cret"], ["mysql", f"--password={M}"]),
+        (["app", "--token", "-s3cret-x"], ["app", "--token", M]),
+        (["app", "--token", "-v"], ["app", "--token", "-v"]),
+        (["app", "--token", "-"], ["app", "--token", "-"]),
     ],
 )
 def test_mask_command_args(args: list[str], expected: list[str]) -> None:
@@ -445,6 +450,37 @@ def test_shell_scripts_in_argv_are_masked(args: list[str], expected: list[str]) 
 )
 def test_shell_commands_keep_their_formatting(text: str, expected: str) -> None:
     assert mask_shell_command(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("mysql --password=-s3cret", f"mysql --password={M}"),
+        ("app --token=--s3cret", f"app --token={M}"),
+        ("app --api-key -s3cret --port 80", f"app --api-key {M} --port 80"),
+        # ``-x``, ``--long`` and ``-`` after the flag are the next options.
+        ("mysql --password -h db", "mysql --password -h db"),
+        ("app --secret --verbose", "app --secret --verbose"),
+        ("app --token - <file", "app --token - <file"),
+    ],
+)
+def test_flag_values_starting_with_a_dash(text: str, expected: str) -> None:
+    assert mask_shell_command(text) == expected
+    assert mask_free_text(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # Program options with a required value take a ``-`` word as the value.
+        ("redis-cli -a -s3cret ping", f"redis-cli -a {M} ping"),
+        ("sshpass -p -s3cret ssh host", f"sshpass -p {M} ssh host"),
+        ("mysql -p -h db", "mysql -p -h db"),
+    ],
+)
+def test_program_option_values_starting_with_a_dash(text: str, expected: str) -> None:
+    assert mask_shell_command(text) == expected
+    assert mask_command_args(text.split()) == expected.split()
 
 
 @pytest.mark.parametrize(

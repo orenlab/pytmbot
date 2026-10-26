@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current repository sample value: `0.5.3`.
+- Current repository sample value: `0.5.4`.
 - Supported values are defined in `get_compatibility_matrix()` inside `pytmbot/models/settings_model.py`.
 - Legacy configs without this field are auto-migrated.
 
@@ -145,7 +145,7 @@ Optional. Required when the `monitor` plugin is enabled.
 ## Minimal Required Configuration
 
 ```yaml
-config_version: "0.5.3"
+config_version: "0.5.4"
 
 bot_token:
   prod_token:

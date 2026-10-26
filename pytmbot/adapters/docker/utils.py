@@ -125,9 +125,13 @@ _SECRET_HEADER_MARKERS: Final[tuple[str, ...]] = (
     "secret",
     "password",
 )
+# A value glued with ``=`` is always the value, even when it starts with ``-``.
+# A separate word is the next option when it is ``-``, ``-x`` or ``--long``;
+# any other word starting with ``-`` (``--password -s3cret``) is the value.
 _FLAG_VALUE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?<![\w-])(?P<flag>--?[A-Za-z][\w.-]{0,127}+)(?P<sep>=|[ \t]++)"
-    r"(?P<value>\"[^\"]*+\"|'[^']*+'|(?!-)[^\s;&|\"']++)"
+    r"(?P<value>\"[^\"]*+\"|'[^']*+'"
+    r"|(?:(?<==)|(?!--)(?!-[^\s;&|\"']?+(?![^\s;&|\"'])))[^\s;&|\"']++)"
 )
 _ASSIGNMENT_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?<![\w.-])(?P<key>[A-Za-z_][A-Za-z0-9_.]*)="
@@ -887,6 +891,13 @@ def mask_secrets_in_text(text: str, *, mask_all_assignments: bool = False) -> st
     return mask_url_credentials(masked)
 
 
+def _looks_like_next_option(argument: str) -> bool:
+    """``-``, ``-x`` and ``--long`` follow a flag as options, not as its value."""
+    return argument.startswith("--") or (
+        argument.startswith("-") and len(argument) <= 2
+    )
+
+
 def _is_secret_flag_awaiting_value(argument: str) -> bool:
     return (
         argument.startswith("-")
@@ -1154,7 +1165,7 @@ def _match_secret_option(
 
 def _is_detached_value(words: Sequence[str], index: int, *, shell: bool) -> bool:
     """True when ``words[index]`` can be the value of the option before it."""
-    if index >= len(words) or words[index].startswith("-"):
+    if index >= len(words) or _looks_like_next_option(words[index]):
         return False
     return not (shell and _REDIRECTION_PATTERN.match(words[index]))
 
@@ -1537,7 +1548,7 @@ def mask_command_args(arguments: Sequence[object]) -> list[str]:
     masked: list[str] = []
     mask_next = False
     for argument in _mask_argv_programs([str(item) for item in arguments]):
-        if mask_next and not argument.startswith("-"):
+        if mask_next and not _looks_like_next_option(argument):
             masked.append(SECRET_MASK)
             mask_next = False
             continue

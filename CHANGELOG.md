@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.4] — 20261026
+
+Patch release with alert delivery, secret masking and Docker check fixes.
+
+### Security
+
+- A secret flag value that starts with `-` is masked too: `--password=-s3cret` always, and `--password -s3cret`,
+  `redis-cli -a -s3cret` or `sshpass -p -s3cret` as a separate word. After a secret flag, `-`, a single-letter option
+  (`-h`) or a `--long` option is still read as the next option and stays visible.
+
+### Fixed
+
+- A CPU, memory, disk or temperature alert that Telegram did not accept (network error, exhausted notification budget)
+  is sent again on the next check instead of being dropped until the value returns to normal. A "has normalized"
+  message is sent only for an alert that was delivered. The log shows when delivery of an alert broke and when it
+  recovered (or the value normalized first), once each, with the event ID; the repeated attempts in between are
+  logged at debug level.
+- `--check-docker` exits with `1` unless the Docker API answers a ping, made with the Docker settings from
+  `pytmbot.yaml` when it is mounted (the default socket otherwise); it used to check only the socket file permissions.
+
+### Changed
+
+- The official Compose file and the docs give the `/run/pytmbot` tmpfs `mode=0700`; without it Docker creates the
+  tmpfs with mode `1777` until the bot first writes there.
+
 ## [0.5.3] — 20261021
 
 Patch release with security and reliability fixes.

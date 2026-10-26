@@ -20,6 +20,10 @@ class EventData(TypedDict):
     type: str
     details: dict[str, object]
     resolved: bool
+    # True once Telegram accepted the alert; only delivered alerts get a recovery.
+    notified: bool
+    # Sends of the alert that failed so far; logged on the first one only.
+    failed_attempts: int
 
 
 class ResourceMetrics(TypedDict):

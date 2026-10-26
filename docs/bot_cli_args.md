@@ -43,10 +43,14 @@ Matching is case-insensitive.
 
 The Docker image accepts all arguments above and also adds:
 
-| Argument         | Type | Behavior                                |
-|------------------|------|-----------------------------------------|
-| `--salt`         | flag | Generates a TOTP salt and exits         |
-| `--check-docker` | flag | Verifies Docker socket access and exits |
+| Argument         | Type | Behavior                                                         |
+|------------------|------|------------------------------------------------------------------|
+| `--salt`         | flag | Generates a TOTP salt and exits                                  |
+| `--check-docker` | flag | Pings the Docker API and exits with `0` if it answered, else `1` |
+
+`--check-docker` uses the Docker settings from `pytmbot.yaml` (host, TLS, timeout) when the config file is mounted,
+and the default socket `unix:///var/run/docker.sock` otherwise. It also logs the socket's group ID and the exact
+`--group-add` value when socket access is missing.
 
 Entrypoint difference for `--webhook`:
 

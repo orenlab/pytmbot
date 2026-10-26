@@ -133,6 +133,21 @@ check_docker_access() {
     fi
 }
 
+# Docker diagnostics for --check-docker: succeeds only when the Docker API answers a ping, made with the bot's Docker
+# settings when a config file is present (default local socket otherwise). Socket permissions only explain a failure.
+check_docker() {
+    report_docker_socket_group
+    check_docker_access || true
+
+    _docker_check_module="pytmbot.adapters.docker.check"
+    if "$PYTHON_PATH" -m "$_docker_check_module"; then
+        log "INFO" "entrypoint" "Docker API check passed" "{\"source\": \"$_docker_check_module\"}"
+        return 0
+    fi
+    log "ERROR" "entrypoint" "Docker API check failed" "{\"source\": \"$_docker_check_module\"}"
+    return 1
+}
+
 # Function to validate log level
 validate_log_level() {
     case "$1" in
@@ -310,9 +325,10 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --check-docker)
-            report_docker_socket_group
-            check_docker_access
-            exit 0
+            if check_docker; then
+                exit 0
+            fi
+            exit 1
             ;;
         *)
             log "ERROR" "entrypoint" "Invalid option" "{\"option\": \"$1\", \"available\": \"--log-level, --mode, --log-format, --colorize_logs, --debug, --salt, --plugins, --webhook, --socket_host, --health_check, --check-docker\"}"
