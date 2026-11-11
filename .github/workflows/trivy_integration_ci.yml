@@ -1,0 +1,107 @@
+name: Trivy Docker Integration
+
+on:
+  push:
+    branches:
+      - feat/trivy-image-scanning-103
+    paths:
+      - trivy-worker/**
+      - docker-compose.trivy.yml
+      - .github/workflows/trivy_integration_ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-image:
+    name: Scan real local Alpine image over private HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Prepare temporary private worker secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p secrets
+          umask 077
+          openssl rand -hex 32 > secrets/trivy_worker_token
+          openssl rand -hex 32 > secrets/trivy_server_token
+          sudo chgrp 1001 secrets/trivy_worker_token secrets/trivy_server_token
+          chmod 0440 secrets/trivy_worker_token secrets/trivy_server_token
+
+      - name: Configure isolated Docker builder DNS
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+        with:
+          buildkitd-config-inline: |
+            [dns]
+              nameservers = ["1.1.1.1", "8.8.8.8"]
+
+      - name: Pull real local image
+        run: docker pull alpine:3.24
+
+      - name: Boot isolated Trivy stack
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml \
+            up -d --build trivy-docker-proxy trivy-db trivy-worker
+
+      - name: Exercise Trivy client-server scanning on actual Docker image layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_id="$(docker image inspect alpine:3.24 --format '{{.Id}}')"
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml \
+            exec -T -e TARGET_IMAGE_ID="${image_id}" trivy-worker \
+            python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          token = open("/run/secrets/trivy_worker_token", encoding="utf-8").read().strip()
+          base = "http://127.0.0.1:8090"
+          headers = {"Authorization": "Bearer " + token}
+          deadline = time.monotonic() + 480
+          while True:
+              try:
+                  req = urllib.request.Request(base + "/v1/info", headers=headers)
+                  with urllib.request.urlopen(req, timeout=12) as response:
+                      info = json.load(response)
+                  assert info["db_schema"] > 0
+                  print("Trivy server DB ready:", info["scanner_version"], info["db_updated_at"])
+                  break
+              except (urllib.error.URLError, ValueError, KeyError, AssertionError):
+                  if time.monotonic() > deadline:
+                      raise
+                  time.sleep(8)
+
+          image_id = os.environ["TARGET_IMAGE_ID"]
+          assert image_id.startswith("sha256:") and len(image_id) == 71
+          request = urllib.request.Request(
+              base + "/v1/scan",
+              data=json.dumps({"image_id": image_id}).encode(),
+              headers={**headers, "Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=220) as response:
+              result = json.load(response)
+          assert result["image_id"] == image_id
+          assert result["db_schema"] > 0
+          assert isinstance(result["report"]["Results"], list)
+          assert result["report"]["Results"]
+          print("Real local Docker image scan succeeded:", result["scanner_version"])
+          PY
+
+      - name: Collect container diagnostics
+        if: ${{ always() }}
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps || true
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml logs --tail=100 trivy-worker trivy-db trivy-docker-proxy || true
+
+      - name: Stop isolated scanner stack
+        if: ${{ always() }}
+        run: docker compose -f docker-compose.yml -f docker-compose.trivy.yml down --volumes --remove-orphans || true
