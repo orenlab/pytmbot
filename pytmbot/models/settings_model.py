@@ -244,6 +244,7 @@ class TrivyConfig(BaseModel):
     cache_dir: str
     scanner_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     max_db_age_hours: int = Field(default=48, ge=1, le=168)
+    max_image_size_mb: int = Field(default=1024, ge=128, le=4096)
     timeout_seconds: int = Field(default=180, ge=10, le=600)
     max_images: int = Field(default=20, ge=1, le=50)
     max_queued_jobs: int = Field(default=2, ge=1, le=4)
