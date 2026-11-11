@@ -81,7 +81,12 @@ Deployment:
    umask 077
    openssl rand -hex 32 > secrets/trivy_worker_token
    openssl rand -hex 32 > secrets/trivy_server_token
+   sudo chgrp 1001 secrets/trivy_worker_token secrets/trivy_server_token
+   chmod 0440 secrets/trivy_worker_token secrets/trivy_server_token
    ```
+
+   Secrets are read by the bot (GID 1001) and worker (supplementary GID
+   1001). Do not make the files world-readable or commit them.
 
 3. Configure `plugins_config.trivy` in your existing `pytmbot.yaml`:
 
