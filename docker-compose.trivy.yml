@@ -1,0 +1,111 @@
+# Optional extension: docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build
+# Configure plugins_config.trivy in pytmbot.yaml and create both secrets before enabling.
+# No ports published to the host. All image access is isolated behind a GET-only Docker API proxy.
+services:
+  pytmbot:
+    command: ["--log-level", "INFO", "--plugins", "trivy"]
+    secrets:
+      - trivy_worker_token
+    networks:
+      - pytmbot_network
+      - trivy_control
+
+  trivy-worker:
+    build:
+      context: ./trivy-worker
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    environment:
+      TRIVY_WORKER_TOKEN_FILE: /run/secrets/trivy_worker_token
+      TRIVY_SERVER_TOKEN_FILE: /run/secrets/trivy_server_token
+    secrets:
+      - trivy_worker_token
+      - trivy_server_token
+    depends_on:
+      - trivy-db
+      - trivy-docker-proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 64
+    cpus: 1.0
+    mem_limit: 1g
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,uid=10001,gid=10001
+    networks:
+      - trivy_control
+      - trivy_backend
+      - trivy_docker
+
+  trivy-db:
+    image: aquasec/trivy:0.76.2
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command: 'exec trivy server --listen 0.0.0.0:4954 --token "$$(cat /run/secrets/trivy_server_token)" --cache-dir /var/cache/trivy'
+    secrets:
+      - trivy_server_token
+    volumes:
+      - trivy_db_cache:/var/cache/trivy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 80
+    cpus: 1.0
+    mem_limit: 1g
+    networks:
+      - trivy_backend
+      - trivy_db_egress
+
+  trivy-docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "0"
+      IMAGES: "1"
+      INFO: "0"
+      VERSION: "1"
+      POST: "0"
+      AUTH: "0"
+      BUILD: "0"
+      EXEC: "0"
+      NETWORKS: "0"
+      SYSTEM: "0"
+      VOLUMES: "0"
+      SERVICES: "0"
+      SWARM: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 32
+    mem_limit: 64m
+    networks:
+      - trivy_docker
+
+secrets:
+  trivy_worker_token:
+    file: ./secrets/trivy_worker_token
+  trivy_server_token:
+    file: ./secrets/trivy_server_token
+
+volumes:
+  trivy_db_cache:
+
+networks:
+  trivy_control:
+    internal: true
+  trivy_backend:
+    internal: true
+  trivy_docker:
+    internal: true
+  trivy_db_egress:
+    # Server needs internet egress for vulnerability DB updates, without published ports.
+    driver: bridge
