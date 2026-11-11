@@ -200,7 +200,7 @@ class TrivyPlugin(PluginInterface):
             f"<p><b>Image:</b> sha256:{escape(summary.image_id[:16])}…</p>"
             f"<p><b>Scanned:</b> {escape(summary.scanned_at)}</p>"
             f"<p><b>DB:</b> schema {summary.db_schema}, updated {escape(summary.db_updated_at)}</p>"
-            f"<p><b>Scanner SHA-256:</b> {escape(summary.scanner_sha256[:16])}…</p>"
+            f"<p><b>Trivy:</b> {escape(summary.scanner_version[:48])}</p>"
             f"<p>Critical: {counts['CRITICAL']} · High: {counts['HIGH']} · "
             f"Medium: {counts['MEDIUM']} · Low: {counts['LOW']} · "
             f"Unknown: {counts['UNKNOWN']}</p>"
