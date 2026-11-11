@@ -69,6 +69,7 @@ class ScanSummary:
     fixable: int
     findings: tuple[tuple[str, str, str], ...]
     trivy_schema: int | None
+    vulnerability_ids: tuple[str, ...] = ()
 
 
 def parse_report(
@@ -88,6 +89,7 @@ def parse_report(
     counts: Counter[str] = Counter()
     fixable = 0
     selected: list[tuple[str, str, str]] = []
+    vulnerability_ids: set[str] = set()
     for result in results:
         if not isinstance(result, dict):
             raise ScanError("Scanner returned invalid result entries.")
@@ -103,6 +105,11 @@ def parse_report(
             if not isinstance(severity, str) or severity not in _SEVERITIES:
                 severity = "UNKNOWN"
             counts[severity] += 1
+            identifier = vulnerability.get("VulnerabilityID")
+            if isinstance(identifier, str) and 0 < len(identifier) <= 120:
+                vulnerability_ids.add(identifier)
+                if len(vulnerability_ids) > 1000:
+                    raise ScanError("Too many unique vulnerabilities for audited scan.")
             fixed = vulnerability.get("FixedVersion")
             if isinstance(fixed, str) and fixed.strip():
                 fixable += 1
@@ -122,6 +129,7 @@ def parse_report(
         fixable=fixable,
         findings=tuple(selected),
         trivy_schema=version if type(version) is int else None,
+        vulnerability_ids=tuple(sorted(vulnerability_ids)),
     )
 
 
