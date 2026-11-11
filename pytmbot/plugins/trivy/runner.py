@@ -1,27 +1,25 @@
-"""Read-only, bounded local Docker image scans using externally provisioned Trivy."""
+"""Bounded HTTP client for an isolated local Trivy scanner service."""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import re
-import select
-import signal
-import subprocess
-import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 from typing import Final
+from urllib.error import HTTPError, URLError
+from urllib.request import ProxyHandler, Request, build_opener
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.images_info import list_images_tolerant
 from pytmbot.models.settings_model import TrivyConfig
+
+_HTTP = build_opener(ProxyHandler({}))
 
 _ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}\Z")
 _SEVERITIES: Final[tuple[str, ...]] = (
@@ -166,170 +164,74 @@ def parse_report(
     )
 
 
-@dataclass(frozen=True, slots=True)
-class DatabaseInfo:
-    schema: int
-    updated_at: str
 
 
-def verify_scanner_binary(path: Path, expected_sha256: str) -> None:
-    """Fail closed if the executable differs from the operator-pinned hash."""
-    digest = hashlib.sha256()
+def _private_token(path: str) -> str:
+    """Read a Docker secret, never from a public config or inherited env."""
     try:
-        with path.open("rb") as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                digest.update(chunk)
+        value = Path(path).read_text(encoding="utf-8").strip()
     except OSError as error:
-        raise ScanError("Configured Trivy executable cannot be verified.") from error
-    if digest.hexdigest() != expected_sha256:
-        raise ScanError("Configured Trivy binary SHA-256 mismatch.")
-
-
-def read_database_metadata(cache: Path, *, max_age_hours: int) -> DatabaseInfo:
-    """Fail closed when the offline vulnerability DB is unavailable or stale."""
-    metadata = cache / "db" / "metadata.json"
-    database = cache / "db" / "trivy.db"
-    try:
-        if not database.is_file() or metadata.stat().st_size > 8192:
-            raise ScanError("Trivy vulnerability database metadata is unavailable.")
-        record = json.loads(metadata.read_bytes())
-        if not isinstance(record, dict):
-            raise ValueError("Expected object")
-        schema = record["Version"]
-        value = record["UpdatedAt"]
-        if type(schema) is not int or schema <= 0 or not isinstance(value, str):
-            raise ValueError("Invalid metadata fields")
-        updated = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if updated.tzinfo is None:
-            raise ValueError("Timestamp missing timezone")
-        age = datetime.now(UTC) - updated.astimezone(UTC)
-        if age < -timedelta(minutes=5) or age > timedelta(hours=max_age_hours):
-            raise ScanError("Trivy vulnerability database is stale or future-dated.")
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        raise ScanError("Trivy vulnerability database metadata is invalid.") from error
-    return DatabaseInfo(schema=schema, updated_at=updated.astimezone(UTC).isoformat())
-
-
-def _bounded_stdout(
-    argv: list[str], *,
-    env: dict[str, str], cwd: str,
-    timeout_seconds: int, max_bytes: int, cancel: Event | None = None,
-) -> bytes:
-    """Read at most max_bytes from a subprocess; terminate on size or time.
-
-    Do not use preexec_fn: pyTMBot has other threads, and preexec_fn can
-    deadlock before exec. The OS/container must separately enforce CPU/RAM.
-    """
-    try:
-        proc = subprocess.Popen(
-            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, env=env, cwd=cwd,
-            start_new_session=True,
-        )
-    except OSError as error:
-        raise ScanError("Trivy executable could not start.") from error
-    chunks: list[bytes] = []
-    total = 0
-    deadline = time.monotonic() + timeout_seconds + 10
-    try:
-        stdout = proc.stdout
-        if stdout is None:
-            raise ScanError("Trivy stdout pipe is unavailable.")
-        fd = stdout.fileno()
-        while True:
-            if cancel is not None and cancel.is_set():
-                raise ScanError("Trivy scan was cancelled.")
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ScanError("Trivy scan timed out.")
-            readable, _, _ = select.select([fd], [], [], min(1.0, remaining))
-            if not readable:
-                continue
-            chunk = os.read(fd, min(65536, max_bytes - total + 1))
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > max_bytes:
-                raise ScanError("Trivy report exceeds the configured size limit.")
-            chunks.append(chunk)
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise ScanError("Trivy scan timed out.")
-        try:
-            rc = proc.wait(timeout=remaining)
-        except subprocess.TimeoutExpired as error:
-            raise ScanError("Trivy scan timed out.") from error
-        if rc != 0:
-            raise ScanError("Trivy failed. Check runner configuration and offline DB.")
-        return b"".join(chunks)
-    finally:
-        if proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait(timeout=5)
-        if proc.stdout is not None:
-            proc.stdout.close()
+        raise ScanError("Trivy worker authentication secret is unavailable.") from error
+    if len(value) < 32 or len(value) > 256:
+        raise ScanError("Trivy worker authentication secret is invalid.")
+    return value
 
 
 def scan_local_image(
     image_id: str, config: TrivyConfig, *, cancel: Event | None = None,
 ) -> ScanSummary:
-    """Scan a verified local immutable image, without shell or remote fallback.
-
-    The scanner binary, socket and cache are operator-managed. No credentials
-    or host environment are forwarded to the child process.
-    """
+    """Send only a verified local image ID to the private authenticated worker."""
     if not _ID_PATTERN.fullmatch(image_id):
         raise ScanError("Invalid image ID.")
+    if cancel is not None and cancel.is_set():
+        raise ScanError("Trivy scan cancelled.")
     if image_id not in local_image_ids(limit=config.max_images):
         raise ScanError("Image is no longer installed.")
-    binary = Path(config.executable)
-    cache = Path(config.cache_dir)
-    socket = Path(config.docker_host.removeprefix("unix://"))
-    if not binary.is_file() or not os.access(binary, os.X_OK):
-        raise ScanError("Configured Trivy executable is unavailable.")
-    if not socket.is_socket():
-        raise ScanError("Configured local Docker socket is unavailable.")
-    if not cache.is_dir():
-        raise ScanError("Configured Trivy cache does not exist.")
-    verify_scanner_binary(binary, config.scanner_sha256)
-    database_info = read_database_metadata(cache, max_age_hours=config.max_db_age_hours)
-    argv = [
-        str(binary), "image", "--config", "/dev/null",
-        "--ignorefile", "/dev/null", "--exit-code", "0",
-        "--image-src", "docker",
-        "--docker-host", config.docker_host, "--scanners", "vuln",
-        "--format", "json", "--quiet", "--skip-db-update",
-        "--skip-java-db-update", "--skip-check-update",
-        "--skip-version-check", "--disable-telemetry",
-        "--list-all-pkgs=false", "--offline-scan",
-        "--parallel", "1",
-        "--max-image-size", f"{config.max_image_size_mb}MB",
-        "--cache-dir", str(cache),
-        "--timeout", f"{config.timeout_seconds}s",
-        f"sha256:{image_id}",
-    ]
-    # Prevent implicit trivy.yaml/.trivyignore from influencing scan results.
-    # No inherited proxy, registry, or cloud authentication environment.
-    # Child output is bounded in _bounded_stdout; external OS isolation is required.
-    env = {
-        "PATH": "/usr/bin:/bin",
-        "HOME": str(cache),
-        "TMPDIR": str(cache),
-        "LANG": "C",
-        "DOCKER_CONFIG": str(cache / "no-docker-credentials"),
-        "TRIVY_DISABLE_TELEMETRY": "true",
-    }
-    raw = _bounded_stdout(
-        argv, env=env, cwd="/",
-        timeout_seconds=config.timeout_seconds,
-        max_bytes=config.max_report_bytes, cancel=cancel,
+    request = Request(
+        config.endpoint.rstrip("/") + "/v1/scan",
+        data=json.dumps({"image_id": f"sha256:{image_id}"}).encode("ascii"),
+        headers={
+            "Authorization": "Bearer " + _private_token(config.token_file),
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
+    try:
+        with _HTTP.open(request, timeout=config.timeout_seconds + 20) as response:
+            if response.status != 200:
+                raise ScanError("Trivy worker returned a failure.")
+            raw = response.read(config.max_report_bytes + 2049)
+    except (HTTPError, URLError, OSError, TimeoutError) as error:
+        raise ScanError("Trivy worker is unavailable or scan failed.") from error
+    if len(raw) > config.max_report_bytes + 2048:
+        raise ScanError("Trivy worker report exceeds configured size limit.")
+    try:
+        document = json.loads(raw)
+    except (ValueError, UnicodeDecodeError) as error:
+        raise ScanError("Trivy worker returned invalid JSON.") from error
+    if not isinstance(document, dict) or document.get("image_id") != "sha256:" + image_id:
+        raise ScanError("Trivy worker result does not match the requested image.")
+    report = document.get("report")
+    if not isinstance(report, dict):
+        raise ScanError("Trivy worker result is incomplete.")
+    metadata = document.get("db_updated_at")
+    schema = document.get("db_schema")
+    version = document.get("scanner_version")
+    if not isinstance(metadata, str) or type(schema) is not int or not isinstance(version, str):
+        raise ScanError("Trivy worker returned invalid provenance.")
+    try:
+        db_timestamp = datetime.fromisoformat(metadata.replace("Z", "+00:00"))
+        if db_timestamp.tzinfo is None:
+            raise ValueError("Missing timezone")
+        if (datetime.now(UTC) - db_timestamp.astimezone(UTC)).total_seconds() > config.max_db_age_hours * 3600:
+            raise ScanError("Trivy vulnerability database is stale.")
+    except ValueError as error:
+        raise ScanError("Trivy worker returned invalid DB timestamp.") from error
+    if cancel is not None and cancel.is_set():
+        raise ScanError("Trivy scan cancelled.")
     return parse_report(
-        raw, image_id=image_id, scanner_sha256=config.scanner_sha256,
-        db_schema=database_info.schema, db_updated_at=database_info.updated_at,
+        json.dumps(report).encode("utf-8"), image_id=image_id,
+        scanner_sha256=version[:48], db_schema=schema, db_updated_at=metadata,
     )
 
 
