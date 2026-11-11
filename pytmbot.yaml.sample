@@ -215,6 +215,8 @@ plugins_config:
   #   executable: '/opt/trivy/bin/trivy'
   #   docker_host: 'unix:///run/trivy/docker.sock'
   #   cache_dir: '/var/cache/trivy'
+  #   scanner_sha256: 'REPLACE_WITH_VERIFIED_64_CHAR_SHA256'
+  #   max_db_age_hours: 48
   #   timeout_seconds: 180
   #   max_images: 20
   #   max_queued_jobs: 2
