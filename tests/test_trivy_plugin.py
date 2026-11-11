@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -27,6 +29,7 @@ def config() -> TrivyConfig:
         executable="/opt/trivy/trivy",
         docker_host="unix:///run/trivy/docker.sock",
         cache_dir="/var/cache/trivy",
+        scanner_sha256="0" * 64,
         timeout_seconds=30,
         max_images=5,
     )
@@ -203,3 +206,55 @@ def test_scanner_success_returns_bounded_output(tmp_path: Path) -> None:
         timeout_seconds=1, max_bytes=32,
     )
     assert raw == b"ok\n"
+
+
+def test_pinned_scanner_hash(tmp_path: Path) -> None:
+    binary = tmp_path / "trivy"
+    binary.write_bytes(b"known-binary")
+    expected = hashlib.sha256(b"known-binary").hexdigest()
+    runner.verify_scanner_binary(binary, expected)
+    with pytest.raises(ScanError, match="mismatch"):
+        runner.verify_scanner_binary(binary, "0" * 64)
+
+
+def test_db_freshness_and_metadata_provenance(tmp_path: Path) -> None:
+    db = tmp_path / "db"
+    db.mkdir()
+    (db / "trivy.db").write_bytes(b"dummy")
+    now = datetime.now(UTC)
+    metadata = db / "metadata.json"
+    metadata.write_text(json.dumps({
+        "Version": 2,
+        "UpdatedAt": now.isoformat(),
+        "NextUpdate": (now + timedelta(hours=4)).isoformat(),
+        "DownloadedAt": now.isoformat(),
+    }))
+    info = runner.read_database_metadata(tmp_path, max_age_hours=48)
+    assert info.schema == 2
+    assert info.updated_at
+    metadata.write_text(json.dumps({
+        "Version": 2,
+        "UpdatedAt": (now - timedelta(days=4)).isoformat(),
+    }))
+    with pytest.raises(ScanError, match="stale"):
+        runner.read_database_metadata(tmp_path, max_age_hours=48)
+
+
+def test_db_metadata_missing_or_invalid_is_not_accepted(tmp_path: Path) -> None:
+    with pytest.raises(ScanError):
+        runner.read_database_metadata(tmp_path, max_age_hours=48)
+    (tmp_path / "db").mkdir()
+    (tmp_path / "db" / "trivy.db").write_bytes(b"dummy")
+    (tmp_path / "db" / "metadata.json").write_text('{"UpdatedAt":"unknown"}')
+    with pytest.raises(ScanError):
+        runner.read_database_metadata(tmp_path, max_age_hours=48)
+
+
+def test_config_rejects_missing_or_invalid_scanner_digest() -> None:
+    raw = config().model_dump()
+    raw.pop("scanner_sha256")
+    with pytest.raises(ValidationError):
+        TrivyConfig.model_validate(raw)
+    raw["scanner_sha256"] = "not-a-sha256"
+    with pytest.raises(ValidationError):
+        TrivyConfig.model_validate(raw)
