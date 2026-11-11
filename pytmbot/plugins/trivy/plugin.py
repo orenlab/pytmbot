@@ -30,6 +30,8 @@ _CALLBACK_PREFIX: Final[str] = "trivy_scan:"
 _MAX_BUTTONS: Final[int] = 20
 
 
+# Dynamically discovered by PluginManager; not referenced by static handlers.
+# codeclone: ignore[dead-code]
 class TrivyPlugin(PluginInterface):
     """Only registered when explicitly enabled and configured."""
 
