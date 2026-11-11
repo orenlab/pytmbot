@@ -72,6 +72,68 @@ class ScanSummary:
     vulnerability_ids: tuple[str, ...] = ()
 
 
+def _vulnerability_rows(results: list[object]) -> list[dict[str, object]]:
+    """Require a complete, structured report before counting any findings."""
+    rows: list[dict[str, object]] = []
+    for result in results:
+        if not isinstance(result, dict):
+            raise ScanError("Scanner returned invalid result entries.")
+        vulnerabilities = result.get("Vulnerabilities", [])
+        if vulnerabilities is None:
+            vulnerabilities = []
+        if not isinstance(vulnerabilities, list):
+            raise ScanError("Scanner returned invalid vulnerability entries.")
+        for vulnerability in vulnerabilities:
+            if not isinstance(vulnerability, dict):
+                raise ScanError("Scanner returned invalid vulnerability entries.")
+            rows.append(vulnerability)
+    return rows
+
+
+def _severity(raw: object) -> str:
+    return raw if isinstance(raw, str) and raw in _SEVERITIES else "UNKNOWN"
+
+
+def _selected_finding(vulnerability: dict[str, object], severity: str) -> tuple[str, str, str] | None:
+    if severity not in ("CRITICAL", "HIGH"):
+        return None
+    identifier = vulnerability.get("VulnerabilityID")
+    package = vulnerability.get("PkgName")
+    if not isinstance(identifier, str) or not isinstance(package, str):
+        return None
+    return severity, identifier[:48], package[:64]
+
+
+def _aggregate_vulnerabilities(
+    rows: list[dict[str, object]],
+) -> tuple[dict[str, int], int, tuple[tuple[str, str, str], ...], tuple[str, ...]]:
+    counts: Counter[str] = Counter()
+    fixable = 0
+    selected: list[tuple[str, str, str]] = []
+    vulnerability_ids: set[str] = set()
+    for item in rows:
+        severity = _severity(item.get("Severity"))
+        counts[severity] += 1
+        identifier = item.get("VulnerabilityID")
+        if isinstance(identifier, str) and 0 < len(identifier) <= 120:
+            vulnerability_ids.add(identifier)
+            if len(vulnerability_ids) > 1000:
+                raise ScanError("Too many unique vulnerabilities for audited scan.")
+        fixed = item.get("FixedVersion")
+        if isinstance(fixed, str) and fixed.strip():
+            fixable += 1
+        if len(selected) < 8:
+            finding = _selected_finding(item, severity)
+            if finding is not None:
+                selected.append(finding)
+    return (
+        {severity: counts[severity] for severity in _SEVERITIES},
+        fixable,
+        tuple(selected),
+        tuple(sorted(vulnerability_ids)),
+    )
+
+
 def parse_report(
     raw: bytes, *, image_id: str,
     scanner_sha256: str = "", db_schema: int = 0, db_updated_at: str = "",
@@ -86,38 +148,9 @@ def parse_report(
     results = obj["Results"]
     if not results:
         raise ScanError("Scanner returned no scan targets; result is inconclusive.")
-    counts: Counter[str] = Counter()
-    fixable = 0
-    selected: list[tuple[str, str, str]] = []
-    vulnerability_ids: set[str] = set()
-    for result in results:
-        if not isinstance(result, dict):
-            raise ScanError("Scanner returned invalid result entries.")
-        vulnerabilities = result.get("Vulnerabilities", [])
-        if vulnerabilities is None:
-            vulnerabilities = []
-        if not isinstance(vulnerabilities, list):
-            raise ScanError("Scanner returned invalid vulnerability entries.")
-        for vulnerability in vulnerabilities:
-            if not isinstance(vulnerability, dict):
-                raise ScanError("Scanner returned invalid vulnerability entries.")
-            severity = vulnerability.get("Severity")
-            if not isinstance(severity, str) or severity not in _SEVERITIES:
-                severity = "UNKNOWN"
-            counts[severity] += 1
-            identifier = vulnerability.get("VulnerabilityID")
-            if isinstance(identifier, str) and 0 < len(identifier) <= 120:
-                vulnerability_ids.add(identifier)
-                if len(vulnerability_ids) > 1000:
-                    raise ScanError("Too many unique vulnerabilities for audited scan.")
-            fixed = vulnerability.get("FixedVersion")
-            if isinstance(fixed, str) and fixed.strip():
-                fixable += 1
-            if len(selected) < 8 and severity in ("CRITICAL", "HIGH"):
-                vuln_id = vulnerability.get("VulnerabilityID")
-                package = vulnerability.get("PkgName")
-                if isinstance(vuln_id, str) and isinstance(package, str):
-                    selected.append((severity, vuln_id[:48], package[:64]))
+    counts, fixable, selected, identifiers = _aggregate_vulnerabilities(
+        _vulnerability_rows(results)
+    )
     version = obj.get("SchemaVersion")
     return ScanSummary(
         image_id=image_id,
@@ -125,13 +158,12 @@ def parse_report(
         scanner_sha256=scanner_sha256,
         db_schema=db_schema,
         db_updated_at=db_updated_at,
-        counts={severity: counts[severity] for severity in _SEVERITIES},
+        counts=counts,
         fixable=fixable,
-        findings=tuple(selected),
+        findings=selected,
         trivy_schema=version if type(version) is int else None,
-        vulnerability_ids=tuple(sorted(vulnerability_ids)),
+        vulnerability_ids=identifiers,
     )
-
 
 
 @dataclass(frozen=True, slots=True)
