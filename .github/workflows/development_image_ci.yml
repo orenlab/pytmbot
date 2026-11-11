@@ -36,6 +36,7 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:v0.34.0
+            network=host
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
