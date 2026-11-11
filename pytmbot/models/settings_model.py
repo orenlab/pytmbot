@@ -235,6 +235,36 @@ class OutlineVPN(BaseModel):
     cert: list[SecretStr] = Field(min_length=1)
 
 
+class TrivyConfig(BaseModel):
+    """Explicit opt-in to an externally provisioned, read-only Trivy runner."""
+
+    enabled: bool = False
+    executable: str
+    docker_host: str
+    cache_dir: str
+    timeout_seconds: int = Field(default=180, ge=10, le=600)
+    max_images: int = Field(default=20, ge=1, le=50)
+    max_queued_jobs: int = Field(default=2, ge=1, le=4)
+    max_report_bytes: int = Field(default=2_097_152, ge=8192, le=16_777_216)
+
+    @model_validator(mode="after")
+    def validate_runner_paths(self) -> "TrivyConfig":
+        from pathlib import Path
+
+        for name, value in (
+            ("executable", self.executable),
+            ("cache_dir", self.cache_dir),
+        ):
+            if not Path(value).is_absolute():
+                raise ValueError(f"trivy.{name} must be an absolute path")
+        if not self.docker_host.startswith("unix:///"):
+            raise ValueError("trivy.docker_host must be an explicit local unix socket")
+        socket_path = self.docker_host.removeprefix("unix://")
+        if not Path(socket_path).is_absolute() or ".." in Path(socket_path).parts:
+            raise ValueError("trivy.docker_host must point to an absolute unix socket")
+        return self
+
+
 class PluginsConfig(BaseModel):
     """
     Model to configure additional plugins for the bot, such as monitoring and Outline VPN.
@@ -242,6 +272,7 @@ class PluginsConfig(BaseModel):
 
     monitor: MonitorConfig | None = None
     outline: OutlineVPN | None = None
+    trivy: TrivyConfig | None = None
 
 
 def _parse_ip_networks(
