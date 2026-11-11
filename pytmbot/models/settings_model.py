@@ -45,7 +45,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.5.4"
+        return "0.5.5"
 
 
 class ConfigVersionError(Exception):
@@ -473,6 +473,11 @@ def get_compatibility_matrix() -> dict[str, dict[str, str]]:
             "min_app": "0.5.4",
             "max_app": "0.5.4",
             "description": "Patch release with alert delivery and secret masking fixes",
+        },
+        "0.5.5": {
+            "min_app": "0.5.5",
+            "max_app": "0.5.5",
+            "description": "Optional vulnerability scanning and dependency refresh",
         },
     }
 
