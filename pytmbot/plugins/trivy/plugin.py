@@ -6,7 +6,12 @@ from html import escape
 from typing import Final
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from telebot.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from pytmbot.globals import get_session_manager, settings
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
