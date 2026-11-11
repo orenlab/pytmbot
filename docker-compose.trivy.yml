@@ -45,6 +45,8 @@ services:
   trivy-db:
     image: aquasec/trivy:0.76.2
     restart: unless-stopped
+    group_add:
+      - "1001"  # read the group-private server authentication secret
     # Pass the entire script as ONE -c argument; a Compose command string
     # can otherwise be tokenized into extra shell positional arguments.
     entrypoint:
@@ -61,10 +63,12 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      # The downloaded OCI vulnerability database is unpacked under /tmp.
+      # 128 MiB is insufficient for the full vulnerability database.
+      - /tmp:rw,noexec,nosuid,nodev,size=768m
     pids_limit: 80
     cpus: 1.0
-    mem_limit: 1g
+    mem_limit: 2g
     networks:
       - trivy_backend
       - trivy_db_egress
