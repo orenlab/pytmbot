@@ -66,65 +66,67 @@ Key config fields:
 
 ### `trivy` (experimental; opt-in)
 
-Purpose:
+Vulnerability scanning of existing **local** Docker images, using an isolated
+Trivy container instead of installing a binary or maintaining a CVE database
+inside pyTMBot. The Telegram interface is private-chat, admin- and 2FA-only.
 
-- read-only vulnerability scanning of **existing local Docker images** by immutable image ID
-- controlled, offline scans with an externally managed Trivy installation
-- admin-only results through existing Rich Messages; no Telegram Widgets required
+Deployment:
 
-Requires both `--plugins trivy` **and** `plugins_config.trivy.enabled: true`. The
-configuration also requires absolute `executable`, `cache_dir`, pinned `scanner_sha256`, and an explicit
-`unix:///...` `docker_host`. The plugin is a no-op when disabled.
+1. Use `docker-compose.trivy.yml` as an optional overlay on
+   `docker-compose.yml`; do **not** publish the Trivy HTTP ports to the host.
+2. Create the two authentication secrets before first start (once):
 
-Security constraints:
+   ```sh
+   mkdir -p secrets
+   umask 077
+   openssl rand -hex 32 > secrets/trivy_worker_token
+   openssl rand -hex 32 > secrets/trivy_server_token
+   ```
 
-- Trivy must be installed and updated separately from pyTMBot. Verify release
-  signatures/checksums and pin its version; do not auto-fetch a `latest` binary.
-- The **scanner** needs read access to image layers and an offline vulnerability
-  database pre-populated under `cache_dir`. Scans use
-  `--image-src docker --skip-db-update --skip-java-db-update`. No remote
-  registry fallback or automatic image pull is permitted.
-- A Docker socket is highly privileged. The filtering socket proxy recommended
-  for pyTMBot may **not** implement the image-layer endpoints required by Trivy.
-  Do not broaden that proxy's permissions or mount the host's raw Docker socket
-  into pyTMBot automatically. Provision and isolate the scanner separately;
-  validate the scanner's security boundary before production rollout.
-- The scanner CLI is invoked without a shell, with a minimal environment,
-  explicit empty config/ignore files (no ambient `trivy.yaml` or `.trivyignore`),
-  and bounded image size, parallelism, execution time and report size. Resource isolation of the scanner **is not**
-  provided by the plugin itself; use OS/container controls for CPU, RAM and
-  temporary/cache disk limits.
-- No scans run until an admin opens `/trivy` in a private chat with a valid
-  2FA session. Scan results are sent only to the originating private chat.
-- The vulnerability database is not maintained by this plugin. Missing or stale
-  `db/metadata.json` and missing `db/trivy.db` prevent scanning. The configured
-  `max_db_age_hours` applies to the database's authoritative `UpdatedAt` timestamp.
-  Scanner SHA-256, database schema, and database update time are included in
-  completed scan summaries; validate database authenticity during provisioning.
-- The optional plugin does not change Docker resources, fix CVEs, or restart
-  containers. Zero findings must not be interpreted as proof of security.
+3. Configure `plugins_config.trivy` in your existing `pytmbot.yaml`:
 
-Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
+   ```yaml
+   trivy:
+     enabled: true
+     endpoint: http://trivy-worker:8090
+     token_file: /run/secrets/trivy_worker_token
+     max_db_age_hours: 48
+     timeout_seconds: 180
+     max_images: 20
+     max_queued_jobs: 2
+     max_report_bytes: 2097152
+   ```
 
-```yaml
-  trivy:
-    enabled: true
-    executable: /opt/trivy/bin/trivy
-    docker_host: unix:///run/trivy/docker.sock
-    cache_dir: /var/cache/trivy
-    history_file: /var/lib/pytmbot/trivy-history.sqlite
-    scanner_sha256: REPLACE_WITH_VERIFIED_64_CHAR_SHA256
-    max_db_age_hours: 48
-    max_image_size_mb: 1024
-    timeout_seconds: 180
-    max_images: 20
-    max_queued_jobs: 2
-    max_report_bytes: 2097152
-```
+4. Deploy with `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`.
+   In Telegram, use `/trivy`. Optional persistent history may be enabled with
+   `history_file`, but requires a separate persistent private directory.
 
-This first version exposes an admin-only `/trivy` image picker, `Scan all`,
-a bounded single-worker queue, vulnerability summaries, and optional persistent history with per-image CVE changes. Scheduled scans, fully verified DB supply-chain provenance and full deployment isolation are not yet
-implemented and must not be represented as complete acceptance of #103.
+The Compose overlay provides an official versioned Trivy 0.76.2 server,
+a small HTTP worker derived from the official Trivy image, and a Docker
+socket proxy restricted to image reads and with POST disabled. Trivy server
+automatically downloads and updates the vulnerability database to its own
+persistent Docker volume. No manual Trivy binary or CVE DB setup is necessary.
+
+Security notes:
+
+- The worker accepts only immutable `sha256:<64 hex>` local image IDs over an
+  authenticated private HTTP endpoint. It does not accept arbitrary commands,
+  remote image references, paths, or scanner flags.
+- The bot keeps its existing Docker permissions. The scanner proxy
+  *separately* mounts the host Docker socket and permits only the configured
+  GET image API surface. A `:ro` socket mount alone is **not** a
+  read-only Docker API security boundary.
+- Images can contain secrets, hostile files and sensitive application data.
+  Restrict access to the worker's network and host; review residual risks
+  before installing this overlay on a production host.
+- CPU, memory, process count, temporary disk, scan duration, worker queue and
+  report sizes are bounded. The Trivy server needs outbound access to maintain
+  its database; the worker and the Docker proxy are not published publicly.
+- Trivy results indicate **known** vulnerabilities, not proof of exploitation
+  or complete security. Failures and stale CVE databases must not be reported
+  as clean scans.
+- `0.5.5` is still a release candidate. This integration requires a real
+  end-to-end container/image-layer scan before the production gate can pass.
 
 ## Plugin Package Contract
 
