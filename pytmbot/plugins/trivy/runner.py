@@ -34,7 +34,7 @@ class ScanError(Exception):
 def local_image_ids(*, limit: int) -> list[str]:
     """Return unique immutable Docker image IDs without pulling remote images."""
     with docker_client_context() as client:
-        images = list_images_tolerant(client)
+        images = list_images_tolerant(client, include_intermediate=False)
         identifiers = sorted({
             image_id
             for image in images
