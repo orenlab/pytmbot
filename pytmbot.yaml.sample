@@ -204,21 +204,13 @@ plugins_config:
     # Monitor Docker containers and images
     monitor_docker: true  # true = monitor Docker, false = don't monitor
 
-  # Trivy local image vulnerability scanning (OPTIONAL; disabled by default)
-  # Requires --plugins trivy, enabled: true, a separately provisioned Trivy
-  # executable, a populated offline vulnerability DB, and an explicitly
-  # granted local Docker socket for the *scanner*.
-  # The bot's restricted Docker socket proxy may not support Trivy layer reads.
-  # Do not expose a privileged socket merely to enable this example.
+  # Optional Trivy scanner container integration (see docker-compose.trivy.yml).
+  # No local binary or CVE database is needed in pyTMBot.
   # trivy:
   #   enabled: false
-  #   executable: '/opt/trivy/bin/trivy'
-  #   docker_host: 'unix:///run/trivy/docker.sock'
-  #   cache_dir: '/var/cache/trivy'
-  #   history_file: '/var/lib/pytmbot/trivy-history.sqlite'  # optional, private persistent volume
-  #   scanner_sha256: 'REPLACE_WITH_VERIFIED_64_CHAR_SHA256'
+  #   endpoint: 'http://trivy-worker:8090'
+  #   token_file: '/run/secrets/trivy_worker_token'
   #   max_db_age_hours: 48
-  #   max_image_size_mb: 1024
   #   timeout_seconds: 180
   #   max_images: 20
   #   max_queued_jobs: 2
