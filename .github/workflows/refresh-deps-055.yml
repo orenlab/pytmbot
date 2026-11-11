@@ -1,0 +1,45 @@
+name: Refresh dependencies for 0.5.5 (temporary)
+
+on:
+  push:
+    branches:
+      - feat/trivy-image-scanning-103
+    paths:
+      - .github/workflows/refresh-deps-055.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.14"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+        with:
+          enable-cache: true
+      - name: Resolve and update lockfile with upstream package metadata
+        run: |
+          set -euo pipefail
+          uv lock --upgrade
+          uv lock --check
+          uv tree --locked --depth 1
+          git diff --check
+      - name: Commit only the regenerated lockfile
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(deps): refresh verified 0.5.5 uv.lock"
+            git push origin HEAD:feat/trivy-image-scanning-103
+          fi
