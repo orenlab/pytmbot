@@ -64,6 +64,61 @@ Key config fields:
 - `api_url`
 - `cert`
 
+### `trivy` (experimental; opt-in)
+
+Purpose:
+
+- read-only vulnerability scanning of **existing local Docker images** by immutable image ID
+- controlled, offline scans with an externally managed Trivy installation
+- admin-only results through existing Rich Messages; no Telegram Widgets required
+
+Requires both `--plugins trivy` **and** `plugins_config.trivy.enabled: true`. The
+configuration also requires absolute `executable`, `cache_dir`, and an explicit
+`unix:///...` `docker_host`. The plugin is a no-op when disabled.
+
+Security constraints:
+
+- Trivy must be installed and updated separately from pyTMBot. Verify release
+  signatures/checksums and pin its version; do not auto-fetch a `latest` binary.
+- The **scanner** needs read access to image layers and an offline vulnerability
+  database pre-populated under `cache_dir`. Scans use
+  `--image-src docker --skip-db-update --skip-java-db-update`. No remote
+  registry fallback or automatic image pull is permitted.
+- A Docker socket is highly privileged. The filtering socket proxy recommended
+  for pyTMBot may **not** implement the image-layer endpoints required by Trivy.
+  Do not broaden that proxy's permissions or mount the host's raw Docker socket
+  into pyTMBot automatically. Provision and isolate the scanner separately;
+  validate the scanner's security boundary before production rollout.
+- The scanner CLI is invoked without a shell, with a minimal environment and
+  bounded execution/report size. Resource isolation of the scanner **is not**
+  provided by the plugin itself; use OS/container controls for CPU, RAM and
+  temporary/cache disk limits.
+- No scans run until an admin opens `/trivy` in a private chat with a valid
+  2FA session. Scan results are sent only to the originating private chat.
+- The vulnerability database is not maintained by this plugin. Its freshness
+  must be monitored externally; currently results do **not** prove DB freshness.
+- The optional plugin does not change Docker resources, fix CVEs, or restart
+  containers. Zero findings must not be interpreted as proof of security.
+
+Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
+
+```yaml
+  trivy:
+    enabled: true
+    executable: /opt/trivy/bin/trivy
+    docker_host: unix:///run/trivy/docker.sock
+    cache_dir: /var/cache/trivy
+    timeout_seconds: 180
+    max_images: 20
+    max_queued_jobs: 2
+    max_report_bytes: 2097152
+```
+
+This first version exposes an admin-only `/trivy` image picker, `Scan all`,
+a bounded single-worker queue, and vulnerability summaries. Persistent history,
+scheduler, verified DB provenance and full deployment isolation are not yet
+implemented and must not be represented as complete acceptance of #103.
+
 ## Plugin Package Contract
 
 A plugin package lives under `pytmbot/plugins/<plugin_name>/`.
