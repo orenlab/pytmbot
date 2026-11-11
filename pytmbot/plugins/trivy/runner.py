@@ -177,16 +177,14 @@ def _private_token(path: str) -> str:
     return value
 
 
-def scan_local_image(
-    image_id: str, config: TrivyConfig, *, cancel: Event | None = None,
-) -> ScanSummary:
-    """Send only a verified local image ID to the private authenticated worker."""
+def _validate_local_image(image_id: str, config: TrivyConfig) -> None:
     if not _ID_PATTERN.fullmatch(image_id):
         raise ScanError("Invalid image ID.")
-    if cancel is not None and cancel.is_set():
-        raise ScanError("Trivy scan cancelled.")
     if image_id not in local_image_ids(limit=config.max_images):
         raise ScanError("Image is no longer installed.")
+
+
+def _http_scan(image_id: str, config: TrivyConfig) -> dict[str, object]:
     request = Request(
         config.endpoint.rstrip("/") + "/v1/scan",
         data=json.dumps({"image_id": f"sha256:{image_id}"}).encode("ascii"),
@@ -211,27 +209,48 @@ def scan_local_image(
         raise ScanError("Trivy worker returned invalid JSON.") from error
     if not isinstance(document, dict) or document.get("image_id") != "sha256:" + image_id:
         raise ScanError("Trivy worker result does not match the requested image.")
+    return document
+
+
+def _report_provenance(
+    document: dict[str, object], *, max_age_hours: int,
+) -> tuple[dict[str, object], str, int, str]:
     report = document.get("report")
-    if not isinstance(report, dict):
-        raise ScanError("Trivy worker result is incomplete.")
     metadata = document.get("db_updated_at")
     schema = document.get("db_schema")
     version = document.get("scanner_version")
+    if not isinstance(report, dict):
+        raise ScanError("Trivy worker result is incomplete.")
     if not isinstance(metadata, str) or type(schema) is not int or not isinstance(version, str):
         raise ScanError("Trivy worker returned invalid provenance.")
     try:
-        db_timestamp = datetime.fromisoformat(metadata.replace("Z", "+00:00"))
-        if db_timestamp.tzinfo is None:
+        timestamp = datetime.fromisoformat(metadata.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
             raise ValueError("Missing timezone")
-        if (datetime.now(UTC) - db_timestamp.astimezone(UTC)).total_seconds() > config.max_db_age_hours * 3600:
-            raise ScanError("Trivy vulnerability database is stale.")
+        age = (datetime.now(UTC) - timestamp.astimezone(UTC)).total_seconds()
     except ValueError as error:
         raise ScanError("Trivy worker returned invalid DB timestamp.") from error
+    if age < -300 or age > max_age_hours * 3600:
+        raise ScanError("Trivy vulnerability database is stale or future-dated.")
+    return report, version[:48], schema, metadata
+
+
+def scan_local_image(
+    image_id: str, config: TrivyConfig, *, cancel: Event | None = None,
+) -> ScanSummary:
+    """Send only an immutable local image ID to the private authenticated worker."""
+    if cancel is not None and cancel.is_set():
+        raise ScanError("Trivy scan cancelled.")
+    _validate_local_image(image_id, config)
+    document = _http_scan(image_id, config)
+    report, version, schema, metadata = _report_provenance(
+        document, max_age_hours=config.max_db_age_hours,
+    )
     if cancel is not None and cancel.is_set():
         raise ScanError("Trivy scan cancelled.")
     return parse_report(
         json.dumps(report).encode("utf-8"), image_id=image_id,
-        scanner_version=version[:48], db_schema=schema, db_updated_at=metadata,
+        scanner_version=version, db_schema=schema, db_updated_at=metadata,
     )
 
 
