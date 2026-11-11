@@ -77,7 +77,11 @@ jobs:
               if path.stat().st_size > 10_000_000:
                   continue
               print(f"CodeClone report: {path}")
-              walk(json.loads(path.read_text()))
+              data = json.loads(path.read_text())
+              print("report top-level keys:", list(data) if isinstance(data, dict) else type(data))
+              if path.name == "report.json":
+                  print("report overview:", str(data)[:2000])
+              walk(data)
           PY
 
   lint:
