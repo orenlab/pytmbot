@@ -51,6 +51,33 @@ jobs:
         if: ${{ matrix.python-version == '3.14' }}
         run: uv run codeclone . --ci
 
+      - name: Show CodeClone structural regression evidence
+        if: ${{ failure() && matrix.python-version == '3.14' }}
+        shell: bash
+        run: |
+          uv run codeclone . --json || true
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          def walk(obj, prefix=""):
+              if isinstance(obj, dict):
+                  for key, value in obj.items():
+                      if key in ("new_high_risk_functions", "high_risk_functions", "health_delta"):
+                          print(f"{prefix}.{key}: {str(value)[:2000]}")
+                      else:
+                          walk(value, f"{prefix}.{key}")
+              elif isinstance(obj, list):
+                  for idx, value in enumerate(obj[:100]):
+                      walk(value, f"{prefix}[{idx}]")
+
+          for path in Path(".").glob("*codeclone*.json"):
+              if path.stat().st_size > 10_000_000:
+                  continue
+              print(f"CodeClone report: {path}")
+              walk(json.loads(path.read_text()))
+          PY
+
   lint:
     runs-on: ubuntu-latest
     permissions:
