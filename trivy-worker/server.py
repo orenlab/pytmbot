@@ -17,6 +17,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, cast
 from threading import BoundedSemaphore
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -38,8 +39,7 @@ class ScanFailure(Exception):
 
 
 def secret_file(path: str) -> str:
-    path = Path(path)
-    value = path.read_text(encoding="utf-8").strip()
+    value = Path(path).read_text(encoding="utf-8").strip()
     if len(value) < 32 or len(value) > 256:
         raise ValueError("Trivy worker token must contain 32-256 characters")
     return value
@@ -51,7 +51,7 @@ def token() -> str:
     ))
 
 
-def _get_json(url: str, *, limit: int = 8192) -> dict:
+def _get_json(url: str, *, limit: int = 8192) -> dict[str, Any]:
     try:
         with HTTP.open(Request(
             url, method="GET",
@@ -83,7 +83,7 @@ def verified_image(image_id: str) -> None:
         raise ScanFailure("Image no longer matches requested local ID")
 
 
-def database_info(*, max_age_hours: int = 48) -> dict:
+def database_info(*, max_age_hours: int = 48) -> dict[str, str | int]:
     info = _get_json(f"{TRIVY_SERVER}/version")
     db = info.get("VulnerabilityDB")
     if not isinstance(db, dict):
@@ -108,8 +108,8 @@ def database_info(*, max_age_hours: int = 48) -> dict:
     }
 
 
-def bounded_scan(image_id: str) -> dict:
-    args = [
+def _scanner_args(image_id: str) -> list[str]:
+    return [
         "trivy", "image", "--server", TRIVY_SERVER, "--image-src", "docker",
         "--docker-host", DOCKER_HOST, "--format", "json", "--scanners", "vuln",
         "--quiet", "--no-progress", "--offline-scan",
@@ -119,7 +119,10 @@ def bounded_scan(image_id: str) -> dict:
         "--skip-check-update", "--disable-telemetry",
         "--timeout", f"{TIMEOUT}s", image_id,
     ]
-    env = {
+
+
+def _scanner_env() -> dict[str, str]:
+    return {
         "PATH": "/usr/local/bin:/usr/bin:/bin",
         "HOME": "/tmp",
         "TMPDIR": "/tmp",
@@ -130,53 +133,91 @@ def bounded_scan(image_id: str) -> dict:
         ),
         "TRIVY_DISABLE_TELEMETRY": "true",
     }
+
+
+def _read_output(proc: subprocess.Popen[bytes], deadline: float) -> bytes:
+    stream = proc.stdout
+    if stream is None:
+        raise ScanFailure("Trivy scanner stdout is unavailable")
+    fd = stream.fileno()
+    chunks: list[bytes] = []
+    consumed = 0
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ScanFailure("Trivy scanner timed out")
+        ready, _, _ = select.select([fd], [], [], min(1.0, remaining))
+        if not ready:
+            continue
+        data = os.read(fd, min(65536, MAX_REPORT_BYTES - consumed + 1))
+        if not data:
+            break
+        consumed += len(data)
+        if consumed > MAX_REPORT_BYTES:
+            raise ScanFailure("Trivy report exceeded size limit")
+        chunks.append(data)
+    return b"".join(chunks)
+
+
+def _stop_scanner(proc: subprocess.Popen[bytes]) -> None:
+    if proc.poll() is None:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=5)
+    if proc.stdout is not None:
+        proc.stdout.close()
+
+
+def bounded_scan(image_id: str) -> dict[str, Any]:
+    """Run a single Docker-only image scan with bounded time and output."""
     try:
         proc = subprocess.Popen(
-            args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, env=env, cwd="/",
+            _scanner_args(image_id),
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, env=_scanner_env(), cwd="/",
             start_new_session=True,
         )
     except OSError as exc:
         raise ScanFailure("Trivy scanner could not start") from exc
-    chunks: list[bytes] = []
-    consumed = 0
     deadline = time.monotonic() + TIMEOUT + 10
     try:
-        stdout = proc.stdout
-        if stdout is None:
-            raise ScanFailure("Trivy scanner stdout is unavailable")
-        fd = stdout.fileno()
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ScanFailure("Trivy scanner timed out")
-            ready, _, _ = select.select([fd], [], [], min(1.0, remaining))
-            if not ready:
-                continue
-            data = os.read(fd, min(65536, MAX_REPORT_BYTES - consumed + 1))
-            if not data:
-                break
-            chunks.append(data)
-            consumed += len(data)
-            if consumed > MAX_REPORT_BYTES:
-                raise ScanFailure("Trivy report exceeded size limit")
+        raw = _read_output(proc, deadline)
         if proc.wait(timeout=max(0.01, deadline - time.monotonic())) != 0:
             raise ScanFailure("Trivy scanner returned an error")
-        result = json.loads(b"".join(chunks))
-        if not isinstance(result, dict) or not isinstance(result.get("Results"), list) or not result["Results"]:
+        result = json.loads(raw)
+        if not isinstance(result, dict):
+            raise ScanFailure("Trivy report was incomplete")
+        targets = result.get("Results")
+        if not isinstance(targets, list) or not targets:
             raise ScanFailure("Trivy report was incomplete")
         return result
     except (ValueError, subprocess.TimeoutExpired) as exc:
-        raise ScanFailure("Trivy failed to produce a valid report") from exc
+        raise ScanFailure("Trivy did not produce a valid report") from exc
     finally:
-        if proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait(timeout=5)
-        if proc.stdout is not None:
-            proc.stdout.close()
+        _stop_scanner(proc)
+
+
+def _parse_scan_request(handler: BaseHTTPRequestHandler) -> str:
+    length = int(handler.headers.get("Content-Length", "0"))
+    if not 1 <= length <= 128:
+        raise ValueError("Invalid request length")
+    obj = json.loads(handler.rfile.read(length))
+    if not isinstance(obj, dict) or set(obj) != {"image_id"}:
+        raise ValueError("Unexpected scan request")
+    image_id = obj["image_id"]
+    if not isinstance(image_id, str) or not IMAGE_RE.fullmatch(image_id):
+        raise ValueError("Invalid immutable local image ID")
+    return image_id
+
+
+def _scan_result(image_id: str) -> dict[str, object]:
+    verified_image(image_id)
+    info = database_info()
+    report = bounded_scan(image_id)
+    verified_image(image_id)
+    return {"image_id": image_id, **info, "report": report}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -186,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
         # Do not log caller-controlled paths, authorization, image IDs or data.
         return
 
-    def _send(self, status: int, data: dict) -> None:
+    def _send(self, status: int, data: dict[str, object]) -> None:
         raw = json.dumps(data, separators=(",", ":")).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -197,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _authorized(self) -> bool:
         header = self.headers.get("Authorization", "")
-        return hmac.compare_digest(header, "Bearer " + self.server.api_token)
+        return hmac.compare_digest(header, "Bearer " + cast(Server, self.server).api_token)
 
     def do_GET(self) -> None:
         if self.path == "/healthz":
@@ -222,15 +263,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
             return
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if not 1 <= length <= 128:
-                raise ValueError("Invalid length")
-            payload = json.loads(self.rfile.read(length))
-            if not isinstance(payload, dict) or set(payload) != {"image_id"}:
-                raise ValueError("Unexpected request")
-            image_id = payload["image_id"]
-            if not isinstance(image_id, str) or not IMAGE_RE.fullmatch(image_id):
-                raise ValueError("Invalid image")
+            image_id = _parse_scan_request(self)
         except (TypeError, ValueError):
             self._send(400, {"error": "invalid scan request"})
             return
@@ -238,11 +271,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(429, {"error": "scanner busy"})
             return
         try:
-            verified_image(image_id)
-            info = database_info()
-            report = bounded_scan(image_id)
-            verified_image(image_id)
-            self._send(200, {"image_id": image_id, **info, "report": report})
+            self._send(200, _scan_result(image_id))
         except ScanFailure:
             self._send(503, {"error": "scan unavailable or incomplete"})
         finally:
