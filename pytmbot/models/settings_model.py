@@ -242,6 +242,7 @@ class TrivyConfig(BaseModel):
     executable: str
     docker_host: str
     cache_dir: str
+    history_file: str | None = None
     scanner_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     max_db_age_hours: int = Field(default=48, ge=1, le=168)
     max_image_size_mb: int = Field(default=1024, ge=128, le=4096)
@@ -265,6 +266,10 @@ class TrivyConfig(BaseModel):
         socket_path = self.docker_host.removeprefix("unix://")
         if not Path(socket_path).is_absolute() or ".." in Path(socket_path).parts:
             raise ValueError("trivy.docker_host must point to an absolute unix socket")
+        if self.history_file is not None:
+            history = Path(self.history_file)
+            if not history.is_absolute() or ".." in history.parts:
+                raise ValueError("trivy.history_file must be an absolute, normalized path")
         return self
 
 
