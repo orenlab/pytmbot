@@ -57,7 +57,7 @@ def test_get_app_version_fallback_when_package_not_installed(
         raise PackageNotFoundError
 
     monkeypatch.setattr(settings_model_module, "package_version", _raise_not_found)
-    assert get_app_version() == "0.5.4"
+    assert get_app_version() == "0.5.5"
     get_app_version.cache_clear()
 
 
