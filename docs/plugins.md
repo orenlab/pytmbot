@@ -113,6 +113,7 @@ Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
     cache_dir: /var/cache/trivy
     scanner_sha256: REPLACE_WITH_VERIFIED_64_CHAR_SHA256
     max_db_age_hours: 48
+    max_image_size_mb: 1024
     timeout_seconds: 180
     max_images: 20
     max_queued_jobs: 2
