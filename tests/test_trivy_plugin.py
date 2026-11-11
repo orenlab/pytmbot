@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
@@ -175,3 +177,29 @@ def test_queue_is_bounded_and_stops(monkeypatch: pytest.MonkeyPatch) -> None:
         release.set()
         queue.cleanup()
     assert queue.submit(job) is False
+
+def test_scanner_output_is_bounded_without_shell(tmp_path: Path) -> None:
+    argv = [sys.executable, "-c", "import sys;sys.stdout.write('x'*1024)"]
+    with pytest.raises(ScanError, match="size limit"):
+        runner._bounded_stdout(
+            argv, env={"PATH": "/usr/bin:/bin"}, cwd=str(tmp_path),
+            timeout_seconds=1, max_bytes=32,
+        )
+
+
+def test_scanner_nonzero_is_not_a_clean_result(tmp_path: Path) -> None:
+    with pytest.raises(ScanError, match="Trivy failed"):
+        runner._bounded_stdout(
+            [sys.executable, "-c", "raise SystemExit(7)"],
+            env={"PATH": "/usr/bin:/bin"}, cwd=str(tmp_path),
+            timeout_seconds=1, max_bytes=32,
+        )
+
+
+def test_scanner_success_returns_bounded_output(tmp_path: Path) -> None:
+    raw = runner._bounded_stdout(
+        [sys.executable, "-c", "print('ok')"],
+        env={"PATH": "/usr/bin:/bin"}, cwd=str(tmp_path),
+        timeout_seconds=1, max_bytes=32,
+    )
+    assert raw == b"ok\\n"
