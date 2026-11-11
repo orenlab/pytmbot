@@ -1,4 +1,4 @@
-"""Bounded, private, persistent audit history for completed Trivy scans."""
+"""Bounded, private SQLite history for completed Trivy vulnerability scans."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ import sqlite3
 import stat
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from pytmbot.plugins.trivy.runner import ScanSummary
 
 
 class HistoryError(Exception):
-    """History cannot be trusted or persisted."""
+    """Scan history could not be safely recorded or retrieved."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,30 +23,48 @@ class HistoryDelta:
     new_ids: tuple[str, ...]
 
 
+def _prepare_storage(path: Path) -> None:
+    directory_mode = path.parent.stat().st_mode
+    if not path.parent.is_dir() or directory_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise HistoryError("Trivy history directory must be private.")
+    if path.is_symlink():
+        raise HistoryError("Trivy history must not be a symlink.")
+    if path.exists():
+        _check_existing_file(path)
+        return
+    fd = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    os.close(fd)
+
+
+def _check_existing_file(path: Path) -> None:
+    mode = path.stat().st_mode
+    if not stat.S_ISREG(mode) or mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise HistoryError("Trivy history must be a private regular file.")
+
+
+def _decode_snapshot(raw: str) -> ScanSummary:
+    obj: dict[str, Any] = json.loads(raw)
+    return ScanSummary(
+        **{
+            **obj,
+            "findings": tuple(tuple(x) for x in obj["findings"]),
+            "vulnerability_ids": tuple(obj["vulnerability_ids"]),
+        }
+    )
+
+
 class ScanHistory:
-    """SQLite snapshots; no credentials, raw scan JSON, or container environment."""
+    """Persist only bounded, sanitized summaries; never store raw scanner JSON."""
 
     def __init__(self, filename: str, *, max_records: int = 128) -> None:
         self.path = Path(filename)
-        parent = self.path.parent
+        self.max_records = max_records
         try:
-            parent_mode = parent.stat().st_mode
-            if not parent.is_dir() or parent_mode & (stat.S_IWGRP | stat.S_IWOTH):
-                raise HistoryError("Trivy history directory must be private.")
-            if self.path.is_symlink():
-                raise HistoryError("Trivy history may not be a symlink.")
-            if self.path.exists():
-                mode = self.path.stat().st_mode
-                if not stat.S_ISREG(mode) or mode & (stat.S_IRWXG | stat.S_IRWXO):
-                    raise HistoryError("Trivy history must be a private regular file.")
-            else:
-                fd = os.open(
-                    self.path,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-                    0o600,
-                )
-                os.close(fd)
-            self.max_records = max_records
+            _prepare_storage(self.path)
             with self._connect() as db:
                 db.execute(
                     "CREATE TABLE IF NOT EXISTS scans ("
@@ -53,7 +72,9 @@ class ScanHistory:
                     "image_id TEXT NOT NULL, scanned_at TEXT NOT NULL, "
                     "payload TEXT NOT NULL)"
                 )
-                db.execute("CREATE INDEX IF NOT EXISTS scans_image ON scans(image_id, id)")
+                db.execute(
+                    "CREATE INDEX IF NOT EXISTS scans_image ON scans(image_id, id)"
+                )
         except (OSError, sqlite3.Error) as error:
             raise HistoryError("Trivy scan history storage is unavailable.") from error
 
@@ -63,8 +84,15 @@ class ScanHistory:
         db.execute("PRAGMA synchronous=FULL")
         return db
 
+    @staticmethod
+    def _new_ids(previous: tuple[str] | None, summary: ScanSummary) -> tuple[str, ...]:
+        if previous is None:
+            return ()
+        old = _decode_snapshot(previous[0])
+        return tuple(sorted(set(summary.vulnerability_ids) - set(old.vulnerability_ids)))
+
     def append(self, summary: ScanSummary) -> HistoryDelta:
-        """Atomically compare with the previous completed scan and persist."""
+        """Compare with the last completed snapshot and store the new result."""
         payload = json.dumps(asdict(summary), separators=(",", ":"), ensure_ascii=True)
         if len(payload) > 65536:
             raise HistoryError("Scan audit entry exceeds the storage limit.")
@@ -74,11 +102,7 @@ class ScanHistory:
                     "SELECT payload FROM scans WHERE image_id = ? ORDER BY id DESC LIMIT 1",
                     (summary.image_id,),
                 ).fetchone()
-                new_ids: tuple[str, ...] = ()
-                if previous is not None:
-                    old = json.loads(previous[0])
-                    prior = set(old.get("vulnerability_ids", []))
-                    new_ids = tuple(sorted(set(summary.vulnerability_ids) - prior))
+                delta = self._new_ids(previous, summary)
                 db.execute(
                     "INSERT INTO scans(image_id, scanned_at, payload) VALUES (?, ?, ?)",
                     (summary.image_id, summary.scanned_at, payload),
@@ -88,8 +112,8 @@ class ScanHistory:
                     "(SELECT id FROM scans ORDER BY id DESC LIMIT ?)",
                     (self.max_records,),
                 )
-            return HistoryDelta(previous=previous is not None, new_ids=new_ids)
-        except (sqlite3.Error, ValueError, TypeError) as error:
+            return HistoryDelta(previous=previous is not None, new_ids=delta)
+        except (sqlite3.Error, ValueError, TypeError, KeyError) as error:
             raise HistoryError("Unable to store verified Trivy scan history.") from error
 
     def recent(self, *, limit: int = 8) -> list[ScanSummary]:
@@ -99,13 +123,6 @@ class ScanHistory:
                     "SELECT payload FROM scans ORDER BY id DESC LIMIT ?",
                     (max(1, min(limit, 16)),),
                 ).fetchall()
-            return [
-                ScanSummary(**{
-                    **(obj := json.loads(row[0])),
-                    "findings": tuple(tuple(x) for x in obj["findings"]),
-                    "vulnerability_ids": tuple(obj["vulnerability_ids"]),
-                })
-                for row in rows
-            ]
+            return [_decode_snapshot(row[0]) for row in rows]
         except (sqlite3.Error, ValueError, TypeError, KeyError) as error:
             raise HistoryError("Unable to load Trivy scan history.") from error
