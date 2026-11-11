@@ -14,6 +14,7 @@ import select
 import signal
 import subprocess
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -223,11 +224,13 @@ def _scan_result(image_id: str) -> dict[str, object]:
 class Handler(BaseHTTPRequestHandler):
     """Authenticated, bounded read-only scanning API."""
 
+    # Dispatched by BaseHTTPRequestHandler for request logging.
+    # codeclone: ignore[dead-code]
     def log_message(self, format: str, *args: object) -> None:
         # Do not log caller-controlled paths, authorization, image IDs or data.
         return
 
-    def _send(self, status: int, data: dict[str, object]) -> None:
+    def _send(self, status: int, data: Mapping[str, object]) -> None:
         raw = json.dumps(data, separators=(",", ":")).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -240,6 +243,8 @@ class Handler(BaseHTTPRequestHandler):
         header = self.headers.get("Authorization", "")
         return hmac.compare_digest(header, "Bearer " + cast(Server, self.server).api_token)
 
+    # Dispatched dynamically by BaseHTTPRequestHandler.
+    # codeclone: ignore[dead-code]
     def do_GET(self) -> None:
         if self.path == "/healthz":
             self._send(200, {"status": "ok"})
@@ -255,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
         except ScanFailure:
             self._send(503, {"error": "scanner database unavailable"})
 
+    # Dispatched dynamically by BaseHTTPRequestHandler.
+    # codeclone: ignore[dead-code]
     def do_POST(self) -> None:
         if not self._authorized():
             self._send(401, {"error": "unauthorized"})
