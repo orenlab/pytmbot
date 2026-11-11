@@ -4,9 +4,11 @@ FROM aquasec/trivy:0.76.2
 
 RUN apk add --no-cache python3 && \
     addgroup -S -g 10001 trivyworker && \
-    adduser -S -D -H -u 10001 -G trivyworker trivyworker
+    adduser -S -D -H -u 10001 -G trivyworker trivyworker && \
+    mkdir -p /opt/trivy-worker && \
+    chmod 0755 /opt/trivy-worker
 
-COPY --chmod=0444 server.py /opt/trivy-worker/server.py
+COPY --chown=10001:10001 --chmod=0444 server.py /opt/trivy-worker/server.py
 
 USER 10001:10001
 WORKDIR /
