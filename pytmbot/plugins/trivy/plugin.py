@@ -103,7 +103,7 @@ class TrivyPlugin(PluginInterface):
             self.bot.answer_callback_query(call.id, text="Invalid scan request.", show_alert=True)
             return
         user_id = int(user.id)
-        if not self._authorized(user_id, message.chat.type):
+        if not self._authorized(user_id, message.chat.type) or message.chat.id != user_id:
             self.bot.answer_callback_query(call.id, text="Admin 2FA required.", show_alert=True)
             return
         data = call.data or ""
@@ -139,7 +139,7 @@ class TrivyPlugin(PluginInterface):
 
     def _publish(self, job: ScanJob, status: str, summary: ScanSummary | None) -> None:
         # Recheck admin status before publishing a background result.
-        if job.user_id not in settings.access_control.allowed_admins_ids:
+        if job.chat_id != job.user_id or not self._authorized(job.user_id, "private"):
             return
         if status != "complete" or summary is None:
             self._reply(job.chat_id, "<p>Trivy scan failed. No security result is available.</p>")
@@ -155,6 +155,8 @@ class TrivyPlugin(PluginInterface):
             "<p><b>Trivy vulnerability scan completed</b></p>"
             f"<p><b>Image:</b> sha256:{escape(summary.image_id[:16])}…</p>"
             f"<p><b>Scanned:</b> {escape(summary.scanned_at)}</p>"
+            f"<p><b>DB:</b> schema {summary.db_schema}, updated {escape(summary.db_updated_at)}</p>"
+            f"<p><b>Scanner SHA-256:</b> {escape(summary.scanner_sha256[:16])}…</p>"
             f"<p>Critical: {counts['CRITICAL']} · High: {counts['HIGH']} · "
             f"Medium: {counts['MEDIUM']} · Low: {counts['LOW']} · "
             f"Unknown: {counts['UNKNOWN']}</p>"
