@@ -60,7 +60,7 @@ def resolve_local_id(prefix: str, *, limit: int) -> str:
 class ScanSummary:
     image_id: str
     scanned_at: str
-    scanner_sha256: str
+    scanner_version: str
     db_schema: int
     db_updated_at: str
     counts: dict[str, int]
@@ -134,7 +134,7 @@ def _aggregate_vulnerabilities(
 
 def parse_report(
     raw: bytes, *, image_id: str,
-    scanner_sha256: str = "", db_schema: int = 0, db_updated_at: str = "",
+    scanner_version: str = "", db_schema: int = 0, db_updated_at: str = "",
 ) -> ScanSummary:
     """Validate a bounded Trivy JSON report; never render arbitrary fields."""
     try:
@@ -153,7 +153,7 @@ def parse_report(
     return ScanSummary(
         image_id=image_id,
         scanned_at=datetime.now(UTC).isoformat(timespec="seconds"),
-        scanner_sha256=scanner_sha256,
+        scanner_version=scanner_version,
         db_schema=db_schema,
         db_updated_at=db_updated_at,
         counts=counts,
@@ -231,7 +231,7 @@ def scan_local_image(
         raise ScanError("Trivy scan cancelled.")
     return parse_report(
         json.dumps(report).encode("utf-8"), image_id=image_id,
-        scanner_sha256=version[:48], db_schema=schema, db_updated_at=metadata,
+        scanner_version=version[:48], db_schema=schema, db_updated_at=metadata,
     )
 
 
