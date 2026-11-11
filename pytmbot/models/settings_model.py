@@ -242,6 +242,8 @@ class TrivyConfig(BaseModel):
     executable: str
     docker_host: str
     cache_dir: str
+    scanner_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    max_db_age_hours: int = Field(default=48, ge=1, le=168)
     timeout_seconds: int = Field(default=180, ge=10, le=600)
     max_images: int = Field(default=20, ge=1, le=50)
     max_queued_jobs: int = Field(default=2, ge=1, le=4)
