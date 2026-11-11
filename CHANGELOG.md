@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.5] — unreleased
+
+Maintenance release candidate with opt-in local Docker image vulnerability inspection.
+
+### Added
+
+- Optional Trivy image scanner: admin-only scan selection in Telegram, local-image checks, concise vulnerability summaries, and bounded background jobs.
+
+### Security
+
+- Scanner executable is verified against a configured SHA-256; vulnerability database freshness is validated before scanning.
+- Scans use offline, Docker-only inputs and do not pull images, update containers, or apply fixes.
+
+### Changed
+
+- Updated Python dependency lockfile and CodeClone to 2.0.3; refreshed compatible dependencies and development tools.
+
+### Release status
+
+- Not published. Production rollout requires verified scanner isolation, end-to-end Docker image scan and a successful development image build.
+
+
 ## [0.5.4] — 20261026
 
 Patch release with alert delivery, secret masking and Docker check fixes.
