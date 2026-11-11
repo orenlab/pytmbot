@@ -257,7 +257,9 @@ def scan_local_image(
     verify_scanner_binary(binary, config.scanner_sha256)
     database_info = read_database_metadata(cache, max_age_hours=config.max_db_age_hours)
     argv = [
-        str(binary), "image", "--image-src", "docker",
+        str(binary), "image", "--config", "/dev/null",
+        "--ignorefile", "/dev/null", "--exit-code", "0",
+        "--image-src", "docker",
         "--docker-host", config.docker_host, "--scanners", "vuln",
         "--format", "json", "--quiet", "--skip-db-update",
         "--skip-java-db-update", "--skip-check-update",
@@ -269,8 +271,9 @@ def scan_local_image(
         "--timeout", f"{config.timeout_seconds}s",
         f"sha256:{image_id}",
     ]
-    # File-size limit enforced in the child and in the parent after exit.
-    # Omit HOME, proxy, registry and cloud authentication variables.
+    # Prevent implicit trivy.yaml/.trivyignore from influencing scan results.
+    # No inherited proxy, registry, or cloud authentication environment.
+    # Child output is bounded in _bounded_stdout; external OS isolation is required.
     env = {
         "PATH": "/usr/bin:/bin",
         "HOME": str(cache),
@@ -280,7 +283,7 @@ def scan_local_image(
         "TRIVY_DISABLE_TELEMETRY": "true",
     }
     raw = _bounded_stdout(
-        argv, env=env, cwd=str(cache),
+        argv, env=env, cwd="/",
         timeout_seconds=config.timeout_seconds,
         max_bytes=config.max_report_bytes, cancel=cancel,
     )
