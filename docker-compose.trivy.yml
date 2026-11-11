@@ -45,8 +45,12 @@ services:
   trivy-db:
     image: aquasec/trivy:0.76.2
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "-ec"]
-    command: 'exec trivy server --listen 0.0.0.0:4954 --token "$$(cat /run/secrets/trivy_server_token)" --cache-dir /var/cache/trivy'
+    # Pass the entire script as ONE -c argument; a Compose command string
+    # can otherwise be tokenized into extra shell positional arguments.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - 'exec trivy server --listen 0.0.0.0:4954 --token "$(cat /run/secrets/trivy_server_token)" --cache-dir /var/cache/trivy'
     secrets:
       - trivy_server_token
     volumes:
@@ -56,6 +60,8 @@ services:
     cap_drop:
       - ALL
     read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
     pids_limit: 80
     cpus: 1.0
     mem_limit: 1g
@@ -87,6 +93,9 @@ services:
     cap_drop:
       - ALL
     read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+      - /run:rw,noexec,nosuid,nodev,size=8m
     pids_limit: 32
     mem_limit: 64m
     networks:
