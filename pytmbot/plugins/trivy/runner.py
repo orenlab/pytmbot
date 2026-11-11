@@ -173,7 +173,7 @@ def read_database_metadata(cache: Path, *, max_age_hours: int) -> DatabaseInfo:
 def _bounded_stdout(
     argv: list[str], *,
     env: dict[str, str], cwd: str,
-    timeout_seconds: int, max_bytes: int,
+    timeout_seconds: int, max_bytes: int, cancel: Event | None = None,
 ) -> bytes:
     """Read at most max_bytes from a subprocess; terminate on size or time.
 
@@ -195,6 +195,8 @@ def _bounded_stdout(
         assert proc.stdout is not None
         fd = proc.stdout.fileno()
         while True:
+            if cancel is not None and cancel.is_set():
+                raise ScanError("Trivy scan was cancelled.")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ScanError("Trivy scan timed out.")
@@ -229,7 +231,9 @@ def _bounded_stdout(
             proc.stdout.close()
 
 
-def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
+def scan_local_image(
+    image_id: str, config: TrivyConfig, *, cancel: Event | None = None,
+) -> ScanSummary:
     """Scan a verified local immutable image, without shell or remote fallback.
 
     The scanner binary, socket and cache are operator-managed. No credentials
@@ -274,7 +278,7 @@ def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
     raw = _bounded_stdout(
         argv, env=env, cwd=str(cache),
         timeout_seconds=config.timeout_seconds,
-        max_bytes=config.max_report_bytes,
+        max_bytes=config.max_report_bytes, cancel=cancel,
     )
     return parse_report(
         raw, image_id=image_id, scanner_sha256=config.scanner_sha256,
@@ -324,7 +328,9 @@ class ScanQueue:
                     if self._stop.is_set():
                         break
                     try:
-                        summary = scan_local_image(image_id, self.config)
+                        summary = scan_local_image(
+                            image_id, self.config, cancel=self._stop,
+                        )
                     except Exception:
                         # Docker transport, Trivy and parsing failures are not zero CVEs.
                         summary = None
