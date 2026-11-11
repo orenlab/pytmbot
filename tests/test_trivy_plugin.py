@@ -21,6 +21,7 @@ from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.trivy import plugin as plugin_module
 from pytmbot.plugins.trivy import runner
 from pytmbot.plugins.trivy.plugin import TrivyPlugin
+from pytmbot.plugins.trivy.history import HistoryError, ScanHistory
 from pytmbot.plugins.trivy.runner import ScanError, ScanJob, ScanQueue, parse_report
 
 
@@ -341,3 +342,54 @@ def test_scan_uses_only_pinned_local_image_and_bounded_flags(
     assert observed[observed.index("--config") + 1] == "/dev/null"
     assert observed[observed.index("--ignorefile") + 1] == "/dev/null"
     assert observed[observed.index("--exit-code") + 1] == "0"
+
+
+def test_persistent_history_tracks_new_vulnerabilities(
+    tmp_path: Path,
+) -> None:
+    store = ScanHistory(str(tmp_path / "trivy_history.sqlite"))
+    first = parse_report(json.dumps({
+        "Results": [{"Vulnerabilities": [
+            {"VulnerabilityID": "CVE-2026-0001", "Severity": "HIGH"},
+        ]}],
+    }).encode(), image_id="a" * 64)
+    baseline = store.append(first)
+    assert baseline.previous is False
+    assert not baseline.new_ids
+    second = parse_report(json.dumps({
+        "Results": [{"Vulnerabilities": [
+            {"VulnerabilityID": "CVE-2026-0001", "Severity": "HIGH"},
+            {"VulnerabilityID": "CVE-2026-0002", "Severity": "CRITICAL"},
+        ]}],
+    }).encode(), image_id="a" * 64)
+    delta = store.append(second)
+    assert delta.previous is True
+    assert delta.new_ids == ("CVE-2026-0002",)
+    reopened = ScanHistory(str(tmp_path / "trivy_history.sqlite"))
+    rows = reopened.recent()
+    assert len(rows) == 2
+    assert rows[0].vulnerability_ids == (
+        "CVE-2026-0001", "CVE-2026-0002",
+    )
+    assert rows[0].counts["CRITICAL"] == 1
+
+
+def test_history_rejects_symlink_and_nonprivate_file(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.write_text("not a database")
+    target.chmod(0o600)
+    alias = tmp_path / "history"
+    alias.symlink_to(target)
+    with pytest.raises(HistoryError):
+        ScanHistory(str(alias))
+    target.chmod(0o644)
+    with pytest.raises(HistoryError):
+        ScanHistory(str(target))
+
+
+def test_history_prunes_oldest_records(tmp_path: Path) -> None:
+    store = ScanHistory(str(tmp_path / "history.sqlite"), max_records=2)
+    scan = parse_report(b'{"Results":[{"Vulnerabilities":[]}]}', image_id="a" * 64)
+    for _ in range(3):
+        store.append(scan)
+    assert len(store.recent(limit=10)) == 2
