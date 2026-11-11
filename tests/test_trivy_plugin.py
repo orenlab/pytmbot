@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 from typing import cast
+from urllib.request import Request
 
 import pytest
 from pydantic import ValidationError
@@ -102,13 +103,13 @@ def test_http_scan_uses_only_local_image_id(monkeypatch: pytest.MonkeyPatch) -> 
     image_id = "a" * 64
     monkeypatch.setattr(runner, "local_image_ids", lambda *, limit: [image_id])
     monkeypatch.setattr(runner, "_private_token", lambda path: "x" * 48)
-    requests: list[object] = []
+    requests: list[Request] = []
 
     class Response(io.BytesIO):
         status = 200
 
     class Opener:
-        def open(self, request: object, timeout: int) -> Response:
+        def open(self, request: Request, timeout: int) -> Response:
             requests.append(request)
             assert timeout == 50
             return Response(json.dumps({
