@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 
+from pytmbot.globals import settings
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.trivy import plugin as plugin_module
 from pytmbot.plugins.trivy import runner
@@ -112,7 +113,7 @@ def test_scanner_rejects_unverified_id_before_subprocess(
 
 def test_admin_and_private_session_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        plugin_module.settings.access_control,
+        settings.access_control,
         "allowed_admins_ids",
         [123],
     )
