@@ -6,7 +6,7 @@ Maintenance release candidate with opt-in local Docker image vulnerability inspe
 
 ### Added
 
-- Optional Trivy image scanner: admin-only scan selection in Telegram, local-image checks, concise vulnerability summaries, and bounded background jobs.
+- Optional Trivy image scanner: admin-only scan selection in Telegram, local-image checks, concise vulnerability summaries, bounded background jobs, and optional private scan history with CVE changes.
 
 ### Security
 
