@@ -32,11 +32,16 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
 
+      # BuildKit's daemon network is not inherited by Dockerfile RUN steps.
+      # Use the ephemeral GitHub-hosted runner network for APT DNS during this
+      # branch-only development build. Production workflows remain unchanged.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
         with:
           driver-opts: |
             image=moby/buildkit:v0.34.0
             network=host
+          buildkitd-flags: >-
+            --allow-insecure-entitlement network.host
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
@@ -66,6 +71,11 @@ jobs:
           push: true
           pull: true
           platforms: linux/amd64,linux/arm64
+          # Host networking applies to BuildKit RUN containers, not just the
+          # BuildKit daemon. This is only used by the dev-image workflow.
+          network: host
+          allow: |
+            network.host
           build-args: |
             COMPILE_BYTECODE=0
           tags: ${{ steps.meta.outputs.tags }}
