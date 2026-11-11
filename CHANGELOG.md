@@ -10,8 +10,8 @@ Maintenance release candidate with opt-in local Docker image vulnerability inspe
 
 ### Security
 
-- Scanner executable is verified against a configured SHA-256; vulnerability database freshness is validated before scanning.
-- Scans use offline, Docker-only inputs and do not pull images, update containers, or apply fixes.
+- Trivy runs in a separate container behind a private authenticated HTTP API; vulnerability database freshness is validated before scanning.
+- Scans use Docker-only local image IDs and cannot pull images, update containers, or apply fixes. The Trivy server automatically maintains its own CVE database.
 
 ### Changed
 
