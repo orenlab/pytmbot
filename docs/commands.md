@@ -37,7 +37,8 @@ Provided only when the plugin is loaded:
 | Command    | Plugin    | Access        | Behavior                |
 |------------|-----------|---------------|-------------------------|
 | `/outline` | `outline` | allowed users | Opens Outline VPN views |
-| `/trivy`   | `trivy`   | admin + private chat + 2FA | Select local images for vulnerability scans (opt-in) |
+| `/trivy`         | `trivy`   | admin + private chat + 2FA | Select local images for vulnerability scans (opt-in) |
+| `/trivy_history` | `trivy`   | admin + private chat + 2FA | Review recent scans (when history enabled) |
 
 ## Reply Keyboard Sections
 
