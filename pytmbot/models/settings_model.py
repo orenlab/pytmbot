@@ -236,16 +236,13 @@ class OutlineVPN(BaseModel):
 
 
 class TrivyConfig(BaseModel):
-    """Explicit opt-in to an externally provisioned, read-only Trivy runner."""
+    """Private HTTP scanner service, not a local executable."""
 
     enabled: bool = False
-    executable: str
-    docker_host: str
-    cache_dir: str
+    endpoint: str = "http://trivy-worker:8090"
+    token_file: str = "/run/secrets/trivy_worker_token"
     history_file: str | None = None
-    scanner_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     max_db_age_hours: int = Field(default=48, ge=1, le=168)
-    max_image_size_mb: int = Field(default=1024, ge=128, le=4096)
     timeout_seconds: int = Field(default=180, ge=10, le=600)
     max_images: int = Field(default=20, ge=1, le=50)
     max_queued_jobs: int = Field(default=2, ge=1, le=4)
@@ -254,22 +251,27 @@ class TrivyConfig(BaseModel):
     @model_validator(mode="after")
     def validate_runner_paths(self) -> "TrivyConfig":
         from pathlib import Path
+        from urllib.parse import urlsplit
 
-        for name, value in (
-            ("executable", self.executable),
-            ("cache_dir", self.cache_dir),
+        parts = urlsplit(self.endpoint)
+        if (
+            parts.scheme != "http"
+            or parts.hostname != "trivy-worker"
+            or parts.port != 8090
+            or parts.username is not None
+            or parts.password is not None
+            or parts.path not in ("", "/")
+            or parts.query or parts.fragment
         ):
-            if not Path(value).is_absolute():
-                raise ValueError(f"trivy.{name} must be an absolute path")
-        if not self.docker_host.startswith("unix:///"):
-            raise ValueError("trivy.docker_host must be an explicit local unix socket")
-        socket_path = self.docker_host.removeprefix("unix://")
-        if not Path(socket_path).is_absolute() or ".." in Path(socket_path).parts:
-            raise ValueError("trivy.docker_host must point to an absolute unix socket")
-        if self.history_file is not None:
-            history = Path(self.history_file)
-            if not history.is_absolute() or ".." in history.parts:
-                raise ValueError("trivy.history_file must be an absolute, normalized path")
+            raise ValueError("Trivy endpoint must be the private trivy-worker:8090 service")
+        for name, value in (
+            ("token_file", self.token_file),
+            ("history_file", self.history_file),
+        ):
+            if value is not None:
+                target = Path(value)
+                if not target.is_absolute() or ".." in target.parts:
+                    raise ValueError(f"trivy.{name} must be an absolute normalized path")
         return self
 
 
