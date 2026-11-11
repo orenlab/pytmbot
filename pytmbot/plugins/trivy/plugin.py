@@ -17,6 +17,7 @@ from pytmbot.globals import get_session_manager, settings
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.trivy.history import HistoryError, ScanHistory
 from pytmbot.plugins.trivy.runner import (
     ScanError,
     ScanJob,
@@ -40,6 +41,7 @@ class TrivyPlugin(PluginInterface):
         plugins = settings.plugins_config
         self._config: TrivyConfig | None = plugins.trivy if plugins else None
         self._queue: ScanQueue | None = None
+        self._history: ScanHistory | None = None
 
     @staticmethod
     def _authorized(user_id: int | None, chat_type: str | None) -> bool:
@@ -137,6 +139,33 @@ class TrivyPlugin(PluginInterface):
         self.bot.answer_callback_query(call.id, text="Scan queued.")
         self._reply(message.chat.id, f"<p>Queued {len(image_ids)} local image scan(s).</p>")
 
+    def handle_history(self, message: Message) -> None:
+        """Show recent completed scans only to authenticated admins."""
+        user = message.from_user
+        user_id = int(user.id) if user else None
+        if not self._authorized(user_id, message.chat.type) or message.chat.id != user_id:
+            self._reply(message.chat.id, "<p>Admin access and 2FA are required.</p>")
+            return
+        history = self._history
+        if history is None:
+            self._reply(message.chat.id, "<p>Persistent scan history is not configured.</p>")
+            return
+        try:
+            recent = history.recent()
+        except HistoryError:
+            self._reply(message.chat.id, "<p>Scan history is currently unavailable.</p>")
+            return
+        if not recent:
+            self._reply(message.chat.id, "<p>No completed Trivy scans yet.</p>")
+            return
+        entries = "".join(
+            f"<li>{escape(scan.scanned_at[:19])}: "
+            f"{escape(scan.image_id[:12])} — "
+            f"{scan.counts['CRITICAL']} critical, {scan.counts['HIGH']} high</li>"
+            for scan in recent
+        )
+        self._reply(message.chat.id, f"<p><b>Recent vulnerability scans</b></p><ul>{entries}</ul>")
+
     def _publish(self, job: ScanJob, status: str, summary: ScanSummary | None) -> None:
         # Recheck admin status before publishing a background result.
         if job.chat_id != job.user_id or not self._authorized(job.user_id, "private"):
@@ -144,6 +173,21 @@ class TrivyPlugin(PluginInterface):
         if status != "complete" or summary is None:
             self._reply(job.chat_id, "<p>Trivy scan failed. No security result is available.</p>")
             return
+        delta_html = ""
+        if self._history is not None:
+            try:
+                delta = self._history.append(summary)
+            except HistoryError:
+                self._reply(job.chat_id, "<p>Scan completed but audit storage failed; results are withheld.</p>")
+                return
+            if delta.previous:
+                delta_html = f"<p>New vulnerability IDs since previous scan: {len(delta.new_ids)}</p>"
+                if delta.new_ids:
+                    delta_html += "<p>" + ", ".join(
+                        escape(item) for item in delta.new_ids[:5]
+                    ) + "</p>"
+            else:
+                delta_html = "<p>First scan recorded as baseline.</p>"
         counts = summary.counts
         details = "".join(
             f"<li>{escape(severity)}: {escape(identifier)} — {escape(package)}</li>"
@@ -161,7 +205,7 @@ class TrivyPlugin(PluginInterface):
             f"Medium: {counts['MEDIUM']} · Low: {counts['LOW']} · "
             f"Unknown: {counts['UNKNOWN']}</p>"
             f"<p>Findings with known fixed versions: {summary.fixable}</p>"
-            f"{details}"
+            f"{delta_html}{details}"
             "<p><i>Known CVEs are not proof of exploitability. "
             "The scan used the operator-managed local Trivy DB.</i></p>"
         )
@@ -175,8 +219,11 @@ class TrivyPlugin(PluginInterface):
         config = self._config
         if config is None or not config.enabled:
             return
+        if config.history_file is not None:
+            self._history = ScanHistory(config.history_file)
         self._queue = ScanQueue(config, self._publish)
         self.bot.register_message_handler(self.handle_menu, commands=["trivy"])
+        self.bot.register_message_handler(self.handle_history, commands=["trivy_history"])
         self.bot.register_callback_query_handler(
             self.handle_scan,
             func=lambda call: bool(
