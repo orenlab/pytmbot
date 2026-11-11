@@ -315,7 +315,7 @@ def test_scan_uses_only_pinned_local_image_and_bounded_flags(
         observed.extend(argv)
         assert "DOCKER_HOST" not in env
         assert "HOME" in env
-        assert cwd == str(cache)
+        assert cwd == "/"
         return b'{"Results":[{"Vulnerabilities":[]}]}'
 
     monkeypatch.setattr(runner, "_bounded_stdout", fake_scan)
@@ -338,3 +338,6 @@ def test_scan_uses_only_pinned_local_image_and_bounded_flags(
     assert observed[observed.index("--max-image-size") + 1] == "256MB"
     assert "--offline-scan" in observed
     assert "--skip-db-update" in observed
+    assert observed[observed.index("--config") + 1] == "/dev/null"
+    assert observed[observed.index("--ignorefile") + 1] == "/dev/null"
+    assert observed[observed.index("--exit-code") + 1] == "0"
