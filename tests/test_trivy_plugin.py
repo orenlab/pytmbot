@@ -159,7 +159,9 @@ def test_queue_is_bounded_and_stops(monkeypatch: pytest.MonkeyPatch) -> None:
     started = Event()
     release = Event()
 
-    def blocked_scan(image_id: str, cfg: TrivyConfig) -> runner.ScanSummary:
+    def blocked_scan(
+        image_id: str, cfg: TrivyConfig, *, cancel: Event | None = None,
+    ) -> runner.ScanSummary:
         started.set()
         release.wait(timeout=2)
         return parse_report(b'{"Results":[{"Vulnerabilities":[]}]}', image_id=image_id)
@@ -258,3 +260,30 @@ def test_config_rejects_missing_or_invalid_scanner_digest() -> None:
     raw["scanner_sha256"] = "not-a-sha256"
     with pytest.raises(ValidationError):
         TrivyConfig.model_validate(raw)
+
+
+def test_scanner_cancellation_terminates_child(tmp_path: Path) -> None:
+    from threading import Event, Thread
+    from time import sleep
+
+    cancel = Event()
+    result: list[Exception] = []
+
+    def invoke() -> None:
+        try:
+            runner._bounded_stdout(
+                [sys.executable, "-c", "import time;time.sleep(30)"],
+                env={"PATH": "/usr/bin:/bin"},
+                cwd=str(tmp_path), timeout_seconds=35,
+                max_bytes=256, cancel=cancel,
+            )
+        except ScanError as exc:
+            result.append(exc)
+
+    thread = Thread(target=invoke)
+    thread.start()
+    sleep(0.15)
+    cancel.set()
+    thread.join(timeout=3)
+    assert not thread.is_alive()
+    assert result and "cancelled" in str(result[0])
