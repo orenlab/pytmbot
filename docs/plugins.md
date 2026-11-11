@@ -89,8 +89,9 @@ Security constraints:
   Do not broaden that proxy's permissions or mount the host's raw Docker socket
   into pyTMBot automatically. Provision and isolate the scanner separately;
   validate the scanner's security boundary before production rollout.
-- The scanner CLI is invoked without a shell, with a minimal environment and
-  bounded execution/report size. Resource isolation of the scanner **is not**
+- The scanner CLI is invoked without a shell, with a minimal environment,
+  explicit empty config/ignore files (no ambient `trivy.yaml` or `.trivyignore`),
+  and bounded image size, parallelism, execution time and report size. Resource isolation of the scanner **is not**
   provided by the plugin itself; use OS/container controls for CPU, RAM and
   temporary/cache disk limits.
 - No scans run until an admin opens `/trivy` in a private chat with a valid
