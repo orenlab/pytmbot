@@ -24,6 +24,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 TRIVY_SERVER = "http://trivy-db:4954"
 DOCKER_API = "http://trivy-docker-proxy:2375"
+DOCKER_HOST = "tcp://trivy-docker-proxy:2375"
 IMAGE_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 HTTP = build_opener(ProxyHandler({}))
 GUARD = BoundedSemaphore(value=1)
@@ -36,17 +37,30 @@ class ScanFailure(Exception):
     """A scan failed and cannot be represented as a clean vulnerability result."""
 
 
-def token() -> str:
-    path = Path(os.environ.get("TRIVY_WORKER_TOKEN_FILE", "/run/secrets/trivy_worker_token"))
+def secret_file(path: str) -> str:
+    path = Path(path)
     value = path.read_text(encoding="utf-8").strip()
     if len(value) < 32 or len(value) > 256:
         raise ValueError("Trivy worker token must contain 32-256 characters")
     return value
 
 
+def token() -> str:
+    return secret_file(os.environ.get(
+        "TRIVY_WORKER_TOKEN_FILE", "/run/secrets/trivy_worker_token"
+    ))
+
+
 def _get_json(url: str, *, limit: int = 8192) -> dict:
     try:
-        with HTTP.open(Request(url, method="GET"), timeout=5) as response:
+        with HTTP.open(Request(
+            url, method="GET",
+            headers={"Trivy-Token": secret_file(
+                os.environ.get(
+                    "TRIVY_SERVER_TOKEN_FILE", "/run/secrets/trivy_server_token"
+                )
+            )} if url.startswith(TRIVY_SERVER + "/") else {},
+        ), timeout=5) as response:
             if response.status != 200:
                 raise ScanFailure("Trivy dependency returned an HTTP error")
             raw = response.read(limit + 1)
@@ -97,7 +111,7 @@ def database_info(*, max_age_hours: int = 48) -> dict:
 def bounded_scan(image_id: str) -> dict:
     args = [
         "trivy", "image", "--server", TRIVY_SERVER, "--image-src", "docker",
-        "--docker-host", DOCKER_API, "--format", "json", "--scanners", "vuln",
+        "--docker-host", DOCKER_HOST, "--format", "json", "--scanners", "vuln",
         "--quiet", "--no-progress", "--offline-scan",
         "--config", "/dev/null", "--ignorefile", "/dev/null",
         "--exit-code", "0", "--parallel", "1",
@@ -111,7 +125,9 @@ def bounded_scan(image_id: str) -> dict:
         "TMPDIR": "/tmp",
         "LANG": "C",
         "DOCKER_CONFIG": "/tmp/no-docker-credentials",
-        "TRIVY_TOKEN": os.environ["TRIVY_SERVER_TOKEN"],
+        "TRIVY_TOKEN": secret_file(
+            os.environ.get("TRIVY_SERVER_TOKEN_FILE", "/run/secrets/trivy_server_token")
+        ),
         "TRIVY_DISABLE_TELEMETRY": "true",
     }
     try:
@@ -126,8 +142,10 @@ def bounded_scan(image_id: str) -> dict:
     consumed = 0
     deadline = time.monotonic() + TIMEOUT + 10
     try:
-        assert proc.stdout is not None
-        fd = proc.stdout.fileno()
+        stdout = proc.stdout
+        if stdout is None:
+            raise ScanFailure("Trivy scanner stdout is unavailable")
+        fd = stdout.fileno()
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -145,7 +163,7 @@ def bounded_scan(image_id: str) -> dict:
         if proc.wait(timeout=max(0.01, deadline - time.monotonic())) != 0:
             raise ScanFailure("Trivy scanner returned an error")
         result = json.loads(b"".join(chunks))
-        if not isinstance(result, dict) or not isinstance(result.get("Results"), list):
+        if not isinstance(result, dict) or not isinstance(result.get("Results"), list) or not result["Results"]:
             raise ScanFailure("Trivy report was incomplete")
         return result
     except (ValueError, subprocess.TimeoutExpired) as exc:
