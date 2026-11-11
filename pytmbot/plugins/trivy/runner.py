@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
-from typing import Any, Final
+from typing import Final
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.images_info import list_images_tolerant
@@ -228,9 +228,18 @@ class ScanQueue:
                         break
                     try:
                         summary = scan_local_image(image_id, self.config)
-                        self.publish(job, "complete", summary)
-                    except ScanError:
-                        self.publish(job, "failed", None)
+                    except Exception:
+                        # Docker transport, Trivy and parsing failures are not zero CVEs.
+                        summary = None
+                    try:
+                        self.publish(
+                            job,
+                            "complete" if summary is not None else "failed",
+                            summary,
+                        )
+                    except Exception:
+                        # Telegram delivery failures must not kill the scan worker.
+                        pass
             finally:
                 self._jobs.task_done()
 
