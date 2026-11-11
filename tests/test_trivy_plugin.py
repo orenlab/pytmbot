@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import socket
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -287,3 +288,53 @@ def test_scanner_cancellation_terminates_child(tmp_path: Path) -> None:
     thread.join(timeout=3)
     assert not thread.is_alive()
     assert result and "cancelled" in str(result[0])
+
+
+def test_scan_uses_only_pinned_local_image_and_bounded_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binary = tmp_path / "trivy"
+    binary.write_bytes(b"verified-trivy")
+    binary.chmod(0o700)
+    cache = tmp_path / "cache"
+    (cache / "db").mkdir(parents=True)
+    (cache / "db" / "trivy.db").write_bytes(b"dummy")
+    (cache / "db" / "metadata.json").write_text(json.dumps({
+        "Version": 2,
+        "UpdatedAt": datetime.now(UTC).isoformat(),
+    }))
+    docker_socket = tmp_path / "docker.sock"
+    image_id = "a" * 64
+    monkeypatch.setattr(runner, "local_image_ids", lambda *, limit: [image_id])
+    observed: list[str] = []
+
+    def fake_scan(
+        argv: list[str], *, env: dict[str, str], cwd: str,
+        timeout_seconds: int, max_bytes: int, cancel: object = None,
+    ) -> bytes:
+        observed.extend(argv)
+        assert "DOCKER_HOST" not in env
+        assert "HOME" in env
+        assert cwd == str(cache)
+        return b'{"Results":[{"Vulnerabilities":[]}]}'
+
+    monkeypatch.setattr(runner, "_bounded_stdout", fake_scan)
+    cfg = config().model_copy(update={
+        "executable": str(binary),
+        "docker_host": f"unix://{docker_socket}",
+        "cache_dir": str(cache),
+        "scanner_sha256": hashlib.sha256(b"verified-trivy").hexdigest(),
+        "max_image_size_mb": 256,
+    })
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+        server.bind(str(docker_socket))
+        report = runner.scan_local_image(image_id, cfg)
+    assert report.image_id == image_id
+    assert report.db_schema == 2
+    assert report.scanner_sha256 == cfg.scanner_sha256
+    assert observed[-1] == "sha256:" + image_id
+    assert observed[observed.index("--image-src") + 1] == "docker"
+    assert observed[observed.index("--parallel") + 1] == "1"
+    assert observed[observed.index("--max-image-size") + 1] == "256MB"
+    assert "--offline-scan" in observed
+    assert "--skip-db-update" in observed
