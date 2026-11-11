@@ -28,6 +28,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Diagnose Ubuntu archive DNS on GitHub runner
+        shell: bash
+        run: |
+          set +e
+          echo "Runner DNS configuration:"
+          sed -n '1,30p' /etc/resolv.conf
+          for domain in archive.ubuntu.com security.ubuntu.com ports.ubuntu.com github.com; do
+            echo "HOST ${domain}"
+            timeout 8 getent ahostsv4 "${domain}"
+            echo "exit=$?"
+          done
+          echo "Docker host-network DNS:"
+          timeout 40 docker run --rm --network host ubuntu:26.04 sh -c             'cat /etc/resolv.conf; getent hosts archive.ubuntu.com; getent hosts security.ubuntu.com'
+          echo "docker-host exit=$?"
+          echo "Docker bridge-network DNS:"
+          timeout 40 docker run --rm ubuntu:26.04 sh -c             'cat /etc/resolv.conf; getent hosts archive.ubuntu.com; getent hosts security.ubuntu.com'
+          echo "docker-bridge exit=$?"
+
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
         with:
           platforms: linux/amd64,linux/arm64
