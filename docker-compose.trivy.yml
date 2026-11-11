@@ -16,6 +16,8 @@ services:
     restart: unless-stopped
     init: true
     user: "10001:10001"
+    group_add:
+      - "1001"  # read the 0440 Docker secrets shared with pyTMBot (GID 1001)
     environment:
       TRIVY_WORKER_TOKEN_FILE: /run/secrets/trivy_worker_token
       TRIVY_SERVER_TOKEN_FILE: /run/secrets/trivy_server_token
