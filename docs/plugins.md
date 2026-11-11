@@ -112,6 +112,7 @@ Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
     executable: /opt/trivy/bin/trivy
     docker_host: unix:///run/trivy/docker.sock
     cache_dir: /var/cache/trivy
+    history_file: /var/lib/pytmbot/trivy-history.sqlite
     scanner_sha256: REPLACE_WITH_VERIFIED_64_CHAR_SHA256
     max_db_age_hours: 48
     max_image_size_mb: 1024
@@ -122,8 +123,7 @@ Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
 ```
 
 This first version exposes an admin-only `/trivy` image picker, `Scan all`,
-a bounded single-worker queue, and vulnerability summaries. Persistent history,
-scheduler, fully verified DB supply-chain provenance and full deployment isolation are not yet
+a bounded single-worker queue, vulnerability summaries, and optional persistent history with per-image CVE changes. Scheduled scans, fully verified DB supply-chain provenance and full deployment isolation are not yet
 implemented and must not be represented as complete acceptance of #103.
 
 ## Plugin Package Contract
