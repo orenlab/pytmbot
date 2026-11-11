@@ -129,7 +129,7 @@ Notes:
 
 Optional local Docker image vulnerability scanner. Disabled by default. To enable, specify the
 verified executable path, SHA-256 digest, an isolated local Docker socket,
-and a maintained offline vulnerability database. See [Plugins](plugins.md#trivy-experimental-opt-in)
+a maintained offline vulnerability database, and optionally a private persistent history file. See [Plugins](plugins.md#trivy-experimental-opt-in)
 for security requirements and configuration.
 
 #### `plugins_config.outline`
