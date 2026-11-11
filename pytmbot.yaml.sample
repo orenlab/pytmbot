@@ -204,6 +204,22 @@ plugins_config:
     # Monitor Docker containers and images
     monitor_docker: true  # true = monitor Docker, false = don't monitor
 
+  # Trivy local image vulnerability scanning (OPTIONAL; disabled by default)
+  # Requires --plugins trivy, enabled: true, a separately provisioned Trivy
+  # executable, a populated offline vulnerability DB, and an explicitly
+  # granted local Docker socket for the *scanner*.
+  # The bot's restricted Docker socket proxy may not support Trivy layer reads.
+  # Do not expose a privileged socket merely to enable this example.
+  # trivy:
+  #   enabled: false
+  #   executable: '/opt/trivy/bin/trivy'
+  #   docker_host: 'unix:///run/trivy/docker.sock'
+  #   cache_dir: '/var/cache/trivy'
+  #   timeout_seconds: 180
+  #   max_images: 20
+  #   max_queued_jobs: 2
+  #   max_report_bytes: 2097152
+
   # Outline VPN Plugin Configuration (OPTIONAL)
   # Remove this section entirely if not using Outline VPN
   outline:
