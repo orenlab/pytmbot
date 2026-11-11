@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
-import resource
+import select
+import signal
 import subprocess
-import tempfile
+import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -114,9 +115,63 @@ def parse_report(raw: bytes, *, image_id: str) -> ScanSummary:
     )
 
 
-def _constrain_output(max_bytes: int) -> None:
-    """POSIX/Linux child limit; Trivy cannot write an unbounded report."""
-    resource.setrlimit(resource.RLIMIT_FSIZE, (max_bytes, max_bytes))
+def _bounded_stdout(
+    argv: list[str], *,
+    env: dict[str, str], cwd: str,
+    timeout_seconds: int, max_bytes: int,
+) -> bytes:
+    """Read at most max_bytes from a subprocess; terminate on size or time.
+
+    Do not use preexec_fn: pyTMBot has other threads, and preexec_fn can
+    deadlock before exec. The OS/container must separately enforce CPU/RAM.
+    """
+    try:
+        proc = subprocess.Popen(
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, env=env, cwd=cwd,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise ScanError("Trivy executable could not start.") from error
+    chunks: list[bytes] = []
+    total = 0
+    deadline = time.monotonic() + timeout_seconds + 10
+    try:
+        assert proc.stdout is not None
+        fd = proc.stdout.fileno()
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ScanError("Trivy scan timed out.")
+            readable, _, _ = select.select([fd], [], [], min(1.0, remaining))
+            if not readable:
+                continue
+            chunk = os.read(fd, min(65536, max_bytes - total + 1))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise ScanError("Trivy report exceeds the configured size limit.")
+            chunks.append(chunk)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ScanError("Trivy scan timed out.")
+        try:
+            rc = proc.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as error:
+            raise ScanError("Trivy scan timed out.") from error
+        if rc != 0:
+            raise ScanError("Trivy failed. Check runner configuration and offline DB.")
+        return b"".join(chunks)
+    finally:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait(timeout=5)
+        if proc.stdout is not None:
+            proc.stdout.close()
 
 
 def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
@@ -144,7 +199,8 @@ def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
         "--format", "json", "--quiet", "--skip-db-update",
         "--skip-java-db-update", "--skip-check-update",
         "--skip-version-check", "--disable-telemetry",
-        "--list-all-pkgs=false", "--cache-dir", str(cache),
+        "--list-all-pkgs=false", "--offline-scan",
+        "--cache-dir", str(cache),
         "--timeout", f"{config.timeout_seconds}s",
         f"sha256:{image_id}",
     ]
@@ -158,30 +214,11 @@ def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
         "DOCKER_CONFIG": str(cache / "no-docker-credentials"),
         "TRIVY_DISABLE_TELEMETRY": "true",
     }
-    try:
-        with tempfile.TemporaryFile(mode="w+b") as output:
-            completed = subprocess.run(
-                argv,
-                stdin=subprocess.DEVNULL,
-                stdout=output,
-                stderr=subprocess.DEVNULL,
-                env=env,
-                timeout=config.timeout_seconds + 10,
-                check=False,
-                preexec_fn=lambda: _constrain_output(config.max_report_bytes),
-            )
-            if completed.returncode:
-                raise ScanError("Trivy failed. Check runner configuration and offline DB.")
-            if output.tell() > config.max_report_bytes:
-                raise ScanError("Trivy report exceeds the configured size limit.")
-            output.seek(0)
-            raw = output.read(config.max_report_bytes + 1)
-            if len(raw) > config.max_report_bytes:
-                raise ScanError("Trivy report exceeds the configured size limit.")
-    except subprocess.TimeoutExpired as error:
-        raise ScanError("Trivy scan timed out.") from error
-    except OSError as error:
-        raise ScanError("Trivy could not run in the configured environment.") from error
+    raw = _bounded_stdout(
+        argv, env=env, cwd=str(cache),
+        timeout_seconds=config.timeout_seconds,
+        max_bytes=config.max_report_bytes,
+    )
     return parse_report(raw, image_id=image_id)
 
 
