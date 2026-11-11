@@ -9,7 +9,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 from telebot import TeleBot
-from telebot.types import CallbackQuery, Message
+from telebot.types import CallbackQuery
 
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.trivy import plugin as plugin_module
