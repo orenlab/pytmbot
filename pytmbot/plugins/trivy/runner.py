@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -12,7 +13,7 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
@@ -61,13 +62,19 @@ def resolve_local_id(prefix: str, *, limit: int) -> str:
 class ScanSummary:
     image_id: str
     scanned_at: str
+    scanner_sha256: str
+    db_schema: int
+    db_updated_at: str
     counts: dict[str, int]
     fixable: int
     findings: tuple[tuple[str, str, str], ...]
     trivy_schema: int | None
 
 
-def parse_report(raw: bytes, *, image_id: str) -> ScanSummary:
+def parse_report(
+    raw: bytes, *, image_id: str,
+    scanner_sha256: str = "", db_schema: int = 0, db_updated_at: str = "",
+) -> ScanSummary:
     """Validate a bounded Trivy JSON report; never render arbitrary fields."""
     try:
         obj = json.loads(raw)
@@ -108,11 +115,59 @@ def parse_report(raw: bytes, *, image_id: str) -> ScanSummary:
     return ScanSummary(
         image_id=image_id,
         scanned_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        scanner_sha256=scanner_sha256,
+        db_schema=db_schema,
+        db_updated_at=db_updated_at,
         counts={severity: counts[severity] for severity in _SEVERITIES},
         fixable=fixable,
         findings=tuple(selected),
         trivy_schema=version if type(version) is int else None,
     )
+
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseInfo:
+    schema: int
+    updated_at: str
+
+
+def verify_scanner_binary(path: Path, expected_sha256: str) -> None:
+    """Fail closed if the executable differs from the operator-pinned hash."""
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        raise ScanError("Configured Trivy executable cannot be verified.") from error
+    if digest.hexdigest() != expected_sha256:
+        raise ScanError("Configured Trivy binary SHA-256 mismatch.")
+
+
+def read_database_metadata(cache: Path, *, max_age_hours: int) -> DatabaseInfo:
+    """Fail closed when the offline vulnerability DB is unavailable or stale."""
+    metadata = cache / "db" / "metadata.json"
+    database = cache / "db" / "trivy.db"
+    try:
+        if not database.is_file() or metadata.stat().st_size > 8192:
+            raise ScanError("Trivy vulnerability database metadata is unavailable.")
+        record = json.loads(metadata.read_bytes())
+        if not isinstance(record, dict):
+            raise ValueError("Expected object")
+        schema = record["Version"]
+        value = record["UpdatedAt"]
+        if type(schema) is not int or schema <= 0 or not isinstance(value, str):
+            raise ValueError("Invalid metadata fields")
+        updated = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if updated.tzinfo is None:
+            raise ValueError("Timestamp missing timezone")
+        age = datetime.now(UTC) - updated.astimezone(UTC)
+        if age < -timedelta(minutes=5) or age > timedelta(hours=max_age_hours):
+            raise ScanError("Trivy vulnerability database is stale or future-dated.")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ScanError("Trivy vulnerability database metadata is invalid.") from error
+    return DatabaseInfo(schema=schema, updated_at=updated.astimezone(UTC).isoformat())
 
 
 def _bounded_stdout(
@@ -193,6 +248,8 @@ def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
         raise ScanError("Configured local Docker socket is unavailable.")
     if not cache.is_dir():
         raise ScanError("Configured Trivy cache does not exist.")
+    verify_scanner_binary(binary, config.scanner_sha256)
+    database_info = read_database_metadata(cache, max_age_hours=config.max_db_age_hours)
     argv = [
         str(binary), "image", "--image-src", "docker",
         "--docker-host", config.docker_host, "--scanners", "vuln",
@@ -219,7 +276,10 @@ def scan_local_image(image_id: str, config: TrivyConfig) -> ScanSummary:
         timeout_seconds=config.timeout_seconds,
         max_bytes=config.max_report_bytes,
     )
-    return parse_report(raw, image_id=image_id)
+    return parse_report(
+        raw, image_id=image_id, scanner_sha256=config.scanner_sha256,
+        db_schema=database_info.schema, db_updated_at=database_info.updated_at,
+    )
 
 
 @dataclass(frozen=True, slots=True)
