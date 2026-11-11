@@ -73,7 +73,7 @@ Purpose:
 - admin-only results through existing Rich Messages; no Telegram Widgets required
 
 Requires both `--plugins trivy` **and** `plugins_config.trivy.enabled: true`. The
-configuration also requires absolute `executable`, `cache_dir`, and an explicit
+configuration also requires absolute `executable`, `cache_dir`, pinned `scanner_sha256`, and an explicit
 `unix:///...` `docker_host`. The plugin is a no-op when disabled.
 
 Security constraints:
@@ -95,8 +95,11 @@ Security constraints:
   temporary/cache disk limits.
 - No scans run until an admin opens `/trivy` in a private chat with a valid
   2FA session. Scan results are sent only to the originating private chat.
-- The vulnerability database is not maintained by this plugin. Its freshness
-  must be monitored externally; currently results do **not** prove DB freshness.
+- The vulnerability database is not maintained by this plugin. Missing or stale
+  `db/metadata.json` and missing `db/trivy.db` prevent scanning. The configured
+  `max_db_age_hours` applies to the database's authoritative `UpdatedAt` timestamp.
+  Scanner SHA-256, database schema, and database update time are included in
+  completed scan summaries; validate database authenticity during provisioning.
 - The optional plugin does not change Docker resources, fix CVEs, or restart
   containers. Zero findings must not be interpreted as proof of security.
 
@@ -108,6 +111,8 @@ Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
     executable: /opt/trivy/bin/trivy
     docker_host: unix:///run/trivy/docker.sock
     cache_dir: /var/cache/trivy
+    scanner_sha256: REPLACE_WITH_VERIFIED_64_CHAR_SHA256
+    max_db_age_hours: 48
     timeout_seconds: 180
     max_images: 20
     max_queued_jobs: 2
@@ -116,7 +121,7 @@ Configuration example (add under `plugins_config:` in `pytmbot.yaml`):
 
 This first version exposes an admin-only `/trivy` image picker, `Scan all`,
 a bounded single-worker queue, and vulnerability summaries. Persistent history,
-scheduler, verified DB provenance and full deployment isolation are not yet
+scheduler, fully verified DB supply-chain provenance and full deployment isolation are not yet
 implemented and must not be represented as complete acceptance of #103.
 
 ## Plugin Package Contract
