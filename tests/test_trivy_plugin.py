@@ -20,8 +20,8 @@ from pytmbot.globals import settings
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.trivy import plugin as plugin_module
 from pytmbot.plugins.trivy import runner
-from pytmbot.plugins.trivy.plugin import TrivyPlugin
 from pytmbot.plugins.trivy.history import HistoryError, ScanHistory
+from pytmbot.plugins.trivy.plugin import TrivyPlugin
 from pytmbot.plugins.trivy.runner import ScanError, ScanJob, ScanQueue, parse_report
 
 
