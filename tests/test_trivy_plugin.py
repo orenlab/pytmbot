@@ -202,4 +202,4 @@ def test_scanner_success_returns_bounded_output(tmp_path: Path) -> None:
         env={"PATH": "/usr/bin:/bin"}, cwd=str(tmp_path),
         timeout_seconds=1, max_bytes=32,
     )
-    assert raw == b"ok\\n"
+    assert raw == b"ok\n"
