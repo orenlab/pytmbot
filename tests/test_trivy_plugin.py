@@ -127,7 +127,9 @@ def test_http_scan_uses_only_local_image_id(monkeypatch: pytest.MonkeyPatch) -> 
     assert summary.counts["HIGH"] == 0
     assert len(requests) == 1
     assert requests[0].full_url == "http://trivy-worker:8090/v1/scan"
-    assert json.loads(requests[0].data) == {"image_id": f"sha256:{image_id}"}
+    payload = requests[0].data
+    assert isinstance(payload, bytes)
+    assert json.loads(payload) == {"image_id": f"sha256:{image_id}"}
     assert requests[0].get_header("Authorization") == "Bearer " + "x" * 48
 
 
