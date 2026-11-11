@@ -192,8 +192,10 @@ def _bounded_stdout(
     total = 0
     deadline = time.monotonic() + timeout_seconds + 10
     try:
-        assert proc.stdout is not None
-        fd = proc.stdout.fileno()
+        stdout = proc.stdout
+        if stdout is None:
+            raise ScanError("Trivy stdout pipe is unavailable.")
+        fd = stdout.fileno()
         while True:
             if cancel is not None and cancel.is_set():
                 raise ScanError("Trivy scan was cancelled.")
@@ -261,6 +263,8 @@ def scan_local_image(
         "--skip-java-db-update", "--skip-check-update",
         "--skip-version-check", "--disable-telemetry",
         "--list-all-pkgs=false", "--offline-scan",
+        "--parallel", "1",
+        "--max-image-size", f"{config.max_image_size_mb}MB",
         "--cache-dir", str(cache),
         "--timeout", f"{config.timeout_seconds}s",
         f"sha256:{image_id}",
