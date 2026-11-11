@@ -48,6 +48,17 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.trivy.yml \
             up -d --build trivy-docker-proxy trivy-db trivy-worker
 
+      - name: Inspect Trivy startup before the scan
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps --all
+          docker compose -f docker-compose.yml -f docker-compose.trivy.yml logs --tail=80 trivy-db trivy-docker-proxy
+          for service in trivy-db trivy-docker-proxy; do
+            state="$(docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps -a -q "${service}")"
+            docker inspect --format '{{.Name}} {{.State.Status}} {{.State.ExitCode}} {{.State.Error}}' "${state}"
+          done
+
       - name: Exercise Trivy client-server scanning on actual Docker image layers
         shell: bash
         run: |
@@ -65,7 +76,7 @@ jobs:
           token = open("/run/secrets/trivy_worker_token", encoding="utf-8").read().strip()
           base = "http://127.0.0.1:8090"
           headers = {"Authorization": "Bearer " + token}
-          deadline = time.monotonic() + 480
+          deadline = time.monotonic() + 75
           while True:
               try:
                   req = urllib.request.Request(base + "/v1/info", headers=headers)
