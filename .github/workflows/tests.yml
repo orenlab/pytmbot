@@ -71,7 +71,9 @@ jobs:
                   for idx, value in enumerate(obj[:100]):
                       walk(value, f"{prefix}[{idx}]")
 
-          for path in Path(".").glob("*codeclone*.json"):
+          for path in (Path(".cache/codeclone/report.json"), Path("codeclone.baseline.json")):
+              if not path.is_file():
+                  continue
               if path.stat().st_size > 10_000_000:
                   continue
               print(f"CodeClone report: {path}")
