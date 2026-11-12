@@ -12,7 +12,7 @@ import os
 import re
 import select
 import signal
-import subprocess
+import subprocess  # nosec B404 - isolated worker invokes a fixed Trivy CLI
 import time
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
@@ -109,7 +109,11 @@ def database_info(*, max_age_hours: int = MAX_DB_AGE_HOURS) -> dict[str, str | i
         raise ScanFailure("Trivy vulnerability database is unavailable")
     version = db.get("Version")
     updated = db.get("UpdatedAt")
-    if type(version) is not int or not isinstance(updated, str):
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or not isinstance(updated, str)
+    ):
         raise ScanFailure("Trivy vulnerability database metadata is invalid")
     try:
         parsed = datetime.fromisoformat(updated.replace("Z", "+00:00"))
@@ -165,10 +169,11 @@ def _scanner_args(image_id: str) -> list[str]:
 def _scanner_env() -> dict[str, str]:
     return {
         "PATH": "/usr/local/bin:/usr/bin:/bin",
-        "HOME": "/tmp",
-        "TMPDIR": "/tmp",
+        # Container-private tmpfs; never the host /tmp.
+        "HOME": "/tmp",  # nosec B108
+        "TMPDIR": "/tmp",  # nosec B108
         "LANG": "C",
-        "DOCKER_CONFIG": "/tmp/no-docker-credentials",
+        "DOCKER_CONFIG": "/tmp/no-docker-credentials",  # nosec B108
         "TRIVY_TOKEN": secret_file(
             os.environ.get("TRIVY_SERVER_TOKEN_FILE", "/run/secrets/trivy_server_token")
         ),
@@ -221,7 +226,7 @@ def bounded_scan(image_id: str) -> dict[str, Any]:
         # image_id is the Docker-canonical value returned by verified_image()
         # and always matches IMAGE_RE, so it cannot add command-line options.
         # codeql[py/command-line-injection]
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # nosec B603 - fixed argv, validated local ID
             _scanner_args(image_id),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -276,7 +281,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # Dispatched by BaseHTTPRequestHandler for request logging.
     # codeclone: ignore[dead-code]
-    def log_message(self, format: str, *args: object) -> None:
+    def log_message(self, format_: str, *args: object) -> None:
         # Do not log caller-controlled paths, authorization, image IDs or data.
         return
 
@@ -347,7 +352,7 @@ class Server(ThreadingHTTPServer):
 
 
 def main() -> None:
-    server = Server(("0.0.0.0", 8090), Handler)
+    server = Server(("0.0.0.0", 8090), Handler)  # nosec B104 - private network only
     server.api_token = token()
     server.serve_forever(poll_interval=0.5)
 

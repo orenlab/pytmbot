@@ -27,7 +27,6 @@ Maintenance release candidate with opt-in local Docker image vulnerability inspe
 
 - Not published. Production rollout requires verified scanner isolation, end-to-end Docker image scan and a successful development image build.
 
-
 ## [0.5.4] — 20261026
 
 Patch release with alert delivery, secret masking and Docker check fixes.

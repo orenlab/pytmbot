@@ -170,7 +170,9 @@ def parse_report(
         counts=counts,
         fixable=fixable,
         findings=selected,
-        trivy_schema=version if type(version) is int else None,
+        trivy_schema=version
+        if isinstance(version, int) and not isinstance(version, bool)
+        else None,
         vulnerability_ids=identifiers,
     )
 
@@ -239,7 +241,8 @@ def _report_provenance(
         raise ScanError("Trivy worker result is incomplete.")
     if (
         not isinstance(metadata, str)
-        or type(schema) is not int
+        or not isinstance(schema, int)
+        or isinstance(schema, bool)
         or not isinstance(version, str)
     ):
         raise ScanError("Trivy worker returned invalid provenance.")
