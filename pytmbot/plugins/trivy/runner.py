@@ -17,14 +17,14 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 from pytmbot.adapters.docker.client import docker_client_context
 from pytmbot.adapters.docker.images_info import list_images_tolerant
+from pytmbot.logs import Logger
 from pytmbot.models.settings_model import TrivyConfig
 
 _HTTP = build_opener(ProxyHandler({}))
+logger = Logger()
 
 _ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}\Z")
-_SEVERITIES: Final[tuple[str, ...]] = (
-    "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"
-)
+_SEVERITIES: Final[tuple[str, ...]] = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 
 
 class ScanError(Exception):
@@ -32,18 +32,23 @@ class ScanError(Exception):
 
 
 def local_image_ids(*, limit: int) -> list[str]:
-    """Return unique immutable Docker image IDs without pulling remote images."""
+    """Return up to ``limit`` unique immutable local Docker image IDs.
+
+    The configured limit bounds the Telegram menu and a "scan all" job. It is
+    not treated as a hard failure: a host with more local images still gets a
+    usable, deterministic (sorted) subset instead of losing the whole feature.
+    """
     with docker_client_context() as client:
         images = list_images_tolerant(client, include_intermediate=False)
-        identifiers = sorted({
-            image_id
-            for image in images
-            if (image_id := getattr(image, "id", "").removeprefix("sha256:"))
-            and _ID_PATTERN.fullmatch(image_id)
-        })
-    if len(identifiers) > limit:
-        raise ScanError(f"Image count exceeds configured limit ({limit}).")
-    return identifiers
+        identifiers = sorted(
+            {
+                image_id
+                for image in images
+                if (image_id := getattr(image, "id", "").removeprefix("sha256:"))
+                and _ID_PATTERN.fullmatch(image_id)
+            }
+        )
+    return identifiers[:limit]
 
 
 def resolve_local_id(prefix: str, *, limit: int) -> str:
@@ -92,7 +97,9 @@ def _severity(raw: object) -> str:
     return raw if isinstance(raw, str) and raw in _SEVERITIES else "UNKNOWN"
 
 
-def _selected_finding(vulnerability: dict[str, object], severity: str) -> tuple[str, str, str] | None:
+def _selected_finding(
+    vulnerability: dict[str, object], severity: str
+) -> tuple[str, str, str] | None:
     if severity not in ("CRITICAL", "HIGH"):
         return None
     identifier = vulnerability.get("VulnerabilityID")
@@ -133,8 +140,12 @@ def _aggregate_vulnerabilities(
 
 
 def parse_report(
-    raw: bytes, *, image_id: str,
-    scanner_version: str = "", db_schema: int = 0, db_updated_at: str = "",
+    raw: bytes,
+    *,
+    image_id: str,
+    scanner_version: str = "",
+    db_schema: int = 0,
+    db_updated_at: str = "",
 ) -> ScanSummary:
     """Validate a bounded Trivy JSON report; never render arbitrary fields."""
     try:
@@ -164,8 +175,6 @@ def parse_report(
     )
 
 
-
-
 def _private_token(path: str) -> str:
     """Read a Docker secret, never from a public config or inherited env."""
     try:
@@ -181,7 +190,9 @@ def _validate_local_image(image_id: str, config: TrivyConfig) -> None:
     if not _ID_PATTERN.fullmatch(image_id):
         raise ScanError("Invalid image ID.")
     if image_id not in local_image_ids(limit=config.max_images):
-        raise ScanError("Image is no longer installed.")
+        raise ScanError(
+            "Image is no longer installed or is outside the configured limit."
+        )
 
 
 def _http_scan(image_id: str, config: TrivyConfig) -> dict[str, object]:
@@ -207,13 +218,18 @@ def _http_scan(image_id: str, config: TrivyConfig) -> dict[str, object]:
         document = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as error:
         raise ScanError("Trivy worker returned invalid JSON.") from error
-    if not isinstance(document, dict) or document.get("image_id") != "sha256:" + image_id:
+    if (
+        not isinstance(document, dict)
+        or document.get("image_id") != "sha256:" + image_id
+    ):
         raise ScanError("Trivy worker result does not match the requested image.")
     return document
 
 
 def _report_provenance(
-    document: dict[str, object], *, max_age_hours: int,
+    document: dict[str, object],
+    *,
+    max_age_hours: int,
 ) -> tuple[dict[str, object], str, int, str]:
     report = document.get("report")
     metadata = document.get("db_updated_at")
@@ -221,7 +237,11 @@ def _report_provenance(
     version = document.get("scanner_version")
     if not isinstance(report, dict):
         raise ScanError("Trivy worker result is incomplete.")
-    if not isinstance(metadata, str) or type(schema) is not int or not isinstance(version, str):
+    if (
+        not isinstance(metadata, str)
+        or type(schema) is not int
+        or not isinstance(version, str)
+    ):
         raise ScanError("Trivy worker returned invalid provenance.")
     try:
         timestamp = datetime.fromisoformat(metadata.replace("Z", "+00:00"))
@@ -236,7 +256,10 @@ def _report_provenance(
 
 
 def scan_local_image(
-    image_id: str, config: TrivyConfig, *, cancel: Event | None = None,
+    image_id: str,
+    config: TrivyConfig,
+    *,
+    cancel: Event | None = None,
 ) -> ScanSummary:
     """Send only an immutable local image ID to the private authenticated worker."""
     if cancel is not None and cancel.is_set():
@@ -244,13 +267,17 @@ def scan_local_image(
     _validate_local_image(image_id, config)
     document = _http_scan(image_id, config)
     report, version, schema, metadata = _report_provenance(
-        document, max_age_hours=config.max_db_age_hours,
+        document,
+        max_age_hours=config.max_db_age_hours,
     )
     if cancel is not None and cancel.is_set():
         raise ScanError("Trivy scan cancelled.")
     return parse_report(
-        json.dumps(report).encode("utf-8"), image_id=image_id,
-        scanner_version=version, db_schema=schema, db_updated_at=metadata,
+        json.dumps(report).encode("utf-8"),
+        image_id=image_id,
+        scanner_version=version,
+        db_schema=schema,
+        db_updated_at=metadata,
     )
 
 
@@ -297,10 +324,17 @@ class ScanQueue:
                         break
                     try:
                         summary = scan_local_image(
-                            image_id, self.config, cancel=self._stop,
+                            image_id,
+                            self.config,
+                            cancel=self._stop,
                         )
-                    except Exception:
+                    except Exception as error:
                         # Docker transport, Trivy and parsing failures are not zero CVEs.
+                        logger.warning(
+                            "bot.plugins.trivy.scan.fail",
+                            image_prefix=image_id[:12],
+                            error_type=type(error).__name__,
+                        )
                         summary = None
                     try:
                         self.publish(
@@ -308,9 +342,12 @@ class ScanQueue:
                             "complete" if summary is not None else "failed",
                             summary,
                         )
-                    except Exception:
+                    except Exception as error:
                         # Telegram delivery failures must not kill the scan worker.
-                        pass
+                        logger.warning(
+                            "bot.plugins.trivy.publish.fail",
+                            error_type=type(error).__name__,
+                        )
             finally:
                 self._jobs.task_done()
 

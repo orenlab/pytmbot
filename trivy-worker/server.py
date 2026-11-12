@@ -30,9 +30,11 @@ DOCKER_HOST = "tcp://trivy-docker-proxy:2375"
 IMAGE_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 HTTP = build_opener(ProxyHandler({}))
 GUARD = BoundedSemaphore(value=1)
+# Hard limits shared with pytmbot.plugins.trivy.runner / TrivyConfig.
 MAX_REPORT_BYTES = 2_097_152
 MAX_IMAGE_MB = 1024
 TIMEOUT = 180
+MAX_DB_AGE_HOURS = 48
 
 
 class ScanFailure(Exception):
@@ -40,28 +42,39 @@ class ScanFailure(Exception):
 
 
 def secret_file(path: str) -> str:
-    value = Path(path).read_text(encoding="utf-8").strip()
+    try:
+        value = Path(path).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise ValueError("Trivy worker secret is unavailable") from exc
     if len(value) < 32 or len(value) > 256:
         raise ValueError("Trivy worker token must contain 32-256 characters")
     return value
 
 
 def token() -> str:
-    return secret_file(os.environ.get(
-        "TRIVY_WORKER_TOKEN_FILE", "/run/secrets/trivy_worker_token"
-    ))
+    return secret_file(
+        os.environ.get("TRIVY_WORKER_TOKEN_FILE", "/run/secrets/trivy_worker_token")
+    )
 
 
 def _get_json(url: str, *, limit: int = 8192) -> dict[str, Any]:
     try:
-        with HTTP.open(Request(
-            url, method="GET",
-            headers={"Trivy-Token": secret_file(
-                os.environ.get(
-                    "TRIVY_SERVER_TOKEN_FILE", "/run/secrets/trivy_server_token"
-                )
-            )} if url.startswith(TRIVY_SERVER + "/") else {},
-        ), timeout=5) as response:
+        with HTTP.open(
+            Request(
+                url,
+                method="GET",
+                headers={
+                    "Trivy-Token": secret_file(
+                        os.environ.get(
+                            "TRIVY_SERVER_TOKEN_FILE", "/run/secrets/trivy_server_token"
+                        )
+                    )
+                }
+                if url.startswith(TRIVY_SERVER + "/")
+                else {},
+            ),
+            timeout=5,
+        ) as response:
             if response.status != 200:
                 raise ScanFailure("Trivy dependency returned an HTTP error")
             raw = response.read(limit + 1)
@@ -75,16 +88,21 @@ def _get_json(url: str, *, limit: int = 8192) -> dict[str, Any]:
         raise ScanFailure("Trivy dependency is unavailable") from exc
 
 
-def verified_image(image_id: str) -> None:
+def verified_image(image_id: str) -> str:
+    """Return the Docker-canonical ID after verifying it is locally installed."""
     if not IMAGE_RE.fullmatch(image_id):
         raise ScanFailure("Invalid immutable local image ID")
     path = quote(image_id, safe=":")
     obj = _get_json(f"{DOCKER_API}/images/{path}/json", limit=262144)
-    if obj.get("Id") != image_id:
+    canonical = obj.get("Id")
+    if canonical != image_id or not isinstance(canonical, str):
         raise ScanFailure("Image no longer matches requested local ID")
+    if not IMAGE_RE.fullmatch(canonical):
+        raise ScanFailure("Docker returned an invalid image ID")
+    return canonical
 
 
-def database_info(*, max_age_hours: int = 48) -> dict[str, str | int]:
+def database_info(*, max_age_hours: int = MAX_DB_AGE_HOURS) -> dict[str, str | int]:
     info = _get_json(f"{TRIVY_SERVER}/version")
     db = info.get("VulnerabilityDB")
     if not isinstance(db, dict):
@@ -111,14 +129,36 @@ def database_info(*, max_age_hours: int = 48) -> dict[str, str | int]:
 
 def _scanner_args(image_id: str) -> list[str]:
     return [
-        "trivy", "image", "--server", TRIVY_SERVER, "--image-src", "docker",
-        "--docker-host", DOCKER_HOST, "--format", "json", "--scanners", "vuln",
-        "--quiet", "--no-progress", "--offline-scan",
-        "--config", "/dev/null", "--ignorefile", "/dev/null",
-        "--exit-code", "0", "--parallel", "1",
-        "--max-image-size", f"{MAX_IMAGE_MB}MB",
-        "--skip-check-update", "--disable-telemetry",
-        "--timeout", f"{TIMEOUT}s", image_id,
+        "trivy",
+        "image",
+        "--server",
+        TRIVY_SERVER,
+        "--image-src",
+        "docker",
+        "--docker-host",
+        DOCKER_HOST,
+        "--format",
+        "json",
+        "--scanners",
+        "vuln",
+        "--quiet",
+        "--no-progress",
+        "--offline-scan",
+        "--config",
+        "/dev/null",
+        "--ignorefile",
+        "/dev/null",
+        "--exit-code",
+        "0",
+        "--parallel",
+        "1",
+        "--max-image-size",
+        f"{MAX_IMAGE_MB}MB",
+        "--skip-check-update",
+        "--disable-telemetry",
+        "--timeout",
+        f"{TIMEOUT}s",
+        image_id,
     ]
 
 
@@ -174,10 +214,20 @@ def _stop_scanner(proc: subprocess.Popen[bytes]) -> None:
 def bounded_scan(image_id: str) -> dict[str, Any]:
     """Run a single Docker-only image scan with bounded time and output."""
     try:
+        env = _scanner_env()
+    except (OSError, ValueError) as exc:
+        raise ScanFailure("Trivy scanner credentials are unavailable") from exc
+    try:
+        # image_id is the Docker-canonical value returned by verified_image()
+        # and always matches IMAGE_RE, so it cannot add command-line options.
+        # codeql[py/command-line-injection]
         proc = subprocess.Popen(
             _scanner_args(image_id),
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, env=_scanner_env(), cwd="/",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            cwd="/",
             start_new_session=True,
         )
     except OSError as exc:
@@ -214,11 +264,11 @@ def _parse_scan_request(handler: BaseHTTPRequestHandler) -> str:
 
 
 def _scan_result(image_id: str) -> dict[str, object]:
-    verified_image(image_id)
+    canonical_id = verified_image(image_id)
     info = database_info()
-    report = bounded_scan(image_id)
-    verified_image(image_id)
-    return {"image_id": image_id, **info, "report": report}
+    report = bounded_scan(canonical_id)
+    verified_image(canonical_id)
+    return {"image_id": canonical_id, **info, "report": report}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -237,11 +287,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError):
+            # The caller went away; do not emit a traceback from the server thread.
+            return
 
     def _authorized(self) -> bool:
         header = self.headers.get("Authorization", "")
-        return hmac.compare_digest(header, "Bearer " + cast(Server, self.server).api_token)
+        return hmac.compare_digest(
+            header, "Bearer " + cast(Server, self.server).api_token
+        )
 
     # Dispatched dynamically by BaseHTTPRequestHandler.
     # codeclone: ignore[dead-code]

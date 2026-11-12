@@ -6,6 +6,8 @@ import json
 import os
 import sqlite3
 import stat
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -24,8 +26,10 @@ class HistoryDelta:
 
 
 def _prepare_storage(path: Path) -> None:
+    if not path.parent.is_dir():
+        raise HistoryError("Trivy history directory does not exist.")
     directory_mode = path.parent.stat().st_mode
-    if not path.parent.is_dir() or directory_mode & (stat.S_IWGRP | stat.S_IWOTH):
+    if directory_mode & (stat.S_IWGRP | stat.S_IWOTH):
         raise HistoryError("Trivy history directory must be private.")
     if path.is_symlink():
         raise HistoryError("Trivy history must not be a symlink.")
@@ -47,7 +51,10 @@ def _check_existing_file(path: Path) -> None:
 
 
 def _decode_snapshot(raw: str) -> ScanSummary:
-    obj: dict[str, Any] = json.loads(raw)
+    decoded = json.loads(raw)
+    if not isinstance(decoded, dict):
+        raise ValueError("Invalid Trivy history payload.")
+    obj: dict[str, Any] = decoded
     return ScanSummary(
         **{
             **obj,
@@ -78,18 +85,30 @@ class ScanHistory:
         except (OSError, sqlite3.Error) as error:
             raise HistoryError("Trivy scan history storage is unavailable.") from error
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         db = sqlite3.connect(str(self.path), timeout=2)
-        db.execute("PRAGMA busy_timeout=2000")
-        db.execute("PRAGMA synchronous=FULL")
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=2000")
+            db.execute("PRAGMA synchronous=FULL")
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     @staticmethod
-    def _new_ids(previous: tuple[str] | None, summary: ScanSummary) -> tuple[str, ...]:
+    def _new_ids(
+        previous: tuple[str, ...] | None, summary: ScanSummary
+    ) -> tuple[str, ...]:
         if previous is None:
             return ()
         old = _decode_snapshot(previous[0])
-        return tuple(sorted(set(summary.vulnerability_ids) - set(old.vulnerability_ids)))
+        return tuple(
+            sorted(set(summary.vulnerability_ids) - set(old.vulnerability_ids))
+        )
 
     def append(self, summary: ScanSummary) -> HistoryDelta:
         """Compare with the last completed snapshot and store the new result."""
@@ -113,8 +132,10 @@ class ScanHistory:
                     (self.max_records,),
                 )
             return HistoryDelta(previous=previous is not None, new_ids=delta)
-        except (sqlite3.Error, ValueError, TypeError, KeyError) as error:
-            raise HistoryError("Unable to store verified Trivy scan history.") from error
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError) as error:
+            raise HistoryError(
+                "Unable to store verified Trivy scan history."
+            ) from error
 
     def recent(self, *, limit: int = 8) -> list[ScanSummary]:
         try:
@@ -124,5 +145,5 @@ class ScanHistory:
                     (max(1, min(limit, 16)),),
                 ).fetchall()
             return [_decode_snapshot(row[0]) for row in rows]
-        except (sqlite3.Error, ValueError, TypeError, KeyError) as error:
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError) as error:
             raise HistoryError("Unable to load Trivy scan history.") from error

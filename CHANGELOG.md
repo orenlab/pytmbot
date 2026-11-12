@@ -6,16 +6,22 @@ Maintenance release candidate with opt-in local Docker image vulnerability inspe
 
 ### Added
 
-- Optional Trivy image scanner: admin-only scan selection in Telegram, local-image checks, concise vulnerability summaries, bounded background jobs, and optional private scan history with CVE changes.
+- Optional Trivy image scanner: admin-only scan selection in Telegram, a `/plugins` button, local-image checks, concise vulnerability summaries, bounded background jobs, and optional private scan history with CVE changes.
 
 ### Security
 
-- Trivy runs in a separate container behind a private authenticated HTTP API; vulnerability database freshness is validated before scanning.
+- Trivy runs in a separate container behind a private authenticated HTTP API; vulnerability database freshness is validated before scanning. The official Trivy server and Docker socket proxy images are pinned by manifest-list digest.
 - Scans use Docker-only local image IDs and cannot pull images, update containers, or apply fixes. The Trivy server automatically maintains its own CVE database.
+
+### Fixed
+
+- Trivy discovery no longer disables scanning on hosts with more local images than `max_images`; the menu and "scan all" use a deterministic sorted subset.
+- The Trivy configuration now enforces the worker's real maxima for database age, timeout and report size.
+- Scan history connections are closed deterministically, and scan/publish failures are logged with a bounded error category.
 
 ### Changed
 
-- Updated Python dependency lockfile and CodeClone to 2.0.3; refreshed compatible dependencies and development tools.
+- Updated Python dependency lockfile and CodeClone to 2.0.3; refreshed compatible dependencies and development tools, including `python-dateutil` 4, FastAPI 0.162 and Starlette 1.10.
 
 ### Release status
 

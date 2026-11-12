@@ -100,6 +100,8 @@ def test_webhook_config_trusted_proxy_ips_normalization_and_validation() -> None
         ("0.5.3", "0.5.3", False),
         ("0.5.3", "0.5.4", True),
         ("0.5.4", "0.5.4", False),
+        ("0.5.4", "0.5.5", True),
+        ("0.5.5", "0.5.5", False),
     ],
 )
 def test_config_migrator_validate_compatibility(

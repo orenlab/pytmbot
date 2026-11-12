@@ -95,6 +95,8 @@ Deployment:
      enabled: true
      endpoint: http://trivy-worker:8090
      token_file: /run/secrets/trivy_worker_token
+     # Optional private history; mount a persistent volume for this path.
+     # history_file: /opt/app/state/trivy-history.sqlite
      max_db_age_hours: 48
      timeout_seconds: 180
      max_images: 20
@@ -102,11 +104,21 @@ Deployment:
      max_report_bytes: 2097152
    ```
 
-4. Deploy with `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`.
-   In Telegram, use `/trivy`. Optional persistent history may be enabled with
-   `history_file`, but requires a separate persistent private directory.
+   The worker enforces the same hard maxima: `max_db_age_hours` 1–48,
+   `timeout_seconds` 10–180 and `max_report_bytes` up to 2 MiB. `max_images`
+   bounds the Telegram menu and a "scan all" job; hosts with more images get a
+   deterministic sorted subset instead of a failed discovery.
 
-The Compose overlay provides an official versioned Trivy 0.76.2 server,
+4. Deploy with `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`.
+   In Telegram, use `/trivy` or the **Trivy scans** button in `/plugins`.
+   Optional persistent history may be enabled with `history_file`, but requires
+   a separate persistent private directory.
+
+   The overlay replaces the `pytmbot` service `command`. If your base Compose
+   file already loads other plugins, list them all explicitly, for example
+   `command: ["--log-level", "INFO", "--plugins", "monitor,trivy"]`.
+
+The Compose overlay provides a digest-pinned official Trivy 0.76.2 server,
 a small HTTP worker derived from the official Trivy image, and a Docker
 socket proxy restricted to image reads and with POST disabled. Trivy server
 automatically downloads and updates the vulnerability database to its own
@@ -125,13 +137,18 @@ Security notes:
   Restrict access to the worker's network and host; review residual risks
   before installing this overlay on a production host.
 - CPU, memory, process count, temporary disk, scan duration, worker queue and
-  report sizes are bounded. The Trivy server needs outbound access to maintain
-  its database; the worker and the Docker proxy are not published publicly.
+  report sizes are bounded. The worker scans at most 1 GiB per image and fails
+  closed when the Trivy report exceeds 2 MiB. The Trivy server needs outbound
+  access to maintain its database; its `/tmp` extraction space is configurable
+  with `TRIVY_DB_TMPFS_SIZE` (default `768m`). The worker and the Docker proxy
+  are not published publicly.
+- `/healthz` in the worker is unauthenticated by design and only reports
+  liveness. Keep the `trivy_control` network private; never publish port 8090.
 - Trivy results indicate **known** vulnerabilities, not proof of exploitation
   or complete security. Failures and stale CVE databases must not be reported
   as clean scans.
-- `0.5.5` is still a release candidate. This integration requires a real
-  end-to-end container/image-layer scan before the production gate can pass.
+- `0.5.5` is still a release candidate. Run the real end-to-end
+  `Trivy Docker Integration` workflow before the production gate can pass.
 
 ## Plugin Package Contract
 

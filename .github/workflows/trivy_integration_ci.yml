@@ -3,12 +3,22 @@ name: Trivy Docker Integration
 on:
   push:
     branches:
+      - master
       - feat/trivy-image-scanning-103
     paths:
       - trivy-worker/**
       - docker-compose.trivy.yml
       - .github/workflows/trivy_integration_ci.yml
+  pull_request:
+    paths:
+      - trivy-worker/**
+      - docker-compose.trivy.yml
+      - .github/workflows/trivy_integration_ci.yml
   workflow_dispatch:
+
+concurrency:
+  group: trivy-integration-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

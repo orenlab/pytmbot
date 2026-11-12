@@ -206,10 +206,14 @@ plugins_config:
 
   # Optional Trivy scanner container integration (see docker-compose.trivy.yml).
   # No local binary or CVE database is needed in pyTMBot.
+  # The worker enforces the same maxima: max_db_age_hours<=48,
+  # timeout_seconds<=180, max_report_bytes<=2097152.
   # trivy:
   #   enabled: false
   #   endpoint: 'http://trivy-worker:8090'
   #   token_file: '/run/secrets/trivy_worker_token'
+  #   # Optional private scan history; mount a persistent volume for this path.
+  #   # history_file: '/opt/app/state/trivy-history.sqlite'
   #   max_db_age_hours: 48
   #   timeout_seconds: 180
   #   max_images: 20

@@ -1,6 +1,7 @@
 # Optional extension: docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build
 # Configure plugins_config.trivy in pytmbot.yaml and create both secrets before enabling.
 # No ports published to the host. All image access is isolated behind a GET-only Docker API proxy.
+# Third-party images are pinned by tag + manifest-list digest; update both together.
 services:
   pytmbot:
     command: ["--log-level", "INFO", "--plugins", "trivy"]
@@ -43,7 +44,7 @@ services:
       - trivy_docker
 
   trivy-db:
-    image: aquasec/trivy:0.76.2
+    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
     restart: unless-stopped
     group_add:
       - "1001"  # read the group-private server authentication secret
@@ -65,7 +66,7 @@ services:
     tmpfs:
       # The downloaded OCI vulnerability database is unpacked under /tmp.
       # 128 MiB is insufficient for the full vulnerability database.
-      - /tmp:rw,noexec,nosuid,nodev,size=768m
+      - /tmp:rw,noexec,nosuid,nodev,size=${TRIVY_DB_TMPFS_SIZE:-768m}
     pids_limit: 80
     cpus: 1.0
     mem_limit: 2g
@@ -74,7 +75,7 @@ services:
       - trivy_db_egress
 
   trivy-docker-proxy:
-    image: tecnativa/docker-socket-proxy:v0.5.0
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     restart: unless-stopped
     environment:
       CONTAINERS: "0"

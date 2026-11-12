@@ -15,6 +15,8 @@ from telebot.types import (
 
 from pytmbot.globals import get_session_manager, settings
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
+from pytmbot.keyboards.keyboards import reply_button_pattern
+from pytmbot.logs import Logger
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.plugin_interface import PluginInterface
 from pytmbot.plugins.trivy.history import HistoryError, ScanHistory
@@ -28,7 +30,7 @@ from pytmbot.plugins.trivy.runner import (
 )
 
 _CALLBACK_PREFIX: Final[str] = "trivy_scan:"
-_MAX_BUTTONS: Final[int] = 20
+_BUTTON_LABEL: Final[str] = "Trivy scans"
 
 
 # Dynamically discovered by PluginManager; not referenced by static handlers.
@@ -38,6 +40,7 @@ class TrivyPlugin(PluginInterface):
 
     def __init__(self, bot: TeleBot) -> None:
         super().__init__(bot)
+        self.plugin_logger = Logger()
         plugins = settings.plugins_config
         self._config: TrivyConfig | None = plugins.trivy if plugins else None
         self._queue: ScanQueue | None = None
@@ -68,33 +71,49 @@ class TrivyPlugin(PluginInterface):
             self._reply(message.chat.id, "<p>Open Trivy scans in a private chat.</p>")
             return
         if not self._authorized(user_id, message.chat.type):
-            self._reply(message.chat.id, "<p>Admin access and a verified 2FA session are required.</p>")
+            self._reply(
+                message.chat.id,
+                "<p>Admin access and a verified 2FA session are required.</p>",
+            )
             return
-        assert user_id is not None
+        if user_id is None:
+            return
         config = self._config
         if config is None or not config.enabled or self._queue is None:
             self._reply(message.chat.id, "<p>Trivy scanning is not enabled.</p>")
             return
         try:
             image_ids = local_image_ids(limit=config.max_images)
-        except ScanError:
-            self._reply(message.chat.id, "<p>Too many local images or image discovery failed.</p>")
+        except ScanError as error:
+            self.plugin_logger.warning(
+                "bot.plugins.trivy.discovery.fail",
+                error_type=type(error).__name__,
+            )
+            self._reply(message.chat.id, "<p>Docker image discovery failed.</p>")
             return
-        except Exception:
-            self._reply(message.chat.id, "<p>Docker image discovery is unavailable.</p>")
+        except Exception as error:
+            self.plugin_logger.error(
+                "bot.plugins.trivy.discovery.unexpected",
+                error_type=type(error).__name__,
+            )
+            self._reply(
+                message.chat.id, "<p>Docker image discovery is unavailable.</p>"
+            )
             return
         if not image_ids:
             self._reply(message.chat.id, "<p>No local Docker images were found.</p>")
             return
         keyboard = InlineKeyboardMarkup(row_width=1)
-        for image_id in image_ids[:_MAX_BUTTONS]:
+        for image_id in image_ids:
             keyboard.add(self._button(image_id[:12], user_id, f"Scan {image_id[:12]}"))
-        keyboard.add(self._button("all", user_id, "Scan all local images"))
+        keyboard.add(self._button("all", user_id, "Scan all listed images"))
         send_rich_main_message(
-            self.bot, message.chat.id,
+            self.bot,
+            message.chat.id,
             "<p><b>Trivy — local image scan</b></p>"
             "<p>Read-only vulnerability assessment. No image pull or remediation.</p>"
-            f"<p>{len(image_ids)} verified local images. Select a target:</p>",
+            f"<p>{len(image_ids)} verified local images (limit "
+            f"{config.max_images}). Select a target:</p>",
             reply_markup=keyboard,
         )
 
@@ -102,25 +121,38 @@ class TrivyPlugin(PluginInterface):
         user = call.from_user
         message = call.message
         if user is None or message is None:
-            self.bot.answer_callback_query(call.id, text="Invalid scan request.", show_alert=True)
+            self.bot.answer_callback_query(
+                call.id, text="Invalid scan request.", show_alert=True
+            )
             return
         user_id = int(user.id)
-        if not self._authorized(user_id, message.chat.type) or message.chat.id != user_id:
-            self.bot.answer_callback_query(call.id, text="Admin 2FA required.", show_alert=True)
+        if (
+            not self._authorized(user_id, message.chat.type)
+            or message.chat.id != user_id
+        ):
+            self.bot.answer_callback_query(
+                call.id, text="Admin 2FA required.", show_alert=True
+            )
             return
         data = call.data or ""
         parts = data.split(":")
         if (
-            len(parts) != 3 or parts[0] != "trivy_scan"
-            or not parts[2].isascii() or not parts[2].isdigit()
+            len(parts) != 3
+            or parts[0] != "trivy_scan"
+            or not parts[2].isascii()
+            or not parts[2].isdigit()
             or int(parts[2]) != user_id
         ):
-            self.bot.answer_callback_query(call.id, text="This scan button is not yours.", show_alert=True)
+            self.bot.answer_callback_query(
+                call.id, text="This scan button is not yours.", show_alert=True
+            )
             return
         config = self._config
         queue = self._queue
         if config is None or not config.enabled or queue is None:
-            self.bot.answer_callback_query(call.id, text="Trivy is disabled.", show_alert=True)
+            self.bot.answer_callback_query(
+                call.id, text="Trivy is disabled.", show_alert=True
+            )
             return
         try:
             if parts[1] == "all":
@@ -129,31 +161,61 @@ class TrivyPlugin(PluginInterface):
                 image_ids = (resolve_local_id(parts[1], limit=config.max_images),)
             if not image_ids:
                 raise ScanError("No images found.")
-        except Exception:
-            self.bot.answer_callback_query(call.id, text="Image selection expired. Refresh /trivy.", show_alert=True)
+        except ScanError as error:
+            self.plugin_logger.warning(
+                "bot.plugins.trivy.selection.fail",
+                error_type=type(error).__name__,
+            )
+            self.bot.answer_callback_query(
+                call.id,
+                text="Image selection expired. Refresh /trivy.",
+                show_alert=True,
+            )
+            return
+        except Exception as error:
+            self.plugin_logger.error(
+                "bot.plugins.trivy.selection.unexpected",
+                error_type=type(error).__name__,
+            )
+            self.bot.answer_callback_query(
+                call.id,
+                text="Image selection is unavailable. Refresh /trivy.",
+                show_alert=True,
+            )
             return
         job = ScanJob(chat_id=message.chat.id, user_id=user_id, image_ids=image_ids)
         if not queue.submit(job):
-            self.bot.answer_callback_query(call.id, text="Scan queue is full.", show_alert=True)
+            self.bot.answer_callback_query(
+                call.id, text="Scan queue is full.", show_alert=True
+            )
             return
         self.bot.answer_callback_query(call.id, text="Scan queued.")
-        self._reply(message.chat.id, f"<p>Queued {len(image_ids)} local image scan(s).</p>")
+        self._reply(
+            message.chat.id, f"<p>Queued {len(image_ids)} local image scan(s).</p>"
+        )
 
     def handle_history(self, message: Message) -> None:
         """Show recent completed scans only to authenticated admins."""
         user = message.from_user
         user_id = int(user.id) if user else None
-        if not self._authorized(user_id, message.chat.type) or message.chat.id != user_id:
+        if (
+            not self._authorized(user_id, message.chat.type)
+            or message.chat.id != user_id
+        ):
             self._reply(message.chat.id, "<p>Admin access and 2FA are required.</p>")
             return
         history = self._history
         if history is None:
-            self._reply(message.chat.id, "<p>Persistent scan history is not configured.</p>")
+            self._reply(
+                message.chat.id, "<p>Persistent scan history is not configured.</p>"
+            )
             return
         try:
             recent = history.recent()
         except HistoryError:
-            self._reply(message.chat.id, "<p>Scan history is currently unavailable.</p>")
+            self._reply(
+                message.chat.id, "<p>Scan history is currently unavailable.</p>"
+            )
             return
         if not recent:
             self._reply(message.chat.id, "<p>No completed Trivy scans yet.</p>")
@@ -161,31 +223,47 @@ class TrivyPlugin(PluginInterface):
         entries = "".join(
             f"<li>{escape(scan.scanned_at[:19])}: "
             f"{escape(scan.image_id[:12])} — "
-            f"{scan.counts['CRITICAL']} critical, {scan.counts['HIGH']} high</li>"
+            f"{scan.counts.get('CRITICAL', 0)} critical, "
+            f"{scan.counts.get('HIGH', 0)} high</li>"
             for scan in recent
         )
-        self._reply(message.chat.id, f"<p><b>Recent vulnerability scans</b></p><ul>{entries}</ul>")
+        self._reply(
+            message.chat.id,
+            f"<p><b>Recent vulnerability scans</b></p><ul>{entries}</ul>",
+        )
 
     def _publish(self, job: ScanJob, status: str, summary: ScanSummary | None) -> None:
         # Recheck admin status before publishing a background result.
         if job.chat_id != job.user_id or not self._authorized(job.user_id, "private"):
             return
         if status != "complete" or summary is None:
-            self._reply(job.chat_id, "<p>Trivy scan failed. No security result is available.</p>")
+            self._reply(
+                job.chat_id,
+                "<p>Trivy scan failed. No security result is available.</p>",
+            )
             return
         delta_html = ""
         if self._history is not None:
             try:
                 delta = self._history.append(summary)
-            except HistoryError:
-                self._reply(job.chat_id, "<p>Scan completed but audit storage failed; results are withheld.</p>")
+            except HistoryError as error:
+                self.plugin_logger.error(
+                    "bot.plugins.trivy.history.append.fail",
+                    error_type=type(error).__name__,
+                )
+                self._reply(
+                    job.chat_id,
+                    "<p>Scan completed but audit storage failed; results are withheld.</p>",
+                )
                 return
             if delta.previous:
                 delta_html = f"<p>New vulnerability IDs since previous scan: {len(delta.new_ids)}</p>"
                 if delta.new_ids:
-                    delta_html += "<p>" + ", ".join(
-                        escape(item) for item in delta.new_ids[:5]
-                    ) + "</p>"
+                    delta_html += (
+                        "<p>"
+                        + ", ".join(escape(item) for item in delta.new_ids[:5])
+                        + "</p>"
+                    )
             else:
                 delta_html = "<p>First scan recorded as baseline.</p>"
         counts = summary.counts
@@ -211,8 +289,12 @@ class TrivyPlugin(PluginInterface):
         )
         try:
             self._reply(job.chat_id, content)
-        except Exception:
+        except Exception as error:
             # Do not allow a Telegram delivery failure to terminate the worker.
+            self.plugin_logger.warning(
+                "bot.plugins.trivy.publish.fail",
+                error_type=type(error).__name__,
+            )
             return
 
     def register(self) -> None:
@@ -223,7 +305,12 @@ class TrivyPlugin(PluginInterface):
             self._history = ScanHistory(config.history_file)
         self._queue = ScanQueue(config, self._publish)
         self.bot.register_message_handler(self.handle_menu, commands=["trivy"])
-        self.bot.register_message_handler(self.handle_history, commands=["trivy_history"])
+        self.bot.register_message_handler(
+            self.handle_menu, regexp=reply_button_pattern(_BUTTON_LABEL)
+        )
+        self.bot.register_message_handler(
+            self.handle_history, commands=["trivy_history"]
+        )
         self.bot.register_callback_query_handler(
             self.handle_scan,
             func=lambda call: bool(

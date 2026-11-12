@@ -1,6 +1,6 @@
 # Containerized, pinned Trivy scanner with a minimal private HTTP adapter.
 # No Trivy executable or database is installed in the pyTMBot container.
-FROM aquasec/trivy:0.76.2
+FROM aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
 
 RUN apk add --no-cache python3 && \
     addgroup -S -g 10001 trivyworker && \

@@ -11,7 +11,9 @@ import warnings
 from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
+from pathlib import Path
 from typing import ClassVar, Final
+from urllib.parse import urlsplit
 
 from packaging import version
 from pydantic import (
@@ -242,17 +244,15 @@ class TrivyConfig(BaseModel):
     endpoint: str = "http://trivy-worker:8090"
     token_file: str = "/run/secrets/trivy_worker_token"
     history_file: str | None = None
-    max_db_age_hours: int = Field(default=48, ge=1, le=168)
-    timeout_seconds: int = Field(default=180, ge=10, le=600)
+    # The worker enforces the same hard maxima (see trivy-worker/server.py).
+    max_db_age_hours: int = Field(default=48, ge=1, le=48)
+    timeout_seconds: int = Field(default=180, ge=10, le=180)
     max_images: int = Field(default=20, ge=1, le=50)
     max_queued_jobs: int = Field(default=2, ge=1, le=4)
-    max_report_bytes: int = Field(default=2_097_152, ge=8192, le=16_777_216)
+    max_report_bytes: int = Field(default=2_097_152, ge=8192, le=2_097_152)
 
     @model_validator(mode="after")
     def validate_runner_paths(self) -> "TrivyConfig":
-        from pathlib import Path
-        from urllib.parse import urlsplit
-
         parts = urlsplit(self.endpoint)
         if (
             parts.scheme != "http"
@@ -261,9 +261,12 @@ class TrivyConfig(BaseModel):
             or parts.username is not None
             or parts.password is not None
             or parts.path not in ("", "/")
-            or parts.query or parts.fragment
+            or parts.query
+            or parts.fragment
         ):
-            raise ValueError("Trivy endpoint must be the private trivy-worker:8090 service")
+            raise ValueError(
+                "Trivy endpoint must be the private trivy-worker:8090 service"
+            )
         for name, value in (
             ("token_file", self.token_file),
             ("history_file", self.history_file),
@@ -271,7 +274,9 @@ class TrivyConfig(BaseModel):
             if value is not None:
                 target = Path(value)
                 if not target.is_absolute() or ".." in target.parts:
-                    raise ValueError(f"trivy.{name} must be an absolute normalized path")
+                    raise ValueError(
+                        f"trivy.{name} must be an absolute normalized path"
+                    )
         return self
 
 
