@@ -281,7 +281,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # Dispatched by BaseHTTPRequestHandler for request logging.
     # codeclone: ignore[dead-code]
-    def log_message(self, format_: str, *args: object) -> None:
+    def log_message(  # pylint: disable=arguments-differ
+        self, format_: str, *args: object
+    ) -> None:
         # Do not log caller-controlled paths, authorization, image IDs or data.
         return
 

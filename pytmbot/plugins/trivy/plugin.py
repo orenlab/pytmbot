@@ -70,13 +70,13 @@ class TrivyPlugin(PluginInterface):
         if message.chat.type != "private":
             self._reply(message.chat.id, "<p>Open Trivy scans in a private chat.</p>")
             return
+        if user_id is None:
+            return
         if not self._authorized(user_id, message.chat.type):
             self._reply(
                 message.chat.id,
                 "<p>Admin access and a verified 2FA session are required.</p>",
             )
-            return
-        if user_id is None:
             return
         config = self._config
         if config is None or not config.enabled or self._queue is None:
