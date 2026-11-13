@@ -111,9 +111,8 @@ Deployment:
    deterministic sorted subset instead of a failed discovery.
 
 4. Deploy with `docker compose -f docker-compose.trivy.yml up -d --build`.
-   The explicit two-file form
-   `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`
-   produces the same result.
+   Do not add `-f docker-compose.yml` as well: the base file is already
+   included, and passing it twice duplicates list-valued settings.
    In Telegram, use `/trivy` or the **Trivy scans** button in `/plugins`.
    Optional persistent history may be enabled with `history_file`, but requires
    a separate persistent private directory.

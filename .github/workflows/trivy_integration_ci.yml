@@ -7,11 +7,13 @@ on:
       - feat/trivy-image-scanning-103
     paths:
       - trivy-worker/**
+      - docker-compose.yml
       - docker-compose.trivy.yml
       - .github/workflows/trivy_integration_ci.yml
   pull_request:
     paths:
       - trivy-worker/**
+      - docker-compose.yml
       - docker-compose.trivy.yml
       - .github/workflows/trivy_integration_ci.yml
   workflow_dispatch:
@@ -55,17 +57,17 @@ jobs:
 
       - name: Boot isolated Trivy stack
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml \
+          docker compose -f docker-compose.trivy.yml \
             up -d --build trivy-docker-proxy trivy-db trivy-worker
 
       - name: Inspect Trivy startup before the scan
         shell: bash
         run: |
           set -euxo pipefail
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps --all
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml logs --tail=80 trivy-db trivy-docker-proxy
+          docker compose -f docker-compose.trivy.yml ps --all
+          docker compose -f docker-compose.trivy.yml logs --tail=80 trivy-db trivy-docker-proxy
           for service in trivy-db trivy-docker-proxy; do
-            state="$(docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps -a -q "${service}")"
+            state="$(docker compose -f docker-compose.trivy.yml ps -a -q "${service}")"
             docker inspect --format '{{.Name}} {{.State.Status}} {{.State.ExitCode}} {{.State.Error}}' "${state}"
           done
 
@@ -74,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           image_id="$(docker image inspect alpine:3.24 --format '{{.Id}}')"
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml \
+          docker compose -f docker-compose.trivy.yml \
             exec -T -e TARGET_IMAGE_ID="${image_id}" trivy-worker \
             python3 - <<'PY'
           import json
@@ -120,9 +122,9 @@ jobs:
       - name: Collect container diagnostics
         if: ${{ always() }}
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml ps || true
-          docker compose -f docker-compose.yml -f docker-compose.trivy.yml logs --tail=100 trivy-worker trivy-db trivy-docker-proxy || true
+          docker compose -f docker-compose.trivy.yml ps || true
+          docker compose -f docker-compose.trivy.yml logs --tail=100 trivy-worker trivy-db trivy-docker-proxy || true
 
       - name: Stop isolated scanner stack
         if: ${{ always() }}
-        run: docker compose -f docker-compose.yml -f docker-compose.trivy.yml down --volumes --remove-orphans || true
+        run: docker compose -f docker-compose.trivy.yml down --volumes --remove-orphans || true

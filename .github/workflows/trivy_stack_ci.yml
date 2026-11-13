@@ -5,11 +5,13 @@ on:
     branches: ["**"]
     paths:
       - "trivy-worker/**"
+      - "docker-compose.yml"
       - "docker-compose.trivy.yml"
       - ".github/workflows/trivy_stack_ci.yml"
   pull_request:
     paths:
       - "trivy-worker/**"
+      - "docker-compose.yml"
       - "docker-compose.trivy.yml"
       - ".github/workflows/trivy_stack_ci.yml"
 
@@ -37,7 +39,7 @@ jobs:
           chmod 0440 secrets/trivy_worker_token secrets/trivy_server_token
 
       - name: Validate optional Compose stack
-        run: docker compose -f docker-compose.yml -f docker-compose.trivy.yml config --quiet
+        run: docker compose -f docker-compose.trivy.yml config --quiet
 
       - name: Configure Buildx with independent DNS
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069

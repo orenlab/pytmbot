@@ -1,6 +1,6 @@
 # Standalone extension: docker compose -f docker-compose.trivy.yml up -d --build
 # It includes docker-compose.yml (Docker Compose 2.20+), so the base stack does not need to be listed twice.
-# Equivalent explicit form: docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build
+# Do not pass docker-compose.yml again: Compose would merge the included lists twice.
 # Configure plugins_config.trivy in pytmbot.yaml and create both secrets before enabling.
 # No ports published to the host. All image access is isolated behind a GET-only Docker API proxy.
 # Third-party images are pinned by tag + manifest-list digest; update both together.
