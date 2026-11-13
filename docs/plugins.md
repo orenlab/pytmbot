@@ -149,6 +149,7 @@ Security notes:
   `msg` shape as pyTMBot) and never logs tokens, request paths or full image
   IDs. Set `TRIVY_WORKER_LOG_LEVEL` (default `INFO`) to change verbosity.
   pyTMBot itself logs through the shared `pytmbot.logs.Logger` singleton.
+  Idle HTTP request sockets time out after 30 seconds.
 - `/healthz` in the worker is unauthenticated by design and only reports
   liveness. Keep the `trivy_control` network private; never publish port 8090.
 - Trivy results indicate **known** vulnerabilities, not proof of exploitation

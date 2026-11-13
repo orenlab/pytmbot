@@ -14,7 +14,7 @@ import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -204,6 +204,31 @@ def test_scan_result_uses_docker_canonical_id(monkeypatch: pytest.MonkeyPatch) -
     result = worker._scan_result(_IMAGE_ID)
     assert scanned == [canonical]
     assert result["image_id"] == canonical
+
+
+def test_non_ascii_authorization_is_rejected_without_crashing() -> None:
+    handler = SimpleNamespace(
+        headers={"Authorization": "Bearer \xfc"},
+        server=SimpleNamespace(api_token="t" * 32),
+    )
+    assert worker.Handler._authorized(cast(Any, handler)) is False
+
+
+def test_stop_scanner_does_not_mask_scan_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StuckProcess:
+        pid = 12345
+        stdout = None
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, timeout: int) -> None:
+            raise worker.subprocess.TimeoutExpired("trivy", timeout)
+
+    monkeypatch.setattr(worker.os, "killpg", lambda pid, sig: None)
+    worker._stop_scanner(cast(Any, StuckProcess()))
 
 
 class _WorkerServer:

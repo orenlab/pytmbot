@@ -371,3 +371,26 @@ def test_register_adds_plugin_button_handler(monkeypatch: pytest.MonkeyPatch) ->
     plugin.register()
     assert any("regexp" in item for item in registered)
     assert any(item.get("commands") == ["trivy"] for item in registered)
+
+
+def test_register_with_disabled_config_keeps_ui_responsive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = TeleBot("12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZABCDE")
+    plugin = TrivyPlugin(bot)
+    monkeypatch.setattr(
+        plugin, "_config", config().model_copy(update={"enabled": False})
+    )
+    registered: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        bot,
+        "register_message_handler",
+        lambda handler, **kwargs: registered.append(kwargs),
+    )
+    monkeypatch.setattr(
+        bot, "register_callback_query_handler", lambda *args, **kwargs: None
+    )
+    plugin.register()
+    assert plugin._queue is None
+    assert plugin._history is None
+    assert any(item.get("commands") == ["trivy"] for item in registered)

@@ -248,7 +248,11 @@ def _stop_scanner(proc: subprocess.Popen[bytes]) -> None:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Keep the original scan failure; the process is already signalled.
+            _LOGGER.warning("bot.plugins.trivy.worker.scan.stop.timeout")
     if proc.stdout is not None:
         proc.stdout.close()
 
@@ -341,6 +345,9 @@ def _scan_result(image_id: str) -> dict[str, object]:
 class Handler(BaseHTTPRequestHandler):
     """Authenticated, bounded read-only scanning API."""
 
+    # Bound idle request reads so a stalled client cannot hold a thread forever.
+    timeout = 30
+
     # Dispatched by BaseHTTPRequestHandler for request logging.
     # codeclone: ignore[dead-code]
     def log_message(  # pylint: disable=arguments-differ
@@ -358,14 +365,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             self.wfile.write(raw)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
             # The caller went away; do not emit a traceback from the server thread.
             return
 
     def _authorized(self) -> bool:
         header = self.headers.get("Authorization", "")
+        # Headers are decoded as Latin-1, so compare bytes: compare_digest()
+        # rejects non-ASCII str input with TypeError.
         allowed = hmac.compare_digest(
-            header, "Bearer " + cast(Server, self.server).api_token
+            header.encode("utf-8", "replace"),
+            ("Bearer " + cast(Server, self.server).api_token).encode(),
         )
         if not allowed:
             _LOGGER.warning("bot.plugins.trivy.worker.auth.reject")

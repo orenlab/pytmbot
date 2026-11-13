@@ -38,7 +38,7 @@ _BUTTON_LABEL: Final[str] = "Trivy scans"
 # Dynamically discovered by PluginManager; not referenced by static handlers.
 # codeclone: ignore[dead-code]
 class TrivyPlugin(PluginInterface):
-    """Only registered when explicitly enabled and configured."""
+    """Loaded on request; scanning stays disabled until the config enables it."""
 
     def __init__(self, bot: TeleBot) -> None:
         super().__init__(bot)
@@ -301,11 +301,12 @@ class TrivyPlugin(PluginInterface):
 
     def register(self) -> None:
         config = self._config
-        if config is None or not config.enabled:
-            return
-        if config.history_file is not None:
-            self._history = ScanHistory(config.history_file)
-        self._queue = ScanQueue(config, self._publish)
+        if config is not None and config.enabled:
+            if config.history_file is not None:
+                self._history = ScanHistory(config.history_file)
+            self._queue = ScanQueue(config, self._publish)
+        # Register the UI even when disabled: the plugin manager already exposes
+        # the plugin button, so the handlers must answer instead of going dead.
         self.bot.register_message_handler(self.handle_menu, commands=["trivy"])
         self.bot.register_message_handler(
             self.handle_menu, regexp=reply_button_pattern(_BUTTON_LABEL)
