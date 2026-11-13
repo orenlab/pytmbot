@@ -16,6 +16,7 @@ Opt-in vulnerability scanning for local Docker images, powered by an isolated Tr
 ### Fixed
 
 - Image discovery no longer disables scanning when the host has more images than `max_images`.
+- Local image scans now have enough temporary space for images up to the documented 1 GiB cap.
 - Plugin configuration limits now match the worker hard caps; worker request handling and scan history lifecycle are more robust.
 
 ### Changed

@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   local-image:
-    name: Scan real local Alpine image over private HTTP
+    name: Scan real local Docker image over private HTTP
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -53,7 +53,7 @@ jobs:
               nameservers = ["1.1.1.1", "8.8.8.8"]
 
       - name: Pull real local image
-        run: docker pull alpine:3.24
+        run: docker pull postgres:18-alpine
 
       - name: Boot isolated Trivy stack
         run: |
@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image_id="$(docker image inspect alpine:3.24 --format '{{.Id}}')"
+          image_id="$(docker image inspect postgres:18-alpine --format '{{.Id}}')"
           docker compose -f docker-compose.trivy.yml \
             exec -T -e TARGET_IMAGE_ID="${image_id}" trivy-worker \
             python3 - <<'PY'

@@ -141,10 +141,13 @@ Security notes:
   before installing this overlay on a production host.
 - CPU, memory, process count, temporary disk, scan duration, worker queue and
   report sizes are bounded. The worker scans at most 1 GiB per image and fails
-  closed when the Trivy report exceeds 2 MiB. The Trivy server needs outbound
-  access to maintain its database; its `/tmp` extraction space is configurable
-  with `TRIVY_DB_TMPFS_SIZE` (default `768m`). The worker and the Docker proxy
-  are not published publicly.
+  closed when the Trivy report exceeds 2 MiB. The worker exports image layers
+  into `/tmp`; its scratch and memory defaults are 2 GiB and can be tuned with
+  `TRIVY_WORKER_TMPFS_SIZE` and `TRIVY_WORKER_MEM_LIMIT` (size them together,
+  because tmpfs counts against the memory limit). The Trivy server needs
+  outbound access to maintain its database; its `/tmp` extraction space is
+  configurable with `TRIVY_DB_TMPFS_SIZE` (default `768m`). The worker and the
+  Docker proxy are not published publicly.
 - The worker writes one JSON log record per line to stderr (same `ts`/`level`/
   `msg` shape as pyTMBot) and never logs tokens, request paths or full image
   IDs. Set `TRIVY_WORKER_LOG_LEVEL` (default `INFO`) to change verbosity.

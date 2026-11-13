@@ -41,9 +41,12 @@ services:
     read_only: true
     pids_limit: 64
     cpus: 1.0
-    mem_limit: 1g
+    # The worker exports image layers into /tmp before scanning. Size this for
+    # the largest allowed image (MAX_IMAGE_MB=1024) with headroom; tmpfs pages
+    # count against the worker memory limit, so both limits are raised together.
+    mem_limit: ${TRIVY_WORKER_MEM_LIMIT:-2g}
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=128m,uid=10001,gid=10001
+      - /tmp:rw,noexec,nosuid,nodev,size=${TRIVY_WORKER_TMPFS_SIZE:-2g},uid=10001,gid=10001
     networks:
       - trivy_control
       - trivy_backend
