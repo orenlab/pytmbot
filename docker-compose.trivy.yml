@@ -22,6 +22,7 @@ services:
     environment:
       TRIVY_WORKER_TOKEN_FILE: /run/secrets/trivy_worker_token
       TRIVY_SERVER_TOKEN_FILE: /run/secrets/trivy_server_token
+      LOG_LEVEL: ${TRIVY_WORKER_LOG_LEVEL:-INFO}
     secrets:
       - trivy_worker_token
       - trivy_server_token

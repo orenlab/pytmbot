@@ -142,6 +142,10 @@ Security notes:
   access to maintain its database; its `/tmp` extraction space is configurable
   with `TRIVY_DB_TMPFS_SIZE` (default `768m`). The worker and the Docker proxy
   are not published publicly.
+- The worker writes one JSON log record per line to stderr (same `ts`/`level`/
+  `msg` shape as pyTMBot) and never logs tokens, request paths or full image
+  IDs. Set `TRIVY_WORKER_LOG_LEVEL` (default `INFO`) to change verbosity.
+  pyTMBot itself logs through the shared `pytmbot.logs.Logger` singleton.
 - `/healthz` in the worker is unauthenticated by design and only reports
   liveness. Keep the `trivy_control` network private; never publish port 8090.
 - Trivy results indicate **known** vulnerabilities, not proof of exploitation

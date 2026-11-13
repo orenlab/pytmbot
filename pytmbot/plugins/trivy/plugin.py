@@ -16,9 +16,9 @@ from telebot.types import (
 from pytmbot.globals import get_session_manager, settings
 from pytmbot.handlers.handlers_util.rich_messages import send_rich_main_message
 from pytmbot.keyboards.keyboards import reply_button_pattern
-from pytmbot.logs import Logger
 from pytmbot.models.settings_model import TrivyConfig
 from pytmbot.plugins.plugin_interface import PluginInterface
+from pytmbot.plugins.plugins_core import PluginCore
 from pytmbot.plugins.trivy.history import HistoryError, ScanHistory
 from pytmbot.plugins.trivy.runner import (
     ScanError,
@@ -28,6 +28,8 @@ from pytmbot.plugins.trivy.runner import (
     local_image_ids,
     resolve_local_id,
 )
+
+plugin = PluginCore()
 
 _CALLBACK_PREFIX: Final[str] = "trivy_scan:"
 _BUTTON_LABEL: Final[str] = "Trivy scans"
@@ -40,7 +42,7 @@ class TrivyPlugin(PluginInterface):
 
     def __init__(self, bot: TeleBot) -> None:
         super().__init__(bot)
-        self.plugin_logger = Logger()
+        self.plugin_logger = plugin.logger
         plugins = settings.plugins_config
         self._config: TrivyConfig | None = plugins.trivy if plugins else None
         self._queue: ScanQueue | None = None

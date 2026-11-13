@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
 import select
@@ -35,10 +36,46 @@ MAX_REPORT_BYTES = 2_097_152
 MAX_IMAGE_MB = 1024
 TIMEOUT = 180
 MAX_DB_AGE_HOURS = 48
+_LOGGER = logging.getLogger("pytmbot.trivy.worker")
 
 
 class ScanFailure(Exception):
     """A scan failed and cannot be represented as a clean vulnerability result."""
+
+
+class _JsonFormatter(logging.Formatter):
+    """One JSON object per line, matching pyTMBot's structured log fields."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, object] = {
+            "ts": datetime.fromtimestamp(record.created, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+            "level": record.levelname,
+            "module": record.module,
+            "msg": record.getMessage(),
+        }
+        context = getattr(record, "context", None)
+        if isinstance(context, dict):
+            payload.update(context)
+        return json.dumps(
+            payload, ensure_ascii=False, default=str, separators=(",", ":")
+        )
+
+
+def _log_level(name: str) -> int:
+    level = getattr(logging, name.upper(), logging.INFO)
+    return level if isinstance(level, int) else logging.INFO
+
+
+def configure_logging() -> None:
+    """Route worker logs to stderr as JSON lines, controlled by LOG_LEVEL."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JsonFormatter())
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(_log_level(os.environ.get("LOG_LEVEL", "INFO")))
 
 
 def secret_file(path: str) -> str:
@@ -269,10 +306,35 @@ def _parse_scan_request(handler: BaseHTTPRequestHandler) -> str:
 
 
 def _scan_result(image_id: str) -> dict[str, object]:
+    started = time.monotonic()
     canonical_id = verified_image(image_id)
-    info = database_info()
-    report = bounded_scan(canonical_id)
-    verified_image(canonical_id)
+    context: dict[str, object] = {"image": canonical_id.removeprefix("sha256:")[:12]}
+    _LOGGER.info("bot.plugins.trivy.worker.scan.start", extra={"context": context})
+    try:
+        info = database_info()
+        report = bounded_scan(canonical_id)
+        verified_image(canonical_id)
+    except ScanFailure as exc:
+        _LOGGER.warning(
+            "bot.plugins.trivy.worker.scan.fail",
+            extra={
+                "context": {
+                    **context,
+                    "error": str(exc),
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                }
+            },
+        )
+        raise
+    _LOGGER.info(
+        "bot.plugins.trivy.worker.scan.complete",
+        extra={
+            "context": {
+                **context,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            }
+        },
+    )
     return {"image_id": canonical_id, **info, "report": report}
 
 
@@ -302,9 +364,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _authorized(self) -> bool:
         header = self.headers.get("Authorization", "")
-        return hmac.compare_digest(
+        allowed = hmac.compare_digest(
             header, "Bearer " + cast(Server, self.server).api_token
         )
+        if not allowed:
+            _LOGGER.warning("bot.plugins.trivy.worker.auth.reject")
+        return allowed
 
     # Dispatched dynamically by BaseHTTPRequestHandler.
     # codeclone: ignore[dead-code]
@@ -320,7 +385,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             self._send(200, database_info())
-        except ScanFailure:
+        except ScanFailure as exc:
+            _LOGGER.warning(
+                "bot.plugins.trivy.worker.info.fail",
+                extra={"context": {"error": str(exc)}},
+            )
             self._send(503, {"error": "scanner database unavailable"})
 
     # Dispatched dynamically by BaseHTTPRequestHandler.
@@ -354,8 +423,13 @@ class Server(ThreadingHTTPServer):
 
 
 def main() -> None:
+    configure_logging()
     server = Server(("0.0.0.0", 8090), Handler)  # nosec B104 - private network only
     server.api_token = token()
+    _LOGGER.info(
+        "bot.plugins.trivy.worker.start",
+        extra={"context": {"port": 8090, "pid": os.getpid()}},
+    )
     server.serve_forever(poll_interval=0.5)
 
 

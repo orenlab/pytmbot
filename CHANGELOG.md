@@ -18,6 +18,8 @@ Maintenance release candidate with opt-in local Docker image vulnerability inspe
 - Trivy discovery no longer disables scanning on hosts with more local images than `max_images`; the menu and "scan all" use a deterministic sorted subset.
 - The Trivy configuration now enforces the worker's real maxima for database age, timeout and report size.
 - Scan history connections are closed deterministically, and scan/publish failures are logged with a bounded error category.
+- The Trivy worker now emits structured JSON logs to stderr (configurable via `TRIVY_WORKER_LOG_LEVEL`) without tokens, request paths or full image IDs.
+- Plugin code uses the shared `pytmbot.plugins.plugins_core.PluginCore` logger, matching the monitor and outline plugins.
 
 ### Changed
 

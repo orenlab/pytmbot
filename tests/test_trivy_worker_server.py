@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import logging
 import os
 import threading
 import time
@@ -278,3 +279,46 @@ def test_http_auth_health_and_scan_contract(monkeypatch: pytest.MonkeyPatch) -> 
         )
         assert status == 200
         assert result == {"image_id": _IMAGE_ID}
+
+
+def test_log_level_parsing() -> None:
+    assert worker._log_level("debug") == logging.DEBUG
+    assert worker._log_level("WARNING") == logging.WARNING
+    assert worker._log_level("not-a-level") == logging.INFO
+
+
+def test_json_formatter_emits_structured_line() -> None:
+    record = logging.LogRecord(
+        name="pytmbot.trivy.worker",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="bot.plugins.trivy.worker.scan.complete",
+        args=(),
+        exc_info=None,
+    )
+    record.__dict__["context"] = {"image": "abcdef123456", "duration_ms": 12}
+    payload = json.loads(worker._JsonFormatter().format(record))
+    assert payload["level"] == "INFO"
+    assert payload["module"] == record.module
+    assert payload["msg"] == "bot.plugins.trivy.worker.scan.complete"
+    assert payload["image"] == "abcdef123456"
+    assert payload["duration_ms"] == 12
+    assert str(payload["ts"]).endswith("Z")
+
+
+def test_scan_failure_is_logged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(worker, "verified_image", lambda image_id: _IMAGE_ID)
+
+    def fail() -> dict[str, str | int]:
+        raise worker.ScanFailure("stale database")
+
+    monkeypatch.setattr(worker, "database_info", fail)
+    with caplog.at_level(logging.WARNING, logger="pytmbot.trivy.worker"):
+        with pytest.raises(worker.ScanFailure):
+            worker._scan_result(_IMAGE_ID)
+    assert any(
+        record.msg == "bot.plugins.trivy.worker.scan.fail" for record in caplog.records
+    )
