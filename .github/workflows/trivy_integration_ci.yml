@@ -57,6 +57,7 @@ jobs:
 
       - name: Boot isolated Trivy stack
         run: |
+          echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
           docker compose -f docker-compose.trivy.yml \
             up -d --build trivy-docker-proxy trivy-db trivy-worker
 

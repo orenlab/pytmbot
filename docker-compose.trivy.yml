@@ -2,6 +2,7 @@
 # It includes docker-compose.yml (Docker Compose 2.20+), so the base stack does not need to be listed twice.
 # Do not pass docker-compose.yml again: Compose would merge the included lists twice.
 # Configure plugins_config.trivy in pytmbot.yaml and create both secrets before enabling.
+# Set DOCKER_GID to the group id of /var/run/docker.sock: the proxy runs unprivileged.
 # No ports published to the host. All image access is isolated behind a GET-only Docker API proxy.
 # Third-party images are pinned by tag + manifest-list digest; update both together.
 include:
@@ -84,22 +85,21 @@ services:
       - trivy_db_egress
 
   trivy-docker-proxy:
-    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    # Same proxy as documented for the bot in docs/docker.md. It runs as
+    # 65534:65534, so it needs the Docker socket's group via DOCKER_GID.
+    image: wollomatic/socket-proxy:1.13.2@sha256:ff95d6ff6c27853005ef85eb8f4ab5923dc3d2f1e055f98fb6aeeaceec3fe848
     restart: unless-stopped
-    environment:
-      CONTAINERS: "0"
-      IMAGES: "1"
-      INFO: "0"
-      VERSION: "1"
-      POST: "0"
-      AUTH: "0"
-      BUILD: "0"
-      EXEC: "0"
-      NETWORKS: "0"
-      SYSTEM: "0"
-      VOLUMES: "0"
-      SERVICES: "0"
-      SWARM: "0"
+    group_add:
+      - "${DOCKER_GID:-1001}"
+    command:
+      - -listenip=0.0.0.0
+      # Only the worker may connect; the network is internal anyway.
+      - -allowfrom=trivy-worker
+      - -loglevel=${TRIVY_PROXY_LOG_LEVEL:-INFO}
+      # Read-only Docker API surface used by Trivy. Every other method and
+      # path is refused; POST stays disabled.
+      - '-allowGET=/(v1\.[0-9]+/)?(_ping|version|images/json|images/get|images/.+/(json|get|history))'
+      - '-allowHEAD=/(v1\.[0-9]+/)?_ping'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     security_opt:
@@ -107,9 +107,6 @@ services:
     cap_drop:
       - ALL
     read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m
-      - /run:rw,noexec,nosuid,nodev,size=8m
     pids_limit: 32
     mem_limit: 64m
     networks:

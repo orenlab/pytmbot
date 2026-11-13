@@ -110,9 +110,17 @@ Deployment:
    bounds the Telegram menu and a "scan all" job; hosts with more images get a
    deterministic sorted subset instead of a failed discovery.
 
-4. Deploy with `docker compose -f docker-compose.trivy.yml up -d --build`.
-   Do not add `-f docker-compose.yml` as well: the base file is already
-   included, and passing it twice duplicates list-valued settings.
+4. Set `DOCKER_GID` to the group ID of `/var/run/docker.sock`, then deploy:
+
+   ```bash
+   echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
+   docker compose -f docker-compose.trivy.yml up -d --build
+   ```
+
+   The socket proxy runs as `65534:65534` and needs that group; the same
+   variable is used by the base `pytmbot` service. Do not add
+   `-f docker-compose.yml` as well: the base file is already included, and
+   passing it twice duplicates list-valued settings.
    In Telegram, use `/trivy` or the **Trivy scans** button in `/plugins`.
    Optional persistent history may be enabled with `history_file`, but requires
    a separate persistent private directory.
@@ -122,8 +130,11 @@ Deployment:
    `command: ["--log-level", "INFO", "--plugins", "monitor,trivy"]`.
 
 The Trivy Compose file adds a digest-pinned official Trivy 0.76.2 server,
-a small HTTP worker derived from the official Trivy image, and a Docker
-socket proxy restricted to image reads and with POST disabled. Trivy server
+a small HTTP worker derived from the official Trivy image, and the same
+digest-pinned `wollomatic/socket-proxy` used in the bot deployment guide. The
+proxy is restricted to an explicit GET allowlist: `_ping`, `version`,
+`images/json`, `images/get` and `images/{id}/(json|get|history)`; every other
+method and path, including container endpoints, is refused. Trivy server
 automatically downloads and updates the vulnerability database to its own
 persistent Docker volume. No manual Trivy binary or CVE DB setup is necessary.
 
@@ -133,9 +144,10 @@ Security notes:
   authenticated private HTTP endpoint. It does not accept arbitrary commands,
   remote image references, paths, or scanner flags.
 - The bot keeps its existing Docker permissions. The scanner proxy
-  *separately* mounts the host Docker socket and permits only the configured
-  GET image API surface. A `:ro` socket mount alone is **not** a
-  read-only Docker API security boundary.
+  *separately* mounts the host Docker socket, runs unprivileged, and permits
+  only the GET image endpoints Trivy needs. POST/DELETE and all container
+  endpoints are refused. A `:ro` socket mount alone is **not** a read-only
+  Docker API security boundary.
 - Images can contain secrets, hostile files and sensitive application data.
   Restrict access to the worker's network and host; review residual risks
   before installing this overlay on a production host.
@@ -151,6 +163,8 @@ Security notes:
 - The worker writes one JSON log record per line to stderr (same `ts`/`level`/
   `msg` shape as pyTMBot) and never logs tokens, request paths or full image
   IDs. Set `TRIVY_WORKER_LOG_LEVEL` (default `INFO`) to change verbosity.
+  The socket proxy logs blocked requests at `WARN`; set
+  `TRIVY_PROXY_LOG_LEVEL=DEBUG` to log every proxied request.
   pyTMBot itself logs through the shared `pytmbot.logs.Logger` singleton.
   Idle HTTP request sockets time out after 30 seconds.
 - `/healthz` in the worker is unauthenticated by design and only reports
