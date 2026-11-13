@@ -72,8 +72,9 @@ inside pyTMBot. The Telegram interface is private-chat, admin- and 2FA-only.
 
 Deployment:
 
-1. Use `docker-compose.trivy.yml` as an optional overlay on
-   `docker-compose.yml`; do **not** publish the Trivy HTTP ports to the host.
+1. `docker-compose.trivy.yml` is a self-contained extension: it includes
+   `docker-compose.yml`, so a single `-f` starts the whole stack
+   (Docker Compose 2.20+). Do **not** publish the Trivy HTTP ports to the host.
 2. Create the two authentication secrets before first start (once):
 
    ```sh
@@ -109,16 +110,19 @@ Deployment:
    bounds the Telegram menu and a "scan all" job; hosts with more images get a
    deterministic sorted subset instead of a failed discovery.
 
-4. Deploy with `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`.
+4. Deploy with `docker compose -f docker-compose.trivy.yml up -d --build`.
+   The explicit two-file form
+   `docker compose -f docker-compose.yml -f docker-compose.trivy.yml up -d --build`
+   produces the same result.
    In Telegram, use `/trivy` or the **Trivy scans** button in `/plugins`.
    Optional persistent history may be enabled with `history_file`, but requires
    a separate persistent private directory.
 
-   The overlay replaces the `pytmbot` service `command`. If your base Compose
+   The extension replaces the `pytmbot` service `command`. If your base Compose
    file already loads other plugins, list them all explicitly, for example
    `command: ["--log-level", "INFO", "--plugins", "monitor,trivy"]`.
 
-The Compose overlay provides a digest-pinned official Trivy 0.76.2 server,
+The Trivy Compose file adds a digest-pinned official Trivy 0.76.2 server,
 a small HTTP worker derived from the official Trivy image, and a Docker
 socket proxy restricted to image reads and with POST disabled. Trivy server
 automatically downloads and updates the vulnerability database to its own

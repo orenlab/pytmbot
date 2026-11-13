@@ -127,7 +127,7 @@ Notes:
 
 #### `plugins_config.trivy`
 
-Optional containerized Docker image vulnerability scanner. Disabled by default. Enable the separate `docker-compose.trivy.yml` overlay and set its private HTTP `endpoint` plus Docker secret `token_file`. The official Trivy server maintains its own database. An optional private history file can retain scan summaries. See [Plugins](plugins.md#trivy-experimental-opt-in)
+Optional containerized Docker image vulnerability scanner. Disabled by default. Enable the separate `docker-compose.trivy.yml` extension and set its private HTTP `endpoint` plus Docker secret `token_file`. The official Trivy server maintains its own database. An optional private history file can retain scan summaries. See [Plugins](plugins.md#trivy-experimental-opt-in)
 for security requirements and configuration.
 
 #### `plugins_config.outline`

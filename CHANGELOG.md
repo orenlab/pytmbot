@@ -2,32 +2,30 @@
 
 ## [0.5.5] — unreleased
 
-Maintenance release candidate with opt-in local Docker image vulnerability inspection.
+Opt-in vulnerability scanning for local Docker images, powered by an isolated Trivy stack.
 
 ### Added
 
-- Optional Trivy image scanner: admin-only scan selection in Telegram, a `/plugins` button, local-image checks, concise vulnerability summaries, bounded background jobs, and optional private scan history with CVE changes.
+- Trivy plugin: admin- and 2FA-only scans from `/trivy` or the **Trivy scans** button in `/plugins`, with concise CVE summaries and optional private scan history.
 
 ### Security
 
-- Trivy runs in a separate container behind a private authenticated HTTP API; vulnerability database freshness is validated before scanning. The official Trivy server and Docker socket proxy images are pinned by manifest-list digest.
-- Scans use Docker-only local image IDs and cannot pull images, update containers, or apply fixes. The Trivy server automatically maintains its own CVE database.
+- Trivy runs in dedicated containers behind an authenticated private HTTP API; scans never pull images, modify containers or apply fixes.
+- Third-party images are pinned by digest; the worker validates database freshness and bounds scan time, memory and report size.
 
 ### Fixed
 
-- Trivy discovery no longer disables scanning on hosts with more local images than `max_images`; the menu and "scan all" use a deterministic sorted subset.
-- The Trivy configuration now enforces the worker's real maxima for database age, timeout and report size.
-- Scan history connections are closed deterministically, and scan/publish failures are logged with a bounded error category.
-- The Trivy worker now emits structured JSON logs to stderr (configurable via `TRIVY_WORKER_LOG_LEVEL`) without tokens, request paths or full image IDs.
-- Plugin code uses the shared `pytmbot.plugins.plugins_core.PluginCore` logger, matching the monitor and outline plugins.
+- Image discovery no longer disables scanning when the host has more images than `max_images`.
+- Plugin configuration limits now match the worker hard caps; scan history lifecycle and error logging are more robust.
 
 ### Changed
 
-- Updated Python dependency lockfile and CodeClone to 2.0.3; refreshed compatible dependencies and development tools, including `python-dateutil` 4, FastAPI 0.162 and Starlette 1.10.
+- `docker-compose.trivy.yml` is now a self-contained extension that includes `docker-compose.yml` and starts with a single `-f` (Docker Compose 2.20+).
+- Dependency refresh, including FastAPI 0.162, Starlette 1.10 and `python-dateutil` 4; CodeClone 2.0.3.
 
 ### Release status
 
-- Not published. Production rollout requires verified scanner isolation, end-to-end Docker image scan and a successful development image build.
+- Not published. Production rollout requires a verified end-to-end image scan and a successful development image build.
 
 ## [0.5.4] — 20261026
 
