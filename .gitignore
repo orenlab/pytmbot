@@ -149,3 +149,6 @@ dmypy.json
 # Cython Debug Symbols
 # Exclude Cython debug symbols
 cython_debug/
+
+# Private Trivy container-to-container authentication tokens
+/secrets/

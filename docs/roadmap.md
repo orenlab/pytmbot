@@ -16,7 +16,7 @@ Active development line:
 
 Latest stable release line:
 
-- `0.5.x` (`0.5.4`)
+- `0.5.x` (`0.5.4` published; `0.5.5` candidate)
 
 Primary objective:
 

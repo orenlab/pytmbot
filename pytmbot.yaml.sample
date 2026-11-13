@@ -1,14 +1,14 @@
 ################################################################
 # pyTMBot Configuration File
-# Version: 0.5.4
-# Compatible with app version: 0.5.4
+# Version: 0.5.5
+# Compatible with app version: 0.5.5
 ################################################################
 
 # Configuration Schema Version
 # Keep this equal to the running pytmbot version.
 # This repository sample targets the current repository runtime version.
 # If omitted or mismatched, pytmbot auto-fills config_version with the current app version during migration.
-config_version: '0.5.4'
+config_version: '0.5.5'
 
 ################################################################
 # General Bot Settings
@@ -204,6 +204,22 @@ plugins_config:
     # Monitor Docker containers and images
     monitor_docker: true  # true = monitor Docker, false = don't monitor
 
+  # Optional Trivy scanner container integration (see docker-compose.trivy.yml).
+  # No local binary or CVE database is needed in pyTMBot.
+  # The worker enforces the same maxima: max_db_age_hours<=48,
+  # timeout_seconds<=180, max_report_bytes<=2097152.
+  # trivy:
+  #   enabled: false
+  #   endpoint: 'http://trivy-worker:8090'
+  #   token_file: '/run/secrets/trivy_worker_token'
+  #   # Optional private scan history; mount a persistent volume for this path.
+  #   # history_file: '/opt/app/state/trivy-history.sqlite'
+  #   max_db_age_hours: 48
+  #   timeout_seconds: 180
+  #   max_images: 20
+  #   max_queued_jobs: 2
+  #   max_report_bytes: 2097152
+
   # Outline VPN Plugin Configuration (OPTIONAL)
   # Remove this section entirely if not using Outline VPN
   outline:
@@ -248,7 +264,7 @@ influxdb:
 # VERSIONING NOTES:
 ################################################################
 # - config_version should normally match the running pytmbot version.
-# - This repository sample is prepared for pytmbot 0.5.4.
+# - This repository sample is prepared for pytmbot 0.5.5.
 # - If config_version is missing or mismatched, startup migrates it to the current app version.
 # - Review https://orenlab.github.io/pytmbot/settings/ after upgrades to pick up new fields or changed behavior.
 #
@@ -256,7 +272,7 @@ influxdb:
 # QUICK START GUIDE:
 ################################################################
 # 1. REQUIRED steps to get started:
-#    - Set config_version to match your pytmbot version (this sample uses '0.5.4')
+#    - Set config_version to match your pytmbot version (this sample uses '0.5.5')
 #    - Replace YOUR_PROD_BOT_TOKEN with token from @BotFather
 #    - Get your IDs with /getmyid (or use @userinfobot as fallback)
 #    - Replace 123456789 with your actual Telegram user ID

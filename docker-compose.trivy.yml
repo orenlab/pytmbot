@@ -1,0 +1,133 @@
+# Standalone extension: docker compose -f docker-compose.trivy.yml up -d --build
+# It includes docker-compose.yml (Docker Compose 2.20+), so the base stack does not need to be listed twice.
+# Do not pass docker-compose.yml again: Compose would merge the included lists twice.
+# Configure plugins_config.trivy in pytmbot.yaml and create both secrets before enabling.
+# Set DOCKER_GID to the group id of /var/run/docker.sock: the proxy runs unprivileged.
+# No ports published to the host. All image access is isolated behind a GET-only Docker API proxy.
+# Third-party images are pinned by tag + manifest-list digest; update both together.
+include:
+  - docker-compose.yml
+
+services:
+  pytmbot:
+    command: ["--log-level", "INFO", "--plugins", "trivy"]
+    secrets:
+      - trivy_worker_token
+    networks:
+      - pytmbot_network
+      - trivy_control
+
+  trivy-worker:
+    build:
+      context: ./trivy-worker
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    group_add:
+      - "1001"  # read the 0440 Docker secrets shared with pyTMBot (GID 1001)
+    environment:
+      TRIVY_WORKER_TOKEN_FILE: /run/secrets/trivy_worker_token
+      TRIVY_SERVER_TOKEN_FILE: /run/secrets/trivy_server_token
+      LOG_LEVEL: ${TRIVY_WORKER_LOG_LEVEL:-INFO}
+    secrets:
+      - trivy_worker_token
+      - trivy_server_token
+    depends_on:
+      - trivy-db
+      - trivy-docker-proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 64
+    cpus: 1.0
+    # The worker exports image layers into /tmp before scanning. Size this for
+    # the largest allowed image (MAX_IMAGE_MB=1024) with headroom; tmpfs pages
+    # count against the worker memory limit, so both limits are raised together.
+    mem_limit: ${TRIVY_WORKER_MEM_LIMIT:-2g}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=${TRIVY_WORKER_TMPFS_SIZE:-2g},uid=10001,gid=10001
+    networks:
+      - trivy_control
+      - trivy_backend
+      - trivy_docker
+
+  trivy-db:
+    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+    restart: unless-stopped
+    group_add:
+      - "1001"  # read the group-private server authentication secret
+    # Pass the entire script as ONE -c argument; a Compose command string
+    # can otherwise be tokenized into extra shell positional arguments.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - 'exec trivy server --listen 0.0.0.0:4954 --token "$(cat /run/secrets/trivy_server_token)" --cache-dir /var/cache/trivy'
+    secrets:
+      - trivy_server_token
+    volumes:
+      - trivy_db_cache:/var/cache/trivy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      # The downloaded OCI vulnerability database is unpacked under /tmp.
+      # 128 MiB is insufficient for the full vulnerability database.
+      - /tmp:rw,noexec,nosuid,nodev,size=${TRIVY_DB_TMPFS_SIZE:-768m}
+    pids_limit: 80
+    cpus: 1.0
+    mem_limit: 2g
+    networks:
+      - trivy_backend
+      - trivy_db_egress
+
+  trivy-docker-proxy:
+    # Same proxy as documented for the bot in docs/docker.md. It runs as
+    # 65534:65534, so it needs the Docker socket's group via DOCKER_GID.
+    image: wollomatic/socket-proxy:1.13.2@sha256:ff95d6ff6c27853005ef85eb8f4ab5923dc3d2f1e055f98fb6aeeaceec3fe848
+    restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-1001}"
+    command:
+      - -listenip=0.0.0.0
+      # Only the worker may connect; the network is internal anyway.
+      - -allowfrom=trivy-worker
+      - -loglevel=${TRIVY_PROXY_LOG_LEVEL:-INFO}
+      # Read-only Docker API surface used by Trivy. Every other method and
+      # path is refused; POST stays disabled.
+      - '-allowGET=/(v1\.[0-9]+/)?(_ping|version|images/json|images/get|images/.+/(json|get|history))'
+      - '-allowHEAD=/(v1\.[0-9]+/)?_ping'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 32
+    mem_limit: 64m
+    networks:
+      - trivy_docker
+
+secrets:
+  trivy_worker_token:
+    file: ./secrets/trivy_worker_token
+  trivy_server_token:
+    file: ./secrets/trivy_server_token
+
+volumes:
+  trivy_db_cache:
+
+networks:
+  trivy_control:
+    internal: true
+  trivy_backend:
+    internal: true
+  trivy_docker:
+    internal: true
+  trivy_db_egress:
+    # Server needs internet egress for vulnerability DB updates, without published ports.
+    driver: bridge

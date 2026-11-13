@@ -11,7 +11,9 @@ import warnings
 from functools import cache
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
+from pathlib import Path
 from typing import ClassVar, Final
+from urllib.parse import urlsplit
 
 from packaging import version
 from pydantic import (
@@ -45,7 +47,7 @@ def get_app_version() -> str:
         return package_version("pyTMBot")
     except PackageNotFoundError:
         # Source/development fallback when package metadata is unavailable.
-        return "0.5.4"
+        return "0.5.5"
 
 
 class ConfigVersionError(Exception):
@@ -235,6 +237,49 @@ class OutlineVPN(BaseModel):
     cert: list[SecretStr] = Field(min_length=1)
 
 
+class TrivyConfig(BaseModel):
+    """Private HTTP scanner service, not a local executable."""
+
+    enabled: bool = False
+    endpoint: str = "http://trivy-worker:8090"
+    token_file: str = "/run/secrets/trivy_worker_token"
+    history_file: str | None = None
+    # The worker enforces the same hard maxima (see trivy-worker/server.py).
+    max_db_age_hours: int = Field(default=48, ge=1, le=48)
+    timeout_seconds: int = Field(default=180, ge=10, le=180)
+    max_images: int = Field(default=20, ge=1, le=50)
+    max_queued_jobs: int = Field(default=2, ge=1, le=4)
+    max_report_bytes: int = Field(default=2_097_152, ge=8192, le=2_097_152)
+
+    @model_validator(mode="after")
+    def validate_runner_paths(self) -> "TrivyConfig":
+        parts = urlsplit(self.endpoint)
+        if (
+            parts.scheme != "http"
+            or parts.hostname != "trivy-worker"
+            or parts.port != 8090
+            or parts.username is not None
+            or parts.password is not None
+            or parts.path not in ("", "/")
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError(
+                "Trivy endpoint must be the private trivy-worker:8090 service"
+            )
+        for name, value in (
+            ("token_file", self.token_file),
+            ("history_file", self.history_file),
+        ):
+            if value is not None:
+                target = Path(value)
+                if not target.is_absolute() or ".." in target.parts:
+                    raise ValueError(
+                        f"trivy.{name} must be an absolute normalized path"
+                    )
+        return self
+
+
 class PluginsConfig(BaseModel):
     """
     Model to configure additional plugins for the bot, such as monitoring and Outline VPN.
@@ -242,6 +287,7 @@ class PluginsConfig(BaseModel):
 
     monitor: MonitorConfig | None = None
     outline: OutlineVPN | None = None
+    trivy: TrivyConfig | None = None
 
 
 def _parse_ip_networks(
@@ -439,6 +485,11 @@ def get_compatibility_matrix() -> dict[str, dict[str, str]]:
             "min_app": "0.5.4",
             "max_app": "0.5.4",
             "description": "Patch release with alert delivery and secret masking fixes",
+        },
+        "0.5.5": {
+            "min_app": "0.5.5",
+            "max_app": "0.5.5",
+            "description": "Optional vulnerability scanning and dependency refresh",
         },
     }
 

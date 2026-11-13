@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.5] — unreleased
+
+Opt-in vulnerability scanning for local Docker images, powered by an isolated Trivy stack.
+
+### Added
+
+- Trivy plugin: admin- and 2FA-only scans from `/trivy` or the **Trivy scans** button in `/plugins`, with concise CVE summaries and optional private scan history.
+
+### Security
+
+- Trivy runs in dedicated containers behind an authenticated private HTTP API and a GET-only Docker socket proxy; scans never pull images, modify containers or apply fixes.
+- Third-party images are pinned by digest; the worker validates database freshness and bounds scan time, memory and report size.
+- The socket proxy is the same digest-pinned `wollomatic/socket-proxy` used in the bot deployment guide and allows only the image metadata and export endpoints Trivy needs; every other method and path is refused.
+
+### Fixed
+
+- Image discovery no longer disables scanning when the host has more images than `max_images`.
+- Local image scans now have enough temporary space for images up to the documented 1 GiB cap.
+- Plugin configuration limits now match the worker hard caps; worker request handling and scan history lifecycle are more robust.
+
+### Changed
+
+- `docker-compose.trivy.yml` is now a self-contained extension that includes `docker-compose.yml` and starts with a single `-f` (Docker Compose 2.20+).
+- The Trivy socket proxy now runs unprivileged, so deployment reads `DOCKER_GID` just like the base bot service.
+- Dependency refresh, including FastAPI 0.162, Starlette 1.10 and `python-dateutil` 4; CodeClone 2.0.3.
+
+### Release status
+
+- Not published. Production rollout requires a verified end-to-end image scan and a successful development image build.
+
 ## [0.5.4] — 20261026
 
 Patch release with alert delivery, secret masking and Docker check fixes.

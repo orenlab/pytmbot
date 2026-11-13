@@ -32,10 +32,16 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
 
+      # Azure's default runner DNS (168.63.129.16) may time out for Ubuntu
+      # archives. Use independent resolvers only for this ephemeral dev builder.
+      # No privileged host network entitlement is needed.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
         with:
           driver-opts: |
             image=moby/buildkit:v0.34.0
+          buildkitd-config-inline: |
+            [dns]
+              nameservers = ["1.1.1.1", "8.8.8.8"]
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:

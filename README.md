@@ -131,11 +131,13 @@ see the [Docker runtime guide](https://orenlab.github.io/pytmbot/docker/).
 
 ## Plugins
 
-Two plugins are included out of the box:
+Two established plugins and an experimental opt-in scanner are included:
 
 **Monitor Plugin** — push notifications for CPU, memory, disk, temperature, and container/image state changes.
 
 **Outline VPN Plugin** — monitor your [Outline VPN](https://getoutline.org/) server from Telegram.
+
+**Trivy Plugin (opt-in, experimental)** — inspect vulnerabilities in local Docker images. Requires a separately provisioned scanner and security-reviewed isolation. Disabled by default.
 
 See the [plugins guide](https://orenlab.github.io/pytmbot/plugins/) for the plugin API and configuration reference.
 

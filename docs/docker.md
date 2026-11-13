@@ -20,7 +20,7 @@ Published image:
 
 Stable public tags:
 
-- `0.5.4` for an exact release image
+- `0.5.5` for an exact release image
 - `0.5` for the current supported stable line
 - `stable` as the stable-channel alias
 - `latest` as an alias of `stable`
@@ -159,6 +159,9 @@ Notes:
 - the `docker-proxy` network is internal; the bot also joins `default` to reach Telegram
 - the bot logs a `tcp_without_tls` warning for this setup; traffic stays on the internal network
 - for a monitoring-only bot, drop the `-allowPOST` line: start/stop/restart are then refused
+- the Trivy scan overlay (`docker-compose.trivy.yml`) uses the same proxy pinned to
+  `1.13.2@sha256:ff95d6ff6c27853005ef85eb8f4ab5923dc3d2f1e055f98fb6aeeaceec3fe848`, with a GET-only
+  image allowlist and no container access
 
 ## Environment Variables
 
