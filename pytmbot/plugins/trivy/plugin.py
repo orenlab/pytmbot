@@ -291,7 +291,10 @@ class TrivyPlugin(PluginInterface):
 
     def handle_menu(self, message: Message) -> None:
         user = message.from_user
-        user_id = int(user.id) if user else None
+        if user is None:
+            self._send_denial(message.chat.id, "access")
+            return
+        user_id = int(user.id)
         denial = _gate(user_id, message.chat.type, message.chat.id)
         if denial is not None:
             self._send_denial(message.chat.id, denial)
@@ -350,7 +353,6 @@ class TrivyPlugin(PluginInterface):
                 ),
             )
             return
-        assert user_id is not None
         send_rich_main_message(
             self.bot,
             message.chat.id,
