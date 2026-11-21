@@ -117,7 +117,12 @@ Deployment:
    docker compose -f docker-compose.trivy.yml up -d --build
    ```
 
-   The socket proxy runs as `65534:65534` and needs that group; the same
+   The extension builds `pytmbot` from this checkout and names the local image
+   `orenlab/pytmbot:0.5.5-local`, so it cannot silently run a published
+   `stable` image that predates the plugin. To use an already built or
+   published image instead, set `PYTMBOT_IMAGE` and omit `--build`, for example
+   `PYTMBOT_IMAGE=orenlab/pytmbot:0.5.5 docker compose -f docker-compose.trivy.yml up -d`.
+   The socket proxy runs as `65534:65534` and needs `DOCKER_GID`; the same
    variable is used by the base `pytmbot` service. Do not add
    `-f docker-compose.yml` as well: the base file is already included, and
    passing it twice duplicates list-valued settings.

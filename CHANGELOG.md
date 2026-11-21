@@ -23,6 +23,8 @@ Opt-in vulnerability scanning for local Docker images, powered by an isolated Tr
 ### Changed
 
 - `docker-compose.trivy.yml` is now a self-contained extension that includes `docker-compose.yml` and starts with a single `-f` (Docker Compose 2.20+).
+- The extension builds `pytmbot` from the checkout, so it does not run a published `stable` image that predates the plugin; `PYTMBOT_IMAGE` can point at an already published tag.
+- Trivy screens in Telegram follow the same rich-message layout as the rest of the bot: emoji titles, compact tables, and a footer.
 - The Trivy socket proxy now runs unprivileged, so deployment reads `DOCKER_GID` just like the base bot service.
 - Dependency refresh, including FastAPI 0.162, Starlette 1.10 and `python-dateutil` 4; CodeClone 2.0.3.
 

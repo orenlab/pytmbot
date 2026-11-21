@@ -1,0 +1,19 @@
+{# plugin_trivy_history.jinja2 — rich HTML #}
+<p><b>🛡️ Recent Trivy scans</b></p>
+
+{% if scans %}
+<table bordered striped compact>
+<tr><th align="left">Image</th><th align="left">Scanned</th><th align="right">Critical</th><th align="right">High</th></tr>
+{% for scan in scans %}
+<tr><td><code>{{ scan.image_id|e }}</code></td><td>{{ scan.scanned_at | format_timestamp | e }}</td><td align="right">{{ scan.critical }}</td><td align="right">{{ scan.high }}</td></tr>
+{% endfor %}
+</table>
+
+<p><i>Completed scans only. Counts are known CVEs, not proof of exploitability.</i></p>
+{% else %}
+<p><i>No completed scans are stored.</i></p>
+{% endif %}
+{% if listed_at %}
+
+<footer>Listed {{ listed_at|e }}</footer>
+{% endif %}

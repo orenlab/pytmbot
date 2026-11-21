@@ -10,6 +10,14 @@ include:
 
 services:
   pytmbot:
+    # Build the bot from this checkout: a published `stable` image may predate
+    # the Trivy plugin. `image` only names the local build; set PYTMBOT_IMAGE to
+    # an already published tag (for example a 0.5.5 release) to skip building.
+    image: ${PYTMBOT_IMAGE:-orenlab/pytmbot:0.5.5-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     command: ["--log-level", "INFO", "--plugins", "trivy"]
     secrets:
       - trivy_worker_token

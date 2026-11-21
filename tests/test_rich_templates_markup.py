@@ -710,6 +710,41 @@ RICH_RENDER_CASES: dict[str, dict[str, object]] = {
         },
         "set_naturalsize": format_bytes,
     },
+    "plugin_trivy_history.jinja2": {
+        "scans": [
+            {
+                "image_id": "abcdef123456",
+                "scanned_at": "2026-11-21T14:00:00+00:00",
+                "critical": 1,
+                "high": 4,
+            }
+        ],
+        "listed_at": "2026-11-21 14:00:00 UTC",
+    },
+    "plugin_trivy_menu.jinja2": {"image_count": 2, "limit": 20},
+    "plugin_trivy_report.jinja2": {
+        "image_id": "abcdef123456",
+        "rows": [
+            {"label": "Critical", "count": 1},
+            {"label": "High", "count": 2},
+            {"label": "With a known fix", "count": 1},
+        ],
+        "findings": [
+            {
+                "severity": "Critical",
+                "identifier": "CVE-2026-0001",
+                "package": "openssl",
+            }
+        ],
+        "delta_state": "changed",
+        "new_count": 1,
+        "new_ids": ["CVE-2026-0001"],
+        "new_more": 0,
+        "scanned_at": "2026-11-21T14:00:00+00:00",
+        "db_schema": 2,
+        "db_updated_at": "2026-11-21T12:00:00+00:00",
+        "scanner_version": "0.76.2",
+    },
 }
 
 # Empty/degraded states that take a different template branch.
@@ -759,6 +794,23 @@ RICH_EMPTY_STATE_CASES: dict[str, dict[str, object]] = {
         "first_name": "Den",
         "context": {"bytesTransferredByUserId": {}, "userNames": {}},
         "set_naturalsize": format_bytes,
+    },
+    "plugin_trivy_history.jinja2": {
+        "scans": [],
+        "listed_at": "2026-11-21 14:00:00 UTC",
+    },
+    "plugin_trivy_report.jinja2": {
+        "image_id": "abcdef123456",
+        "rows": [{"label": "Critical", "count": 0}],
+        "findings": [],
+        "delta_state": "baseline",
+        "new_count": 0,
+        "new_ids": [],
+        "new_more": 0,
+        "scanned_at": "2026-11-21T14:00:00+00:00",
+        "db_schema": 2,
+        "db_updated_at": "2026-11-21T12:00:00+00:00",
+        "scanner_version": "0.76.2",
     },
 }
 

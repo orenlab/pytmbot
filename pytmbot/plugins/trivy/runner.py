@@ -340,8 +340,14 @@ class ScanQueue:
                         )
                         summary = None
                     try:
+                        # One image per publish, so a failure names that image
+                        # even when the queued job scans several.
                         self.publish(
-                            job,
+                            ScanJob(
+                                chat_id=job.chat_id,
+                                user_id=job.user_id,
+                                image_ids=(image_id,),
+                            ),
                             "complete" if summary is not None else "failed",
                             summary,
                         )
