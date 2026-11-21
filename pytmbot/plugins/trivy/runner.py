@@ -73,6 +73,8 @@ class ScanSummary:
     findings: tuple[tuple[str, str, str], ...]
     trivy_schema: int | None
     vulnerability_ids: tuple[str, ...] = ()
+    # How many critical/high rows did not fit in `findings`. Counts stay complete.
+    findings_omitted: int = 0
 
 
 def _vulnerability_rows(results: list[object]) -> list[dict[str, object]]:
@@ -111,7 +113,7 @@ def _selected_finding(
 
 def _aggregate_vulnerabilities(
     rows: list[dict[str, object]],
-) -> tuple[dict[str, int], int, tuple[tuple[str, str, str], ...], tuple[str, ...]]:
+) -> tuple[dict[str, int], int, tuple[tuple[str, str, str], ...], tuple[str, ...], int]:
     counts: Counter[str] = Counter()
     fixable = 0
     selected: list[tuple[str, str, str]] = []
@@ -127,15 +129,19 @@ def _aggregate_vulnerabilities(
         fixed = item.get("FixedVersion")
         if isinstance(fixed, str) and fixed.strip():
             fixable += 1
-        if len(selected) < 8:
-            finding = _selected_finding(item, severity)
-            if finding is not None:
-                selected.append(finding)
+        finding = _selected_finding(item, severity)
+        if finding is not None:
+            selected.append(finding)
+    # Scanner JSON order is not severity order. Keep the eight most severe
+    # rows so a later critical finding is not dropped behind earlier highs.
+    selected.sort(key=lambda item: (_SEVERITIES.index(item[0]), item[1], item[2]))
+    shown = selected[:8]
     return (
         {severity: counts[severity] for severity in _SEVERITIES},
         fixable,
-        tuple(selected),
+        tuple(shown),
         tuple(sorted(vulnerability_ids)),
+        len(selected) - len(shown),
     )
 
 
@@ -157,7 +163,7 @@ def parse_report(
     results = obj["Results"]
     if not results:
         raise ScanError("Scanner returned no scan targets; result is inconclusive.")
-    counts, fixable, selected, identifiers = _aggregate_vulnerabilities(
+    counts, fixable, selected, identifiers, omitted = _aggregate_vulnerabilities(
         _vulnerability_rows(results)
     )
     version = obj.get("SchemaVersion")
@@ -174,6 +180,7 @@ def parse_report(
         if isinstance(version, int) and not isinstance(version, bool)
         else None,
         vulnerability_ids=identifiers,
+        findings_omitted=omitted,
     )
 
 

@@ -19,6 +19,10 @@
 <tr><td>{{ finding.severity|e }}</td><td><code>{{ finding.identifier|e }}</code></td><td><code>{{ finding.package|e }}</code></td></tr>
 {% endfor %}
 </table>
+{% if findings_more %}
+
+<p><i>{{ findings_more }} more critical or high findings are counted above and not listed.</i></p>
+{% endif %}
 {% else %}
 
 <p><i>No critical or high findings were reported.</i></p>

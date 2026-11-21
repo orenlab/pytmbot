@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -155,6 +156,38 @@ def test_report_counts_and_provenance() -> None:
     assert result.fixable == 1
     assert result.scanner_version == "0.76.2"
     assert result.vulnerability_ids == ("CVE-2026-1234", "CVE-2026-9999")
+    assert result.findings_omitted == 0
+
+
+def test_listed_findings_keep_later_critical_rows() -> None:
+    """Scanner order must not hide a critical finding behind the first highs."""
+    vulnerabilities: list[dict[str, str]] = [
+        {
+            "VulnerabilityID": f"CVE-2026-{index:04d}",
+            "PkgName": "busybox",
+            "Severity": "HIGH",
+        }
+        for index in range(8)
+    ]
+    vulnerabilities.append(
+        {
+            "VulnerabilityID": "CVE-2026-9999",
+            "PkgName": "openssl",
+            "Severity": "CRITICAL",
+        }
+    )
+    result = parse_report(
+        json.dumps({"Results": [{"Vulnerabilities": vulnerabilities}]}).encode(),
+        image_id="b" * 64,
+    )
+    assert result.counts["CRITICAL"] == 1
+    assert result.counts["HIGH"] == 8
+    assert result.findings[0] == ("CRITICAL", "CVE-2026-9999", "openssl")
+    assert result.findings_omitted == 1
+    html = render_report(result, None)
+    assert "CVE-2026-9999" in html
+    assert "1 more critical or high findings are counted above and not listed." in html
+    assert find_rich_html_issues(html) == []
 
 
 @pytest.mark.parametrize(
@@ -327,6 +360,29 @@ def test_persistent_history_tracks_delta(tmp_path: Path) -> None:
         ScanHistory(str(tmp_path / "history.sqlite")).recent()[0].counts["CRITICAL"]
         == 1
     )
+
+
+def test_history_reads_snapshots_from_before_omitted_count(tmp_path: Path) -> None:
+    """Older private databases have no findings_omitted field and must still open."""
+    path = tmp_path / "history.sqlite"
+    store = ScanHistory(str(path))
+    summary = parse_report(
+        b'{"Results":[{"Vulnerabilities":[{"VulnerabilityID":"CVE-2026-1","PkgName":"openssl","Severity":"CRITICAL"}]}]}',
+        image_id="c" * 64,
+    )
+    store.append(summary)
+    with sqlite3.connect(path) as db:
+        raw = db.execute("SELECT id, payload FROM scans").fetchone()
+        assert raw is not None
+        payload = json.loads(raw[1])
+        del payload["findings_omitted"]
+        db.execute(
+            "UPDATE scans SET payload = ? WHERE id = ?",
+            (json.dumps(payload), raw[0]),
+        )
+    loaded = ScanHistory(str(path)).recent()
+    assert loaded[0].findings_omitted == 0
+    assert loaded[0].findings[0][1] == "CVE-2026-1"
 
 
 def test_history_rejects_symlinks(tmp_path: Path) -> None:

@@ -220,6 +220,7 @@ def render_report(summary: ScanSummary, delta: HistoryDelta | None) -> str:
         db_schema=summary.db_schema,
         db_updated_at=summary.db_updated_at,
         scanner_version=summary.scanner_version,
+        findings_more=summary.findings_omitted,
     )
 
 
