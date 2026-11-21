@@ -244,7 +244,8 @@ class TrivyConfig(BaseModel):
     endpoint: str = "http://trivy-worker:8090"
     token_file: str = "/run/secrets/trivy_worker_token"
     history_file: str | None = None
-    # The worker enforces the same hard maxima (see trivy-worker/server.py).
+    # Inclusive bot limits. The worker uses the same ceilings (48h, 180s, 2 MiB)
+    # and does not honor a lower timeout configured here.
     max_db_age_hours: int = Field(default=48, ge=1, le=48)
     timeout_seconds: int = Field(default=180, ge=10, le=180)
     max_images: int = Field(default=20, ge=1, le=50)

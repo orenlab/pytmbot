@@ -8,6 +8,7 @@ Source of truth:
 - `pytmbot/settings.py`
 - `pytmbot/plugins/monitor/config.py`
 - `pytmbot/plugins/outline/config.py`
+- `pytmbot/plugins/trivy/config.py`
 - `pytmbot/keyboards/keyboards.py`
 - `pytmbot/middleware/callback_ack.py`
 - `pytmbot/handlers/bot_handlers/fallback.py`
@@ -34,11 +35,11 @@ Always available in the core bot:
 
 Provided only when the plugin is loaded:
 
-| Command    | Plugin    | Access        | Behavior                |
-|------------|-----------|---------------|-------------------------|
-| `/outline` | `outline` | allowed users | Opens Outline VPN views |
+| Command          | Plugin    | Access                     | Behavior                                                            |
+|------------------|-----------|----------------------------|---------------------------------------------------------------------|
+| `/outline`       | `outline` | allowed users              | Opens Outline VPN views                                             |
 | `/trivy`         | `trivy`   | admin + private chat + 2FA | Select local images for containerized vulnerability scans (opt-in) |
-| `/trivy_history` | `trivy`   | admin + private chat + 2FA | Review recent scans (when history enabled) |
+| `/trivy_history` | `trivy`   | admin + private chat + 2FA | Show the latest stored scans (when history is enabled)             |
 
 ## Reply Keyboard Sections
 

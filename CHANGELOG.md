@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.5] — unreleased
+## [0.5.5] — 20261123
 
 Opt-in vulnerability scanning for local Docker images, powered by an isolated Trivy stack.
 
@@ -19,7 +19,7 @@ Opt-in vulnerability scanning for local Docker images, powered by an isolated Tr
 - Trivy lists the most severe critical and high findings, not the first rows in scanner order, and says when more are counted but not shown.
 - Image discovery no longer disables scanning when the host has more images than `max_images`.
 - Local image scans now have enough temporary space for images up to the documented 1 GiB cap.
-- Plugin configuration limits now match the worker hard caps; worker request handling and scan history lifecycle are more robust.
+- Plugin configuration upper bounds now match the worker ceilings for database age, scan time, and report size; worker request handling and scan history lifecycle are more robust.
 
 ### Changed
 
@@ -31,7 +31,7 @@ Opt-in vulnerability scanning for local Docker images, powered by an isolated Tr
 
 ### Release status
 
-- Not published. Production rollout requires a verified end-to-end image scan and a successful development image build.
+- Ready to publish from `master` on 2026-11-23. CI has passed the Trivy end-to-end scan, container smoke, and development image build. The overlay stays opt-in.
 
 ## [0.5.4] — 20261026
 

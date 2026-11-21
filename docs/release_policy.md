@@ -18,7 +18,7 @@ Source of truth:
 
 ## Public Stable Tags
 
-Expected tags for the planned 0.5.5 release on `orenlab/pytmbot`:
+Tags the `0.5.5` release workflow publishes on `orenlab/pytmbot`:
 
 - `0.5.5`: exact release image, immutable
 - `0.5`: current supported stable line, mutable

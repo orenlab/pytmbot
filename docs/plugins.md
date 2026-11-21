@@ -105,10 +105,13 @@ Deployment:
      max_report_bytes: 2097152
    ```
 
-   The worker enforces the same hard maxima: `max_db_age_hours` 1–48,
-   `timeout_seconds` 10–180 and `max_report_bytes` up to 2 MiB. `max_images`
-   bounds the Telegram menu and a "scan all" job; hosts with more images get a
-   deterministic sorted subset instead of a failed discovery.
+   The bot accepts `max_db_age_hours` from 1 to 48, `timeout_seconds` from 10
+   to 180, `max_report_bytes` from 8192 to 2 MiB, `max_images` from 1 to 50,
+   and `max_queued_jobs` from 1 to 4. The worker always applies the ceilings:
+   database age 48 hours, scan time 180 seconds, report size 2 MiB, and image
+   size 1 GiB. A shorter bot timeout does not shorten the worker's own limit.
+   `max_images` bounds the Telegram menu and a "scan all" job; hosts with more
+   images get a deterministic sorted subset instead of a failed discovery.
 
 4. Set `DOCKER_GID` to the group ID of `/var/run/docker.sock`, then deploy:
 
@@ -122,13 +125,20 @@ Deployment:
    `stable` image that predates the plugin. To use an already built or
    published image instead, set `PYTMBOT_IMAGE` and omit `--build`, for example
    `PYTMBOT_IMAGE=orenlab/pytmbot:0.5.5 docker compose -f docker-compose.trivy.yml up -d`.
+   That tag is published with the `0.5.5` release; until the registry has it,
+   omit `PYTMBOT_IMAGE` and build from this checkout.
    The socket proxy runs as `65534:65534` and needs `DOCKER_GID`; the same
    variable is used by the base `pytmbot` service. Do not add
    `-f docker-compose.yml` as well: the base file is already included, and
    passing it twice duplicates list-valued settings.
    In Telegram, use `/trivy` or the **Trivy scans** button in `/plugins`.
-   Optional persistent history may be enabled with `history_file`, but requires
-   a separate persistent private directory.
+   A finished scan shows full severity counts and up to eight critical or high
+   findings, most severe first, and says how many more were counted but not
+   listed. A failed scan is not a clean image.
+   Optional persistent history may be enabled with `history_file`. The parent
+   directory must already exist, must not be group- or world-writable, and the
+   path must not be a symlink. The bot creates the database as a private file
+   (mode `0600`), keeps 128 scans, and `/trivy_history` shows the latest 8.
 
    The extension replaces the `pytmbot` service `command`. If your base Compose
    file already loads other plugins, list them all explicitly, for example
@@ -177,8 +187,10 @@ Security notes:
 - Trivy results indicate **known** vulnerabilities, not proof of exploitation
   or complete security. Failures and stale CVE databases must not be reported
   as clean scans.
-- `0.5.5` is still a release candidate. Run the real end-to-end
-  `Trivy Docker Integration` workflow before the production gate can pass.
+- The Trivy end-to-end scan and the development image build run in CI. The
+  overlay stays opt-in: do not publish worker ports, and confirm one scan on
+  the target host before enabling it for operators. `0.5.5` is the exact image
+  tag for this release.
 
 ## Plugin Package Contract
 
