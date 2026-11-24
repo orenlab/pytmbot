@@ -1,0 +1,7 @@
+{# plugin_trivy_menu.jinja2 — rich HTML #}
+<p><b>🛡️ Trivy scans</b></p>
+
+<p>Read-only vulnerability assessment of local Docker images. Nothing is pulled, changed, or patched.</p>
+<p>{{ image_count }} verified local image{{ "s" if image_count != 1 else "" }} (limit {{ limit }}).</p>
+
+<p><i>Pick an image below, or scan every image currently within the limit.</i></p>

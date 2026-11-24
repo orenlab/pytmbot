@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import logging
 import sys
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -883,9 +884,11 @@ class _PollingTeleBot:
         self.polling_calls = 0
         self.active_during_polling: list[bool] = []
         self.stop_calls = 0
+        self.polling_kwargs: dict[str, _PayloadValue] = {}
 
-    def polling(self, **_kwargs: _PayloadValue) -> None:
+    def polling(self, **kwargs: _PayloadValue) -> None:
         self.polling_calls += 1
+        self.polling_kwargs = kwargs
         self.active_during_polling.append(self.loop._polling_active)
         outcome = self.outcomes.pop(0) if self.outcomes else None
         if not self.outcomes and outcome is None:
@@ -924,6 +927,8 @@ def test_polling_loop_recovers_after_start_error_without_stopping_telebot(
     bot._start_polling_loop(cast(TeleBot, fake))
 
     assert fake.polling_calls == 2
+    assert fake.polling_kwargs.get("logger_level") == logging.NOTSET
+    assert fake.polling_kwargs.get("non_stop") is True
     assert fake.active_during_polling == [True, True]
     assert bot._polling_active is False
     assert sleeps == [instance_module.DEFAULT_BASE_SLEEP_TIME]  # one backoff

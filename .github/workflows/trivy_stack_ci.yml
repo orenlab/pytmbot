@@ -1,0 +1,77 @@
+name: Trivy Container Smoke
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "trivy-worker/**"
+      - "docker-compose.yml"
+      - "docker-compose.trivy.yml"
+      - ".github/workflows/trivy_stack_ci.yml"
+  pull_request:
+    paths:
+      - "trivy-worker/**"
+      - "docker-compose.yml"
+      - "docker-compose.trivy.yml"
+      - ".github/workflows/trivy_stack_ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  trivy_worker:
+    name: Container packaging and private HTTP contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up disposable test secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p secrets
+          umask 077
+          openssl rand -hex 32 > secrets/trivy_worker_token
+          openssl rand -hex 32 > secrets/trivy_server_token
+          sudo chgrp 1001 secrets/trivy_worker_token secrets/trivy_server_token
+          chmod 0440 secrets/trivy_worker_token secrets/trivy_server_token
+
+      - name: Validate optional Compose stack
+        run: docker compose -f docker-compose.trivy.yml config --quiet
+
+      - name: Configure Buildx with independent DNS
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+        with:
+          buildkitd-config-inline: |
+            [dns]
+              nameservers = ["1.1.1.1", "8.8.8.8"]
+
+      - name: Build worker from official Trivy image
+        run: |
+          docker buildx build --load --platform linux/amd64 \
+            -t pytmbot-trivy-worker:ci -f trivy-worker/Dockerfile trivy-worker
+
+      - name: Verify HTTP health and auth boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name pytmbot-trivy-worker-ci \
+            --user 10001:10001 --group-add 1001 \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001 \
+            -v "${PWD}/secrets/trivy_worker_token:/run/secrets/trivy_worker_token:ro" \
+            -p 127.0.0.1:18090:8090 \
+            pytmbot-trivy-worker:ci
+          trap 'docker logs pytmbot-trivy-worker-ci || true; docker rm -f pytmbot-trivy-worker-ci || true' EXIT
+          for i in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:18090/healthz; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18090/v1/info)" = 401
+          token="$(cat secrets/trivy_worker_token)"
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
+            --data '{"image_id":"not-an-image"}' \
+            http://127.0.0.1:18090/v1/scan)" = 400

@@ -1,0 +1,53 @@
+{# plugin_trivy_report.jinja2 — rich HTML #}
+<p><b>🛡️ Trivy scan</b></p>
+
+<p><b>Image</b> <code>{{ image_id|e }}</code></p>
+
+<p><b>Results</b></p>
+<table bordered striped compact>
+<tr><th align="left">Result</th><th align="right">Count</th></tr>
+{% for row in rows %}
+<tr><td>{{ row.label|e }}</td><td align="right">{{ row.count }}</td></tr>
+{% endfor %}
+</table>
+{% if findings %}
+
+<p><b>High-severity findings</b></p>
+<table bordered striped compact>
+<tr><th align="left">Severity</th><th align="left">ID</th><th align="left">Package</th></tr>
+{% for finding in findings %}
+<tr><td>{{ finding.severity|e }}</td><td><code>{{ finding.identifier|e }}</code></td><td><code>{{ finding.package|e }}</code></td></tr>
+{% endfor %}
+</table>
+{% if findings_more %}
+
+<p><i>{{ findings_more }} more critical or high findings are counted above and not listed.</i></p>
+{% endif %}
+{% else %}
+
+<p><i>No critical or high findings were reported.</i></p>
+{% endif %}
+{% if delta_state == "baseline" %}
+
+<p><b>Baseline</b></p>
+<p>First completed scan stored for this image.</p>
+{% elif delta_state == "changed" %}
+
+<p><b>Changes</b></p>
+{% if new_count == 0 %}
+<p><i>No new vulnerability IDs since the previous scan.</i></p>
+{% else %}
+<p>{{ new_count }} new vulnerability ID{{ "s" if new_count != 1 else "" }}.</p>
+<ul>
+{% for item in new_ids %}
+<li><code>{{ item|e }}</code></li>
+{% endfor %}
+</ul>
+{% if new_more %}
+<p><i>{{ new_more }} more not shown.</i></p>
+{% endif %}
+{% endif %}
+{% endif %}
+
+<p><i>Known CVEs are not proof of exploitability. The scan used the operator-managed local Trivy database.</i></p>
+<footer>Scanned {{ scanned_at | format_timestamp | e }} · DB schema {{ db_schema }} · DB {{ db_updated_at | format_timestamp | e }} · Trivy {{ scanner_version|e }}</footer>

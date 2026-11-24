@@ -137,7 +137,8 @@ COPY --link --from=builder /opt/venv /opt/venv
 RUN ln -sf /opt/venv/bin/python3 /usr/local/bin/python3 && \
     ln -sf /opt/venv/bin/python3 /usr/local/bin/python
 
-COPY --link --chown=pytmbot:pytmbot --chmod=755 ./entrypoint.sh ./entrypoint.sh
+# --link builds an independent layer, so the owner has to be a numeric uid:gid.
+COPY --link --chown=1001:1001 --chmod=755 ./entrypoint.sh ./entrypoint.sh
 # Copy app sources from builder to keep dependency layers cache-friendly.
 COPY --link --from=builder --chown=1001:1001 /build/pytmbot ./pytmbot
 

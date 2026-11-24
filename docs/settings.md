@@ -26,7 +26,7 @@ Source of truth:
 ### `config_version`
 
 - Optional, but recommended.
-- Current repository sample value: `0.5.4`.
+- Current repository sample value: `0.5.5`.
 - Supported values are defined in `get_compatibility_matrix()` inside `pytmbot/models/settings_model.py`.
 - Legacy configs without this field are auto-migrated.
 
@@ -125,6 +125,11 @@ Notes:
 - `reset_notification_count` is a duration in seconds in the shipped sample.
 - The monitor plugin also requires the `influxdb` section.
 
+#### `plugins_config.trivy`
+
+Optional containerized Docker image vulnerability scanner. Disabled by default. Enable the separate `docker-compose.trivy.yml` extension and set its private HTTP `endpoint` plus Docker secret `token_file`. The official Trivy server maintains its own database. An optional private history file can retain scan summaries. See [Plugins](plugins.md#trivy-experimental-opt-in)
+for security requirements and configuration.
+
 #### `plugins_config.outline`
 
 Used by the built-in `outline` plugin.
@@ -145,7 +150,7 @@ Optional. Required when the `monitor` plugin is enabled.
 ## Minimal Required Configuration
 
 ```yaml
-config_version: "0.5.4"
+config_version: "0.5.5"
 
 bot_token:
   prod_token:

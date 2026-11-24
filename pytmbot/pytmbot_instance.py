@@ -7,6 +7,7 @@ also providing basic information about the status of local servers.
 
 from __future__ import annotations
 
+import logging
 import ssl
 import threading
 import time
@@ -932,9 +933,17 @@ class PyTMBot(BaseComponent):
         ``TeleBot.infinity_polling()`` is not used: once ``stop_polling()`` has
         been called it returns at once without polling, so an error while
         (re)starting left the bot deaf while it re-requested updates in a tight
-        loop. ``TeleBot.polling()`` re-arms itself on every call, retries
-        Telegram errors internally (``non_stop``) and returns only after
-        ``stop_polling()``. Pending updates are skipped once by TeleBot itself
+        loop. ``TeleBot.polling()`` re-arms itself on every call and returns
+        only after ``stop_polling()``.
+
+        Transient ``ApiException`` values (502, 503, 429, ...) stay inside
+        ``polling(non_stop=True)``. The library defers the next ``getUpdates``
+        only when the exception handler returns ``False``: 0.25s, doubled up
+        to 60s. ``TelebotExceptionHandler`` does that. ``logger_level`` is
+        ``NOTSET`` so TeleBot does not write a second copy of the same
+        failure. Transport errors are not ``ApiException``; left unhandled,
+        ``polling()`` raises them here and this loop defers the restart.
+        Pending updates are skipped once by TeleBot itself
         (``skip_pending=True`` at creation).
         """
         current_sleep_time = DEFAULT_BASE_SLEEP_TIME
@@ -955,6 +964,7 @@ class PyTMBot(BaseComponent):
                         non_stop=True,
                         timeout=var_config.bot_polling_timeout,
                         long_polling_timeout=var_config.bot_long_polling_timeout,
+                        logger_level=logging.NOTSET,
                     )
                 except Exception as error:
                     # Raised while starting (e.g. no network yet); polling is not
