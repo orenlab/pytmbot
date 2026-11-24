@@ -7,7 +7,10 @@ also providing basic information about the status of local servers.
 
 from dataclasses import dataclass, field
 
+import requests
+import urllib3.exceptions
 from telebot import ExceptionHandler
+from telebot.apihelper import ApiHTTPException, ApiTelegramException
 
 from pytmbot.logs import Logger
 from pytmbot.utils import parse_cli_args, sanitize_exception
@@ -134,12 +137,50 @@ class QRCodeError(BaseBotException):
     """Raised on QR code generation failures."""
 
 
+# Telegram answers these immediately. pyTelegramBotAPI defers the next getUpdates
+# only when ExceptionHandler.handle() returns False (0.25s, then double, cap 60s).
+_TRANSIENT_TELEGRAM_STATUS_CODES = frozenset({409, 429, 500, 502, 503, 504})
+
+# Transport failures are not ApiException. Unhandled, polling() raises them and
+# the launcher defers the next poll. Handled, the library retries in 0.25s flat.
+_TRANSPORT_ERRORS = (
+    requests.exceptions.Timeout,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.ChunkedEncodingError,
+    urllib3.exceptions.HTTPError,
+    TimeoutError,
+    ConnectionError,
+)
+
+
+def _library_defers_retry(exception: Exception) -> bool:
+    """Whether pyTelegramBotAPI, not this handler, should postpone the next call."""
+    if isinstance(exception, ApiTelegramException):
+        return exception.error_code in _TRANSIENT_TELEGRAM_STATUS_CODES
+    if isinstance(exception, ApiHTTPException):
+        status_code = getattr(getattr(exception, "result", None), "status_code", None)
+        return (
+            not isinstance(status_code, int)
+            or status_code in _TRANSIENT_TELEGRAM_STATUS_CODES
+        )
+    return isinstance(exception, _TRANSPORT_ERRORS)
+
+
 class TelebotExceptionHandler(ExceptionHandler):
     """Custom exception handler for Telebot with structured logging and token sanitization."""
 
     # codeclone: ignore[dead-code]
     def handle(self, exception: Exception) -> bool:
-        """Handle and log Telebot exceptions with appropriate detail level and token sanitization."""
+        """Log the failure. Return False when the library must defer the retry.
+
+        ``TeleBot.__threaded_polling`` treats ``True`` as "already handled" and
+        then sleeps a fixed ``error_interval`` of 0.25s. That interval grows
+        (0.25s, 0.5s, ... 60s) only on the unhandled ``ApiException`` path.
+        Returning ``True`` for 502 and read timeouts is what produced a few
+        requests per second for the whole outage. Transport errors are not
+        ``ApiException``: returning ``False`` lets ``polling()`` raise, and
+        the launcher applies its own backoff.
+        """
         log_level = parse_cli_args().log_level
         log_context: dict[str, object] = {
             "exception_type": type(exception).__name__,
@@ -167,7 +208,7 @@ class TelebotExceptionHandler(ExceptionHandler):
         else:
             logger.error("bot.exceptions.telebot.fail", **log_context)
 
-        return True
+        return not _library_defers_retry(exception)
 
 
 class InfluxDBException(BaseBotException):
